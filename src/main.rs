@@ -1,0 +1,63 @@
+#![recursion_limit = "256"]
+
+#[cfg(feature = "ssr")]
+#[tokio::main]
+async fn main() {
+    use axum::Router;
+    use leptos::prelude::*;
+    use leptos_axum::{AxumRouteListing, LeptosRoutes, generate_route_list};
+    use pi_workflow::app::{App, shell};
+    use pi_workflow::app_state::AppState;
+    use pi_workflow::core::config::AppConfig;
+    use pi_workflow::core::db::pool::{DbPool, build_pool, run_migrations};
+    use pi_workflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
+    use tracing_subscriber::EnvFilter;
+
+    dotenvy::dotenv().ok();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::from_default_env()
+                .add_directive("pi_workflow=info".parse().expect("directiva válida")),
+        )
+        .init();
+
+    let config: AppConfig = AppConfig::from_env().expect("configuración inválida");
+    let pool: DbPool = build_pool(&config.database_url).expect("pool de Postgres");
+    run_migrations(&pool).await.expect("migraciones");
+
+    let state: AppState = AppState::new(pool, &config);
+    let interrupted: usize = state
+        .tasks
+        .reconcile_tasks
+        .execute()
+        .await
+        .expect("reconciliación de tareas");
+    if interrupted > 0 {
+        tracing::info!("{interrupted} tareas marcadas como interrumpidas tras el reinicio");
+    }
+
+    let conf: ConfFile = get_configuration(None).expect("configuración de Leptos");
+    let leptos_options: LeptosOptions = conf.leptos_options;
+    let addr: std::net::SocketAddr = leptos_options.site_addr;
+    let routes: Vec<AxumRouteListing> = generate_route_list(App);
+
+    let context_state: AppState = state.clone();
+    let app: Router = Router::new()
+        .merge(task_events_router(state.tasks.clone()))
+        .leptos_routes_with_context(&leptos_options, routes, move || context_state.provide(), {
+            let options: LeptosOptions = leptos_options.clone();
+            move || shell(options.clone())
+        })
+        .fallback(leptos_axum::file_and_error_handler(shell))
+        .with_state(leptos_options);
+
+    tracing::info!("escuchando en http://{addr}");
+    let listener: tokio::net::TcpListener =
+        tokio::net::TcpListener::bind(&addr).await.expect("bind");
+    axum::serve(listener, app.into_make_service())
+        .await
+        .expect("servidor");
+}
+
+#[cfg(not(feature = "ssr"))]
+pub fn main() {}

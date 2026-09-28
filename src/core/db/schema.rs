@@ -1,0 +1,41 @@
+// @generated automatically by Diesel CLI.
+
+diesel::table! {
+    task_events (seq) {
+        seq -> Integer,
+        task_id -> Text,
+        payload -> Text,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    tasks (id) {
+        id -> Text,
+        workspace_id -> Text,
+        title -> Text,
+        prompt -> Text,
+        branch -> Text,
+        base_branch -> Text,
+        worktree_path -> Text,
+        status -> Text,
+        error -> Nullable<Text>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    workspaces (id) {
+        id -> Text,
+        name -> Text,
+        path -> Text,
+        base_branch -> Text,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::joinable!(task_events -> tasks (task_id));
+diesel::joinable!(tasks -> workspaces (workspace_id));
+
+diesel::allow_tables_to_appear_in_same_query!(task_events, tasks, workspaces,);

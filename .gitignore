@@ -1,0 +1,9 @@
+# Local Pi runtime state
+.atl/
+
+# Rust / Leptos
+/target
+.env
+end2end/node_modules
+end2end/playwright-report
+end2end/test-results

@@ -1,0 +1,33 @@
+use std::sync::Arc;
+
+use crate::core::db::pool::DbPool;
+use crate::modules::workspaces::application::usecases::delete_workspace::DeleteWorkspace;
+use crate::modules::workspaces::application::usecases::get_workspace::GetWorkspace;
+use crate::modules::workspaces::application::usecases::list_workspaces::ListWorkspaces;
+use crate::modules::workspaces::application::usecases::register_workspace::RegisterWorkspace;
+use crate::modules::workspaces::domain::ports::outbound::git_repository_port::GitRepositoryPort;
+use crate::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
+use crate::modules::workspaces::infrastructure::adapters::outbound::git::git_cli_repository_adapter::GitCliRepositoryAdapter;
+use crate::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
+
+#[derive(Clone)]
+pub struct WorkspacesContext {
+    pub register_workspace: Arc<RegisterWorkspace>,
+    pub list_workspaces: Arc<ListWorkspaces>,
+    pub get_workspace: Arc<GetWorkspace>,
+    pub delete_workspace: Arc<DeleteWorkspace>,
+}
+
+impl WorkspacesContext {
+    pub fn new(pool: DbPool) -> Self {
+        let repository: Arc<dyn WorkspaceRepositoryPort> =
+            Arc::new(WorkspaceRepositoryAdapter::new(pool));
+        let git: Arc<dyn GitRepositoryPort> = Arc::new(GitCliRepositoryAdapter::new());
+        Self {
+            register_workspace: Arc::new(RegisterWorkspace::new(repository.clone(), git)),
+            list_workspaces: Arc::new(ListWorkspaces::new(repository.clone())),
+            get_workspace: Arc::new(GetWorkspace::new(repository.clone())),
+            delete_workspace: Arc::new(DeleteWorkspace::new(repository)),
+        }
+    }
+}

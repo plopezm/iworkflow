@@ -1,0 +1,183 @@
+use leptos::prelude::*;
+use leptos::server_fn::codec::Json;
+
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
+    CreateTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, WorkspaceOptionDto,
+};
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
+
+#[cfg(feature = "ssr")]
+mod support {
+    use leptos::prelude::*;
+
+    use crate::modules::tasks::domain::errors::task_error::TaskError;
+    use crate::modules::tasks::domain::models::task::TaskId;
+    use crate::modules::tasks::infrastructure::di::tasks_context::TasksContext;
+
+    pub fn context() -> Result<TasksContext, ServerFnError> {
+        use_context::<TasksContext>()
+            .ok_or_else(|| ServerFnError::new("TasksContext no disponible"))
+    }
+
+    pub fn to_server_error(error: TaskError) -> ServerFnError {
+        ServerFnError::new(error.to_string())
+    }
+
+    pub fn task_id(id: &str) -> Result<TaskId, ServerFnError> {
+        TaskId::parse(id).map_err(to_server_error)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn domain_error_message_is_preserved() {
+            assert_eq!(
+                to_server_error(TaskError::AgentNotRunning),
+                ServerFnError::ServerError(
+                    "el agente de la tarea no está en ejecución".to_string()
+                )
+            );
+        }
+
+        #[test]
+        fn invalid_id_is_rejected() {
+            assert!(task_id("nope").is_err());
+        }
+    }
+}
+
+#[server]
+pub async fn list_tasks(workspace_id: Option<String>) -> Result<Vec<TaskDto>, ServerFnError> {
+    use crate::modules::tasks::domain::models::task::Task;
+
+    let tasks: Vec<Task> = support::context()?
+        .list_tasks
+        .execute(workspace_id)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(tasks.into_iter().map(TaskDto::from).collect())
+}
+
+#[server]
+pub async fn get_task(id: String) -> Result<TaskDto, ServerFnError> {
+    use crate::modules::tasks::domain::models::task::Task;
+
+    let task: Task = support::context()?
+        .get_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(TaskDto::from(task))
+}
+
+#[server(input = Json)]
+pub async fn create_task(input: CreateTaskDto) -> Result<TaskDto, ServerFnError> {
+    use crate::modules::tasks::domain::models::task::Task;
+
+    let task: Task = support::context()?
+        .create_task
+        .execute(input.into())
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(TaskDto::from(task))
+}
+
+#[server(input = Json)]
+pub async fn send_task_message(
+    id: String,
+    message: String,
+    mode: MessageModeDto,
+) -> Result<(), ServerFnError> {
+    support::context()?
+        .send_message
+        .execute(support::task_id(&id)?, message, mode.into())
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server(input = Json)]
+pub async fn answer_task_dialog(
+    id: String,
+    dialog_id: String,
+    answer: DialogAnswerDto,
+) -> Result<(), ServerFnError> {
+    support::context()?
+        .answer_dialog
+        .execute(support::task_id(&id)?, dialog_id, answer.into())
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn abort_task(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .abort_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn finish_task(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .finish_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn resume_task(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .resume_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn merge_task(id: String) -> Result<MergeOutcomeDto, ServerFnError> {
+    support::context()?
+        .merge_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map(MergeOutcomeDto::from)
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn discard_task(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .discard_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn get_task_diff(id: String) -> Result<TaskDiffDto, ServerFnError> {
+    support::context()?
+        .get_task_diff
+        .execute(support::task_id(&id)?)
+        .await
+        .map(TaskDiffDto::from)
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn list_workspace_options() -> Result<Vec<WorkspaceOptionDto>, ServerFnError> {
+    use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
+
+    let workspaces: Vec<WorkspaceRef> = support::context()?
+        .list_workspace_options
+        .execute()
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(workspaces
+        .into_iter()
+        .map(WorkspaceOptionDto::from)
+        .collect())
+}

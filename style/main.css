@@ -1,0 +1,62 @@
+:root { --bg:#0f1115; --panel:#171a21; --border:#2a2f3a; --fg:#e6e6e6; --muted:#8b93a3; --accent:#7aa2f7; --ok:#9ece6a; --warn:#e0af68; --error:#f7768e; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, sans-serif; }
+a { color: var(--accent); }
+.topbar { display:flex; gap:1.5rem; align-items:center; padding:.75rem 1.5rem; border-bottom:1px solid var(--border); background:var(--panel); }
+.topbar .brand { font-weight:700; }
+.topbar a { text-decoration:none; }
+.topbar a[aria-current] { font-weight:700; text-decoration:underline; }
+.content { padding:1.5rem; max-width:1200px; margin:0 auto; }
+.card { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:1rem; margin-bottom:1rem; }
+.card-title { margin-top:0; font-size:1.1rem; }
+.badge { display:inline-block; padding:.1rem .5rem; border-radius:999px; font-size:.8rem; border:1px solid currentColor; }
+.badge-ok { color:var(--ok); } .badge-warn { color:var(--warn); } .badge-error { color:var(--error); } .badge-info { color:var(--accent); } .badge-muted { color:var(--muted); }
+.error-text { color:var(--error); }
+.muted { color:var(--muted); }
+form.stack, .stack { display:flex; flex-direction:column; gap:.5rem; }
+.row { display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; }
+input, textarea, select { background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:.5rem; font:inherit; }
+textarea { min-height:6rem; }
+button { background:var(--accent); color:#000; border:0; border-radius:6px; padding:.45rem .9rem; cursor:pointer; font-weight:600; }
+button.secondary { background:transparent; color:var(--fg); border:1px solid var(--border); }
+button.danger { background:var(--error); }
+button:disabled { opacity:.5; cursor:default; }
+table { width:100%; border-collapse:collapse; }
+th, td { text-align:left; padding:.5rem; border-bottom:1px solid var(--border); }
+pre, code { font-family: ui-monospace, monospace; font-size:.85rem; }
+pre { white-space:pre-wrap; word-break:break-word; }
+
+/* Detalle de tarea */
+.task-title { margin:0; font-size:1.4rem; }
+.task-layout { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:1rem; align-items:start; }
+@media (max-width: 900px) { .task-layout { grid-template-columns:1fr; } }
+.sidebar .card { margin-bottom:0; }
+.transcript { display:flex; flex-direction:column; gap:.6rem; }
+.msg { border:1px solid var(--border); border-radius:8px; padding:.6rem .8rem; background:var(--panel); }
+.msg pre { margin:.3rem 0 0; }
+.msg-role { font-size:.75rem; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+.msg-user { border-left:3px solid var(--accent); }
+.msg-assistant { border-left:3px solid var(--ok); }
+.msg.streaming { opacity:.85; border-style:dashed; }
+.thinking summary, .tool summary, .prompt summary { cursor:pointer; color:var(--muted); }
+.tool { border:1px solid var(--border); border-radius:6px; padding:.4rem .6rem; font-size:.85rem; }
+.tool summary { font-family:ui-monospace, monospace; }
+.tool-running { border-left:3px solid var(--accent); }
+.tool-ok { border-left:3px solid var(--ok); }
+.tool-error { border-left:3px solid var(--error); }
+.tool-args { color:var(--muted); }
+.tool-output { max-height:24rem; overflow:auto; }
+.notice { padding:.4rem .6rem; border-radius:6px; font-size:.9rem; border:1px solid var(--border); }
+.notice-info { color:var(--accent); }
+.notice-warn { color:var(--warn); }
+.notice-error { color:var(--error); }
+.status-line { display:flex; gap:.5rem; align-items:center; font-size:.85rem; }
+.dialog-panel { border-color:var(--warn); }
+.composer textarea { min-height:5rem; }
+.diff { background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:.5rem; max-height:40rem; overflow:auto; white-space:pre; }
+.diff div { min-height:1em; }
+.diff-file { color:var(--accent); font-weight:700; margin-top:.5rem; }
+.diff-meta { color:var(--muted); }
+.diff-hunk { color:#bb9af7; }
+.diff-add { color:var(--ok); background:rgba(158,206,106,.08); }
+.diff-del { color:var(--error); background:rgba(247,118,142,.08); }

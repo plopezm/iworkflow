@@ -1,0 +1,270 @@
+use leptos::prelude::*;
+
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
+    MessageModeDto, TaskDto,
+};
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
+    AbortTask, AnswerTaskDialog, DiscardTask, FinishTask, MergeTask, ResumeTask, SendTaskMessage,
+    get_task, get_task_diff,
+};
+use crate::modules::tasks::presentation::state::transcript::Transcript;
+
+/// Estado de la pantalla de detalle de una tarea.
+#[derive(Clone, Copy)]
+pub struct TaskDetailState {
+    pub task_id: StoredValue<String>,
+    pub task: Resource<Result<TaskDto, ServerFnError>>,
+    pub transcript: RwSignal<Transcript>,
+    pub connected: RwSignal<bool>,
+    pub show_diff: RwSignal<bool>,
+    pub diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>>,
+    pub message: RwSignal<String>,
+    pub mode: RwSignal<MessageModeDto>,
+    pub send: ServerAction<SendTaskMessage>,
+    pub answer: ServerAction<AnswerTaskDialog>,
+    pub abort: ServerAction<AbortTask>,
+    pub finish: ServerAction<FinishTask>,
+    pub resume: ServerAction<ResumeTask>,
+    pub merge: ServerAction<MergeTask>,
+    pub discard: ServerAction<DiscardTask>,
+    /// Se incrementa con cada cambio de estado recibido por SSE.
+    pub status_version: RwSignal<u32>,
+}
+
+impl TaskDetailState {
+    pub fn new(task_id: String) -> Self {
+        let status_version: RwSignal<u32> = RwSignal::new(0);
+        let send: ServerAction<SendTaskMessage> = ServerAction::new();
+        let answer: ServerAction<AnswerTaskDialog> = ServerAction::new();
+        let abort: ServerAction<AbortTask> = ServerAction::new();
+        let finish: ServerAction<FinishTask> = ServerAction::new();
+        let resume: ServerAction<ResumeTask> = ServerAction::new();
+        let merge: ServerAction<MergeTask> = ServerAction::new();
+        let discard: ServerAction<DiscardTask> = ServerAction::new();
+        let show_diff: RwSignal<bool> = RwSignal::new(false);
+        let id: StoredValue<String> = StoredValue::new(task_id);
+
+        let task: Resource<Result<TaskDto, ServerFnError>> = Resource::new(
+            move || {
+                (
+                    status_version.get(),
+                    finish.version().get(),
+                    resume.version().get(),
+                    merge.version().get(),
+                    discard.version().get(),
+                )
+            },
+            move |_| get_task(id.get_value()),
+        );
+        // El diff depende de la tarea ya refrescada (no de los eventos): solo se pide si
+        // está visible y el estado lo permite (tras merge o descarte no hay worktree).
+        let diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>> = Resource::new(
+            move || {
+                let current: Option<(bool, String)> = task
+                    .get()
+                    .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
+                    .map(|t: TaskDto| (t.actions.can_view_diff, t.updated_at));
+                let allowed: bool = current.as_ref().is_some_and(|(can, _)| *can);
+                (
+                    show_diff.get() && allowed,
+                    current.map(|(_, updated)| updated),
+                )
+            },
+            move |(visible, _)| async move {
+                if visible {
+                    Some(get_task_diff(id.get_value()).await)
+                } else {
+                    None
+                }
+            },
+        );
+
+        let state: Self = Self {
+            task_id: id,
+            task,
+            transcript: RwSignal::new(Transcript::default()),
+            connected: RwSignal::new(false),
+            show_diff,
+            diff,
+            message: RwSignal::new(String::new()),
+            mode: RwSignal::new(MessageModeDto::Steer),
+            send,
+            answer,
+            abort,
+            finish,
+            resume,
+            merge,
+            discard,
+            status_version,
+        };
+        state.connect_events();
+        state
+    }
+
+    pub fn send_message(&self) {
+        let message: String = self.message.get_untracked();
+        if message.trim().is_empty() {
+            return;
+        }
+        self.send.dispatch(SendTaskMessage {
+            id: self.task_id.get_value(),
+            message,
+            mode: self.mode.get_untracked(),
+        });
+        self.message.set(String::new());
+    }
+
+    pub fn answer_dialog(&self, dialog_id: String, answer: DialogAnswerDto) {
+        self.answer.dispatch(AnswerTaskDialog {
+            id: self.task_id.get_value(),
+            dialog_id,
+            answer,
+        });
+    }
+
+    pub fn abort(&self) {
+        self.abort.dispatch(AbortTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
+    pub fn finish(&self) {
+        self.finish.dispatch(FinishTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
+    pub fn resume(&self) {
+        self.resume.dispatch(ResumeTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
+    pub fn merge(&self) {
+        self.merge.dispatch(MergeTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
+    pub fn discard(&self) {
+        self.discard.dispatch(DiscardTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
+    /// Primer error pendiente de las acciones de la pantalla.
+    pub fn action_error(&self) -> Option<String> {
+        fn error_of<T>(value: Option<Result<T, ServerFnError>>) -> Option<String> {
+            value
+                .and_then(|r: Result<T, ServerFnError>| r.err())
+                .map(|e: ServerFnError| e.to_string())
+        }
+        error_of(self.send.value().get())
+            .or_else(|| error_of(self.answer.value().get()))
+            .or_else(|| error_of(self.abort.value().get()))
+            .or_else(|| error_of(self.finish.value().get()))
+            .or_else(|| error_of(self.resume.value().get()))
+            .or_else(|| error_of(self.merge.value().get()))
+            .or_else(|| error_of(self.discard.value().get()))
+    }
+
+    #[cfg(not(feature = "hydrate"))]
+    fn connect_events(&self) {}
+
+    /// Abre el stream SSE de la tarea y lo cierra al desmontar la pantalla.
+    #[cfg(feature = "hydrate")]
+    fn connect_events(&self) {
+        use wasm_bindgen::JsCast;
+        use wasm_bindgen::closure::Closure;
+        use web_sys::{Event, EventSource, MessageEvent};
+
+        use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
+            TaskEventDto, TaskEventKindDto,
+        };
+
+        type Handler = Closure<dyn FnMut(Event)>;
+
+        struct Connection {
+            source: EventSource,
+            _handlers: Vec<Handler>,
+        }
+
+        fn open(
+            url: &str,
+            transcript: RwSignal<Transcript>,
+            connected: RwSignal<bool>,
+            status_version: RwSignal<u32>,
+            slot: StoredValue<Option<Connection>, LocalStorage>,
+        ) {
+            let Ok(source) = EventSource::new(url) else {
+                connected.set(false);
+                return;
+            };
+            let on_message: Handler = Closure::new(move |event: Event| {
+                let Some(data) = event
+                    .dyn_ref::<MessageEvent>()
+                    .and_then(|m: &MessageEvent| m.data().as_string())
+                else {
+                    return;
+                };
+                if let Ok(event) = serde_json::from_str::<TaskEventDto>(&data) {
+                    let is_status: bool = matches!(event.kind, TaskEventKindDto::Status { .. });
+                    transcript.update(|t: &mut Transcript| t.apply(event));
+                    if is_status {
+                        status_version.update(|v: &mut u32| *v += 1);
+                    }
+                }
+            });
+            let on_reset: Handler = Closure::new(move |_: Event| {
+                transcript.set(Transcript::default());
+                connected.set(true);
+            });
+            let on_error: Closure<dyn FnMut(Event)> =
+                Closure::new(move |_: Event| connected.set(false));
+            let reopen_url: String = url.to_string();
+            let on_lagged: Handler = Closure::new(move |_: Event| {
+                // Se perdieron eventos en vivo: se reabre para recibir el historial completo.
+                slot.update_value(|current: &mut Option<Connection>| {
+                    if let Some(connection) = current.take() {
+                        connection.source.close();
+                    }
+                });
+                open(&reopen_url, transcript, connected, status_version, slot);
+            });
+            source.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
+            source.set_onerror(Some(on_error.as_ref().unchecked_ref()));
+            let listeners: [(&str, &Handler); 2] = [("reset", &on_reset), ("lagged", &on_lagged)];
+            for (name, handler) in listeners {
+                if source
+                    .add_event_listener_with_callback(name, handler.as_ref().unchecked_ref())
+                    .is_err()
+                {
+                    connected.set(false);
+                }
+            }
+            slot.set_value(Some(Connection {
+                source,
+                _handlers: vec![on_message, on_reset, on_error, on_lagged],
+            }));
+        }
+
+        let slot: StoredValue<Option<Connection>, LocalStorage> = StoredValue::new_local(None);
+        let url: String = format!("/api/tasks/{}/events", self.task_id.get_value());
+        open(
+            &url,
+            self.transcript,
+            self.connected,
+            self.status_version,
+            slot,
+        );
+        on_cleanup(move || {
+            slot.update_value(|current: &mut Option<Connection>| {
+                if let Some(connection) = current.take() {
+                    connection.source.close();
+                }
+            });
+        });
+    }
+}
