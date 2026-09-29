@@ -1,6 +1,14 @@
 use leptos::prelude::*;
 
+use crate::core::browser::confirm;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::WorkspaceDto;
+
+/// Ejecuta `on_delete` con `id` solo si el usuario confirma quitar el workspace `name`.
+fn confirm_delete(name: &str, id: &str, on_delete: Callback<String>) {
+    if confirm(&format!("¿Quitar el workspace \"{name}\"?")) {
+        on_delete.run(id.to_string());
+    }
+}
 
 /// Listado de workspaces registrados: tabla en escritorio, tarjetas en móvil.
 #[component]
@@ -25,6 +33,7 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
                     .cloned()
                     .map(|w: WorkspaceDto| {
                         let id: String = w.id.clone();
+                        let name: String = w.name.clone();
                         view! {
                             <tr>
                                 <td>{w.name}</td>
@@ -35,7 +44,7 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
                                     <code class="font-mono text-xs">{w.base_branch}</code>
                                 </td>
                                 <td>
-                                    <button class="btn-danger" on:click=move |_| on_delete.run(id.clone())>
+                                    <button class="btn-danger" on:click=move |_| confirm_delete(&name, &id, on_delete)>
                                         "Quitar"
                                     </button>
                                 </td>
@@ -50,6 +59,7 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
                 .into_iter()
                 .map(|w: WorkspaceDto| {
                     let id: String = w.id.clone();
+                    let name: String = w.name.clone();
                     view! {
                         <article class="card stack gap-1.5">
                             <span class="font-medium text-fg">{w.name}</span>
@@ -57,7 +67,7 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
                             <code class="font-mono text-xs text-muted">{w.base_branch}</code>
                             <button
                                 class="btn-danger self-start"
-                                on:click=move |_| on_delete.run(id.clone())
+                                on:click=move |_| confirm_delete(&name, &id, on_delete)
                             >
                                 "Quitar"
                             </button>
