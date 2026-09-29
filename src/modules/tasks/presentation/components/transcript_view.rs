@@ -120,20 +120,29 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
     // Los deltas no cambian `items`, así que la lista solo se repinta al cerrarse mensajes.
     let items: Memo<Vec<TranscriptItem>> =
         Memo::new(move |_| transcript.with(|t: &Transcript| t.items.clone()));
+    let item_count: Memo<usize> = Memo::new(move |_| items.with(Vec::len));
     let streaming: Memo<(String, String)> = Memo::new(move |_| {
         transcript.with(|t: &Transcript| (t.streaming_thinking.clone(), t.streaming_text.clone()))
     });
 
     view! {
         <div class="transcript">
-            {move || {
-                let list: Vec<TranscriptItem> = items.get();
-                if list.is_empty() {
-                    view! { <p class="muted">"Sin actividad todavía."</p> }.into_any()
-                } else {
-                    list.into_iter().map(render_item).collect_view().into_any()
+            <Show when=move || item_count.get() == 0>
+                <p class="muted">"Sin actividad todavía."</p>
+            </Show>
+            // Clave por posición: la transcripción solo añade al final, así que las filas
+            // existentes no se recrean (conservan `<details>` abiertos). Cada fila solo se
+            // repinta si su propio elemento cambia (p.ej. una herramienta recibe su salida).
+            <For
+                each=move || 0..item_count.get()
+                key=|index: &usize| *index
+                children=move |index: usize| {
+                    let row: Memo<Option<TranscriptItem>> = Memo::new(move |_| {
+                        items.with(|list: &Vec<TranscriptItem>| list.get(index).cloned())
+                    });
+                    move || row.get().map(render_item)
                 }
-            }}
+            />
             {move || {
                 let (thinking, text): (String, String) = streaming.get();
                 (!thinking.is_empty() || !text.is_empty())
