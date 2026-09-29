@@ -4,9 +4,17 @@ use leptos::prelude::provide_context;
 
 use crate::core::config::AppConfig;
 use crate::core::db::pool::DbPool;
+use crate::modules::agent_settings::infrastructure::di::agent_settings_context::{
+    AgentSettingsContext, AgentSettingsSettings,
+};
+use crate::modules::agent_settings::application::usecases::prepare_launch::PrepareLaunch;
+use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
+use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
 use crate::modules::tasks::infrastructure::di::tasks_context::{TasksContext, TasksSettings};
 use crate::modules::workspaces::application::usecases::get_workspace::GetWorkspace;
@@ -23,6 +31,7 @@ use crate::modules::workspaces::infrastructure::di::workspaces_context::Workspac
 pub struct AppState {
     pub workspaces: WorkspacesContext,
     pub tasks: TasksContext,
+    pub agent_settings: AgentSettingsContext,
 }
 
 impl AppState {
@@ -37,6 +46,16 @@ impl AppState {
             get_workspace: get_workspace.clone(),
             list_workspaces: list_workspaces.clone(),
         });
+        let agent_settings: AgentSettingsContext = AgentSettingsContext::new(
+            pool.clone(),
+            AgentSettingsSettings {
+                gentle_shell_bin: config.gentle_shell_bin.clone(),
+                gentle_pi_config_home: config.gentle_pi_config_home.clone(),
+            },
+        );
+        let launch_settings: Arc<dyn LaunchSettingsPort> = Arc::new(LaunchSettingsBridge {
+            prepare_launch: agent_settings.prepare_launch.clone(),
+        });
         let tasks: TasksContext = TasksContext::new(
             pool.clone(),
             TasksSettings {
@@ -44,19 +63,25 @@ impl AppState {
                 worktrees_dir: config.worktrees_dir.clone(),
             },
             lookup,
+            launch_settings,
         );
         let workspace_tasks: Arc<dyn WorkspaceTasksPort> = Arc::new(WorkspaceTasksBridge {
             delete_workspace_tasks: tasks.delete_workspace_tasks.clone(),
         });
         let workspaces: WorkspacesContext =
-            WorkspacesContext::new(pool, config.home_dir.clone(), workspace_tasks);
-        Self { workspaces, tasks }
+            WorkspacesContext::new(pool.clone(), config.home_dir.clone(), workspace_tasks);
+        Self {
+            workspaces,
+            tasks,
+            agent_settings,
+        }
     }
 
     /// Registra cada contexto de feature para las server functions y el SSR.
     pub fn provide(&self) {
         provide_context(self.workspaces.clone());
         provide_context(self.tasks.clone());
+        provide_context(self.agent_settings.clone());
     }
 }
 
@@ -94,6 +119,29 @@ fn to_ref(workspace: Workspace) -> WorkspaceRef {
         name: workspace.name,
         path: workspace.path,
         base_branch: workspace.base_branch,
+    }
+}
+
+/// Expone la resolución del modelo de lanzamiento al feature de tareas a través de
+/// su propio puerto.
+pub struct LaunchSettingsBridge {
+    pub prepare_launch: Arc<PrepareLaunch>,
+}
+
+#[async_trait::async_trait]
+impl LaunchSettingsPort for LaunchSettingsBridge {
+    async fn prepare(&self, cwd: &std::path::Path) -> Result<LaunchOptions, TaskError> {
+        let model: Option<ModelRef> = self
+            .prepare_launch
+            .execute(cwd)
+            .await
+            .map_err(|error: AgentSettingsError| TaskError::Runtime(error.to_string()))?;
+        Ok(LaunchOptions {
+            model: model.map(|m: ModelRef| LaunchModel {
+                provider: m.provider,
+                model: m.model,
+            }),
+        })
     }
 }
 

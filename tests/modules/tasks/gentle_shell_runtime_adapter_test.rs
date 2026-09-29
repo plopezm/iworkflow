@@ -5,6 +5,7 @@ use std::time::Duration;
 use pi_workflow::modules::tasks::domain::errors::task_error::TaskError;
 use pi_workflow::modules::tasks::domain::models::agent_command::AgentCommand;
 use pi_workflow::modules::tasks::domain::models::agent_event::{AgentEvent, DialogAnswer, DialogKind, NoticeLevel};
+use pi_workflow::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
 use pi_workflow::modules::tasks::domain::models::task::TaskId;
 use pi_workflow::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use pi_workflow::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -73,7 +74,13 @@ async fn runs_prompt_round_trip_and_stops_gracefully() {
     let task_id: TaskId = TaskId::new();
 
     adapter
-        .start(task_id, &cwd, false, sink.clone())
+        .start(
+            task_id,
+            &cwd,
+            false,
+            &LaunchOptions::default(),
+            sink.clone(),
+        )
         .await
         .expect("start");
     let boot: AgentEvent = sink.wait_for(|e| is_notice_containing(e, "args=")).await;
@@ -118,13 +125,45 @@ async fn runs_prompt_round_trip_and_stops_gracefully() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn appends_provider_and_model_flags_when_set() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
+    let task_id: TaskId = TaskId::new();
+    let options: LaunchOptions = LaunchOptions {
+        model: Some(LaunchModel {
+            provider: "anthropic".to_string(),
+            model: "claude-5".to_string(),
+        }),
+    };
+
+    adapter
+        .start(task_id, dir.path(), false, &options, sink.clone())
+        .await
+        .expect("start");
+    let boot: AgentEvent = sink.wait_for(|e| is_notice_containing(e, "args=")).await;
+    adapter.stop(task_id).await.expect("stop");
+
+    assert!(is_notice_containing(
+        &boot,
+        "--provider anthropic --model claude-5"
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn forwards_dialog_answers_and_reports_rejections() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
     let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
     adapter
-        .start(task_id, dir.path(), true, sink.clone())
+        .start(
+            task_id,
+            dir.path(),
+            true,
+            &LaunchOptions::default(),
+            sink.clone(),
+        )
         .await
         .expect("start");
 
@@ -183,7 +222,13 @@ async fn kills_agent_that_ignores_shutdown() {
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
     adapter
-        .start(task_id, dir.path(), false, sink.clone())
+        .start(
+            task_id,
+            dir.path(),
+            false,
+            &LaunchOptions::default(),
+            sink.clone(),
+        )
         .await
         .expect("start");
 
@@ -207,7 +252,13 @@ async fn reports_exit_and_unregisters_when_process_dies() {
     let task_id: TaskId = TaskId::new();
 
     adapter
-        .start(task_id, dir.path(), false, sink.clone())
+        .start(
+            task_id,
+            dir.path(),
+            false,
+            &LaunchOptions::default(),
+            sink.clone(),
+        )
         .await
         .expect("start");
     let exited: AgentEvent = sink
@@ -234,6 +285,7 @@ async fn missing_binary_is_a_runtime_error() {
             TaskId::new(),
             dir.path(),
             false,
+            &LaunchOptions::default(),
             Arc::new(CollectingSink::default()),
         )
         .await;

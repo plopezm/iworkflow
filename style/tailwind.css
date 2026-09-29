@@ -36,10 +36,20 @@
 
 :root {
   color-scheme: dark;
+  /* Sticky nav height: two rows on mobile (brand + pills, agent selectors), one on md+.
+     Sticky toolbars below it offset by the same value. */
+  --nav-h: 6.75rem;
+}
+
+@media (min-width: 48rem) {
+  :root {
+    --nav-h: 3.5rem;
+  }
 }
 
 @media (prefers-color-scheme: light) {
   :root {
+    color-scheme: light;
     --color-bg: #f4f5f7;
     --color-surface: #ffffff;
     --color-surface-2: #eceef2;
@@ -198,10 +208,41 @@ body {
 
 /* ── Filter chips ───────────────────────────────── */
 .chip {
-  @apply flex min-h-10 flex-wrap items-center gap-1.5 rounded-full border border-border/80 bg-surface/60 px-3.5 py-1.5 text-sm text-muted backdrop-blur-sm transition-all duration-200 hover:border-accent/40 hover:bg-surface hover:text-fg active:scale-[0.97];
+  @apply flex min-h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-border/80 bg-surface/60 px-3.5 py-1.5 text-sm text-muted backdrop-blur-sm transition-all duration-200 hover:border-accent/40 hover:bg-surface hover:text-fg active:scale-[0.97];
 }
 .chip-selected {
   @apply border-accent/60 bg-accent/15 text-accent shadow-sm shadow-accent/10;
+}
+
+/* ── Compact pill selects (nav settings) ───────── */
+.select-pill {
+  @apply relative flex min-h-10 max-w-[9.5rem] cursor-pointer items-center gap-1.5 rounded-full border border-border/80 bg-surface/60 py-1.5 pl-3 pr-6 text-xs text-muted backdrop-blur-sm transition-all duration-200 hover:border-accent/40 hover:bg-surface hover:text-fg focus-within:border-accent/50 focus-within:shadow-sm focus-within:shadow-accent/10 sm:max-w-[13rem] sm:text-sm;
+}
+.select-pill-icon {
+  @apply flex h-4 w-4 shrink-0 items-center justify-center text-muted;
+}
+.select-pill-input {
+  @apply w-full min-w-0 flex-1 cursor-pointer appearance-none truncate border-none bg-transparent text-fg outline-none;
+}
+/* The native dropdown list ignores the transparent pill; paint it with theme colors. */
+.select-pill-input option,
+.select-pill-input optgroup {
+  @apply bg-surface text-fg;
+}
+.select-pill-input optgroup {
+  @apply font-semibold text-muted;
+}
+.select-pill-input:disabled {
+  @apply cursor-not-allowed opacity-50;
+}
+.select-pill-chevron {
+  @apply pointer-events-none absolute right-2.5 h-3 w-3 shrink-0 text-muted;
+}
+.select-pill-skeleton {
+  @apply h-10 w-[9.5rem] shrink-0 animate-pulse rounded-full border border-border/60 bg-surface-2/60 sm:w-[13rem];
+}
+.select-pill-divider {
+  @apply hidden h-6 w-px shrink-0 bg-border/60 md:block;
 }
 
 /* ── Badges (status + stage) ────────────────────── */

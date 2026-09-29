@@ -18,42 +18,6 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
     }
 
     view! {
-        <table class="data-table hidden sm:table">
-            <thead>
-                <tr>
-                    <th>"Nombre"</th>
-                    <th>"Ruta"</th>
-                    <th>"Rama base"</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {workspaces
-                    .iter()
-                    .cloned()
-                    .map(|w: WorkspaceDto| {
-                        let id: String = w.id.clone();
-                        let name: String = w.name.clone();
-                        view! {
-                            <tr>
-                                <td class="font-medium">{w.name}</td>
-                                <td>
-                                    <code class="font-mono text-xs">{w.path}</code>
-                                </td>
-                                <td>
-                                    <code class="font-mono text-xs">{w.base_branch}</code>
-                                </td>
-                                <td>
-                                    <button class="btn-danger" on:click=move |_| confirm_delete(&name, &id, on_delete)>
-                                        "Quitar"
-                                    </button>
-                                </td>
-                            </tr>
-                        }
-                    })
-                    .collect_view()}
-            </tbody>
-        </table>
         <div class="stack sm:hidden">
             {workspaces
                 .into_iter()

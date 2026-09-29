@@ -1,5 +1,6 @@
 pub mod agent_command;
 pub mod agent_event;
+pub mod launch_options;
 pub mod pending_dialog;
 pub mod task;
 pub mod task_event;

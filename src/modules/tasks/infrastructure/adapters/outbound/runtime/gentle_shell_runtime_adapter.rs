@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
+use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -85,6 +86,18 @@ fn pipe_error(name: &str) -> TaskError {
     TaskError::Runtime(format!("no se pudo abrir {name} del agente"))
 }
 
+fn model_args(options: &LaunchOptions) -> Vec<String> {
+    match &options.model {
+        Some(model) => vec![
+            "--provider".to_string(),
+            model.provider.clone(),
+            "--model".to_string(),
+            model.model.clone(),
+        ],
+        None => Vec::new(),
+    }
+}
+
 #[async_trait::async_trait]
 impl AgentRuntimePort for GentleShellRuntimeAdapter {
     async fn start(
@@ -92,6 +105,7 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
         task_id: TaskId,
         cwd: &Path,
         resume: bool,
+        options: &LaunchOptions,
         sink: Arc<dyn AgentEventSink>,
     ) -> Result<(), TaskError> {
         if self.registry()?.contains_key(&task_id) {
@@ -102,6 +116,7 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
         let mut child: Child = Command::new(&self.program)
             .args(&self.base_args)
             .args(resume.then_some(RESUME_FLAG))
+            .args(model_args(options))
             .current_dir(cwd)
             .env(INTERACTIVE_HOST_ENV, "1")
             .stdin(Stdio::piped())

@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -32,7 +33,13 @@ impl ResumeTask {
             return Err(invalid_state("reanudar", task.status));
         }
         self.runtime
-            .start(id, &task.worktree_path, true, self.sink.clone())
+            .start(
+                id,
+                &task.worktree_path,
+                true,
+                &LaunchOptions::default(),
+                self.sink.clone(),
+            )
             .await?;
         self.lifecycle.transition(id, TaskStatus::Idle, None).await
     }
@@ -54,9 +61,9 @@ mod tests {
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
             .expect_start()
-            .withf(|_, cwd: &Path, resume: &bool, _| cwd == Path::new(WORKTREE) && *resume)
+            .withf(|_, cwd: &Path, resume: &bool, _, _| cwd == Path::new(WORKTREE) && *resume)
             .times(1)
-            .returning(|_, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _| Ok(()));
 
         ResumeTask::new(
             test_support::lifecycle(Some(task), &recorded),

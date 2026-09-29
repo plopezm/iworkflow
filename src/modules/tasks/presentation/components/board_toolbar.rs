@@ -22,7 +22,7 @@ pub fn BoardToolbar(
     on_new_task: Callback<()>,
 ) -> impl IntoView {
     view! {
-        <div class="sticky top-14 z-10 stack gap-3 border-b border-border/40 bg-bg/80 py-3 backdrop-blur-xl">
+        <div class="sticky top-[var(--nav-h)] z-10 stack gap-3 border-b border-border/40 bg-bg/80 py-3 backdrop-blur-xl">
             <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">
                 <h1 class="bg-gradient-to-r from-fg to-muted bg-clip-text text-xl font-bold text-transparent">
                     "Tablero"
@@ -54,7 +54,7 @@ pub fn BoardToolbar(
                     })
                     .collect_view()}
                 <div class="mx-1 h-5 w-px shrink-0 bg-border/60"></div>
-                <label class="row min-h-10 items-center gap-2 text-sm text-muted">
+                <label class="row min-h-10 shrink-0 items-center gap-2 whitespace-nowrap text-sm text-muted">
                     <input
                         type="checkbox"
                         class="h-5 w-5 accent-accent"

@@ -91,10 +91,20 @@ mod tests {
     use super::*;
     use crate::modules::tasks::application::test_support::{self, REPO, Recorded};
     use crate::modules::tasks::domain::models::agent_command::AgentCommand;
+    use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+    use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
     use crate::modules::tasks::mocks::{
-        MockAgentEventSink, MockAgentRuntime, MockTaskEventPublisher, MockTaskRepository,
-        MockWorkspaceLookup, MockWorktree,
+        MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockTaskEventPublisher,
+        MockTaskRepository, MockWorkspaceLookup, MockWorktree,
     };
+
+    fn default_launch_settings() -> Arc<dyn LaunchSettingsPort> {
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings
+            .expect_prepare()
+            .returning(|_| Ok(LaunchOptions::default()));
+        Arc::new(launch_settings)
+    }
 
     fn input(start_now: bool) -> NewTask {
         NewTask {
@@ -119,6 +129,7 @@ mod tests {
             test_support::lifecycle(None, recorded),
             Arc::new(MockWorktree::new()),
             Arc::new(MockAgentRuntime::new()),
+            Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
         ))
     }
@@ -210,7 +221,7 @@ mod tests {
         runtime
             .expect_start()
             .times(1)
-            .returning(|_, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _| Ok(()));
         runtime
             .expect_send()
             .withf(|_, command: &AgentCommand| {
@@ -226,6 +237,7 @@ mod tests {
             lifecycle.clone(),
             worktrees.clone(),
             Arc::new(runtime),
+            default_launch_settings(),
             Arc::new(MockAgentEventSink::new()),
         ));
         let use_case: CreateTask = CreateTask::new(lifecycle, worktrees, start_task);
@@ -288,6 +300,7 @@ mod tests {
                 lifecycle,
                 Arc::new(MockWorktree::new()),
                 Arc::new(MockAgentRuntime::new()),
+                Arc::new(MockLaunchSettings::new()),
                 Arc::new(MockAgentEventSink::new()),
             )),
         );

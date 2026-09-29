@@ -4,6 +4,7 @@ const DEFAULT_GENTLE_SHELL_BIN: &str = "gentle-shell";
 const DEFAULT_DATA_DIR: &str = ".pi-dashboard";
 const DEFAULT_DATABASE_FILE: &str = "workspaces.db";
 const DEFAULT_WORKTREES_DIR: &str = "worktrees";
+const DEFAULT_GENTLE_PI_CONFIG_DIR: &str = ".pi/gentle-ai";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -22,6 +23,8 @@ pub struct AppConfig {
     pub worktrees_dir: PathBuf,
     /// Carpeta home del usuario que ejecuta el proceso (punto de partida del explorador de directorios).
     pub home_dir: PathBuf,
+    /// Carpeta de configuración de gentle-pi (contiene `profiles.json`).
+    pub gentle_pi_config_home: PathBuf,
 }
 
 impl AppConfig {
@@ -41,11 +44,15 @@ impl AppConfig {
         let worktrees_dir: PathBuf = std::env::var("WORKTREES_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| data_dir.join(DEFAULT_WORKTREES_DIR));
+        let gentle_pi_config_home: PathBuf = std::env::var("GENTLE_PI_CONFIG_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| home.join(DEFAULT_GENTLE_PI_CONFIG_DIR));
         Ok(Self {
             database_url,
             gentle_shell_bin,
             worktrees_dir,
             home_dir: home,
+            gentle_pi_config_home,
         })
     }
 }

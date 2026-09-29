@@ -24,6 +24,7 @@ use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::application::usecases::update_task::UpdateTask;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
+use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
@@ -69,10 +70,17 @@ impl TasksContext {
         pool: DbPool,
         settings: TasksSettings,
         workspaces: Arc<dyn WorkspaceLookupPort>,
+        launch_settings: Arc<dyn LaunchSettingsPort>,
     ) -> Self {
         let runtime: Arc<dyn AgentRuntimePort> =
             Arc::new(GentleShellRuntimeAdapter::new(settings.gentle_shell_bin));
-        Self::with_runtime(pool, settings.worktrees_dir, workspaces, runtime)
+        Self::with_runtime(
+            pool,
+            settings.worktrees_dir,
+            workspaces,
+            runtime,
+            launch_settings,
+        )
     }
 
     /// Permite sustituir el runtime de agentes (tests de extremo a extremo).
@@ -81,6 +89,7 @@ impl TasksContext {
         worktrees_dir: PathBuf,
         workspaces: Arc<dyn WorkspaceLookupPort>,
         runtime: Arc<dyn AgentRuntimePort>,
+        launch_settings: Arc<dyn LaunchSettingsPort>,
     ) -> Self {
         let repository: Arc<dyn TaskRepositoryPort> = Arc::new(TaskRepositoryAdapter::new(pool));
         let event_bus: BroadcastTaskEventBus = BroadcastTaskEventBus::new();
@@ -96,6 +105,7 @@ impl TasksContext {
             lifecycle.clone(),
             worktrees.clone(),
             runtime.clone(),
+            launch_settings,
             sink.clone(),
         ));
 

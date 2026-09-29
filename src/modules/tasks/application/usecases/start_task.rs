@@ -6,12 +6,14 @@ use chrono::Utc;
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
+use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::{
     Task, TaskId, TaskStatus, branch_name, slugify, worktree_dir_name,
 };
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
+use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Arranca una tarea en `Backlog`: crea el worktree, lanza el agente y le envía el
@@ -23,6 +25,7 @@ pub struct StartTask {
     lifecycle: Arc<TaskLifecycle>,
     worktrees: Arc<dyn WorktreePort>,
     runtime: Arc<dyn AgentRuntimePort>,
+    launch_settings: Arc<dyn LaunchSettingsPort>,
     sink: Arc<dyn AgentEventSink>,
 }
 
@@ -31,12 +34,14 @@ impl StartTask {
         lifecycle: Arc<TaskLifecycle>,
         worktrees: Arc<dyn WorktreePort>,
         runtime: Arc<dyn AgentRuntimePort>,
+        launch_settings: Arc<dyn LaunchSettingsPort>,
         sink: Arc<dyn AgentEventSink>,
     ) -> Self {
         Self {
             lifecycle,
             worktrees,
             runtime,
+            launch_settings,
             sink,
         }
     }
@@ -107,8 +112,15 @@ impl StartTask {
     }
 
     async fn launch(&self, task: &Task) -> Result<(), TaskError> {
+        let options: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
         self.runtime
-            .start(task.id, &task.worktree_path, false, self.sink.clone())
+            .start(
+                task.id,
+                &task.worktree_path,
+                false,
+                &options,
+                self.sink.clone(),
+            )
             .await?;
         self.runtime
             .send(
@@ -127,9 +139,18 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
+    use crate::modules::tasks::domain::models::launch_options::LaunchModel;
     use crate::modules::tasks::mocks::{
-        MockAgentEventSink, MockAgentRuntime, MockTaskRepository, MockWorktree,
+        MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockTaskRepository, MockWorktree,
     };
+
+    fn default_launch_settings() -> Arc<dyn LaunchSettingsPort> {
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings
+            .expect_prepare()
+            .returning(|_| Ok(LaunchOptions::default()));
+        Arc::new(launch_settings)
+    }
 
     fn worktrees() -> MockWorktree {
         let mut worktrees: MockWorktree = MockWorktree::new();
@@ -166,9 +187,9 @@ mod tests {
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
             .expect_start()
-            .withf(|_, cwd: &Path, resume: &bool, _| cwd.starts_with("/wt/demo") && !resume)
+            .withf(|_, cwd: &Path, resume: &bool, _, _| cwd.starts_with("/wt/demo") && !resume)
             .times(1)
-            .returning(|_, _, _, _| Ok(()));
+            .returning(|_, _, _, _, _| Ok(()));
         runtime
             .expect_send()
             .withf(|_, command: &AgentCommand| {
@@ -183,6 +204,7 @@ mod tests {
             lifecycle_accepting_plan(task, &recorded),
             Arc::new(worktrees()),
             Arc::new(runtime),
+            default_launch_settings(),
             Arc::new(MockAgentEventSink::new()),
         );
 
@@ -198,13 +220,14 @@ mod tests {
         let id: TaskId = task.id;
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
-        runtime
-            .expect_start()
-            .returning(|_, _, _, _| Err(TaskError::Runtime("no existe gentle-shell".to_string())));
+        runtime.expect_start().returning(|_, _, _, _, _| {
+            Err(TaskError::Runtime("no existe gentle-shell".to_string()))
+        });
         let use_case: StartTask = StartTask::new(
             lifecycle_accepting_plan(task, &recorded),
             Arc::new(worktrees()),
             Arc::new(runtime),
+            default_launch_settings(),
             Arc::new(MockAgentEventSink::new()),
         );
 
@@ -246,6 +269,7 @@ mod tests {
             test_support::lifecycle_with(repository, &recorded),
             Arc::new(worktrees),
             Arc::new(MockAgentRuntime::new()),
+            Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
         );
 
@@ -274,6 +298,7 @@ mod tests {
             test_support::lifecycle_with(repository, &recorded),
             Arc::new(worktrees),
             Arc::new(MockAgentRuntime::new()),
+            Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
         );
 
@@ -291,11 +316,83 @@ mod tests {
             test_support::lifecycle(Some(task), &Recorded::default()),
             Arc::new(MockWorktree::new()),
             Arc::new(MockAgentRuntime::new()),
+            Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
         )
         .execute(id)
         .await;
 
         assert!(matches!(result, Err(TaskError::InvalidState { .. })));
+    }
+
+    #[tokio::test]
+    async fn passes_prepared_model_to_runtime_start() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_start()
+            .withf(|_, _, _, options: &LaunchOptions, _| {
+                options.model
+                    == Some(LaunchModel {
+                        provider: "anthropic".to_string(),
+                        model: "claude-5".to_string(),
+                    })
+            })
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        runtime.expect_send().returning(|_, _| Ok(()));
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings.expect_prepare().returning(|_| {
+            Ok(LaunchOptions {
+                model: Some(LaunchModel {
+                    provider: "anthropic".to_string(),
+                    model: "claude-5".to_string(),
+                }),
+            })
+        });
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            Arc::new(launch_settings),
+            Arc::new(MockAgentEventSink::new()),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Starting);
+    }
+
+    #[tokio::test]
+    async fn marks_task_failed_when_launch_settings_prepare_fails() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings.expect_prepare().returning(|_| {
+            Err(TaskError::Runtime(
+                "pin de perfil inv\u{e1}lido".to_string(),
+            ))
+        });
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(MockAgentRuntime::new()),
+            Arc::new(launch_settings),
+            Arc::new(MockAgentEventSink::new()),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Failed);
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Failed]);
+        assert!(
+            recorded
+                .last_error()
+                .expect("error")
+                .contains("pin de perfil")
+        );
     }
 }

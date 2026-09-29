@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
+use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 
@@ -15,6 +16,7 @@ pub trait AgentRuntimePort: Send + Sync {
         task_id: TaskId,
         cwd: &Path,
         resume: bool,
+        options: &LaunchOptions,
         sink: Arc<dyn AgentEventSink>,
     ) -> Result<(), TaskError>;
 
