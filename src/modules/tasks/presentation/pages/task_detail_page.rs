@@ -147,10 +147,19 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
     }
 }
 
+/// Página de detalle. El router reutiliza este componente al pasar entre dos `/tasks/:id`
+/// (solo cambia el signal de parámetros), así que el contenido se reconstruye por cada id.
 #[component]
 pub fn TaskDetailPage() -> impl IntoView {
     let params = use_params_map();
-    let task_id: String = params.with_untracked(|p| p.get("id").unwrap_or_default());
+    let task_id: Memo<String> =
+        Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
+
+    view! { {move || view! { <TaskDetailContent task_id=task_id.get() /> }} }
+}
+
+#[component]
+fn TaskDetailContent(task_id: String) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
 
     let handlers: TaskActionHandlers = TaskActionHandlers {
