@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
+use leptos_router::components::A;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::core::browser::confirm;
@@ -210,6 +211,20 @@ pub fn TaskDetailPage() -> impl IntoView {
     });
 
     view! {
+        <Show
+            when=move || !state.removed.get()
+            fallback=|| {
+                view! {
+                    <section class="card stack">
+                        <h1 class="task-title">"Tarea eliminada"</h1>
+                        <p class="muted">"Esta tarea ya no existe."</p>
+                        <A href="/" attr:class="btn-secondary">
+                            "Volver al tablero"
+                        </A>
+                    </section>
+                }
+            }
+        >
         <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
             {move || Suspend::new(async move {
                 match state.task.await {
@@ -321,6 +336,7 @@ pub fn TaskDetailPage() -> impl IntoView {
                     class="min-w-0"
                 />
             </div>
+        </Show>
         </Show>
     }
 }
