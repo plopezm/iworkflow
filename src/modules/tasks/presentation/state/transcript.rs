@@ -64,6 +64,8 @@ impl Transcript {
                 self.items.push(TranscriptItem::Status { status, error })
             }
             TaskEventKindDto::Agent { event } => self.apply_agent(event),
+            // Solo notifican al tablero; no aportan nada a la transcripción de una tarea.
+            TaskEventKindDto::Changed | TaskEventKindDto::Removed => {}
         }
     }
 

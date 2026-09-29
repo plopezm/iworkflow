@@ -21,7 +21,7 @@ pub fn Composer(
     };
 
     view! {
-        <div class="stack composer">
+        <div class="stack composer sticky bottom-0 z-10 border-t border-border bg-bg/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
             <textarea
                 placeholder="Escribe un mensaje para el agente… (Ctrl+Enter para enviar)"
                 prop:value=move || message.get()
@@ -50,6 +50,7 @@ pub fn Composer(
                     </label>
                 </Show>
                 <button
+                    class="btn-primary"
                     disabled=move || pending.get() || message.with(|m: &String| m.trim().is_empty())
                     on:click=move |_| on_send.run(())
                 >

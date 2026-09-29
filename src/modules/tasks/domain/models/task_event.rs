@@ -15,6 +15,10 @@ pub enum TaskEventKind {
         status: String,
         error: Option<String>,
     },
+    /// Título/prompt editados en `Backlog`. Solo notifica al tablero; no se persiste.
+    Changed,
+    /// Tarea en `Backlog` eliminada. Solo notifica al tablero; no se persiste.
+    Removed,
 }
 
 impl TaskEventKind {
@@ -29,6 +33,7 @@ impl TaskEventKind {
         match self {
             TaskEventKind::Agent { event } => event.is_persistent(),
             TaskEventKind::Status { .. } => true,
+            TaskEventKind::Changed | TaskEventKind::Removed => false,
         }
     }
 }

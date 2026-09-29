@@ -7,9 +7,15 @@ use crate::modules::tasks::presentation::state::transcript::Transcript;
 pub fn AgentSidebar(
     transcript: RwSignal<Transcript>,
     #[prop(into)] connected: Signal<bool>,
+    #[prop(into, optional)] class: String,
 ) -> impl IntoView {
+    let container_class: String = if class.is_empty() {
+        "stack".to_string()
+    } else {
+        format!("stack {class}")
+    };
     view! {
-        <aside class="stack sidebar">
+        <aside class=container_class>
             <section class="card">
                 <h3 class="card-title">"Conexión"</h3>
                 {move || {

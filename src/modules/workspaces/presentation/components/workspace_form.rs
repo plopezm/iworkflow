@@ -32,7 +32,7 @@ pub fn WorkspaceForm(
                 placeholder="main"
             />
             <div class="row">
-                <button type="submit" disabled=move || pending.get()>
+                <button type="submit" class="btn-primary" disabled=move || pending.get()>
                     {move || if pending.get() { "Registrando…" } else { "Registrar" }}
                 </button>
             </div>

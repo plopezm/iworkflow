@@ -2,12 +2,12 @@ use leptos::prelude::*;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    MessageModeDto, TaskDto,
+    MessageModeDto, TaskDto, UpdateTaskDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    AbortTask, AnswerTaskDialog, DiscardTask, FinishTask, MergeTask, ResumeTask, SendTaskMessage,
-    get_task, get_task_diff,
+    AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResumeTask,
+    SendTaskMessage, StartTask, UpdateTask, get_task, get_task_diff,
 };
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
@@ -29,8 +29,16 @@ pub struct TaskDetailState {
     pub resume: ServerAction<ResumeTask>,
     pub merge: ServerAction<MergeTask>,
     pub discard: ServerAction<DiscardTask>,
-    /// Se incrementa con cada cambio de estado recibido por SSE.
+    pub start: ServerAction<StartTask>,
+    pub update: ServerAction<UpdateTask>,
+    pub delete: ServerAction<DeleteTask>,
+    pub edit_open: RwSignal<bool>,
+    pub edit_title: RwSignal<String>,
+    pub edit_prompt: RwSignal<String>,
+    /// Se incrementa con cada cambio de estado o edición recibido por SSE.
     pub status_version: RwSignal<u32>,
+    /// Se marca cuando la tarea se elimina desde el tablero mientras se ve el detalle.
+    pub removed: RwSignal<bool>,
 }
 
 impl TaskDetailState {
@@ -43,6 +51,9 @@ impl TaskDetailState {
         let resume: ServerAction<ResumeTask> = ServerAction::new();
         let merge: ServerAction<MergeTask> = ServerAction::new();
         let discard: ServerAction<DiscardTask> = ServerAction::new();
+        let start: ServerAction<StartTask> = ServerAction::new();
+        let update: ServerAction<UpdateTask> = ServerAction::new();
+        let delete: ServerAction<DeleteTask> = ServerAction::new();
         let show_diff: RwSignal<bool> = RwSignal::new(false);
         let id: StoredValue<String> = StoredValue::new(task_id);
 
@@ -54,6 +65,8 @@ impl TaskDetailState {
                     resume.version().get(),
                     merge.version().get(),
                     discard.version().get(),
+                    start.version().get(),
+                    update.version().get(),
                 )
             },
             move |_| get_task(id.get_value()),
@@ -97,7 +110,14 @@ impl TaskDetailState {
             resume,
             merge,
             discard,
+            start,
+            update,
+            delete,
+            edit_open: RwSignal::new(false),
+            edit_title: RwSignal::new(String::new()),
+            edit_prompt: RwSignal::new(String::new()),
             status_version,
+            removed: RwSignal::new(false),
         };
         state.connect_events();
         state
@@ -154,6 +174,39 @@ impl TaskDetailState {
         });
     }
 
+    pub fn start(&self) {
+        self.start.dispatch(StartTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
+    pub fn delete(&self) {
+        self.delete.dispatch(DeleteTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
+    /// Abre el modal de edición precargado con el título y prompt actuales.
+    pub fn open_edit(&self, task: &TaskDto) {
+        self.edit_title.set(task.title.clone());
+        self.edit_prompt.set(task.prompt.clone());
+        self.edit_open.set(true);
+    }
+
+    pub fn close_edit(&self) {
+        self.edit_open.set(false);
+    }
+
+    pub fn submit_edit(&self) {
+        self.update.dispatch(UpdateTask {
+            id: self.task_id.get_value(),
+            input: UpdateTaskDto {
+                title: self.edit_title.get_untracked(),
+                prompt: self.edit_prompt.get_untracked(),
+            },
+        });
+    }
+
     /// Primer error pendiente de las acciones de la pantalla.
     pub fn action_error(&self) -> Option<String> {
         fn error_of<T>(value: Option<Result<T, ServerFnError>>) -> Option<String> {
@@ -168,6 +221,8 @@ impl TaskDetailState {
             .or_else(|| error_of(self.resume.value().get()))
             .or_else(|| error_of(self.merge.value().get()))
             .or_else(|| error_of(self.discard.value().get()))
+            .or_else(|| error_of(self.start.value().get()))
+            .or_else(|| error_of(self.delete.value().get()))
     }
 
     #[cfg(not(feature = "hydrate"))]
@@ -196,6 +251,7 @@ impl TaskDetailState {
             transcript: RwSignal<Transcript>,
             connected: RwSignal<bool>,
             status_version: RwSignal<u32>,
+            removed: RwSignal<bool>,
             slot: StoredValue<Option<Connection>, LocalStorage>,
         ) {
             let Ok(source) = EventSource::new(url) else {
@@ -210,11 +266,14 @@ impl TaskDetailState {
                     return;
                 };
                 if let Ok(event) = serde_json::from_str::<TaskEventDto>(&data) {
-                    let is_status: bool = matches!(event.kind, TaskEventKindDto::Status { .. });
-                    transcript.update(|t: &mut Transcript| t.apply(event));
-                    if is_status {
-                        status_version.update(|v: &mut u32| *v += 1);
+                    match event.kind {
+                        TaskEventKindDto::Status { .. } | TaskEventKindDto::Changed => {
+                            status_version.update(|v: &mut u32| *v += 1);
+                        }
+                        TaskEventKindDto::Removed => removed.set(true),
+                        TaskEventKindDto::Agent { .. } => {}
                     }
+                    transcript.update(|t: &mut Transcript| t.apply(event));
                 }
             });
             let on_reset: Handler = Closure::new(move |_: Event| {
@@ -231,7 +290,14 @@ impl TaskDetailState {
                         connection.source.close();
                     }
                 });
-                open(&reopen_url, transcript, connected, status_version, slot);
+                open(
+                    &reopen_url,
+                    transcript,
+                    connected,
+                    status_version,
+                    removed,
+                    slot,
+                );
             });
             source.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
             source.set_onerror(Some(on_error.as_ref().unchecked_ref()));
@@ -257,6 +323,7 @@ impl TaskDetailState {
             self.transcript,
             self.connected,
             self.status_version,
+            self.removed,
             slot,
         );
         on_cleanup(move || {

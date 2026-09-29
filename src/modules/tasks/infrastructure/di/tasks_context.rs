@@ -6,6 +6,7 @@ use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::abort_task::AbortTask;
 use crate::modules::tasks::application::usecases::answer_dialog::AnswerDialog;
 use crate::modules::tasks::application::usecases::create_task::CreateTask;
+use crate::modules::tasks::application::usecases::delete_task::DeleteTask;
 use crate::modules::tasks::application::usecases::discard_task::DiscardTask;
 use crate::modules::tasks::application::usecases::finish_task::FinishTask;
 use crate::modules::tasks::application::usecases::get_task::GetTask;
@@ -18,6 +19,8 @@ use crate::modules::tasks::application::usecases::merge_task::MergeTask;
 use crate::modules::tasks::application::usecases::reconcile_tasks::ReconcileTasks;
 use crate::modules::tasks::application::usecases::resume_task::ResumeTask;
 use crate::modules::tasks::application::usecases::send_message::SendMessage;
+use crate::modules::tasks::application::usecases::start_task::StartTask;
+use crate::modules::tasks::application::usecases::update_task::UpdateTask;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
@@ -39,6 +42,9 @@ pub struct TasksSettings {
 #[derive(Clone)]
 pub struct TasksContext {
     pub create_task: Arc<CreateTask>,
+    pub start_task: Arc<StartTask>,
+    pub update_task: Arc<UpdateTask>,
+    pub delete_task: Arc<DeleteTask>,
     pub send_message: Arc<SendMessage>,
     pub abort_task: Arc<AbortTask>,
     pub answer_dialog: Arc<AnswerDialog>,
@@ -84,14 +90,22 @@ impl TasksContext {
             workspaces.clone(),
         ));
         let sink: Arc<dyn AgentEventSink> = Arc::new(HandleAgentEvent::new(lifecycle.clone()));
+        let start_task: Arc<StartTask> = Arc::new(StartTask::new(
+            lifecycle.clone(),
+            worktrees.clone(),
+            runtime.clone(),
+            sink.clone(),
+        ));
 
         Self {
             create_task: Arc::new(CreateTask::new(
                 lifecycle.clone(),
                 worktrees.clone(),
-                runtime.clone(),
-                sink.clone(),
+                start_task.clone(),
             )),
+            start_task,
+            update_task: Arc::new(UpdateTask::new(lifecycle.clone())),
+            delete_task: Arc::new(DeleteTask::new(lifecycle.clone())),
             send_message: Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone())),
             abort_task: Arc::new(AbortTask::new(lifecycle.clone(), runtime.clone())),
             answer_dialog: Arc::new(AnswerDialog::new(lifecycle.clone(), runtime.clone())),

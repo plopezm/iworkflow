@@ -1,9 +1,13 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_params_map;
+use leptos_router::NavigateOptions;
+use leptos_router::hooks::{use_navigate, use_params_map};
 
+use crate::core::browser::confirm;
+use crate::core::components::form::{ActionError, TextArea, TextField};
 use crate::core::components::layout::{Card, ErrorText};
+use crate::core::components::modal::Modal;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    MergeOutcomeDto, TaskDto, TaskStatusDto,
+    MergeOutcomeDto, TaskDto, TaskStageDto, TaskStatusDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
     DialogAnswerDto, DialogRequestDto,
@@ -19,6 +23,128 @@ use crate::modules::tasks::presentation::components::task_status_badge::TaskStat
 use crate::modules::tasks::presentation::components::transcript_view::TranscriptView;
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
+
+/// Tarjeta simplificada de una tarea en Backlog: prompt y acciones de iniciar/editar/borrar.
+#[component]
+fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
+    let navigate = use_navigate();
+    let task_for_edit: TaskDto = task.clone();
+    let busy: Signal<bool> =
+        Signal::derive(move || state.start.pending().get() || state.delete.pending().get());
+
+    Effect::new(move |_| {
+        let deleted: bool = state
+            .delete
+            .value()
+            .with(|r: &Option<Result<(), ServerFnError>>| matches!(r, Some(Ok(()))));
+        if deleted {
+            navigate("/", NavigateOptions::default());
+        }
+    });
+    Effect::new(move |_| {
+        let updated: bool = state
+            .update
+            .value()
+            .with(|r: &Option<Result<TaskDto, ServerFnError>>| matches!(r, Some(Ok(_))));
+        if updated {
+            state.close_edit();
+        }
+    });
+
+    view! {
+        <section class="card stack">
+            <div class="row justify-between">
+                <h1 class="task-title">{task.title.clone()}</h1>
+                <TaskStatusBadge status=task.status />
+            </div>
+            <p class="whitespace-pre-wrap text-fg">{task.prompt.clone()}</p>
+            {move || state.action_error().map(|e: String| view! { <ErrorText message=e /> })}
+            <div class="row">
+                {task
+                    .actions
+                    .can_start
+                    .then(|| {
+                        view! {
+                            <button
+                                class="btn-primary"
+                                disabled=move || busy.get()
+                                on:click=move |_| state.start()
+                            >
+                                "Iniciar"
+                            </button>
+                        }
+                    })}
+                {task
+                    .actions
+                    .can_edit
+                    .then(|| {
+                        let task: TaskDto = task_for_edit.clone();
+                        view! {
+                            <button class="btn-secondary" on:click=move |_| state.open_edit(&task)>
+                                "Editar"
+                            </button>
+                        }
+                    })}
+                {task
+                    .actions
+                    .can_delete
+                    .then(|| {
+                        view! {
+                            <button
+                                class="btn-danger"
+                                disabled=move || busy.get()
+                                on:click=move |_| {
+                                    if confirm("¿Borrar esta tarea de la lista de pendientes?") {
+                                        state.delete();
+                                    }
+                                }
+                            >
+                                "Borrar"
+                            </button>
+                        }
+                    })}
+            </div>
+        </section>
+        <Modal
+            title=String::from("Editar tarea")
+            open=state.edit_open
+            on_close=Callback::new(move |_| state.close_edit())
+        >
+            <form
+                class="stack"
+                on:submit=move |ev: leptos::ev::SubmitEvent| {
+                    ev.prevent_default();
+                    state.submit_edit();
+                }
+            >
+                <TextField
+                    label="Título (opcional)"
+                    value=state.edit_title
+                    placeholder="Se deriva del prompt"
+                />
+                <TextArea
+                    label="Prompt"
+                    value=state.edit_prompt
+                    placeholder="Describe lo que debe hacer el agente…"
+                    required=true
+                />
+                <ActionError result=state.update.value().into() />
+                <div class="row justify-end gap-2">
+                    <button type="button" class="btn-secondary" on:click=move |_| state.close_edit()>
+                        "Cancelar"
+                    </button>
+                    <button
+                        type="submit"
+                        class="btn-primary"
+                        disabled=move || state.update.pending().get()
+                    >
+                        {move || if state.update.pending().get() { "Guardando…" } else { "Guardar cambios" }}
+                    </button>
+                </div>
+            </form>
+        </Modal>
+    }
+}
 
 #[component]
 pub fn TaskDetailPage() -> impl IntoView {
@@ -53,21 +179,24 @@ pub fn TaskDetailPage() -> impl IntoView {
                     Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
                     Ok(task) => {
                         let task: TaskDto = task;
+                        if task.stage == TaskStageDto::Backlog {
+                            return view! { <BacklogView task state /> }.into_any();
+                        }
                         let agent_busy: bool = matches!(
                             task.status,
                             TaskStatusDto::Running | TaskStatusDto::Starting
                         );
                         let can_message: bool = task.actions.can_message;
                         view! {
-                            <section class="card">
+                            <section class="card stack">
                                 <div class="row">
                                     <h1 class="task-title">{task.title.clone()}</h1>
                                     <TaskStatusBadge status=task.status />
                                 </div>
                                 <p class="muted">
-                                    "Rama " <code>{task.branch.clone()}</code> " desde "
-                                    <code>{task.base_branch.clone()}</code> " · worktree "
-                                    <code>{task.worktree_path.clone()}</code>
+                                    "Rama " <code class="font-mono">{task.branch.clone()}</code>
+                                    " desde " <code class="font-mono">{task.base_branch.clone()}</code>
+                                    " · worktree " <code class="font-mono">{task.worktree_path.clone()}</code>
                                 </p>
                                 {task.error.clone().map(|e: String| view! { <ErrorText message=e /> })}
                                 <TaskActions
@@ -104,7 +233,7 @@ pub fn TaskDetailPage() -> impl IntoView {
                             </section>
                             <details class="card prompt">
                                 <summary>"Prompt inicial"</summary>
-                                <pre>{task.prompt.clone()}</pre>
+                                <pre class="font-mono text-sm whitespace-pre-wrap">{task.prompt.clone()}</pre>
                             </details>
                             <Show when=move || state.show_diff.get()>
                                 <Card title="Cambios">
@@ -120,7 +249,7 @@ pub fn TaskDetailPage() -> impl IntoView {
                                 </Card>
                             </Show>
                             <div class="task-layout">
-                                <div class="stack">
+                                <div class="stack min-w-0">
                                     <TranscriptView transcript=state.transcript />
                                     {move || {
                                         pending_dialog
@@ -150,7 +279,11 @@ pub fn TaskDetailPage() -> impl IntoView {
                                             }
                                         })}
                                 </div>
-                                <AgentSidebar transcript=state.transcript connected=state.connected />
+                                <AgentSidebar
+                                    transcript=state.transcript
+                                    connected=state.connected
+                                    class="min-w-0"
+                                />
                             </div>
                         }
                             .into_any()

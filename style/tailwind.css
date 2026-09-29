@@ -1,0 +1,228 @@
+@import "tailwindcss";
+@source "../src/**/*.rs";
+
+@theme {
+  --color-bg: #0b0d12;
+  --color-surface: #171a21;
+  --color-surface-2: #1e222c;
+  --color-border: #2a2f3a;
+  --color-fg: #e6e6e6;
+  --color-muted: #8b93a3;
+  --color-accent: #7aa2f7;
+  --color-ok: #9ece6a;
+  --color-warn: #e0af68;
+  --color-error: #f7768e;
+
+  --color-stage-backlog: #8b93a3;
+  --color-stage-working: #7aa2f7;
+  --color-stage-attention: #f7768e;
+  --color-stage-review: #e0af68;
+  --color-stage-done: #9ece6a;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-bg: #f4f5f7;
+    --color-surface: #ffffff;
+    --color-surface-2: #eceef2;
+    --color-border: #d8dbe3;
+    --color-fg: #14161b;
+    --color-muted: #5b6472;
+  }
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+}
+
+@layer components {
+  /* Layout primitives reused across the whole app. */
+  .stack {
+    @apply flex flex-col gap-3;
+  }
+  .row {
+    @apply flex flex-wrap items-center gap-2;
+  }
+  .muted {
+    @apply text-sm text-muted;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-black transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-transparent px-3.5 py-2 text-sm font-semibold text-fg transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-danger {
+    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-error px-3.5 py-2 text-sm font-semibold text-black transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-transparent px-3.5 py-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  /* Surfaces */
+  .card {
+    @apply rounded-xl border border-border bg-surface p-4;
+  }
+  .card-title {
+    @apply text-base font-semibold text-fg;
+  }
+  .task-title {
+    @apply text-xl font-semibold text-fg;
+  }
+
+  /* Form controls */
+  .input {
+    @apply w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none;
+  }
+
+  /* Filter chips */
+  .chip {
+    @apply flex min-h-10 flex-wrap items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent hover:text-fg;
+  }
+  .chip-selected {
+    @apply border-accent bg-accent/10 text-accent;
+  }
+
+  /* Badges (status + stage) */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium;
+  }
+  .badge-ok {
+    @apply border-ok/40 bg-ok/10 text-ok;
+  }
+  .badge-warn {
+    @apply border-warn/40 bg-warn/10 text-warn;
+  }
+  .badge-error {
+    @apply border-error/40 bg-error/10 text-error;
+  }
+  .badge-info {
+    @apply border-accent/40 bg-accent/10 text-accent;
+  }
+  .badge-muted {
+    @apply border-border bg-surface-2 text-muted;
+  }
+  .badge-backlog {
+    @apply border-stage-backlog/40 bg-stage-backlog/10 text-stage-backlog;
+  }
+  .badge-working {
+    @apply border-stage-working/40 bg-stage-working/10 text-stage-working;
+  }
+  .badge-attention {
+    @apply border-stage-attention/40 bg-stage-attention/10 text-stage-attention;
+  }
+  .badge-review {
+    @apply border-stage-review/40 bg-stage-review/10 text-stage-review;
+  }
+  .badge-done {
+    @apply border-stage-done/40 bg-stage-done/10 text-stage-done;
+  }
+
+  /* Task tables (workspaces list, small desktop tables) */
+  .data-table {
+    @apply w-full border-collapse text-sm;
+  }
+  .data-table th {
+    @apply border-b border-border px-2 py-2 text-left text-xs tracking-wide text-muted uppercase;
+  }
+  .data-table td {
+    @apply border-b border-border px-2 py-2 align-top;
+  }
+
+  /* Transcript & agent widgets */
+  .task-layout {
+    @apply grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem];
+  }
+  .transcript {
+    @apply flex flex-col gap-3;
+  }
+  .msg {
+    @apply rounded-lg border border-border bg-surface p-3;
+  }
+  .msg-role {
+    @apply text-xs tracking-wide text-muted uppercase;
+  }
+  .msg-user {
+    @apply border-l-4 border-l-accent;
+  }
+  .msg-assistant {
+    @apply border-l-4 border-l-ok;
+  }
+  .msg.streaming {
+    @apply border-dashed opacity-85;
+  }
+  .tool {
+    @apply rounded-lg border border-border p-2.5 text-sm;
+  }
+  .tool summary {
+    @apply cursor-pointer font-mono text-muted;
+  }
+  .tool-running {
+    @apply border-l-4 border-l-accent;
+  }
+  .tool-ok {
+    @apply border-l-4 border-l-ok;
+  }
+  .tool-error {
+    @apply border-l-4 border-l-error;
+  }
+  .tool-args {
+    @apply text-muted;
+  }
+  .tool-output {
+    @apply max-h-96 overflow-auto;
+  }
+  .thinking summary,
+  .prompt summary {
+    @apply cursor-pointer text-muted;
+  }
+  .notice {
+    @apply rounded-lg border border-border px-2.5 py-1.5 text-sm;
+  }
+  .notice-info {
+    @apply border-accent/40 text-accent;
+  }
+  .notice-warn {
+    @apply border-warn/40 text-warn;
+  }
+  .notice-error {
+    @apply border-error/40 text-error;
+  }
+  .status-line {
+    @apply flex flex-wrap items-center gap-2 text-sm;
+  }
+  .dialog-panel {
+    @apply border-warn/50;
+  }
+  .composer textarea {
+    @apply w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none min-h-20;
+  }
+  .diff {
+    @apply max-h-[40rem] overflow-x-auto overflow-y-auto rounded-lg border border-border bg-bg p-3 font-mono text-xs whitespace-pre;
+  }
+  .diff div {
+    @apply min-h-[1em];
+  }
+  .diff-file {
+    @apply mt-2 font-bold text-accent;
+  }
+  .diff-meta {
+    @apply text-muted;
+  }
+  .diff-hunk {
+    color: #bb9af7;
+  }
+  .diff-add {
+    @apply bg-ok/10 text-ok;
+  }
+  .diff-del {
+    @apply bg-error/10 text-error;
+  }
+}

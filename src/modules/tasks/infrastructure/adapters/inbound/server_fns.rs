@@ -3,7 +3,7 @@ use leptos::server_fn::codec::Json;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    CreateTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, WorkspaceOptionDto,
+    CreateTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, UpdateTaskDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 
@@ -107,6 +107,39 @@ pub async fn answer_task_dialog(
     support::context()?
         .answer_dialog
         .execute(support::task_id(&id)?, dialog_id, answer.into())
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn start_task(id: String) -> Result<TaskDto, ServerFnError> {
+    use crate::modules::tasks::domain::models::task::Task;
+
+    let task: Task = support::context()?
+        .start_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(TaskDto::from(task))
+}
+
+#[server(input = Json)]
+pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, ServerFnError> {
+    use crate::modules::tasks::domain::models::task::Task;
+
+    let task: Task = support::context()?
+        .update_task
+        .execute(support::task_id(&id)?, input.title, input.prompt)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(TaskDto::from(task))
+}
+
+#[server]
+pub async fn delete_task(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .delete_task
+        .execute(support::task_id(&id)?)
         .await
         .map_err(support::to_server_error)
 }

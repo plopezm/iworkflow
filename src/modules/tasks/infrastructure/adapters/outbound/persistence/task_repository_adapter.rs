@@ -1,18 +1,23 @@
+use std::path::PathBuf;
+
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
-use diesel_async::RunQueryDsl;
+use diesel_async::{AsyncConnection, RunQueryDsl};
 
 use crate::core::db::pool::{DbConnection, DbPool};
 use crate::core::db::schema::{task_events, tasks};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::models::task_event_row::{
     NewTaskEventRow, TaskEventRow,
 };
-use crate::modules::tasks::infrastructure::adapters::outbound::persistence::models::task_row::TaskRow;
+use crate::modules::tasks::infrastructure::adapters::outbound::persistence::models::task_row::{
+    TaskRow, decode_pending_dialogs, encode_pending_dialogs,
+};
 
 pub struct TaskRepositoryAdapter {
     pool: DbPool,
@@ -109,6 +114,181 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
             return Err(TaskError::NotFound(id.to_string()));
         }
         Ok(())
+    }
+
+    async fn update_details_if_backlog(
+        &self,
+        id: TaskId,
+        title: String,
+        prompt: String,
+    ) -> Result<bool, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let now: NaiveDateTime = Utc::now().naive_utc();
+        let updated: usize = diesel::update(
+            tasks::table
+                .filter(tasks::id.eq(id.to_string()))
+                .filter(tasks::status.eq(TaskStatus::Backlog.as_str())),
+        )
+        .set((
+            tasks::title.eq(title),
+            tasks::prompt.eq(prompt),
+            tasks::updated_at.eq(now),
+        ))
+        .execute(&mut connection)
+        .await
+        .map_err(db_error)?;
+        Ok(updated > 0)
+    }
+
+    async fn claim_for_start(
+        &self,
+        id: TaskId,
+        branch: String,
+        worktree_path: PathBuf,
+        base_branch: String,
+    ) -> Result<bool, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let now: NaiveDateTime = Utc::now().naive_utc();
+        let updated: usize = diesel::update(
+            tasks::table
+                .filter(tasks::id.eq(id.to_string()))
+                .filter(tasks::status.eq(TaskStatus::Backlog.as_str())),
+        )
+        .set((
+            tasks::branch.eq(branch),
+            tasks::worktree_path.eq(worktree_path.to_string_lossy().into_owned()),
+            tasks::base_branch.eq(base_branch),
+            tasks::status.eq(TaskStatus::Starting.as_str()),
+            tasks::updated_at.eq(now),
+        ))
+        .execute(&mut connection)
+        .await
+        .map_err(db_error)?;
+        Ok(updated > 0)
+    }
+
+    async fn revert_start_claim(&self, id: TaskId) -> Result<bool, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let now: NaiveDateTime = Utc::now().naive_utc();
+        let updated: usize = diesel::update(
+            tasks::table
+                .filter(tasks::id.eq(id.to_string()))
+                .filter(tasks::status.eq(TaskStatus::Starting.as_str())),
+        )
+        .set((
+            tasks::status.eq(TaskStatus::Backlog.as_str()),
+            tasks::updated_at.eq(now),
+        ))
+        .execute(&mut connection)
+        .await
+        .map_err(db_error)?;
+        Ok(updated > 0)
+    }
+
+    async fn add_pending_dialog(&self, id: TaskId, dialog: PendingDialog) -> Result<(), TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let id_str: String = id.to_string();
+        connection
+            .transaction::<(), DieselError, _>(async move |conn| {
+                let row: Option<TaskRow> = tasks::table
+                    .find(id_str.clone())
+                    .select(TaskRow::as_select())
+                    .first(conn)
+                    .await
+                    .optional()?;
+                let Some(row) = row else {
+                    return Ok(());
+                };
+                let is_live: bool = TaskStatus::parse(&row.status)
+                    .map(|status: TaskStatus| status.has_live_agent())
+                    .unwrap_or(false);
+                if !is_live {
+                    return Ok(());
+                }
+                let mut dialogs: Vec<PendingDialog> =
+                    decode_pending_dialogs(&row.pending_dialogs).unwrap_or_default();
+                if dialogs.iter().any(|d: &PendingDialog| d.id == dialog.id) {
+                    return Ok(());
+                }
+                dialogs.push(dialog.clone());
+                let payload: String = encode_pending_dialogs(&dialogs);
+                let now: NaiveDateTime = Utc::now().naive_utc();
+                diesel::update(tasks::table.find(id_str.clone()))
+                    .set((
+                        tasks::pending_dialogs.eq(payload),
+                        tasks::updated_at.eq(now),
+                    ))
+                    .execute(conn)
+                    .await?;
+                Ok(())
+            })
+            .await
+            .map_err(db_error)
+    }
+
+    async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let id_str: String = id.to_string();
+        connection
+            .transaction::<(), DieselError, _>(async move |conn| {
+                let row: Option<TaskRow> = tasks::table
+                    .find(id_str.clone())
+                    .select(TaskRow::as_select())
+                    .first(conn)
+                    .await
+                    .optional()?;
+                let Some(row) = row else {
+                    return Ok(());
+                };
+                let dialogs: Vec<PendingDialog> =
+                    decode_pending_dialogs(&row.pending_dialogs).unwrap_or_default();
+                if !dialogs.iter().any(|d: &PendingDialog| d.id == dialog_id) {
+                    return Ok(());
+                }
+                let remaining: Vec<PendingDialog> = dialogs
+                    .into_iter()
+                    .filter(|d: &PendingDialog| d.id != dialog_id)
+                    .collect();
+                let payload: String = encode_pending_dialogs(&remaining);
+                let now: NaiveDateTime = Utc::now().naive_utc();
+                diesel::update(tasks::table.find(id_str.clone()))
+                    .set((
+                        tasks::pending_dialogs.eq(payload),
+                        tasks::updated_at.eq(now),
+                    ))
+                    .execute(conn)
+                    .await?;
+                Ok(())
+            })
+            .await
+            .map_err(db_error)
+    }
+
+    async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let now: NaiveDateTime = Utc::now().naive_utc();
+        diesel::update(tasks::table.find(id.to_string()))
+            .set((
+                tasks::pending_dialogs.eq(encode_pending_dialogs(&[])),
+                tasks::updated_at.eq(now),
+            ))
+            .execute(&mut connection)
+            .await
+            .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let deleted: usize = diesel::delete(
+            tasks::table
+                .filter(tasks::id.eq(id.to_string()))
+                .filter(tasks::status.eq(TaskStatus::Backlog.as_str())),
+        )
+        .execute(&mut connection)
+        .await
+        .map_err(db_error)?;
+        Ok(deleted > 0)
     }
 
     async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError> {

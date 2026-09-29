@@ -1,6 +1,7 @@
 pub mod abort_task;
 pub mod answer_dialog;
 pub mod create_task;
+pub mod delete_task;
 pub mod discard_task;
 pub mod finish_task;
 pub mod get_task;
@@ -13,3 +14,5 @@ pub mod merge_task;
 pub mod reconcile_tasks;
 pub mod resume_task;
 pub mod send_message;
+pub mod start_task;
+pub mod update_task;

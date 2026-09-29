@@ -106,6 +106,10 @@ pub enum TaskEventKindDto {
         status: TaskStatusDto,
         error: Option<String>,
     },
+    /// Título/prompt editados en backlog. Solo notifica al tablero.
+    Changed,
+    /// Tarea en backlog eliminada. Solo notifica al tablero.
+    Removed,
 }
 
 /// Evento que viaja por SSE al cliente.
@@ -248,6 +252,8 @@ mod mapping {
                         .unwrap_or(TaskStatusDto::Failed),
                     error,
                 },
+                TaskEventKind::Changed => TaskEventKindDto::Changed,
+                TaskEventKind::Removed => TaskEventKindDto::Removed,
             };
             Self {
                 seq: event.seq,

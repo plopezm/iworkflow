@@ -37,7 +37,7 @@ pub fn TaskActions(
                 .can_abort
                 .then(|| {
                     view! {
-                        <button class="secondary" disabled=move || busy.get() on:click=move |_| handlers.abort.run(())>
+                        <button class="btn-secondary" disabled=move || busy.get() on:click=move |_| handlers.abort.run(())>
                             "Abortar ejecución"
                         </button>
                     }
@@ -47,6 +47,7 @@ pub fn TaskActions(
                 .then(|| {
                     view! {
                         <button
+                            class="btn-primary"
                             disabled=move || busy.get()
                             on:click=confirmed(
                                 "¿Finalizar la tarea? Se cerrará el agente y se consolidarán los cambios para revisión.",
@@ -61,7 +62,7 @@ pub fn TaskActions(
                 .can_resume
                 .then(|| {
                     view! {
-                        <button class="secondary" disabled=move || busy.get() on:click=move |_| handlers.resume.run(())>
+                        <button class="btn-secondary" disabled=move || busy.get() on:click=move |_| handlers.resume.run(())>
                             "Reanudar agente"
                         </button>
                     }
@@ -70,7 +71,7 @@ pub fn TaskActions(
                 .can_view_diff
                 .then(|| {
                     view! {
-                        <button class="secondary" on:click=move |_| handlers.toggle_diff.run(())>
+                        <button class="btn-secondary" on:click=move |_| handlers.toggle_diff.run(())>
                             {move || if diff_visible.get() { "Ocultar diff" } else { "Ver diff" }}
                         </button>
                     }
@@ -80,6 +81,7 @@ pub fn TaskActions(
                 .then(|| {
                     view! {
                         <button
+                            class="btn-primary"
                             disabled=move || busy.get()
                             on:click=confirmed(
                                 "¿Integrar la rama en la base? Se eliminará el worktree.",
@@ -95,7 +97,7 @@ pub fn TaskActions(
                 .then(|| {
                     view! {
                         <button
-                            class="danger"
+                            class="btn-danger"
                             disabled=move || busy.get()
                             on:click=confirmed(
                                 "¿Descartar la tarea? Se borrarán el worktree y la rama sin integrar.",

@@ -22,7 +22,8 @@ pub fn WorkspacesPage() -> impl IntoView {
     let on_delete: Callback<String> = Callback::new(move |id: String| state.remove(id));
 
     view! {
-        <h1>"Workspaces"</h1>
+        <h1 class="mb-4 text-xl font-semibold text-fg">"Workspaces"</h1>
+        <div class="stack">
         <Card title="Registrar workspace">
             <WorkspaceForm
                 name=state.name
@@ -47,5 +48,6 @@ pub fn WorkspacesPage() -> impl IntoView {
                 })}
             </Transition>
         </Card>
+        </div>
     }
 }

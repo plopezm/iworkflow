@@ -16,14 +16,18 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::task::TaskId;
-use crate::modules::tasks::domain::models::task_event::TaskEvent;
+use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::TaskEventDto;
 use crate::modules::tasks::infrastructure::di::tasks_context::TasksContext;
 
 pub const TASK_EVENTS_PATH: &str = "/api/tasks/{id}/events";
+/// Endpoint global del tablero: un `changed` por tarea que cambia de estado o necesita atención.
+pub const BOARD_EVENTS_PATH: &str = "/api/tasks/events";
 pub const RESET_EVENT: &str = "reset";
 pub const LAGGED_EVENT: &str = "lagged";
+pub const CHANGED_EVENT: &str = "changed";
 
 /// Los navegadores descartan eventos SSE sin datos (y axum omite `data:` si está vacío),
 /// así que los eventos de control llevan su nombre como dato.
@@ -38,6 +42,7 @@ where
 {
     Router::new()
         .route(TASK_EVENTS_PATH, get(stream_task_events))
+        .route(BOARD_EVENTS_PATH, get(stream_board_events))
         .with_state(context)
 }
 
@@ -65,6 +70,43 @@ pub fn live_event(
         Ok(_) => None,
         Err(BroadcastStreamRecvError::Lagged(_)) => Some(control_event(LAGGED_EVENT)),
     }
+}
+
+/// El tablero solo necesita saber qué tarea cambió, para refetchear su estado.
+fn is_board_relevant(kind: &TaskEventKind) -> bool {
+    match kind {
+        TaskEventKind::Status { .. } | TaskEventKind::Changed | TaskEventKind::Removed => true,
+        TaskEventKind::Agent { event } => matches!(
+            event,
+            AgentEvent::DialogRequested(_)
+                | AgentEvent::DialogResolved { .. }
+                | AgentEvent::ProcessExited { .. }
+        ),
+    }
+}
+
+/// Filtra el stream en vivo para el tablero: un `changed` con el id de la tarea por cada
+/// evento de estado o de agente relevante (diálogo abierto/resuelto, proceso terminado).
+pub fn board_event(item: Result<TaskEvent, BroadcastStreamRecvError>) -> Option<Event> {
+    match item {
+        Ok(event) if is_board_relevant(&event.kind) => Some(
+            Event::default()
+                .event(CHANGED_EVENT)
+                .data(event.task_id.to_string()),
+        ),
+        Ok(_) => None,
+        Err(BroadcastStreamRecvError::Lagged(_)) => Some(control_event(LAGGED_EVENT)),
+    }
+}
+
+async fn stream_board_events(
+    State(context): State<TasksContext>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let receiver: tokio::sync::broadcast::Receiver<TaskEvent> = context.event_bus.subscribe();
+    let reset = stream::once(async { control_event(RESET_EVENT) });
+    let live = BroadcastStream::new(receiver).filter_map(|item| async move { board_event(item) });
+    let events = reset.chain(live).map(Ok::<Event, Infallible>);
+    Sse::new(events).keep_alive(KeepAlive::default())
 }
 
 async fn stream_task_events(
@@ -132,5 +174,74 @@ mod tests {
         assert!(live_event(Ok(event(task_id, Some(6))), task_id, Some(5)).is_some());
         assert!(live_event(Ok(event(task_id, None)), task_id, Some(5)).is_some());
         assert!(live_event(Err(BroadcastStreamRecvError::Lagged(3)), task_id, None).is_some());
+    }
+
+    fn with_kind(kind: TaskEventKind) -> TaskEvent {
+        TaskEvent {
+            task_id: TaskId::new(),
+            seq: None,
+            kind,
+            created_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn board_forwards_status_and_lifecycle_notifications() {
+        assert!(
+            board_event(Ok(with_kind(TaskEventKind::status(
+                crate::modules::tasks::domain::models::task::TaskStatus::Idle,
+                None
+            ))))
+            .is_some()
+        );
+        assert!(board_event(Ok(with_kind(TaskEventKind::Changed))).is_some());
+        assert!(board_event(Ok(with_kind(TaskEventKind::Removed))).is_some());
+    }
+
+    #[test]
+    fn board_forwards_only_specific_agent_events() {
+        let dialog_requested = TaskEventKind::Agent {
+            event: AgentEvent::DialogRequested(
+                crate::modules::tasks::domain::models::agent_event::DialogRequest {
+                    id: "d1".to_string(),
+                    title: "t".to_string(),
+                    kind: crate::modules::tasks::domain::models::agent_event::DialogKind::Confirm {
+                        message: None,
+                    },
+                    timeout_ms: None,
+                },
+            ),
+        };
+        let dialog_resolved = TaskEventKind::Agent {
+            event: AgentEvent::DialogResolved {
+                dialog_id: "d1".to_string(),
+            },
+        };
+        let process_exited = TaskEventKind::Agent {
+            event: AgentEvent::ProcessExited { code: Some(0) },
+        };
+        let text_delta = TaskEventKind::Agent {
+            event: AgentEvent::TextDelta {
+                delta: "hi".to_string(),
+            },
+        };
+
+        assert!(board_event(Ok(with_kind(dialog_requested))).is_some());
+        assert!(board_event(Ok(with_kind(dialog_resolved))).is_some());
+        assert!(board_event(Ok(with_kind(process_exited))).is_some());
+        assert!(board_event(Ok(with_kind(text_delta))).is_none());
+    }
+
+    #[test]
+    fn board_forwards_lagged_as_control_event() {
+        assert!(board_event(Err(BroadcastStreamRecvError::Lagged(2))).is_some());
+    }
+
+    #[test]
+    fn board_event_carries_task_id_as_data() {
+        let event: TaskEvent = with_kind(TaskEventKind::Changed);
+        let task_id: TaskId = event.task_id;
+        let rendered: String = format!("{:?}", board_event(Ok(event)).expect("evento"));
+        assert!(rendered.contains(&task_id.to_string()), "{rendered}");
     }
 }

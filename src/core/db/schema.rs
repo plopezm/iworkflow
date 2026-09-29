@@ -22,6 +22,7 @@ diesel::table! {
         error -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        pending_dialogs -> Text,
     }
 }
 

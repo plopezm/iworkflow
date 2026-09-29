@@ -4,37 +4,32 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
+use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
-use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::task::{
     NewTask, Task, TaskId, TaskStatus, branch_name, slugify, worktree_dir_name,
 };
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
-use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
-use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
-/// Crea el worktree de la tarea, lanza el agente y le envía el prompt inicial.
-/// Si el agente no arranca, la tarea queda en `Failed` (el worktree se conserva).
+/// Crea una tarea en `Backlog` (sin worktree ni agente). Si `start_now` es `true`,
+/// delega en [`StartTask`] para arrancarla inmediatamente.
 pub struct CreateTask {
     lifecycle: Arc<TaskLifecycle>,
     worktrees: Arc<dyn WorktreePort>,
-    runtime: Arc<dyn AgentRuntimePort>,
-    sink: Arc<dyn AgentEventSink>,
+    start_task: Arc<StartTask>,
 }
 
 impl CreateTask {
     pub fn new(
         lifecycle: Arc<TaskLifecycle>,
         worktrees: Arc<dyn WorktreePort>,
-        runtime: Arc<dyn AgentRuntimePort>,
-        sink: Arc<dyn AgentEventSink>,
+        start_task: Arc<StartTask>,
     ) -> Self {
         Self {
             lifecycle,
             worktrees,
-            runtime,
-            sink,
+            start_task,
         }
     }
 
@@ -48,17 +43,9 @@ impl CreateTask {
             &slugify(&workspace.name),
             &worktree_dir_name(&id, &input.title),
         );
-        self.worktrees
-            .create(
-                &workspace.path,
-                &workspace.base_branch,
-                &branch,
-                &worktree_path,
-            )
-            .await?;
 
         let now: chrono::DateTime<Utc> = Utc::now();
-        let mut task: Task = Task {
+        let task: Task = Task {
             id,
             workspace_id: workspace.id,
             title: input.title,
@@ -66,39 +53,21 @@ impl CreateTask {
             branch,
             base_branch: workspace.base_branch,
             worktree_path,
-            status: TaskStatus::Starting,
+            status: TaskStatus::Backlog,
             error: None,
+            pending_dialogs: Vec::new(),
             created_at: now,
             updated_at: now,
         };
         self.lifecycle.repository().insert(&task).await?;
         self.lifecycle
-            .transition(id, TaskStatus::Starting, None)
+            .transition(id, TaskStatus::Backlog, None)
             .await?;
 
-        if let Err(error) = self.launch(&task).await {
-            let message: String = error.to_string();
-            self.lifecycle
-                .transition(id, TaskStatus::Failed, Some(message.clone()))
-                .await?;
-            task.status = TaskStatus::Failed;
-            task.error = Some(message);
+        if input.start_now {
+            return self.start_task.execute(id).await;
         }
         Ok(task)
-    }
-
-    async fn launch(&self, task: &Task) -> Result<(), TaskError> {
-        self.runtime
-            .start(task.id, &task.worktree_path, false, self.sink.clone())
-            .await?;
-        self.runtime
-            .send(
-                task.id,
-                AgentCommand::Prompt {
-                    message: task.prompt.clone(),
-                },
-            )
-            .await
     }
 }
 
@@ -108,20 +77,107 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, REPO, Recorded};
+    use crate::modules::tasks::domain::models::agent_command::AgentCommand;
     use crate::modules::tasks::mocks::{
         MockAgentEventSink, MockAgentRuntime, MockTaskEventPublisher, MockTaskRepository,
         MockWorkspaceLookup, MockWorktree,
     };
 
-    fn input() -> NewTask {
+    fn input(start_now: bool) -> NewTask {
         NewTask {
             workspace_id: "ws-1".to_string(),
             title: "Arregla login".to_string(),
             prompt: "Arregla el login roto".to_string(),
+            start_now,
         }
     }
 
-    fn worktrees() -> MockWorktree {
+    fn worktrees_computing_path_only() -> MockWorktree {
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_worktree_path()
+            .returning(|ws, dir| PathBuf::from(format!("/wt/{ws}/{dir}")));
+        worktrees.expect_create().never();
+        worktrees
+    }
+
+    fn no_op_start_task(recorded: &Recorded) -> Arc<StartTask> {
+        Arc::new(StartTask::new(
+            test_support::lifecycle(None, recorded),
+            Arc::new(MockWorktree::new()),
+            Arc::new(MockAgentRuntime::new()),
+            Arc::new(MockAgentEventSink::new()),
+        ))
+    }
+
+    fn lifecycle_accepting_insert(recorded: &Recorded) -> Arc<TaskLifecycle> {
+        let mut repository: MockTaskRepository = test_support::repository_with(None, recorded);
+        repository.expect_insert().times(1).returning(|_| Ok(()));
+        test_support::lifecycle_with(repository, recorded)
+    }
+
+    #[tokio::test]
+    async fn creates_task_in_backlog_without_starting_it() {
+        let recorded: Recorded = Recorded::default();
+        let use_case: CreateTask = CreateTask::new(
+            lifecycle_accepting_insert(&recorded),
+            Arc::new(worktrees_computing_path_only()),
+            no_op_start_task(&recorded),
+        );
+
+        let task: Task = use_case.execute(input(false)).await.expect("creada");
+
+        assert_eq!(task.status, TaskStatus::Backlog);
+        assert!(task.pending_dialogs.is_empty());
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Backlog]);
+        assert!(task.branch.starts_with("pi/arregla-login-"));
+    }
+
+    #[tokio::test]
+    async fn start_now_delegates_to_start_task() {
+        use std::sync::Mutex;
+
+        let recorded: Recorded = Recorded::default();
+        let inserted: Arc<Mutex<Option<Task>>> = Arc::new(Mutex::new(None));
+        let mut repository: MockTaskRepository = MockTaskRepository::new();
+        let insert_cell: Arc<Mutex<Option<Task>>> = inserted.clone();
+        repository
+            .expect_insert()
+            .times(1)
+            .returning(move |task: &Task| {
+                *insert_cell.lock().expect("lock") = Some(task.clone());
+                Ok(())
+            });
+        let find_cell: Arc<Mutex<Option<Task>>> = inserted.clone();
+        repository
+            .expect_find()
+            .returning(move |_| Ok(find_cell.lock().expect("lock").clone()));
+        let statuses: test_support::StatusLog = recorded.statuses.clone();
+        repository
+            .expect_update_status()
+            .returning(move |_, status, error| {
+                statuses.lock().expect("lock").push((status, error));
+                Ok(())
+            });
+        repository.expect_append_event().returning(|id, kind| {
+            Ok(
+                crate::modules::tasks::domain::models::task_event::TaskEvent {
+                    task_id: id,
+                    seq: Some(1),
+                    kind,
+                    created_at: Utc::now(),
+                },
+            )
+        });
+        repository
+            .expect_clear_pending_dialogs()
+            .returning(|_| Ok(()));
+        repository
+            .expect_claim_for_start()
+            .times(1)
+            .returning(|_, _, _, _| Ok(true));
+        let lifecycle: Arc<TaskLifecycle> = test_support::lifecycle_with(repository, &recorded);
+
         let mut worktrees: MockWorktree = MockWorktree::new();
         worktrees
             .expect_worktree_path()
@@ -133,26 +189,11 @@ mod tests {
             })
             .times(1)
             .returning(|_, _, _, _| Ok(()));
-        worktrees
-    }
+        let worktrees: Arc<dyn WorktreePort> = Arc::new(worktrees);
 
-    fn lifecycle_accepting_insert(recorded: &Recorded) -> Arc<TaskLifecycle> {
-        let mut repository: MockTaskRepository = test_support::repository_with(None, recorded);
-        repository.expect_insert().times(1).returning(|_| Ok(()));
-        Arc::new(TaskLifecycle::new(
-            Arc::new(repository),
-            Arc::new(test_support::publisher(recorded)),
-            Arc::new(test_support::workspaces()),
-        ))
-    }
-
-    #[tokio::test]
-    async fn creates_worktree_starts_agent_and_sends_prompt() {
-        let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
             .expect_start()
-            .withf(|_, cwd: &Path, resume: &bool, _| cwd.starts_with("/wt/demo") && !resume)
             .times(1)
             .returning(|_, _, _, _| Ok(()));
         runtime
@@ -165,46 +206,19 @@ mod tests {
             })
             .times(1)
             .returning(|_, _| Ok(()));
-        let use_case: CreateTask = CreateTask::new(
-            lifecycle_accepting_insert(&recorded),
-            Arc::new(worktrees()),
+
+        let start_task: Arc<StartTask> = Arc::new(StartTask::new(
+            lifecycle.clone(),
+            worktrees.clone(),
             Arc::new(runtime),
             Arc::new(MockAgentEventSink::new()),
-        );
+        ));
+        let use_case: CreateTask = CreateTask::new(lifecycle, worktrees, start_task);
 
-        let task: Task = use_case.execute(input()).await.expect("creada");
+        let task: Task = use_case.execute(input(true)).await.expect("creada");
 
         assert_eq!(task.status, TaskStatus::Starting);
-        assert_eq!(recorded.statuses(), vec![TaskStatus::Starting]);
-    }
-
-    #[tokio::test]
-    async fn marks_task_failed_when_agent_cannot_start() {
-        let recorded: Recorded = Recorded::default();
-        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
-        runtime
-            .expect_start()
-            .returning(|_, _, _, _| Err(TaskError::Runtime("no existe gentle-shell".to_string())));
-        let use_case: CreateTask = CreateTask::new(
-            lifecycle_accepting_insert(&recorded),
-            Arc::new(worktrees()),
-            Arc::new(runtime),
-            Arc::new(MockAgentEventSink::new()),
-        );
-
-        let task: Task = use_case.execute(input()).await.expect("creada");
-
-        assert_eq!(task.status, TaskStatus::Failed);
-        assert_eq!(
-            recorded.statuses(),
-            vec![TaskStatus::Starting, TaskStatus::Failed]
-        );
-        assert!(
-            recorded
-                .last_error()
-                .expect("error")
-                .contains("gentle-shell")
-        );
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Backlog]);
     }
 
     #[tokio::test]
@@ -217,13 +231,17 @@ mod tests {
             Arc::new(lookup),
         ));
         let use_case: CreateTask = CreateTask::new(
-            lifecycle,
+            lifecycle.clone(),
             Arc::new(MockWorktree::new()),
-            Arc::new(MockAgentRuntime::new()),
-            Arc::new(MockAgentEventSink::new()),
+            Arc::new(StartTask::new(
+                lifecycle,
+                Arc::new(MockWorktree::new()),
+                Arc::new(MockAgentRuntime::new()),
+                Arc::new(MockAgentEventSink::new()),
+            )),
         );
 
-        let result: Result<Task, TaskError> = use_case.execute(input()).await;
+        let result: Result<Task, TaskError> = use_case.execute(input(false)).await;
 
         assert_eq!(
             result,
@@ -233,13 +251,13 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_empty_prompt() {
+        let recorded: Recorded = Recorded::default();
         let use_case: CreateTask = CreateTask::new(
-            test_support::lifecycle(None, &Recorded::default()),
+            test_support::lifecycle(None, &recorded),
             Arc::new(MockWorktree::new()),
-            Arc::new(MockAgentRuntime::new()),
-            Arc::new(MockAgentEventSink::new()),
+            no_op_start_task(&recorded),
         );
-        let mut empty: NewTask = input();
+        let mut empty: NewTask = input(false);
         empty.prompt = "   ".to_string();
 
         assert_eq!(use_case.execute(empty).await, Err(TaskError::EmptyPrompt));

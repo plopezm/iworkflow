@@ -36,7 +36,7 @@ fn render_item(item: TranscriptItem) -> AnyView {
         TranscriptItem::User { text } => view! {
             <div class="msg msg-user">
                 <span class="msg-role">"Tú"</span>
-                <pre>{text}</pre>
+                <pre class="whitespace-pre-wrap break-words">{text}</pre>
             </div>
         }
         .into_any(),
@@ -52,11 +52,12 @@ fn render_item(item: TranscriptItem) -> AnyView {
                         view! {
                             <details class="thinking">
                                 <summary>"Razonamiento"</summary>
-                                <pre>{t}</pre>
+                                <pre class="whitespace-pre-wrap break-words">{t}</pre>
                             </details>
                         }
                     })}
-                {(!text.is_empty()).then(|| view! { <pre>{text}</pre> })}
+                {(!text.is_empty())
+                    .then(|| view! { <pre class="whitespace-pre-wrap break-words">{text}</pre> })}
                 {error.map(|e: String| view! { <ErrorText message=e /> })}
             </div>
         }
@@ -77,8 +78,13 @@ fn render_item(item: TranscriptItem) -> AnyView {
             view! {
                 <details class=class>
                     <summary>{summary}</summary>
-                    <pre class="tool-args">{args}</pre>
-                    {(!output.is_empty()).then(|| view! { <pre class="tool-output">{output}</pre> })}
+                    <pre class="tool-args whitespace-pre-wrap break-words">{args}</pre>
+                    {(!output.is_empty())
+                        .then(|| {
+                            view! {
+                                <pre class="tool-output whitespace-pre-wrap break-words">{output}</pre>
+                            }
+                        })}
                 </details>
             }
             .into_any()
@@ -135,8 +141,13 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
                         view! {
                             <div class="msg msg-assistant streaming">
                                 <span class="msg-role">"Agente · escribiendo…"</span>
-                                {(!thinking.is_empty()).then(|| view! { <pre class="muted">{thinking}</pre> })}
-                                <pre>{text}</pre>
+                                {(!thinking.is_empty())
+                                    .then(|| {
+                                        view! {
+                                            <pre class="muted whitespace-pre-wrap break-words">{thinking}</pre>
+                                        }
+                                    })}
+                                <pre class="whitespace-pre-wrap break-words">{text}</pre>
                             </div>
                         }
                     })

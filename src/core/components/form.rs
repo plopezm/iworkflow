@@ -9,10 +9,11 @@ pub fn TextField(
     #[prop(optional)] required: bool,
 ) -> impl IntoView {
     view! {
-        <label class="stack">
-            <span>{label}</span>
+        <label class="stack gap-1.5">
+            <span class="text-sm font-medium text-fg">{label}</span>
             <input
                 type="text"
+                class="input"
                 placeholder=placeholder
                 required=required
                 prop:value=move || value.get()
@@ -31,9 +32,10 @@ pub fn TextArea(
     #[prop(optional)] required: bool,
 ) -> impl IntoView {
     view! {
-        <label class="stack">
-            <span>{label}</span>
+        <label class="stack gap-1.5">
+            <span class="text-sm font-medium text-fg">{label}</span>
             <textarea
+                class="input min-h-24"
                 placeholder=placeholder
                 required=required
                 prop:value=move || value.get()
@@ -60,9 +62,10 @@ pub fn SelectField(
     #[prop(optional)] required: bool,
 ) -> impl IntoView {
     view! {
-        <label class="stack">
-            <span>{label}</span>
+        <label class="stack gap-1.5">
+            <span class="text-sm font-medium text-fg">{label}</span>
             <select
+                class="input"
                 required=required
                 prop:value=move || value.get()
                 on:change=move |ev| value.set(event_target_value(&ev))
@@ -92,7 +95,7 @@ where
 {
     move || {
         result.with(|r: &Option<Result<T, ServerFnError>>| match r {
-            Some(Err(e)) => Some(view! { <p class="error-text">{e.to_string()}</p> }),
+            Some(Err(e)) => Some(view! { <p class="text-sm text-error">{e.to_string()}</p> }),
             _ => None,
         })
     }

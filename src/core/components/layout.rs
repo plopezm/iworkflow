@@ -4,7 +4,7 @@ use leptos::prelude::*;
 #[component]
 pub fn Card(#[prop(into, optional)] title: Option<String>, children: Children) -> impl IntoView {
     view! {
-        <section class="card">
+        <section class="card stack">
             {title.map(|t: String| view! { <h2 class="card-title">{t}</h2> })}
             {children()}
         </section>
@@ -20,5 +20,5 @@ pub fn Badge(#[prop(into)] text: String, #[prop(into)] variant: String) -> impl 
 /// Mensaje de error estándar.
 #[component]
 pub fn ErrorText(#[prop(into)] message: String) -> impl IntoView {
-    view! { <p class="error-text">{message}</p> }
+    view! { <p class="text-sm text-error">{message}</p> }
 }

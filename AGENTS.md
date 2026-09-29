@@ -6,6 +6,11 @@
 - ORM: Diesel (`diesel` + `diesel-async` con `SyncConnectionWrapper<SqliteConnection>` y pool `deadpool`), migraciones con `diesel_cli` y embebidas (`embed_migrations!`) que se aplican al arrancar
 - Base de datos: SQLite (`libsqlite3-sys` bundled) en `~/.pi-dashboard/workspaces.db` (override con `DATABASE_URL`)
 - Búsqueda código: Usa codegraph, mantén actualizado los grafos en cada feature
+- Diseño: Usa tailwind css
+
+## 2. Orquestación
+
+Utiliza siempre la metodología ODD con multiagente para el desarrollo de las features.
 
 
 ## 3. Arquitectura (Hexagonal + Vertical Slicing)

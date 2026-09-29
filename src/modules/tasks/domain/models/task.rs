@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
+use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 
 const MAX_TITLE_LENGTH: usize = 120;
 const MAX_SLUG_LENGTH: usize = 40;
@@ -51,6 +52,8 @@ impl fmt::Display for TaskId {
 /// Ciclo de vida de una tarea.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TaskStatus {
+    /// Tarea creada pero sin worktree ni agente; pendiente de arrancar.
+    Backlog,
     /// Worktree creado, proceso arrancando.
     Starting,
     /// El agente está trabajando.
@@ -74,7 +77,8 @@ pub enum TaskStatus {
 }
 
 impl TaskStatus {
-    pub const ALL: [TaskStatus; 10] = [
+    pub const ALL: [TaskStatus; 11] = [
+        TaskStatus::Backlog,
         TaskStatus::Starting,
         TaskStatus::Running,
         TaskStatus::Idle,
@@ -89,6 +93,7 @@ impl TaskStatus {
 
     pub fn as_str(&self) -> &'static str {
         match self {
+            TaskStatus::Backlog => "backlog",
             TaskStatus::Starting => "starting",
             TaskStatus::Running => "running",
             TaskStatus::Idle => "idle",
@@ -175,8 +180,38 @@ impl TaskStatus {
     }
 
     pub fn can_discard(&self) -> bool {
-        !self.is_closed() && *self != TaskStatus::Finishing
+        !self.is_closed() && *self != TaskStatus::Finishing && *self != TaskStatus::Backlog
     }
+
+    /// Solo una tarea en `Backlog` puede arrancarse.
+    pub fn can_start(&self) -> bool {
+        matches!(self, TaskStatus::Backlog)
+    }
+
+    /// Solo una tarea en `Backlog` puede editarse (título/prompt).
+    pub fn can_edit(&self) -> bool {
+        matches!(self, TaskStatus::Backlog)
+    }
+
+    /// Solo una tarea en `Backlog` puede eliminarse (borrado físico, no descarte).
+    pub fn can_delete(&self) -> bool {
+        matches!(self, TaskStatus::Backlog)
+    }
+}
+
+/// Vista agregada del estado de una tarea, usada por el tablero kanban.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TaskStage {
+    /// Tarea sin arrancar.
+    Backlog,
+    /// Agente trabajando sin diálogos pendientes.
+    Working,
+    /// Requiere intervención: diálogo pendiente, error o interrupción.
+    Attention,
+    /// Cambios listos para revisión manual.
+    Review,
+    /// Integrada o descartada.
+    Done,
 }
 
 impl fmt::Display for TaskStatus {
@@ -197,8 +232,70 @@ pub struct Task {
     pub worktree_path: PathBuf,
     pub status: TaskStatus,
     pub error: Option<String>,
+    /// Diálogos abiertos por el agente y aún sin responder.
+    pub pending_dialogs: Vec<PendingDialog>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// Tarea recién creada y, si se pidió arrancarla (`start_now`) y el arranque falló,
+/// el error correspondiente. La tarea sigue existiendo (en `Backlog`) para permitir
+/// reintentar el arranque sin duplicarla.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatedTask {
+    pub task: Task,
+    pub start_error: Option<TaskError>,
+}
+
+impl Task {
+    /// Diálogos pendientes que no han caducado en `now`.
+    pub fn pending_dialog_count_at(&self, now: DateTime<Utc>) -> usize {
+        self.pending_dialogs
+            .iter()
+            .filter(|dialog: &&PendingDialog| !dialog.is_expired_at(now))
+            .count()
+    }
+
+    /// Como [`Task::pending_dialog_count_at`], usando la hora actual.
+    pub fn pending_dialog_count(&self) -> usize {
+        self.pending_dialog_count_at(Utc::now())
+    }
+
+    /// Vista agregada del estado, usada por el tablero kanban. Los diálogos caducados en
+    /// `now` no cuentan como pendientes.
+    pub fn stage_at(&self, now: DateTime<Utc>) -> TaskStage {
+        match self.status {
+            TaskStatus::Backlog => TaskStage::Backlog,
+            TaskStatus::Merged | TaskStatus::Discarded => TaskStage::Done,
+            TaskStatus::AwaitingReview => TaskStage::Review,
+            TaskStatus::Idle
+            | TaskStatus::Conflict
+            | TaskStatus::Failed
+            | TaskStatus::Interrupted => TaskStage::Attention,
+            TaskStatus::Starting | TaskStatus::Running | TaskStatus::Finishing => {
+                if self.pending_dialog_count_at(now) == 0 {
+                    TaskStage::Working
+                } else {
+                    TaskStage::Attention
+                }
+            }
+        }
+    }
+
+    /// Como [`Task::stage_at`], usando la hora actual.
+    pub fn stage(&self) -> TaskStage {
+        self.stage_at(Utc::now())
+    }
+
+    /// La tarea requiere que el usuario la mire: atención o revisión.
+    pub fn needs_attention_at(&self, now: DateTime<Utc>) -> bool {
+        matches!(self.stage_at(now), TaskStage::Attention | TaskStage::Review)
+    }
+
+    /// Como [`Task::needs_attention_at`], usando la hora actual.
+    pub fn needs_attention(&self) -> bool {
+        self.needs_attention_at(Utc::now())
+    }
 }
 
 /// Datos de entrada para crear una tarea.
@@ -207,6 +304,8 @@ pub struct NewTask {
     pub workspace_id: String,
     pub title: String,
     pub prompt: String,
+    /// Si es `true`, la tarea arranca (worktree + agente) inmediatamente tras crearse.
+    pub start_now: bool,
 }
 
 impl NewTask {
@@ -226,6 +325,7 @@ impl NewTask {
             workspace_id: self.workspace_id.trim().to_string(),
             title,
             prompt,
+            start_now: self.start_now,
         })
     }
 }
@@ -317,6 +417,7 @@ mod tests {
             workspace_id: " ws ".to_string(),
             title: "  ".to_string(),
             prompt: "  Arregla el test\nmás detalles".to_string(),
+            start_now: false,
         }
         .validated()
         .expect("válida");
@@ -330,6 +431,7 @@ mod tests {
             workspace_id: "ws".to_string(),
             title: "t".to_string(),
             prompt: " \n ".to_string(),
+            start_now: false,
         }
         .validated();
         assert_eq!(result, Err(TaskError::EmptyPrompt));
@@ -381,5 +483,119 @@ mod tests {
         assert!(TaskStatus::Conflict.can_resume());
         assert!(!TaskStatus::Merged.can_discard());
         assert!(!TaskStatus::Finishing.can_discard());
+    }
+
+    #[test]
+    fn only_backlog_can_start_edit_or_delete() {
+        assert!(TaskStatus::Backlog.can_start());
+        assert!(TaskStatus::Backlog.can_edit());
+        assert!(TaskStatus::Backlog.can_delete());
+        assert!(!TaskStatus::Backlog.can_discard());
+        assert!(!TaskStatus::Idle.can_start());
+        assert!(!TaskStatus::Idle.can_edit());
+        assert!(!TaskStatus::Idle.can_delete());
+    }
+
+    #[test]
+    fn backlog_has_no_live_agent_and_is_not_closed() {
+        assert!(!TaskStatus::Backlog.has_live_agent());
+        assert!(!TaskStatus::Backlog.is_closed());
+        assert!(!TaskStatus::Backlog.can_finish());
+        assert!(!TaskStatus::Backlog.can_resume());
+        assert!(!TaskStatus::Backlog.can_merge());
+    }
+
+    fn dialog(id: &str) -> PendingDialog {
+        PendingDialog::new(id.to_string(), None)
+    }
+
+    fn task_with(status: TaskStatus, pending_dialogs: Vec<PendingDialog>) -> Task {
+        Task {
+            id: TaskId::new(),
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            branch: "pi/t".to_string(),
+            base_branch: "main".to_string(),
+            worktree_path: PathBuf::from("/wt/t"),
+            status,
+            error: None,
+            pending_dialogs,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn stage_maps_backlog_merged_and_discarded() {
+        assert_eq!(
+            task_with(TaskStatus::Backlog, vec![]).stage(),
+            TaskStage::Backlog
+        );
+        assert_eq!(
+            task_with(TaskStatus::Merged, vec![]).stage(),
+            TaskStage::Done
+        );
+        assert_eq!(
+            task_with(TaskStatus::Discarded, vec![]).stage(),
+            TaskStage::Done
+        );
+        assert_eq!(
+            task_with(TaskStatus::AwaitingReview, vec![]).stage(),
+            TaskStage::Review
+        );
+    }
+
+    #[test]
+    fn stage_maps_idle_conflict_failed_and_interrupted_to_attention() {
+        for status in [
+            TaskStatus::Idle,
+            TaskStatus::Conflict,
+            TaskStatus::Failed,
+            TaskStatus::Interrupted,
+        ] {
+            assert_eq!(task_with(status, vec![]).stage(), TaskStage::Attention);
+        }
+    }
+
+    #[test]
+    fn stage_maps_live_statuses_to_working_unless_pending_dialogs() {
+        for status in [
+            TaskStatus::Starting,
+            TaskStatus::Running,
+            TaskStatus::Finishing,
+        ] {
+            assert_eq!(task_with(status, vec![]).stage(), TaskStage::Working);
+            assert_eq!(
+                task_with(status, vec![dialog("d1")]).stage(),
+                TaskStage::Attention
+            );
+        }
+    }
+
+    #[test]
+    fn needs_attention_is_true_only_for_attention_and_review_stages() {
+        assert!(task_with(TaskStatus::Idle, vec![]).needs_attention());
+        assert!(task_with(TaskStatus::AwaitingReview, vec![]).needs_attention());
+        assert!(task_with(TaskStatus::Running, vec![dialog("d1")]).needs_attention());
+        assert!(!task_with(TaskStatus::Running, vec![]).needs_attention());
+        assert!(!task_with(TaskStatus::Backlog, vec![]).needs_attention());
+        assert!(!task_with(TaskStatus::Merged, vec![]).needs_attention());
+    }
+
+    #[test]
+    fn expired_pending_dialogs_do_not_count_towards_attention() {
+        let now: chrono::DateTime<chrono::Utc> = chrono::Utc::now();
+        let expired: PendingDialog = PendingDialog::new("d1".to_string(), Some(now));
+        let task: Task = task_with(TaskStatus::Running, vec![expired]);
+
+        assert_eq!(task.pending_dialog_count_at(now), 0);
+        assert_eq!(task.stage_at(now), TaskStage::Working);
+        assert!(!task.needs_attention_at(now));
+
+        let before: chrono::DateTime<chrono::Utc> = now - chrono::Duration::milliseconds(1);
+        assert_eq!(task.pending_dialog_count_at(before), 1);
+        assert_eq!(task.stage_at(before), TaskStage::Attention);
+        assert!(task.needs_attention_at(before));
     }
 }

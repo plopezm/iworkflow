@@ -29,9 +29,14 @@ pub fn DialogPanel(
                     .map(|option: String| {
                         let value: String = option.clone();
                         view! {
-                            <button on:click=move |_| {
-                                on_answer.run(DialogAnswerDto::Value { value: value.clone() })
-                            }>{option}</button>
+                            <button
+                                class="btn-secondary"
+                                on:click=move |_| {
+                                    on_answer.run(DialogAnswerDto::Value { value: value.clone() })
+                                }
+                            >
+                                {option}
+                            </button>
                         }
                     })
                     .collect_view()}
@@ -41,11 +46,14 @@ pub fn DialogPanel(
         DialogKindDto::Confirm { message } => view! {
             {message.map(|m: String| view! { <p>{m}</p> })}
             <div class="row">
-                <button on:click=move |_| {
-                    on_answer.run(DialogAnswerDto::Confirmed { confirmed: true })
-                }>"Sí"</button>
                 <button
-                    class="secondary"
+                    class="btn-primary"
+                    on:click=move |_| { on_answer.run(DialogAnswerDto::Confirmed { confirmed: true }) }
+                >
+                    "Sí"
+                </button>
+                <button
+                    class="btn-secondary"
                     on:click=move |_| {
                         on_answer.run(DialogAnswerDto::Confirmed { confirmed: false })
                     }
@@ -59,22 +67,28 @@ pub fn DialogPanel(
             <div class="row">
                 <input
                     type="text"
+                    class="input"
                     placeholder=placeholder.unwrap_or_default()
                     prop:value=move || text.get()
                     on:input=move |ev| text.set(event_target_value(&ev))
                 />
-                <button on:click=submit_text>"Enviar"</button>
+                <button class="btn-primary" on:click=submit_text>
+                    "Enviar"
+                </button>
             </div>
         }
         .into_any(),
         DialogKindDto::Editor { .. } => view! {
             <div class="stack">
                 <textarea
+                    class="input"
                     prop:value=move || text.get()
                     on:input=move |ev| text.set(event_target_value(&ev))
                 ></textarea>
                 <div class="row">
-                    <button on:click=submit_text>"Enviar"</button>
+                    <button class="btn-primary" on:click=submit_text>
+                        "Enviar"
+                    </button>
                 </div>
             </div>
         }
@@ -86,7 +100,7 @@ pub fn DialogPanel(
             <h3 class="card-title">{format!("❓ {}", request.title)}</h3>
             {body}
             <div class="row">
-                <button class="secondary" on:click=move |_| on_answer.run(DialogAnswerDto::Cancelled)>
+                <button class="btn-secondary" on:click=move |_| on_answer.run(DialogAnswerDto::Cancelled)>
                     "Cancelar diálogo"
                 </button>
             </div>

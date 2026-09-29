@@ -6,6 +6,7 @@ use mockall::mock;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
+use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
@@ -32,6 +33,19 @@ mock! {
             status: TaskStatus,
             error: Option<String>,
         ) -> Result<(), TaskError>;
+        async fn update_details_if_backlog(&self, id: TaskId, title: String, prompt: String) -> Result<bool, TaskError>;
+        async fn claim_for_start(
+            &self,
+            id: TaskId,
+            branch: String,
+            worktree_path: PathBuf,
+            base_branch: String,
+        ) -> Result<bool, TaskError>;
+        async fn revert_start_claim(&self, id: TaskId) -> Result<bool, TaskError>;
+        async fn add_pending_dialog(&self, id: TaskId, dialog: PendingDialog) -> Result<(), TaskError>;
+        async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError>;
+        async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError>;
+        async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
         async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError>;
         async fn events(&self, id: TaskId, after_seq: Option<i64>) -> Result<Vec<TaskEvent>, TaskError>;
     }
