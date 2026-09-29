@@ -12,7 +12,9 @@ use crate::modules::tasks::presentation::components::task_card::{
     TaskActionBusy, TaskCardBusy, TaskCardHandlers,
 };
 use crate::modules::tasks::presentation::components::task_modal::TaskModal;
-use crate::modules::tasks::presentation::state::board_state::{BoardState, LaneView, build_lanes};
+use crate::modules::tasks::presentation::state::board_state::{
+    BoardState, LaneView, build_lanes, lane_ids,
+};
 
 #[component]
 pub fn BoardPage() -> impl IntoView {
@@ -93,6 +95,10 @@ pub fn BoardPage() -> impl IntoView {
     // Se actualiza dentro del `Suspend` de abajo (leer el resource fuera de
     // Suspense/Transition provoca desajustes de hidratación).
     let attention_count: RwSignal<usize> = RwSignal::new(0);
+    // Carriles ya calculados; viven fuera del `Suspend` y conservan el valor anterior
+    // mientras se recarga, así el tablero no se reconstruye en cada refresco.
+    let lanes: RwSignal<Vec<LaneView>> = RwSignal::new(Vec::new());
+    let loaded: RwSignal<bool> = RwSignal::new(false);
     let document_title: Memo<String> = Memo::new(move |_| {
         let count: usize = attention_count.get();
         if count > 0 {
@@ -109,6 +115,8 @@ pub fn BoardPage() -> impl IntoView {
             show_done=state.show_done
             on_new_task=Callback::new(move |_| state.open_create())
         />
+        // Este `Suspend` solo carga datos, publica los carriles en `lanes` y pinta errores:
+        // el tablero se pinta fuera para que un refresco no lo reconstruya.
         <Transition fallback=|| view! { <p class="muted py-4">"Cargando tablero…"</p> }>
             {move || {
                 let stage_filter: Option<TaskStageDto> = state.stage_filter.get();
@@ -117,6 +125,7 @@ pub fn BoardPage() -> impl IntoView {
                     let workspaces: Vec<WorkspaceOptionDto> = match state.workspaces.await {
                         Ok(workspaces) => workspaces,
                         Err(e) => {
+                            loaded.set(false);
                             return view! { <ErrorText message=e.to_string() /> }.into_any();
                         }
                     };
@@ -124,32 +133,40 @@ pub fn BoardPage() -> impl IntoView {
                         Ok(tasks) => {
                             attention_count
                                 .set(tasks.iter().filter(|t: &&TaskDto| t.needs_attention).count());
-                            let lanes: Vec<LaneView> =
-                                build_lanes(&tasks, &workspaces, stage_filter, show_done);
-                            if lanes.is_empty() {
-                                view! {
-                                    <p class="muted py-8 text-center">
-                                        "No hay tareas visibles con estos filtros."
-                                    </p>
-                                }
-                                    .into_any()
-                            } else {
-                                view! {
-                                    <div class="flex snap-x snap-mandatory gap-4 overflow-x-auto py-4">
-                                        {lanes
-                                            .into_iter()
-                                            .map(|lane: LaneView| view! { <BoardLane lane handlers busy /> })
-                                            .collect_view()}
-                                    </div>
-                                }
-                                    .into_any()
+                            let next: Vec<LaneView> = build_lanes(
+                                &tasks,
+                                &workspaces,
+                                stage_filter,
+                                show_done,
+                            );
+                            if lanes.with_untracked(|current: &Vec<LaneView>| *current != next) {
+                                lanes.set(next);
                             }
+                            loaded.set(true);
+                            ().into_any()
                         }
-                        Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                        Err(e) => {
+                            loaded.set(false);
+                            view! { <ErrorText message=e.to_string() /> }.into_any()
+                        }
                     }
                 })
             }}
         </Transition>
+        <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| l.is_empty())>
+            <p class="muted py-8 text-center">"No hay tareas visibles con estos filtros."</p>
+        </Show>
+        <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| !l.is_empty())>
+            <div class="flex snap-x snap-mandatory gap-4 overflow-x-auto py-4">
+                <For
+                    each=move || lanes.with(|l: &Vec<LaneView>| lane_ids(l))
+                    key=|id: &String| id.clone()
+                    children=move |workspace_id: String| {
+                        view! { <BoardLane workspace_id lanes handlers busy /> }
+                    }
+                />
+            </div>
+        </Show>
         <Transition fallback=|| ()>
             {move || Suspend::new(async move {
                 // El error de carga ya se muestra en el tablero; sin workspaces no hay modal.

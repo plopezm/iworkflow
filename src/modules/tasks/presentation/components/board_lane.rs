@@ -1,14 +1,31 @@
 use leptos::prelude::*;
 
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskDto;
 use crate::modules::tasks::presentation::components::task_card::{
     TaskCard, TaskCardBusy, TaskCardHandlers,
 };
-use crate::modules::tasks::presentation::state::board_state::LaneView;
+use crate::modules::tasks::presentation::state::board_state::{LaneView, card_key};
 
 /// Carril del tablero: cabecera con contadores del workspace y sus tarjetas.
+///
+/// Se identifica por `workspace_id` y lee sus datos de `lanes` de forma reactiva, de modo
+/// que un refresco del tablero actualiza el carril sin recrearlo (conserva scroll y foco).
+/// Las tarjetas usan `<For>` con clave por contenido: solo se reconstruyen las que cambian.
 #[component]
-pub fn BoardLane(lane: LaneView, handlers: TaskCardHandlers, busy: TaskCardBusy) -> impl IntoView {
-    let anchor: String = format!("lane-{}", lane.workspace_id);
+pub fn BoardLane(
+    workspace_id: String,
+    lanes: RwSignal<Vec<LaneView>>,
+    handlers: TaskCardHandlers,
+    busy: TaskCardBusy,
+) -> impl IntoView {
+    let anchor: String = format!("lane-{workspace_id}");
+    let lane: Memo<Option<LaneView>> = Memo::new(move |_| {
+        lanes.with(|all: &Vec<LaneView>| {
+            all.iter()
+                .find(|l: &&LaneView| l.workspace_id == workspace_id)
+                .cloned()
+        })
+    });
 
     view! {
         <section
@@ -17,21 +34,34 @@ pub fn BoardLane(lane: LaneView, handlers: TaskCardHandlers, busy: TaskCardBusy)
         >
             <header class="row items-start justify-between gap-2">
                 <div class="stack gap-0.5">
-                    <h2 class="font-semibold text-fg">{lane.workspace_name.clone()}</h2>
-                    <code class="text-xs text-muted">{lane.base_branch.clone()}</code>
+                    <h2 class="font-semibold text-fg">
+                        {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.workspace_name.clone()))}
+                    </h2>
+                    <code class="text-xs text-muted">
+                        {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.base_branch.clone()))}
+                    </code>
                 </div>
                 <div class="row gap-1.5">
-                    <span class="badge badge-muted">{lane.total}</span>
-                    {(lane.attention_count > 0)
-                        .then(|| view! { <span class="badge badge-attention">{lane.attention_count}</span> })}
+                    <span class="badge badge-muted">
+                        {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.total))}
+                    </span>
+                    {move || {
+                        let attention: usize = lane
+                            .with(|l: &Option<LaneView>| l.as_ref().map_or(0, |l: &LaneView| l.attention_count));
+                        (attention > 0).then(|| view! { <span class="badge badge-attention">{attention}</span> })
+                    }}
                 </div>
             </header>
             <div class="stack max-h-[70vh] gap-2 overflow-y-auto pr-1">
-                {lane
-                    .tasks
-                    .into_iter()
-                    .map(|task| view! { <TaskCard task handlers busy /> })
-                    .collect_view()}
+                <For
+                    each=move || {
+                        lane.with(|l: &Option<LaneView>| {
+                            l.as_ref().map(|l: &LaneView| l.tasks.clone()).unwrap_or_default()
+                        })
+                    }
+                    key=|task: &TaskDto| card_key(task)
+                    children=move |task: TaskDto| view! { <TaskCard task handlers busy /> }
+                />
             </div>
         </section>
     }

@@ -131,6 +131,31 @@ pub fn build_lanes(
     lanes
 }
 
+/// Clave de una tarjeta para el `<For>` del tablero: identifica la tarea y cambia cuando
+/// cambia cualquier dato visible, de modo que solo se reconstruyen las tarjetas modificadas.
+pub fn card_key(task: &TaskDto) -> String {
+    format!(
+        "{}|{}|{}|{:?}|{:?}|{}|{}|{:?}|{}",
+        task.id,
+        task.updated_at,
+        task.title,
+        task.stage,
+        task.status,
+        task.needs_attention,
+        task.pending_dialogs,
+        task.error,
+        task.prompt,
+    )
+}
+
+/// Ids de los carriles en orden de pintado (claves del `<For>` de carriles).
+pub fn lane_ids(lanes: &[LaneView]) -> Vec<String> {
+    lanes
+        .iter()
+        .map(|l: &LaneView| l.workspace_id.clone())
+        .collect()
+}
+
 /// Etapas disponibles como chips de filtro (excluye `Done`, controlado por su propio toggle).
 pub const FILTER_STAGES: [Option<TaskStageDto>; 5] = [
     None,
@@ -515,6 +540,36 @@ mod tests {
         let lanes: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
 
         assert!(lanes.is_empty());
+    }
+
+    #[test]
+    fn card_key_changes_only_when_visible_data_changes() {
+        let base: TaskDto = task("a", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z");
+        let same: TaskDto = base.clone();
+        let mut moved: TaskDto = base.clone();
+        moved.stage = TaskStageDto::Review;
+        let mut retitled: TaskDto = base.clone();
+        retitled.title = "otro".to_string();
+
+        assert_eq!(card_key(&base), card_key(&same));
+        assert_ne!(card_key(&base), card_key(&moved));
+        assert_ne!(card_key(&base), card_key(&retitled));
+    }
+
+    #[test]
+    fn lane_ids_follow_lane_order() {
+        let tasks: Vec<TaskDto> = vec![
+            task("a", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
+            task("b", "ws-b", TaskStageDto::Attention, "2026-01-01T00:00:00Z"),
+        ];
+        let workspaces: Vec<WorkspaceOptionDto> =
+            vec![workspace("ws-a", "A"), workspace("ws-b", "B")];
+        let lanes: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
+
+        assert_eq!(
+            lane_ids(&lanes),
+            vec!["ws-b".to_string(), "ws-a".to_string()]
+        );
     }
 
     #[test]
