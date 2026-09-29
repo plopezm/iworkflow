@@ -168,6 +168,11 @@ pub struct BoardState {
     tick: RwSignal<u32>,
 }
 
+/// Texto del aviso cuando la tarea se crea pero no puede iniciarse.
+pub fn start_failed_after_create_text(error: &str) -> String {
+    format!("Tarea creada en Por hacer, pero no se pudo iniciar: {error}")
+}
+
 impl BoardState {
     pub fn new() -> Self {
         let create: ServerAction<CreateTask> = ServerAction::new();
@@ -317,6 +322,15 @@ impl BoardState {
         push_toast(self.toasts, self.toast_seq, text);
     }
 
+    /// Avisa de que la tarea se creó en "Por hacer" pero su arranque falló.
+    pub fn notify_start_failed_after_create(&self, error: &str) {
+        push_toast(
+            self.toasts,
+            self.toast_seq,
+            start_failed_after_create_text(error),
+        );
+    }
+
     pub fn dismiss_toast(&self, id: u32) {
         self.toasts
             .update(|list: &mut Vec<ToastMessage>| list.retain(|t: &ToastMessage| t.id != id));
@@ -421,6 +435,14 @@ impl Default for BoardState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn start_failure_after_create_text_mentions_backlog_and_error() {
+        assert_eq!(
+            start_failed_after_create_text("sin rama"),
+            "Tarea creada en Por hacer, pero no se pudo iniciar: sin rama"
+        );
+    }
 
     fn task(id: &str, workspace_id: &str, stage: TaskStageDto, updated_at: &str) -> TaskDto {
         TaskDto {

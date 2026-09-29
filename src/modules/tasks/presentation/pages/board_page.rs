@@ -4,7 +4,7 @@ use leptos_meta::Title;
 use crate::core::components::layout::ErrorText;
 use crate::core::components::toast::ToastStack;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    TaskDto, TaskStageDto, WorkspaceOptionDto,
+    CreatedTaskDto, TaskDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::presentation::components::board_lane::BoardLane;
 use crate::modules::tasks::presentation::components::board_toolbar::BoardToolbar;
@@ -23,7 +23,7 @@ pub fn BoardPage() -> impl IntoView {
         let created: bool = state
             .create
             .value()
-            .with(|r: &Option<Result<TaskDto, ServerFnError>>| matches!(r, Some(Ok(_))));
+            .with(|r: &Option<Result<CreatedTaskDto, ServerFnError>>| matches!(r, Some(Ok(_))));
         let updated: bool = state
             .update
             .value()
@@ -60,6 +60,14 @@ pub fn BoardPage() -> impl IntoView {
         },
     };
 
+    // Si la tarea se creó pero no pudo arrancar, avisa (la tarea queda en "Por hacer").
+    Effect::new(move |_| {
+        if let Some(Ok(created)) = state.create.value().get()
+            && let Some(message) = created.start_error
+        {
+            state.notify_start_failed_after_create(&message);
+        }
+    });
     // Convierte cada error de acción en una notificación descartable (estado de UI).
     Effect::new(move |_| {
         if let Some(Err(e)) = state.start.value().get() {

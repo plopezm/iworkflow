@@ -7,13 +7,14 @@ use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::{
-    NewTask, Task, TaskId, TaskStatus, branch_name, slugify, worktree_dir_name,
+    CreatedTask, NewTask, Task, TaskId, TaskStatus, branch_name, slugify, worktree_dir_name,
 };
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Crea una tarea en `Backlog` (sin worktree ni agente). Si `start_now` es `true`,
-/// delega en [`StartTask`] para arrancarla inmediatamente.
+/// delega en [`StartTask`] para arrancarla inmediatamente. Si el arranque falla, la
+/// tarea sigue existiendo en `Backlog` y el error se devuelve en `start_error`.
 pub struct CreateTask {
     lifecycle: Arc<TaskLifecycle>,
     worktrees: Arc<dyn WorktreePort>,
@@ -33,7 +34,7 @@ impl CreateTask {
         }
     }
 
-    pub async fn execute(&self, input: NewTask) -> Result<Task, TaskError> {
+    pub async fn execute(&self, input: NewTask) -> Result<CreatedTask, TaskError> {
         let input: NewTask = input.validated()?;
         let workspace: WorkspaceRef = self.lifecycle.workspace(&input.workspace_id).await?;
 
@@ -65,9 +66,21 @@ impl CreateTask {
             .await?;
 
         if input.start_now {
-            return self.start_task.execute(id).await;
+            return Ok(match self.start_task.execute(id).await {
+                Ok(started) => CreatedTask {
+                    task: started,
+                    start_error: None,
+                },
+                Err(error) => CreatedTask {
+                    task,
+                    start_error: Some(error),
+                },
+            });
         }
-        Ok(task)
+        Ok(CreatedTask {
+            task,
+            start_error: None,
+        })
     }
 }
 
@@ -125,8 +138,10 @@ mod tests {
             no_op_start_task(&recorded),
         );
 
-        let task: Task = use_case.execute(input(false)).await.expect("creada");
+        let created: CreatedTask = use_case.execute(input(false)).await.expect("creada");
+        let task: Task = created.task;
 
+        assert_eq!(created.start_error, None);
         assert_eq!(task.status, TaskStatus::Backlog);
         assert!(task.pending_dialogs.is_empty());
         assert_eq!(recorded.statuses(), vec![TaskStatus::Backlog]);
@@ -215,10 +230,46 @@ mod tests {
         ));
         let use_case: CreateTask = CreateTask::new(lifecycle, worktrees, start_task);
 
-        let task: Task = use_case.execute(input(true)).await.expect("creada");
+        let created: CreatedTask = use_case.execute(input(true)).await.expect("creada");
 
-        assert_eq!(task.status, TaskStatus::Starting);
+        assert_eq!(created.start_error, None);
+        assert_eq!(created.task.status, TaskStatus::Starting);
         assert_eq!(recorded.statuses(), vec![TaskStatus::Backlog]);
+    }
+
+    #[tokio::test]
+    async fn keeps_created_task_when_start_fails() {
+        let recorded: Recorded = Recorded::default();
+        // `no_op_start_task` cannot find the task, so starting it fails after the insert.
+        let use_case: CreateTask = CreateTask::new(
+            lifecycle_accepting_insert(&recorded),
+            Arc::new(worktrees_computing_path_only()),
+            no_op_start_task(&recorded),
+        );
+
+        let created: CreatedTask = use_case.execute(input(true)).await.expect("creada");
+
+        assert_eq!(created.task.status, TaskStatus::Backlog);
+        assert!(matches!(created.start_error, Some(TaskError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn fails_when_insert_fails() {
+        let recorded: Recorded = Recorded::default();
+        let mut repository: MockTaskRepository = test_support::repository_with(None, &recorded);
+        repository
+            .expect_insert()
+            .times(1)
+            .returning(|_| Err(TaskError::Repository("boom".to_string())));
+        let use_case: CreateTask = CreateTask::new(
+            test_support::lifecycle_with(repository, &recorded),
+            Arc::new(worktrees_computing_path_only()),
+            no_op_start_task(&recorded),
+        );
+
+        let result: Result<CreatedTask, TaskError> = use_case.execute(input(true)).await;
+
+        assert_eq!(result, Err(TaskError::Repository("boom".to_string())));
     }
 
     #[tokio::test]
@@ -241,7 +292,7 @@ mod tests {
             )),
         );
 
-        let result: Result<Task, TaskError> = use_case.execute(input(false)).await;
+        let result: Result<CreatedTask, TaskError> = use_case.execute(input(false)).await;
 
         assert_eq!(
             result,

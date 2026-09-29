@@ -3,7 +3,8 @@ use leptos::server_fn::codec::Json;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    CreateTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, UpdateTaskDto, WorkspaceOptionDto,
+    CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, UpdateTaskDto,
+    WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 
@@ -74,15 +75,15 @@ pub async fn get_task(id: String) -> Result<TaskDto, ServerFnError> {
 }
 
 #[server(input = Json)]
-pub async fn create_task(input: CreateTaskDto) -> Result<TaskDto, ServerFnError> {
-    use crate::modules::tasks::domain::models::task::Task;
+pub async fn create_task(input: CreateTaskDto) -> Result<CreatedTaskDto, ServerFnError> {
+    use crate::modules::tasks::domain::models::task::CreatedTask;
 
-    let task: Task = support::context()?
+    let created: CreatedTask = support::context()?
         .create_task
         .execute(input.into())
         .await
         .map_err(support::to_server_error)?;
-    Ok(TaskDto::from(task))
+    Ok(CreatedTaskDto::from(created))
 }
 
 #[server(input = Json)]

@@ -103,6 +103,14 @@ pub struct TaskDto {
     pub updated_at: String,
 }
 
+/// Resultado de crear una tarea: la tarea (que existe aunque el arranque falle) y, si se
+/// pidió arrancarla y falló, el mensaje de error.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreatedTaskDto {
+    pub task: TaskDto,
+    pub start_error: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateTaskDto {
     pub workspace_id: String,
@@ -135,8 +143,11 @@ pub enum MergeOutcomeDto {
 #[cfg(feature = "ssr")]
 mod mapping {
     use super::*;
+    use crate::modules::tasks::domain::errors::task_error::TaskError;
     use crate::modules::tasks::domain::models::agent_command::MessageMode;
-    use crate::modules::tasks::domain::models::task::{NewTask, Task, TaskStage, TaskStatus};
+    use crate::modules::tasks::domain::models::task::{
+        CreatedTask, NewTask, Task, TaskStage, TaskStatus,
+    };
     use crate::modules::tasks::domain::models::worktree::MergeOutcome;
 
     impl From<TaskStatus> for TaskStatusDto {
@@ -207,6 +218,15 @@ mod mapping {
                 pending_dialogs,
                 created_at: task.created_at.to_rfc3339(),
                 updated_at: task.updated_at.to_rfc3339(),
+            }
+        }
+    }
+
+    impl From<CreatedTask> for CreatedTaskDto {
+        fn from(created: CreatedTask) -> Self {
+            Self {
+                task: TaskDto::from(created.task),
+                start_error: created.start_error.map(|e: TaskError| e.to_string()),
             }
         }
     }
@@ -284,6 +304,25 @@ mod mapping {
             );
             assert_eq!(merged.actions, TaskActionsDto::default());
             assert_eq!(review.status, TaskStatusDto::AwaitingReview);
+        }
+
+        #[test]
+        fn created_task_maps_start_error_to_message() {
+            let failed: CreatedTaskDto = CreatedTaskDto::from(CreatedTask {
+                task: task(TaskStatus::Backlog),
+                start_error: Some(TaskError::Git("sin rama".to_string())),
+            });
+            let ok: CreatedTaskDto = CreatedTaskDto::from(CreatedTask {
+                task: task(TaskStatus::Starting),
+                start_error: None,
+            });
+
+            assert_eq!(failed.task.status, TaskStatusDto::Backlog);
+            assert_eq!(
+                failed.start_error,
+                Some("error de git: sin rama".to_string())
+            );
+            assert_eq!(ok.start_error, None);
         }
 
         #[test]
