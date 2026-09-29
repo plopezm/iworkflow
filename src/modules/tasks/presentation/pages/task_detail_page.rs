@@ -172,6 +172,43 @@ pub fn TaskDetailPage() -> impl IntoView {
         Callback::new(move |(dialog_id, answer)| state.answer_dialog(dialog_id, answer));
     let on_send: Callback<()> = Callback::new(move |_| state.send_message());
 
+    // Derivados de la tarea: los memos solo notifican cuando cambia su valor, así que un
+    // refresco de estado que no los altera no toca el Composer ni el transcript.
+    let is_backlog: Memo<bool> = Memo::new(move |_| {
+        state
+            .task
+            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
+                matches!(r, Some(Ok(t)) if t.stage == TaskStageDto::Backlog)
+            })
+    });
+    let can_message: Memo<bool> = Memo::new(move |_| {
+        state
+            .task
+            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
+                matches!(r, Some(Ok(t)) if t.actions.can_message)
+            })
+    });
+    let agent_busy: Memo<bool> = Memo::new(move |_| {
+        state
+            .task
+            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
+                matches!(
+                    r,
+                    Some(Ok(t)) if matches!(t.status, TaskStatusDto::Running | TaskStatusDto::Starting)
+                )
+            })
+    });
+    let prompt: Memo<String> = Memo::new(move |_| {
+        state
+            .task
+            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
+                r.as_ref()
+                    .and_then(|r: &Result<TaskDto, ServerFnError>| r.as_ref().ok())
+                    .map(|t: &TaskDto| t.prompt.clone())
+                    .unwrap_or_default()
+            })
+    });
+
     view! {
         <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
             {move || Suspend::new(async move {
@@ -182,11 +219,6 @@ pub fn TaskDetailPage() -> impl IntoView {
                         if task.stage == TaskStageDto::Backlog {
                             return view! { <BacklogView task state /> }.into_any();
                         }
-                        let agent_busy: bool = matches!(
-                            task.status,
-                            TaskStatusDto::Running | TaskStatusDto::Starting
-                        );
-                        let can_message: bool = task.actions.can_message;
                         view! {
                             <section class="card stack">
                                 <div class="row">
@@ -231,65 +263,64 @@ pub fn TaskDetailPage() -> impl IntoView {
                                         })
                                 }}
                             </section>
-                            <details class="card prompt">
-                                <summary>"Prompt inicial"</summary>
-                                <pre class="font-mono text-sm whitespace-pre-wrap">{task.prompt.clone()}</pre>
-                            </details>
-                            <Show when=move || state.show_diff.get()>
-                                <Card title="Cambios">
-                                    <Suspense fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
-                                        {move || Suspend::new(async move {
-                                            match state.diff.await {
-                                                Some(Ok(diff)) => view! { <DiffView diff /> }.into_any(),
-                                                Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                                                None => ().into_any(),
-                                            }
-                                        })}
-                                    </Suspense>
-                                </Card>
-                            </Show>
-                            <div class="task-layout">
-                                <div class="stack min-w-0">
-                                    <TranscriptView transcript=state.transcript />
-                                    {move || {
-                                        pending_dialog
-                                            .get()
-                                            .map(|request: DialogRequestDto| {
-                                                let dialog_id: String = request.id.clone();
-                                                view! {
-                                                    <DialogPanel
-                                                        request
-                                                        on_answer=Callback::new(move |answer: DialogAnswerDto| {
-                                                            on_answer.run((dialog_id.clone(), answer))
-                                                        })
-                                                    />
-                                                }
-                                            })
-                                    }}
-                                    {can_message
-                                        .then(|| {
-                                            view! {
-                                                <Composer
-                                                    message=state.message
-                                                    mode=state.mode
-                                                    agent_busy=Signal::derive(move || agent_busy)
-                                                    pending=state.send.pending()
-                                                    on_send
-                                                />
-                                            }
-                                        })}
-                                </div>
-                                <AgentSidebar
-                                    transcript=state.transcript
-                                    connected=state.connected
-                                    class="min-w-0"
-                                />
-                            </div>
                         }
                             .into_any()
                     }
                 }
             })}
         </Transition>
+        <Show when=move || !is_backlog.get()>
+            <details class="card prompt">
+                <summary>"Prompt inicial"</summary>
+                <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
+            </details>
+            <Show when=move || state.show_diff.get()>
+                <Card title="Cambios">
+                    <Suspense fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
+                        {move || Suspend::new(async move {
+                            match state.diff.await {
+                                Some(Ok(diff)) => view! { <DiffView diff /> }.into_any(),
+                                Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                                None => ().into_any(),
+                            }
+                        })}
+                    </Suspense>
+                </Card>
+            </Show>
+            <div class="task-layout">
+                <div class="stack min-w-0">
+                    <TranscriptView transcript=state.transcript />
+                    {move || {
+                        pending_dialog
+                            .get()
+                            .map(|request: DialogRequestDto| {
+                                let dialog_id: String = request.id.clone();
+                                view! {
+                                    <DialogPanel
+                                        request
+                                        on_answer=Callback::new(move |answer: DialogAnswerDto| {
+                                            on_answer.run((dialog_id.clone(), answer))
+                                        })
+                                    />
+                                }
+                            })
+                    }}
+                    <Show when=move || can_message.get()>
+                        <Composer
+                            message=state.message
+                            mode=state.mode
+                            agent_busy=agent_busy
+                            pending=state.send.pending()
+                            on_send
+                        />
+                    </Show>
+                </div>
+                <AgentSidebar
+                    transcript=state.transcript
+                    connected=state.connected
+                    class="min-w-0"
+                />
+            </div>
+        </Show>
     }
 }
