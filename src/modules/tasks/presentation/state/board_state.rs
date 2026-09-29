@@ -373,15 +373,33 @@ impl BoardState {
             reconnect: Option<TimeoutHandle>,
         }
 
-        fn open(tick: RwSignal<u32>, slot: StoredValue<SseState, LocalStorage>) {
+        /// `skip_first_reset`: el `reset` inicial solo confirma la conexión y los datos ya
+        /// llegaron con el render/hidratación, así que no se vuelve a pedir el listado.
+        fn open(
+            tick: RwSignal<u32>,
+            slot: StoredValue<SseState, LocalStorage>,
+            skip_first_reset: bool,
+        ) {
             let Ok(source) = EventSource::new("/api/tasks/events") else {
                 return;
             };
             let on_bump: Handler =
                 Closure::new(move |_: Event| tick.update(|n: &mut u32| *n = n.wrapping_add(1)));
-            for name in ["reset", "changed", "lagged"] {
+            let reset_pending_skip: std::rc::Rc<std::cell::Cell<bool>> =
+                std::rc::Rc::new(std::cell::Cell::new(skip_first_reset));
+            let on_reset: Handler = Closure::new(move |_: Event| {
+                if reset_pending_skip.replace(false) {
+                    return;
+                }
+                tick.update(|n: &mut u32| *n = n.wrapping_add(1));
+            });
+            for (name, handler) in [
+                ("reset", &on_reset),
+                ("changed", &on_bump),
+                ("lagged", &on_bump),
+            ] {
                 if source
-                    .add_event_listener_with_callback(name, on_bump.as_ref().unchecked_ref())
+                    .add_event_listener_with_callback(name, handler.as_ref().unchecked_ref())
                     .is_err()
                 {
                     leptos::logging::error!(
@@ -395,7 +413,8 @@ impl BoardState {
                     return;
                 }
                 let handle: Option<TimeoutHandle> =
-                    set_timeout_with_handle(move || open(tick, slot), SSE_RECONNECT_DELAY).ok();
+                    set_timeout_with_handle(move || open(tick, slot, false), SSE_RECONNECT_DELAY)
+                        .ok();
                 slot.update_value(|state: &mut SseState| state.reconnect = handle);
             });
             if source
@@ -407,14 +426,14 @@ impl BoardState {
             slot.update_value(|state: &mut SseState| {
                 state.connection = Some(Connection {
                     source,
-                    _handlers: vec![on_bump, on_error],
+                    _handlers: vec![on_bump, on_reset, on_error],
                 });
             });
         }
 
         let tick: RwSignal<u32> = self.tick;
         let slot: StoredValue<SseState, LocalStorage> = StoredValue::new_local(SseState::default());
-        open(tick, slot);
+        open(tick, slot, true);
 
         on_cleanup(move || {
             slot.update_value(|state: &mut SseState| {
