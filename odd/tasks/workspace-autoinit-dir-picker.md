@@ -28,4 +28,4 @@
 - T3: writer fmt/clippy ssr+hydrate/tests (168 lib)/leptos build ok; parent fix: confirmation re-sends the last submitted input (not the edited form). Headless Chromium: missing folder / not git (cancel leaves folder untouched) / no commits; edited path before confirm not created; no console errors.
 
 ## Next step
-Manual check; merge is the user's call.
+Done: user verified manually; merged to master.
