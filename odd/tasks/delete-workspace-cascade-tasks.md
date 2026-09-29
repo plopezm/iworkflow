@@ -29,6 +29,7 @@ use case returns `WorkspaceError::InUse`.
 - [x] T2 workspaces slice: port, mocks, DeleteWorkspace + unit tests, bridge in app_state
 
 ## Progress / evidence
+- Parent review: re-ran fmt, clippy ssr+hydrate, tests (212) ok; checked `Removed` is ephemeral (no FK clash after delete). Manual UI check pending.
 
 - T1: added `TaskStatus::is_inactive()`, `TaskError::WorkspaceHasActiveTasks`,
   `TaskRepositoryPort::delete_inactive_by_workspace` (single-transaction adapter
