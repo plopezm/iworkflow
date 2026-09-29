@@ -114,8 +114,12 @@ pub fn BoardPage() -> impl IntoView {
                 let stage_filter: Option<TaskStageDto> = state.stage_filter.get();
                 let show_done: bool = state.show_done.get();
                 Suspend::new(async move {
-                    let workspaces: Vec<WorkspaceOptionDto> =
-                        state.workspaces.await.unwrap_or_default();
+                    let workspaces: Vec<WorkspaceOptionDto> = match state.workspaces.await {
+                        Ok(workspaces) => workspaces,
+                        Err(e) => {
+                            return view! { <ErrorText message=e.to_string() /> }.into_any();
+                        }
+                    };
                     match state.tasks.await {
                         Ok(tasks) => {
                             attention_count
@@ -148,8 +152,11 @@ pub fn BoardPage() -> impl IntoView {
         </Transition>
         <Transition fallback=|| ()>
             {move || Suspend::new(async move {
-                let workspaces: Vec<WorkspaceOptionDto> = state.workspaces.await.unwrap_or_default();
-                view! { <TaskModal state workspaces /> }
+                // El error de carga ya se muestra en el tablero; sin workspaces no hay modal.
+                match state.workspaces.await {
+                    Ok(workspaces) => view! { <TaskModal state workspaces /> }.into_any(),
+                    Err(_) => ().into_any(),
+                }
             })}
         </Transition>
         <ToastStack toasts=state.toasts />
