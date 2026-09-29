@@ -183,41 +183,40 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         Callback::new(move |(dialog_id, answer)| state.answer_dialog(dialog_id, answer));
     let on_send: Callback<()> = Callback::new(move |_| state.send_message());
 
+    // Última tarea cargada, publicada desde un `Effect`: solo corre en el cliente y tras la
+    // hidratación. Leer el resource fuera del `Suspend` hacía que servidor (aún sin datos) y
+    // cliente (con los datos serializados) pintaran árboles distintos al hidratar.
+    // Un error de recarga conserva la tarea anterior (el error se pinta en el `Suspend`).
+    let loaded_task: RwSignal<Option<TaskDto>> = RwSignal::new(None);
+    Effect::new(move |_| {
+        if let Some(Ok(task)) = state.task.get() {
+            loaded_task.set(Some(task));
+        }
+    });
+
     // Derivados de la tarea: los memos solo notifican cuando cambia su valor, así que un
     // refresco de estado que no los altera no toca el Composer ni el transcript.
-    let is_backlog: Memo<bool> = Memo::new(move |_| {
-        state
-            .task
-            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
-                matches!(r, Some(Ok(t)) if t.stage == TaskStageDto::Backlog)
-            })
+    let shows_workspace: Memo<bool> = Memo::new(move |_| {
+        loaded_task
+            .with(|t: &Option<TaskDto>| matches!(t, Some(t) if t.stage != TaskStageDto::Backlog))
     });
     let can_message: Memo<bool> = Memo::new(move |_| {
-        state
-            .task
-            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
-                matches!(r, Some(Ok(t)) if t.actions.can_message)
-            })
+        loaded_task.with(|t: &Option<TaskDto>| matches!(t, Some(t) if t.actions.can_message))
     });
     let agent_busy: Memo<bool> = Memo::new(move |_| {
-        state
-            .task
-            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
-                matches!(
-                    r,
-                    Some(Ok(t)) if matches!(t.status, TaskStatusDto::Running | TaskStatusDto::Starting)
-                )
-            })
+        loaded_task.with(|t: &Option<TaskDto>| {
+            matches!(
+                t,
+                Some(t) if matches!(t.status, TaskStatusDto::Running | TaskStatusDto::Starting)
+            )
+        })
     });
     let prompt: Memo<String> = Memo::new(move |_| {
-        state
-            .task
-            .with(|r: &Option<Result<TaskDto, ServerFnError>>| {
-                r.as_ref()
-                    .and_then(|r: &Result<TaskDto, ServerFnError>| r.as_ref().ok())
-                    .map(|t: &TaskDto| t.prompt.clone())
-                    .unwrap_or_default()
-            })
+        loaded_task.with(|t: &Option<TaskDto>| {
+            t.as_ref()
+                .map(|t: &TaskDto| t.prompt.clone())
+                .unwrap_or_default()
+        })
     });
 
     view! {
@@ -294,7 +293,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                 }
             })}
         </Transition>
-        <Show when=move || !is_backlog.get()>
+        <Show when=move || shows_workspace.get()>
             <details class="card prompt">
                 <summary>"Prompt inicial"</summary>
                 <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>

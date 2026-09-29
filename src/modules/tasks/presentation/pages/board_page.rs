@@ -99,6 +99,28 @@ pub fn BoardPage() -> impl IntoView {
     // mientras se recarga, así el tablero no se reconstruye en cada refresco.
     let lanes: RwSignal<Vec<LaneView>> = RwSignal::new(Vec::new());
     let loaded: RwSignal<bool> = RwSignal::new(false);
+    // Publica los carriles desde un `Effect`: solo corre en el cliente y tras la hidratación.
+    // Escribirlos durante el render del `Suspend` hacía que el cliente hidratara el tablero
+    // que el HTML del servidor (emitido antes de resolver el `Suspend`) no contenía.
+    Effect::new(move |_| {
+        let stage_filter: Option<TaskStageDto> = state.stage_filter.get();
+        let show_done: bool = state.show_done.get();
+        let workspaces: Option<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
+            state.workspaces.get();
+        let tasks: Option<Result<Vec<TaskDto>, ServerFnError>> = state.tasks.get();
+        match (workspaces, tasks) {
+            (Some(Ok(workspaces)), Some(Ok(tasks))) => {
+                let next: Vec<LaneView> = build_lanes(&tasks, &workspaces, stage_filter, show_done);
+                if lanes.with_untracked(|current: &Vec<LaneView>| *current != next) {
+                    lanes.set(next);
+                }
+                loaded.set(true);
+            }
+            (Some(Err(_)), _) | (_, Some(Err(_))) => loaded.set(false),
+            // Recargando: se conserva el tablero anterior.
+            _ => {}
+        }
+    });
     let document_title: Memo<String> = Memo::new(move |_| {
         let count: usize = attention_count.get();
         if count > 0 {
@@ -115,43 +137,22 @@ pub fn BoardPage() -> impl IntoView {
             show_done=state.show_done
             on_new_task=Callback::new(move |_| state.open_create())
         />
-        // Este `Suspend` solo carga datos, publica los carriles en `lanes` y pinta errores:
-        // el tablero se pinta fuera para que un refresco no lo reconstruya.
+        // Este `Suspend` solo espera los datos y pinta errores: el tablero se pinta fuera
+        // (a partir de `lanes`) para que un refresco no lo reconstruya.
         <Transition fallback=|| view! { <p class="muted py-4">"Cargando tablero…"</p> }>
-            {move || {
-                let stage_filter: Option<TaskStageDto> = state.stage_filter.get();
-                let show_done: bool = state.show_done.get();
-                Suspend::new(async move {
-                    let workspaces: Vec<WorkspaceOptionDto> = match state.workspaces.await {
-                        Ok(workspaces) => workspaces,
-                        Err(e) => {
-                            loaded.set(false);
-                            return view! { <ErrorText message=e.to_string() /> }.into_any();
-                        }
-                    };
-                    match state.tasks.await {
-                        Ok(tasks) => {
-                            attention_count
-                                .set(tasks.iter().filter(|t: &&TaskDto| t.needs_attention).count());
-                            let next: Vec<LaneView> = build_lanes(
-                                &tasks,
-                                &workspaces,
-                                stage_filter,
-                                show_done,
-                            );
-                            if lanes.with_untracked(|current: &Vec<LaneView>| *current != next) {
-                                lanes.set(next);
-                            }
-                            loaded.set(true);
-                            ().into_any()
-                        }
-                        Err(e) => {
-                            loaded.set(false);
-                            view! { <ErrorText message=e.to_string() /> }.into_any()
-                        }
+            {move || Suspend::new(async move {
+                if let Err(e) = state.workspaces.await {
+                    return view! { <ErrorText message=e.to_string() /> }.into_any();
+                }
+                match state.tasks.await {
+                    Ok(tasks) => {
+                        attention_count
+                            .set(tasks.iter().filter(|t: &&TaskDto| t.needs_attention).count());
+                        ().into_any()
                     }
-                })
-            }}
+                    Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                }
+            })}
         </Transition>
         <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| l.is_empty())>
             <p class="muted py-8 text-center">"No hay tareas visibles con estos filtros."</p>
