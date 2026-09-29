@@ -166,6 +166,7 @@ pub fn TaskDetailPage() -> impl IntoView {
             || state.merge.pending().get()
             || state.discard.pending().get()
             || state.resume.pending().get()
+            || state.abort.pending().get()
     });
     let pending_dialog: Memo<Option<DialogRequestDto>> =
         Memo::new(move |_| state.transcript.with(Transcript::pending_dialog));
