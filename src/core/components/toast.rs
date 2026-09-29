@@ -36,7 +36,6 @@ pub fn ToastStack(toasts: RwSignal<Vec<ToastMessage>>) -> impl IntoView {
 }
 
 /// Una notificación: se descarta con su botón o automáticamente pasado `TOAST_AUTO_DISMISS`
-/// (solo en el cliente; el temporizador se cancela si el toast desaparece antes).
 #[component]
 fn ToastItem(msg: ToastMessage, toasts: RwSignal<Vec<ToastMessage>>) -> impl IntoView {
     let id: u32 = msg.id;
@@ -50,15 +49,29 @@ fn ToastItem(msg: ToastMessage, toasts: RwSignal<Vec<ToastMessage>>) -> impl Int
     }
 
     view! {
-        <div class="row w-full max-w-sm items-start justify-between gap-3 rounded-lg border border-error/40 bg-surface p-3 text-sm text-fg shadow-lg sm:w-auto">
-            <span class="flex-1">{msg.text}</span>
-            <button
-                class="btn-ghost min-h-10 min-w-10 px-2"
-                aria-label="Cerrar notificación"
-                on:click=move |_| dismiss()
-            >
-                "x"
-            </button>
+        <div class="relative overflow-hidden rounded-xl border border-border/60 bg-surface/90 p-3 text-sm text-fg shadow-lg backdrop-blur-xl sm:w-auto animate-slide-up">
+            <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-accent to-purple">
+                #[cfg(feature = "hydrate")]
+                {
+                    let _ = msg.id;
+                    view! {
+                        <div
+                            class="h-full bg-gradient-to-r from-accent to-purple"
+                            style=move || "animation: shimmer 8s linear infinite; width: 100%;"
+                        ></div>
+                    }
+                }
+            </div>
+            <div class="row items-start gap-3">
+                <span class="flex-1">{msg.text}</span>
+                <button
+                    class="btn-ghost min-h-10 min-w-10 rounded-full px-2"
+                    aria-label="Cerrar notificación"
+                    on:click=move |_| dismiss()
+                >
+                    "✕"
+                </button>
+            </div>
         </div>
     }
 }

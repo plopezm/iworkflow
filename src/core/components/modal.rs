@@ -34,8 +34,6 @@ fn focus_first_field() {
 }
 
 /// Ventana modal generica: bottom sheet en movil, dialogo centrado en escritorio.
-/// Se muestra mientras `open` sea `true` y notifica el cierre con `on_close`
-/// (clic en el fondo, boton de cierre, tecla Escape, o quien controle la senal desde fuera).
 #[component]
 pub fn Modal(
     #[prop(into)] title: Signal<String>,
@@ -72,7 +70,7 @@ pub fn Modal(
     view! {
         <Show when=move || open.get()>
             <div
-                class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
+                class="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-md sm:items-center"
                 on:click=move |_| on_close.run(())
                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                     if ev.key() == "Escape" {
@@ -82,7 +80,7 @@ pub fn Modal(
             >
                 <div
                     id="modal-panel"
-                    class="stack max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl border border-border bg-surface p-4 sm:max-w-lg sm:rounded-2xl sm:p-6"
+                    class="stack max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-border/60 bg-surface/95 p-4 sm:max-w-lg sm:rounded-3xl sm:p-6 animate-scale-in backdrop-blur-xl"
                     role="dialog"
                     tabindex="-1"
                     aria-modal="true"
@@ -94,11 +92,11 @@ pub fn Modal(
                             {move || title.get()}
                         </h2>
                         <button
-                            class="btn-ghost min-h-10 min-w-10 px-2"
+                            class="btn-ghost min-h-10 min-w-10 rounded-full px-2 transition-colors hover:bg-surface-2"
                             aria-label="Cerrar"
                             on:click=move |_| on_close.run(())
                         >
-                            "x"
+                            "✕"
                         </button>
                     </div>
                     {children()}

@@ -53,7 +53,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
     });
 
     view! {
-        <section class="card stack">
+        <section class="card stack animate-slide-up">
             <div class="row justify-between">
                 <h1 class="task-title">{task.title.clone()}</h1>
                 <TaskStatusBadge status=task.status />
@@ -183,10 +183,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         Callback::new(move |(dialog_id, answer)| state.answer_dialog(dialog_id, answer));
     let on_send: Callback<()> = Callback::new(move |_| state.send_message());
 
-    // Última tarea cargada, publicada desde un `Effect`: solo corre en el cliente y tras la
-    // hidratación. Leer el resource fuera del `Suspend` hacía que servidor (aún sin datos) y
-    // cliente (con los datos serializados) pintaran árboles distintos al hidratar.
-    // Un error de recarga conserva la tarea anterior (el error se pinta en el `Suspend`).
     let loaded_task: RwSignal<Option<TaskDto>> = RwSignal::new(None);
     Effect::new(move |_| {
         if let Some(Ok(task)) = state.task.get() {
@@ -194,8 +190,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         }
     });
 
-    // Derivados de la tarea: los memos solo notifican cuando cambia su valor, así que un
-    // refresco de estado que no los altera no toca el Composer ni el transcript.
     let shows_workspace: Memo<bool> = Memo::new(move |_| {
         loaded_task
             .with(|t: &Option<TaskDto>| matches!(t, Some(t) if t.stage != TaskStageDto::Backlog))
@@ -244,15 +238,15 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                             return view! { <BacklogView task state /> }.into_any();
                         }
                         view! {
-                            <section class="card stack">
+                            <section class="card stack animate-slide-up">
                                 <div class="row">
                                     <h1 class="task-title">{task.title.clone()}</h1>
                                     <TaskStatusBadge status=task.status />
                                 </div>
                                 <p class="muted">
-                                    "Rama " <code class="font-mono">{task.branch.clone()}</code>
-                                    " desde " <code class="font-mono">{task.base_branch.clone()}</code>
-                                    " · worktree " <code class="font-mono">{task.worktree_path.clone()}</code>
+                                    "Rama " <code class="rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-xs">{task.branch.clone()}</code>
+                                    " desde " <code class="rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-xs">{task.base_branch.clone()}</code>
+                                    " · worktree " <code class="rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-xs">{task.worktree_path.clone()}</code>
                                 </p>
                                 {task.error.clone().map(|e: String| view! { <ErrorText message=e /> })}
                                 <TaskActions
@@ -270,12 +264,12 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                         .and_then(|r| r.ok())
                                         .map(|outcome: MergeOutcomeDto| match outcome {
                                             MergeOutcomeDto::Merged => {
-                                                view! { <p class="notice notice-info">"Integrada en la rama base."</p> }
+                                                view! { <p class="notice notice-info animate-fade-in">"Integrada en la rama base."</p> }
                                                     .into_any()
                                             }
                                             MergeOutcomeDto::Conflict { files } => {
                                                 view! {
-                                                    <p class="notice notice-warn">
+                                                    <p class="notice notice-warn animate-fade-in">
                                                         {format!(
                                                             "Conflictos en {}. Reanuda el agente para resolverlos o hazlo a mano en el worktree.",
                                                             files.join(", "),
@@ -294,7 +288,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
             })}
         </Transition>
         <Show when=move || shows_workspace.get()>
-            <details class="card prompt">
+            <details class="card prompt animate-slide-up">
                 <summary>"Prompt inicial"</summary>
                 <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
             </details>

@@ -38,7 +38,6 @@ fn initialization_confirm_label(reason: InitializationReasonDto) -> &'static str
 pub fn WorkspacesPage() -> impl IntoView {
     let state: WorkspacesState = WorkspacesState::new();
 
-    // Tras un alta correcta se vacía el formulario (estado puramente de UI).
     Effect::new(move |_| {
         if let Some(Ok(RegisterWorkspaceOutcomeDto::Registered(_))) = state.register.value().get() {
             state.reset_form();
@@ -56,52 +55,56 @@ pub fn WorkspacesPage() -> impl IntoView {
         Callback::new(move |_| state.dismiss_initialization());
 
     view! {
-        <h1 class="mb-4 text-xl font-semibold text-fg">"Workspaces"</h1>
         <div class="stack">
-        <Card title="Registrar workspace">
-            <WorkspaceForm
-                name=state.name
-                path=state.path
-                base_branch=state.base_branch
-                pending=state.register.pending()
-                on_submit
-                on_browse
-            />
-            <ActionError result=state.register.value().into() />
-            {move || {
-                state.pending_initialization.get().map(|(path, reason): (String, InitializationReasonDto)| {
-                    let message: Signal<String> =
-                        Signal::derive(move || initialization_message(&path, reason));
-                    let confirm_label: Signal<String> = Signal::derive(move || {
-                        initialization_confirm_label(reason).to_string()
-                    });
-                    view! {
-                        <ConfirmPanel
-                            message=message
-                            confirm_label=confirm_label
-                            pending=state.register.pending()
-                            on_confirm=on_confirm_initialization
-                            on_cancel=on_cancel_initialization
-                        />
-                    }
-                })
-            }}
-        </Card>
-        <DirectoryPicker state=state.directory_picker on_select=on_select_directory />
-        <Card title="Registrados">
-            <ActionError result=state.delete.value().into() />
-            <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
-                {move || Suspend::new(async move {
-                    match state.workspaces.await {
-                        Ok(list) => {
-                            let list: Vec<WorkspaceDto> = list;
-                            view! { <WorkspaceTable workspaces=list on_delete /> }.into_any()
+            <div class="section-header">
+                <h1 class="task-title">"Workspaces"</h1>
+            </div>
+            <div class="stack">
+            <Card title="Registrar workspace">
+                <WorkspaceForm
+                    name=state.name
+                    path=state.path
+                    base_branch=state.base_branch
+                    pending=state.register.pending()
+                    on_submit
+                    on_browse
+                />
+                <ActionError result=state.register.value().into() />
+                {move || {
+                    state.pending_initialization.get().map(|(path, reason): (String, InitializationReasonDto)| {
+                        let message: Signal<String> =
+                            Signal::derive(move || initialization_message(&path, reason));
+                        let confirm_label: Signal<String> = Signal::derive(move || {
+                            initialization_confirm_label(reason).to_string()
+                        });
+                        view! {
+                            <ConfirmPanel
+                                message=message
+                                confirm_label=confirm_label
+                                pending=state.register.pending()
+                                on_confirm=on_confirm_initialization
+                                on_cancel=on_cancel_initialization
+                            />
                         }
-                        Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                    }
-                })}
-            </Transition>
-        </Card>
+                    })
+                }}
+            </Card>
+            <DirectoryPicker state=state.directory_picker on_select=on_select_directory />
+            <Card title="Registrados">
+                <ActionError result=state.delete.value().into() />
+                <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+                    {move || Suspend::new(async move {
+                        match state.workspaces.await {
+                            Ok(list) => {
+                                let list: Vec<WorkspaceDto> = list;
+                                view! { <WorkspaceTable workspaces=list on_delete /> }.into_any()
+                            }
+                            Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                        }
+                    })}
+                </Transition>
+            </Card>
+            </div>
         </div>
     }
 }

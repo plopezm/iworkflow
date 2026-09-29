@@ -51,16 +51,23 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
     let id: String = task.id.clone();
     let title: String = task.title.clone();
     let is_backlog: bool = task.stage == TaskStageDto::Backlog;
-    let highlight: &'static str = if task.needs_attention {
-        "card border-l-4 border-l-stage-attention ring-1 ring-stage-attention/30"
-    } else {
-        "card"
-    };
+    let article_class: Memo<String> = Memo::new(move |_| {
+        let base: &str = if task.needs_attention {
+            "card border-l-[3px] border-l-stage-attention animate-fade-in animate-pulse-glow stack gap-2.5"
+        } else {
+            "card animate-fade-in stack gap-2.5"
+        };
+        base.to_string()
+    });
 
     view! {
-        <article class=format!("{highlight} stack gap-2")>
+        <article class=move || article_class.get()
+        >
             <div class="row justify-between gap-2">
-                <A href=format!("/tasks/{id}") attr:class="font-medium text-fg hover:text-accent line-clamp-1">
+                <A
+                    href=format!("/tasks/{id}")
+                    attr:class="line-clamp-1 font-medium text-fg hover:text-accent transition-colors"
+                >
                     {title}
                 </A>
                 <StageBadge stage=task.stage />
@@ -70,7 +77,10 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                 .then(|| {
                     view! {
                         <div class="row gap-1.5">
-                            <span class="badge badge-attention">"Necesita atención"</span>
+                            <span class="badge badge-attention">
+                                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-current"></span>
+                                "Necesita atención"
+                            </span>
                             {(task.pending_dialogs > 0)
                                 .then(|| {
                                     view! {
@@ -85,11 +95,15 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
             <p class="muted line-clamp-2">{task.prompt.clone()}</p>
             {(!is_backlog)
                 .then(|| {
-                    view! { <code class="truncate font-mono text-xs text-muted">{task.branch.clone()}</code> }
+                    view! {
+                        <code class="truncate rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                            {task.branch.clone()}
+                        </code>
+                    }
                 })}
             {task.error.clone().map(|e: String| view! { <p class="text-xs text-error">{e}</p> })}
-            <div class="row justify-between gap-2">
-                <span class="text-xs text-muted">{short_timestamp(&task.updated_at)}</span>
+            <div class="row justify-between gap-2 pt-1">
+                <span class="text-[11px] text-muted">{short_timestamp(&task.updated_at)}</span>
                 <div class="row gap-1.5">
                     {if is_backlog {
                             let start_id: String = id.clone();
@@ -110,7 +124,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     .then(|| {
                                         view! {
                                             <button
-                                                class="btn-primary min-h-10 px-2.5 py-1 text-xs"
+                                                class="btn-primary min-h-9 px-3 py-1.5 text-xs"
                                                 disabled=move || start_busy.get()
                                                 on:click=move |_| handlers.start.run(start_id.clone())
                                             >
@@ -123,7 +137,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     .then(|| {
                                         view! {
                                             <button
-                                                class="btn-secondary min-h-10 px-2.5 py-1 text-xs"
+                                                class="btn-secondary min-h-9 px-3 py-1.5 text-xs"
                                                 on:click=move |_| handlers.edit.run(edit_task.clone())
                                             >
                                                 "Editar"
@@ -135,7 +149,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     .then(|| {
                                         view! {
                                             <button
-                                                class="btn-danger min-h-10 px-2.5 py-1 text-xs"
+                                                class="btn-danger min-h-9 px-3 py-1.5 text-xs"
                                                 disabled=move || delete_busy.get()
                                                 on:click=move |_| {
                                                     if confirm("¿Borrar esta tarea de la lista de pendientes?") {
@@ -163,7 +177,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                             view! {
                                 <A
                                     href=format!("/tasks/{id}")
-                                    attr:class="btn-secondary min-h-10 px-2.5 py-1 text-xs"
+                                    attr:class="btn-secondary min-h-9 px-3 py-1.5 text-xs"
                                 >
                                     "Abrir"
                                 </A>
@@ -173,7 +187,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     .then(|| {
                                         view! {
                                             <button
-                                                class="btn-primary min-h-10 px-2.5 py-1 text-xs"
+                                                class="btn-primary min-h-9 px-3 py-1.5 text-xs"
                                                 disabled=move || finish_busy.get()
                                                 on:click=move |_| handlers.finish.run(finish_id.clone())
                                             >
@@ -187,7 +201,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     .then(|| {
                                         view! {
                                             <button
-                                                class="btn-primary min-h-10 px-2.5 py-1 text-xs"
+                                                class="btn-primary min-h-9 px-3 py-1.5 text-xs"
                                                 disabled=move || merge_busy.get()
                                                 on:click=move |_| handlers.merge.run(merge_id.clone())
                                             >

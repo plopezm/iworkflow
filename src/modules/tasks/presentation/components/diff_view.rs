@@ -27,12 +27,12 @@ pub fn DiffView(diff: TaskDiffDto) -> impl IntoView {
     view! {
         <div class="stack">
             <h3>{format!("Commits ({})", diff.commits.len())}</h3>
-            <pre>{diff.commits.join("\n")}</pre>
+            <pre class="rounded-lg bg-surface-2/40 p-3 text-sm">{diff.commits.join("\n")}</pre>
             <h3>"Resumen"</h3>
-            <pre>{diff.stat}</pre>
+            <pre class="rounded-lg bg-surface-2/40 p-3 text-sm">{diff.stat}</pre>
             {diff
                 .truncated
-                .then(|| view! { <p class="notice notice-warn">"Parche truncado: revisa el resto con git."</p> })}
+                .then(|| view! { <p class="notice notice-warn animate-fade-in">"Parche truncado: revisa el resto con git."</p> })}
             <pre class="diff">
                 {diff
                     .patch

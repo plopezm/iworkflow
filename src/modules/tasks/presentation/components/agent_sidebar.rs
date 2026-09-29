@@ -20,9 +20,12 @@ pub fn AgentSidebar(
                 <h3 class="card-title">"Conexión"</h3>
                 {move || {
                     if connected.get() {
-                        view! { <span class="badge badge-ok">"en vivo"</span> }
+                        view! { <span class="badge badge-ok">
+                            <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+                            "en vivo"
+                        </span> }.into_any()
                     } else {
-                        view! { <span class="badge badge-muted">"desconectado"</span> }
+                        view! { <span class="badge badge-muted">"desconectado"</span> }.into_any()
                     }
                 }}
             </section>
@@ -40,7 +43,7 @@ pub fn AgentSidebar(
                                 view! {
                                     <section class="card">
                                         <h3 class="card-title">"En cola"</h3>
-                                        <pre>{queued.join("\n")}</pre>
+                                        <pre class="text-sm">{queued.join("\n")}</pre>
                                     </section>
                                 }
                             })
@@ -60,7 +63,7 @@ pub fn AgentSidebar(
                                 view! {
                                     <section class="card">
                                         <h3 class="card-title">"Estado"</h3>
-                                        <pre>{lines}</pre>
+                                        <pre class="text-sm">{lines}</pre>
                                     </section>
                                 }
                             })
@@ -75,7 +78,7 @@ pub fn AgentSidebar(
                                 view! {
                                     <section class="card">
                                         <h3 class="card-title">{key.clone()}</h3>
-                                        <pre>{lines.join("\n")}</pre>
+                                        <pre class="text-sm">{lines.join("\n")}</pre>
                                     </section>
                                 }
                             })

@@ -33,25 +33,31 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/pi-workflow.css" />
         <Title text="pi-workflow" />
         <Router>
-            <nav class="sticky top-0 z-20 row h-14 justify-between gap-4 border-b border-border bg-surface px-4 sm:px-6">
-                <span class="font-semibold text-fg">"pi-workflow"</span>
-                <div class="row gap-1">
-                    <A
-                        href="/"
-                        exact=true
-                        attr:class="min-h-10 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg aria-[current=page]:bg-surface-2 aria-[current=page]:text-accent"
-                    >
-                        "Tablero"
-                    </A>
-                    <A
-                        href="/workspaces"
-                        attr:class="min-h-10 rounded-lg px-3 py-2 text-sm font-medium text-muted transition-colors hover:text-fg aria-[current=page]:bg-surface-2 aria-[current=page]:text-accent"
-                    >
-                        "Workspaces"
-                    </A>
+            <nav class="sticky top-0 z-20 border-b border-border/60 bg-surface/70 backdrop-blur-xl">
+                <div class="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-4 sm:px-6">
+                    <div class="flex items-center gap-3">
+                        <span class="bg-gradient-to-r from-accent to-purple bg-clip-text text-lg font-bold text-transparent">
+                            "pi-workflow"
+                        </span>
+                    </div>
+                    <div class="row gap-0.5 rounded-xl bg-surface-2/60 p-0.5 backdrop-blur-sm">
+                        <A
+                            href="/"
+                            exact=true
+                            attr:class="nav-pill"
+                        >
+                            "Tablero"
+                        </A>
+                        <A
+                            href="/workspaces"
+                            attr:class="nav-pill"
+                        >
+                            "Workspaces"
+                        </A>
+                    </div>
                 </div>
             </nav>
-            <main class="mx-auto max-w-[1600px] px-4 py-4 sm:px-6">
+            <main class="relative mx-auto max-w-[1600px] px-4 py-4 sm:px-6">
                 <Routes fallback=|| "Página no encontrada.".into_view()>
                     <Route path=StaticSegment("") view=BoardPage />
                     <Route path=StaticSegment("workspaces") view=WorkspacesPage />

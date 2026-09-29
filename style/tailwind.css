@@ -5,6 +5,7 @@
   --color-bg: #0b0d12;
   --color-surface: #171a21;
   --color-surface-2: #1e222c;
+  --color-surface-3: #252a34;
   --color-border: #2a2f3a;
   --color-fg: #e6e6e6;
   --color-muted: #8b93a3;
@@ -12,12 +13,25 @@
   --color-ok: #9ece6a;
   --color-warn: #e0af68;
   --color-error: #f7768e;
+  --color-purple: #bb9af7;
+  --color-pink: #ff7eb6;
 
   --color-stage-backlog: #8b93a3;
   --color-stage-working: #7aa2f7;
   --color-stage-attention: #f7768e;
   --color-stage-review: #e0af68;
   --color-stage-done: #9ece6a;
+
+  /* Custom animations */
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.3s ease-out;
+  --animate-slide-down: slide-down 0.3s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out;
+  --animate-scale-in: scale-in 0.2s ease-out;
+  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-gradient-shift: gradient-shift 8s ease infinite;
+  --animate-bounce-soft: bounce-soft 0.6s ease-in-out;
 }
 
 :root {
@@ -29,6 +43,7 @@
     --color-bg: #f4f5f7;
     --color-surface: #ffffff;
     --color-surface-2: #eceef2;
+    --color-surface-3: #e2e5ea;
     --color-border: #d8dbe3;
     --color-fg: #14161b;
     --color-muted: #5b6472;
@@ -38,191 +53,367 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-fg);
+  /* Subtle gradient background */
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(122,162,247,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(187,154,247,0.05) 0%, transparent 60%);
+  background-attachment: fixed;
 }
 
-@layer components {
-  /* Layout primitives reused across the whole app. */
-  .stack {
-    @apply flex flex-col gap-3;
-  }
-  .row {
-    @apply flex flex-wrap items-center gap-2;
-  }
-  .muted {
-    @apply text-sm text-muted;
-  }
+/* ── Keyframes ─────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(122,162,247,0.3); }
+  50%      { box-shadow: 0 0 0 6px rgba(122,162,247,0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
 
-  /* Buttons */
-  .btn-primary {
-    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-black transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-secondary {
-    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-transparent px-3.5 py-2 text-sm font-semibold text-fg transition-colors hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-danger {
-    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-error px-3.5 py-2 text-sm font-semibold text-black transition-colors hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50;
-  }
-  .btn-ghost {
-    @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg bg-transparent px-3.5 py-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-50;
-  }
+/* ── Decorative background blobs ───────────────── */
+.bg-gradient-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.08;
+  pointer-events: none;
+  z-index: 0;
+}
+.bg-gradient-blob--accent {
+  width: 500px;
+  height: 500px;
+  background: var(--color-accent);
+  top: -10%;
+  left: -10%;
+}
+.bg-gradient-blob--purple {
+  width: 400px;
+  height: 400px;
+  background: var(--color-purple);
+  bottom: -5%;
+  right: -5%;
+}
 
-  /* Surfaces */
+/* ── Layout primitives ─────────────────────────── */
+.stack {
+  @apply flex flex-col gap-3;
+}
+.row {
+  @apply flex flex-wrap items-center gap-2;
+}
+.muted {
+  @apply text-sm text-muted;
+}
+
+/* ── Buttons ────────────────────────────────────── */
+.btn-primary {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-accent to-purple px-3.5 py-2 text-sm font-semibold text-black transition-all duration-200 hover:brightness-110 hover:shadow-lg hover:shadow-accent/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-secondary {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-border bg-transparent px-3.5 py-2 text-sm font-semibold text-fg transition-all duration-200 hover:border-accent/50 hover:bg-surface-2 active:scale-[0.97];
+}
+.btn-danger {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-error to-pink px-3.5 py-2 text-sm font-semibold text-black transition-all duration-200 hover:brightness-110 hover:shadow-lg hover:shadow-error/20 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-ghost {
+  @apply inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-transparent px-3.5 py-2 text-sm font-semibold text-muted transition-all duration-200 hover:bg-surface-2 hover:text-fg active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+/* ── Glass surfaces ─────────────────────────────── */
+.card {
+  @apply relative overflow-hidden rounded-2xl border border-border/80 bg-surface/80 p-4 backdrop-blur-md transition-all duration-200 hover:border-border hover:bg-surface/90 hover:shadow-lg;
+}
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(122,162,247,0.15), transparent 50%, rgba(187,154,247,0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.card-title {
+  @apply text-base font-semibold text-fg;
+}
+.task-title {
+  @apply bg-gradient-to-r from-fg to-muted bg-clip-text text-xl font-semibold text-transparent;
+}
+
+/* Gradient section header */
+.section-header {
+  @apply flex items-center gap-2;
+}
+.section-header::before {
+  content: '';
+  @apply h-5 w-1 rounded-full bg-gradient-to-b from-accent to-purple;
+}
+
+/* ── Form controls ──────────────────────────────── */
+.input {
+  @apply w-full rounded-xl border border-border bg-surface/60 px-3.5 py-2.5 text-sm text-fg placeholder:text-muted transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none focus-visible:border-accent/50;
+}
+.input:focus {
+  @apply border-accent/50 shadow-sm shadow-accent/10;
+}
+
+/* ── Nav pills ──────────────────────────────────── */
+.nav-pill {
+  @apply min-h-10 rounded-lg px-3.5 py-2 text-sm font-medium text-muted transition-all duration-200 hover:text-fg;
+}
+.nav-pill[aria-current="page"] {
+  @apply bg-surface-2 text-accent shadow-sm;
+}
+
+/* ── Filter chips ───────────────────────────────── */
+.chip {
+  @apply flex min-h-10 flex-wrap items-center gap-1.5 rounded-full border border-border/80 bg-surface/60 px-3.5 py-1.5 text-sm text-muted backdrop-blur-sm transition-all duration-200 hover:border-accent/40 hover:bg-surface hover:text-fg active:scale-[0.97];
+}
+.chip-selected {
+  @apply border-accent/60 bg-accent/15 text-accent shadow-sm shadow-accent/10;
+}
+
+/* ── Badges (status + stage) ────────────────────── */
+.badge {
+  @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-all duration-200;
+}
+.badge-ok {
+  @apply border-ok/40 bg-ok/10 text-ok;
+}
+.badge-warn {
+  @apply border-warn/40 bg-warn/10 text-warn;
+}
+.badge-error {
+  @apply border-error/40 bg-error/10 text-error;
+}
+.badge-info {
+  @apply border-accent/40 bg-accent/10 text-accent;
+}
+.badge-muted {
+  @apply border-border/60 bg-surface-2/80 text-muted;
+}
+.badge-backlog {
+  @apply border-stage-backlog/40 bg-stage-backlog/10 text-stage-backlog;
+}
+.badge-working {
+  @apply border-stage-working/40 bg-stage-working/10 text-stage-working;
+}
+.badge-attention {
+  @apply border-stage-attention/40 bg-stage-attention/10 text-stage-attention;
+}
+.badge-review {
+  @apply border-stage-review/40 bg-stage-review/10 text-stage-review;
+}
+.badge-done {
+  @apply border-stage-done/40 bg-stage-done/10 text-stage-done;
+}
+
+/* ── Data tables ────────────────────────────────── */
+.data-table {
+  @apply w-full border-collapse text-sm;
+}
+.data-table th {
+  @apply border-b border-border px-3 py-2.5 text-left text-xs tracking-widest text-muted uppercase;
+}
+.data-table td {
+  @apply border-b border-border px-3 py-2.5 align-top;
+}
+.data-table tbody tr {
+  @apply transition-colors duration-150 hover:bg-surface-2/50;
+}
+
+/* ── Transcript & agent widgets ─────────────────── */
+.task-layout {
+  @apply grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem];
+}
+.transcript {
+  @apply flex flex-col gap-3;
+}
+.msg {
+  @apply relative overflow-hidden rounded-2xl border border-border/60 bg-surface/70 p-4 backdrop-blur-md transition-all duration-200 animate-fade-in;
+}
+.msg-role {
+  @apply mb-1.5 text-[10px] tracking-[0.15em] text-muted uppercase;
+}
+.msg-user {
+  @apply border-l-[3px] border-l-accent;
+}
+.msg-assistant {
+  @apply border-l-[3px] border-l-ok;
+}
+.msg.streaming {
+  @apply border-dashed opacity-80;
+}
+.msg.streaming .msg-role::after {
+  content: ' · escribiendo';
+  @apply animate-pulse text-accent;
+}
+.tool {
+  @apply relative overflow-hidden rounded-xl border border-border/60 bg-surface/50 p-3 text-sm transition-all duration-200;
+}
+.tool summary {
+  @apply cursor-pointer font-mono text-muted transition-colors hover:text-fg;
+}
+.tool-running {
+  @apply border-l-[3px] border-l-accent;
+}
+.tool-ok {
+  @apply border-l-[3px] border-l-ok;
+}
+.tool-error {
+  @apply border-l-[3px] border-l-error;
+}
+.tool-args {
+  @apply mt-2 text-muted;
+}
+.tool-output {
+  @apply mt-2 max-h-96 overflow-auto;
+}
+.thinking summary,
+.prompt summary {
+  @apply cursor-pointer text-muted transition-colors hover:text-fg;
+}
+.notice {
+  @apply relative overflow-hidden rounded-xl border border-border/60 bg-surface/60 px-3 py-2 text-sm backdrop-blur-sm transition-all duration-200;
+}
+.notice-info {
+  @apply border-accent/30 text-accent;
+}
+.notice-warn {
+  @apply border-warn/30 text-warn;
+}
+.notice-error {
+  @apply border-error/30 text-error;
+}
+.status-line {
+  @apply flex flex-wrap items-center gap-2 text-sm;
+}
+.dialog-panel {
+  @apply border-warn/40;
+}
+.dialog-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(224,175,104,0.2), transparent 60%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.composer textarea {
+  @apply w-full rounded-xl border border-border bg-surface/60 px-3.5 py-3 text-sm text-fg placeholder:text-muted backdrop-blur-sm transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none focus-visible:border-accent/50 min-h-[4.5rem];
+}
+
+/* ── Diff view ──────────────────────────────────── */
+.diff {
+  @apply max-h-[40rem] overflow-x-auto overflow-y-auto rounded-2xl border border-border/60 bg-surface/40 p-4 font-mono text-xs whitespace-pre backdrop-blur-sm;
+}
+.diff div {
+  @apply min-h-[1.4em] px-2 transition-colors duration-100;
+}
+.diff div:hover {
+  @apply bg-surface-2/40;
+}
+.diff-file {
+  @apply mt-3 border-b border-border/40 pb-1 font-bold text-accent;
+}
+.diff-meta {
+  @apply text-muted;
+}
+.diff-hunk {
+  color: var(--color-purple);
+}
+.diff-add {
+  @apply bg-ok/8 text-ok;
+}
+.diff-del {
+  @apply bg-error/8 text-error;
+}
+.diff-ctx {
+  @apply text-muted/60;
+}
+
+/* ── Scrollbar styling ──────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-border/60;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-border;
+}
+
+/* ── Mobile improvements ────────────────────────── */
+@media (max-width: 640px) {
   .card {
-    @apply rounded-xl border border-border bg-surface p-4;
-  }
-  .card-title {
-    @apply text-base font-semibold text-fg;
-  }
-  .task-title {
-    @apply text-xl font-semibold text-fg;
-  }
-
-  /* Form controls */
-  .input {
-    @apply w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none;
-  }
-
-  /* Filter chips */
-  .chip {
-    @apply flex min-h-10 flex-wrap items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent hover:text-fg;
-  }
-  .chip-selected {
-    @apply border-accent bg-accent/10 text-accent;
-  }
-
-  /* Badges (status + stage) */
-  .badge {
-    @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium;
-  }
-  .badge-ok {
-    @apply border-ok/40 bg-ok/10 text-ok;
-  }
-  .badge-warn {
-    @apply border-warn/40 bg-warn/10 text-warn;
-  }
-  .badge-error {
-    @apply border-error/40 bg-error/10 text-error;
-  }
-  .badge-info {
-    @apply border-accent/40 bg-accent/10 text-accent;
-  }
-  .badge-muted {
-    @apply border-border bg-surface-2 text-muted;
-  }
-  .badge-backlog {
-    @apply border-stage-backlog/40 bg-stage-backlog/10 text-stage-backlog;
-  }
-  .badge-working {
-    @apply border-stage-working/40 bg-stage-working/10 text-stage-working;
-  }
-  .badge-attention {
-    @apply border-stage-attention/40 bg-stage-attention/10 text-stage-attention;
-  }
-  .badge-review {
-    @apply border-stage-review/40 bg-stage-review/10 text-stage-review;
-  }
-  .badge-done {
-    @apply border-stage-done/40 bg-stage-done/10 text-stage-done;
-  }
-
-  /* Task tables (workspaces list, small desktop tables) */
-  .data-table {
-    @apply w-full border-collapse text-sm;
-  }
-  .data-table th {
-    @apply border-b border-border px-2 py-2 text-left text-xs tracking-wide text-muted uppercase;
-  }
-  .data-table td {
-    @apply border-b border-border px-2 py-2 align-top;
-  }
-
-  /* Transcript & agent widgets */
-  .task-layout {
-    @apply grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_18rem];
-  }
-  .transcript {
-    @apply flex flex-col gap-3;
+    @apply rounded-xl p-3.5;
   }
   .msg {
-    @apply rounded-lg border border-border bg-surface p-3;
+    @apply rounded-xl p-3;
   }
-  .msg-role {
-    @apply text-xs tracking-wide text-muted uppercase;
+  .input {
+    @apply rounded-lg py-2.5;
   }
-  .msg-user {
-    @apply border-l-4 border-l-accent;
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-ghost {
+    @apply rounded-lg;
   }
-  .msg-assistant {
-    @apply border-l-4 border-l-ok;
+  .chip {
+    @apply rounded-full py-1.5;
   }
-  .msg.streaming {
-    @apply border-dashed opacity-85;
-  }
-  .tool {
-    @apply rounded-lg border border-border p-2.5 text-sm;
-  }
-  .tool summary {
-    @apply cursor-pointer font-mono text-muted;
-  }
-  .tool-running {
-    @apply border-l-4 border-l-accent;
-  }
-  .tool-ok {
-    @apply border-l-4 border-l-ok;
-  }
-  .tool-error {
-    @apply border-l-4 border-l-error;
-  }
-  .tool-args {
-    @apply text-muted;
-  }
-  .tool-output {
-    @apply max-h-96 overflow-auto;
-  }
-  .thinking summary,
-  .prompt summary {
-    @apply cursor-pointer text-muted;
-  }
-  .notice {
-    @apply rounded-lg border border-border px-2.5 py-1.5 text-sm;
-  }
-  .notice-info {
-    @apply border-accent/40 text-accent;
-  }
-  .notice-warn {
-    @apply border-warn/40 text-warn;
-  }
-  .notice-error {
-    @apply border-error/40 text-error;
-  }
-  .status-line {
-    @apply flex flex-wrap items-center gap-2 text-sm;
-  }
-  .dialog-panel {
-    @apply border-warn/50;
-  }
-  .composer textarea {
-    @apply w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none min-h-20;
-  }
-  .diff {
-    @apply max-h-[40rem] overflow-x-auto overflow-y-auto rounded-lg border border-border bg-bg p-3 font-mono text-xs whitespace-pre;
-  }
-  .diff div {
-    @apply min-h-[1em];
-  }
-  .diff-file {
-    @apply mt-2 font-bold text-accent;
-  }
-  .diff-meta {
-    @apply text-muted;
-  }
-  .diff-hunk {
-    color: #bb9af7;
-  }
-  .diff-add {
-    @apply bg-ok/10 text-ok;
-  }
-  .diff-del {
-    @apply bg-error/10 text-error;
-  }
+}
+
+/* ── Utility: line-clamp for mobile ─────────────── */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }

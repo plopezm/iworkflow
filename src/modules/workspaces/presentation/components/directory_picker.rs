@@ -45,7 +45,7 @@ fn render_listing(
 
     view! {
         <div class="stack">
-            <p class="break-all text-sm text-fg">{path}</p>
+            <p class="break-all rounded-lg bg-surface-2/40 px-3 py-2 text-sm text-fg">{path}</p>
             <div class="row gap-2">
                 <button
                     type="button"
@@ -57,7 +57,7 @@ fn render_listing(
                         }
                     }
                 >
-                    "Subir"
+                    "↑ Subir"
                 </button>
                 <button
                     type="button"
@@ -77,7 +77,7 @@ fn render_listing(
                             <li>
                                 <button
                                     type="button"
-                                    class="btn-ghost row w-full justify-start gap-2"
+                                    class="btn-ghost row w-full justify-start gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-surface-2"
                                     on:click=move |_| state.navigate(target.clone())
                                 >
                                     <span>{entry.name}</span>

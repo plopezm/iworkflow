@@ -7,10 +7,6 @@ use crate::modules::tasks::presentation::components::task_card::{
 use crate::modules::tasks::presentation::state::board_state::{LaneView, card_key};
 
 /// Carril del tablero: cabecera con contadores del workspace y sus tarjetas.
-///
-/// Se identifica por `workspace_id` y lee sus datos de `lanes` de forma reactiva, de modo
-/// que un refresco del tablero actualiza el carril sin recrearlo (conserva scroll y foco).
-/// Las tarjetas usan `<For>` con clave por contenido: solo se reconstruyen las que cambian.
 #[component]
 pub fn BoardLane(
     workspace_id: String,

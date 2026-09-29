@@ -34,7 +34,7 @@ fn notice_class(level: NoticeLevelDto) -> &'static str {
 fn render_item(item: TranscriptItem) -> AnyView {
     match item {
         TranscriptItem::User { text } => view! {
-            <div class="msg msg-user">
+            <div class="msg msg-user animate-slide-in-right">
                 <span class="msg-role">"Tú"</span>
                 <pre class="whitespace-pre-wrap break-words">{text}</pre>
             </div>
@@ -45,7 +45,7 @@ fn render_item(item: TranscriptItem) -> AnyView {
             thinking,
             error,
         } => view! {
-            <div class="msg msg-assistant">
+            <div class="msg msg-assistant animate-slide-in-right">
                 <span class="msg-role">"Agente"</span>
                 {thinking
                     .map(|t: String| {
@@ -117,7 +117,6 @@ fn render_item(item: TranscriptItem) -> AnyView {
 /// Conversación de la tarea: elementos cerrados y el mensaje en generación.
 #[component]
 pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
-    // Los deltas no cambian `items`, así que la lista solo se repinta al cerrarse mensajes.
     let items: Memo<Vec<TranscriptItem>> =
         Memo::new(move |_| transcript.with(|t: &Transcript| t.items.clone()));
     let item_count: Memo<usize> = Memo::new(move |_| items.with(Vec::len));
@@ -130,9 +129,6 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
             <Show when=move || item_count.get() == 0>
                 <p class="muted">"Sin actividad todavía."</p>
             </Show>
-            // Clave por posición: la transcripción solo añade al final, así que las filas
-            // existentes no se recrean (conservan `<details>` abiertos). Cada fila solo se
-            // repinta si su propio elemento cambia (p.ej. una herramienta recibe su salida).
             <For
                 each=move || 0..item_count.get()
                 key=|index: &usize| *index
@@ -148,7 +144,7 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
                 (!thinking.is_empty() || !text.is_empty())
                     .then(|| {
                         view! {
-                            <div class="msg msg-assistant streaming">
+                            <div class="msg msg-assistant streaming animate-fade-in">
                                 <span class="msg-role">"Agente · escribiendo…"</span>
                                 {(!thinking.is_empty())
                                     .then(|| {

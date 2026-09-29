@@ -4,7 +4,6 @@ use leptos::prelude::*;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::MessageModeDto;
 
 /// Caja de mensajes para el agente. Ctrl/Cmd+Enter envía.
-/// Con el agente trabajando se elige cómo encolar: steer o follow-up.
 #[component]
 pub fn Composer(
     message: RwSignal<String>,
@@ -21,7 +20,7 @@ pub fn Composer(
     };
 
     view! {
-        <div class="stack composer sticky bottom-0 z-10 border-t border-border bg-bg/95 p-3 backdrop-blur sm:static sm:border-0 sm:bg-transparent sm:p-0">
+        <div class="stack composer sticky bottom-0 z-10 border-t border-border/40 bg-surface/80 p-3 backdrop-blur-xl sm:static sm:border-0 sm:bg-transparent sm:p-0">
             <textarea
                 placeholder="Escribe un mensaje para el agente… (Ctrl+Enter para enviar)"
                 prop:value=move || message.get()
