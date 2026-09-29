@@ -3,6 +3,14 @@ use leptos::prelude::*;
 #[cfg(feature = "hydrate")]
 const FOCUS_DELAY: std::time::Duration = std::time::Duration::from_millis(0);
 
+/// Form controls inside the modal content (skips the header close button).
+#[cfg(feature = "hydrate")]
+const FORM_FIELD_SELECTOR: &str = "#modal-panel form input:not([type=hidden]), #modal-panel form select, #modal-panel form textarea";
+
+/// Fallback when the content has no form controls: the panel itself.
+#[cfg(feature = "hydrate")]
+const FALLBACK_SELECTOR: &str = "#modal-panel";
+
 #[cfg(feature = "hydrate")]
 fn focus_first_field() {
     use wasm_bindgen::JsCast;
@@ -10,9 +18,14 @@ fn focus_first_field() {
     let Some(document) = web_sys::window().and_then(|w: web_sys::Window| w.document()) else {
         return;
     };
-    let Ok(Some(element)) = document.query_selector(
-        "#modal-panel input, #modal-panel select, #modal-panel textarea, #modal-panel button",
-    ) else {
+    let Ok(Some(element)) =
+        document
+            .query_selector(FORM_FIELD_SELECTOR)
+            .and_then(|found: Option<web_sys::Element>| match found {
+                Some(_) => Ok(found),
+                None => document.query_selector(FALLBACK_SELECTOR),
+            })
+    else {
         return;
     };
     if let Some(html_element) = element.dyn_ref::<web_sys::HtmlElement>() {
@@ -71,6 +84,7 @@ pub fn Modal(
                     id="modal-panel"
                     class="stack max-h-[90dvh] w-full overflow-y-auto rounded-t-2xl border border-border bg-surface p-4 sm:max-w-lg sm:rounded-2xl sm:p-6"
                     role="dialog"
+                    tabindex="-1"
                     aria-modal="true"
                     aria-labelledby="modal-title"
                     on:click=move |ev| ev.stop_propagation()
