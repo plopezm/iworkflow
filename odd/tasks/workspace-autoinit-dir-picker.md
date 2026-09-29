@@ -19,9 +19,13 @@
 - [x] T1 Auto-init on register (port + CLI adapter + use case + mocks + tests, incl. adapter tests on tempdirs)
 - [x] T2 Directory picker (port `DirectoryBrowserPort`, use case `BrowseDirectories`, fs adapter, server fn + DTO, picker state + generic component in Modal, "Choose…" button in form; tests for use case, adapter, DTO mapping)
 
+- [x] T3 Confirmation before auto-init (user request): `initialize` flag enforced in the use case; server fn returns typed outcome `Registered | NeedsInitialization{path, reason}`; inline confirm panel derived from the action value (no Effect)
+
 ## Progress / evidence
 - T1 5b1912c: writer fmt/clippy ssr+hydrate/tests ok; parent re-ran tests ok.
 - T2: writer fmt/clippy/tests/leptos build ok; parent fixed path <label> association + e2e smoke label; headless Chromium check (open picker, hidden dotdirs, git badge, navigate, select fills path+name, register non-existent nested path -> dir + git main + Initial commit), no console errors. fmt, clippy ssr+hydrate, tests (162 lib) ok.
+
+- T3: writer fmt/clippy ssr+hydrate/tests (168 lib)/leptos build ok; parent fix: confirmation re-sends the last submitted input (not the edited form). Headless Chromium: missing folder / not git (cancel leaves folder untouched) / no commits; edited path before confirm not created; no console errors.
 
 ## Next step
 Manual check; merge is the user's call.

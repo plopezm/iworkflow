@@ -1,3 +1,5 @@
+use crate::modules::workspaces::domain::models::initialization_reason::InitializationReason;
+
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum WorkspaceError {
     #[error("el nombre es obligatorio (máximo 80 caracteres)")]
@@ -16,6 +18,11 @@ pub enum WorkspaceError {
     BranchNotFound(String),
     #[error("ya existe un workspace para la ruta {0}")]
     AlreadyRegistered(String),
+    #[error("se requiere confirmación para inicializar {path}: {reason}")]
+    InitializationRequired {
+        path: String,
+        reason: InitializationReason,
+    },
     #[error("workspace no encontrado: {0}")]
     NotFound(String),
     #[error("el workspace tiene tareas asociadas")]

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use chrono::Utc;
 
 use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+use crate::modules::workspaces::domain::models::initialization_reason::InitializationReason;
 use crate::modules::workspaces::domain::models::workspace::{NewWorkspace, Workspace, WorkspaceId};
 use crate::modules::workspaces::domain::ports::outbound::git_repository_port::{
     GitRepositoryInfo, GitRepositoryPort,
@@ -32,12 +33,23 @@ impl RegisterWorkspace {
 
         let info: GitRepositoryInfo = match self.git.inspect(&input.path).await {
             Ok(info) => info,
-            Err(WorkspaceError::PathNotFound(_)) | Err(WorkspaceError::NotAGitRepository(_)) => {
-                let initial_branch: &str = input.base_branch.as_deref().unwrap_or(DEFAULT_BRANCH);
-                self.git
-                    .init_repository(&input.path, initial_branch)
-                    .await?;
-                self.git.inspect(&input.path).await?
+            Err(WorkspaceError::PathNotFound(_)) => {
+                if !input.initialize {
+                    return Err(initialization_required(
+                        &input.path,
+                        InitializationReason::MissingFolder,
+                    ));
+                }
+                self.init_and_inspect(&input).await?
+            }
+            Err(WorkspaceError::NotAGitRepository(_)) => {
+                if !input.initialize {
+                    return Err(initialization_required(
+                        &input.path,
+                        InitializationReason::NotAGitRepository,
+                    ));
+                }
+                self.init_and_inspect(&input).await?
             }
             Err(other) => return Err(other),
         };
@@ -49,6 +61,12 @@ impl RegisterWorkspace {
         }
 
         if !info.has_commits {
+            if !input.initialize {
+                return Err(initialization_required(
+                    &info.root,
+                    InitializationReason::NoCommits,
+                ));
+            }
             self.git.create_initial_commit(&info.root).await?;
         }
 
@@ -72,6 +90,24 @@ impl RegisterWorkspace {
         self.repository.save(&workspace).await?;
         Ok(workspace)
     }
+
+    async fn init_and_inspect(
+        &self,
+        input: &NewWorkspace,
+    ) -> Result<GitRepositoryInfo, WorkspaceError> {
+        let initial_branch: &str = input.base_branch.as_deref().unwrap_or(DEFAULT_BRANCH);
+        self.git
+            .init_repository(&input.path, initial_branch)
+            .await?;
+        self.git.inspect(&input.path).await
+    }
+}
+
+fn initialization_required(path: &std::path::Path, reason: InitializationReason) -> WorkspaceError {
+    WorkspaceError::InitializationRequired {
+        path: path.display().to_string(),
+        reason,
+    }
 }
 
 #[cfg(test)]
@@ -87,10 +123,15 @@ mod tests {
     const ROOT: &str = "/repos/demo";
 
     fn input(branch: Option<&str>) -> NewWorkspace {
+        input_with_initialize(branch, true)
+    }
+
+    fn input_with_initialize(branch: Option<&str>, initialize: bool) -> NewWorkspace {
         NewWorkspace {
             name: "Demo".to_string(),
             path: PathBuf::from("/repos/demo/sub"),
             base_branch: branch.map(str::to_string),
+            initialize,
         }
     }
 
@@ -330,6 +371,65 @@ mod tests {
         assert_eq!(
             result,
             Err(WorkspaceError::AlreadyRegistered(ROOT.to_string()))
+        );
+    }
+
+    #[tokio::test]
+    async fn requires_confirmation_for_missing_folder_without_mutating() {
+        let mut git: MockGitRepository = MockGitRepository::new();
+        git.expect_inspect()
+            .returning(|p| Err(WorkspaceError::PathNotFound(p.display().to_string())));
+        let use_case: RegisterWorkspace =
+            RegisterWorkspace::new(Arc::new(MockWorkspaceRepository::new()), Arc::new(git));
+
+        let result: Result<Workspace, WorkspaceError> =
+            use_case.execute(input_with_initialize(None, false)).await;
+
+        assert_eq!(
+            result,
+            Err(WorkspaceError::InitializationRequired {
+                path: "/repos/demo/sub".to_string(),
+                reason: InitializationReason::MissingFolder,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn requires_confirmation_for_non_git_folder_without_mutating() {
+        let mut git: MockGitRepository = MockGitRepository::new();
+        git.expect_inspect()
+            .returning(|p| Err(WorkspaceError::NotAGitRepository(p.display().to_string())));
+        let use_case: RegisterWorkspace =
+            RegisterWorkspace::new(Arc::new(MockWorkspaceRepository::new()), Arc::new(git));
+
+        let result: Result<Workspace, WorkspaceError> =
+            use_case.execute(input_with_initialize(None, false)).await;
+
+        assert_eq!(
+            result,
+            Err(WorkspaceError::InitializationRequired {
+                path: "/repos/demo/sub".to_string(),
+                reason: InitializationReason::NotAGitRepository,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn requires_confirmation_for_missing_commits_without_committing() {
+        let repository: MockWorkspaceRepository = empty_repository();
+        let git: MockGitRepository = git_with_info(Some("main"), false);
+        let use_case: RegisterWorkspace =
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git));
+
+        let result: Result<Workspace, WorkspaceError> =
+            use_case.execute(input_with_initialize(None, false)).await;
+
+        assert_eq!(
+            result,
+            Err(WorkspaceError::InitializationRequired {
+                path: ROOT.to_string(),
+                reason: InitializationReason::NoCommits,
+            })
         );
     }
 

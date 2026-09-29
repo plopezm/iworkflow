@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::directory_dto::DirectoryListingDto;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
-    RegisterWorkspaceDto, WorkspaceDto,
+    RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, WorkspaceDto,
 };
 
 #[cfg(feature = "ssr")]
@@ -51,15 +51,16 @@ pub async fn list_workspaces() -> Result<Vec<WorkspaceDto>, ServerFnError> {
 #[server]
 pub async fn register_workspace(
     input: RegisterWorkspaceDto,
-) -> Result<WorkspaceDto, ServerFnError> {
+) -> Result<RegisterWorkspaceOutcomeDto, ServerFnError> {
+    use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
     use crate::modules::workspaces::domain::models::workspace::Workspace;
+    use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::register_outcome;
 
-    let workspace: Workspace = support::context()?
+    let result: Result<Workspace, WorkspaceError> = support::context()?
         .register_workspace
         .execute(input.into())
-        .await
-        .map_err(support::to_server_error)?;
-    Ok(WorkspaceDto::from(workspace))
+        .await;
+    register_outcome(result).map_err(support::to_server_error)
 }
 
 #[server]

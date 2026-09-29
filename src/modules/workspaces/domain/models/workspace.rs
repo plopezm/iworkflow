@@ -62,6 +62,9 @@ pub struct NewWorkspace {
     pub path: PathBuf,
     /// Si es `None` se usa la rama actual del repositorio.
     pub base_branch: Option<String>,
+    /// Confirmación explícita para crear la carpeta, inicializar el repositorio git
+    /// o crear el commit inicial vacío cuando sea necesario.
+    pub initialize: bool,
 }
 
 impl NewWorkspace {
@@ -84,6 +87,7 @@ impl NewWorkspace {
             name,
             path: self.path,
             base_branch,
+            initialize: self.initialize,
         })
     }
 }
@@ -97,6 +101,7 @@ mod tests {
             name: name.to_string(),
             path: PathBuf::from(path),
             base_branch: branch.map(str::to_string),
+            initialize: true,
         }
     }
 

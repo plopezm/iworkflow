@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
-    RegisterWorkspaceDto, WorkspaceDto,
+    InitializationReasonDto, RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, WorkspaceDto,
 };
 use crate::modules::workspaces::infrastructure::adapters::inbound::server_fns::{
     DeleteWorkspace, RegisterWorkspace, list_workspaces,
@@ -18,6 +18,14 @@ pub struct WorkspacesState {
     pub path: RwSignal<String>,
     pub base_branch: RwSignal<String>,
     pub directory_picker: DirectoryPickerState,
+    /// Se pone a `true` cuando el usuario descarta el aviso de confirmación
+    /// sin actuar; se reinicia en cada nuevo envío del formulario.
+    dismissed: RwSignal<bool>,
+    /// Deriva del último resultado de `register` si el servidor pide confirmación
+    /// para inicializar el workspace.
+    pub pending_initialization: Memo<Option<(String, InitializationReasonDto)>>,
+    /// Último envío del formulario; la confirmación reenvía este y no el formulario actual.
+    last_submitted: StoredValue<Option<RegisterWorkspaceDto>>,
 }
 
 impl WorkspacesState {
@@ -28,6 +36,19 @@ impl WorkspacesState {
             move || (register.version().get(), delete.version().get()),
             |_| list_workspaces(),
         );
+        let dismissed: RwSignal<bool> = RwSignal::new(false);
+        let pending_initialization: Memo<Option<(String, InitializationReasonDto)>> =
+            Memo::new(move |_| {
+                if dismissed.get() {
+                    return None;
+                }
+                match register.value().get() {
+                    Some(Ok(RegisterWorkspaceOutcomeDto::NeedsInitialization { path, reason })) => {
+                        Some((path, reason))
+                    }
+                    _ => None,
+                }
+            });
         Self {
             workspaces,
             register,
@@ -36,6 +57,9 @@ impl WorkspacesState {
             path: RwSignal::new(String::new()),
             base_branch: RwSignal::new(String::new()),
             directory_picker: DirectoryPickerState::new(),
+            dismissed,
+            pending_initialization,
+            last_submitted: StoredValue::new(None),
         }
     }
 
@@ -61,13 +85,35 @@ impl WorkspacesState {
 
     pub fn submit(&self) {
         let base_branch: String = self.base_branch.get_untracked();
+        let input: RegisterWorkspaceDto = RegisterWorkspaceDto {
+            name: self.name.get_untracked(),
+            path: self.path.get_untracked(),
+            base_branch: Some(base_branch).filter(|b: &String| !b.trim().is_empty()),
+            initialize: false,
+        };
+        self.last_submitted.set_value(Some(input.clone()));
+        self.dismissed.set(false);
+        self.register.dispatch(RegisterWorkspace { input });
+    }
+
+    /// Reenvía exactamente el último envío (no el formulario actual, que puede haber
+    /// cambiado) tras confirmar la inicialización: carpeta, `git init` o commit inicial.
+    pub fn confirm_initialization(&self) {
+        let Some(submitted) = self.last_submitted.get_value() else {
+            return;
+        };
+        self.dismissed.set(false);
         self.register.dispatch(RegisterWorkspace {
             input: RegisterWorkspaceDto {
-                name: self.name.get_untracked(),
-                path: self.path.get_untracked(),
-                base_branch: Some(base_branch).filter(|b: &String| !b.trim().is_empty()),
+                initialize: true,
+                ..submitted
             },
         });
+    }
+
+    /// Descarta el aviso de confirmación sin enviar nada al servidor.
+    pub fn dismiss_initialization(&self) {
+        self.dismissed.set(true);
     }
 
     pub fn remove(&self, id: String) {
