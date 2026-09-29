@@ -47,7 +47,38 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 | `WORKTREES_DIR` | `~/.pi-dashboard/worktrees` |
 | `GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
 
-El servidor escucha solo en `127.0.0.1` y no tiene autenticación: está pensado para uso local.
+En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
+
+## Producción
+
+```bash
+./scripts/prod.sh           # compila en release, empaqueta en dist/ y arranca
+./scripts/prod.sh build     # solo compila y empaqueta
+./scripts/prod.sh run       # solo arranca lo ya empaquetado
+```
+
+`build` ejecuta `cargo leptos build --release` y copia en `dist/` el binario
+`pi-workflow` y la carpeta `site/` (WASM, JS y CSS). Ambos son necesarios: sin
+`site/` la página se sirve pero no hidrata.
+
+`run` exporta las variables de Leptos (`LEPTOS_SITE_ROOT`, `LEPTOS_ENV=PROD`…) y
+arranca el binario desde el directorio actual, así que el `.env` de ese directorio
+también se aplica. Variables propias del script:
+
+| Variable | Por defecto |
+|---|---|
+| `DIST_DIR` | `dist/` en la raíz del repo |
+| `LEPTOS_SITE_ADDR` | `0.0.0.0:3000` (todas las interfaces) |
+
+> **Seguridad:** la app no tiene autenticación y lanza agentes que ejecutan comandos
+> con tu usuario. Con el bind a `0.0.0.0`, cualquiera que alcance el puerto puede
+> usarla. Restringe el acceso con firewall, red privada (Tailscale/WireGuard) o un
+> reverse proxy con autenticación y TLS. Para limitarlo a la máquina local:
+> `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
+
+Para desplegar en otra máquina basta con copiar `dist/` y lanzarlo con
+`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./pi-workflow`
+desde dentro de esa carpeta.
 
 ## Desarrollo
 
