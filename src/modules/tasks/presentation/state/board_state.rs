@@ -46,6 +46,16 @@ pub struct LaneView {
     pub attention_count: usize,
 }
 
+/// El chip "Necesita atención" usa `needs_attention` (Attention + Review) para coincidir con
+/// los contadores del carril y del título; el resto de chips filtran por etapa exacta.
+fn matches_stage_filter(task: &TaskDto, stage_filter: Option<TaskStageDto>) -> bool {
+    match stage_filter {
+        None => true,
+        Some(TaskStageDto::Attention) => task.needs_attention,
+        Some(stage) => task.stage == stage,
+    }
+}
+
 /// Agrupa, filtra y ordena las tareas en carriles por workspace (función pura, sin I/O).
 ///
 /// Reglas: un workspace solo aparece si tiene tareas visibles tras aplicar `stage_filter`
@@ -61,7 +71,7 @@ pub fn build_lanes(
     let visible: Vec<TaskDto> = tasks
         .iter()
         .filter(|t: &&TaskDto| {
-            let matches_filter: bool = stage_filter.is_none_or(|s: TaskStageDto| t.stage == s);
+            let matches_filter: bool = matches_stage_filter(t, stage_filter);
             let matches_done: bool = t.stage != TaskStageDto::Done || show_done;
             matches_filter && matches_done
         })
@@ -595,6 +605,23 @@ mod tests {
         assert_eq!(lanes.len(), 1);
         assert_eq!(lanes[0].tasks.len(), 1);
         assert_eq!(lanes[0].tasks[0].id, "2");
+    }
+
+    #[test]
+    fn attention_filter_matches_attention_counters() {
+        let tasks: Vec<TaskDto> = vec![
+            task("1", "ws-a", TaskStageDto::Attention, "2026-01-01T00:00:00Z"),
+            task("2", "ws-a", TaskStageDto::Review, "2026-01-01T00:00:00Z"),
+            task("3", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
+        ];
+        let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("ws-a", "A")];
+
+        let unfiltered: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
+        let filtered: Vec<LaneView> =
+            build_lanes(&tasks, &workspaces, Some(TaskStageDto::Attention), false);
+
+        assert_eq!(filtered[0].tasks.len(), unfiltered[0].attention_count);
+        assert_eq!(filtered[0].tasks.len(), 2);
     }
 
     #[test]
