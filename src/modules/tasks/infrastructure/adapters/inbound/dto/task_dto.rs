@@ -201,7 +201,7 @@ mod mapping {
         fn from(task: Task) -> Self {
             let stage: TaskStage = task.stage();
             let needs_attention: bool = task.needs_attention();
-            let pending_dialogs: usize = task.pending_dialogs.len();
+            let pending_dialogs: usize = task.pending_dialog_count();
             Self {
                 id: task.id.to_string(),
                 workspace_id: task.workspace_id,
@@ -304,6 +304,24 @@ mod mapping {
             );
             assert_eq!(merged.actions, TaskActionsDto::default());
             assert_eq!(review.status, TaskStatusDto::AwaitingReview);
+        }
+
+        #[test]
+        fn pending_dialogs_count_excludes_expired_dialogs() {
+            use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+
+            let mut running: Task = task(TaskStatus::Running);
+            running.pending_dialogs = vec![
+                PendingDialog::new("live".to_string(), None),
+                PendingDialog::new(
+                    "expired".to_string(),
+                    Some(Utc::now() - chrono::Duration::seconds(5)),
+                ),
+            ];
+
+            let dto: TaskDto = TaskDto::from(running);
+
+            assert_eq!(dto.pending_dialogs, 1);
         }
 
         #[test]

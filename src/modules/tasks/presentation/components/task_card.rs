@@ -75,7 +75,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                 .then(|| {
                                     view! {
                                         <span class="badge badge-muted">
-                                            {format!("{} diálogos", task.pending_dialogs)}
+                                            {pending_dialogs_label(task.pending_dialogs)}
                                         </span>
                                     }
                                 })}
@@ -204,6 +204,15 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
     }
 }
 
+/// Etiqueta con singular/plural del número de diálogos pendientes.
+fn pending_dialogs_label(count: usize) -> String {
+    if count == 1 {
+        "1 diálogo".to_string()
+    } else {
+        format!("{count} diálogos")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -215,5 +224,11 @@ mod tests {
             "2026-09-28 16:39"
         );
         assert_eq!(short_timestamp("corto"), "corto");
+    }
+
+    #[test]
+    fn pending_dialogs_label_pluralises() {
+        assert_eq!(pending_dialogs_label(1), "1 diálogo");
+        assert_eq!(pending_dialogs_label(3), "3 diálogos");
     }
 }
