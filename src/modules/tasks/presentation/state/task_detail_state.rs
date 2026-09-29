@@ -11,6 +11,10 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
 };
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
+/// Espera antes de reabrir el stream SSE cuando el navegador lo da por cerrado.
+#[cfg(feature = "hydrate")]
+const SSE_RECONNECT_DELAY: std::time::Duration = std::time::Duration::from_secs(3);
+
 /// Estado de la pantalla de detalle de una tarea.
 #[derive(Clone, Copy)]
 pub struct TaskDetailState {
@@ -246,14 +250,63 @@ impl TaskDetailState {
             _handlers: Vec<Handler>,
         }
 
-        fn open(
-            url: &str,
+        #[derive(Default)]
+        struct SseState {
+            connection: Option<Connection>,
+            reconnect: Option<TimeoutHandle>,
+        }
+
+        /// Cierra la conexión actual y cancela cualquier reapertura pendiente.
+        fn teardown(slot: StoredValue<SseState, LocalStorage>) {
+            slot.update_value(|state: &mut SseState| {
+                if let Some(handle) = state.reconnect.take() {
+                    handle.clear();
+                }
+                if let Some(connection) = state.connection.take() {
+                    connection.source.close();
+                }
+            });
+        }
+
+        /// Programa la reapertura fuera del handler en curso: soltar aquí el `Closure` que
+        /// se está ejecutando provocaría "closure invoked recursively or after being dropped".
+        fn schedule_reopen(
+            delay: std::time::Duration,
+            url: String,
+            signals: Signals,
+            slot: StoredValue<SseState, LocalStorage>,
+        ) {
+            slot.update_value(|state: &mut SseState| {
+                if let Some(handle) = state.reconnect.take() {
+                    handle.clear();
+                }
+            });
+            let handle: Option<TimeoutHandle> = set_timeout_with_handle(
+                move || {
+                    teardown(slot);
+                    open(&url, signals, slot);
+                },
+                delay,
+            )
+            .ok();
+            slot.update_value(|state: &mut SseState| state.reconnect = handle);
+        }
+
+        #[derive(Clone, Copy)]
+        struct Signals {
             transcript: RwSignal<Transcript>,
             connected: RwSignal<bool>,
             status_version: RwSignal<u32>,
             removed: RwSignal<bool>,
-            slot: StoredValue<Option<Connection>, LocalStorage>,
-        ) {
+        }
+
+        fn open(url: &str, signals: Signals, slot: StoredValue<SseState, LocalStorage>) {
+            let Signals {
+                transcript,
+                connected,
+                status_version,
+                removed,
+            } = signals;
             let Ok(source) = EventSource::new(url) else {
                 connected.set(false);
                 return;
@@ -280,24 +333,20 @@ impl TaskDetailState {
                 transcript.set(Transcript::default());
                 connected.set(true);
             });
-            let on_error: Closure<dyn FnMut(Event)> =
-                Closure::new(move |_: Event| connected.set(false));
-            let reopen_url: String = url.to_string();
+            let watched_source: EventSource = source.clone();
+            let error_url: String = url.to_string();
+            let on_error: Handler = Closure::new(move |_: Event| {
+                connected.set(false);
+                // Los cortes recuperables los reintenta el propio `EventSource`; si queda
+                // CLOSED hay que reabrirlo a mano.
+                if watched_source.ready_state() == EventSource::CLOSED {
+                    schedule_reopen(SSE_RECONNECT_DELAY, error_url.clone(), signals, slot);
+                }
+            });
+            let lagged_url: String = url.to_string();
             let on_lagged: Handler = Closure::new(move |_: Event| {
                 // Se perdieron eventos en vivo: se reabre para recibir el historial completo.
-                slot.update_value(|current: &mut Option<Connection>| {
-                    if let Some(connection) = current.take() {
-                        connection.source.close();
-                    }
-                });
-                open(
-                    &reopen_url,
-                    transcript,
-                    connected,
-                    status_version,
-                    removed,
-                    slot,
-                );
+                schedule_reopen(std::time::Duration::ZERO, lagged_url.clone(), signals, slot);
             });
             source.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
             source.set_onerror(Some(on_error.as_ref().unchecked_ref()));
@@ -310,28 +359,23 @@ impl TaskDetailState {
                     connected.set(false);
                 }
             }
-            slot.set_value(Some(Connection {
-                source,
-                _handlers: vec![on_message, on_reset, on_error, on_lagged],
-            }));
+            slot.update_value(|state: &mut SseState| {
+                state.connection = Some(Connection {
+                    source,
+                    _handlers: vec![on_message, on_reset, on_error, on_lagged],
+                });
+            });
         }
 
-        let slot: StoredValue<Option<Connection>, LocalStorage> = StoredValue::new_local(None);
+        let slot: StoredValue<SseState, LocalStorage> = StoredValue::new_local(SseState::default());
         let url: String = format!("/api/tasks/{}/events", self.task_id.get_value());
-        open(
-            &url,
-            self.transcript,
-            self.connected,
-            self.status_version,
-            self.removed,
-            slot,
-        );
-        on_cleanup(move || {
-            slot.update_value(|current: &mut Option<Connection>| {
-                if let Some(connection) = current.take() {
-                    connection.source.close();
-                }
-            });
-        });
+        let signals: Signals = Signals {
+            transcript: self.transcript,
+            connected: self.connected,
+            status_version: self.status_version,
+            removed: self.removed,
+        };
+        open(&url, signals, slot);
+        on_cleanup(move || teardown(slot));
     }
 }
