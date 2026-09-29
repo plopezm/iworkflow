@@ -31,5 +31,7 @@ Fix all findings of the read-only UI verification of the kanban redesign (2026-0
 
 - T9 a6bff3c (keyed board via lanes signal + keyed For; lanes now fill after hydration, not SSR), T10 1774b5c (router reuses outlet on param change, confirmed in leptos_router 0.8.16; id now reactive). Writer: fmt, clippy ssr+hydrate, tests (146 lib), leptos build ok; parent spot-check fmt, clippy hydrate, tests ok. Browser unverified.
 
+- T11 b61e6b3: T9/T10 caused an unrecoverable hydration panic (board Suspend wrote `lanes`/`loaded` during render; detail memos read the task resource outside Suspense). Derived state is now published from an Effect (client-only, post-hydration). Verified in headless Chromium (board, backlog detail, interrupted detail, client nav, filter): no panics/warnings. fmt, clippy ssr+hydrate, tests ok. Review (reliability lens) approved; non-blocking: board lanes are not in SSR HTML (pre-existing since T9), detail workspace hidden until the task loads.
+
 ## Next step
 Manual browser check; push/PR is the user's call.
