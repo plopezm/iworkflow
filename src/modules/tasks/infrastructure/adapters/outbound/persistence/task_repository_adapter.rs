@@ -291,6 +291,39 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         Ok(deleted > 0)
     }
 
+    async fn delete_inactive_by_workspace(
+        &self,
+        workspace_id: String,
+    ) -> Result<Option<Vec<TaskId>>, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        connection
+            .transaction::<Option<Vec<TaskId>>, DieselError, _>(async move |conn| {
+                let rows: Vec<TaskRow> = tasks::table
+                    .filter(tasks::workspace_id.eq(workspace_id.clone()))
+                    .select(TaskRow::as_select())
+                    .load(conn)
+                    .await?;
+                let all_inactive: bool = rows.iter().all(|row: &TaskRow| {
+                    TaskStatus::parse(&row.status)
+                        .map(|status: TaskStatus| status.is_inactive())
+                        .unwrap_or(false)
+                });
+                if !all_inactive {
+                    return Ok(None);
+                }
+                let ids: Vec<TaskId> = rows
+                    .iter()
+                    .filter_map(|row: &TaskRow| TaskId::parse(&row.id).ok())
+                    .collect();
+                diesel::delete(tasks::table.filter(tasks::workspace_id.eq(workspace_id)))
+                    .execute(conn)
+                    .await?;
+                Ok(Some(ids))
+            })
+            .await
+            .map_err(db_error)
+    }
+
     async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError> {
         let mut connection: DbConnection = self.connection().await?;
         let row: NewTaskEventRow = NewTaskEventRow::new(id, &kind, Utc::now().naive_utc())?;

@@ -7,6 +7,7 @@ use crate::modules::tasks::application::usecases::abort_task::AbortTask;
 use crate::modules::tasks::application::usecases::answer_dialog::AnswerDialog;
 use crate::modules::tasks::application::usecases::create_task::CreateTask;
 use crate::modules::tasks::application::usecases::delete_task::DeleteTask;
+use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::application::usecases::discard_task::DiscardTask;
 use crate::modules::tasks::application::usecases::finish_task::FinishTask;
 use crate::modules::tasks::application::usecases::get_task::GetTask;
@@ -45,6 +46,7 @@ pub struct TasksContext {
     pub start_task: Arc<StartTask>,
     pub update_task: Arc<UpdateTask>,
     pub delete_task: Arc<DeleteTask>,
+    pub delete_workspace_tasks: Arc<DeleteWorkspaceTasks>,
     pub send_message: Arc<SendMessage>,
     pub abort_task: Arc<AbortTask>,
     pub answer_dialog: Arc<AnswerDialog>,
@@ -106,6 +108,7 @@ impl TasksContext {
             start_task,
             update_task: Arc::new(UpdateTask::new(lifecycle.clone())),
             delete_task: Arc::new(DeleteTask::new(lifecycle.clone())),
+            delete_workspace_tasks: Arc::new(DeleteWorkspaceTasks::new(lifecycle.clone())),
             send_message: Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone())),
             abort_task: Arc::new(AbortTask::new(lifecycle.clone(), runtime.clone())),
             answer_dialog: Arc::new(AnswerDialog::new(lifecycle.clone(), runtime.clone())),

@@ -420,6 +420,82 @@ async fn delete_if_backlog_keeps_tasks_in_other_states() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn delete_inactive_by_workspace_deletes_all_inactive_tasks_and_their_events() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let backlog: Task = backlog_task(&ws.id.to_string(), "uno");
+    let merged: Task = Task {
+        status: TaskStatus::Merged,
+        ..task(&ws.id.to_string(), "dos")
+    };
+    adapter.insert(&backlog).await.expect("insert");
+    adapter.insert(&merged).await.expect("insert");
+    adapter
+        .append_event(backlog.id, TaskEventKind::status(TaskStatus::Backlog, None))
+        .await
+        .expect("append");
+
+    let deleted: Option<Vec<TaskId>> = adapter
+        .delete_inactive_by_workspace(ws.id.to_string())
+        .await
+        .expect("delete");
+
+    let mut ids: Vec<TaskId> = deleted.expect("borrado");
+    ids.sort_by_key(|id: &TaskId| id.to_string());
+    let mut expected: Vec<TaskId> = vec![backlog.id, merged.id];
+    expected.sort_by_key(|id: &TaskId| id.to_string());
+    assert_eq!(ids, expected);
+    assert_eq!(adapter.find(backlog.id).await.expect("find"), None);
+    assert_eq!(adapter.find(merged.id).await.expect("find"), None);
+    assert_eq!(
+        adapter.events(backlog.id, None).await.expect("events"),
+        Vec::new()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn delete_inactive_by_workspace_returns_none_and_deletes_nothing_when_one_task_is_active() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let backlog: Task = backlog_task(&ws.id.to_string(), "uno");
+    let running: Task = task(&ws.id.to_string(), "dos");
+    adapter.insert(&backlog).await.expect("insert");
+    adapter.insert(&running).await.expect("insert");
+
+    let deleted: Option<Vec<TaskId>> = adapter
+        .delete_inactive_by_workspace(ws.id.to_string())
+        .await
+        .expect("delete");
+
+    assert_eq!(deleted, None);
+    assert!(adapter.find(backlog.id).await.expect("find").is_some());
+    assert!(adapter.find(running.id).await.expect("find").is_some());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn delete_inactive_by_workspace_does_not_touch_other_workspaces() {
+    let db: common::TestDb = common::test_db().await;
+    let a: Workspace = workspace(&db, "/repos/a").await;
+    let b: Workspace = workspace(&db, "/repos/b").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let backlog_a: Task = backlog_task(&a.id.to_string(), "uno");
+    let backlog_b: Task = backlog_task(&b.id.to_string(), "dos");
+    adapter.insert(&backlog_a).await.expect("insert");
+    adapter.insert(&backlog_b).await.expect("insert");
+
+    let deleted: Option<Vec<TaskId>> = adapter
+        .delete_inactive_by_workspace(a.id.to_string())
+        .await
+        .expect("delete");
+
+    assert_eq!(deleted, Some(vec![backlog_a.id]));
+    assert_eq!(adapter.find(backlog_a.id).await.expect("find"), None);
+    assert!(adapter.find(backlog_b.id).await.expect("find").is_some());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn workspace_with_tasks_cannot_be_deleted() {
     let db: common::TestDb = common::test_db().await;
     let ws: Workspace = workspace(&db, "/repos/a").await;

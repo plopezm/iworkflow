@@ -10,6 +10,7 @@ use crate::modules::workspaces::application::usecases::register_workspace::Regis
 use crate::modules::workspaces::domain::ports::outbound::directory_browser_port::DirectoryBrowserPort;
 use crate::modules::workspaces::domain::ports::outbound::git_repository_port::GitRepositoryPort;
 use crate::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
+use crate::modules::workspaces::domain::ports::outbound::workspace_tasks_port::WorkspaceTasksPort;
 use crate::modules::workspaces::infrastructure::adapters::outbound::fs::fs_directory_browser_adapter::FsDirectoryBrowserAdapter;
 use crate::modules::workspaces::infrastructure::adapters::outbound::git::git_cli_repository_adapter::GitCliRepositoryAdapter;
 use crate::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
@@ -24,7 +25,7 @@ pub struct WorkspacesContext {
 }
 
 impl WorkspacesContext {
-    pub fn new(pool: DbPool, home_dir: PathBuf) -> Self {
+    pub fn new(pool: DbPool, home_dir: PathBuf, tasks: Arc<dyn WorkspaceTasksPort>) -> Self {
         let repository: Arc<dyn WorkspaceRepositoryPort> =
             Arc::new(WorkspaceRepositoryAdapter::new(pool));
         let git: Arc<dyn GitRepositoryPort> = Arc::new(GitCliRepositoryAdapter::new());
@@ -34,7 +35,7 @@ impl WorkspacesContext {
             register_workspace: Arc::new(RegisterWorkspace::new(repository.clone(), git)),
             list_workspaces: Arc::new(ListWorkspaces::new(repository.clone())),
             get_workspace: Arc::new(GetWorkspace::new(repository.clone())),
-            delete_workspace: Arc::new(DeleteWorkspace::new(repository)),
+            delete_workspace: Arc::new(DeleteWorkspace::new(repository, tasks)),
             browse_directories: Arc::new(BrowseDirectories::new(directory_browser, home_dir)),
         }
     }

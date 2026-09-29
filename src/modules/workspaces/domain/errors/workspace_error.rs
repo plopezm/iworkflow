@@ -25,7 +25,7 @@ pub enum WorkspaceError {
     },
     #[error("workspace no encontrado: {0}")]
     NotFound(String),
-    #[error("el workspace tiene tareas asociadas")]
+    #[error("el workspace tiene tareas activas")]
     InUse,
     #[error("error de git: {0}")]
     Git(String),

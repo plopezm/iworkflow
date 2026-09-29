@@ -197,6 +197,14 @@ impl TaskStatus {
     pub fn can_delete(&self) -> bool {
         matches!(self, TaskStatus::Backlog)
     }
+
+    /// Sin agente vivo ni worktree/rama pendientes: puede borrarse en cascada con su workspace.
+    pub fn is_inactive(&self) -> bool {
+        matches!(
+            self,
+            TaskStatus::Backlog | TaskStatus::Merged | TaskStatus::Discarded
+        )
+    }
 }
 
 /// Vista agregada del estado de una tarea, usada por el tablero kanban.
@@ -503,6 +511,29 @@ mod tests {
         assert!(!TaskStatus::Backlog.can_finish());
         assert!(!TaskStatus::Backlog.can_resume());
         assert!(!TaskStatus::Backlog.can_merge());
+    }
+
+    #[test]
+    fn only_backlog_merged_and_discarded_are_inactive() {
+        for status in [
+            TaskStatus::Backlog,
+            TaskStatus::Merged,
+            TaskStatus::Discarded,
+        ] {
+            assert!(status.is_inactive());
+        }
+        for status in [
+            TaskStatus::Starting,
+            TaskStatus::Running,
+            TaskStatus::Idle,
+            TaskStatus::Finishing,
+            TaskStatus::AwaitingReview,
+            TaskStatus::Conflict,
+            TaskStatus::Failed,
+            TaskStatus::Interrupted,
+        ] {
+            assert!(!status.is_inactive());
+        }
     }
 
     fn dialog(id: &str) -> PendingDialog {

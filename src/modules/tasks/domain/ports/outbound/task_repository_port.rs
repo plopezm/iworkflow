@@ -54,6 +54,14 @@ pub trait TaskRepositoryPort: Send + Sync {
     /// eliminan en cascada). Devuelve `false` (sin modificar nada) si la tarea no
     /// existe o ya no está en `Backlog`.
     async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
+    /// Borrado en cascada de todas las tareas (y sus eventos) de un workspace, en una
+    /// única transacción: si alguna tarea del workspace está activa
+    /// (`!TaskStatus::is_inactive`) no borra nada y devuelve `Ok(None)`; si todas están
+    /// inactivas, las borra y devuelve sus ids.
+    async fn delete_inactive_by_workspace(
+        &self,
+        workspace_id: String,
+    ) -> Result<Option<Vec<TaskId>>, TaskError>;
     /// Persiste un evento y lo devuelve con su `seq` asignado.
     async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError>;
     /// Eventos persistidos con `seq > after_seq`, en orden.

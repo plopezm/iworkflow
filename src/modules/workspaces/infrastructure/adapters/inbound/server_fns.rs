@@ -30,7 +30,7 @@ mod support {
             let error: ServerFnError = to_server_error(WorkspaceError::InUse);
             assert_eq!(
                 error,
-                ServerFnError::ServerError("el workspace tiene tareas asociadas".to_string())
+                ServerFnError::ServerError("el workspace tiene tareas activas".to_string())
             );
         }
     }

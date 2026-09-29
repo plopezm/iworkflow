@@ -27,4 +27,6 @@ pub enum TaskError {
     MergeBlocked(String),
     #[error("error de persistencia: {0}")]
     Repository(String),
+    #[error("el workspace tiene tareas activas")]
+    WorkspaceHasActiveTasks,
 }

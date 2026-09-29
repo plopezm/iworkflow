@@ -46,6 +46,7 @@ mock! {
         async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError>;
         async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError>;
         async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
+        async fn delete_inactive_by_workspace(&self, workspace_id: String) -> Result<Option<Vec<TaskId>>, TaskError>;
         async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError>;
         async fn events(&self, id: TaskId, after_seq: Option<i64>) -> Result<Vec<TaskEvent>, TaskError>;
     }

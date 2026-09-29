@@ -10,6 +10,7 @@ use crate::modules::workspaces::domain::ports::outbound::git_repository_port::{
     GitRepositoryInfo, GitRepositoryPort,
 };
 use crate::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
+use crate::modules::workspaces::domain::ports::outbound::workspace_tasks_port::WorkspaceTasksPort;
 
 mock! {
     pub WorkspaceRepository {}
@@ -21,6 +22,15 @@ mock! {
         async fn find_by_id(&self, id: WorkspaceId) -> Result<Option<Workspace>, WorkspaceError>;
         async fn find_by_path(&self, path: &Path) -> Result<Option<Workspace>, WorkspaceError>;
         async fn delete(&self, id: WorkspaceId) -> Result<(), WorkspaceError>;
+    }
+}
+
+mock! {
+    pub WorkspaceTasks {}
+
+    #[async_trait::async_trait]
+    impl WorkspaceTasksPort for WorkspaceTasks {
+        async fn delete_all(&self, id: WorkspaceId) -> Result<(), WorkspaceError>;
     }
 }
 
