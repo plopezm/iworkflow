@@ -20,6 +20,8 @@ pub struct AppConfig {
     pub gentle_shell_bin: String,
     /// Carpeta raíz donde se crean los worktrees de las tareas.
     pub worktrees_dir: PathBuf,
+    /// Carpeta home del usuario que ejecuta el proceso (punto de partida del explorador de directorios).
+    pub home_dir: PathBuf,
 }
 
 impl AppConfig {
@@ -43,6 +45,7 @@ impl AppConfig {
             database_url,
             gentle_shell_bin,
             worktrees_dir,
+            home_dir: home,
         })
     }
 }

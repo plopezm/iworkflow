@@ -15,7 +15,7 @@ const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
   await page.goto(BASE + '/workspaces');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill('ui-demo');
-  await page.getByLabel('Ruta absoluta del repositorio').fill(process.env.SMOKE_REPO);
+  await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
   await page.getByRole('button', { name: 'Registrar' }).click();
   await page.getByText(process.env.SMOKE_REPO).waitFor();
   step('workspace registrado desde la UI');

@@ -3,7 +3,9 @@ use std::path::Path;
 use mockall::mock;
 
 use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+use crate::modules::workspaces::domain::models::directory_listing::DirectoryListing;
 use crate::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+use crate::modules::workspaces::domain::ports::outbound::directory_browser_port::DirectoryBrowserPort;
 use crate::modules::workspaces::domain::ports::outbound::git_repository_port::{
     GitRepositoryInfo, GitRepositoryPort,
 };
@@ -19,6 +21,15 @@ mock! {
         async fn find_by_id(&self, id: WorkspaceId) -> Result<Option<Workspace>, WorkspaceError>;
         async fn find_by_path(&self, path: &Path) -> Result<Option<Workspace>, WorkspaceError>;
         async fn delete(&self, id: WorkspaceId) -> Result<(), WorkspaceError>;
+    }
+}
+
+mock! {
+    pub DirectoryBrowser {}
+
+    #[async_trait::async_trait]
+    impl DirectoryBrowserPort for DirectoryBrowser {
+        async fn list(&self, path: &Path) -> Result<DirectoryListing, WorkspaceError>;
     }
 }
 

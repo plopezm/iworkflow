@@ -6,6 +6,7 @@ use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspac
 use crate::modules::workspaces::infrastructure::adapters::inbound::server_fns::{
     DeleteWorkspace, RegisterWorkspace, list_workspaces,
 };
+use crate::modules::workspaces::presentation::state::directory_picker_state::DirectoryPickerState;
 
 /// Estado de la pantalla de workspaces: listado, formulario de alta y borrado.
 #[derive(Clone, Copy)]
@@ -16,6 +17,7 @@ pub struct WorkspacesState {
     pub name: RwSignal<String>,
     pub path: RwSignal<String>,
     pub base_branch: RwSignal<String>,
+    pub directory_picker: DirectoryPickerState,
 }
 
 impl WorkspacesState {
@@ -33,7 +35,28 @@ impl WorkspacesState {
             name: RwSignal::new(String::new()),
             path: RwSignal::new(String::new()),
             base_branch: RwSignal::new(String::new()),
+            directory_picker: DirectoryPickerState::new(),
         }
+    }
+
+    /// Abre el selector de carpetas partiendo de la ruta ya escrita en el formulario.
+    pub fn open_directory_picker(&self) {
+        self.directory_picker.open_at(self.path.get_untracked());
+    }
+
+    /// Aplica la carpeta elegida al formulario; si el nombre está vacío, lo deriva
+    /// del último segmento de la ruta (pura conveniencia de UI).
+    pub fn select_directory(&self, path: String) {
+        let folder: Option<&str> = path
+            .trim_end_matches('/')
+            .rsplit('/')
+            .next()
+            .filter(|f: &&str| !f.is_empty());
+        if let (true, Some(folder)) = (self.name.get_untracked().trim().is_empty(), folder) {
+            self.name.set(folder.to_string());
+        }
+        self.path.set(path);
+        self.directory_picker.close();
     }
 
     pub fn submit(&self) {

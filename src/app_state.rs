@@ -23,7 +23,8 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(pool: DbPool, config: &AppConfig) -> Self {
-        let workspaces: WorkspacesContext = WorkspacesContext::new(pool.clone());
+        let workspaces: WorkspacesContext =
+            WorkspacesContext::new(pool.clone(), config.home_dir.clone());
         let lookup: Arc<dyn WorkspaceLookupPort> = Arc::new(WorkspaceLookupBridge {
             get_workspace: workspaces.get_workspace.clone(),
             list_workspaces: workspaces.list_workspaces.clone(),

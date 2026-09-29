@@ -16,10 +16,12 @@
 - `GitRepositoryInfo` gains `has_commits`; `current_branch` reports the (possibly unborn) symbolic HEAD. Detached HEAD with commits still fails with `NoCurrentBranch`.
 
 ## Tasks
-- [ ] T1 Auto-init on register (port + CLI adapter + use case + mocks + tests, incl. adapter tests on tempdirs)
-- [ ] T2 Directory picker (port `DirectoryBrowserPort`, use case `BrowseDirectories`, fs adapter, server fn + DTO, picker state + generic component in Modal, "Choose…" button in form; tests for use case, adapter, DTO mapping)
+- [x] T1 Auto-init on register (port + CLI adapter + use case + mocks + tests, incl. adapter tests on tempdirs)
+- [x] T2 Directory picker (port `DirectoryBrowserPort`, use case `BrowseDirectories`, fs adapter, server fn + DTO, picker state + generic component in Modal, "Choose…" button in form; tests for use case, adapter, DTO mapping)
 
 ## Progress / evidence
+- T1 5b1912c: writer fmt/clippy ssr+hydrate/tests ok; parent re-ran tests ok.
+- T2: writer fmt/clippy/tests/leptos build ok; parent fixed path <label> association + e2e smoke label; headless Chromium check (open picker, hidden dotdirs, git badge, navigate, select fills path+name, register non-existent nested path -> dir + git main + Initial commit), no console errors. fmt, clippy ssr+hydrate, tests (162 lib) ok.
 
 ## Next step
-T1.
+Manual check; merge is the user's call.

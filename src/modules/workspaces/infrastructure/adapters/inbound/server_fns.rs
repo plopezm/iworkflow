@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::modules::workspaces::infrastructure::adapters::inbound::dto::directory_dto::DirectoryListingDto;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
     RegisterWorkspaceDto, WorkspaceDto,
 };
@@ -59,6 +60,23 @@ pub async fn register_workspace(
         .await
         .map_err(support::to_server_error)?;
     Ok(WorkspaceDto::from(workspace))
+}
+
+#[server]
+pub async fn browse_directories(
+    path: Option<String>,
+) -> Result<DirectoryListingDto, ServerFnError> {
+    use std::path::PathBuf;
+
+    use crate::modules::workspaces::domain::models::directory_listing::DirectoryListing;
+
+    let path: Option<PathBuf> = path.map(|p: String| PathBuf::from(p.trim()));
+    let listing: DirectoryListing = support::context()?
+        .browse_directories
+        .execute(path)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(DirectoryListingDto::from(listing))
 }
 
 #[server]

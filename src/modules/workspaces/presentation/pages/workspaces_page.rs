@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::WorkspaceDto;
+use crate::modules::workspaces::presentation::components::directory_picker::DirectoryPicker;
 use crate::modules::workspaces::presentation::components::workspace_form::WorkspaceForm;
 use crate::modules::workspaces::presentation::components::workspace_table::WorkspaceTable;
 use crate::modules::workspaces::presentation::state::workspaces_state::WorkspacesState;
@@ -20,6 +21,9 @@ pub fn WorkspacesPage() -> impl IntoView {
 
     let on_submit: Callback<()> = Callback::new(move |_| state.submit());
     let on_delete: Callback<String> = Callback::new(move |id: String| state.remove(id));
+    let on_browse: Callback<()> = Callback::new(move |_| state.open_directory_picker());
+    let on_select_directory: Callback<String> =
+        Callback::new(move |path: String| state.select_directory(path));
 
     view! {
         <h1 class="mb-4 text-xl font-semibold text-fg">"Workspaces"</h1>
@@ -31,9 +35,11 @@ pub fn WorkspacesPage() -> impl IntoView {
                 base_branch=state.base_branch
                 pending=state.register.pending()
                 on_submit
+                on_browse
             />
             <ActionError result=state.register.value().into() />
         </Card>
+        <DirectoryPicker state=state.directory_picker on_select=on_select_directory />
         <Card title="Registrados">
             <ActionError result=state.delete.value().into() />
             <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
