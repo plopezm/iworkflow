@@ -6,6 +6,7 @@ use crate::modules::agent_settings::infrastructure::adapters::inbound::dto::agen
 };
 use crate::modules::agent_settings::infrastructure::adapters::inbound::server_fns::{
     UpdateAgentSettings, get_agent_settings, list_model_options, list_profile_options,
+    list_thinking_levels,
 };
 
 /// Separador entre proveedor y modelo dentro del `value` del selector de modelo.
@@ -32,6 +33,7 @@ pub struct AgentSettingsState {
     pub settings: Resource<Result<AgentSettingsDto, ServerFnError>>,
     pub models: Resource<Result<Vec<ModelOptionDto>, ServerFnError>>,
     pub profiles: Resource<Result<ProfileCatalogDto, ServerFnError>>,
+    pub thinking_levels: Resource<Result<Vec<String>, ServerFnError>>,
     pub update: ServerAction<UpdateAgentSettings>,
     pub toasts: RwSignal<Vec<ToastMessage>>,
     toast_seq: RwSignal<u32>,
@@ -46,10 +48,13 @@ impl AgentSettingsState {
             Resource::new(|| (), |_| list_model_options());
         let profiles: Resource<Result<ProfileCatalogDto, ServerFnError>> =
             Resource::new(move || update.version().get(), |_| list_profile_options());
+        let thinking_levels: Resource<Result<Vec<String>, ServerFnError>> =
+            Resource::new(|| (), |_| list_thinking_levels());
         Self {
             settings,
             models,
             profiles,
+            thinking_levels,
             update,
             toasts: RwSignal::new(Vec::new()),
             toast_seq: RwSignal::new(0),
@@ -69,12 +74,13 @@ impl AgentSettingsState {
                 model_provider,
                 model_id,
                 profile: current.profile.clone(),
+                thinking: current.thinking.clone(),
             },
         });
     }
 
-    /// Cambia el perfil manteniendo el modelo actual; `value` vacío vuelve al valor
-    /// por defecto (usar el perfil global activo).
+    /// Cambia el perfil manteniendo el modelo y el nivel de razonamiento actuales;
+    /// `value` vacío vuelve al valor por defecto (usar el perfil global activo).
     pub fn select_profile(&self, current: &AgentSettingsDto, value: String) {
         let profile: Option<String> = Some(value).filter(|v: &String| !v.is_empty());
         self.update.dispatch(UpdateAgentSettings {
@@ -82,6 +88,21 @@ impl AgentSettingsState {
                 model_provider: current.model_provider.clone(),
                 model_id: current.model_id.clone(),
                 profile,
+                thinking: current.thinking.clone(),
+            },
+        });
+    }
+
+    /// Cambia el nivel de razonamiento manteniendo el modelo y el perfil actuales;
+    /// `value` vacío vuelve al valor por defecto de pi.
+    pub fn select_thinking(&self, current: &AgentSettingsDto, value: String) {
+        let thinking: Option<String> = Some(value).filter(|v: &String| !v.is_empty());
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                model_provider: current.model_provider.clone(),
+                model_id: current.model_id.clone(),
+                profile: current.profile.clone(),
+                thinking,
             },
         });
     }

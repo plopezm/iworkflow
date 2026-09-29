@@ -4,6 +4,7 @@ mod common;
 use pi_workflow::modules::agent_settings::domain::models::agent_settings::AgentSettings;
 use pi_workflow::modules::agent_settings::domain::models::model_ref::ModelRef;
 use pi_workflow::modules::agent_settings::domain::models::profile_name::ProfileName;
+use pi_workflow::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
 use pi_workflow::modules::agent_settings::domain::ports::outbound::agent_settings_repository_port::AgentSettingsRepositoryPort;
 use pi_workflow::modules::agent_settings::infrastructure::adapters::outbound::persistence::agent_settings_repository_adapter::AgentSettingsRepositoryAdapter;
 
@@ -27,6 +28,23 @@ async fn save_and_get_roundtrip_full_settings() {
             model: "claude-5".to_string(),
         }),
         profile: Some(ProfileName::parse("Claude").expect("profile")),
+        thinking: Some(ThinkingLevel::High),
+    };
+
+    adapter.save(&settings).await.expect("save");
+    let loaded: AgentSettings = adapter.get().await.expect("get");
+
+    assert_eq!(loaded, settings);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn save_and_get_roundtrip_thinking_only() {
+    let db: common::TestDb = common::test_db().await;
+    let adapter: AgentSettingsRepositoryAdapter = AgentSettingsRepositoryAdapter::new(db.pool);
+    let settings: AgentSettings = AgentSettings {
+        model: None,
+        profile: None,
+        thinking: Some(ThinkingLevel::XHigh),
     };
 
     adapter.save(&settings).await.expect("save");
@@ -45,10 +63,12 @@ async fn save_upserts_the_single_row() {
             model: "claude-5".to_string(),
         }),
         profile: None,
+        thinking: Some(ThinkingLevel::Low),
     };
     let second: AgentSettings = AgentSettings {
         model: None,
         profile: Some(ProfileName::parse("Gentleman").expect("profile")),
+        thinking: None,
     };
 
     adapter.save(&first).await.expect("save first");

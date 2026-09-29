@@ -2,6 +2,8 @@
 pub enum AgentSettingsError {
     #[error("nombre de perfil inválido: {0}")]
     InvalidProfileName(String),
+    #[error("nivel de razonamiento inválido: {0}")]
+    InvalidThinkingLevel(String),
     #[error("modelo no disponible: {provider}/{model}")]
     ModelNotFound { provider: String, model: String },
     #[error("perfil no encontrado: {0}")]

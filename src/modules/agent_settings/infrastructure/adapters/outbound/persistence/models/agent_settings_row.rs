@@ -5,6 +5,7 @@ use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentS
 use crate::modules::agent_settings::domain::models::agent_settings::AgentSettings;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
+use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
 
 const ROW_ID: i32 = 1;
 
@@ -16,6 +17,7 @@ pub struct AgentSettingsRow {
     pub model_provider: Option<String>,
     pub model_id: Option<String>,
     pub profile: Option<String>,
+    pub thinking: Option<String>,
 }
 
 impl From<&AgentSettings> for AgentSettingsRow {
@@ -31,6 +33,10 @@ impl From<&AgentSettings> for AgentSettingsRow {
                 .profile
                 .as_ref()
                 .map(|p: &ProfileName| p.as_str().to_string()),
+            thinking: settings
+                .thinking
+                .as_ref()
+                .map(|t: &ThinkingLevel| t.as_str().to_string()),
         }
     }
 }
@@ -47,6 +53,14 @@ impl TryFrom<AgentSettingsRow> for AgentSettings {
             .profile
             .map(|p: String| ProfileName::parse(&p))
             .transpose()?;
-        Ok(Self { model, profile })
+        let thinking: Option<ThinkingLevel> = row
+            .thinking
+            .map(|t: String| ThinkingLevel::parse(&t))
+            .transpose()?;
+        Ok(Self {
+            model,
+            profile,
+            thinking,
+        })
     }
 }

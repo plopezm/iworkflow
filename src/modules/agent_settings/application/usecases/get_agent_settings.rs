@@ -35,6 +35,7 @@ mod tests {
                     model: "claude-5".to_string(),
                 }),
                 profile: None,
+                thinking: None,
             })
         });
         let use_case: GetAgentSettings = GetAgentSettings::new(Arc::new(repository));

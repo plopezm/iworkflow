@@ -350,6 +350,41 @@ mod tests {
                     provider: "anthropic".to_string(),
                     model: "claude-5".to_string(),
                 }),
+                thinking: None,
+            })
+        });
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            Arc::new(launch_settings),
+            Arc::new(MockAgentEventSink::new()),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Starting);
+    }
+
+    #[tokio::test]
+    async fn passes_prepared_thinking_level_to_runtime_start() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_start()
+            .withf(|_, _, _, options: &LaunchOptions, _| {
+                options.thinking == Some("high".to_string())
+            })
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        runtime.expect_send().returning(|_, _| Ok(()));
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings.expect_prepare().returning(|_| {
+            Ok(LaunchOptions {
+                model: None,
+                thinking: Some("high".to_string()),
             })
         });
         let use_case: StartTask = StartTask::new(

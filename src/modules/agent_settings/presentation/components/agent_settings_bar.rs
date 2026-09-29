@@ -48,6 +48,43 @@ fn profile_icon() -> impl IntoView {
     }
 }
 
+/// Icono de razonamiento (medidor) para el selector de nivel de pensamiento.
+fn thinking_icon() -> impl IntoView {
+    view! {
+        <svg viewBox="0 0 20 20" fill="none">
+            <path
+                d="M3 14A7 7 0 0 1 17 14"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+            />
+            <path
+                d="M10 14L13 9"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+            />
+            <circle cx="10" cy="14" r="1" fill="currentColor" />
+        </svg>
+    }
+}
+
+/// Etiqueta en español de un nivel de razonamiento (identificador de pi en
+/// minúsculas -> texto mostrado en el selector).
+fn thinking_option_label(id: &str) -> String {
+    match id {
+        "off" => "Sin razonamiento",
+        "minimal" => "Mínimo",
+        "low" => "Bajo",
+        "medium" => "Medio",
+        "high" => "Alto",
+        "xhigh" => "Muy alto",
+        "max" => "Máximo",
+        other => other,
+    }
+    .to_string()
+}
+
 /// Etiqueta visible de una opción de perfil, marcando cuál es el activo globalmente.
 fn profile_option_label(name: &str, active: Option<&str>) -> String {
     if active == Some(name) {
@@ -74,7 +111,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
 
     view! {
         <div
-            class="grid grid-cols-2 gap-2 md:flex md:items-center md:gap-1.5"
+            class="grid grid-cols-3 gap-2 md:flex md:items-center md:gap-1.5"
             title=APPLIES_TO_NEW_TASKS_HINT
         >
             <Transition fallback=|| view! {
@@ -114,6 +151,40 @@ pub fn AgentSettingsBar() -> impl IntoView {
                             })
                             disabled=pending
                             icon=model_icon
+                        />
+                    }
+                        .into_any()
+                })}
+            </Transition>
+            <span class="select-pill-divider" aria-hidden="true"></span>
+            <Transition fallback=|| view! {
+                <span class="select-pill-skeleton" aria-hidden="true"></span>
+            }>
+                {move || Suspend::new(async move {
+                    let settings: AgentSettingsDto = match state.settings.await {
+                        Ok(settings) => settings,
+                        Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
+                    };
+                    let levels: Vec<String> = match state.thinking_levels.await {
+                        Ok(levels) => levels,
+                        Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
+                    };
+                    let current_value: String = settings.thinking.clone().unwrap_or_default();
+                    let options: Vec<SelectOption> = levels
+                        .iter()
+                        .map(|id: &String| SelectOption::new(id.clone(), thinking_option_label(id)))
+                        .collect();
+                    view! {
+                        <OptionSelect
+                            label="Razonamiento"
+                            value=current_value
+                            options=options
+                            default_label="Por defecto"
+                            on_change=Callback::new(move |value: String| {
+                                state.select_thinking(&settings, value)
+                            })
+                            disabled=pending
+                            icon=thinking_icon
                         />
                     }
                         .into_any()
@@ -192,5 +263,21 @@ mod tests {
         );
         assert_eq!(profile_option_label("Claude", Some("Other")), "Claude");
         assert_eq!(profile_option_label("Claude", None), "Claude");
+    }
+
+    #[test]
+    fn thinking_label_translates_known_ids() {
+        assert_eq!(thinking_option_label("off"), "Sin razonamiento");
+        assert_eq!(thinking_option_label("minimal"), "Mínimo");
+        assert_eq!(thinking_option_label("low"), "Bajo");
+        assert_eq!(thinking_option_label("medium"), "Medio");
+        assert_eq!(thinking_option_label("high"), "Alto");
+        assert_eq!(thinking_option_label("xhigh"), "Muy alto");
+        assert_eq!(thinking_option_label("max"), "Máximo");
+    }
+
+    #[test]
+    fn thinking_label_falls_back_to_the_raw_id() {
+        assert_eq!(thinking_option_label("unknown"), "unknown");
     }
 }

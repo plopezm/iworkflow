@@ -9,7 +9,9 @@ use crate::modules::agent_settings::infrastructure::di::agent_settings_context::
 };
 use crate::modules::agent_settings::application::usecases::prepare_launch::PrepareLaunch;
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPreferences;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
+use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
@@ -131,16 +133,19 @@ pub struct LaunchSettingsBridge {
 #[async_trait::async_trait]
 impl LaunchSettingsPort for LaunchSettingsBridge {
     async fn prepare(&self, cwd: &std::path::Path) -> Result<LaunchOptions, TaskError> {
-        let model: Option<ModelRef> = self
+        let preferences: LaunchPreferences = self
             .prepare_launch
             .execute(cwd)
             .await
             .map_err(|error: AgentSettingsError| TaskError::Runtime(error.to_string()))?;
         Ok(LaunchOptions {
-            model: model.map(|m: ModelRef| LaunchModel {
+            model: preferences.model.map(|m: ModelRef| LaunchModel {
                 provider: m.provider,
                 model: m.model,
             }),
+            thinking: preferences
+                .thinking
+                .map(|t: ThinkingLevel| t.as_str().to_string()),
         })
     }
 }

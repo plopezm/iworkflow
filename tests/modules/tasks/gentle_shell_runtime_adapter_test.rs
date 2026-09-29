@@ -135,6 +135,7 @@ async fn appends_provider_and_model_flags_when_set() {
             provider: "anthropic".to_string(),
             model: "claude-5".to_string(),
         }),
+        thinking: None,
     };
 
     adapter
@@ -148,6 +149,55 @@ async fn appends_provider_and_model_flags_when_set() {
         &boot,
         "--provider anthropic --model claude-5"
     ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn appends_thinking_flag_when_set_with_model() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
+    let task_id: TaskId = TaskId::new();
+    let options: LaunchOptions = LaunchOptions {
+        model: Some(LaunchModel {
+            provider: "anthropic".to_string(),
+            model: "claude-5".to_string(),
+        }),
+        thinking: Some("high".to_string()),
+    };
+
+    adapter
+        .start(task_id, dir.path(), false, &options, sink.clone())
+        .await
+        .expect("start");
+    let boot: AgentEvent = sink.wait_for(|e| is_notice_containing(e, "args=")).await;
+    adapter.stop(task_id).await.expect("stop");
+
+    assert!(is_notice_containing(
+        &boot,
+        "--provider anthropic --model claude-5 --thinking high"
+    ));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn appends_thinking_flag_when_set_without_model() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
+    let task_id: TaskId = TaskId::new();
+    let options: LaunchOptions = LaunchOptions {
+        model: None,
+        thinking: Some("low".to_string()),
+    };
+
+    adapter
+        .start(task_id, dir.path(), false, &options, sink.clone())
+        .await
+        .expect("start");
+    let boot: AgentEvent = sink.wait_for(|e| is_notice_containing(e, "args=")).await;
+    adapter.stop(task_id).await.expect("stop");
+
+    assert!(is_notice_containing(&boot, "--thinking low"));
+    assert!(!is_notice_containing(&boot, "--provider"));
 }
 
 #[tokio::test(flavor = "multi_thread")]

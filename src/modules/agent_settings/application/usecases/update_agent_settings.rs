@@ -62,6 +62,7 @@ impl UpdateAgentSettings {
 mod tests {
     use super::*;
     use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
+    use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
     use crate::modules::agent_settings::mocks::{
         MockAgentSettingsRepository, MockModelCatalog, MockProfileCatalogAdapter,
     };
@@ -96,6 +97,7 @@ mod tests {
         let settings: AgentSettings = AgentSettings {
             model: Some(valid_model()),
             profile: Some(ProfileName::parse("Claude").expect("profile")),
+            thinking: Some(ThinkingLevel::High),
         };
 
         let result: AgentSettings = use_case.execute(settings.clone()).await.expect("update");
@@ -117,6 +119,7 @@ mod tests {
         let settings: AgentSettings = AgentSettings {
             model: Some(valid_model()),
             profile: None,
+            thinking: None,
         };
 
         let result: Result<AgentSettings, AgentSettingsError> = use_case.execute(settings).await;
@@ -149,6 +152,7 @@ mod tests {
         let settings: AgentSettings = AgentSettings {
             model: None,
             profile: Some(ProfileName::parse("Ghost").expect("profile")),
+            thinking: None,
         };
 
         let result: Result<AgentSettings, AgentSettingsError> = use_case.execute(settings).await;
@@ -157,6 +161,28 @@ mod tests {
             result,
             Err(AgentSettingsError::ProfileNotFound("Ghost".to_string()))
         );
+    }
+
+    #[tokio::test]
+    async fn saves_thinking_level_without_touching_catalogs() {
+        let mut repository: MockAgentSettingsRepository = MockAgentSettingsRepository::new();
+        repository.expect_save().returning(|_| Ok(()));
+        let model_catalog: MockModelCatalog = MockModelCatalog::new();
+        let profile_catalog: MockProfileCatalogAdapter = MockProfileCatalogAdapter::new();
+        let use_case: UpdateAgentSettings = UpdateAgentSettings::new(
+            Arc::new(repository),
+            Arc::new(model_catalog),
+            Arc::new(profile_catalog),
+        );
+        let settings: AgentSettings = AgentSettings {
+            model: None,
+            profile: None,
+            thinking: Some(ThinkingLevel::Max),
+        };
+
+        let result: AgentSettings = use_case.execute(settings.clone()).await.expect("update");
+
+        assert_eq!(result, settings);
     }
 
     #[tokio::test]

@@ -6,6 +6,7 @@ diesel::table! {
         model_provider -> Nullable<Text>,
         model_id -> Nullable<Text>,
         profile -> Nullable<Text>,
+        thinking -> Nullable<Text>,
     }
 }
 

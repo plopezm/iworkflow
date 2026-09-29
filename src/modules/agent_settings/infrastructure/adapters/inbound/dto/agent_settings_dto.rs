@@ -5,6 +5,7 @@ pub struct AgentSettingsDto {
     pub model_provider: Option<String>,
     pub model_id: Option<String>,
     pub profile: Option<String>,
+    pub thinking: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +28,7 @@ mod mapping {
     use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
     use crate::modules::agent_settings::domain::models::profile_catalog::ProfileCatalog;
     use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
+    use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
 
     impl From<AgentSettings> for AgentSettingsDto {
         fn from(settings: AgentSettings) -> Self {
@@ -40,6 +42,10 @@ mod mapping {
                     .profile
                     .as_ref()
                     .map(|p: &ProfileName| p.as_str().to_string()),
+                thinking: settings
+                    .thinking
+                    .as_ref()
+                    .map(|t: &ThinkingLevel| t.as_str().to_string()),
             }
         }
     }
@@ -59,7 +65,16 @@ mod mapping {
                 .filter(|p: &String| !p.is_empty())
                 .map(|p: String| ProfileName::parse(&p))
                 .transpose()?;
-            Ok(Self { model, profile })
+            let thinking: Option<ThinkingLevel> = dto
+                .thinking
+                .filter(|t: &String| !t.is_empty())
+                .map(|t: String| ThinkingLevel::parse(&t))
+                .transpose()?;
+            Ok(Self {
+                model,
+                profile,
+                thinking,
+            })
         }
     }
 
@@ -93,6 +108,7 @@ mod mapping {
                     model: "claude-5".to_string(),
                 }),
                 profile: Some(ProfileName::parse("Claude").expect("profile")),
+                thinking: Some(ThinkingLevel::High),
             };
 
             let dto: AgentSettingsDto = AgentSettingsDto::from(settings.clone());
@@ -116,6 +132,7 @@ mod mapping {
                 model_provider: Some("anthropic".to_string()),
                 model_id: None,
                 profile: None,
+                thinking: None,
             };
 
             let settings: AgentSettings = AgentSettings::try_from(dto).expect("valid dto");
@@ -129,6 +146,7 @@ mod mapping {
                 model_provider: None,
                 model_id: None,
                 profile: Some("invalid profile".to_string()),
+                thinking: None,
             };
 
             let result: Result<AgentSettings, AgentSettingsError> = AgentSettings::try_from(dto);
@@ -136,6 +154,37 @@ mod mapping {
             assert!(matches!(
                 result,
                 Err(AgentSettingsError::InvalidProfileName(_))
+            ));
+        }
+
+        #[test]
+        fn empty_thinking_maps_to_no_thinking() {
+            let dto: AgentSettingsDto = AgentSettingsDto {
+                model_provider: None,
+                model_id: None,
+                profile: None,
+                thinking: Some(String::new()),
+            };
+
+            let settings: AgentSettings = AgentSettings::try_from(dto).expect("valid dto");
+
+            assert_eq!(settings.thinking, None);
+        }
+
+        #[test]
+        fn invalid_thinking_level_is_rejected() {
+            let dto: AgentSettingsDto = AgentSettingsDto {
+                model_provider: None,
+                model_id: None,
+                profile: None,
+                thinking: Some("ultra".to_string()),
+            };
+
+            let result: Result<AgentSettings, AgentSettingsError> = AgentSettings::try_from(dto);
+
+            assert!(matches!(
+                result,
+                Err(AgentSettingsError::InvalidThinkingLevel(_))
             ));
         }
     }

@@ -98,6 +98,13 @@ fn model_args(options: &LaunchOptions) -> Vec<String> {
     }
 }
 
+fn thinking_args(options: &LaunchOptions) -> Vec<String> {
+    match &options.thinking {
+        Some(level) => vec!["--thinking".to_string(), level.clone()],
+        None => Vec::new(),
+    }
+}
+
 #[async_trait::async_trait]
 impl AgentRuntimePort for GentleShellRuntimeAdapter {
     async fn start(
@@ -117,6 +124,7 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
             .args(&self.base_args)
             .args(resume.then_some(RESUME_FLAG))
             .args(model_args(options))
+            .args(thinking_args(options))
             .current_dir(cwd)
             .env(INTERACTIVE_HOST_ENV, "1")
             .stdin(Stdio::piped())

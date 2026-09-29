@@ -68,6 +68,18 @@ pub async fn list_profile_options() -> Result<ProfileCatalogDto, ServerFnError> 
     Ok(ProfileCatalogDto::from(catalog))
 }
 
+/// Lista los identificadores de pi para cada nivel de razonamiento disponible; el
+/// dominio es la única fuente de verdad, la UI solo pone las etiquetas en español.
+#[server]
+pub async fn list_thinking_levels() -> Result<Vec<String>, ServerFnError> {
+    use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
+
+    Ok(ThinkingLevel::ALL
+        .iter()
+        .map(|level: &ThinkingLevel| level.as_str().to_string())
+        .collect())
+}
+
 // Json: la codificación url-encoded por defecto omite el `input` entero cuando
 // todos sus campos son `None` (los dos selectores en "Por defecto").
 #[server(input = server_fn::codec::Json)]

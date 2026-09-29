@@ -5,9 +5,12 @@ pub struct LaunchModel {
     pub model: String,
 }
 
-/// Opciones de lanzamiento aplicadas a un arranque de agente. `model: None` deja
-/// que pi/gentle-shell usen sus valores por defecto.
+/// Opciones de lanzamiento aplicadas a un arranque de agente. `model`/`thinking`
+/// en `None` dejan que pi/gentle-shell usen sus valores por defecto. `thinking` es
+/// el identificador de pi en minúsculas (p. ej. `"high"`), propiedad de este
+/// feature; el dominio de nivel de razonamiento vive en `agent_settings`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LaunchOptions {
     pub model: Option<LaunchModel>,
+    pub thinking: Option<String>,
 }
