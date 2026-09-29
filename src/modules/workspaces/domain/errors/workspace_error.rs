@@ -10,7 +10,7 @@ pub enum WorkspaceError {
     PathNotFound(String),
     #[error("la carpeta no es un repositorio git: {0}")]
     NotAGitRepository(String),
-    #[error("el repositorio no tiene una rama activa (HEAD desacoplado o sin commits)")]
+    #[error("el repositorio no tiene una rama activa (HEAD desacoplado)")]
     NoCurrentBranch,
     #[error("la rama {0} no existe en el repositorio")]
     BranchNotFound(String),
@@ -22,6 +22,8 @@ pub enum WorkspaceError {
     InUse,
     #[error("error de git: {0}")]
     Git(String),
+    #[error("error de E/S: {0}")]
+    Io(String),
     #[error("error de persistencia: {0}")]
     Repository(String),
 }

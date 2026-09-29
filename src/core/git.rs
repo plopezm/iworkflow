@@ -1,9 +1,10 @@
 //! Ejecución de la CLI de `git` sin conocimiento de dominio.
 
 use std::path::Path;
-use std::process::Output;
+use std::process::{Output, Stdio};
 
-use tokio::process::Command;
+use tokio::io::AsyncWriteExt;
+use tokio::process::{Child, Command};
 
 #[derive(Debug, thiserror::Error)]
 pub enum GitCommandError {
@@ -52,6 +53,40 @@ pub async fn run_git(dir: &Path, args: &[&str]) -> Result<String, GitCommandErro
             args: args.join(" "),
             code: None,
             stderr: output.stderr,
+        })
+    }
+}
+
+/// Ejecuta `git -C <dir> <args>` escribiendo `stdin_data` en la entrada estándar del proceso.
+/// Necesario para comandos de plumbing como `hash-object --stdin` que no tocan el índice.
+pub async fn run_git_with_stdin(
+    dir: &Path,
+    args: &[&str],
+    stdin_data: &[u8],
+) -> Result<String, GitCommandError> {
+    let mut child: Child = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()?;
+
+    if let Some(mut child_stdin) = child.stdin.take() {
+        child_stdin.write_all(stdin_data).await?;
+    }
+
+    let output: Output = child.wait_with_output().await?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(GitCommandError::Failed {
+            args: args.join(" "),
+            code: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
         })
     }
 }

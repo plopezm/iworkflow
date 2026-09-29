@@ -29,5 +29,7 @@ mock! {
     impl GitRepositoryPort for GitRepository {
         async fn inspect(&self, path: &Path) -> Result<GitRepositoryInfo, WorkspaceError>;
         async fn branch_exists(&self, root: &Path, branch: &str) -> Result<bool, WorkspaceError>;
+        async fn init_repository(&self, path: &Path, initial_branch: &str) -> Result<(), WorkspaceError>;
+        async fn create_initial_commit(&self, root: &Path) -> Result<(), WorkspaceError>;
     }
 }
