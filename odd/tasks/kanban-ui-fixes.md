@@ -27,7 +27,9 @@ Fix all findings of the read-only UI verification of the kanban redesign (2026-0
 - T2 ce417e5, T4 48d59ba, T6 ae666e2, T7 73da901: writer reported fmt, clippy ssr+hydrate, tests, cargo leptos build ok; parent spot-check clippy hydrate. Browser behaviour unverified. Limitation T6: a tool row receiving its output rebuilds (its details collapse).
 
 - T3 2a7c9b8, T5 e393cc2, T8 c0b6241 bc2f58a 326c838 52be79b c7575e1 56a6d9e: writer reported fmt, clippy ssr+hydrate, tests (144 lib), cargo leptos build ok; parent spot-check fmt, clippy ssr, tests ok.
-- Skipped: keyed lanes/cards in T8f (only first-reset refetch skip done; needs Memo outside Suspend); `with_untracked` params capture in task_detail_page (unverified, no in-app link between detail pages; cheap fix: key page on id). Nothing verified in a browser.
+- (Done later in T9) keyed lanes/cards in T8f (only first-reset refetch skip done; needs Memo outside Suspend); (Done later in T10) `with_untracked` params capture in task_detail_page (was unverified, no in-app link between detail pages; cheap fix: key page on id). Nothing verified in a browser.
+
+- T9 a6bff3c (keyed board via lanes signal + keyed For; lanes now fill after hydration, not SSR), T10 1774b5c (router reuses outlet on param change, confirmed in leptos_router 0.8.16; id now reactive). Writer: fmt, clippy ssr+hydrate, tests (146 lib), leptos build ok; parent spot-check fmt, clippy hydrate, tests ok. Browser unverified.
 
 ## Next step
-Manual browser check; decide on keyed board rendering and params capture; push/PR is the user's call.
+Manual browser check; push/PR is the user's call.
