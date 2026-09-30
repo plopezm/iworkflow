@@ -305,6 +305,8 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                     <Show when=move || shows_workspace.get()>
                         <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
                             <TranscriptView transcript=state.transcript />
+                        </div>
+                        <div class="stack max-h-[60vh] shrink-0 gap-2 overflow-y-auto border-t border-border bg-surface p-3">
                             {move || {
                                 pending_dialog
                                     .get()
@@ -320,8 +322,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                         }
                                     })
                             }}
-                        </div>
-                        <div class="stack shrink-0 gap-2 border-t border-border bg-surface p-3">
                             <div class="flex items-center gap-2 rounded-full border border-border bg-bg px-3 py-1 text-xs text-muted">
                                 {move || {
                                     loaded_task

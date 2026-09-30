@@ -23,14 +23,14 @@ pub fn DialogPanel(
 
     let body: AnyView = match request.kind {
         DialogKindDto::Select { options } => view! {
-            <div class="row flex-wrap gap-2">
+            <div class="stack gap-2">
                 {options
                     .into_iter()
                     .map(|option: String| {
                         let value: String = option.clone();
                         view! {
                             <button
-                                class="btn-secondary min-h-9 rounded-lg px-3 py-1.5 text-xs"
+                                class="btn-secondary min-h-9 w-full rounded-lg px-3 py-2 text-left text-sm whitespace-normal break-words"
                                 on:click=move |_| {
                                     on_answer.run(DialogAnswerDto::Value { value: value.clone() })
                                 }
@@ -96,8 +96,8 @@ pub fn DialogPanel(
     };
 
     view! {
-        <section class="card dialog-panel animate-slide-up">
-            <h3 class="card-title">{format!("❓ {}", request.title)}</h3>
+        <section class="card dialog-panel max-h-[50vh] animate-slide-up overflow-y-auto">
+            <h3 class="card-title whitespace-pre-wrap break-words">{format!("❓ {}", request.title)}</h3>
             {body}
             <div class="row">
                 <button class="btn-secondary" on:click=move |_| on_answer.run(DialogAnswerDto::Cancelled)>
