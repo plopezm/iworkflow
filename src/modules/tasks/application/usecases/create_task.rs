@@ -1,13 +1,16 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use uuid::Uuid;
+
 use chrono::Utc;
 
 use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::{
-    CreatedTask, NewTask, Task, TaskId, TaskStatus, branch_name, slugify, worktree_dir_name,
+    CreatedTask, NewTask, Task, TaskId, TaskStatus, branch_name, workspace_dir_name,
+    worktree_dir_name,
 };
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
@@ -39,10 +42,11 @@ impl CreateTask {
         let workspace: WorkspaceRef = self.lifecycle.workspace(&input.workspace_id).await?;
 
         let id: TaskId = TaskId::new();
-        let branch: String = branch_name(&id, &input.title);
+        let unique: Uuid = Uuid::new_v4();
+        let branch: String = branch_name(&input.title, &unique);
         let worktree_path: PathBuf = self.worktrees.worktree_path(
-            &slugify(&workspace.name),
-            &worktree_dir_name(&id, &input.title),
+            &workspace_dir_name(&workspace.name, &workspace.id),
+            &worktree_dir_name(&input.title, &unique),
         );
 
         let now: chrono::DateTime<Utc> = Utc::now();

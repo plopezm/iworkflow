@@ -17,11 +17,16 @@ const MERGE_DIR: &str = ".merge";
 /// Worktrees gestionados con la CLI de git bajo una carpeta raíz.
 pub struct GitCliWorktreeAdapter {
     root: PathBuf,
+    /// Serializa los merges: todos escriben en la misma rama base y compiten por `index.lock`.
+    merge_lock: tokio::sync::Mutex<()>,
 }
 
 impl GitCliWorktreeAdapter {
     pub fn new(root: PathBuf) -> Self {
-        Self { root }
+        Self {
+            root,
+            merge_lock: tokio::sync::Mutex::new(()),
+        }
     }
 }
 
@@ -183,6 +188,7 @@ impl WorktreePort for GitCliWorktreeAdapter {
         branch: &str,
         message: &str,
     ) -> Result<MergeOutcome, TaskError> {
+        let _guard: tokio::sync::MutexGuard<'_, ()> = self.merge_lock.lock().await;
         let porcelain: String = git(repo, &["worktree", "list", "--porcelain"]).await?;
         if let Some(checkout) = worktree_with_branch(&porcelain, base_branch) {
             let dirty: String = git(

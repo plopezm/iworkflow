@@ -392,14 +392,19 @@ pub fn slugify(text: &str) -> String {
     }
 }
 
-/// Nombre de rama para una tarea: `pi/<slug>-<id corto>`.
-pub fn branch_name(id: &TaskId, title: &str) -> String {
-    format!("{BRANCH_PREFIX}/{}-{}", slugify(title), id.short())
+/// Nombre de rama para una tarea: `pi/<slug>-<uuid aleatorio>`.
+pub fn branch_name(title: &str, unique: &Uuid) -> String {
+    format!("{BRANCH_PREFIX}/{}-{unique}", slugify(title))
 }
 
-/// Nombre de carpeta del worktree: `<id corto>-<slug>`.
-pub fn worktree_dir_name(id: &TaskId, title: &str) -> String {
-    format!("{}-{}", id.short(), slugify(title))
+/// Nombre de carpeta del worktree: `<slug>-<uuid aleatorio>`.
+pub fn worktree_dir_name(title: &str, unique: &Uuid) -> String {
+    format!("{}-{unique}", slugify(title))
+}
+
+/// Carpeta del workspace bajo la raíz de worktrees: `<slug>-<id del workspace>`.
+pub fn workspace_dir_name(name: &str, workspace_id: &str) -> String {
+    format!("{}-{workspace_id}", slugify(name))
 }
 
 #[cfg(test)]
@@ -422,10 +427,17 @@ mod tests {
     }
 
     #[test]
-    fn branch_name_uses_prefix_slug_and_short_id() {
-        let id: TaskId = TaskId::parse("0f0e0d0c-0b0a-4908-8706-050403020100").expect("uuid");
-        assert_eq!(branch_name(&id, "Fix bug"), "pi/fix-bug-0f0e0d0c");
-        assert_eq!(worktree_dir_name(&id, "Fix bug"), "0f0e0d0c-fix-bug");
+    fn names_embed_the_random_uuid() {
+        let unique: Uuid = Uuid::new_v4();
+        assert_eq!(
+            branch_name("Fix bug", &unique),
+            format!("pi/fix-bug-{unique}")
+        );
+        assert_eq!(
+            worktree_dir_name("Fix bug", &unique),
+            format!("fix-bug-{unique}")
+        );
+        assert_eq!(workspace_dir_name("My App", "ws-1"), "my-app-ws-1");
     }
 
     #[test]
