@@ -20,7 +20,7 @@ pub fn Composer(
     };
 
     view! {
-        <div class="stack composer sticky bottom-0 z-10 border-t border-border/40 bg-surface/80 p-3 backdrop-blur-xl sm:static sm:border-0 sm:bg-transparent sm:p-0">
+        <div class="stack composer">
             <textarea
                 placeholder="Escribe un mensaje para el agente… (Ctrl+Enter para enviar)"
                 prop:value=move || message.get()

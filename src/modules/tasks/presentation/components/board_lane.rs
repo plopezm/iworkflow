@@ -26,9 +26,9 @@ pub fn BoardLane(
     view! {
         <section
             id=anchor
-            class="stack w-[85vw] shrink-0 snap-start scroll-mt-24 gap-3 sm:w-80 sm:scroll-mt-4"
+            class="flex h-full min-h-0 w-[85vw] shrink-0 snap-start flex-col gap-2 sm:w-80"
         >
-            <header class="row items-start justify-between gap-2">
+            <header class="flex shrink-0 items-start justify-between gap-2">
                 <div class="stack gap-0.5">
                     <h2 class="font-semibold text-fg">
                         {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.workspace_name.clone()))}
@@ -48,7 +48,7 @@ pub fn BoardLane(
                     }}
                 </div>
             </header>
-            <div class="stack max-h-[70vh] gap-2 overflow-y-auto pr-1">
+            <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
                 <For
                     each=move || {
                         lane.with(|l: &Option<LaneView>| {

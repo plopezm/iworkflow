@@ -3,7 +3,10 @@ use leptos_meta::{MetaTags, Stylesheet, Title, provide_meta_context};
 use leptos_router::components::{A, Route, Router, Routes};
 use leptos_router::{ParamSegment, StaticSegment};
 
+use crate::core::components::shell::{AppShell, DropdownMenu};
+use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
+use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
 use crate::modules::workspaces::presentation::pages::workspaces_page::WorkspacesPage;
@@ -14,6 +17,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         <html lang="es">
             <head>
                 <meta charset="utf-8" />
+                <script inner_html=THEME_INIT_SCRIPT></script>
                 <meta name="viewport" content="width=device-width, initial-scale=1" />
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
@@ -26,48 +30,52 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
     }
 }
 
+/// Contenido de la barra lateral: marca y menú de navegación, listados y ajustes del agente.
+fn app_sidebar() -> impl IntoView {
+    view! {
+        <div class="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+            <A href="/" attr:class="text-sm font-bold tracking-widest uppercase">
+                "pi-workflow"
+            </A>
+            <DropdownMenu
+                label="Actions"
+                aria_label="Navegación"
+                trigger_class="btn-secondary min-h-8 px-2.5 py-1 text-xs"
+            >
+                <A href="/" exact=true attr:class="menu-item">
+                    "Tablero"
+                </A>
+                <A href="/workspaces" attr:class="menu-item">
+                    "Workspaces"
+                </A>
+            </DropdownMenu>
+        </div>
+        <div class="min-h-0 flex-1 overflow-y-auto">
+            <AppSidebar />
+        </div>
+        <div class="stack shrink-0 gap-1.5 border-t border-border p-3">
+            <ThemeToggle />
+            <AgentSettingsBar />
+        </div>
+    }
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    provide_theme_mode();
 
     view! {
         <Stylesheet id="leptos" href="/pkg/pi-workflow.css" />
         <Title text="pi-workflow" />
         <Router>
-            <nav class="sticky top-0 z-20 border-b border-border/60 bg-surface/70 backdrop-blur-xl">
-                <div class="mx-auto flex h-[var(--nav-h)] max-w-[1600px] flex-wrap content-center items-center justify-between gap-2 px-4 sm:px-6 md:flex-nowrap">
-                    <div class="order-1 flex items-center gap-3">
-                        <span class="bg-gradient-to-r from-accent to-purple bg-clip-text text-lg font-bold text-transparent">
-                            "pi-workflow"
-                        </span>
-                    </div>
-                    <div class="order-3 w-full md:order-2 md:w-auto">
-                        <AgentSettingsBar />
-                    </div>
-                    <div class="order-2 row gap-0.5 rounded-xl bg-surface-2/60 p-0.5 backdrop-blur-sm md:order-3">
-                        <A
-                            href="/"
-                            exact=true
-                            attr:class="nav-pill"
-                        >
-                            "Tablero"
-                        </A>
-                        <A
-                            href="/workspaces"
-                            attr:class="nav-pill"
-                        >
-                            "Workspaces"
-                        </A>
-                    </div>
-                </div>
-            </nav>
-            <main class="relative mx-auto max-w-[1600px] px-4 py-4 sm:px-6">
+            <AppShell brand="pi-workflow" sidebar=app_sidebar>
                 <Routes fallback=|| "Página no encontrada.".into_view()>
                     <Route path=StaticSegment("") view=BoardPage />
                     <Route path=StaticSegment("workspaces") view=WorkspacesPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
                 </Routes>
-            </main>
+            </AppShell>
         </Router>
     }
 }

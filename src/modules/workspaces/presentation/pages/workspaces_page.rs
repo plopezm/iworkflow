@@ -55,11 +55,11 @@ pub fn WorkspacesPage() -> impl IntoView {
         Callback::new(move |_| state.dismiss_initialization());
 
     view! {
-        <div class="stack">
-            <div class="section-header">
-                <h1 class="task-title">"Workspaces"</h1>
+        <div class="flex h-full min-h-0 flex-col">
+            <div class="flex shrink-0 items-center border-b border-border bg-surface px-4 py-2.5">
+                <h1 class="text-sm font-bold tracking-widest uppercase">"Workspaces"</h1>
             </div>
-            <div class="stack">
+            <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
             <Card title="Registrar workspace">
                 <WorkspaceForm
                     name=state.name

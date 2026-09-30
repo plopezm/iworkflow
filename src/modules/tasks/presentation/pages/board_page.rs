@@ -132,6 +132,7 @@ pub fn BoardPage() -> impl IntoView {
 
     view! {
         <Title text=move || document_title.get() />
+        <div class="flex h-full min-h-0 flex-col">
         <BoardToolbar
             stage_filter=state.stage_filter
             show_done=state.show_done
@@ -139,7 +140,7 @@ pub fn BoardPage() -> impl IntoView {
         />
         // Este `Suspend` solo espera los datos y pinta errores: el tablero se pinta fuera
         // (a partir de `lanes`) para que un refresco no lo reconstruya.
-        <Transition fallback=|| view! { <p class="muted py-4">"Cargando tablero…"</p> }>
+        <Transition fallback=|| view! { <p class="muted p-4">"Cargando tablero…"</p> }>
             {move || Suspend::new(async move {
                 if let Err(e) = state.workspaces.await {
                     return view! { <ErrorText message=e.to_string() /> }.into_any();
@@ -155,10 +156,10 @@ pub fn BoardPage() -> impl IntoView {
             })}
         </Transition>
         <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| l.is_empty())>
-            <p class="muted py-8 text-center">"No hay tareas visibles con estos filtros."</p>
+            <p class="muted p-8 text-center">"No hay tareas visibles con estos filtros."</p>
         </Show>
         <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| !l.is_empty())>
-            <div class="flex snap-x snap-mandatory gap-4 overflow-x-auto py-4">
+            <div class="flex min-h-0 flex-1 snap-x snap-mandatory gap-4 overflow-x-auto p-4">
                 <For
                     each=move || lanes.with(|l: &Vec<LaneView>| lane_ids(l))
                     key=|id: &String| id.clone()
@@ -178,5 +179,6 @@ pub fn BoardPage() -> impl IntoView {
             })}
         </Transition>
         <ToastStack toasts=state.toasts />
+        </div>
     }
 }

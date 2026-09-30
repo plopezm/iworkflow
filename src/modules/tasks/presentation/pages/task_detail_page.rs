@@ -5,8 +5,9 @@ use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::core::browser::confirm;
 use crate::core::components::form::{ActionError, TextArea, TextField};
-use crate::core::components::layout::{Card, ErrorText};
+use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
+use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MergeOutcomeDto, TaskDto, TaskStageDto, TaskStatusDto,
 };
@@ -24,6 +25,10 @@ use crate::modules::tasks::presentation::components::task_status_badge::TaskStat
 use crate::modules::tasks::presentation::components::transcript_view::TranscriptView;
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
+
+const TAB_DIFF: &str = "diff";
+const TAB_ACTIONS: &str = "acciones";
+const TAB_STATE: &str = "estado";
 
 /// Tarjeta simplificada de una tarea en Backlog: prompt y acciones de iniciar/editar/borrar.
 #[component]
@@ -54,8 +59,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
 
     view! {
         <section class="card stack animate-slide-up">
-            <div class="row justify-between">
-                <h1 class="task-title">{task.title.clone()}</h1>
+            <div class="row justify-end">
                 <TaskStatusBadge status=task.status />
             </div>
             <p class="whitespace-pre-wrap text-fg">{task.prompt.clone()}</p>
@@ -161,6 +165,13 @@ pub fn TaskDetailPage() -> impl IntoView {
 #[component]
 fn TaskDetailContent(task_id: String) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
+    let right_open: RwSignal<bool> = RwSignal::new(true);
+    let right_overlay: RwSignal<bool> = RwSignal::new(false);
+    let active_tab: RwSignal<String> = RwSignal::new(TAB_ACTIONS.to_string());
+    let on_select_tab: Callback<String> = Callback::new(move |id: String| {
+        state.show_diff.set(id == TAB_DIFF);
+        active_tab.set(id);
+    });
 
     let handlers: TaskActionHandlers = TaskActionHandlers {
         abort: Callback::new(move |_| state.abort()),
@@ -168,7 +179,14 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         resume: Callback::new(move |_| state.resume()),
         merge: Callback::new(move |_| state.merge()),
         discard: Callback::new(move |_| state.discard()),
-        toggle_diff: Callback::new(move |_| state.show_diff.update(|v: &mut bool| *v = !*v)),
+        toggle_diff: Callback::new(move |_| {
+            let next: &str = if state.show_diff.get_untracked() {
+                TAB_ACTIONS
+            } else {
+                TAB_DIFF
+            };
+            on_select_tab.run(next.to_string());
+        }),
     };
     let busy: Signal<bool> = Signal::derive(move || {
         state.finish.pending().get()
@@ -218,7 +236,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
             when=move || !state.removed.get()
             fallback=|| {
                 view! {
-                    <section class="card stack">
+                    <section class="card stack m-4">
                         <h1 class="task-title">"Tarea eliminada"</h1>
                         <p class="muted">"Esta tarea ya no existe."</p>
                         <A href="/" attr:class="btn-secondary">
@@ -228,118 +246,210 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                 }
             }
         >
-        <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
-            {move || Suspend::new(async move {
-                match state.task.await {
-                    Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                    Ok(task) => {
-                        let task: TaskDto = task;
-                        if task.stage == TaskStageDto::Backlog {
-                            return view! { <BacklogView task state /> }.into_any();
-                        }
-                        view! {
-                            <section class="card stack animate-slide-up">
-                                <div class="row">
-                                    <h1 class="task-title">{task.title.clone()}</h1>
-                                    <TaskStatusBadge status=task.status />
-                                </div>
-                                <p class="muted">
-                                    "Rama " <code class="rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-xs">{task.branch.clone()}</code>
-                                    " desde " <code class="rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-xs">{task.base_branch.clone()}</code>
-                                    " · worktree " <code class="rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-xs">{task.worktree_path.clone()}</code>
-                                </p>
-                                {task.error.clone().map(|e: String| view! { <ErrorText message=e /> })}
-                                <TaskActions
-                                    actions=task.actions
-                                    handlers
-                                    diff_visible=state.show_diff
-                                    busy
-                                />
-                                {move || state.action_error().map(|e: String| view! { <ErrorText message=e /> })}
+            <div class="flex h-full min-h-0">
+                <div class="flex min-w-0 flex-1 flex-col">
+                    <div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2.5">
+                        <div class="min-w-0 flex-1">
+                            <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
+                                {move || Suspend::new(async move {
+                                    match state.task.await {
+                                        Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                                        Ok(task) => {
+                                            let task: TaskDto = task;
+                                            let is_backlog: bool = task.stage == TaskStageDto::Backlog;
+                                            view! {
+                                                <h1 class="truncate text-sm font-bold">{task.title.clone()}</h1>
+                                                {(!is_backlog)
+                                                    .then(|| {
+                                                        view! {
+                                                            <p class="truncate text-[11px] text-muted">
+                                                                "Rama "
+                                                                <code class="font-mono">{task.branch.clone()}</code>
+                                                                " desde "
+                                                                <code class="font-mono">{task.base_branch.clone()}</code>
+                                                            </p>
+                                                        }
+                                                    })}
+                                                {task.error.clone().map(|e: String| view! { <ErrorText message=e /> })}
+                                            }
+                                                .into_any()
+                                        }
+                                    }
+                                })}
+                            </Transition>
+                        </div>
+                        <Show when=move || shows_workspace.get()>
+                            <button
+                                class="btn-secondary min-h-9 px-3 py-1 text-xs md:hidden"
+                                on:click=move |_| right_overlay.set(true)
+                            >
+                                "Panel"
+                            </button>
+                        </Show>
+                    </div>
+                    <Transition fallback=|| ()>
+                        {move || Suspend::new(async move {
+                            match state.task.await {
+                                Ok(task) if task.stage == TaskStageDto::Backlog => {
+                                    view! {
+                                        <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                                            <BacklogView task state />
+                                        </div>
+                                    }
+                                        .into_any()
+                                }
+                                _ => ().into_any(),
+                            }
+                        })}
+                    </Transition>
+                    <Show when=move || shows_workspace.get()>
+                        <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
+                            <TranscriptView transcript=state.transcript />
+                            {move || {
+                                pending_dialog
+                                    .get()
+                                    .map(|request: DialogRequestDto| {
+                                        let dialog_id: String = request.id.clone();
+                                        view! {
+                                            <DialogPanel
+                                                request
+                                                on_answer=Callback::new(move |answer: DialogAnswerDto| {
+                                                    on_answer.run((dialog_id.clone(), answer))
+                                                })
+                                            />
+                                        }
+                                    })
+                            }}
+                        </div>
+                        <div class="stack shrink-0 gap-2 border-t border-border bg-surface p-3">
+                            <div class="flex items-center gap-2 rounded-full border border-border bg-bg px-3 py-1 text-xs text-muted">
                                 {move || {
-                                    state
-                                        .merge
-                                        .value()
+                                    loaded_task
                                         .get()
-                                        .and_then(|r| r.ok())
-                                        .map(|outcome: MergeOutcomeDto| match outcome {
-                                            MergeOutcomeDto::Merged => {
-                                                view! { <p class="notice notice-info animate-fade-in">"Integrada en la rama base."</p> }
+                                        .map(|t: TaskDto| view! { <TaskStatusBadge status=t.status /> })
+                                }}
+                                <span>
+                                    {move || if state.connected.get() { "en vivo" } else { "desconectado" }}
+                                </span>
+                            </div>
+                            <Show when=move || can_message.get()>
+                                <Composer
+                                    message=state.message
+                                    mode=state.mode
+                                    agent_busy=agent_busy
+                                    pending=state.send.pending()
+                                    on_send
+                                />
+                            </Show>
+                        </div>
+                    </Show>
+                </div>
+                <Show when=move || shows_workspace.get()>
+                    <CollapsePanel
+                        side=PanelSide::Right
+                        open=right_open
+                        overlay_open=right_overlay
+                        width="md:w-[26rem]"
+                        label="Panel de la tarea"
+                    >
+                        <div class="flex shrink-0 items-center justify-between border-b border-border px-3 py-2 md:hidden">
+                            <span class="text-xs font-bold tracking-widest uppercase">"Tarea"</span>
+                            <button
+                                class="btn-ghost min-h-8 px-2 py-1 text-xs"
+                                on:click=move |_| right_overlay.set(false)
+                            >
+                                "Cerrar"
+                            </button>
+                        </div>
+                        <TabBar
+                            tabs=vec![
+                                TabItem { id: TAB_DIFF, label: "Diff" },
+                                TabItem { id: TAB_ACTIONS, label: "Acciones" },
+                                TabItem { id: TAB_STATE, label: "Estado" },
+                            ]
+                            active=active_tab
+                            on_select=on_select_tab
+                        />
+                        <div class="stack min-h-0 flex-1 overflow-y-auto p-3">
+                            <Show when=move || active_tab.get() == TAB_DIFF>
+                                <Suspense fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
+                                    {move || Suspend::new(async move {
+                                        match state.diff.await {
+                                            Some(Ok(diff)) => view! { <DiffView diff /> }.into_any(),
+                                            Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                                            None => {
+                                                view! { <p class="muted">"Sin diff disponible para esta tarea."</p> }
                                                     .into_any()
                                             }
-                                            MergeOutcomeDto::Conflict { files } => {
+                                        }
+                                    })}
+                                </Suspense>
+                            </Show>
+                            <Show when=move || active_tab.get() == TAB_ACTIONS>
+                                <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+                                    {move || Suspend::new(async move {
+                                        match state.task.await {
+                                            Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                                            Ok(task) => {
+                                                let task: TaskDto = task;
                                                 view! {
-                                                    <p class="notice notice-warn animate-fade-in">
-                                                        {format!(
-                                                            "Conflictos en {}. Reanuda el agente para resolverlos o hazlo a mano en el worktree.",
-                                                            files.join(", "),
-                                                        )}
+                                                    <TaskActions
+                                                        actions=task.actions
+                                                        handlers
+                                                        diff_visible=state.show_diff
+                                                        busy
+                                                    />
+                                                    {move || state.action_error().map(|e: String| view! { <ErrorText message=e /> })}
+                                                    {move || {
+                                                        state
+                                                            .merge
+                                                            .value()
+                                                            .get()
+                                                            .and_then(|r| r.ok())
+                                                            .map(|outcome: MergeOutcomeDto| match outcome {
+                                                                MergeOutcomeDto::Merged => {
+                                                                    view! { <p class="notice notice-info animate-fade-in">"Integrada en la rama base."</p> }
+                                                                        .into_any()
+                                                                }
+                                                                MergeOutcomeDto::Conflict { files } => {
+                                                                    view! {
+                                                                        <p class="notice notice-warn animate-fade-in">
+                                                                            {format!(
+                                                                                "Conflictos en {}. Reanuda el agente para resolverlos o hazlo a mano en el worktree.",
+                                                                                files.join(", "),
+                                                                            )}
+                                                                        </p>
+                                                                    }
+                                                                        .into_any()
+                                                                }
+                                                            })
+                                                    }}
+                                                    <p class="muted break-all">
+                                                        "Worktree "
+                                                        <code class="font-mono text-xs">{task.worktree_path.clone()}</code>
                                                     </p>
                                                 }
                                                     .into_any()
                                             }
-                                        })
-                                }}
-                            </section>
-                        }
-                            .into_any()
-                    }
-                }
-            })}
-        </Transition>
-        <Show when=move || shows_workspace.get()>
-            <details class="card prompt animate-slide-up">
-                <summary>"Prompt inicial"</summary>
-                <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
-            </details>
-            <Show when=move || state.show_diff.get()>
-                <Card title="Cambios">
-                    <Suspense fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
-                        {move || Suspend::new(async move {
-                            match state.diff.await {
-                                Some(Ok(diff)) => view! { <DiffView diff /> }.into_any(),
-                                Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                                None => ().into_any(),
-                            }
-                        })}
-                    </Suspense>
-                </Card>
-            </Show>
-            <div class="task-layout">
-                <div class="stack min-w-0">
-                    <TranscriptView transcript=state.transcript />
-                    {move || {
-                        pending_dialog
-                            .get()
-                            .map(|request: DialogRequestDto| {
-                                let dialog_id: String = request.id.clone();
-                                view! {
-                                    <DialogPanel
-                                        request
-                                        on_answer=Callback::new(move |answer: DialogAnswerDto| {
-                                            on_answer.run((dialog_id.clone(), answer))
-                                        })
-                                    />
-                                }
-                            })
-                    }}
-                    <Show when=move || can_message.get()>
-                        <Composer
-                            message=state.message
-                            mode=state.mode
-                            agent_busy=agent_busy
-                            pending=state.send.pending()
-                            on_send
-                        />
-                    </Show>
-                </div>
-                <AgentSidebar
-                    transcript=state.transcript
-                    connected=state.connected
-                    class="min-w-0"
-                />
+                                        }
+                                    })}
+                                </Transition>
+                                <details class="card prompt">
+                                    <summary>"Prompt inicial"</summary>
+                                    <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
+                                </details>
+                            </Show>
+                            <Show when=move || active_tab.get() == TAB_STATE>
+                                <AgentSidebar
+                                    transcript=state.transcript
+                                    connected=state.connected
+                                    class="min-w-0"
+                                />
+                            </Show>
+                        </div>
+                    </CollapsePanel>
+                </Show>
             </div>
-        </Show>
         </Show>
     }
 }

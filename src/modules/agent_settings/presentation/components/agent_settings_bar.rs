@@ -111,7 +111,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
 
     view! {
         <div
-            class="grid grid-cols-3 gap-2 md:flex md:items-center md:gap-1.5"
+            class="flex flex-col gap-1.5"
             title=APPLIES_TO_NEW_TASKS_HINT
         >
             <Transition fallback=|| view! {
@@ -156,7 +156,6 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .into_any()
                 })}
             </Transition>
-            <span class="select-pill-divider" aria-hidden="true"></span>
             <Transition fallback=|| view! {
                 <span class="select-pill-skeleton" aria-hidden="true"></span>
             }>
@@ -190,7 +189,6 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .into_any()
                 })}
             </Transition>
-            <span class="select-pill-divider" aria-hidden="true"></span>
             <Transition fallback=|| view! {
                 <span class="select-pill-skeleton" aria-hidden="true"></span>
             }>
@@ -231,21 +229,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .into_any()
                 })}
             </Transition>
-            <span
-                class="hidden h-4 w-4 shrink-0 text-muted md:inline-flex"
-                aria-hidden="true"
-                title=APPLIES_TO_NEW_TASKS_HINT
-            >
-                <svg viewBox="0 0 20 20" fill="none">
-                    <circle cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.5" />
-                    <path
-                        d="M10 9V14M10 6.5V6.6"
-                        stroke="currentColor"
-                        stroke-width="1.5"
-                        stroke-linecap="round"
-                    />
-                </svg>
-            </span>
+            <p class="text-[11px] text-muted">"Se aplica a las tareas nuevas."</p>
             <ToastStack toasts=state.toasts />
         </div>
     }

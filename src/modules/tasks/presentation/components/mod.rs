@@ -1,4 +1,5 @@
 pub mod agent_sidebar;
+pub mod app_sidebar;
 pub mod board_lane;
 pub mod board_toolbar;
 pub mod composer;

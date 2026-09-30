@@ -22,20 +22,15 @@ pub fn BoardToolbar(
     on_new_task: Callback<()>,
 ) -> impl IntoView {
     view! {
-        <div class="sticky top-[var(--nav-h)] z-10 stack gap-3 border-b border-border/40 bg-bg/80 py-3 backdrop-blur-xl">
-            <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6">
-                <h1 class="bg-gradient-to-r from-fg to-muted bg-clip-text text-xl font-bold text-transparent">
-                    "Tablero"
-                </h1>
-                <button
-                    class="btn-primary"
-                    on:click=move |_| on_new_task.run(())
-                >
+        <div class="flex shrink-0 flex-col gap-2 border-b border-border bg-surface px-4 py-2.5">
+            <div class="flex items-center justify-between gap-3">
+                <h1 class="text-sm font-bold tracking-widest uppercase">"Tablero"</h1>
+                <button class="btn-primary" on:click=move |_| on_new_task.run(())>
                     <span class="text-lg leading-none">+</span>
-                    <span class=move || format!("hidden sm:{}", "inline")> "Nueva tarea" </span>
+                    <span class="hidden sm:inline">"Nueva tarea"</span>
                 </button>
             </div>
-            <div class="mx-auto flex w-full max-w-[1600px] items-center gap-2 overflow-x-auto px-4 pb-1 sm:px-6">
+            <div class="flex items-center gap-2 overflow-x-auto pb-0.5">
                 {FILTER_STAGES
                     .into_iter()
                     .map(|stage: Option<TaskStageDto>| {
@@ -53,11 +48,11 @@ pub fn BoardToolbar(
                         }
                     })
                     .collect_view()}
-                <div class="mx-1 h-5 w-px shrink-0 bg-border/60"></div>
-                <label class="row min-h-10 shrink-0 items-center gap-2 whitespace-nowrap text-sm text-muted">
+                <div class="mx-1 h-5 w-px shrink-0 bg-border"></div>
+                <label class="flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap text-xs text-muted">
                     <input
                         type="checkbox"
-                        class="h-5 w-5 accent-accent"
+                        class="h-4 w-4 accent-accent"
                         prop:checked=move || show_done.get()
                         on:change=move |ev| show_done.set(event_target_checked(&ev))
                     />
