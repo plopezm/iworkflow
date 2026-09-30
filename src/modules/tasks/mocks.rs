@@ -8,6 +8,7 @@ use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
@@ -47,6 +48,7 @@ mock! {
         async fn add_pending_dialog(&self, id: TaskId, dialog: PendingDialog) -> Result<(), TaskError>;
         async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError>;
         async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError>;
+        async fn set_subagent_activity(&self, id: TaskId, activity: SubagentActivity) -> Result<(), TaskError>;
         async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
         async fn delete_inactive_by_workspace(&self, workspace_id: String) -> Result<Option<Vec<TaskId>>, TaskError>;
         async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError>;

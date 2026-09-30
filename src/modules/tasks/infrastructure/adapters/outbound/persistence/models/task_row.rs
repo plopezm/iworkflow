@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::core::db::schema::tasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable)]
@@ -27,6 +28,8 @@ pub struct TaskRow {
     pub updated_at: NaiveDateTime,
     /// Diálogos pendientes de respuesta, codificados como array JSON.
     pub pending_dialogs: String,
+    pub subagents_active: i32,
+    pub subagents_waiting: i32,
 }
 
 /// JSON por defecto cuando la serialización (imposible en la práctica) fallara.
@@ -77,6 +80,11 @@ pub fn decode_pending_dialogs(payload: &str) -> Result<Vec<PendingDialog>, TaskE
     Ok(json.into_iter().map(PendingDialog::from).collect())
 }
 
+/// Convierte un contador a `i32` (columna INTEGER), saturando en el máximo.
+pub fn clamp_count(value: u32) -> i32 {
+    i32::try_from(value).unwrap_or(i32::MAX)
+}
+
 impl From<&Task> for TaskRow {
     fn from(task: &Task) -> Self {
         Self {
@@ -92,6 +100,8 @@ impl From<&Task> for TaskRow {
             created_at: task.created_at.naive_utc(),
             updated_at: task.updated_at.naive_utc(),
             pending_dialogs: encode_pending_dialogs(&task.pending_dialogs),
+            subagents_active: clamp_count(task.subagents.active),
+            subagents_waiting: clamp_count(task.subagents.waiting),
         }
     }
 }
@@ -113,6 +123,10 @@ impl TryFrom<TaskRow> for Task {
             status: TaskStatus::parse(&row.status)?,
             error: row.error,
             pending_dialogs: decode_pending_dialogs(&row.pending_dialogs)?,
+            subagents: SubagentActivity::new(
+                u32::try_from(row.subagents_active).unwrap_or(0),
+                u32::try_from(row.subagents_waiting).unwrap_or(0),
+            ),
             created_at: row.created_at.and_utc(),
             updated_at: row.updated_at.and_utc(),
         })
@@ -133,6 +147,12 @@ mod tests {
                 PendingDialog::new("d2".to_string(), None),
             ]
         );
+    }
+
+    #[test]
+    fn subagent_counts_round_trip_through_the_row() {
+        assert_eq!(clamp_count(3), 3);
+        assert_eq!(clamp_count(u32::MAX), i32::MAX);
     }
 
     #[test]

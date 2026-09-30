@@ -57,6 +57,7 @@ impl CreateTask {
             status: TaskStatus::Backlog,
             error: None,
             pending_dialogs: Vec::new(),
+            subagents: Default::default(),
             created_at: now,
             updated_at: now,
         };

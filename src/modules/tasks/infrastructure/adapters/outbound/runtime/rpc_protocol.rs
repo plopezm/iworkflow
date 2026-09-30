@@ -133,7 +133,47 @@ pub fn decode(line: &str) -> Vec<AgentEvent> {
         "extension_ui_request" => decode_ui_request(&record),
         _ => None,
     };
-    event.into_iter().collect()
+    let mut events: Vec<AgentEvent> = event.into_iter().collect();
+    events.extend(decode_subagents(&record));
+    events
+}
+
+/// Clave del widget con el que la extensión de subagentes publica su actividad.
+const SUBAGENTS_WIDGET_KEY: &str = "gentle-agents";
+
+/// Resumen de subagentes vivos a partir del widget `gentle-agents` (primera línea JSON
+/// con `summary: {running, queued, waiting}`). Limpiar el widget equivale a ninguno.
+fn decode_subagents(record: &Value) -> Option<AgentEvent> {
+    if str_field(record, "type") != Some("extension_ui_request")
+        || str_field(record, "method") != Some("setWidget")
+        || str_field(record, "widgetKey") != Some(SUBAGENTS_WIDGET_KEY)
+    {
+        return None;
+    }
+    let first_line: Option<&str> = record
+        .get("widgetLines")
+        .and_then(Value::as_array)
+        .and_then(|lines: &Vec<Value>| lines.first())
+        .and_then(Value::as_str);
+    let Some(line) = first_line else {
+        return Some(AgentEvent::SubagentsChanged {
+            active: 0,
+            waiting: 0,
+        });
+    };
+    let activity: Value = serde_json::from_str(line).ok()?;
+    let summary: &Value = activity.get("summary")?;
+    let count = |key: &str| -> u32 {
+        summary
+            .get(key)
+            .and_then(Value::as_u64)
+            .map(|n: u64| u32::try_from(n).unwrap_or(u32::MAX))
+            .unwrap_or(0)
+    };
+    Some(AgentEvent::SubagentsChanged {
+        active: count("running").saturating_add(count("queued")),
+        waiting: count("waiting"),
+    })
 }
 
 fn decode_message(message: Option<&Value>) -> Option<AgentEvent> {
@@ -505,6 +545,50 @@ mod tests {
                 lines: None
             }
         );
+    }
+
+    #[test]
+    fn decodes_subagent_activity_from_gentle_agents_widget() {
+        let events: Vec<AgentEvent> = decode(
+            r#"{"type":"extension_ui_request","id":"u","method":"setWidget","widgetKey":"gentle-agents","widgetLines":["{\"schema\":\"gentle-agents.activity/v1\",\"summary\":{\"running\":2,\"queued\":1,\"waiting\":1,\"finished\":4},\"tasks\":[]}"]}"#,
+        );
+        assert_eq!(events.len(), 2);
+        assert!(matches!(events[0], AgentEvent::WidgetChanged { .. }));
+        assert_eq!(
+            events[1],
+            AgentEvent::SubagentsChanged {
+                active: 3,
+                waiting: 1
+            }
+        );
+    }
+
+    #[test]
+    fn clearing_gentle_agents_widget_means_no_subagents() {
+        let events: Vec<AgentEvent> = decode(
+            r#"{"type":"extension_ui_request","id":"u","method":"setWidget","widgetKey":"gentle-agents"}"#,
+        );
+        assert_eq!(
+            events.last(),
+            Some(&AgentEvent::SubagentsChanged {
+                active: 0,
+                waiting: 0
+            })
+        );
+    }
+
+    #[test]
+    fn other_widgets_and_malformed_payloads_do_not_change_subagents() {
+        assert!(!decode(
+            r#"{"type":"extension_ui_request","id":"u","method":"setWidget","widgetKey":"btw","widgetLines":["x"]}"#
+        )
+        .iter()
+        .any(|e: &AgentEvent| matches!(e, AgentEvent::SubagentsChanged { .. })));
+        assert!(!decode(
+            r#"{"type":"extension_ui_request","id":"u","method":"setWidget","widgetKey":"gentle-agents","widgetLines":["no json"]}"#
+        )
+        .iter()
+        .any(|e: &AgentEvent| matches!(e, AgentEvent::SubagentsChanged { .. })));
     }
 
     #[test]

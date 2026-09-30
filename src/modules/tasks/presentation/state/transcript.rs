@@ -164,6 +164,7 @@ impl Transcript {
                     self.widgets.remove(&key);
                 }
             },
+            AgentEventDto::SubagentsChanged { .. } => {}
             AgentEventDto::ProcessExited { code } => {
                 self.clear_streaming();
                 self.resolve_dialogs(None);

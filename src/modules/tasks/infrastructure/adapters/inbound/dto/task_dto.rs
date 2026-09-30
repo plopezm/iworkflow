@@ -281,6 +281,7 @@ mod mapping {
                 status,
                 error: None,
                 pending_dialogs: Vec::new(),
+                subagents: Default::default(),
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             }

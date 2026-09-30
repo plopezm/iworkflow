@@ -91,6 +91,10 @@ pub enum AgentEventDto {
         key: String,
         lines: Option<Vec<String>>,
     },
+    SubagentsChanged {
+        active: u32,
+        waiting: u32,
+    },
     ProcessExited {
         code: Option<i32>,
     },
@@ -234,6 +238,9 @@ mod mapping {
                 }
                 AgentEvent::WidgetChanged { key, lines } => {
                     AgentEventDto::WidgetChanged { key, lines }
+                }
+                AgentEvent::SubagentsChanged { active, waiting } => {
+                    AgentEventDto::SubagentsChanged { active, waiting }
                 }
                 AgentEvent::ProcessExited { code } => AgentEventDto::ProcessExited { code },
             }

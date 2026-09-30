@@ -91,6 +91,10 @@ pub enum AgentEvent {
         key: String,
         lines: Option<Vec<String>>,
     },
+    SubagentsChanged {
+        active: u32,
+        waiting: u32,
+    },
     ProcessExited {
         code: Option<i32>,
     },
@@ -107,6 +111,7 @@ impl AgentEvent {
                 | AgentEvent::QueueChanged { .. }
                 | AgentEvent::StatusChanged { .. }
                 | AgentEvent::WidgetChanged { .. }
+                | AgentEvent::SubagentsChanged { .. }
         )
     }
 }
