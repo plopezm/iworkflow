@@ -65,6 +65,8 @@ pub fn WorkspacesPage() -> impl IntoView {
                     name=state.name
                     path=state.path
                     base_branch=state.base_branch
+                    agents_file_id=state.agents_file_id
+                    agents_file_options=state.agents_file_options
                     pending=state.register.pending()
                     on_submit
                     on_browse

@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const DEFAULT_GENTLE_SHELL_BIN: &str = "gentle-shell";
 const DEFAULT_DATA_DIR: &str = ".pi-dashboard";
 const DEFAULT_DATABASE_FILE: &str = "workspaces.db";
 const DEFAULT_WORKTREES_DIR: &str = "worktrees";
+const DEFAULT_AGENTS_FILES_DIR: &str = "agents-files";
 const DEFAULT_GENTLE_PI_CONFIG_DIR: &str = ".pi/gentle-ai";
 
 #[derive(Debug, thiserror::Error)]
@@ -25,6 +26,8 @@ pub struct AppConfig {
     pub home_dir: PathBuf,
     /// Carpeta de configuración de gentle-pi (contiene `profiles.json`).
     pub gentle_pi_config_home: PathBuf,
+    /// Carpeta donde se guardan los ficheros AGENTS.md subidos.
+    pub agents_files_dir: PathBuf,
 }
 
 impl AppConfig {
@@ -47,12 +50,75 @@ impl AppConfig {
         let gentle_pi_config_home: PathBuf = std::env::var("GENTLE_PI_CONFIG_HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(DEFAULT_GENTLE_PI_CONFIG_DIR));
+        let agents_files_dir: PathBuf = resolve_agents_files_dir(
+            std::env::var("AGENTS_FILES_DIR").ok(),
+            &database_url,
+            &data_dir,
+        );
         Ok(Self {
             database_url,
             gentle_shell_bin,
             worktrees_dir,
             home_dir: home,
             gentle_pi_config_home,
+            agents_files_dir,
         })
+    }
+}
+
+/// `AGENTS_FILES_DIR`, o `agents-files` junto a la base de datos, o bajo la carpeta de datos.
+fn resolve_agents_files_dir(
+    env_value: Option<String>,
+    database_url: &str,
+    data_dir: &Path,
+) -> PathBuf {
+    if let Some(dir) = env_value.filter(|v: &String| !v.trim().is_empty()) {
+        return PathBuf::from(dir);
+    }
+    match Path::new(database_url).parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(DEFAULT_AGENTS_FILES_DIR),
+        _ => data_dir.join(DEFAULT_AGENTS_FILES_DIR),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn env_value_wins() {
+        let dir: PathBuf = resolve_agents_files_dir(
+            Some("/custom/agents".to_string()),
+            "/data/workspaces.db",
+            Path::new("/home/u/.pi-dashboard"),
+        );
+        assert_eq!(dir, PathBuf::from("/custom/agents"));
+    }
+
+    #[test]
+    fn defaults_next_to_the_database() {
+        let dir: PathBuf = resolve_agents_files_dir(
+            None,
+            "/data/workspaces.db",
+            Path::new("/home/u/.pi-dashboard"),
+        );
+        assert_eq!(dir, PathBuf::from("/data/agents-files"));
+    }
+
+    #[test]
+    fn blank_env_falls_back_to_database_parent() {
+        let dir: PathBuf = resolve_agents_files_dir(
+            Some("  ".to_string()),
+            "/data/workspaces.db",
+            Path::new("/home/u/.pi-dashboard"),
+        );
+        assert_eq!(dir, PathBuf::from("/data/agents-files"));
+    }
+
+    #[test]
+    fn falls_back_to_data_dir_without_database_parent() {
+        let dir: PathBuf =
+            resolve_agents_files_dir(None, "workspaces.db", Path::new("/home/u/.pi-dashboard"));
+        assert_eq!(dir, PathBuf::from("/home/u/.pi-dashboard/agents-files"));
     }
 }
