@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use uuid::Uuid;
+
 use chrono::Utc;
 
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
@@ -8,7 +10,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::{
-    Task, TaskId, TaskStatus, branch_name, slugify, worktree_dir_name,
+    Task, TaskId, TaskStatus, branch_name, workspace_dir_name, worktree_dir_name,
 };
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
@@ -53,10 +55,11 @@ impl StartTask {
         }
         let workspace: WorkspaceRef = self.lifecycle.workspace(&task.workspace_id).await?;
 
-        let branch: String = branch_name(&task.id, &task.title);
+        let unique: Uuid = Uuid::new_v4();
+        let branch: String = branch_name(&task.title, &unique);
         let worktree_path: PathBuf = self.worktrees.worktree_path(
-            &slugify(&workspace.name),
-            &worktree_dir_name(&task.id, &task.title),
+            &workspace_dir_name(&workspace.name, &workspace.id),
+            &worktree_dir_name(&task.title, &unique),
         );
         let base_branch: String = workspace.base_branch.clone();
 
@@ -187,7 +190,7 @@ mod tests {
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
             .expect_start()
-            .withf(|_, cwd: &Path, resume: &bool, _, _| cwd.starts_with("/wt/demo") && !resume)
+            .withf(|_, cwd: &Path, resume: &bool, _, _| cwd.starts_with("/wt/demo-ws-1") && !resume)
             .times(1)
             .returning(|_, _, _, _, _| Ok(()));
         runtime

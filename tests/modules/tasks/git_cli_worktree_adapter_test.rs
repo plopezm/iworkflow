@@ -196,3 +196,31 @@ async fn remove_tolerates_missing_worktree_folder() {
 
     assert_eq!(common::git(&f.repo, &["branch", "--list", BRANCH]), "");
 }
+
+#[tokio::test]
+async fn concurrent_merges_into_the_same_base_both_succeed() {
+    let f: Fixture = fixture_with_worktree().await;
+    let second_branch: &str = "pi/feature-5678";
+    let second: PathBuf = f.adapter.worktree_path("demo", "5678-feature");
+    f.adapter
+        .create(&f.repo, "main", second_branch, &second)
+        .await
+        .expect("create second");
+    std::fs::write(f.worktree.join("a.txt"), "a\n").expect("write a");
+    std::fs::write(second.join("b.txt"), "b\n").expect("write b");
+    f.adapter
+        .commit_all(&f.worktree, "a")
+        .await
+        .expect("commit a");
+    f.adapter.commit_all(&second, "b").await.expect("commit b");
+
+    let (first_result, second_result) = tokio::join!(
+        f.adapter.merge(&f.repo, "main", BRANCH, "merge a"),
+        f.adapter.merge(&f.repo, "main", second_branch, "merge b"),
+    );
+
+    assert_eq!(first_result.expect("merge a"), MergeOutcome::Merged);
+    assert_eq!(second_result.expect("merge b"), MergeOutcome::Merged);
+    assert!(f.repo.join("a.txt").exists());
+    assert!(f.repo.join("b.txt").exists());
+}
