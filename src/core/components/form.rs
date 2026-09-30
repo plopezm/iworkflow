@@ -7,12 +7,14 @@ pub fn TextField(
     value: RwSignal<String>,
     #[prop(into, optional)] placeholder: String,
     #[prop(optional)] required: bool,
+    #[prop(into, optional)] name: Option<String>,
 ) -> impl IntoView {
     view! {
         <label class="stack gap-1.5">
             <span class="text-sm font-medium text-fg">{label}</span>
             <input
                 type="text"
+                name=name
                 class="input"
                 placeholder=placeholder
                 required=required

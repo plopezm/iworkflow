@@ -1,10 +1,11 @@
 use leptos::prelude::*;
 
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
-    InitializationReasonDto, RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, WorkspaceDto,
+    AgentsFileOptionDto, InitializationReasonDto, RegisterWorkspaceDto,
+    RegisterWorkspaceOutcomeDto, WorkspaceDto,
 };
 use crate::modules::workspaces::infrastructure::adapters::inbound::server_fns::{
-    DeleteWorkspace, RegisterWorkspace, list_workspaces,
+    DeleteWorkspace, RegisterWorkspace, list_agents_file_options, list_workspaces,
 };
 use crate::modules::workspaces::presentation::state::directory_picker_state::DirectoryPickerState;
 
@@ -14,6 +15,8 @@ pub struct WorkspacesState {
     pub workspaces: Resource<Result<Vec<WorkspaceDto>, ServerFnError>>,
     pub register: ServerAction<RegisterWorkspace>,
     pub delete: ServerAction<DeleteWorkspace>,
+    pub agents_file_options: Resource<Result<Vec<AgentsFileOptionDto>, ServerFnError>>,
+    pub agents_file_id: RwSignal<String>,
     pub name: RwSignal<String>,
     pub path: RwSignal<String>,
     pub base_branch: RwSignal<String>,
@@ -36,6 +39,8 @@ impl WorkspacesState {
             move || (register.version().get(), delete.version().get()),
             |_| list_workspaces(),
         );
+        let agents_file_options: Resource<Result<Vec<AgentsFileOptionDto>, ServerFnError>> =
+            Resource::new(|| (), |_| list_agents_file_options());
         let dismissed: RwSignal<bool> = RwSignal::new(false);
         let pending_initialization: Memo<Option<(String, InitializationReasonDto)>> =
             Memo::new(move |_| {
@@ -53,6 +58,8 @@ impl WorkspacesState {
             workspaces,
             register,
             delete,
+            agents_file_options,
+            agents_file_id: RwSignal::new(String::new()),
             name: RwSignal::new(String::new()),
             path: RwSignal::new(String::new()),
             base_branch: RwSignal::new(String::new()),
@@ -85,11 +92,13 @@ impl WorkspacesState {
 
     pub fn submit(&self) {
         let base_branch: String = self.base_branch.get_untracked();
+        let agents_file_id: String = self.agents_file_id.get_untracked();
         let input: RegisterWorkspaceDto = RegisterWorkspaceDto {
             name: self.name.get_untracked(),
             path: self.path.get_untracked(),
             base_branch: Some(base_branch).filter(|b: &String| !b.trim().is_empty()),
             initialize: false,
+            agents_file_id: Some(agents_file_id).filter(|id: &String| !id.trim().is_empty()),
         };
         self.last_submitted.set_value(Some(input.clone()));
         self.dismissed.set(false);
@@ -125,6 +134,7 @@ impl WorkspacesState {
         self.name.set(String::new());
         self.path.set(String::new());
         self.base_branch.set(String::new());
+        self.agents_file_id.set(String::new());
     }
 }
 

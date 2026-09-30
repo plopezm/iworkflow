@@ -3,8 +3,10 @@ use std::path::Path;
 use mockall::mock;
 
 use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+use crate::modules::workspaces::domain::models::agents_file_option::AgentsFileOption;
 use crate::modules::workspaces::domain::models::directory_listing::DirectoryListing;
 use crate::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+use crate::modules::workspaces::domain::ports::outbound::agents_files_port::AgentsFilesPort;
 use crate::modules::workspaces::domain::ports::outbound::directory_browser_port::DirectoryBrowserPort;
 use crate::modules::workspaces::domain::ports::outbound::git_repository_port::{
     GitRepositoryInfo, GitRepositoryPort,
@@ -31,6 +33,16 @@ mock! {
     #[async_trait::async_trait]
     impl WorkspaceTasksPort for WorkspaceTasks {
         async fn delete_all(&self, id: WorkspaceId) -> Result<(), WorkspaceError>;
+    }
+}
+
+mock! {
+    pub AgentsFiles {}
+
+    #[async_trait::async_trait]
+    impl AgentsFilesPort for AgentsFiles {
+        async fn list_options(&self) -> Result<Vec<AgentsFileOption>, WorkspaceError>;
+        async fn install(&self, agents_file_id: &str, root: &Path) -> Result<(), WorkspaceError>;
     }
 }
 

@@ -4,6 +4,13 @@ use leptos::prelude::provide_context;
 
 use crate::core::config::AppConfig;
 use crate::core::db::pool::DbPool;
+use crate::modules::agents_files::domain::errors::agents_file_error::AgentsFileError;
+use crate::modules::agents_files::application::usecases::install_agents_file::InstallAgentsFile;
+use crate::modules::agents_files::application::usecases::list_agents_files::ListAgentsFiles;
+use crate::modules::agents_files::domain::models::agents_file::{AgentsFile, AgentsFileId};
+use crate::modules::agents_files::domain::models::project_ref::ProjectRef;
+use crate::modules::agents_files::domain::ports::outbound::project_lookup_port::ProjectLookupPort;
+use crate::modules::agents_files::infrastructure::di::agents_files_context::AgentsFilesContext;
 use crate::modules::agent_settings::infrastructure::di::agent_settings_context::{
     AgentSettingsContext, AgentSettingsSettings,
 };
@@ -22,7 +29,9 @@ use crate::modules::tasks::infrastructure::di::tasks_context::{TasksContext, Tas
 use crate::modules::workspaces::application::usecases::get_workspace::GetWorkspace;
 use crate::modules::workspaces::application::usecases::list_workspaces::ListWorkspaces;
 use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+use crate::modules::workspaces::domain::models::agents_file_option::AgentsFileOption;
 use crate::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+use crate::modules::workspaces::domain::ports::outbound::agents_files_port::AgentsFilesPort;
 use crate::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
 use crate::modules::workspaces::domain::ports::outbound::workspace_tasks_port::WorkspaceTasksPort;
 use crate::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
@@ -34,6 +43,7 @@ pub struct AppState {
     pub workspaces: WorkspacesContext,
     pub tasks: TasksContext,
     pub agent_settings: AgentSettingsContext,
+    pub agents_files: AgentsFilesContext,
 }
 
 impl AppState {
@@ -48,6 +58,12 @@ impl AppState {
             get_workspace: get_workspace.clone(),
             list_workspaces: list_workspaces.clone(),
         });
+        let projects: Arc<dyn ProjectLookupPort> = Arc::new(ProjectLookupBridge {
+            get_workspace: get_workspace.clone(),
+            list_workspaces: list_workspaces.clone(),
+        });
+        let agents_files: AgentsFilesContext =
+            AgentsFilesContext::new(pool.clone(), config.agents_files_dir.clone(), projects);
         let agent_settings: AgentSettingsContext = AgentSettingsContext::new(
             pool.clone(),
             AgentSettingsSettings {
@@ -70,12 +86,21 @@ impl AppState {
         let workspace_tasks: Arc<dyn WorkspaceTasksPort> = Arc::new(WorkspaceTasksBridge {
             delete_workspace_tasks: tasks.delete_workspace_tasks.clone(),
         });
-        let workspaces: WorkspacesContext =
-            WorkspacesContext::new(pool.clone(), config.home_dir.clone(), workspace_tasks);
+        let workspace_agents_files: Arc<dyn AgentsFilesPort> = Arc::new(AgentsFilesBridge {
+            list: agents_files.list.clone(),
+            install: agents_files.install.clone(),
+        });
+        let workspaces: WorkspacesContext = WorkspacesContext::new(
+            pool.clone(),
+            config.home_dir.clone(),
+            workspace_tasks,
+            workspace_agents_files,
+        );
         Self {
             workspaces,
             tasks,
             agent_settings,
+            agents_files,
         }
     }
 
@@ -84,6 +109,7 @@ impl AppState {
         provide_context(self.workspaces.clone());
         provide_context(self.tasks.clone());
         provide_context(self.agent_settings.clone());
+        provide_context(self.agents_files.clone());
     }
 }
 
@@ -121,6 +147,43 @@ fn to_ref(workspace: Workspace) -> WorkspaceRef {
         name: workspace.name,
         path: workspace.path,
         base_branch: workspace.base_branch,
+    }
+}
+
+/// Expone los workspaces al feature de ficheros AGENTS.md como proyectos, a través de su
+/// propio puerto.
+pub struct ProjectLookupBridge {
+    pub get_workspace: Arc<GetWorkspace>,
+    pub list_workspaces: Arc<ListWorkspaces>,
+}
+
+#[async_trait::async_trait]
+impl ProjectLookupPort for ProjectLookupBridge {
+    async fn list(&self) -> Result<Vec<ProjectRef>, AgentsFileError> {
+        self.list_workspaces
+            .execute()
+            .await
+            .map(|all: Vec<Workspace>| all.into_iter().map(to_project_ref).collect())
+            .map_err(|e: WorkspaceError| AgentsFileError::Repository(e.to_string()))
+    }
+
+    async fn find(&self, id: &str) -> Result<Option<ProjectRef>, AgentsFileError> {
+        let Ok(workspace_id) = WorkspaceId::parse(id) else {
+            return Ok(None);
+        };
+        match self.get_workspace.execute(workspace_id).await {
+            Ok(workspace) => Ok(Some(to_project_ref(workspace))),
+            Err(WorkspaceError::NotFound(_)) => Ok(None),
+            Err(error) => Err(AgentsFileError::Repository(error.to_string())),
+        }
+    }
+}
+
+fn to_project_ref(workspace: Workspace) -> ProjectRef {
+    ProjectRef {
+        id: workspace.id.to_string(),
+        name: workspace.name,
+        path: workspace.path,
     }
 }
 
@@ -166,5 +229,86 @@ impl WorkspaceTasksPort for WorkspaceTasksBridge {
                 TaskError::WorkspaceHasActiveTasks => WorkspaceError::InUse,
                 other => WorkspaceError::Repository(other.to_string()),
             })
+    }
+}
+
+/// Expone los ficheros AGENTS.md guardados al feature de workspaces a través de su
+/// propio puerto.
+pub struct AgentsFilesBridge {
+    pub list: Arc<ListAgentsFiles>,
+    pub install: Arc<InstallAgentsFile>,
+}
+
+#[async_trait::async_trait]
+impl AgentsFilesPort for AgentsFilesBridge {
+    async fn list_options(&self) -> Result<Vec<AgentsFileOption>, WorkspaceError> {
+        self.list
+            .execute()
+            .await
+            .map(|all: Vec<AgentsFile>| {
+                all.into_iter()
+                    .map(|file: AgentsFile| AgentsFileOption {
+                        id: file.id.to_string(),
+                        description: file.description,
+                    })
+                    .collect()
+            })
+            .map_err(to_workspace_error)
+    }
+
+    async fn install(
+        &self,
+        agents_file_id: &str,
+        root: &std::path::Path,
+    ) -> Result<(), WorkspaceError> {
+        let id: AgentsFileId = AgentsFileId::parse(agents_file_id).map_err(to_workspace_error)?;
+        self.install
+            .execute(id, root, false)
+            .await
+            .map(|_| ())
+            .map_err(to_workspace_error)
+    }
+}
+
+fn to_workspace_error(error: AgentsFileError) -> WorkspaceError {
+    match error {
+        AgentsFileError::NotFound(id) | AgentsFileError::InvalidId(id) => {
+            WorkspaceError::AgentsFileNotFound(id)
+        }
+        AgentsFileError::TargetExists(path) => WorkspaceError::AgentsFileTargetExists(path),
+        other => WorkspaceError::AgentsFile(other.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn not_found_and_invalid_id_map_to_agents_file_not_found() {
+        assert_eq!(
+            to_workspace_error(AgentsFileError::NotFound("x".to_string())),
+            WorkspaceError::AgentsFileNotFound("x".to_string())
+        );
+        assert_eq!(
+            to_workspace_error(AgentsFileError::InvalidId("y".to_string())),
+            WorkspaceError::AgentsFileNotFound("y".to_string())
+        );
+    }
+
+    #[test]
+    fn target_exists_maps_to_target_exists() {
+        assert_eq!(
+            to_workspace_error(AgentsFileError::TargetExists("/a/AGENTS.md".to_string())),
+            WorkspaceError::AgentsFileTargetExists("/a/AGENTS.md".to_string())
+        );
+    }
+
+    #[test]
+    fn other_errors_keep_their_message() {
+        assert_eq!(
+            to_workspace_error(AgentsFileError::Storage("boom".to_string())),
+            WorkspaceError::AgentsFile("error de almacenamiento: boom".to_string())
+        );
     }
 }

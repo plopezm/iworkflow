@@ -11,6 +11,15 @@ diesel::table! {
 }
 
 diesel::table! {
+    agents_files (id) {
+        id -> Text,
+        description -> Text,
+        path -> Text,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     task_events (seq) {
         seq -> Integer,
         task_id -> Text,
@@ -49,4 +58,10 @@ diesel::table! {
 diesel::joinable!(task_events -> tasks (task_id));
 diesel::joinable!(tasks -> workspaces (workspace_id));
 
-diesel::allow_tables_to_appear_in_same_query!(agent_settings, task_events, tasks, workspaces,);
+diesel::allow_tables_to_appear_in_same_query!(
+    agent_settings,
+    agents_files,
+    task_events,
+    tasks,
+    workspaces,
+);

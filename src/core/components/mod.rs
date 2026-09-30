@@ -1,3 +1,4 @@
+pub mod confirm_panel;
 pub mod form;
 pub mod layout;
 pub mod modal;

@@ -6,6 +6,7 @@ use leptos_router::{ParamSegment, StaticSegment};
 use crate::core::components::shell::{AppShell, DropdownMenu};
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
+use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
@@ -48,6 +49,9 @@ fn app_sidebar() -> impl IntoView {
                 <A href="/workspaces" attr:class="menu-item">
                     "Workspaces"
                 </A>
+                <A href="/agents-files" attr:class="menu-item">
+                    "AGENTS.md"
+                </A>
             </DropdownMenu>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
@@ -73,6 +77,7 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| "Página no encontrada.".into_view()>
                     <Route path=StaticSegment("") view=BoardPage />
                     <Route path=StaticSegment("workspaces") view=WorkspacesPage />
+                    <Route path=StaticSegment("agents-files") view=AgentsFilesPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
                 </Routes>
             </AppShell>

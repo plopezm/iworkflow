@@ -5,6 +5,7 @@ use chrono::Utc;
 use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
 use crate::modules::workspaces::domain::models::initialization_reason::InitializationReason;
 use crate::modules::workspaces::domain::models::workspace::{NewWorkspace, Workspace, WorkspaceId};
+use crate::modules::workspaces::domain::ports::outbound::agents_files_port::AgentsFilesPort;
 use crate::modules::workspaces::domain::ports::outbound::git_repository_port::{
     GitRepositoryInfo, GitRepositoryPort,
 };
@@ -18,14 +19,20 @@ const DEFAULT_BRANCH: &str = "main";
 pub struct RegisterWorkspace {
     repository: Arc<dyn WorkspaceRepositoryPort>,
     git: Arc<dyn GitRepositoryPort>,
+    agents_files: Arc<dyn AgentsFilesPort>,
 }
 
 impl RegisterWorkspace {
     pub fn new(
         repository: Arc<dyn WorkspaceRepositoryPort>,
         git: Arc<dyn GitRepositoryPort>,
+        agents_files: Arc<dyn AgentsFilesPort>,
     ) -> Self {
-        Self { repository, git }
+        Self {
+            repository,
+            git,
+            agents_files,
+        }
     }
 
     pub async fn execute(&self, input: NewWorkspace) -> Result<Workspace, WorkspaceError> {
@@ -80,6 +87,12 @@ impl RegisterWorkspace {
             None => info.current_branch.ok_or(WorkspaceError::NoCurrentBranch)?,
         };
 
+        if let Some(agents_file_id) = input.agents_file_id.as_deref() {
+            self.agents_files
+                .install(agents_file_id, &info.root)
+                .await?;
+        }
+
         let workspace: Workspace = Workspace {
             id: WorkspaceId::new(),
             name: input.name,
@@ -112,13 +125,15 @@ fn initialization_required(path: &std::path::Path, reason: InitializationReason)
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use mockall::Sequence;
     use mockall::predicate::eq;
 
     use super::*;
-    use crate::modules::workspaces::mocks::{MockGitRepository, MockWorkspaceRepository};
+    use crate::modules::workspaces::mocks::{
+        MockAgentsFiles, MockGitRepository, MockWorkspaceRepository,
+    };
 
     const ROOT: &str = "/repos/demo";
 
@@ -132,7 +147,12 @@ mod tests {
             path: PathBuf::from("/repos/demo/sub"),
             base_branch: branch.map(str::to_string),
             initialize,
+            agents_file_id: None,
         }
+    }
+
+    fn no_agents_files() -> Arc<dyn AgentsFilesPort> {
+        Arc::new(MockAgentsFiles::new())
     }
 
     fn repo_info(current: Option<&str>, has_commits: bool) -> GitRepositoryInfo {
@@ -173,6 +193,7 @@ mod tests {
         let use_case: RegisterWorkspace = RegisterWorkspace::new(
             Arc::new(repository),
             Arc::new(git_with_branch(Some("main"))),
+            no_agents_files(),
         );
 
         let workspace: Workspace = use_case.execute(input(None)).await.expect("registrado");
@@ -190,7 +211,7 @@ mod tests {
             .with(eq(PathBuf::from(ROOT)), eq("develop"))
             .returning(|_, _| Ok(true));
         let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(repository), Arc::new(git));
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git), no_agents_files());
 
         let workspace: Workspace = use_case
             .execute(input(Some("develop")))
@@ -204,8 +225,11 @@ mod tests {
     async fn rejects_unknown_branch() {
         let mut git: MockGitRepository = git_with_branch(Some("main"));
         git.expect_branch_exists().returning(|_, _| Ok(false));
-        let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(empty_repository()), Arc::new(git));
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(empty_repository()),
+            Arc::new(git),
+            no_agents_files(),
+        );
 
         let result: Result<Workspace, WorkspaceError> = use_case.execute(input(Some("nope"))).await;
 
@@ -220,6 +244,7 @@ mod tests {
         let use_case: RegisterWorkspace = RegisterWorkspace::new(
             Arc::new(empty_repository()),
             Arc::new(git_with_branch(None)),
+            no_agents_files(),
         );
 
         let result: Result<Workspace, WorkspaceError> = use_case.execute(input(None)).await;
@@ -242,6 +267,7 @@ mod tests {
         let use_case: RegisterWorkspace = RegisterWorkspace::new(
             Arc::new(repository),
             Arc::new(git_with_branch(Some("main"))),
+            no_agents_files(),
         );
 
         let result: Result<Workspace, WorkspaceError> = use_case.execute(input(None)).await;
@@ -257,8 +283,11 @@ mod tests {
         let mut git: MockGitRepository = MockGitRepository::new();
         git.expect_inspect()
             .returning(|_| Err(WorkspaceError::Git("boom".to_string())));
-        let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(MockWorkspaceRepository::new()), Arc::new(git));
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(MockWorkspaceRepository::new()),
+            Arc::new(git),
+            no_agents_files(),
+        );
 
         let result: Result<Workspace, WorkspaceError> = use_case.execute(input(None)).await;
 
@@ -288,7 +317,7 @@ mod tests {
             .returning(move |_| Ok(info.clone()));
 
         let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(repository), Arc::new(git));
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git), no_agents_files());
 
         let workspace: Workspace = use_case.execute(input(None)).await.expect("registrado");
 
@@ -321,7 +350,7 @@ mod tests {
             .returning(|_, _| Ok(true));
 
         let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(repository), Arc::new(git));
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git), no_agents_files());
 
         let workspace: Workspace = use_case
             .execute(input(Some("develop")))
@@ -343,7 +372,7 @@ mod tests {
             .returning(|_| Ok(()));
 
         let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(repository), Arc::new(git));
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git), no_agents_files());
 
         let workspace: Workspace = use_case.execute(input(None)).await.expect("registrado");
 
@@ -364,7 +393,7 @@ mod tests {
         });
         let git: MockGitRepository = git_with_info(Some("main"), false);
         let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(repository), Arc::new(git));
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git), no_agents_files());
 
         let result: Result<Workspace, WorkspaceError> = use_case.execute(input(None)).await;
 
@@ -379,8 +408,11 @@ mod tests {
         let mut git: MockGitRepository = MockGitRepository::new();
         git.expect_inspect()
             .returning(|p| Err(WorkspaceError::PathNotFound(p.display().to_string())));
-        let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(MockWorkspaceRepository::new()), Arc::new(git));
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(MockWorkspaceRepository::new()),
+            Arc::new(git),
+            no_agents_files(),
+        );
 
         let result: Result<Workspace, WorkspaceError> =
             use_case.execute(input_with_initialize(None, false)).await;
@@ -399,8 +431,11 @@ mod tests {
         let mut git: MockGitRepository = MockGitRepository::new();
         git.expect_inspect()
             .returning(|p| Err(WorkspaceError::NotAGitRepository(p.display().to_string())));
-        let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(MockWorkspaceRepository::new()), Arc::new(git));
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(MockWorkspaceRepository::new()),
+            Arc::new(git),
+            no_agents_files(),
+        );
 
         let result: Result<Workspace, WorkspaceError> =
             use_case.execute(input_with_initialize(None, false)).await;
@@ -419,7 +454,7 @@ mod tests {
         let repository: MockWorkspaceRepository = empty_repository();
         let git: MockGitRepository = git_with_info(Some("main"), false);
         let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(repository), Arc::new(git));
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git), no_agents_files());
 
         let result: Result<Workspace, WorkspaceError> =
             use_case.execute(input_with_initialize(None, false)).await;
@@ -440,11 +475,118 @@ mod tests {
             .returning(|p| Err(WorkspaceError::PathNotFound(p.display().to_string())));
         git.expect_init_repository()
             .returning(|_, _| Err(WorkspaceError::Git("init failed".to_string())));
-        let use_case: RegisterWorkspace =
-            RegisterWorkspace::new(Arc::new(MockWorkspaceRepository::new()), Arc::new(git));
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(MockWorkspaceRepository::new()),
+            Arc::new(git),
+            no_agents_files(),
+        );
 
         let result: Result<Workspace, WorkspaceError> = use_case.execute(input(None)).await;
 
         assert_eq!(result, Err(WorkspaceError::Git("init failed".to_string())));
+    }
+
+    fn input_with_agents_file(id: &str) -> NewWorkspace {
+        NewWorkspace {
+            agents_file_id: Some(id.to_string()),
+            ..input(None)
+        }
+    }
+
+    #[tokio::test]
+    async fn installs_agents_file_into_root_before_saving() {
+        let mut seq: Sequence = Sequence::new();
+        let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
+        agents_files
+            .expect_install()
+            .withf(|id: &str, root: &Path| id == "abc" && root == Path::new(ROOT))
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_, _| Ok(()));
+        let mut repository: MockWorkspaceRepository = empty_repository();
+        repository
+            .expect_save()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(()));
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(repository),
+            Arc::new(git_with_branch(Some("main"))),
+            Arc::new(agents_files),
+        );
+
+        let result: Result<Workspace, WorkspaceError> =
+            use_case.execute(input_with_agents_file(" abc ")).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn install_error_aborts_without_saving() {
+        let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
+        agents_files.expect_install().returning(|_, _| {
+            Err(WorkspaceError::AgentsFileTargetExists(
+                "/repos/demo/AGENTS.md".to_string(),
+            ))
+        });
+        let mut repository: MockWorkspaceRepository = empty_repository();
+        repository.expect_save().times(0);
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(repository),
+            Arc::new(git_with_branch(Some("main"))),
+            Arc::new(agents_files),
+        );
+
+        let result: Result<Workspace, WorkspaceError> =
+            use_case.execute(input_with_agents_file("abc")).await;
+
+        assert_eq!(
+            result,
+            Err(WorkspaceError::AgentsFileTargetExists(
+                "/repos/demo/AGENTS.md".to_string()
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn installs_after_initial_commit() {
+        let mut seq: Sequence = Sequence::new();
+        let mut git: MockGitRepository = git_with_info(Some("main"), false);
+        git.expect_create_initial_commit()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(()));
+        let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
+        agents_files
+            .expect_install()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_, _| Ok(()));
+        let mut repository: MockWorkspaceRepository = empty_repository();
+        repository.expect_save().times(1).returning(|_| Ok(()));
+        let use_case: RegisterWorkspace =
+            RegisterWorkspace::new(Arc::new(repository), Arc::new(git), Arc::new(agents_files));
+
+        let result: Result<Workspace, WorkspaceError> =
+            use_case.execute(input_with_agents_file("abc")).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn does_not_touch_agents_files_when_not_requested() {
+        let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
+        agents_files.expect_install().times(0);
+        let mut repository: MockWorkspaceRepository = empty_repository();
+        repository.expect_save().times(1).returning(|_| Ok(()));
+        let use_case: RegisterWorkspace = RegisterWorkspace::new(
+            Arc::new(repository),
+            Arc::new(git_with_branch(Some("main"))),
+            Arc::new(agents_files),
+        );
+
+        let result: Result<Workspace, WorkspaceError> = use_case.execute(input(None)).await;
+
+        assert!(result.is_ok());
     }
 }

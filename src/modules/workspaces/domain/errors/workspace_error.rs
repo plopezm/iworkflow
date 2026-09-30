@@ -27,6 +27,12 @@ pub enum WorkspaceError {
     NotFound(String),
     #[error("el workspace tiene tareas activas")]
     InUse,
+    #[error("fichero AGENTS.md no encontrado: {0}")]
+    AgentsFileNotFound(String),
+    #[error("ya existe AGENTS.md en {0}")]
+    AgentsFileTargetExists(String),
+    #[error("error al instalar AGENTS.md: {0}")]
+    AgentsFile(String),
     #[error("error de git: {0}")]
     Git(String),
     #[error("error de E/S: {0}")]

@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::directory_dto::DirectoryListingDto;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
-    RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, WorkspaceDto,
+    AgentsFileOptionDto, RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, WorkspaceDto,
 };
 
 #[cfg(feature = "ssr")]
@@ -33,6 +33,19 @@ mod support {
                 ServerFnError::ServerError("el workspace tiene tareas activas".to_string())
             );
         }
+
+        #[test]
+        fn agents_file_errors_keep_their_spanish_message() {
+            let error: ServerFnError = to_server_error(WorkspaceError::AgentsFileTargetExists(
+                "/repos/demo/AGENTS.md".to_string(),
+            ));
+            assert_eq!(
+                error,
+                ServerFnError::ServerError(
+                    "ya existe AGENTS.md en /repos/demo/AGENTS.md".to_string()
+                )
+            );
+        }
     }
 }
 
@@ -46,6 +59,18 @@ pub async fn list_workspaces() -> Result<Vec<WorkspaceDto>, ServerFnError> {
         .await
         .map_err(support::to_server_error)?;
     Ok(workspaces.into_iter().map(WorkspaceDto::from).collect())
+}
+
+#[server]
+pub async fn list_agents_file_options() -> Result<Vec<AgentsFileOptionDto>, ServerFnError> {
+    use crate::modules::workspaces::domain::models::agents_file_option::AgentsFileOption;
+
+    let options: Vec<AgentsFileOption> = support::context()?
+        .list_agents_file_options
+        .execute()
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(options.into_iter().map(AgentsFileOptionDto::from).collect())
 }
 
 #[server]

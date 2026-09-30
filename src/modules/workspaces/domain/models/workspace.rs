@@ -65,6 +65,8 @@ pub struct NewWorkspace {
     /// Confirmación explícita para crear la carpeta, inicializar el repositorio git
     /// o crear el commit inicial vacío cuando sea necesario.
     pub initialize: bool,
+    /// Fichero AGENTS.md guardado que se instala en la raíz del proyecto al registrarlo.
+    pub agents_file_id: Option<String>,
 }
 
 impl NewWorkspace {
@@ -83,11 +85,16 @@ impl NewWorkspace {
             .base_branch
             .map(|b: String| b.trim().to_string())
             .filter(|b: &String| !b.is_empty());
+        let agents_file_id: Option<String> = self
+            .agents_file_id
+            .map(|id: String| id.trim().to_string())
+            .filter(|id: &String| !id.is_empty());
         Ok(Self {
             name,
             path: self.path,
             base_branch,
             initialize: self.initialize,
+            agents_file_id,
         })
     }
 }
@@ -102,6 +109,7 @@ mod tests {
             path: PathBuf::from(path),
             base_branch: branch.map(str::to_string),
             initialize: true,
+            agents_file_id: None,
         }
     }
 
@@ -112,6 +120,20 @@ mod tests {
             .expect("válido");
         assert_eq!(result.name, "demo");
         assert_eq!(result.base_branch, None);
+    }
+
+    #[test]
+    fn validated_trims_agents_file_id_and_maps_blank_to_none() {
+        let mut with_id: NewWorkspace = input("demo", "/tmp/demo", None);
+        with_id.agents_file_id = Some("  abc ".to_string());
+        let mut blank: NewWorkspace = input("demo", "/tmp/demo", None);
+        blank.agents_file_id = Some("   ".to_string());
+
+        assert_eq!(
+            with_id.validated().expect("válido").agents_file_id,
+            Some("abc".to_string())
+        );
+        assert_eq!(blank.validated().expect("válido").agents_file_id, None);
     }
 
     #[test]

@@ -20,6 +20,16 @@ pub struct RegisterWorkspaceDto {
     /// o crear el commit inicial vacío cuando sea necesario.
     #[serde(default)]
     pub initialize: bool,
+    /// Fichero AGENTS.md guardado que se instala en el proyecto al registrarlo.
+    #[serde(default)]
+    pub agents_file_id: Option<String>,
+}
+
+/// Fichero AGENTS.md ofrecido al registrar un proyecto nuevo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentsFileOptionDto {
+    pub id: String,
+    pub description: String,
 }
 
 /// Motivo por el que se pide confirmación antes de inicializar un workspace.
@@ -49,9 +59,11 @@ mod mapping {
     use std::path::PathBuf;
 
     use super::{
-        InitializationReasonDto, RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, WorkspaceDto,
+        AgentsFileOptionDto, InitializationReasonDto, RegisterWorkspaceDto,
+        RegisterWorkspaceOutcomeDto, WorkspaceDto,
     };
     use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+    use crate::modules::workspaces::domain::models::agents_file_option::AgentsFileOption;
     use crate::modules::workspaces::domain::models::initialization_reason::InitializationReason;
     use crate::modules::workspaces::domain::models::workspace::{NewWorkspace, Workspace};
 
@@ -74,6 +86,16 @@ mod mapping {
                 path: PathBuf::from(dto.path.trim()),
                 base_branch: dto.base_branch,
                 initialize: dto.initialize,
+                agents_file_id: dto.agents_file_id,
+            }
+        }
+    }
+
+    impl From<AgentsFileOption> for AgentsFileOptionDto {
+        fn from(option: AgentsFileOption) -> Self {
+            Self {
+                id: option.id,
+                description: option.description,
             }
         }
     }
@@ -139,12 +161,35 @@ mod mapping {
                 path: "  /repos/demo  ".to_string(),
                 base_branch: None,
                 initialize: true,
+                agents_file_id: Some("abc".to_string()),
             };
 
             let input: NewWorkspace = NewWorkspace::from(dto);
 
             assert_eq!(input.path, PathBuf::from("/repos/demo"));
             assert!(input.initialize);
+            assert_eq!(input.agents_file_id, Some("abc".to_string()));
+        }
+
+        #[test]
+        fn register_dto_without_agents_file_id_deserializes_to_none() {
+            let dto: RegisterWorkspaceDto =
+                serde_json::from_str(r#"{"name":"Demo","path":"/repos/demo","base_branch":null}"#)
+                    .expect("json");
+
+            assert_eq!(dto.agents_file_id, None);
+            assert!(!dto.initialize);
+        }
+
+        #[test]
+        fn agents_file_option_maps_to_dto() {
+            let dto: AgentsFileOptionDto = AgentsFileOptionDto::from(AgentsFileOption {
+                id: "a".to_string(),
+                description: "Rust".to_string(),
+            });
+
+            assert_eq!(dto.id, "a");
+            assert_eq!(dto.description, "Rust");
         }
 
         #[test]
