@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 
@@ -50,6 +51,13 @@ pub trait TaskRepositoryPort: Send + Sync {
     async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError>;
     /// Vacía los diálogos pendientes de la tarea.
     async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError>;
+    /// Fija la actividad de subagentes. La tarea vuelve a cero al salir de los estados con
+    /// agente vivo (lo aplica `update_status`). No falla si la tarea ya no existe.
+    async fn set_subagent_activity(
+        &self,
+        id: TaskId,
+        activity: SubagentActivity,
+    ) -> Result<(), TaskError>;
     /// Borrado físico, solo si la tarea sigue en `Backlog` (los eventos asociados se
     /// eliminan en cascada). Devuelve `false` (sin modificar nada) si la tarea no
     /// existe o ya no está en `Backlog`.

@@ -81,6 +81,7 @@ fn is_board_relevant(kind: &TaskEventKind) -> bool {
             AgentEvent::DialogRequested(_)
                 | AgentEvent::DialogResolved { .. }
                 | AgentEvent::ProcessExited { .. }
+                | AgentEvent::SubagentsChanged { .. }
         ),
     }
 }

@@ -7,6 +7,7 @@ use uuid::Uuid;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 
 const MAX_TITLE_LENGTH: usize = 120;
 const MAX_SLUG_LENGTH: usize = 40;
@@ -242,6 +243,8 @@ pub struct Task {
     pub error: Option<String>,
     /// Diálogos abiertos por el agente y aún sin responder.
     pub pending_dialogs: Vec<PendingDialog>,
+    /// Subagentes vivos del agente principal (siguen trabajando aunque este se asiente).
+    pub subagents: SubagentActivity,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -276,10 +279,16 @@ impl Task {
             TaskStatus::Backlog => TaskStage::Backlog,
             TaskStatus::Merged | TaskStatus::Discarded => TaskStage::Done,
             TaskStatus::AwaitingReview => TaskStage::Review,
-            TaskStatus::Idle
-            | TaskStatus::Conflict
-            | TaskStatus::Failed
-            | TaskStatus::Interrupted => TaskStage::Attention,
+            TaskStatus::Idle => {
+                if self.pending_dialog_count_at(now) == 0 && self.subagents.is_working() {
+                    TaskStage::Working
+                } else {
+                    TaskStage::Attention
+                }
+            }
+            TaskStatus::Conflict | TaskStatus::Failed | TaskStatus::Interrupted => {
+                TaskStage::Attention
+            }
             TaskStatus::Starting | TaskStatus::Running | TaskStatus::Finishing => {
                 if self.pending_dialog_count_at(now) == 0 {
                     TaskStage::Working
@@ -552,6 +561,7 @@ mod tests {
             status,
             error: None,
             pending_dialogs,
+            subagents: SubagentActivity::default(),
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }
@@ -602,6 +612,22 @@ mod tests {
                 TaskStage::Attention
             );
         }
+    }
+
+    #[test]
+    fn idle_with_active_subagents_is_working_unless_dialog_pending() {
+        let mut idle: Task = task_with(TaskStatus::Idle, vec![]);
+        idle.subagents = SubagentActivity::new(2, 0);
+        assert_eq!(idle.stage(), TaskStage::Working);
+        assert!(!idle.needs_attention());
+
+        let mut blocked: Task = task_with(TaskStatus::Idle, vec![dialog("d1")]);
+        blocked.subagents = SubagentActivity::new(2, 0);
+        assert_eq!(blocked.stage(), TaskStage::Attention);
+
+        let mut only_waiting: Task = task_with(TaskStatus::Idle, vec![]);
+        only_waiting.subagents = SubagentActivity::new(0, 1);
+        assert_eq!(only_waiting.stage(), TaskStage::Attention);
     }
 
     #[test]

@@ -9,6 +9,7 @@ use crate::core::db::pool::{DbConnection, DbPool};
 use crate::core::db::schema::{task_events, tasks};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
@@ -16,7 +17,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::persistence::mode
     NewTaskEventRow, TaskEventRow,
 };
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::models::task_row::{
-    TaskRow, decode_pending_dialogs, encode_pending_dialogs,
+    TaskRow, clamp_count, decode_pending_dialogs, encode_pending_dialogs,
 };
 
 pub struct TaskRepositoryAdapter {
@@ -113,6 +114,42 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         if updated == 0 {
             return Err(TaskError::NotFound(id.to_string()));
         }
+        if !status.has_live_agent() {
+            diesel::update(tasks::table.find(id.to_string()))
+                .set((
+                    tasks::subagents_active.eq(0),
+                    tasks::subagents_waiting.eq(0),
+                ))
+                .execute(&mut connection)
+                .await
+                .map_err(db_error)?;
+        }
+        Ok(())
+    }
+
+    async fn set_subagent_activity(
+        &self,
+        id: TaskId,
+        activity: SubagentActivity,
+    ) -> Result<(), TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let live: Vec<String> = TaskStatus::ALL
+            .into_iter()
+            .filter(|s: &TaskStatus| s.has_live_agent())
+            .map(|s: TaskStatus| s.as_str().to_string())
+            .collect();
+        diesel::update(
+            tasks::table
+                .find(id.to_string())
+                .filter(tasks::status.eq_any(live)),
+        )
+        .set((
+            tasks::subagents_active.eq(clamp_count(activity.active)),
+            tasks::subagents_waiting.eq(clamp_count(activity.waiting)),
+        ))
+        .execute(&mut connection)
+        .await
+        .map_err(db_error)?;
         Ok(())
     }
 

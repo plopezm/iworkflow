@@ -42,6 +42,8 @@ diesel::table! {
         created_at -> Timestamp,
         updated_at -> Timestamp,
         pending_dialogs -> Text,
+        subagents_active -> Integer,
+        subagents_waiting -> Integer,
     }
 }
 

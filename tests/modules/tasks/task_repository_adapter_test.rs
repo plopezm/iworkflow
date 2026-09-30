@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, SubsecRound, Utc};
 use pi_workflow::modules::tasks::domain::models::agent_event::AgentEvent;
 use pi_workflow::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use pi_workflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use pi_workflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use pi_workflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use pi_workflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
@@ -43,6 +44,7 @@ fn task(workspace_id: &str, title: &str) -> Task {
         status: TaskStatus::Starting,
         error: None,
         pending_dialogs: Vec::new(),
+        subagents: SubagentActivity::default(),
         created_at: now,
         updated_at: now,
     }
@@ -509,4 +511,41 @@ async fn workspace_with_tasks_cannot_be_deleted() {
         .await;
 
     assert_eq!(result, Err(WorkspaceError::InUse));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn subagent_activity_persists_while_live_and_resets_when_agent_is_gone() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/subagents").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let mut live: Task = task(&ws.id.to_string(), "vivo");
+    live.status = TaskStatus::Idle;
+    adapter.insert(&live).await.expect("insert");
+
+    adapter
+        .set_subagent_activity(live.id, SubagentActivity::new(2, 1))
+        .await
+        .expect("actividad");
+    assert_eq!(
+        found(&adapter, live.id).await.subagents,
+        SubagentActivity::new(2, 1)
+    );
+
+    adapter
+        .update_status(live.id, TaskStatus::AwaitingReview, None)
+        .await
+        .expect("estado");
+    assert_eq!(
+        found(&adapter, live.id).await.subagents,
+        SubagentActivity::default()
+    );
+
+    adapter
+        .set_subagent_activity(live.id, SubagentActivity::new(3, 0))
+        .await
+        .expect("ignorada");
+    assert_eq!(
+        found(&adapter, live.id).await.subagents,
+        SubagentActivity::default()
+    );
 }

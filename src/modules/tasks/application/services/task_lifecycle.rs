@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
@@ -105,6 +106,11 @@ impl TaskLifecycle {
     /// actualizado.
     pub async fn record(&self, id: TaskId, event: AgentEvent) -> Result<(), TaskError> {
         self.sync_pending_dialogs(id, &event).await?;
+        if let AgentEvent::SubagentsChanged { active, waiting } = &event {
+            self.repository
+                .set_subagent_activity(id, SubagentActivity::new(*active, *waiting))
+                .await?;
+        }
         self.emit(id, TaskEventKind::Agent { event }).await
     }
 
@@ -239,6 +245,31 @@ mod tests {
                 dialog_id: "d1".to_string()
             }]
         );
+    }
+
+    #[tokio::test]
+    async fn subagent_changes_are_persisted_and_published() {
+        let task: Task = test_support::task(TaskStatus::Idle);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let lifecycle: Arc<TaskLifecycle> = test_support::lifecycle(Some(task), &recorded);
+
+        lifecycle
+            .record(
+                id,
+                AgentEvent::SubagentsChanged {
+                    active: 2,
+                    waiting: 1,
+                },
+            )
+            .await
+            .expect("registrado");
+
+        assert_eq!(
+            recorded.subagent_activity(),
+            vec![SubagentActivity::new(2, 1)]
+        );
+        assert_eq!(recorded.published.lock().expect("lock").len(), 1);
     }
 
     #[tokio::test]
