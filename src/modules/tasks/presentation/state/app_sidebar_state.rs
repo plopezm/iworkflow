@@ -54,7 +54,8 @@ pub fn build_workspace_rows(
         .collect()
 }
 
-/// Filas de tareas, las actualizadas más recientemente primero (RFC 3339 ordena como texto).
+/// Filas de las tareas que requieren atención, las actualizadas más recientemente primero
+/// (RFC 3339 ordena como texto).
 pub fn build_task_rows(
     tasks: &[TaskDto],
     workspaces: &[WorkspaceOptionDto],
@@ -63,7 +64,10 @@ pub fn build_task_rows(
         .iter()
         .map(|w: &WorkspaceOptionDto| (w.id.as_str(), w.name.as_str()))
         .collect();
-    let mut sorted: Vec<&TaskDto> = tasks.iter().collect();
+    let mut sorted: Vec<&TaskDto> = tasks
+        .iter()
+        .filter(|t: &&TaskDto| t.needs_attention)
+        .collect();
     sorted.sort_by(|a: &&TaskDto, b: &&TaskDto| b.updated_at.cmp(&a.updated_at));
     sorted
         .into_iter()
@@ -158,6 +162,15 @@ mod tests {
     }
 
     fn task(id: &str, workspace_id: &str, updated_at: &str) -> TaskDto {
+        attention_task(id, workspace_id, updated_at, true)
+    }
+
+    fn attention_task(
+        id: &str,
+        workspace_id: &str,
+        updated_at: &str,
+        needs_attention: bool,
+    ) -> TaskDto {
         TaskDto {
             id: id.to_string(),
             workspace_id: workspace_id.to_string(),
@@ -170,7 +183,7 @@ mod tests {
             error: None,
             actions: Default::default(),
             stage: TaskStageDto::Working,
-            needs_attention: false,
+            needs_attention,
             pending_dialogs: 0,
             created_at: updated_at.to_string(),
             updated_at: updated_at.to_string(),
@@ -206,6 +219,18 @@ mod tests {
         assert_eq!(ids, ["new", "orphan", "old"]);
         assert_eq!(rows[0].subtitle, "Esperando · uno");
         assert_eq!(rows[1].subtitle, "Esperando");
+    }
+
+    #[test]
+    fn task_rows_only_include_tasks_needing_attention() {
+        let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("w1", "uno")];
+        let tasks: Vec<TaskDto> = vec![
+            attention_task("calm", "w1", "2026-03-01T00:00:00Z", false),
+            attention_task("urgent", "w1", "2026-01-01T00:00:00Z", true),
+        ];
+        let rows: Vec<SidebarTaskRow> = build_task_rows(&tasks, &workspaces);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].id, "urgent");
     }
 
     #[test]

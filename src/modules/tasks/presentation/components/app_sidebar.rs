@@ -43,7 +43,7 @@ pub fn AppSidebar() -> impl IntoView {
                 <p class="muted">"Aún no hay workspaces."</p>
             </Show>
         </SidebarSection>
-        <SidebarSection title="Tareas" count=task_count>
+        <SidebarSection title="Requieren atención" count=task_count>
             <For
                 each=move || state.task_rows.get()
                 key=|row: &SidebarTaskRow| {
@@ -72,7 +72,7 @@ pub fn AppSidebar() -> impl IntoView {
                 }
             />
             <Show when=move || task_count.get() == 0>
-                <p class="muted">"Aún no hay tareas."</p>
+                <p class="muted">"Nada requiere atención."</p>
             </Show>
         </SidebarSection>
     }
