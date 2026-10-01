@@ -354,6 +354,7 @@ mod tests {
                     model: "claude-5".to_string(),
                 }),
                 thinking: None,
+                ..Default::default()
             })
         });
         let use_case: StartTask = StartTask::new(
@@ -388,6 +389,7 @@ mod tests {
             Ok(LaunchOptions {
                 model: None,
                 thinking: Some("high".to_string()),
+                ..Default::default()
             })
         });
         let use_case: StartTask = StartTask::new(

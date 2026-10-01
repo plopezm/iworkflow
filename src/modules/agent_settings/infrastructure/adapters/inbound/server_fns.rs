@@ -80,6 +80,17 @@ pub async fn list_thinking_levels() -> Result<Vec<String>, ServerFnError> {
         .collect())
 }
 
+/// Lista los identificadores de las implementaciones de agente disponibles.
+#[server]
+pub async fn list_runtime_options() -> Result<Vec<String>, ServerFnError> {
+    use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
+
+    Ok(AgentRuntime::ALL
+        .iter()
+        .map(|runtime: &AgentRuntime| runtime.as_str().to_string())
+        .collect())
+}
+
 // Json: la codificación url-encoded por defecto omite el `input` entero cuando
 // todos sus campos son `None` (los dos selectores en "Por defecto").
 #[server(input = server_fn::codec::Json)]

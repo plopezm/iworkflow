@@ -1,1 +1,0 @@
-pub mod gentle_shell_model_catalog_adapter;

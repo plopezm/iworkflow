@@ -11,7 +11,7 @@ use crate::modules::agent_settings::domain::ports::outbound::agent_settings_repo
 use crate::modules::agent_settings::domain::ports::outbound::model_catalog_port::ModelCatalogPort;
 use crate::modules::agent_settings::domain::ports::outbound::profile_catalog_port::ProfileCatalogPort;
 use crate::modules::agent_settings::domain::ports::outbound::profile_pin_port::ProfilePinPort;
-use crate::modules::agent_settings::infrastructure::adapters::outbound::gentle_shell::gentle_shell_model_catalog_adapter::GentleShellModelCatalogAdapter;
+use crate::modules::agent_settings::infrastructure::adapters::outbound::cli::agent_cli_model_catalog_adapter::AgentCliModelCatalogAdapter;
 use crate::modules::agent_settings::infrastructure::adapters::outbound::git::git_profile_pin_adapter::GitProfilePinAdapter;
 use crate::modules::agent_settings::infrastructure::adapters::outbound::persistence::agent_settings_repository_adapter::AgentSettingsRepositoryAdapter;
 use crate::modules::agent_settings::infrastructure::adapters::outbound::profiles::profiles_file_catalog_adapter::ProfilesFileCatalogAdapter;
@@ -19,6 +19,7 @@ use crate::modules::agent_settings::infrastructure::adapters::outbound::profiles
 /// Ajustes externos necesarios para construir los adaptadores del feature.
 pub struct AgentSettingsSettings {
     pub gentle_shell_bin: String,
+    pub pi_bin: String,
     pub gentle_pi_config_home: PathBuf,
 }
 
@@ -35,16 +36,17 @@ impl AgentSettingsContext {
     pub fn new(pool: DbPool, settings: AgentSettingsSettings) -> Self {
         let repository: Arc<dyn AgentSettingsRepositoryPort> =
             Arc::new(AgentSettingsRepositoryAdapter::new(pool));
-        let model_catalog: Arc<dyn ModelCatalogPort> = Arc::new(
-            GentleShellModelCatalogAdapter::new(settings.gentle_shell_bin),
-        );
+        let model_catalog: Arc<dyn ModelCatalogPort> = Arc::new(AgentCliModelCatalogAdapter::new(
+            settings.gentle_shell_bin,
+            settings.pi_bin,
+        ));
         let profile_catalog: Arc<dyn ProfileCatalogPort> = Arc::new(
             ProfilesFileCatalogAdapter::new(settings.gentle_pi_config_home),
         );
         let pin: Arc<dyn ProfilePinPort> = Arc::new(GitProfilePinAdapter::new());
         Self {
             get_agent_settings: Arc::new(GetAgentSettings::new(repository.clone())),
-            list_models: Arc::new(ListModels::new(model_catalog.clone())),
+            list_models: Arc::new(ListModels::new(repository.clone(), model_catalog.clone())),
             list_profiles: Arc::new(ListProfiles::new(profile_catalog.clone())),
             update_agent_settings: Arc::new(UpdateAgentSettings::new(
                 repository.clone(),

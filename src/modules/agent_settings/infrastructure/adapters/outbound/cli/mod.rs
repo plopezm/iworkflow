@@ -1,0 +1,1 @@
+pub mod agent_cli_model_catalog_adapter;

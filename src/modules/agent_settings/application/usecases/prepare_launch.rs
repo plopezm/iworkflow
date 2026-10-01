@@ -2,8 +2,10 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::agent_settings::AgentSettings;
 use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPreferences;
+use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
 use crate::modules::agent_settings::domain::ports::outbound::agent_settings_repository_port::AgentSettingsRepositoryPort;
 use crate::modules::agent_settings::domain::ports::outbound::profile_pin_port::ProfilePinPort;
 
@@ -25,8 +27,14 @@ impl PrepareLaunch {
 
     pub async fn execute(&self, cwd: &Path) -> Result<LaunchPreferences, AgentSettingsError> {
         let settings: AgentSettings = self.repository.get().await?;
-        self.pin.apply(cwd, settings.profile.as_ref()).await?;
+        // Los perfiles son de gentle-ai: con `pi` plano se retira el pin del worktree.
+        let profile: Option<&ProfileName> = match settings.runtime {
+            Some(AgentRuntime::Pi) => None,
+            _ => settings.profile.as_ref(),
+        };
+        self.pin.apply(cwd, profile).await?;
         Ok(LaunchPreferences {
+            runtime: settings.runtime,
             model: settings.model,
             thinking: settings.thinking,
         })
@@ -37,7 +45,6 @@ impl PrepareLaunch {
 mod tests {
     use super::*;
     use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
-    use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
     use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
     use crate::modules::agent_settings::mocks::{MockAgentSettingsRepository, MockProfilePin};
     use std::path::PathBuf;
@@ -53,6 +60,7 @@ mod tests {
                 }),
                 profile: Some(ProfileName::parse("Claude").expect("profile")),
                 thinking: Some(ThinkingLevel::High),
+                ..Default::default()
             })
         });
         let mut pin: MockProfilePin = MockProfilePin::new();
@@ -74,6 +82,7 @@ mod tests {
                     model: "claude-5".to_string(),
                 }),
                 thinking: Some(ThinkingLevel::High),
+                ..Default::default()
             }
         );
     }
@@ -96,5 +105,30 @@ mod tests {
             .expect("prepare");
 
         assert_eq!(result, LaunchPreferences::default());
+    }
+
+    #[tokio::test]
+    async fn pi_runtime_drops_the_profile_pin_and_is_returned() {
+        let mut repository: MockAgentSettingsRepository = MockAgentSettingsRepository::new();
+        repository.expect_get().returning(|| {
+            Ok(AgentSettings {
+                runtime: Some(AgentRuntime::Pi),
+                profile: Some(ProfileName::parse("Claude").expect("profile")),
+                ..AgentSettings::default()
+            })
+        });
+        let mut pin: MockProfilePin = MockProfilePin::new();
+        pin.expect_apply()
+            .withf(|_cwd, profile| profile.is_none())
+            .times(1)
+            .returning(|_, _| Ok(()));
+        let use_case: PrepareLaunch = PrepareLaunch::new(Arc::new(repository), Arc::new(pin));
+
+        let result: LaunchPreferences = use_case
+            .execute(&PathBuf::from("/worktree"))
+            .await
+            .expect("prepare");
+
+        assert_eq!(result.runtime, Some(AgentRuntime::Pi));
     }
 }

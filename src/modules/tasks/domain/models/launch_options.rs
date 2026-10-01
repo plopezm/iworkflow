@@ -11,6 +11,9 @@ pub struct LaunchModel {
 /// feature; el dominio de nivel de razonamiento vive en `agent_settings`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct LaunchOptions {
+    /// Identificador del ejecutable a lanzar (`"gentle-shell"` o `"pi"`); `None` usa el
+    /// runtime por defecto del adaptador.
+    pub runtime: Option<String>,
     pub model: Option<LaunchModel>,
     pub thinking: Option<String>,
 }

@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 const DEFAULT_GENTLE_SHELL_BIN: &str = "gentle-shell";
+const DEFAULT_PI_BIN: &str = "pi";
 const DEFAULT_DATA_DIR: &str = ".pi-dashboard";
 const DEFAULT_DATABASE_FILE: &str = "workspaces.db";
 const DEFAULT_WORKTREES_DIR: &str = "worktrees";
@@ -20,6 +21,8 @@ pub struct AppConfig {
     pub database_url: String,
     /// Ejecutable de gentle-shell que se lanza en modo RPC.
     pub gentle_shell_bin: String,
+    /// Ejecutable de pi (sin gentle-ai) que se lanza en modo RPC cuando se elige ese runtime.
+    pub pi_bin: String,
     /// Carpeta raíz donde se crean los worktrees de las tareas.
     pub worktrees_dir: PathBuf,
     /// Carpeta home del usuario que ejecuta el proceso (punto de partida del explorador de directorios).
@@ -44,6 +47,7 @@ impl AppConfig {
         });
         let gentle_shell_bin: String = std::env::var("GENTLE_SHELL_BIN")
             .unwrap_or_else(|_| DEFAULT_GENTLE_SHELL_BIN.to_string());
+        let pi_bin: String = std::env::var("PI_BIN").unwrap_or_else(|_| DEFAULT_PI_BIN.to_string());
         let worktrees_dir: PathBuf = std::env::var("WORKTREES_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| data_dir.join(DEFAULT_WORKTREES_DIR));
@@ -58,6 +62,7 @@ impl AppConfig {
         Ok(Self {
             database_url,
             gentle_shell_bin,
+            pi_bin,
             worktrees_dir,
             home_dir: home,
             gentle_pi_config_home,

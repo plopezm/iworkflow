@@ -2,6 +2,7 @@ use diesel::prelude::*;
 
 use crate::core::db::schema::agent_settings;
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::agent_settings::AgentSettings;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
@@ -18,6 +19,7 @@ pub struct AgentSettingsRow {
     pub model_id: Option<String>,
     pub profile: Option<String>,
     pub thinking: Option<String>,
+    pub runtime: Option<String>,
 }
 
 impl From<&AgentSettings> for AgentSettingsRow {
@@ -37,6 +39,10 @@ impl From<&AgentSettings> for AgentSettingsRow {
                 .thinking
                 .as_ref()
                 .map(|t: &ThinkingLevel| t.as_str().to_string()),
+            runtime: settings
+                .runtime
+                .as_ref()
+                .map(|r: &AgentRuntime| r.as_str().to_string()),
         }
     }
 }
@@ -57,7 +63,12 @@ impl TryFrom<AgentSettingsRow> for AgentSettings {
             .thinking
             .map(|t: String| ThinkingLevel::parse(&t))
             .transpose()?;
+        let runtime: Option<AgentRuntime> = row
+            .runtime
+            .map(|r: String| AgentRuntime::parse(&r))
+            .transpose()?;
         Ok(Self {
+            runtime,
             model,
             profile,
             thinking,

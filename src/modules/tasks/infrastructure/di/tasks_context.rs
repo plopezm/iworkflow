@@ -38,6 +38,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::gentle_s
 #[derive(Debug, Clone)]
 pub struct TasksSettings {
     pub gentle_shell_bin: String,
+    pub pi_bin: String,
     pub worktrees_dir: PathBuf,
 }
 
@@ -72,8 +73,10 @@ impl TasksContext {
         workspaces: Arc<dyn WorkspaceLookupPort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
     ) -> Self {
-        let runtime: Arc<dyn AgentRuntimePort> =
-            Arc::new(GentleShellRuntimeAdapter::new(settings.gentle_shell_bin));
+        let runtime: Arc<dyn AgentRuntimePort> = Arc::new(GentleShellRuntimeAdapter::new(
+            settings.gentle_shell_bin,
+            settings.pi_bin,
+        ));
         Self::with_runtime(
             pool,
             settings.worktrees_dir,

@@ -7,6 +7,7 @@ diesel::table! {
         model_id -> Nullable<Text>,
         profile -> Nullable<Text>,
         thinking -> Nullable<Text>,
+        runtime -> Nullable<Text>,
     }
 }
 

@@ -17,6 +17,7 @@ use crate::modules::agent_settings::infrastructure::di::agent_settings_context::
 use crate::modules::agent_settings::application::usecases::prepare_launch::PrepareLaunch;
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
 use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPreferences;
+use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
@@ -68,6 +69,7 @@ impl AppState {
             pool.clone(),
             AgentSettingsSettings {
                 gentle_shell_bin: config.gentle_shell_bin.clone(),
+                pi_bin: config.pi_bin.clone(),
                 gentle_pi_config_home: config.gentle_pi_config_home.clone(),
             },
         );
@@ -78,6 +80,7 @@ impl AppState {
             pool.clone(),
             TasksSettings {
                 gentle_shell_bin: config.gentle_shell_bin.clone(),
+                pi_bin: config.pi_bin.clone(),
                 worktrees_dir: config.worktrees_dir.clone(),
             },
             lookup,
@@ -202,6 +205,9 @@ impl LaunchSettingsPort for LaunchSettingsBridge {
             .await
             .map_err(|error: AgentSettingsError| TaskError::Runtime(error.to_string()))?;
         Ok(LaunchOptions {
+            runtime: preferences
+                .runtime
+                .map(|r: AgentRuntime| r.as_str().to_string()),
             model: preferences.model.map(|m: ModelRef| LaunchModel {
                 provider: m.provider,
                 model: m.model,

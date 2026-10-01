@@ -36,6 +36,7 @@ mod tests {
                 }),
                 profile: None,
                 thinking: None,
+                ..Default::default()
             })
         });
         let use_case: GetAgentSettings = GetAgentSettings::new(Arc::new(repository));

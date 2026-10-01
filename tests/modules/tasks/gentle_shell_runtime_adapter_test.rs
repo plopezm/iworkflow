@@ -136,6 +136,7 @@ async fn appends_provider_and_model_flags_when_set() {
             model: "claude-5".to_string(),
         }),
         thinking: None,
+        ..Default::default()
     };
 
     adapter
@@ -163,6 +164,7 @@ async fn appends_thinking_flag_when_set_with_model() {
             model: "claude-5".to_string(),
         }),
         thinking: Some("high".to_string()),
+        ..Default::default()
     };
 
     adapter
@@ -187,6 +189,7 @@ async fn appends_thinking_flag_when_set_without_model() {
     let options: LaunchOptions = LaunchOptions {
         model: None,
         thinking: Some("low".to_string()),
+        ..Default::default()
     };
 
     adapter
@@ -328,7 +331,7 @@ async fn reports_exit_and_unregisters_when_process_dies() {
 async fn missing_binary_is_a_runtime_error() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
     let adapter: GentleShellRuntimeAdapter =
-        GentleShellRuntimeAdapter::new("/nonexistent/gentle-shell");
+        GentleShellRuntimeAdapter::new("/nonexistent/gentle-shell", "/nonexistent/pi");
 
     let result: Result<(), TaskError> = adapter
         .start(
@@ -343,4 +346,48 @@ async fn missing_binary_is_a_runtime_error() {
     assert!(
         matches!(result, Err(TaskError::Runtime(message)) if message.contains("no se pudo lanzar"))
     );
+}
+
+async fn launch_error_for(runtime: Option<&str>) -> String {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: GentleShellRuntimeAdapter =
+        GentleShellRuntimeAdapter::new("/nonexistent/gentle-shell", "/nonexistent/pi");
+    let options: LaunchOptions = LaunchOptions {
+        runtime: runtime.map(str::to_string),
+        ..LaunchOptions::default()
+    };
+
+    match adapter
+        .start(
+            TaskId::new(),
+            dir.path(),
+            false,
+            &options,
+            Arc::new(CollectingSink::default()),
+        )
+        .await
+    {
+        Err(TaskError::Runtime(message)) => message,
+        other => panic!("se esperaba un error de runtime, no {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn pi_runtime_launches_the_pi_binary() {
+    assert!(
+        launch_error_for(Some("pi"))
+            .await
+            .contains("/nonexistent/pi")
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn default_and_gentle_shell_runtime_launch_gentle_shell() {
+    for runtime in [None, Some("gentle-shell")] {
+        assert!(
+            launch_error_for(runtime)
+                .await
+                .contains("/nonexistent/gentle-shell")
+        );
+    }
 }

@@ -3,6 +3,7 @@ use std::path::Path;
 use mockall::mock;
 
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::agent_settings::AgentSettings;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::profile_catalog::ProfileCatalog;
@@ -27,7 +28,7 @@ mock! {
 
     #[async_trait::async_trait]
     impl ModelCatalogPort for ModelCatalog {
-        async fn list(&self) -> Result<Vec<ModelRef>, AgentSettingsError>;
+        async fn list(&self, runtime: AgentRuntime) -> Result<Vec<ModelRef>, AgentSettingsError>;
     }
 }
 

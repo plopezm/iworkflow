@@ -6,7 +6,7 @@ use crate::modules::agent_settings::infrastructure::adapters::inbound::dto::agen
 };
 use crate::modules::agent_settings::infrastructure::adapters::inbound::server_fns::{
     UpdateAgentSettings, get_agent_settings, list_model_options, list_profile_options,
-    list_thinking_levels,
+    list_runtime_options, list_thinking_levels,
 };
 
 /// Separador entre proveedor y modelo dentro del `value` del selector de modelo.
@@ -31,6 +31,7 @@ fn decode_model_value(value: &str) -> Option<(String, String)> {
 #[derive(Clone, Copy)]
 pub struct AgentSettingsState {
     pub settings: Resource<Result<AgentSettingsDto, ServerFnError>>,
+    pub runtimes: Resource<Result<Vec<String>, ServerFnError>>,
     pub models: Resource<Result<Vec<ModelOptionDto>, ServerFnError>>,
     pub profiles: Resource<Result<ProfileCatalogDto, ServerFnError>>,
     pub thinking_levels: Resource<Result<Vec<String>, ServerFnError>>,
@@ -44,14 +45,17 @@ impl AgentSettingsState {
         let update: ServerAction<UpdateAgentSettings> = ServerAction::new();
         let settings: Resource<Result<AgentSettingsDto, ServerFnError>> =
             Resource::new(move || update.version().get(), |_| get_agent_settings());
+        let runtimes: Resource<Result<Vec<String>, ServerFnError>> =
+            Resource::new(|| (), |_| list_runtime_options());
         let models: Resource<Result<Vec<ModelOptionDto>, ServerFnError>> =
-            Resource::new(|| (), |_| list_model_options());
+            Resource::new(move || update.version().get(), |_| list_model_options());
         let profiles: Resource<Result<ProfileCatalogDto, ServerFnError>> =
             Resource::new(move || update.version().get(), |_| list_profile_options());
         let thinking_levels: Resource<Result<Vec<String>, ServerFnError>> =
             Resource::new(|| (), |_| list_thinking_levels());
         Self {
             settings,
+            runtimes,
             models,
             profiles,
             thinking_levels,
@@ -59,6 +63,22 @@ impl AgentSettingsState {
             toasts: RwSignal::new(Vec::new()),
             toast_seq: RwSignal::new(0),
         }
+    }
+
+    /// Cambia la implementación de agente (gentle-shell / pi). El catálogo de modelos
+    /// es propio de cada runtime, así que se vuelve al modelo por defecto; el resto se
+    /// mantiene. `value` vacío vuelve al runtime por defecto (gentle-shell).
+    pub fn select_runtime(&self, current: &AgentSettingsDto, value: String) {
+        let runtime: Option<String> = Some(value).filter(|v: &String| !v.is_empty());
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                runtime,
+                model_provider: None,
+                model_id: None,
+                profile: current.profile.clone(),
+                thinking: current.thinking.clone(),
+            },
+        });
     }
 
     /// Cambia el modelo manteniendo el perfil actual; `value` vacío vuelve al valor
@@ -71,6 +91,7 @@ impl AgentSettingsState {
             };
         self.update.dispatch(UpdateAgentSettings {
             input: AgentSettingsDto {
+                runtime: current.runtime.clone(),
                 model_provider,
                 model_id,
                 profile: current.profile.clone(),
@@ -85,6 +106,7 @@ impl AgentSettingsState {
         let profile: Option<String> = Some(value).filter(|v: &String| !v.is_empty());
         self.update.dispatch(UpdateAgentSettings {
             input: AgentSettingsDto {
+                runtime: current.runtime.clone(),
                 model_provider: current.model_provider.clone(),
                 model_id: current.model_id.clone(),
                 profile,
@@ -99,6 +121,7 @@ impl AgentSettingsState {
         let thinking: Option<String> = Some(value).filter(|v: &String| !v.is_empty());
         self.update.dispatch(UpdateAgentSettings {
             input: AgentSettingsDto {
+                runtime: current.runtime.clone(),
                 model_provider: current.model_provider.clone(),
                 model_id: current.model_id.clone(),
                 profile: current.profile.clone(),

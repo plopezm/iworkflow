@@ -10,7 +10,27 @@ use crate::modules::agent_settings::presentation::state::agent_settings_state::{
     AgentSettingsState, encode_model_value,
 };
 
+/// Runtime por defecto (el que representa la opción vacía del selector).
+const DEFAULT_RUNTIME: &str = "gentle-shell";
+/// Identificador del runtime `pi` (el dominio es `AgentRuntime::Pi`).
+const PI_RUNTIME: &str = "pi";
 const APPLIES_TO_NEW_TASKS_HINT: &str = "Los cambios se aplican a las tareas nuevas que se inicien, no a las que ya están en marcha ni a las que se reanudan.";
+
+/// Icono de runtime (terminal) para el selector de implementación de agente.
+fn runtime_icon() -> impl IntoView {
+    view! {
+        <svg viewBox="0 0 20 20" fill="none">
+            <rect x="2.5" y="3.5" width="15" height="13" rx="2" stroke="currentColor" stroke-width="1.5" />
+            <path
+                d="M6 8L9 10.5L6 13M10.5 13H14"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+            />
+        </svg>
+    }
+}
 
 /// Icono de modelo (cpu) para el selector de modelo.
 fn model_icon() -> impl IntoView {
@@ -94,7 +114,7 @@ fn profile_option_label(name: &str, active: Option<&str>) -> String {
     }
 }
 
-/// Barra de ajustes del agente: selector de modelo (orquestador) y de perfil
+/// Barra de ajustes del agente: selector de agente (gentle-shell/pi), de modelo (orquestador) y de perfil
 /// (`gentle:profiles`), aplicados a las próximas tareas que se inicien. Cada selector
 /// vive en su propia `Transition` para que una lista de modelos lenta (llama a
 /// `gentle-shell --list-models`) no bloquee el resto de la barra ni de la página.
@@ -114,6 +134,40 @@ pub fn AgentSettingsBar() -> impl IntoView {
             class="flex flex-col gap-1.5"
             title=APPLIES_TO_NEW_TASKS_HINT
         >
+            <Transition fallback=|| view! {
+                <span class="select-pill-skeleton" aria-hidden="true"></span>
+            }>
+                {move || Suspend::new(async move {
+                    let settings: AgentSettingsDto = match state.settings.await {
+                        Ok(settings) => settings,
+                        Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
+                    };
+                    let runtimes: Vec<String> = match state.runtimes.await {
+                        Ok(runtimes) => runtimes,
+                        Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
+                    };
+                    let current_value: String = settings.runtime.clone().unwrap_or_default();
+                    let options: Vec<SelectOption> = runtimes
+                        .iter()
+                        .filter(|id: &&String| id.as_str() != DEFAULT_RUNTIME)
+                        .map(|id: &String| SelectOption::new(id.clone(), id.clone()))
+                        .collect();
+                    view! {
+                        <OptionSelect
+                            label="Agente"
+                            value=current_value
+                            options=options
+                            default_label=DEFAULT_RUNTIME
+                            on_change=Callback::new(move |value: String| {
+                                state.select_runtime(&settings, value)
+                            })
+                            disabled=pending
+                            icon=runtime_icon
+                        />
+                    }
+                        .into_any()
+                })}
+            </Transition>
             <Transition fallback=|| view! {
                 <span class="select-pill-skeleton" aria-hidden="true"></span>
             }>
@@ -197,6 +251,10 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         Ok(settings) => settings,
                         Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
                     };
+                    if settings.runtime.as_deref() == Some(PI_RUNTIME) {
+                        // Los perfiles son de gentle-ai: no aplican con `pi`.
+                        return ().into_any();
+                    }
                     let catalog: ProfileCatalogDto = match state.profiles.await {
                         Ok(catalog) => catalog,
                         Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),

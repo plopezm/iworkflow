@@ -24,6 +24,8 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::rpc_prot
 
 /// Activa diálogos (`ask_user_*`) y widgets de actividad en gentle-shell.
 const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
+/// Identificador del runtime `pi` en `LaunchOptions::runtime`.
+const PI_RUNTIME: &str = "pi";
 const RESUME_FLAG: &str = "--continue";
 const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -40,6 +42,7 @@ type Registry = Arc<Mutex<HashMap<TaskId, AgentProcess>>>;
 /// Lanza y controla procesos `gentle-shell --mode rpc`, uno por tarea.
 pub struct GentleShellRuntimeAdapter {
     program: String,
+    pi_program: Option<String>,
     base_args: Vec<String>,
     stop_timeout: Duration,
     processes: Registry,
@@ -47,18 +50,22 @@ pub struct GentleShellRuntimeAdapter {
 }
 
 impl GentleShellRuntimeAdapter {
-    /// Runtime real: `<gentle_shell_bin> --mode rpc`.
-    pub fn new(gentle_shell_bin: impl Into<String>) -> Self {
-        Self::with_command(
+    /// Runtime real: `<gentle_shell_bin> --mode rpc`, o `<pi_bin> --mode rpc` cuando
+    /// la tarea pide el runtime `pi`.
+    pub fn new(gentle_shell_bin: impl Into<String>, pi_bin: impl Into<String>) -> Self {
+        let mut adapter: Self = Self::with_command(
             gentle_shell_bin,
             vec!["--mode".to_string(), "rpc".to_string()],
-        )
+        );
+        adapter.pi_program = Some(pi_bin.into());
+        adapter
     }
 
     /// Runtime con un comando arbitrario que hable el protocolo RPC (útil en tests).
     pub fn with_command(program: impl Into<String>, base_args: Vec<String>) -> Self {
         Self {
             program: program.into(),
+            pi_program: None,
             base_args,
             stop_timeout: DEFAULT_STOP_TIMEOUT,
             processes: Arc::new(Mutex::new(HashMap::new())),
@@ -69,6 +76,14 @@ impl GentleShellRuntimeAdapter {
     pub fn with_stop_timeout(mut self, timeout: Duration) -> Self {
         self.stop_timeout = timeout;
         self
+    }
+
+    /// Ejecutable a lanzar: `pi` solo si se pidió y está configurado.
+    fn program_for(&self, options: &LaunchOptions) -> &str {
+        match (options.runtime.as_deref(), &self.pi_program) {
+            (Some(PI_RUNTIME), Some(pi)) => pi,
+            _ => &self.program,
+        }
     }
 
     fn registry(&self) -> Result<MutexGuard<'_, HashMap<TaskId, AgentProcess>>, TaskError> {
@@ -120,7 +135,8 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
                 "el agente ya está en ejecución".to_string(),
             ));
         }
-        let mut child: Child = Command::new(&self.program)
+        let program: &str = self.program_for(options);
+        let mut child: Child = Command::new(program)
             .args(&self.base_args)
             .args(resume.then_some(RESUME_FLAG))
             .args(model_args(options))
@@ -132,7 +148,7 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
-            .map_err(|e| TaskError::Runtime(format!("no se pudo lanzar {}: {e}", self.program)))?;
+            .map_err(|e| TaskError::Runtime(format!("no se pudo lanzar {program}: {e}")))?;
         let stdin: ChildStdin = child.stdin.take().ok_or_else(|| pipe_error("stdin"))?;
         let stdout: ChildStdout = child.stdout.take().ok_or_else(|| pipe_error("stdout"))?;
         let stderr: ChildStderr = child.stderr.take().ok_or_else(|| pipe_error("stderr"))?;

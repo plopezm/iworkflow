@@ -33,7 +33,10 @@ impl UpdateAgentSettings {
         settings: AgentSettings,
     ) -> Result<AgentSettings, AgentSettingsError> {
         if let Some(model) = &settings.model {
-            let available: Vec<ModelRef> = self.model_catalog.list().await?;
+            let available: Vec<ModelRef> = self
+                .model_catalog
+                .list(settings.runtime.unwrap_or_default())
+                .await?;
             if !available.contains(model) {
                 return Err(AgentSettingsError::ModelNotFound {
                     provider: model.provider.clone(),
@@ -61,6 +64,7 @@ impl UpdateAgentSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
     use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
     use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
     use crate::modules::agent_settings::mocks::{
@@ -81,7 +85,7 @@ mod tests {
         let mut model_catalog: MockModelCatalog = MockModelCatalog::new();
         model_catalog
             .expect_list()
-            .returning(|| Ok(vec![valid_model()]));
+            .returning(|_| Ok(vec![valid_model()]));
         let mut profile_catalog: MockProfileCatalogAdapter = MockProfileCatalogAdapter::new();
         profile_catalog.expect_list().returning(|| {
             Ok(ProfileCatalog {
@@ -98,6 +102,7 @@ mod tests {
             model: Some(valid_model()),
             profile: Some(ProfileName::parse("Claude").expect("profile")),
             thinking: Some(ThinkingLevel::High),
+            ..Default::default()
         };
 
         let result: AgentSettings = use_case.execute(settings.clone()).await.expect("update");
@@ -109,7 +114,7 @@ mod tests {
     async fn rejects_model_not_in_catalog() {
         let repository: MockAgentSettingsRepository = MockAgentSettingsRepository::new();
         let mut model_catalog: MockModelCatalog = MockModelCatalog::new();
-        model_catalog.expect_list().returning(|| Ok(vec![]));
+        model_catalog.expect_list().returning(|_| Ok(vec![]));
         let profile_catalog: MockProfileCatalogAdapter = MockProfileCatalogAdapter::new();
         let use_case: UpdateAgentSettings = UpdateAgentSettings::new(
             Arc::new(repository),
@@ -120,6 +125,7 @@ mod tests {
             model: Some(valid_model()),
             profile: None,
             thinking: None,
+            ..Default::default()
         };
 
         let result: Result<AgentSettings, AgentSettingsError> = use_case.execute(settings).await;
@@ -153,6 +159,7 @@ mod tests {
             model: None,
             profile: Some(ProfileName::parse("Ghost").expect("profile")),
             thinking: None,
+            ..Default::default()
         };
 
         let result: Result<AgentSettings, AgentSettingsError> = use_case.execute(settings).await;
@@ -178,6 +185,7 @@ mod tests {
             model: None,
             profile: None,
             thinking: Some(ThinkingLevel::Max),
+            ..Default::default()
         };
 
         let result: AgentSettings = use_case.execute(settings.clone()).await.expect("update");
@@ -203,5 +211,33 @@ mod tests {
             .expect("update");
 
         assert_eq!(result, AgentSettings::default());
+    }
+
+    #[tokio::test]
+    async fn validates_model_against_the_selected_runtime_catalog() {
+        let repository: MockAgentSettingsRepository = MockAgentSettingsRepository::new();
+        let mut model_catalog: MockModelCatalog = MockModelCatalog::new();
+        model_catalog
+            .expect_list()
+            .withf(|runtime: &AgentRuntime| *runtime == AgentRuntime::Pi)
+            .times(1)
+            .returning(|_| Ok(vec![]));
+        let use_case: UpdateAgentSettings = UpdateAgentSettings::new(
+            Arc::new(repository),
+            Arc::new(model_catalog),
+            Arc::new(MockProfileCatalogAdapter::new()),
+        );
+        let settings: AgentSettings = AgentSettings {
+            runtime: Some(AgentRuntime::Pi),
+            model: Some(valid_model()),
+            ..Default::default()
+        };
+
+        let result: Result<AgentSettings, AgentSettingsError> = use_case.execute(settings).await;
+
+        assert!(matches!(
+            result,
+            Err(AgentSettingsError::ModelNotFound { .. })
+        ));
     }
 }

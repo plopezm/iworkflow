@@ -1,3 +1,4 @@
+pub mod agent_runtime;
 pub mod agent_settings;
 pub mod launch_preferences;
 pub mod model_ref;

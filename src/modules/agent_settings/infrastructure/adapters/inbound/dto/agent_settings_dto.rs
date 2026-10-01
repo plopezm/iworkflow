@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct AgentSettingsDto {
+    pub runtime: Option<String>,
     pub model_provider: Option<String>,
     pub model_id: Option<String>,
     pub profile: Option<String>,
@@ -24,6 +25,7 @@ pub struct ProfileCatalogDto {
 mod mapping {
     use super::{AgentSettingsDto, ModelOptionDto, ProfileCatalogDto};
     use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+    use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
     use crate::modules::agent_settings::domain::models::agent_settings::AgentSettings;
     use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
     use crate::modules::agent_settings::domain::models::profile_catalog::ProfileCatalog;
@@ -33,6 +35,10 @@ mod mapping {
     impl From<AgentSettings> for AgentSettingsDto {
         fn from(settings: AgentSettings) -> Self {
             Self {
+                runtime: settings
+                    .runtime
+                    .as_ref()
+                    .map(|r: &AgentRuntime| r.as_str().to_string()),
                 model_provider: settings
                     .model
                     .as_ref()
@@ -70,7 +76,13 @@ mod mapping {
                 .filter(|t: &String| !t.is_empty())
                 .map(|t: String| ThinkingLevel::parse(&t))
                 .transpose()?;
+            let runtime: Option<AgentRuntime> = dto
+                .runtime
+                .filter(|r: &String| !r.is_empty())
+                .map(|r: String| AgentRuntime::parse(&r))
+                .transpose()?;
             Ok(Self {
+                runtime,
                 model,
                 profile,
                 thinking,
@@ -109,6 +121,7 @@ mod mapping {
                 }),
                 profile: Some(ProfileName::parse("Claude").expect("profile")),
                 thinking: Some(ThinkingLevel::High),
+                ..Default::default()
             };
 
             let dto: AgentSettingsDto = AgentSettingsDto::from(settings.clone());
@@ -133,6 +146,7 @@ mod mapping {
                 model_id: None,
                 profile: None,
                 thinking: None,
+                ..Default::default()
             };
 
             let settings: AgentSettings = AgentSettings::try_from(dto).expect("valid dto");
@@ -147,6 +161,7 @@ mod mapping {
                 model_id: None,
                 profile: Some("invalid profile".to_string()),
                 thinking: None,
+                ..Default::default()
             };
 
             let result: Result<AgentSettings, AgentSettingsError> = AgentSettings::try_from(dto);
@@ -164,6 +179,7 @@ mod mapping {
                 model_id: None,
                 profile: None,
                 thinking: Some(String::new()),
+                ..Default::default()
             };
 
             let settings: AgentSettings = AgentSettings::try_from(dto).expect("valid dto");
@@ -178,6 +194,7 @@ mod mapping {
                 model_id: None,
                 profile: None,
                 thinking: Some("ultra".to_string()),
+                ..Default::default()
             };
 
             let result: Result<AgentSettings, AgentSettingsError> = AgentSettings::try_from(dto);
@@ -186,6 +203,31 @@ mod mapping {
                 result,
                 Err(AgentSettingsError::InvalidThinkingLevel(_))
             ));
+        }
+
+        #[test]
+        fn invalid_runtime_is_rejected() {
+            let dto: AgentSettingsDto = AgentSettingsDto {
+                runtime: Some("claude".to_string()),
+                ..AgentSettingsDto::default()
+            };
+
+            let result: Result<AgentSettings, AgentSettingsError> = AgentSettings::try_from(dto);
+
+            assert!(matches!(result, Err(AgentSettingsError::InvalidRuntime(_))));
+        }
+
+        #[test]
+        fn runtime_roundtrips_through_dto() {
+            let settings: AgentSettings = AgentSettings {
+                runtime: Some(AgentRuntime::Pi),
+                ..AgentSettings::default()
+            };
+
+            let back: AgentSettings =
+                AgentSettings::try_from(AgentSettingsDto::from(settings.clone())).expect("dto");
+
+            assert_eq!(back, settings);
         }
     }
 }
