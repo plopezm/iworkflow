@@ -261,3 +261,4 @@ No dar una tarea por terminada hasta cumplir todo lo aplicable:
    - `cargo leptos test` / `cargo test --features ssr` (o al menos los tests del feature/archivos afectados)
 6. Comprobar que se ha hecho todo lo indicado en [Auto-Invoke Skills](#2-auto-invoke-skills).
 7. Al reportar el cierre: indicar comandos ejecutados, resultado (ok/fallo) y qué quedó sin verificar.
+8. Al mezclar a la rama principal, verifica que las migraciones no se solapan.
