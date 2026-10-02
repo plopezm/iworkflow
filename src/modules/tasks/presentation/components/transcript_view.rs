@@ -42,13 +42,10 @@ fn args_summary(args: &str) -> String {
     let Some(serde_json::Value::Object(map)) = parsed else {
         return preview(args);
     };
+    // Sin clave conocida no se resume: elegir un valor cualquiera podría exponer datos sensibles.
     let chosen: Option<&str> = KEY_ARGS
         .iter()
-        .find_map(|key: &&str| map.get(*key).and_then(serde_json::Value::as_str))
-        .or_else(|| {
-            map.values()
-                .find_map(|value: &serde_json::Value| value.as_str())
-        });
+        .find_map(|key: &&str| map.get(*key).and_then(serde_json::Value::as_str));
     chosen.map(preview).unwrap_or_default()
 }
 
@@ -248,6 +245,11 @@ mod tests {
             "src/a.rs"
         );
         assert_eq!(args_summary("no es json"), "no es json");
+    }
+
+    #[test]
+    fn args_summary_ignores_unknown_string_keys() {
+        assert_eq!(args_summary(r#"{"token":"s3cr3t","limit":3}"#), "");
     }
 
     #[test]

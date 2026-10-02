@@ -11,7 +11,7 @@ fn is_safe_url(url: &str) -> bool {
         .iter()
         .any(|scheme: &&str| lower.starts_with(scheme))
         || lower.starts_with('#')
-        || lower.starts_with('/')
+        || (lower.starts_with('/') && !lower.starts_with("//") && !lower.starts_with("/\\"))
 }
 
 fn sanitize(event: Event<'_>) -> Event<'_> {
@@ -77,5 +77,26 @@ mod tests {
         let html: String = render_markdown("[x](javascript:alert(1)) [ok](https://a.dev)");
         assert!(!html.contains("javascript:"));
         assert!(html.contains("href=\"https://a.dev\""));
+    }
+
+    #[test]
+    fn rejects_mixed_case_data_and_protocol_relative_urls() {
+        for url in [
+            "JavaScript:alert(1)",
+            "data:text/html,x",
+            "//evil.com/x",
+            "/\\evil.com/x",
+        ] {
+            let link: String = render_markdown(&format!("[x]({url})"));
+            assert!(link.contains("href=\"#\""), "{url}");
+            let image: String = render_markdown(&format!("![x]({url})"));
+            assert!(image.contains("src=\"#\""), "{url}");
+        }
+    }
+
+    #[test]
+    fn keeps_root_relative_urls() {
+        let html: String = render_markdown("[x](/tasks/1)");
+        assert!(html.contains("href=\"/tasks/1\""));
     }
 }
