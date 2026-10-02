@@ -303,6 +303,45 @@ body {
   content: ' · escribiendo';
   @apply animate-pulse text-accent;
 }
+.markdown {
+  @apply text-sm leading-relaxed break-words;
+}
+.markdown > * + * {
+  @apply mt-2;
+}
+.markdown ul {
+  @apply list-disc pl-5;
+}
+.markdown ol {
+  @apply list-decimal pl-5;
+}
+.markdown a {
+  @apply text-accent underline;
+}
+.markdown code {
+  @apply rounded bg-surface-2 px-1 font-mono text-xs;
+}
+.markdown pre {
+  @apply overflow-x-auto rounded-md border border-border bg-surface-2 p-2;
+}
+.markdown pre code {
+  @apply bg-transparent p-0;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  @apply font-semibold;
+}
+.markdown blockquote {
+  @apply border-l-2 border-border pl-3 text-muted;
+}
+.markdown table {
+  @apply border-collapse text-xs;
+}
+.markdown th,
+.markdown td {
+  @apply border border-border px-2 py-1;
+}
 .tool {
   @apply relative overflow-hidden rounded-md border border-border bg-surface p-2.5 text-sm;
 }
@@ -319,7 +358,17 @@ body {
   @apply border-l-[3px] border-l-error;
 }
 .tool-args {
-  @apply mt-2 text-muted;
+  @apply mt-2 flex flex-col gap-1.5 text-xs;
+}
+.tool-arg {
+  @apply flex flex-col gap-0.5;
+}
+.tool-arg dt {
+  @apply text-[10px] tracking-wider text-muted uppercase;
+}
+.tool-arg code,
+.tool-arg pre {
+  @apply rounded bg-surface-2 px-2 py-1 font-mono text-xs;
 }
 .tool-output {
   @apply mt-2 max-h-96 overflow-auto;

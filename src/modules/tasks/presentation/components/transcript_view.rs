@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
+use crate::core::markdown::render_markdown;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::NoticeLevelDto;
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
 use crate::modules::tasks::presentation::state::transcript::{Transcript, TranscriptItem};
@@ -21,6 +22,57 @@ fn preview(text: &str) -> String {
     } else {
         single_line
     }
+}
+
+/// Argumentos que mejor identifican una llamada, por orden de preferencia.
+const KEY_ARGS: [&str; 8] = [
+    "path",
+    "command",
+    "pattern",
+    "query",
+    "url",
+    "file",
+    "operation",
+    "task",
+];
+
+/// Resumen legible de los argumentos (p. ej. la ruta o el comando) en vez del JSON crudo.
+fn args_summary(args: &str) -> String {
+    let parsed: Option<serde_json::Value> = serde_json::from_str(args).ok();
+    let Some(serde_json::Value::Object(map)) = parsed else {
+        return preview(args);
+    };
+    let chosen: Option<&str> = KEY_ARGS
+        .iter()
+        .find_map(|key: &&str| map.get(*key).and_then(serde_json::Value::as_str))
+        .or_else(|| {
+            map.values()
+                .find_map(|value: &serde_json::Value| value.as_str())
+        });
+    chosen.map(preview).unwrap_or_default()
+}
+
+/// Argumentos como pares clave/valor legibles (sin llaves ni comillas JSON).
+fn arg_rows(args: &str) -> Vec<(String, String)> {
+    let parsed: Option<serde_json::Value> = serde_json::from_str(args).ok();
+    match parsed {
+        Some(serde_json::Value::Object(map)) => map
+            .into_iter()
+            .map(|(key, value): (String, serde_json::Value)| {
+                let text: String = match value {
+                    serde_json::Value::String(text) => text,
+                    other => other.to_string(),
+                };
+                (key, text)
+            })
+            .collect(),
+        _ if args.trim().is_empty() => Vec::new(),
+        _ => vec![(String::new(), args.to_string())],
+    }
+}
+
+fn markdown_body(text: String) -> impl IntoView {
+    view! { <div class="markdown" inner_html=render_markdown(&text)></div> }
 }
 
 fn notice_class(level: NoticeLevelDto) -> &'static str {
@@ -57,7 +109,7 @@ fn render_item(item: TranscriptItem) -> AnyView {
                         }
                     })}
                 {(!text.is_empty())
-                    .then(|| view! { <pre class="whitespace-pre-wrap break-words">{text}</pre> })}
+                    .then(|| markdown_body(text))}
                 {error.map(|e: String| view! { <ErrorText message=e /> })}
             </div>
         }
@@ -74,11 +126,35 @@ fn render_item(item: TranscriptItem) -> AnyView {
                 Some(false) => ("ok", "tool tool-ok"),
                 Some(true) => ("error", "tool tool-error"),
             };
-            let summary: String = format!("🔧 {name} · {state} · {}", preview(&args));
+            let summary: String = format!("🔧 {name} · {state} · {}", args_summary(&args));
+            let rows: Vec<(String, String)> = arg_rows(&args);
             view! {
                 <details class=class>
                     <summary>{summary}</summary>
-                    <pre class="tool-args whitespace-pre-wrap break-words">{args}</pre>
+                    <dl class="tool-args">
+                        {rows
+                            .into_iter()
+                            .map(|(key, value): (String, String)| {
+                                let multiline: bool = value.contains('\n') || value.len() > 80;
+                                view! {
+                                    <div class="tool-arg">
+                                        {(!key.is_empty())
+                                            .then(|| view! { <dt>{key}</dt> })}
+                                        <dd>
+                                            {if multiline {
+                                                view! {
+                                                    <pre class="whitespace-pre-wrap break-words">{value}</pre>
+                                                }
+                                                    .into_any()
+                                            } else {
+                                                view! { <code>{value}</code> }.into_any()
+                                            }}
+                                        </dd>
+                                    </div>
+                                }
+                            })
+                            .collect_view()}
+                    </dl>
                     {(!output.is_empty())
                         .then(|| {
                             view! {
@@ -152,7 +228,7 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
                                             <pre class="muted whitespace-pre-wrap break-words">{thinking}</pre>
                                         }
                                     })}
-                                <pre class="whitespace-pre-wrap break-words">{text}</pre>
+                                {markdown_body(text)}
                             </div>
                         }
                     })
@@ -164,6 +240,27 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn args_summary_prefers_path_over_raw_json() {
+        assert_eq!(
+            args_summary(r#"{"limit":230,"offset":40,"path":"src/a.rs"}"#),
+            "src/a.rs"
+        );
+        assert_eq!(args_summary("no es json"), "no es json");
+    }
+
+    #[test]
+    fn arg_rows_flattens_json_into_pairs() {
+        assert_eq!(
+            arg_rows(r#"{"command":"ls -la","limit":3}"#),
+            vec![
+                ("command".to_string(), "ls -la".to_string()),
+                ("limit".to_string(), "3".to_string())
+            ]
+        );
+        assert!(arg_rows("").is_empty());
+    }
 
     #[test]
     fn preview_collapses_whitespace_and_truncates() {
