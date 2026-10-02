@@ -35,12 +35,27 @@ export function pi_prefers_dark() {
 export function pi_set_document_theme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
 }
+const PI_STICK_THRESHOLD_PX = 80;
+export function pi_follow_bottom(id) {
+  requestAnimationFrame(() => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.__piStuck === undefined) {
+      el.__piStuck = true;
+      el.addEventListener('scroll', () => {
+        el.__piStuck = el.scrollHeight - el.scrollTop - el.clientHeight < PI_STICK_THRESHOLD_PX;
+      });
+    }
+    if (el.__piStuck) el.scrollTop = el.scrollHeight;
+  });
+}
 "#)]
     extern "C" {
         pub fn pi_theme_read(key: &str) -> Option<String>;
         pub fn pi_theme_write(key: &str, value: &str);
         pub fn pi_prefers_dark() -> bool;
         pub fn pi_set_document_theme(theme: &str);
+        pub fn pi_follow_bottom(id: &str);
     }
 }
 
@@ -89,5 +104,18 @@ pub fn set_document_theme(theme: &str) {
     #[cfg(not(feature = "hydrate"))]
     {
         let _theme: &str = theme;
+    }
+}
+
+/// Mantiene el scroll del contenedor `id` en su final mientras la persona no haya subido
+/// manualmente. La primera llamada sobre un contenedor nuevo salta al final.
+pub fn follow_bottom(id: &str) {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_follow_bottom(id);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _id: &str = id;
     }
 }
