@@ -17,6 +17,21 @@ pub enum TaskStatusDto {
 }
 
 impl TaskStatusDto {
+    /// Espejo de `TaskStatus::has_live_agent`: hay (o debería haber) un agente vivo.
+    pub fn has_live_agent(&self) -> bool {
+        match self {
+            TaskStatusDto::Starting | TaskStatusDto::Running | TaskStatusDto::Idle => true,
+            TaskStatusDto::Backlog
+            | TaskStatusDto::Finishing
+            | TaskStatusDto::AwaitingReview
+            | TaskStatusDto::Merged
+            | TaskStatusDto::Discarded
+            | TaskStatusDto::Conflict
+            | TaskStatusDto::Failed
+            | TaskStatusDto::Interrupted => false,
+        }
+    }
+
     pub fn label(&self) -> &'static str {
         match self {
             TaskStatusDto::Backlog => "Por hacer",
@@ -284,6 +299,17 @@ mod mapping {
                 subagents: Default::default(),
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
+            }
+        }
+
+        #[test]
+        fn dto_live_agent_rule_matches_domain_for_every_status() {
+            for status in TaskStatus::ALL {
+                assert_eq!(
+                    TaskStatusDto::from(status).has_live_agent(),
+                    status.has_live_agent(),
+                    "{status:?}"
+                );
             }
         }
 

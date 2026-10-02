@@ -61,6 +61,11 @@ impl Transcript {
     pub fn apply(&mut self, event: TaskEventDto) {
         match event.kind {
             TaskEventKindDto::Status { status, error } => {
+                // Sin agente vivo nadie puede responder: un servidor reiniciado no emite
+                // `ProcessExited`, así que el cambio de estado cierra los diálogos huérfanos.
+                if !status.has_live_agent() {
+                    self.resolve_dialogs(None);
+                }
                 self.items.push(TranscriptItem::Status { status, error })
             }
             TaskEventKindDto::Agent { event } => self.apply_agent(event),
@@ -231,6 +236,17 @@ mod tests {
         }
     }
 
+    fn status_event(status: TaskStatusDto) -> TaskEventDto {
+        TaskEventDto {
+            seq: None,
+            created_at: String::new(),
+            kind: TaskEventKindDto::Status {
+                status,
+                error: None,
+            },
+        }
+    }
+
     fn dialog(id: &str) -> AgentEventDto {
         AgentEventDto::DialogRequested {
             request: DialogRequestDto {
@@ -310,6 +326,79 @@ mod tests {
 
         transcript.apply(agent(AgentEventDto::ProcessExited { code: Some(0) }));
         assert_eq!(transcript.pending_dialog(), None);
+    }
+
+    #[test]
+    fn status_without_live_agent_closes_orphan_dialogs() {
+        let mut transcript: Transcript = Transcript::default();
+        transcript.apply(agent(dialog("d1")));
+
+        transcript.apply(TaskEventDto {
+            seq: None,
+            created_at: String::new(),
+            kind: TaskEventKindDto::Status {
+                status: TaskStatusDto::Running,
+                error: None,
+            },
+        });
+        assert!(transcript.pending_dialog().is_some());
+
+        transcript.apply(TaskEventDto {
+            seq: None,
+            created_at: String::new(),
+            kind: TaskEventKindDto::Status {
+                status: TaskStatusDto::AwaitingReview,
+                error: None,
+            },
+        });
+        assert_eq!(transcript.pending_dialog(), None);
+    }
+
+    #[test]
+    fn live_statuses_keep_dialogs_open_and_others_close_them() {
+        let live: [TaskStatusDto; 3] = [
+            TaskStatusDto::Starting,
+            TaskStatusDto::Running,
+            TaskStatusDto::Idle,
+        ];
+        for status in live {
+            let mut transcript: Transcript = Transcript::default();
+            transcript.apply(agent(dialog("d1")));
+            transcript.apply(status_event(status));
+            assert!(transcript.pending_dialog().is_some(), "{status:?}");
+        }
+
+        let settled: [TaskStatusDto; 3] = [
+            TaskStatusDto::Interrupted,
+            TaskStatusDto::Failed,
+            TaskStatusDto::Finishing,
+        ];
+        for status in settled {
+            let mut transcript: Transcript = Transcript::default();
+            transcript.apply(agent(dialog("d1")));
+            transcript.apply(status_event(status));
+            assert_eq!(transcript.pending_dialog(), None, "{status:?}");
+            // El diálogo se conserva en la transcripción, marcado como resuelto.
+            assert!(
+                matches!(
+                    transcript.items.first(),
+                    Some(TranscriptItem::Dialog { resolved: true, .. })
+                ),
+                "{status:?}"
+            );
+            assert!(
+                matches!(transcript.items.last(), Some(TranscriptItem::Status { .. })),
+                "{status:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn non_live_status_without_dialog_only_records_status() {
+        let mut transcript: Transcript = Transcript::default();
+        transcript.apply(status_event(TaskStatusDto::AwaitingReview));
+        assert_eq!(transcript.pending_dialog(), None);
+        assert_eq!(transcript.items.len(), 1);
     }
 
     #[test]
