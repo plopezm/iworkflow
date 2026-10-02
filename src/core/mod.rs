@@ -6,3 +6,4 @@ pub mod config;
 pub mod db;
 #[cfg(feature = "ssr")]
 pub mod git;
+pub mod markdown;
