@@ -3,7 +3,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::components::A;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
-use crate::core::browser::confirm;
+use crate::core::browser::{confirm, follow_bottom};
 use crate::core::components::form::{ActionError, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
@@ -29,6 +29,8 @@ use crate::modules::tasks::presentation::state::transcript::Transcript;
 const TAB_DIFF: &str = "diff";
 const TAB_ACTIONS: &str = "acciones";
 const TAB_STATE: &str = "estado";
+/// Id del contenedor con scroll de la conversación.
+const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
 
 /// Tarjeta simplificada de una tarea en Backlog: prompt y acciones de iniciar/editar/borrar.
 #[component]
@@ -231,6 +233,13 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         })
     });
 
+    Effect::new(move |_| {
+        if shows_workspace.get() {
+            state.transcript.track();
+            follow_bottom(TRANSCRIPT_SCROLL_ID);
+        }
+    });
+
     view! {
         <Show
             when=move || !state.removed.get()
@@ -303,7 +312,10 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                         })}
                     </Transition>
                     <Show when=move || shows_workspace.get()>
-                        <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
+                        <div
+                            id=TRANSCRIPT_SCROLL_ID
+                            class="stack min-h-0 flex-1 overflow-y-auto p-4"
+                        >
                             <TranscriptView transcript=state.transcript />
                         </div>
                         <div class="stack max-h-[60vh] shrink-0 gap-2 overflow-y-auto border-t border-border bg-surface p-3">
