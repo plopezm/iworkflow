@@ -1668,6 +1668,7 @@ dependencies = [
  "diesel_migrations",
  "dotenvy",
  "futures",
+ "js-sys",
  "leptos",
  "leptos_axum",
  "leptos_meta",

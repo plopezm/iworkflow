@@ -17,6 +17,14 @@ pub fn AppSidebar() -> impl IntoView {
     let task_count: Signal<usize> = Signal::derive(move || state.task_rows.with(Vec::len));
 
     view! {
+        <Show when=move || state.can_request_notifications()>
+            <button
+                class="chip w-full justify-center"
+                on:click=move |_| state.enable_notifications()
+            >
+                "🔔 Activar notificaciones"
+            </button>
+        </Show>
         <SidebarSection title="Workspaces" count=workspace_count>
             <For
                 each=move || state.workspace_rows.get()
