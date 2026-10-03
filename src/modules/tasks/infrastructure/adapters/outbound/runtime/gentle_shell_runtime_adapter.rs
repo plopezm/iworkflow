@@ -118,6 +118,31 @@ fn strip_leptos_env(command: &mut Command, vars: impl Iterator<Item = OsString>)
     }
 }
 
+/// Construye el comando del agente: argumentos, directorio, entorno limpio de Leptos y pipes.
+fn build_command(
+    program: &str,
+    base_args: &[String],
+    resume: bool,
+    options: &LaunchOptions,
+    cwd: &Path,
+    inherited_keys: impl Iterator<Item = OsString>,
+) -> Command {
+    let mut command: Command = Command::new(program);
+    strip_leptos_env(&mut command, inherited_keys);
+    command
+        .args(base_args)
+        .args(resume.then_some(RESUME_FLAG))
+        .args(model_args(options))
+        .args(thinking_args(options))
+        .current_dir(cwd)
+        .env(INTERACTIVE_HOST_ENV, "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    command
+}
+
 fn pipe_error(name: &str) -> TaskError {
     TaskError::Runtime(format!("no se pudo abrir {name} del agente"))
 }
@@ -157,19 +182,16 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
             ));
         }
         let program: &str = self.program_for(options);
-        let mut command: Command = Command::new(program);
-        strip_leptos_env(&mut command, std::env::vars_os().map(|(key, _)| key));
+        let inherited: Vec<OsString> = std::env::vars_os().map(|(key, _)| key).collect();
+        let mut command: Command = build_command(
+            program,
+            &self.base_args,
+            resume,
+            options,
+            cwd,
+            inherited.into_iter(),
+        );
         let mut child: Child = command
-            .args(&self.base_args)
-            .args(resume.then_some(RESUME_FLAG))
-            .args(model_args(options))
-            .args(thinking_args(options))
-            .current_dir(cwd)
-            .env(INTERACTIVE_HOST_ENV, "1")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true)
             .spawn()
             .map_err(|e| TaskError::Runtime(format!("no se pudo lanzar {program}: {e}")))?;
         let stdin: ChildStdin = child.stdin.take().ok_or_else(|| pipe_error("stdin"))?;
@@ -421,5 +443,22 @@ mod tests {
 
         let removed: Vec<(&OsStr, Option<&OsStr>)> = command.as_std().get_envs().collect();
         assert_eq!(removed, vec![(OsStr::new("LEPTOS_SITE_ADDR"), None)]);
+    }
+
+    #[test]
+    fn build_command_strips_leptos_env_and_keeps_interactive_flag() {
+        let command: Command = build_command(
+            "true",
+            &[],
+            false,
+            &LaunchOptions::default(),
+            Path::new("."),
+            os_keys(&["LEPTOS_ENV", "PATH"]).into_iter(),
+        );
+
+        let envs: Vec<(&OsStr, Option<&OsStr>)> = command.as_std().get_envs().collect();
+        assert!(envs.contains(&(OsStr::new("LEPTOS_ENV"), None)));
+        assert!(envs.contains(&(OsStr::new(INTERACTIVE_HOST_ENV), Some(OsStr::new("1")))));
+        assert!(!envs.iter().any(|(key, _)| *key == OsStr::new("PATH")));
     }
 }
