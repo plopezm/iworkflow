@@ -14,3 +14,4 @@ Assign a priority (Low/Normal/High/Urgent) to tasks on create/edit. Board lane o
 
 ## Progress / evidence
 - T1: commit 95b48d6; writer reported fmt, clippy ssr+hydrate, 329 tests, migration redo ok.
+- T2: commit c1d59cf; writer reported fmt, clippy ssr+hydrate, tests, cargo leptos build ok; parent re-ran fmt + tests ok. Not verified in a browser.
