@@ -59,6 +59,12 @@ pub fn current_permission() -> NotificationPermission {
 pub fn request_permission(on_done: impl Fn(NotificationPermission) + 'static) {
     #[cfg(feature = "hydrate")]
     {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
+        /// Permission callback shared with the browser closure; `take()` makes it fire once.
+        type SharedDone = Rc<RefCell<Option<Box<dyn Fn(NotificationPermission)>>>>;
+
         use wasm_bindgen::JsCast;
         use wasm_bindgen::closure::Closure;
 
@@ -66,14 +72,27 @@ pub fn request_permission(on_done: impl Fn(NotificationPermission) + 'static) {
             on_done(NotificationPermission::Unsupported);
             return;
         }
+        // Shared so the error path can still report; taken on first use so it fires once.
+        let on_done: SharedDone = Rc::new(RefCell::new(Some(Box::new(on_done))));
+        let callback_done: SharedDone = Rc::clone(&on_done);
         let callback: Closure<dyn FnMut(web_sys::NotificationPermission)> =
-            Closure::once(move |_: web_sys::NotificationPermission| on_done(current_permission()));
+            Closure::once(move |_: web_sys::NotificationPermission| {
+                if let Some(done) = callback_done.take() {
+                    done(current_permission());
+                }
+            });
         if web_sys::Notification::request_permission_with_permission_callback(
             callback.as_ref().unchecked_ref(),
         )
         .is_err()
         {
             leptos::logging::error!("no se pudo solicitar el permiso de notificaciones");
+            // The browser never got the callback, so report the outcome ourselves and
+            // let the closure drop instead of leaking it.
+            if let Some(done) = on_done.take() {
+                done(current_permission());
+            }
+            return;
         }
         // The browser keeps the callback until it fires once.
         callback.forget();

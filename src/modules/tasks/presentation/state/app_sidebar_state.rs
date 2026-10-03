@@ -16,7 +16,7 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
 };
 use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
 use crate::modules::tasks::presentation::state::task_notifications::{
-    TaskNotification, TaskSnapshot, build_snapshots, detect_task_notifications,
+    NotificationPlan, TaskNotification, TaskSnapshot, plan_notifications,
 };
 
 /// Fila de un workspace en la barra lateral.
@@ -140,14 +140,9 @@ impl AppSidebarState {
                 if task_rows.with_untracked(|c: &Vec<SidebarTaskRow>| *c != next_tasks) {
                     task_rows.set(next_tasks);
                 }
-                // The first snapshot (page load) only seeds the baseline.
-                if let Some(previous) = &previous {
-                    notify_transitions(previous, &tasks, &navigate);
-                }
-                // The baseline always advances: a transition seen while the page is active
-                // or without permission is intentionally not re-notified later (the sidebar
-                // already shows the attention).
-                return Some(build_snapshots(&tasks));
+                let plan: NotificationPlan = plan_notifications(previous.as_ref(), &tasks);
+                notify_transitions(&plan.notifications, &navigate);
+                return Some(plan.next_baseline);
             }
             previous
         });
@@ -179,23 +174,23 @@ impl AppSidebarState {
 }
 
 /// Raises OS notifications for task transitions, only while the page is inactive.
-fn notify_transitions<N>(previous: &HashMap<String, TaskSnapshot>, tasks: &[TaskDto], navigate: &N)
+fn notify_transitions<N>(notifications: &[TaskNotification], navigate: &N)
 where
     N: Fn(&str, NavigateOptions) + Clone + 'static,
 {
     if !is_page_inactive() {
         return;
     }
-    for notification in detect_task_notifications(previous, tasks) {
+    for notification in notifications {
         let TaskNotification {
             task_id,
             title,
             body,
         } = notification;
-        let path: String = task_path(&task_id);
+        let path: String = task_path(task_id);
         let navigate: N = navigate.clone();
         let target: String = path.clone();
-        show_notification(&title, &body, &path, move || {
+        show_notification(title, body, &path, move || {
             navigate(&target, NavigateOptions::default());
         });
     }

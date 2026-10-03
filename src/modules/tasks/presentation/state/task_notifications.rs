@@ -87,6 +87,30 @@ pub fn detect_task_notifications(
         .collect()
 }
 
+/// Outcome of processing one task snapshot: what to notify and the baseline to keep.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NotificationPlan {
+    pub notifications: Vec<TaskNotification>,
+    pub next_baseline: HashMap<String, TaskSnapshot>,
+}
+
+/// Plans notifications for a fresh task list. Without a `previous` baseline (first snapshot,
+/// page load) nothing is notified and the baseline is only seeded. The next baseline always
+/// advances: a transition seen while the page is active is intentionally not re-notified.
+pub fn plan_notifications(
+    previous: Option<&HashMap<String, TaskSnapshot>>,
+    tasks: &[TaskDto],
+) -> NotificationPlan {
+    let notifications: Vec<TaskNotification> = match previous {
+        Some(previous) => detect_task_notifications(previous, tasks),
+        None => Vec::new(),
+    };
+    NotificationPlan {
+        notifications,
+        next_baseline: build_snapshots(tasks),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,6 +211,45 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    #[test]
+    fn first_snapshot_seeds_baseline_silently() {
+        let tasks: [TaskDto; 1] = [task("a", TaskStatusDto::Failed, true)];
+        let plan: NotificationPlan = plan_notifications(None, &tasks);
+        assert!(plan.notifications.is_empty());
+        assert_eq!(plan.next_baseline, build_snapshots(&tasks));
+    }
+
+    #[test]
+    fn second_snapshot_notifies_on_transition() {
+        let first: HashMap<String, TaskSnapshot> =
+            build_snapshots(&[task("a", TaskStatusDto::Running, false)]);
+        let plan: NotificationPlan =
+            plan_notifications(Some(&first), &[task("a", TaskStatusDto::Failed, false)]);
+        assert_eq!(plan.notifications.len(), 1);
+        assert_eq!(plan.notifications[0].body, "Ha fallado");
+    }
+
+    #[test]
+    fn baseline_advances_even_when_nothing_is_notified() {
+        let first: HashMap<String, TaskSnapshot> =
+            build_snapshots(&[task("a", TaskStatusDto::Running, false)]);
+        let after: [TaskDto; 1] = [task("a", TaskStatusDto::Discarded, false)];
+        let plan: NotificationPlan = plan_notifications(Some(&first), &after);
+        assert!(plan.notifications.is_empty());
+        assert_eq!(plan.next_baseline, build_snapshots(&after));
+    }
+
+    #[test]
+    fn baseline_reflects_removed_and_new_tasks() {
+        let first: HashMap<String, TaskSnapshot> =
+            build_snapshots(&[task("a", TaskStatusDto::Running, false)]);
+        let plan: NotificationPlan =
+            plan_notifications(Some(&first), &[task("b", TaskStatusDto::Failed, true)]);
+        assert!(plan.notifications.is_empty());
+        assert!(!plan.next_baseline.contains_key("a"));
+        assert!(plan.next_baseline.contains_key("b"));
     }
 
     #[test]
