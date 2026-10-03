@@ -11,7 +11,10 @@ pub trait DirectoryBrowserPort: Send + Sync {
     /// o con `Io` ante otros errores de lectura.
     async fn list(&self, path: &Path) -> Result<DirectoryListing, WorkspaceError>;
 
-    /// Crea la carpeta `name` dentro de `parent` (que debe existir) y devuelve su ruta.
-    /// Falla con `Io` si ya existe o no se puede crear.
+    /// Crea la carpeta `name` dentro de `parent` y devuelve su ruta. `parent` debe existir
+    /// y estar dentro de la raíz permitida del adaptador (tras resolver `..` y enlaces
+    /// simbólicos). Falla con `PathNotFound` si `parent` no existe, con
+    /// `PathOutsideAllowedRoot` si queda fuera de la raíz, o con `Io` si la carpeta ya
+    /// existe o no se puede crear.
     async fn create_directory(&self, parent: &Path, name: &str) -> Result<PathBuf, WorkspaceError>;
 }

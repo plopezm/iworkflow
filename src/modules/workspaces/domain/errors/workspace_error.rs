@@ -10,6 +10,8 @@ pub enum WorkspaceError {
     PathNotAbsolute(String),
     #[error("la carpeta no existe: {0}")]
     PathNotFound(String),
+    #[error("la ruta está fuera de la raíz permitida: {0}")]
+    PathOutsideAllowedRoot(String),
     #[error("nombre de carpeta inválido: {0}")]
     InvalidDirectoryName(String),
     #[error("la carpeta no es un repositorio git: {0}")]

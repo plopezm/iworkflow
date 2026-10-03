@@ -27,7 +27,8 @@ impl CreateDirectory {
             || name.len() > MAX_NAME_LEN
             || name == "."
             || name == ".."
-            || name.contains(['/', '\\', '\0']);
+            || name.contains(['/', '\\'])
+            || name.chars().any(char::is_control);
         if is_invalid {
             return Err(WorkspaceError::InvalidDirectoryName(name.to_string()));
         }
@@ -65,7 +66,7 @@ mod tests {
     async fn rejects_invalid_names() {
         let use_case: CreateDirectory = CreateDirectory::new(Arc::new(MockDirectoryBrowser::new()));
 
-        for name in ["", "  ", ".", "..", "a/b", "a\\b"] {
+        for name in ["", "  ", ".", "..", "a/b", "a\\b", "a\0b", "a\nb"] {
             let result: Result<PathBuf, WorkspaceError> =
                 use_case.execute(PathBuf::from("/repos"), name).await;
             assert!(
