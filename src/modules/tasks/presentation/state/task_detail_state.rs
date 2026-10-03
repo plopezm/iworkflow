@@ -2,12 +2,12 @@ use leptos::prelude::*;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    MessageModeDto, TaskDto, UpdateTaskDto,
+    MessageModeDto, TaskDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResumeTask,
-    SendTaskMessage, StartTask, UpdateTask, get_task, get_task_diff,
+    SendTaskMessage, StartTask, get_task, get_task_diff,
 };
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
@@ -34,11 +34,7 @@ pub struct TaskDetailState {
     pub merge: ServerAction<MergeTask>,
     pub discard: ServerAction<DiscardTask>,
     pub start: ServerAction<StartTask>,
-    pub update: ServerAction<UpdateTask>,
     pub delete: ServerAction<DeleteTask>,
-    pub edit_open: RwSignal<bool>,
-    pub edit_title: RwSignal<String>,
-    pub edit_prompt: RwSignal<String>,
     /// Se incrementa con cada cambio de estado o edición recibido por SSE.
     pub status_version: RwSignal<u32>,
     /// Se marca cuando la tarea se elimina desde el tablero mientras se ve el detalle.
@@ -56,7 +52,6 @@ impl TaskDetailState {
         let merge: ServerAction<MergeTask> = ServerAction::new();
         let discard: ServerAction<DiscardTask> = ServerAction::new();
         let start: ServerAction<StartTask> = ServerAction::new();
-        let update: ServerAction<UpdateTask> = ServerAction::new();
         let delete: ServerAction<DeleteTask> = ServerAction::new();
         let show_diff: RwSignal<bool> = RwSignal::new(false);
         let id: StoredValue<String> = StoredValue::new(task_id);
@@ -70,7 +65,6 @@ impl TaskDetailState {
                     merge.version().get(),
                     discard.version().get(),
                     start.version().get(),
-                    update.version().get(),
                 )
             },
             move |_| get_task(id.get_value()),
@@ -115,11 +109,7 @@ impl TaskDetailState {
             merge,
             discard,
             start,
-            update,
             delete,
-            edit_open: RwSignal::new(false),
-            edit_title: RwSignal::new(String::new()),
-            edit_prompt: RwSignal::new(String::new()),
             status_version,
             removed: RwSignal::new(false),
         };
@@ -187,27 +177,6 @@ impl TaskDetailState {
     pub fn delete(&self) {
         self.delete.dispatch(DeleteTask {
             id: self.task_id.get_value(),
-        });
-    }
-
-    /// Abre el modal de edición precargado con el título y prompt actuales.
-    pub fn open_edit(&self, task: &TaskDto) {
-        self.edit_title.set(task.title.clone());
-        self.edit_prompt.set(task.prompt.clone());
-        self.edit_open.set(true);
-    }
-
-    pub fn close_edit(&self) {
-        self.edit_open.set(false);
-    }
-
-    pub fn submit_edit(&self) {
-        self.update.dispatch(UpdateTask {
-            id: self.task_id.get_value(),
-            input: UpdateTaskDto {
-                title: self.edit_title.get_untracked(),
-                prompt: self.edit_prompt.get_untracked(),
-            },
         });
     }
 

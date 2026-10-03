@@ -35,6 +35,11 @@ export function pi_prefers_dark() {
 export function pi_set_document_theme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
 }
+export function pi_history_back() {
+  if (window.history.length <= 1) return false;
+  window.history.back();
+  return true;
+}
 const PI_STICK_THRESHOLD_PX = 80;
 export function pi_follow_bottom(id) {
   requestAnimationFrame(() => {
@@ -56,6 +61,7 @@ export function pi_follow_bottom(id) {
         pub fn pi_prefers_dark() -> bool;
         pub fn pi_set_document_theme(theme: &str);
         pub fn pi_follow_bottom(id: &str);
+        pub fn pi_history_back() -> bool;
     }
 }
 
@@ -117,5 +123,18 @@ pub fn follow_bottom(id: &str) {
     #[cfg(not(feature = "hydrate"))]
     {
         let _id: &str = id;
+    }
+}
+
+/// Vuelve a la pantalla anterior del historial. Devuelve `false` si no hay a dónde volver
+/// (o fuera del navegador), para que el llamador navegue a un destino por defecto.
+pub fn history_back() -> bool {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_history_back()
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        false
     }
 }

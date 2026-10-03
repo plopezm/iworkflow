@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 use leptos_meta::Title;
+use leptos_router::NavigateOptions;
+use leptos_router::hooks::use_navigate;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::components::toast::ToastStack;
@@ -20,24 +22,27 @@ use crate::modules::tasks::presentation::state::board_state::{
 pub fn BoardPage() -> impl IntoView {
     let state: BoardState = BoardState::new();
 
-    // Cierra el modal tras crear o editar con éxito (estado de UI, sin lógica de negocio).
+    let navigate = use_navigate();
+
+    // Cierra el modal tras crear con éxito (estado de UI, sin lógica de negocio).
     Effect::new(move |_| {
         let created: bool = state
             .create
             .value()
             .with(|r: &Option<Result<CreatedTaskDto, ServerFnError>>| matches!(r, Some(Ok(_))));
-        let updated: bool = state
-            .update
-            .value()
-            .with(|r: &Option<Result<TaskDto, ServerFnError>>| matches!(r, Some(Ok(_))));
-        if created || updated {
+        if created {
             state.close_modal();
         }
     });
 
     let handlers: TaskCardHandlers = TaskCardHandlers {
         start: Callback::new(move |id: String| state.start_task(id)),
-        edit: Callback::new(move |task: TaskDto| state.open_edit(&task)),
+        edit: Callback::new(move |task: TaskDto| {
+            navigate(
+                &format!("/tasks/{}/edit", task.id),
+                NavigateOptions::default(),
+            );
+        }),
         delete: Callback::new(move |id: String| state.delete_task(id)),
         finish: Callback::new(move |id: String| state.finish_task(id)),
         merge: Callback::new(move |id: String| state.merge_task(id)),

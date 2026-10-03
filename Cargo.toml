@@ -39,6 +39,7 @@ web-sys = { version = "0.3", features = ["Event", "EventSource", "MessageEvent",
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
 
 [dev-dependencies]
+any_spawner = { version = "0.3", features = ["tokio"] }
 mockall = "0.15"
 tempfile = "3"
 

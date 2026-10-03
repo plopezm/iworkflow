@@ -38,6 +38,23 @@ let page;
   if (await page.getByLabel(/^Perfil/).count()) throw new Error('el perfil debería ocultarse con pi');
   step('agente pi seleccionado y persistido (perfil oculto)');
 
+  // Edición en pantalla propia (no en diálogo): crear en Backlog, editar, guardar y volver.
+  await page.getByRole('button', { name: 'Nueva tarea' }).click();
+  await page.getByLabel(/^Workspace/).selectOption({ label: 'ui-demo (main)' });
+  await page.getByLabel('Prompt').fill('Tarea en backlog');
+  await page.getByRole('button', { name: 'Crear tarea' }).click();
+  await page.getByText('Tarea en backlog').first().waitFor();
+  await page.getByRole('button', { name: 'Editar' }).first().click();
+  await page.waitForURL(/\/tasks\/[^/]+\/edit$/);
+  if (await page.getByRole('dialog').count()) throw new Error('la edición no debe abrir un diálogo');
+  await page.getByRole('heading', { name: 'Editar tarea' }).waitFor();
+  if ((await page.getByLabel('Prompt').inputValue()) !== 'Tarea en backlog') throw new Error('el prompt no se precargó');
+  await page.getByLabel('Prompt').fill('Tarea en backlog editada');
+  await page.getByRole('button', { name: 'Guardar cambios' }).click();
+  await page.waitForURL(url => !url.pathname.endsWith('/edit'));
+  await page.getByText('Tarea en backlog editada').first().waitFor();
+  step('edición en pantalla propia: precarga, guardado y vuelta');
+
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await page.getByLabel(/^Workspace/).selectOption({ label: 'ui-demo (main)' });
   await page.getByLabel('Prompt').fill('Tarea desde el navegador');

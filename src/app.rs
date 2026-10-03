@@ -10,6 +10,7 @@ use crate::modules::agents_files::presentation::pages::agents_files_page::Agents
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
+use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
 use crate::modules::workspaces::presentation::pages::workspaces_page::WorkspacesPage;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -79,6 +80,10 @@ pub fn App() -> impl IntoView {
                     <Route path=StaticSegment("workspaces") view=WorkspacesPage />
                     <Route path=StaticSegment("agents-files") view=AgentsFilesPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
+                    <Route
+                        path=(StaticSegment("tasks"), ParamSegment("id"), StaticSegment("edit"))
+                        view=TaskEditPage
+                    />
                 </Routes>
             </AppShell>
         </Router>

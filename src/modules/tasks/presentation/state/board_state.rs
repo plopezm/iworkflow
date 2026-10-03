@@ -2,11 +2,10 @@ use leptos::prelude::*;
 
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    CreateTaskDto, TaskDto, TaskStageDto, UpdateTaskDto, WorkspaceOptionDto,
+    CreateTaskDto, TaskDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, UpdateTask, list_tasks,
-    list_workspace_options,
+    CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_tasks, list_workspace_options,
 };
 use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
 
@@ -166,7 +165,7 @@ pub fn filter_label(stage: Option<TaskStageDto>) -> &'static str {
     }
 }
 
-/// Estado de la pantalla del tablero: tareas agrupadas por carril, filtros y modal de tarea.
+/// Estado de la pantalla del tablero: tareas agrupadas por carril, filtros y modal de alta de tarea.
 #[derive(Clone, Copy)]
 pub struct BoardState {
     pub tasks: Resource<Result<Vec<TaskDto>, ServerFnError>>,
@@ -174,14 +173,11 @@ pub struct BoardState {
     pub stage_filter: RwSignal<Option<TaskStageDto>>,
     pub show_done: RwSignal<bool>,
     pub create: ServerAction<CreateTask>,
-    pub update: ServerAction<UpdateTask>,
     pub delete: ServerAction<DeleteTask>,
     pub start: ServerAction<StartTask>,
     pub finish: ServerAction<FinishTask>,
     pub merge: ServerAction<MergeTask>,
     pub modal_open: RwSignal<bool>,
-    /// `None` = crear; `Some(id)` = editar la tarea con ese id.
-    pub edit_task_id: RwSignal<Option<String>>,
     pub form_workspace_id: RwSignal<String>,
     pub form_title: RwSignal<String>,
     pub form_prompt: RwSignal<String>,
@@ -204,7 +200,6 @@ pub fn start_failed_after_create_text(error: &str) -> String {
 impl BoardState {
     pub fn new() -> Self {
         let create: ServerAction<CreateTask> = ServerAction::new();
-        let update: ServerAction<UpdateTask> = ServerAction::new();
         let delete: ServerAction<DeleteTask> = ServerAction::new();
         let start: ServerAction<StartTask> = ServerAction::new();
         let finish: ServerAction<FinishTask> = ServerAction::new();
@@ -215,7 +210,6 @@ impl BoardState {
                 (
                     tick.get(),
                     create.version().get(),
-                    update.version().get(),
                     delete.version().get(),
                     start.version().get(),
                     finish.version().get(),
@@ -233,13 +227,11 @@ impl BoardState {
             stage_filter: RwSignal::new(None),
             show_done: RwSignal::new(false),
             create,
-            update,
             delete,
             start,
             finish,
             merge,
             modal_open: RwSignal::new(false),
-            edit_task_id: RwSignal::new(None),
             form_workspace_id: RwSignal::new(String::new()),
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
@@ -256,26 +248,12 @@ impl BoardState {
         state
     }
 
-    /// Abre el modal en modo creación con el formulario vacío, descartando errores previos.
+    /// Abre el modal de alta con el formulario vacío, descartando errores previos.
     pub fn open_create(&self) {
         self.create.clear();
-        self.update.clear();
-        self.edit_task_id.set(None);
         self.form_workspace_id.set(String::new());
         self.form_title.set(String::new());
         self.form_prompt.set(String::new());
-        self.form_start_now.set(false);
-        self.modal_open.set(true);
-    }
-
-    /// Abre el modal en modo edición precargado con los datos de `task`, descartando errores previos.
-    pub fn open_edit(&self, task: &TaskDto) {
-        self.create.clear();
-        self.update.clear();
-        self.edit_task_id.set(Some(task.id.clone()));
-        self.form_workspace_id.set(task.workspace_id.clone());
-        self.form_title.set(task.title.clone());
-        self.form_prompt.set(task.prompt.clone());
         self.form_start_now.set(false);
         self.modal_open.set(true);
     }
@@ -284,29 +262,16 @@ impl BoardState {
         self.modal_open.set(false);
     }
 
-    /// Envía el formulario: crea o actualiza según `edit_task_id`.
+    /// Envía el formulario de alta.
     pub fn submit(&self) {
-        match self.edit_task_id.get_untracked() {
-            None => {
-                self.create.dispatch(CreateTask {
-                    input: CreateTaskDto {
-                        workspace_id: self.form_workspace_id.get_untracked(),
-                        title: self.form_title.get_untracked(),
-                        prompt: self.form_prompt.get_untracked(),
-                        start_now: self.form_start_now.get_untracked(),
-                    },
-                });
-            }
-            Some(id) => {
-                self.update.dispatch(UpdateTask {
-                    id,
-                    input: UpdateTaskDto {
-                        title: self.form_title.get_untracked(),
-                        prompt: self.form_prompt.get_untracked(),
-                    },
-                });
-            }
-        }
+        self.create.dispatch(CreateTask {
+            input: CreateTaskDto {
+                workspace_id: self.form_workspace_id.get_untracked(),
+                title: self.form_title.get_untracked(),
+                prompt: self.form_prompt.get_untracked(),
+                start_now: self.form_start_now.get_untracked(),
+            },
+        });
     }
 
     pub fn start_task(&self, id: String) {

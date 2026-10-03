@@ -4,9 +4,7 @@ use leptos_router::components::A;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::core::browser::{confirm, follow_bottom};
-use crate::core::components::form::{ActionError, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
-use crate::core::components::modal::Modal;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MergeOutcomeDto, TaskDto, TaskStageDto, TaskStatusDto,
@@ -36,7 +34,7 @@ const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
 #[component]
 fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
     let navigate = use_navigate();
-    let task_for_edit: TaskDto = task.clone();
+    let edit_href: String = format!("/tasks/{}/edit", task.id);
     let busy: Signal<bool> =
         Signal::derive(move || state.start.pending().get() || state.delete.pending().get());
 
@@ -49,16 +47,6 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
             navigate("/", NavigateOptions::default());
         }
     });
-    Effect::new(move |_| {
-        let updated: bool = state
-            .update
-            .value()
-            .with(|r: &Option<Result<TaskDto, ServerFnError>>| matches!(r, Some(Ok(_))));
-        if updated {
-            state.close_edit();
-        }
-    });
-
     view! {
         <section class="card stack animate-slide-up">
             <div class="row justify-end">
@@ -85,11 +73,10 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                     .actions
                     .can_edit
                     .then(|| {
-                        let task: TaskDto = task_for_edit.clone();
                         view! {
-                            <button class="btn-secondary" on:click=move |_| state.open_edit(&task)>
+                            <A href=edit_href attr:class="btn-secondary">
                                 "Editar"
-                            </button>
+                            </A>
                         }
                     })}
                 {task
@@ -112,44 +99,6 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                     })}
             </div>
         </section>
-        <Modal
-            title=String::from("Editar tarea")
-            open=state.edit_open
-            on_close=Callback::new(move |_| state.close_edit())
-        >
-            <form
-                class="stack"
-                on:submit=move |ev: leptos::ev::SubmitEvent| {
-                    ev.prevent_default();
-                    state.submit_edit();
-                }
-            >
-                <TextField
-                    label="Título (opcional)"
-                    value=state.edit_title
-                    placeholder="Se deriva del prompt"
-                />
-                <TextArea
-                    label="Prompt"
-                    value=state.edit_prompt
-                    placeholder="Describe lo que debe hacer el agente…"
-                    required=true
-                />
-                <ActionError result=state.update.value().into() />
-                <div class="row justify-end gap-2">
-                    <button type="button" class="btn-secondary" on:click=move |_| state.close_edit()>
-                        "Cancelar"
-                    </button>
-                    <button
-                        type="submit"
-                        class="btn-primary"
-                        disabled=move || state.update.pending().get()
-                    >
-                        {move || if state.update.pending().get() { "Guardando…" } else { "Guardar cambios" }}
-                    </button>
-                </div>
-            </form>
-        </Modal>
     }
 }
 
