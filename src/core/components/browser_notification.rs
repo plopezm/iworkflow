@@ -84,13 +84,25 @@ pub fn request_permission(on_done: impl Fn(NotificationPermission) + 'static) {
     }
 }
 
-/// Whether the page is currently hidden (background tab or minimized window).
-pub fn is_page_hidden() -> bool {
+/// The user is not looking at the page: tab hidden, window minimized, or focus elsewhere
+/// (e.g. another window covering the browser, where `document.hidden` stays `false`).
+#[cfg_attr(not(any(feature = "hydrate", test)), allow(dead_code))]
+fn is_inactive(hidden: bool, has_focus: bool) -> bool {
+    hidden || !has_focus
+}
+
+/// Whether the page is currently inactive (see [`is_inactive`]). Without a window or
+/// document (server render) it reports `false`, so nothing is notified.
+pub fn is_page_inactive() -> bool {
     #[cfg(feature = "hydrate")]
     {
         web_sys::window()
             .and_then(|window: web_sys::Window| window.document())
-            .map(|document: web_sys::Document| document.hidden())
+            .map(|document: web_sys::Document| {
+                // A failed focus query counts as focused: err on the side of not notifying.
+                let has_focus: bool = document.has_focus().unwrap_or(true);
+                is_inactive(document.hidden(), has_focus)
+            })
             .unwrap_or(false)
     }
     #[cfg(not(feature = "hydrate"))]
@@ -113,6 +125,8 @@ pub fn show_notification(title: &str, body: &str, click_path: &str) {
         let options: web_sys::NotificationOptions = web_sys::NotificationOptions::new();
         options.set_body(body);
         options.set_tag(click_path);
+        // Same tag replaces the previous notification of the task; still alert for it.
+        options.set_renotify(true);
         let Ok(notification) = web_sys::Notification::new_with_options(title, &options) else {
             leptos::logging::error!("no se pudo mostrar la notificación");
             return;
@@ -121,14 +135,18 @@ pub fn show_notification(title: &str, body: &str, click_path: &str) {
         let on_click: Closure<dyn FnMut(web_sys::Event)> =
             Closure::once(move |_: web_sys::Event| {
                 if let Some(window) = web_sys::window() {
-                    window.focus().ok();
+                    if window.focus().is_err() {
+                        leptos::logging::error!("no se pudo enfocar la ventana");
+                    }
                     if window.location().set_href(&path).is_err() {
                         leptos::logging::error!("no se pudo navegar a {path}");
                     }
                 }
             });
         notification.set_onclick(Some(on_click.as_ref().unchecked_ref()));
-        // The notification owns the handler for its whole lifetime.
+        // The notification owns the handler. `Closure::once` frees itself after the click;
+        // if the notification is dismissed unclicked, the leak is one small closure per
+        // notification, bounded by the number of task transitions.
         on_click.forget();
     }
     #[cfg(not(feature = "hydrate"))]
@@ -144,5 +162,13 @@ mod tests {
     #[test]
     fn server_side_permission_is_unsupported() {
         assert_eq!(current_permission(), NotificationPermission::Unsupported);
+    }
+
+    #[test]
+    fn page_is_inactive_when_hidden_or_unfocused() {
+        assert!(!is_inactive(false, true));
+        assert!(is_inactive(true, true));
+        assert!(is_inactive(false, false));
+        assert!(is_inactive(true, false));
     }
 }

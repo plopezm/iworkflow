@@ -4,7 +4,7 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_location;
 
 use crate::core::components::browser_notification::{
-    NotificationPermission, current_permission, is_page_hidden, request_permission,
+    NotificationPermission, current_permission, is_page_inactive, request_permission,
     show_notification,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -171,9 +171,9 @@ impl AppSidebarState {
     }
 }
 
-/// Raises OS notifications for task transitions, only while the page is hidden.
+/// Raises OS notifications for task transitions, only while the page is inactive.
 fn notify_transitions(previous: &HashMap<String, TaskSnapshot>, tasks: &[TaskDto]) {
-    if !is_page_hidden() {
+    if !is_page_inactive() {
         return;
     }
     for notification in detect_task_notifications(previous, tasks) {
