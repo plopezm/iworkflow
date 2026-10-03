@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use mockall::mock;
 
@@ -52,6 +52,7 @@ mock! {
     #[async_trait::async_trait]
     impl DirectoryBrowserPort for DirectoryBrowser {
         async fn list(&self, path: &Path) -> Result<DirectoryListing, WorkspaceError>;
+        async fn create_directory(&self, parent: &Path, name: &str) -> Result<PathBuf, WorkspaceError>;
     }
 }
 

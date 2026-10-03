@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::core::db::pool::DbPool;
 use crate::modules::workspaces::application::usecases::browse_directories::BrowseDirectories;
+use crate::modules::workspaces::application::usecases::create_directory::CreateDirectory;
 use crate::modules::workspaces::application::usecases::delete_workspace::DeleteWorkspace;
 use crate::modules::workspaces::application::usecases::get_workspace::GetWorkspace;
 use crate::modules::workspaces::application::usecases::list_agents_file_options::ListAgentsFileOptions;
@@ -24,6 +25,7 @@ pub struct WorkspacesContext {
     pub get_workspace: Arc<GetWorkspace>,
     pub delete_workspace: Arc<DeleteWorkspace>,
     pub browse_directories: Arc<BrowseDirectories>,
+    pub create_directory: Arc<CreateDirectory>,
     pub list_agents_file_options: Arc<ListAgentsFileOptions>,
 }
 
@@ -48,7 +50,11 @@ impl WorkspacesContext {
             list_workspaces: Arc::new(ListWorkspaces::new(repository.clone())),
             get_workspace: Arc::new(GetWorkspace::new(repository.clone())),
             delete_workspace: Arc::new(DeleteWorkspace::new(repository, tasks)),
-            browse_directories: Arc::new(BrowseDirectories::new(directory_browser, home_dir)),
+            browse_directories: Arc::new(BrowseDirectories::new(
+                directory_browser.clone(),
+                home_dir,
+            )),
+            create_directory: Arc::new(CreateDirectory::new(directory_browser)),
             list_agents_file_options: Arc::new(ListAgentsFileOptions::new(agents_files)),
         }
     }

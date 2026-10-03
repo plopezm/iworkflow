@@ -106,6 +106,18 @@ pub async fn browse_directories(
 }
 
 #[server]
+pub async fn create_directory(parent: String, name: String) -> Result<String, ServerFnError> {
+    use std::path::PathBuf;
+
+    let created: PathBuf = support::context()?
+        .create_directory
+        .execute(PathBuf::from(parent.trim()), &name)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(created.to_string_lossy().into_owned())
+}
+
+#[server]
 pub async fn delete_workspace(id: String) -> Result<(), ServerFnError> {
     use crate::modules::workspaces::domain::models::workspace::WorkspaceId;
 
