@@ -8,6 +8,7 @@ use pi_workflow::modules::tasks::domain::models::agent_event::AgentEvent;
 use pi_workflow::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use pi_workflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use pi_workflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use pi_workflow::modules::tasks::domain::models::task_priority::TaskPriority;
 use pi_workflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use pi_workflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use pi_workflow::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
@@ -42,6 +43,7 @@ fn task(workspace_id: &str, title: &str) -> Task {
         base_branch: "main".to_string(),
         worktree_path: PathBuf::from(format!("/wt/{title}")),
         status: TaskStatus::Starting,
+        priority: TaskPriority::default(),
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
@@ -170,15 +172,26 @@ async fn updates_details_only_while_in_backlog() {
             backlog.id,
             "Nuevo título".to_string(),
             "Nuevo prompt".to_string(),
+            TaskPriority::High,
         )
         .await
         .expect("update");
     let rejected: bool = adapter
-        .update_details_if_backlog(started.id, "X".to_string(), "Y".to_string())
+        .update_details_if_backlog(
+            started.id,
+            "X".to_string(),
+            "Y".to_string(),
+            TaskPriority::Urgent,
+        )
         .await
         .expect("update");
     let missing: bool = adapter
-        .update_details_if_backlog(TaskId::new(), "X".to_string(), "Y".to_string())
+        .update_details_if_backlog(
+            TaskId::new(),
+            "X".to_string(),
+            "Y".to_string(),
+            TaskPriority::Urgent,
+        )
         .await
         .expect("update");
 
@@ -188,6 +201,11 @@ async fn updates_details_only_while_in_backlog() {
     let edited: Task = found(&adapter, backlog.id).await;
     assert_eq!(edited.title, "Nuevo título");
     assert_eq!(edited.prompt, "Nuevo prompt");
+    assert_eq!(edited.priority, TaskPriority::High);
+    assert_eq!(
+        found(&adapter, started.id).await.priority,
+        TaskPriority::Normal
+    );
     assert!(edited.updated_at >= backlog.updated_at);
     assert_eq!(found(&adapter, started.id).await.title, "dos");
 }
@@ -547,5 +565,28 @@ async fn subagent_activity_persists_while_live_and_resets_when_agent_is_gone() {
     assert_eq!(
         found(&adapter, live.id).await.subagents,
         SubagentActivity::default()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn priority_persists_on_insert_and_defaults_to_normal() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let urgent: Task = Task {
+        priority: TaskPriority::Urgent,
+        ..backlog_task(&ws.id.to_string(), "uno")
+    };
+    let normal: Task = backlog_task(&ws.id.to_string(), "dos");
+    adapter.insert(&urgent).await.expect("insert");
+    adapter.insert(&normal).await.expect("insert");
+
+    assert_eq!(
+        found(&adapter, urgent.id).await.priority,
+        TaskPriority::Urgent
+    );
+    assert_eq!(
+        found(&adapter, normal.id).await.priority,
+        TaskPriority::Normal
     );
 }

@@ -127,10 +127,16 @@ pub async fn start_task(id: String) -> Result<TaskDto, ServerFnError> {
 #[server(input = Json)]
 pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, ServerFnError> {
     use crate::modules::tasks::domain::models::task::Task;
+    use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 
     let task: Task = support::context()?
         .update_task
-        .execute(support::task_id(&id)?, input.title, input.prompt)
+        .execute(
+            support::task_id(&id)?,
+            input.title,
+            input.prompt,
+            TaskPriority::default(),
+        )
         .await
         .map_err(support::to_server_error)?;
     Ok(TaskDto::from(task))

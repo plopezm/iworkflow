@@ -8,6 +8,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 
 const MAX_TITLE_LENGTH: usize = 120;
 const MAX_SLUG_LENGTH: usize = 40;
@@ -240,6 +241,7 @@ pub struct Task {
     pub base_branch: String,
     pub worktree_path: PathBuf,
     pub status: TaskStatus,
+    pub priority: TaskPriority,
     pub error: Option<String>,
     /// Diálogos abiertos por el agente y aún sin responder.
     pub pending_dialogs: Vec<PendingDialog>,
@@ -321,6 +323,7 @@ pub struct NewTask {
     pub workspace_id: String,
     pub title: String,
     pub prompt: String,
+    pub priority: TaskPriority,
     /// Si es `true`, la tarea arranca (worktree + agente) inmediatamente tras crearse.
     pub start_now: bool,
 }
@@ -342,6 +345,7 @@ impl NewTask {
             workspace_id: self.workspace_id.trim().to_string(),
             title,
             prompt,
+            priority: self.priority,
             start_now: self.start_now,
         })
     }
@@ -446,6 +450,7 @@ mod tests {
             workspace_id: " ws ".to_string(),
             title: "  ".to_string(),
             prompt: "  Arregla el test\nmás detalles".to_string(),
+            priority: TaskPriority::default(),
             start_now: false,
         }
         .validated()
@@ -455,11 +460,26 @@ mod tests {
     }
 
     #[test]
+    fn new_task_keeps_priority_when_validated() {
+        let task: NewTask = NewTask {
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            priority: TaskPriority::Urgent,
+            start_now: false,
+        }
+        .validated()
+        .expect("válida");
+        assert_eq!(task.priority, TaskPriority::Urgent);
+    }
+
+    #[test]
     fn new_task_requires_prompt() {
         let result: Result<NewTask, TaskError> = NewTask {
             workspace_id: "ws".to_string(),
             title: "t".to_string(),
             prompt: " \n ".to_string(),
+            priority: TaskPriority::default(),
             start_now: false,
         }
         .validated();
@@ -571,6 +591,7 @@ mod tests {
             base_branch: "main".to_string(),
             worktree_path: PathBuf::from("/wt/t"),
             status,
+            priority: TaskPriority::default(),
             error: None,
             pending_dialogs,
             subagents: SubagentActivity::default(),

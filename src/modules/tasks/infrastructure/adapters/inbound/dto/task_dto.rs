@@ -163,6 +163,7 @@ mod mapping {
     use crate::modules::tasks::domain::models::task::{
         CreatedTask, NewTask, Task, TaskStage, TaskStatus,
     };
+    use crate::modules::tasks::domain::models::task_priority::TaskPriority;
     use crate::modules::tasks::domain::models::worktree::MergeOutcome;
 
     impl From<TaskStatus> for TaskStatusDto {
@@ -252,6 +253,7 @@ mod mapping {
                 workspace_id: dto.workspace_id,
                 title: dto.title,
                 prompt: dto.prompt,
+                priority: TaskPriority::default(),
                 start_now: dto.start_now,
             }
         }
@@ -294,6 +296,7 @@ mod mapping {
                 base_branch: "main".into(),
                 worktree_path: PathBuf::from("/wt/t"),
                 status,
+                priority: TaskPriority::default(),
                 error: None,
                 pending_dialogs: Vec::new(),
                 subagents: Default::default(),

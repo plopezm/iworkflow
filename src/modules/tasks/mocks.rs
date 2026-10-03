@@ -11,6 +11,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::models::worktree::{MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
@@ -36,7 +37,7 @@ mock! {
             status: TaskStatus,
             error: Option<String>,
         ) -> Result<(), TaskError>;
-        async fn update_details_if_backlog(&self, id: TaskId, title: String, prompt: String) -> Result<bool, TaskError>;
+        async fn update_details_if_backlog(&self, id: TaskId, title: String, prompt: String, priority: TaskPriority) -> Result<bool, TaskError>;
         async fn claim_for_start(
             &self,
             id: TaskId,

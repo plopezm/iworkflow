@@ -5,5 +5,6 @@ pub mod pending_dialog;
 pub mod subagent_activity;
 pub mod task;
 pub mod task_event;
+pub mod task_priority;
 pub mod workspace_ref;
 pub mod worktree;

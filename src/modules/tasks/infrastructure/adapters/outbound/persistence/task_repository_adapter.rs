@@ -11,6 +11,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::models::task_event_row::{
@@ -158,6 +159,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         id: TaskId,
         title: String,
         prompt: String,
+        priority: TaskPriority,
     ) -> Result<bool, TaskError> {
         let mut connection: DbConnection = self.connection().await?;
         let now: NaiveDateTime = Utc::now().naive_utc();
@@ -169,6 +171,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         .set((
             tasks::title.eq(title),
             tasks::prompt.eq(prompt),
+            tasks::priority.eq(priority.as_str()),
             tasks::updated_at.eq(now),
         ))
         .execute(&mut connection)

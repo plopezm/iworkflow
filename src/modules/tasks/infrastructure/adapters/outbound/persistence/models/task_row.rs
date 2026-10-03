@@ -10,6 +10,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable)]
 #[diesel(table_name = tasks)]
@@ -30,6 +31,7 @@ pub struct TaskRow {
     pub pending_dialogs: String,
     pub subagents_active: i32,
     pub subagents_waiting: i32,
+    pub priority: String,
 }
 
 /// JSON por defecto cuando la serialización (imposible en la práctica) fallara.
@@ -102,6 +104,7 @@ impl From<&Task> for TaskRow {
             pending_dialogs: encode_pending_dialogs(&task.pending_dialogs),
             subagents_active: clamp_count(task.subagents.active),
             subagents_waiting: clamp_count(task.subagents.waiting),
+            priority: task.priority.as_str().to_string(),
         }
     }
 }
@@ -121,6 +124,7 @@ impl TryFrom<TaskRow> for Task {
             base_branch: row.base_branch,
             worktree_path: PathBuf::from(row.worktree_path),
             status: TaskStatus::parse(&row.status)?,
+            priority: TaskPriority::parse(&row.priority)?,
             error: row.error,
             pending_dialogs: decode_pending_dialogs(&row.pending_dialogs)?,
             subagents: SubagentActivity::new(
