@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
 use crate::modules::workspaces::domain::models::directory_listing::DirectoryListing;
@@ -10,4 +10,8 @@ pub trait DirectoryBrowserPort: Send + Sync {
     /// ancestros. Falla con `PathNotFound` si ni la carpeta ni ningún ancestro existen,
     /// o con `Io` ante otros errores de lectura.
     async fn list(&self, path: &Path) -> Result<DirectoryListing, WorkspaceError>;
+
+    /// Crea la carpeta `name` dentro de `parent` (que debe existir) y devuelve su ruta.
+    /// Falla con `Io` si ya existe o no se puede crear.
+    async fn create_directory(&self, parent: &Path, name: &str) -> Result<PathBuf, WorkspaceError>;
 }

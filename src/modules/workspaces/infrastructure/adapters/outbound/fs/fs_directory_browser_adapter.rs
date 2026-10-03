@@ -81,6 +81,14 @@ impl DirectoryBrowserPort for FsDirectoryBrowserAdapter {
             entries,
         })
     }
+
+    async fn create_directory(&self, parent: &Path, name: &str) -> Result<PathBuf, WorkspaceError> {
+        let target: PathBuf = parent.join(name);
+        fs::create_dir(&target)
+            .await
+            .map_err(|e: std::io::Error| io_error(&target, e))?;
+        Ok(target)
+    }
 }
 
 #[cfg(test)]
@@ -141,6 +149,31 @@ mod tests {
             .expect("listado");
 
         assert_eq!(listing.path, dir.path());
+    }
+
+    #[tokio::test]
+    async fn creates_directory_inside_parent() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+
+        let created: PathBuf = FsDirectoryBrowserAdapter::new()
+            .create_directory(dir.path(), "nueva")
+            .await
+            .expect("crear");
+
+        assert_eq!(created, dir.path().join("nueva"));
+        assert!(created.is_dir());
+    }
+
+    #[tokio::test]
+    async fn create_directory_fails_when_it_already_exists() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir(dir.path().join("dup")).expect("mkdir");
+
+        let result: Result<PathBuf, WorkspaceError> = FsDirectoryBrowserAdapter::new()
+            .create_directory(dir.path(), "dup")
+            .await;
+
+        assert!(matches!(result, Err(WorkspaceError::Io(_))));
     }
 
     #[tokio::test]
