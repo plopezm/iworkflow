@@ -53,7 +53,7 @@ impl TaskEditState {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ssr"))]
 mod tests {
     use super::*;
     use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{

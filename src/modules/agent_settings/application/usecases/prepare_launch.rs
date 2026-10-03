@@ -2,7 +2,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
-use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::agent_settings::AgentSettings;
 use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPreferences;
 use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
@@ -27,11 +26,8 @@ impl PrepareLaunch {
 
     pub async fn execute(&self, cwd: &Path) -> Result<LaunchPreferences, AgentSettingsError> {
         let settings: AgentSettings = self.repository.get().await?;
-        // Los perfiles son de gentle-ai: con `pi` plano se retira el pin del worktree.
-        let profile: Option<&ProfileName> = match settings.runtime {
-            Some(AgentRuntime::Pi) => None,
-            _ => settings.profile.as_ref(),
-        };
+        // `pi` carga la extensión gentle-pi, que lee el pin igual que gentle-shell.
+        let profile: Option<&ProfileName> = settings.profile.as_ref();
         self.pin.apply(cwd, profile).await?;
         Ok(LaunchPreferences {
             runtime: settings.runtime,
@@ -44,6 +40,7 @@ impl PrepareLaunch {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
     use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
     use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
     use crate::modules::agent_settings::mocks::{MockAgentSettingsRepository, MockProfilePin};
@@ -108,7 +105,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn pi_runtime_drops_the_profile_pin_and_is_returned() {
+    async fn pi_runtime_keeps_the_profile_pin_and_is_returned() {
         let mut repository: MockAgentSettingsRepository = MockAgentSettingsRepository::new();
         repository.expect_get().returning(|| {
             Ok(AgentSettings {
@@ -119,7 +116,7 @@ mod tests {
         });
         let mut pin: MockProfilePin = MockProfilePin::new();
         pin.expect_apply()
-            .withf(|_cwd, profile| profile.is_none())
+            .withf(|_cwd, profile| profile.map(ProfileName::as_str) == Some("Claude"))
             .times(1)
             .returning(|_, _| Ok(()));
         let use_case: PrepareLaunch = PrepareLaunch::new(Arc::new(repository), Arc::new(pin));
