@@ -40,7 +40,7 @@ impl WorkspacesContext {
             Arc::new(WorkspaceRepositoryAdapter::new(pool));
         let git: Arc<dyn GitRepositoryPort> = Arc::new(GitCliRepositoryAdapter::new());
         let directory_browser: Arc<dyn DirectoryBrowserPort> =
-            Arc::new(FsDirectoryBrowserAdapter::new());
+            Arc::new(FsDirectoryBrowserAdapter::new(home_dir.clone()));
         Self {
             register_workspace: Arc::new(RegisterWorkspace::new(
                 repository.clone(),

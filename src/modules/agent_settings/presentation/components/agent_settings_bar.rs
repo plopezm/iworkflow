@@ -12,8 +12,6 @@ use crate::modules::agent_settings::presentation::state::agent_settings_state::{
 
 /// Runtime por defecto (el que representa la opción vacía del selector).
 const DEFAULT_RUNTIME: &str = "gentle-shell";
-/// Identificador del runtime `pi` (el dominio es `AgentRuntime::Pi`).
-const PI_RUNTIME: &str = "pi";
 const APPLIES_TO_NEW_TASKS_HINT: &str = "Los cambios se aplican a las tareas nuevas que se inicien, no a las que ya están en marcha ni a las que se reanudan.";
 
 /// Icono de runtime (terminal) para el selector de implementación de agente.
@@ -251,10 +249,6 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         Ok(settings) => settings,
                         Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
                     };
-                    if settings.runtime.as_deref() == Some(PI_RUNTIME) {
-                        // Los perfiles son de gentle-ai: no aplican con `pi`.
-                        return ().into_any();
-                    }
                     let catalog: ProfileCatalogDto = match state.profiles.await {
                         Ok(catalog) => catalog,
                         Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),

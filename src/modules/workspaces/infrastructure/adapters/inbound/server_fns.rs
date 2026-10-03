@@ -35,6 +35,18 @@ mod support {
         }
 
         #[test]
+        fn path_outside_allowed_root_keeps_its_spanish_message() {
+            let error: ServerFnError =
+                to_server_error(WorkspaceError::PathOutsideAllowedRoot("/etc".to_string()));
+            assert_eq!(
+                error,
+                ServerFnError::ServerError(
+                    "la ruta está fuera de la raíz permitida: /etc".to_string()
+                )
+            );
+        }
+
+        #[test]
         fn agents_file_errors_keep_their_spanish_message() {
             let error: ServerFnError = to_server_error(WorkspaceError::AgentsFileTargetExists(
                 "/repos/demo/AGENTS.md".to_string(),

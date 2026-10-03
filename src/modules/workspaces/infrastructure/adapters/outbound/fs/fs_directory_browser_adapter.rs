@@ -11,13 +11,15 @@ use crate::modules::workspaces::domain::ports::outbound::directory_browser_port:
 const DOT_PREFIX: char = '.';
 const GIT_DIR_NAME: &str = ".git";
 
-/// Lista carpetas del sistema de ficheros local usando `tokio::fs`.
-#[derive(Default)]
-pub struct FsDirectoryBrowserAdapter;
+/// Lista carpetas del sistema de ficheros local usando `tokio::fs`. La creación de
+/// carpetas queda confinada a `allowed_root`.
+pub struct FsDirectoryBrowserAdapter {
+    allowed_root: PathBuf,
+}
 
 impl FsDirectoryBrowserAdapter {
-    pub fn new() -> Self {
-        Self
+    pub fn new(allowed_root: PathBuf) -> Self {
+        Self { allowed_root }
     }
 }
 
@@ -83,7 +85,24 @@ impl DirectoryBrowserPort for FsDirectoryBrowserAdapter {
     }
 
     async fn create_directory(&self, parent: &Path, name: &str) -> Result<PathBuf, WorkspaceError> {
-        let target: PathBuf = parent.join(name);
+        let root: PathBuf = fs::canonicalize(&self.allowed_root)
+            .await
+            .map_err(|e: std::io::Error| io_error(&self.allowed_root, e))?;
+        let canonical_parent: PathBuf =
+            fs::canonicalize(parent)
+                .await
+                .map_err(|e: std::io::Error| match e.kind() {
+                    std::io::ErrorKind::NotFound => {
+                        WorkspaceError::PathNotFound(parent.display().to_string())
+                    }
+                    _ => io_error(parent, e),
+                })?;
+        if !canonical_parent.starts_with(&root) {
+            return Err(WorkspaceError::PathOutsideAllowedRoot(
+                parent.display().to_string(),
+            ));
+        }
+        let target: PathBuf = canonical_parent.join(name);
         fs::create_dir(&target)
             .await
             .map_err(|e: std::io::Error| io_error(&target, e))?;
@@ -103,7 +122,7 @@ mod tests {
         std::fs::create_dir(dir.path().join(".hidden")).expect("mkdir");
         std::fs::write(dir.path().join("file.txt"), "x").expect("write");
 
-        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new()
+        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new(dir.path().to_path_buf())
             .list(dir.path())
             .await
             .expect("listado");
@@ -119,7 +138,7 @@ mod tests {
         std::fs::create_dir(dir.path().join("repo/.git")).expect("mkdir");
         std::fs::create_dir(dir.path().join("plain")).expect("mkdir");
 
-        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new()
+        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new(dir.path().to_path_buf())
             .list(dir.path())
             .await
             .expect("listado");
@@ -143,7 +162,7 @@ mod tests {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
         let missing: PathBuf = dir.path().join("missing/nested/child");
 
-        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new()
+        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new(dir.path().to_path_buf())
             .list(&missing)
             .await
             .expect("listado");
@@ -155,12 +174,13 @@ mod tests {
     async fn creates_directory_inside_parent() {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
 
-        let created: PathBuf = FsDirectoryBrowserAdapter::new()
+        let created: PathBuf = FsDirectoryBrowserAdapter::new(dir.path().to_path_buf())
             .create_directory(dir.path(), "nueva")
             .await
             .expect("crear");
 
-        assert_eq!(created, dir.path().join("nueva"));
+        let expected: PathBuf = dir.path().canonicalize().expect("canon").join("nueva");
+        assert_eq!(created, expected);
         assert!(created.is_dir());
     }
 
@@ -169,9 +189,10 @@ mod tests {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir(dir.path().join("dup")).expect("mkdir");
 
-        let result: Result<PathBuf, WorkspaceError> = FsDirectoryBrowserAdapter::new()
-            .create_directory(dir.path(), "dup")
-            .await;
+        let result: Result<PathBuf, WorkspaceError> =
+            FsDirectoryBrowserAdapter::new(dir.path().to_path_buf())
+                .create_directory(dir.path(), "dup")
+                .await;
 
         assert!(matches!(result, Err(WorkspaceError::Io(_))));
     }
@@ -181,11 +202,99 @@ mod tests {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir(dir.path().join("child")).expect("mkdir");
 
-        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new()
+        let listing: DirectoryListing = FsDirectoryBrowserAdapter::new(dir.path().to_path_buf())
             .list(&dir.path().join("child"))
             .await
             .expect("listado");
 
         assert_eq!(listing.parent.as_deref(), Some(dir.path()));
+    }
+
+    fn adapter_for(root: &Path) -> FsDirectoryBrowserAdapter {
+        FsDirectoryBrowserAdapter::new(root.to_path_buf())
+    }
+
+    #[tokio::test]
+    async fn create_directory_rejects_parent_outside_root() {
+        let root: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let outside: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+
+        let result: Result<PathBuf, WorkspaceError> = adapter_for(root.path())
+            .create_directory(outside.path(), "x")
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(WorkspaceError::PathOutsideAllowedRoot(_))
+        ));
+        assert!(!outside.path().join("x").exists());
+    }
+
+    #[tokio::test]
+    async fn create_directory_rejects_dotdot_escape() {
+        let base: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let root: PathBuf = base.path().join("root");
+        let outside: PathBuf = base.path().join("outside");
+        std::fs::create_dir(&root).expect("mkdir");
+        std::fs::create_dir(&outside).expect("mkdir");
+
+        let result: Result<PathBuf, WorkspaceError> = adapter_for(&root)
+            .create_directory(&root.join("../outside"), "x")
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(WorkspaceError::PathOutsideAllowedRoot(_))
+        ));
+        assert!(!outside.join("x").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn create_directory_rejects_symlink_pointing_outside_root() {
+        let base: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let root: PathBuf = base.path().join("root");
+        let outside: PathBuf = base.path().join("outside");
+        std::fs::create_dir(&root).expect("mkdir");
+        std::fs::create_dir(&outside).expect("mkdir");
+        std::os::unix::fs::symlink(&outside, root.join("link")).expect("symlink");
+
+        let result: Result<PathBuf, WorkspaceError> = adapter_for(&root)
+            .create_directory(&root.join("link"), "x")
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(WorkspaceError::PathOutsideAllowedRoot(_))
+        ));
+        assert!(!outside.join("x").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn create_directory_allows_symlink_pointing_inside_root() {
+        let root: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let real: PathBuf = root.path().join("real");
+        std::fs::create_dir(&real).expect("mkdir");
+        std::os::unix::fs::symlink(&real, root.path().join("link")).expect("symlink");
+
+        let created: PathBuf = adapter_for(root.path())
+            .create_directory(&root.path().join("link"), "x")
+            .await
+            .expect("crear");
+
+        assert!(real.join("x").is_dir());
+        assert!(created.is_dir());
+    }
+
+    #[tokio::test]
+    async fn create_directory_fails_when_parent_is_missing() {
+        let root: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+
+        let result: Result<PathBuf, WorkspaceError> = adapter_for(root.path())
+            .create_directory(&root.path().join("missing"), "x")
+            .await;
+
+        assert!(matches!(result, Err(WorkspaceError::PathNotFound(_))));
     }
 }
