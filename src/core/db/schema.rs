@@ -45,6 +45,7 @@ diesel::table! {
         pending_dialogs -> Text,
         subagents_active -> Integer,
         subagents_waiting -> Integer,
+        priority -> Text,
     }
 }
 

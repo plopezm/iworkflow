@@ -59,6 +59,7 @@ impl CreateTask {
             base_branch: workspace.base_branch,
             worktree_path,
             status: TaskStatus::Backlog,
+            priority: input.priority,
             error: None,
             pending_dialogs: Vec::new(),
             subagents: Default::default(),
@@ -97,6 +98,7 @@ mod tests {
     use crate::modules::tasks::application::test_support::{self, REPO, Recorded};
     use crate::modules::tasks::domain::models::agent_command::AgentCommand;
     use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+    use crate::modules::tasks::domain::models::task_priority::TaskPriority;
     use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
     use crate::modules::tasks::mocks::{
         MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockTaskEventPublisher,
@@ -116,6 +118,7 @@ mod tests {
             workspace_id: "ws-1".to_string(),
             title: "Arregla login".to_string(),
             prompt: "Arregla el login roto".to_string(),
+            priority: TaskPriority::default(),
             start_now,
         }
     }
@@ -162,6 +165,24 @@ mod tests {
         assert!(task.pending_dialogs.is_empty());
         assert_eq!(recorded.statuses(), vec![TaskStatus::Backlog]);
         assert!(task.branch.starts_with("pi/arregla-login-"));
+    }
+
+    #[tokio::test]
+    async fn keeps_requested_priority_on_the_created_task() {
+        let recorded: Recorded = Recorded::default();
+        let use_case: CreateTask = CreateTask::new(
+            lifecycle_accepting_insert(&recorded),
+            Arc::new(worktrees_computing_path_only()),
+            no_op_start_task(&recorded),
+        );
+        let urgent: NewTask = NewTask {
+            priority: TaskPriority::Urgent,
+            ..input(false)
+        };
+
+        let created: CreatedTask = use_case.execute(urgent).await.expect("creada");
+
+        assert_eq!(created.task.priority, TaskPriority::Urgent);
     }
 
     #[tokio::test]

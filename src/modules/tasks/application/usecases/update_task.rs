@@ -3,8 +3,9 @@ use std::sync::Arc;
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::{NewTask, Task, TaskId};
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 
-/// Edita titulo y prompt de una tarea en `Backlog` (misma validacion que al crearla).
+/// Edita titulo, prompt y prioridad de una tarea en `Backlog` (misma validacion que al crearla).
 pub struct UpdateTask {
     lifecycle: Arc<TaskLifecycle>,
 }
@@ -19,6 +20,7 @@ impl UpdateTask {
         id: TaskId,
         title: String,
         prompt: String,
+        priority: TaskPriority,
     ) -> Result<Task, TaskError> {
         let task: Task = self.lifecycle.load(id).await?;
         if !task.status.can_edit() {
@@ -28,6 +30,7 @@ impl UpdateTask {
             workspace_id: task.workspace_id.clone(),
             title,
             prompt,
+            priority,
             start_now: false,
         }
         .validated()?;
@@ -35,7 +38,12 @@ impl UpdateTask {
         let updated: bool = self
             .lifecycle
             .repository()
-            .update_details_if_backlog(id, validated.title.clone(), validated.prompt.clone())
+            .update_details_if_backlog(
+                id,
+                validated.title.clone(),
+                validated.prompt.clone(),
+                validated.priority,
+            )
             .await?;
         if !updated {
             return Err(self.lifecycle.conflict(id, "editar").await);
@@ -45,6 +53,7 @@ impl UpdateTask {
         Ok(Task {
             title: validated.title,
             prompt: validated.prompt,
+            priority: validated.priority,
             ..task
         })
     }
@@ -63,7 +72,7 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .returning(|_, _, _| Ok(true));
+            .returning(|_, _, _, _| Ok(true));
         test_support::lifecycle_with(repository, recorded)
     }
 
@@ -74,12 +83,38 @@ mod tests {
         let recorded: Recorded = Recorded::default();
 
         let updated: Task = UpdateTask::new(lifecycle_accepting_update(task, &recorded))
-            .execute(id, "Nuevo titulo".to_string(), "Nuevo prompt".to_string())
+            .execute(
+                id,
+                "Nuevo titulo".to_string(),
+                "Nuevo prompt".to_string(),
+                TaskPriority::default(),
+            )
             .await
             .expect("editada");
 
         assert_eq!(updated.title, "Nuevo titulo");
         assert_eq!(updated.prompt, "Nuevo prompt");
+    }
+
+    #[tokio::test]
+    async fn updates_priority_and_persists_it_through_the_port() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut repository: MockTaskRepository =
+            test_support::repository_with(Some(task), &recorded);
+        repository
+            .expect_update_details_if_backlog()
+            .times(1)
+            .withf(|_, _, _, priority: &TaskPriority| *priority == TaskPriority::Urgent)
+            .returning(|_, _, _, _| Ok(true));
+
+        let updated: Task = UpdateTask::new(test_support::lifecycle_with(repository, &recorded))
+            .execute(id, "t".to_string(), "p".to_string(), TaskPriority::Urgent)
+            .await
+            .expect("editada");
+
+        assert_eq!(updated.priority, TaskPriority::Urgent);
     }
 
     #[tokio::test]
@@ -89,7 +124,12 @@ mod tests {
         let recorded: Recorded = Recorded::default();
 
         let updated: Task = UpdateTask::new(lifecycle_accepting_update(task, &recorded))
-            .execute(id, "  ".to_string(), "Arregla el test\nmas".to_string())
+            .execute(
+                id,
+                "  ".to_string(),
+                "Arregla el test\nmas".to_string(),
+                TaskPriority::default(),
+            )
             .await
             .expect("editada");
 
@@ -102,7 +142,12 @@ mod tests {
         let id: TaskId = task.id;
         let result: Result<Task, TaskError> =
             UpdateTask::new(test_support::lifecycle(Some(task), &Recorded::default()))
-                .execute(id, "t".to_string(), "p".to_string())
+                .execute(
+                    id,
+                    "t".to_string(),
+                    "p".to_string(),
+                    TaskPriority::default(),
+                )
                 .await;
 
         assert!(matches!(result, Err(TaskError::InvalidState { .. })));
@@ -118,11 +163,16 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .returning(|_, _, _| Ok(false));
+            .returning(|_, _, _, _| Ok(false));
 
         let result: Result<Task, TaskError> =
             UpdateTask::new(test_support::lifecycle_with(repository, &recorded))
-                .execute(id, "t".to_string(), "p".to_string())
+                .execute(
+                    id,
+                    "t".to_string(),
+                    "p".to_string(),
+                    TaskPriority::default(),
+                )
                 .await;
 
         assert!(result.is_err());
@@ -134,7 +184,12 @@ mod tests {
         let id: TaskId = task.id;
         let result: Result<Task, TaskError> =
             UpdateTask::new(test_support::lifecycle(Some(task), &Recorded::default()))
-                .execute(id, "t".to_string(), "   ".to_string())
+                .execute(
+                    id,
+                    "t".to_string(),
+                    "   ".to_string(),
+                    TaskPriority::default(),
+                )
                 .await;
 
         assert_eq!(result, Err(TaskError::EmptyPrompt));

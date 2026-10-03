@@ -3,7 +3,7 @@ use leptos_router::components::A;
 
 use crate::core::browser::confirm;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    TaskActionsDto, TaskDto, TaskStageDto,
+    TaskActionsDto, TaskDto, TaskPriorityDto, TaskStageDto,
 };
 use crate::modules::tasks::presentation::components::stage_badge::StageBadge;
 
@@ -72,6 +72,17 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                 </A>
                 <StageBadge stage=task.stage />
             </div>
+            {(task.priority != TaskPriorityDto::Normal)
+                .then(|| {
+                    view! {
+                        <div class="row gap-1.5">
+                            <span class=format!(
+                                "badge badge-{}",
+                                task.priority.variant(),
+                            )>{task.priority.label()}</span>
+                        </div>
+                    }
+                })}
             {task
                 .needs_attention
                 .then(|| {

@@ -5,6 +5,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 
 #[async_trait::async_trait]
 pub trait TaskRepositoryPort: Send + Sync {
@@ -19,13 +20,14 @@ pub trait TaskRepositoryPort: Send + Sync {
         status: TaskStatus,
         error: Option<String>,
     ) -> Result<(), TaskError>;
-    /// Actualiza título y prompt, solo si la tarea sigue en `Backlog`. Devuelve `false`
+    /// Actualiza título, prompt y prioridad, solo si la tarea sigue en `Backlog`. Devuelve `false`
     /// (sin modificar nada) si la tarea no existe o ya no está en `Backlog`.
     async fn update_details_if_backlog(
         &self,
         id: TaskId,
         title: String,
         prompt: String,
+        priority: TaskPriority,
     ) -> Result<bool, TaskError>;
     /// Reclama atómicamente una tarea en `Backlog` para arrancarla: fija el plan
     /// (rama, ruta de worktree y rama base) y pasa a `Starting` en una única

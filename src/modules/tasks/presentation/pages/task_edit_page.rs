@@ -4,8 +4,9 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::core::browser::history_back;
-use crate::core::components::form::{ActionError, TextArea, TextField};
+use crate::core::components::form::{ActionError, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
+use crate::modules::tasks::presentation::components::task_modal::priority_select_options;
 use crate::modules::tasks::presentation::state::task_edit_state::TaskEditState;
 
 /// Página de edición. Se reconstruye por cada id (el router reutiliza el componente).
@@ -69,6 +70,11 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                         label="Título (opcional)"
                                         value=state.form_title
                                         placeholder="Se deriva del prompt"
+                                    />
+                                    <SelectField
+                                        label="Prioridad"
+                                        value=state.form_priority
+                                        options=priority_select_options()
                                     />
                                     <TextArea
                                         label="Prompt"

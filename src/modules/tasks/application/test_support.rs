@@ -10,6 +10,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::mocks::{
     MockTaskEventPublisher, MockTaskRepository, MockWorkspaceLookup,
@@ -40,6 +41,7 @@ pub fn task_with_pending_dialogs(status: TaskStatus, ids: Vec<String>) -> Task {
         base_branch: "main".to_string(),
         worktree_path: PathBuf::from(WORKTREE),
         status,
+        priority: TaskPriority::default(),
         error: None,
         pending_dialogs,
         subagents: Default::default(),

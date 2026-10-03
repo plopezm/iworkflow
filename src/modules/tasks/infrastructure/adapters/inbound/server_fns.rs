@@ -130,7 +130,12 @@ pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, Se
 
     let task: Task = support::context()?
         .update_task
-        .execute(support::task_id(&id)?, input.title, input.prompt)
+        .execute(
+            support::task_id(&id)?,
+            input.title,
+            input.prompt,
+            input.priority.into(),
+        )
         .await
         .map_err(support::to_server_error)?;
     Ok(TaskDto::from(task))

@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    TaskDto, UpdateTaskDto,
+    TaskDto, TaskPriorityDto, UpdateTaskDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{UpdateTask, get_task};
 
@@ -13,6 +13,8 @@ pub struct TaskEditState {
     pub update: ServerAction<UpdateTask>,
     pub form_title: RwSignal<String>,
     pub form_prompt: RwSignal<String>,
+    /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
+    pub form_priority: RwSignal<String>,
 }
 
 impl TaskEditState {
@@ -26,6 +28,7 @@ impl TaskEditState {
             update: ServerAction::new(),
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
+            form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
         }
     }
 
@@ -33,6 +36,7 @@ impl TaskEditState {
     pub fn prefill(&self, task: &TaskDto) {
         self.form_title.set(task.title.clone());
         self.form_prompt.set(task.prompt.clone());
+        self.form_priority.set(task.priority.as_str().to_string());
     }
 
     pub fn submit(&self) {
@@ -41,6 +45,8 @@ impl TaskEditState {
             input: UpdateTaskDto {
                 title: self.form_title.get_untracked(),
                 prompt: self.form_prompt.get_untracked(),
+                priority: TaskPriorityDto::from_value(&self.form_priority.get_untracked())
+                    .unwrap_or_default(),
             },
         });
     }
@@ -71,6 +77,7 @@ mod tests {
             base_branch: "main".to_string(),
             worktree_path: "/wt".to_string(),
             status: TaskStatusDto::Idle,
+            priority: Default::default(),
             error: None,
             actions: Default::default(),
             stage: TaskStageDto::Backlog,
@@ -82,7 +89,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prefill_copies_title_and_prompt_into_the_form() {
+    async fn prefill_copies_title_prompt_and_priority_into_the_form() {
         let _init: Result<(), _> = Executor::init_tokio();
         let owner: Owner = Owner::new();
         owner.with(|| {
@@ -90,6 +97,12 @@ mod tests {
             state.prefill(&task());
             assert_eq!(state.form_title.get_untracked(), "Título");
             assert_eq!(state.form_prompt.get_untracked(), "Prompt");
+            assert_eq!(state.form_priority.get_untracked(), "normal");
+
+            let mut urgent: TaskDto = task();
+            urgent.priority = TaskPriorityDto::Urgent;
+            state.prefill(&urgent);
+            assert_eq!(state.form_priority.get_untracked(), "urgent");
         });
     }
 

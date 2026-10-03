@@ -6,6 +6,8 @@ pub enum TaskError {
     EmptyPrompt,
     #[error("el título es demasiado largo (máximo 120 caracteres)")]
     InvalidTitle,
+    #[error("prioridad de tarea desconocida: {0}")]
+    InvalidPriority(String),
     #[error("el mensaje está vacío")]
     EmptyMessage,
     #[error("tarea no encontrada: {0}")]

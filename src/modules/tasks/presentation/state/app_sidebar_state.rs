@@ -180,6 +180,7 @@ mod tests {
             base_branch: "main".to_string(),
             worktree_path: "/wt".to_string(),
             status: TaskStatusDto::Idle,
+            priority: Default::default(),
             error: None,
             actions: Default::default(),
             stage: TaskStageDto::Working,
