@@ -108,7 +108,7 @@ impl TasksContext {
             lifecycle.clone(),
             worktrees.clone(),
             runtime.clone(),
-            launch_settings,
+            launch_settings.clone(),
             sink.clone(),
         ));
 
@@ -130,7 +130,12 @@ impl TasksContext {
                 worktrees.clone(),
                 runtime.clone(),
             )),
-            resume_task: Arc::new(ResumeTask::new(lifecycle.clone(), runtime.clone(), sink)),
+            resume_task: Arc::new(ResumeTask::new(
+                lifecycle.clone(),
+                runtime.clone(),
+                launch_settings,
+                sink,
+            )),
             merge_task: Arc::new(MergeTask::new(lifecycle.clone(), worktrees.clone())),
             discard_task: Arc::new(DiscardTask::new(
                 lifecycle.clone(),
