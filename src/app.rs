@@ -19,7 +19,7 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
             <head>
                 <meta charset="utf-8" />
                 <script inner_html=THEME_INIT_SCRIPT></script>
-                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
                 <AutoReload options=options.clone() />
                 <HydrationScripts options />
                 <MetaTags />

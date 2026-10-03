@@ -109,6 +109,11 @@ label {
   -webkit-tap-highlight-color: transparent;
 }
 
+html,
+body {
+  touch-action: manipulation;
+}
+
 body {
   background-color: var(--color-bg);
   color: var(--color-fg);
