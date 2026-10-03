@@ -1,3 +1,4 @@
+pub mod browser_notification;
 pub mod confirm_panel;
 pub mod form;
 pub mod layout;

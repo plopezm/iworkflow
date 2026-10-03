@@ -35,7 +35,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = tr
 # hydrate
 console_error_panic_hook = { version = "0.1", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
-web-sys = { version = "0.3", features = ["Event", "EventSource", "MessageEvent", "Window"], optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = ["Document", "Event", "EventSource", "Location", "MessageEvent", "Notification", "NotificationOptions", "NotificationPermission", "Window"], optional = true }
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
 
 [dev-dependencies]
@@ -44,7 +45,7 @@ mockall = "0.15"
 tempfile = "3"
 
 [features]
-hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen", "dep:web-sys"]
+hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen", "dep:web-sys", "dep:js-sys"]
 ssr = [
     "dep:axum",
     "dep:tokio",

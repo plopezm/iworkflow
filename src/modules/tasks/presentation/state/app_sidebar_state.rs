@@ -3,6 +3,10 @@ use std::collections::HashMap;
 use leptos::prelude::*;
 use leptos_router::hooks::use_location;
 
+use crate::core::components::browser_notification::{
+    NotificationPermission, current_permission, is_page_hidden, request_permission,
+    show_notification,
+};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, WorkspaceOptionDto,
 };
@@ -10,6 +14,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     list_tasks, list_workspace_options,
 };
 use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
+use crate::modules::tasks::presentation::state::task_notifications::{
+    TaskNotification, TaskSnapshot, build_snapshots, detect_task_notifications,
+};
 
 /// Fila de un workspace en la barra lateral.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +97,7 @@ pub struct AppSidebarState {
     pub workspace_rows: RwSignal<Vec<SidebarWorkspaceRow>>,
     pub task_rows: RwSignal<Vec<SidebarTaskRow>>,
     pub pathname: Memo<String>,
+    pub notification_permission: RwSignal<NotificationPermission>,
 }
 
 impl AppSidebarState {
@@ -104,10 +112,15 @@ impl AppSidebarState {
         );
         let workspace_rows: RwSignal<Vec<SidebarWorkspaceRow>> = RwSignal::new(Vec::new());
         let task_rows: RwSignal<Vec<SidebarTaskRow>> = RwSignal::new(Vec::new());
+        let notification_permission: RwSignal<NotificationPermission> =
+            RwSignal::new(NotificationPermission::Unsupported);
+        // Browser-only value: read after hydration to keep SSR and client markup equal.
+        Effect::new(move |_| notification_permission.set(current_permission()));
 
         // Publica desde un `Effect` (solo cliente, tras hidratar) y conserva el valor
         // anterior mientras se recarga.
-        Effect::new(move |_| {
+        Effect::new(move |last: Option<Option<HashMap<String, TaskSnapshot>>>| {
+            let previous: Option<HashMap<String, TaskSnapshot>> = last.flatten();
             let loaded_workspaces: Option<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
                 workspaces.get();
             let loaded_tasks: Option<Result<Vec<TaskDto>, ServerFnError>> = tasks.get();
@@ -123,7 +136,13 @@ impl AppSidebarState {
                 if task_rows.with_untracked(|c: &Vec<SidebarTaskRow>| *c != next_tasks) {
                     task_rows.set(next_tasks);
                 }
+                // The first snapshot (page load) only seeds the baseline.
+                if let Some(previous) = &previous {
+                    notify_transitions(previous, &tasks);
+                }
+                return Some(build_snapshots(&tasks));
             }
+            previous
         });
         subscribe_task_events(tick);
 
@@ -131,12 +150,39 @@ impl AppSidebarState {
             workspace_rows,
             task_rows,
             pathname,
+            notification_permission,
         }
+    }
+
+    /// Asks for notification permission; must run from a user gesture (button click).
+    pub fn enable_notifications(&self) {
+        let permission: RwSignal<NotificationPermission> = self.notification_permission;
+        request_permission(move |result: NotificationPermission| permission.set(result));
+    }
+
+    /// Whether the "enable notifications" prompt should be offered.
+    pub fn can_request_notifications(&self) -> bool {
+        self.notification_permission.get() == NotificationPermission::Default
     }
 
     /// Indica si `task_id` es la tarea abierta en la ruta actual.
     pub fn is_task_selected(&self, task_id: &str) -> bool {
         self.pathname.with(|p: &String| *p == task_path(task_id))
+    }
+}
+
+/// Raises OS notifications for task transitions, only while the page is hidden.
+fn notify_transitions(previous: &HashMap<String, TaskSnapshot>, tasks: &[TaskDto]) {
+    if !is_page_hidden() {
+        return;
+    }
+    for notification in detect_task_notifications(previous, tasks) {
+        let TaskNotification {
+            task_id,
+            title,
+            body,
+        } = notification;
+        show_notification(&title, &body, &task_path(&task_id));
     }
 }
 
