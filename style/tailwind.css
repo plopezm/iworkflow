@@ -90,6 +90,25 @@ body {
   height: 100%;
 }
 
+html {
+  /* Stop iOS from rescaling text on rotation / reflow. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Remove the 300ms tap delay and double-tap zoom on interactive elements. */
+a,
+button,
+summary,
+[role="button"],
+input,
+select,
+textarea,
+label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   background-color: var(--color-bg);
   color: var(--color-fg);
@@ -457,6 +476,31 @@ body {
 
 /* ── Mobile improvements ────────────────────────── */
 @media (max-width: 640px) {
+  /* iOS Safari zooms the page when focusing a field under 16px; this prevents it. */
+  input,
+  select,
+  textarea,
+  .input,
+  .composer textarea,
+  .select-pill-input {
+    font-size: 16px;
+  }
+  /* Touch targets: 44px minimum (Apple HIG). */
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-ghost,
+  .select-pill,
+  .select-pill-skeleton {
+    min-height: 2.75rem;
+  }
+  .tab,
+  .chip {
+    min-height: 2.75rem;
+  }
+  .menu-item {
+    @apply py-3;
+  }
   .card {
     @apply p-3;
   }
