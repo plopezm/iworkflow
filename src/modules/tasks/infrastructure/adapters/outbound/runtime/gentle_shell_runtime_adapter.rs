@@ -27,9 +27,9 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::rpc_prot
 const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
 /// Identificador del runtime `pi` en `LaunchOptions::runtime`.
 const PI_RUNTIME: &str = "pi";
-/// Prefijo de las variables de configuración de cargo-leptos/Leptos. El agente trabaja
-/// en proyectos Leptos ajenos: no debe heredar las del propio servidor de pi-workflow.
-const LEPTOS_ENV_PREFIX: &str = "LEPTOS_";
+/// Prefijos de las variables de configuración del propio servidor: las de cargo-leptos/Leptos
+/// y las de pi-workflow. El agente trabaja en proyectos ajenos y no debe heredarlas.
+const SERVER_ENV_PREFIXES: [&str; 2] = ["LEPTOS_", "PIWF_"];
 const RESUME_FLAG: &str = "--continue";
 const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -101,24 +101,25 @@ fn lock(registry: &Registry) -> Result<MutexGuard<'_, HashMap<TaskId, AgentProce
         .map_err(|_| TaskError::Runtime("registro de procesos corrupto".to_string()))
 }
 
-/// Claves de `vars` que pertenecen a Leptos y deben eliminarse del entorno del agente.
+/// Claves de `vars` que pertenecen al servidor y deben eliminarse del entorno del agente.
 /// Compara bytes para no fallar con claves que no sean Unicode válido.
-fn leptos_env_keys(vars: impl Iterator<Item = OsString>) -> Vec<OsString> {
+fn server_env_keys(vars: impl Iterator<Item = OsString>) -> Vec<OsString> {
     vars.filter(|key: &OsString| {
-        key.as_encoded_bytes()
-            .starts_with(LEPTOS_ENV_PREFIX.as_bytes())
+        SERVER_ENV_PREFIXES
+            .iter()
+            .any(|prefix: &&str| key.as_encoded_bytes().starts_with(prefix.as_bytes()))
     })
     .collect()
 }
 
-/// Marca como eliminadas del entorno del hijo las claves de Leptos heredadas.
-fn strip_leptos_env(command: &mut Command, vars: impl Iterator<Item = OsString>) {
-    for key in leptos_env_keys(vars) {
+/// Marca como eliminadas del entorno del hijo las claves del servidor heredadas.
+fn strip_server_env(command: &mut Command, vars: impl Iterator<Item = OsString>) {
+    for key in server_env_keys(vars) {
         command.env_remove(key);
     }
 }
 
-/// Construye el comando del agente: argumentos, directorio, entorno limpio de Leptos y pipes.
+/// Construye el comando del agente: argumentos, directorio, entorno limpio del servidor y pipes.
 fn build_command(
     program: &str,
     base_args: &[String],
@@ -128,7 +129,7 @@ fn build_command(
     inherited_keys: impl Iterator<Item = OsString>,
 ) -> Command {
     let mut command: Command = Command::new(program);
-    strip_leptos_env(&mut command, inherited_keys);
+    strip_server_env(&mut command, inherited_keys);
     command
         .args(base_args)
         .args(resume.then_some(RESUME_FLAG))
@@ -406,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    fn leptos_env_keys_selects_only_leptos_variables() {
+    fn server_env_keys_selects_only_leptos_variables() {
         let vars: Vec<OsString> = os_keys(&[
             "PATH",
             "LEPTOS_SITE_ADDR",
@@ -415,28 +416,38 @@ mod tests {
             "MY_LEPTOS_X",
         ]);
 
-        let keys: Vec<OsString> = leptos_env_keys(vars.into_iter());
+        let keys: Vec<OsString> = server_env_keys(vars.into_iter());
 
         assert_eq!(keys, os_keys(&["LEPTOS_SITE_ADDR", "LEPTOS_ENV"]));
     }
 
+    #[test]
+    fn server_env_keys_selects_piwf_variables() {
+        let vars: Vec<OsString> =
+            os_keys(&["PIWF_PI_BIN", "PATH", "MY_PIWF_X", "PIWF_WORKTREES_DIR"]);
+
+        let keys: Vec<OsString> = server_env_keys(vars.into_iter());
+
+        assert_eq!(keys, os_keys(&["PIWF_PI_BIN", "PIWF_WORKTREES_DIR"]));
+    }
+
     #[cfg(unix)]
     #[test]
-    fn leptos_env_keys_does_not_panic_on_non_unicode_keys() {
+    fn server_env_keys_does_not_panic_on_non_unicode_keys() {
         use std::os::unix::ffi::OsStringExt;
         let non_unicode: OsString = OsString::from_vec(b"LEPTOS_\xff".to_vec());
         let vars: Vec<OsString> = vec![OsString::from_vec(b"\xff".to_vec()), non_unicode.clone()];
 
-        let keys: Vec<OsString> = leptos_env_keys(vars.into_iter());
+        let keys: Vec<OsString> = server_env_keys(vars.into_iter());
 
         assert_eq!(keys, vec![non_unicode]);
     }
 
     #[test]
-    fn strip_leptos_env_marks_leptos_keys_as_removed_on_the_command() {
+    fn strip_server_env_marks_leptos_keys_as_removed_on_the_command() {
         let mut command: Command = Command::new("true");
 
-        strip_leptos_env(
+        strip_server_env(
             &mut command,
             os_keys(&["LEPTOS_SITE_ADDR", "PATH"]).into_iter(),
         );

@@ -43,9 +43,9 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 
 | Variable | Por defecto |
 |---|---|
-| `DATABASE_URL` | `~/.pi-dashboard/workspaces.db` (SQLite, migraciones automáticas) |
-| `WORKTREES_DIR` | `~/.pi-dashboard/worktrees` |
-| `GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
+| `PIWF_DATABASE_URL` | `~/.pi-dashboard/workspaces.db` (SQLite, migraciones automáticas) |
+| `PIWF_WORKTREES_DIR` | `~/.pi-dashboard/worktrees` |
+| `PIWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
 
 En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
 

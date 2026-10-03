@@ -39,23 +39,24 @@ impl AppConfig {
             .map(PathBuf::from)
             .map_err(|_| ConfigError::Missing("HOME"))?;
         let data_dir: PathBuf = home.join(DEFAULT_DATA_DIR);
-        let database_url: String = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        let database_url: String = std::env::var("PIWF_DATABASE_URL").unwrap_or_else(|_| {
             data_dir
                 .join(DEFAULT_DATABASE_FILE)
                 .to_string_lossy()
                 .into_owned()
         });
-        let gentle_shell_bin: String = std::env::var("GENTLE_SHELL_BIN")
+        let gentle_shell_bin: String = std::env::var("PIWF_GENTLE_SHELL_BIN")
             .unwrap_or_else(|_| DEFAULT_GENTLE_SHELL_BIN.to_string());
-        let pi_bin: String = std::env::var("PI_BIN").unwrap_or_else(|_| DEFAULT_PI_BIN.to_string());
-        let worktrees_dir: PathBuf = std::env::var("WORKTREES_DIR")
+        let pi_bin: String =
+            std::env::var("PIWF_PI_BIN").unwrap_or_else(|_| DEFAULT_PI_BIN.to_string());
+        let worktrees_dir: PathBuf = std::env::var("PIWF_WORKTREES_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| data_dir.join(DEFAULT_WORKTREES_DIR));
-        let gentle_pi_config_home: PathBuf = std::env::var("GENTLE_PI_CONFIG_HOME")
+        let gentle_pi_config_home: PathBuf = std::env::var("PIWF_GENTLE_PI_CONFIG_HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(DEFAULT_GENTLE_PI_CONFIG_DIR));
         let agents_files_dir: PathBuf = resolve_agents_files_dir(
-            std::env::var("AGENTS_FILES_DIR").ok(),
+            std::env::var("PIWF_AGENTS_FILES_DIR").ok(),
             &database_url,
             &data_dir,
         );
@@ -71,7 +72,7 @@ impl AppConfig {
     }
 }
 
-/// `AGENTS_FILES_DIR`, o `agents-files` junto a la base de datos, o bajo la carpeta de datos.
+/// `PIWF_AGENTS_FILES_DIR`, o `agents-files` junto a la base de datos, o bajo la carpeta de datos.
 fn resolve_agents_files_dir(
     env_value: Option<String>,
     database_url: &str,

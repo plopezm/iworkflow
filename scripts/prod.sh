@@ -8,7 +8,7 @@
 # Environment:
 #   DIST_DIR          output directory (default: <repo>/dist)
 #   LEPTOS_SITE_ADDR  listen address (default: 0.0.0.0:3000, all interfaces)
-# The server also reads DATABASE_URL, WORKTREES_DIR, GENTLE_SHELL_BIN and a
+# The server also reads PIWF_DATABASE_URL, PIWF_WORKTREES_DIR, PIWF_GENTLE_SHELL_BIN and a
 # `.env` file from the current directory.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
