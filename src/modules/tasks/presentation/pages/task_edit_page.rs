@@ -46,7 +46,7 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
 
     view! {
         <Title text="Editar tarea · pi-workflow" />
-        <div class="mx-auto w-full max-w-2xl p-4">
+        <div class="mx-auto w-full max-w-5xl p-4 md:p-6">
             <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
                 {move || Suspend::new(async move {
                     match state.task.await {
@@ -58,13 +58,13 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                         Ok(_) => {
                             view! {
                                 <form
-                                    class="card stack"
+                                    class="card stack gap-4 p-5 md:p-6"
                                     on:submit=move |ev: leptos::ev::SubmitEvent| {
                                         ev.prevent_default();
                                         state.submit();
                                     }
                                 >
-                                    <h1 class="task-title">"Editar tarea"</h1>
+                                    <h1 class="text-xl font-bold text-fg">"Editar tarea"</h1>
                                     <TextField
                                         label="Título (opcional)"
                                         value=state.form_title
@@ -75,6 +75,7 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                         value=state.form_prompt
                                         placeholder="Describe lo que debe hacer el agente…"
                                         required=true
+                                        large=true
                                     />
                                     <ActionError result=state.update.value().into() />
                                     <div class="row justify-end gap-2">

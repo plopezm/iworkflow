@@ -32,12 +32,20 @@ pub fn TextArea(
     value: RwSignal<String>,
     #[prop(into, optional)] placeholder: String,
     #[prop(optional)] required: bool,
+    /// Variante amplia: texto mayor y altura mínima generosa para aprovechar el espacio.
+    #[prop(optional)]
+    large: bool,
 ) -> impl IntoView {
+    let class: &str = if large {
+        "input input-lg min-h-[50vh] resize-y"
+    } else {
+        "input min-h-24"
+    };
     view! {
         <label class="stack gap-1.5">
             <span class="text-sm font-medium text-fg">{label}</span>
             <textarea
-                class="input min-h-24"
+                class=class
                 placeholder=placeholder
                 required=required
                 prop:value=move || value.get()
