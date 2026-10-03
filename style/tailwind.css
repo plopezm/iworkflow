@@ -187,7 +187,7 @@ body {
 
 /* ── Flat bordered surfaces ─────────────────────── */
 .card {
-  @apply relative overflow-hidden rounded-md border border-border bg-surface p-3;
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3;
 }
 .card-title {
   @apply text-xs font-bold tracking-widest text-muted uppercase;
@@ -309,7 +309,7 @@ body {
   @apply flex flex-col gap-3;
 }
 .msg {
-  @apply relative overflow-hidden rounded-md border border-border bg-surface p-3 animate-fade-in;
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3 animate-fade-in;
 }
 .msg-role {
   @apply mb-1.5 text-[10px] tracking-[0.15em] text-muted uppercase;
@@ -367,7 +367,7 @@ body {
   @apply border border-border px-2 py-1;
 }
 .tool {
-  @apply relative overflow-hidden rounded-md border border-border bg-surface p-2.5 text-sm;
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-2.5 text-sm;
 }
 .tool summary {
   @apply cursor-pointer font-mono text-muted transition-colors hover:text-fg;
@@ -402,7 +402,7 @@ body {
   @apply cursor-pointer text-muted transition-colors hover:text-fg;
 }
 .notice {
-  @apply relative overflow-hidden rounded-md border border-border bg-surface px-3 py-2 text-sm;
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface px-3 py-2 text-sm;
 }
 .notice-info {
   @apply border-accent/30 text-accent;
