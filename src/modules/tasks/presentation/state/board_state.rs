@@ -2,29 +2,23 @@ use leptos::prelude::*;
 
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    CreateTaskDto, TaskDto, TaskStageDto, WorkspaceOptionDto,
+    CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_tasks, list_workspace_options,
 };
 use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
 
-/// Una tarjeta más su orden relativo dentro del carril (menor = más prioritario).
-fn stage_rank(stage: TaskStageDto) -> u8 {
-    match stage {
-        TaskStageDto::Attention => 0,
-        TaskStageDto::Review => 1,
-        TaskStageDto::Working => 2,
-        TaskStageDto::Backlog => 3,
-        TaskStageDto::Done => 4,
+/// Compara dos instantes RFC 3339 por su valor temporal; si alguno no se puede interpretar
+/// se recurre a la comparación textual, que es cronológica para el formato que emite el servidor.
+fn compare_created_at(a: &str, b: &str) -> std::cmp::Ordering {
+    let parse = |value: &str| -> Option<chrono::DateTime<chrono::FixedOffset>> {
+        chrono::DateTime::parse_from_rfc3339(value).ok()
+    };
+    match (parse(a), parse(b)) {
+        (Some(left), Some(right)) => left.cmp(&right),
+        _ => a.cmp(b),
     }
-}
-
-/// Compara timestamps RFC 3339; ante un valor inválido lo trata como el más antiguo posible.
-fn parse_updated_at(value: &str) -> chrono::DateTime<chrono::Utc> {
-    chrono::DateTime::parse_from_rfc3339(value)
-        .map(|dt: chrono::DateTime<chrono::FixedOffset>| dt.with_timezone(&chrono::Utc))
-        .unwrap_or(chrono::DateTime::<chrono::Utc>::MIN_UTC)
 }
 
 /// Carril del tablero: todas las tareas visibles de un mismo workspace.
@@ -51,8 +45,8 @@ fn matches_stage_filter(task: &TaskDto, stage_filter: Option<TaskStageDto>) -> b
 /// Agrupa, filtra y ordena las tareas en carriles por workspace (función pura, sin I/O).
 ///
 /// Reglas: un workspace solo aparece si tiene tareas visibles tras aplicar `stage_filter`
-/// y `show_done`; dentro de un carril las tareas se ordenan por prioridad de etapa y luego
-/// por `updated_at` descendente; los carriles con alguna tarea en atención van primero,
+/// y `show_done`; dentro de un carril las tareas se ordenan por prioridad descendente y, a igual
+/// prioridad, por `created_at` ascendente (la más antigua primero); los carriles con alguna tarea en atención van primero,
 /// y el resto se ordena por nombre de workspace.
 pub fn build_lanes(
     tasks: &[TaskDto],
@@ -100,9 +94,10 @@ pub fn build_lanes(
 
     for lane in &mut lanes {
         lane.tasks.sort_by(|a: &TaskDto, b: &TaskDto| {
-            stage_rank(a.stage)
-                .cmp(&stage_rank(b.stage))
-                .then_with(|| parse_updated_at(&b.updated_at).cmp(&parse_updated_at(&a.updated_at)))
+            b.priority
+                .rank()
+                .cmp(&a.priority.rank())
+                .then_with(|| compare_created_at(&a.created_at, &b.created_at))
         });
         lane.total = lane.tasks.len();
         lane.attention_count = lane
@@ -127,12 +122,13 @@ pub fn build_lanes(
 /// cambia cualquier dato visible, de modo que solo se reconstruyen las tarjetas modificadas.
 pub fn card_key(task: &TaskDto) -> String {
     format!(
-        "{}|{}|{}|{:?}|{:?}|{}|{}|{:?}|{}",
+        "{}|{}|{}|{:?}|{:?}|{:?}|{}|{}|{:?}|{}",
         task.id,
         task.updated_at,
         task.title,
         task.stage,
         task.status,
+        task.priority,
         task.needs_attention,
         task.pending_dialogs,
         task.error,
@@ -181,6 +177,8 @@ pub struct BoardState {
     pub form_workspace_id: RwSignal<String>,
     pub form_title: RwSignal<String>,
     pub form_prompt: RwSignal<String>,
+    /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
+    pub form_priority: RwSignal<String>,
     pub form_start_now: RwSignal<bool>,
     pub toasts: RwSignal<Vec<ToastMessage>>,
     toast_seq: RwSignal<u32>,
@@ -235,6 +233,7 @@ impl BoardState {
             form_workspace_id: RwSignal::new(String::new()),
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
+            form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
             form_start_now: RwSignal::new(false),
             toasts: RwSignal::new(Vec::new()),
             toast_seq: RwSignal::new(0),
@@ -254,6 +253,8 @@ impl BoardState {
         self.form_workspace_id.set(String::new());
         self.form_title.set(String::new());
         self.form_prompt.set(String::new());
+        self.form_priority
+            .set(TaskPriorityDto::default().as_str().to_string());
         self.form_start_now.set(false);
         self.modal_open.set(true);
     }
@@ -269,6 +270,8 @@ impl BoardState {
                 workspace_id: self.form_workspace_id.get_untracked(),
                 title: self.form_title.get_untracked(),
                 prompt: self.form_prompt.get_untracked(),
+                priority: TaskPriorityDto::from_value(&self.form_priority.get_untracked())
+                    .unwrap_or_default(),
                 start_now: self.form_start_now.get_untracked(),
             },
         });
@@ -362,6 +365,7 @@ mod tests {
             base_branch: "main".to_string(),
             worktree_path: "/wt".to_string(),
             status: crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStatusDto::Idle,
+            priority: Default::default(),
             error: None,
             actions: Default::default(),
             stage,
@@ -426,60 +430,109 @@ mod tests {
         );
     }
 
-    #[test]
-    fn tasks_are_ordered_by_stage_priority_then_recency() {
-        let tasks: Vec<TaskDto> = vec![
-            task(
-                "backlog",
-                "ws-a",
-                TaskStageDto::Backlog,
-                "2026-01-01T00:00:00Z",
-            ),
-            task(
-                "old-review",
-                "ws-a",
-                TaskStageDto::Review,
-                "2026-01-01T00:00:00Z",
-            ),
-            task(
-                "new-review",
-                "ws-a",
-                TaskStageDto::Review,
-                "2026-01-02T00:00:00Z",
-            ),
-            task(
-                "attention",
-                "ws-a",
-                TaskStageDto::Attention,
-                "2026-01-01T00:00:00Z",
-            ),
-            task(
-                "working",
-                "ws-a",
-                TaskStageDto::Working,
-                "2026-01-01T00:00:00Z",
-            ),
-        ];
+    fn lane_ids_of(tasks: &[TaskDto]) -> Vec<String> {
         let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("ws-a", "A")];
-
-        let lanes: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
-
+        let lanes: Vec<LaneView> = build_lanes(tasks, &workspaces, None, false);
         assert_eq!(lanes.len(), 1);
-        let ids: Vec<&str> = lanes[0]
+        lanes[0]
             .tasks
             .iter()
-            .map(|t: &TaskDto| t.id.as_str())
-            .collect();
+            .map(|t: &TaskDto| t.id.clone())
+            .collect()
+    }
+
+    fn prioritized(
+        id: &str,
+        stage: TaskStageDto,
+        priority: TaskPriorityDto,
+        created_at: &str,
+    ) -> TaskDto {
+        let mut dto: TaskDto = task(id, "ws-a", stage, "2030-01-01T00:00:00Z");
+        dto.priority = priority;
+        dto.created_at = created_at.to_string();
+        dto
+    }
+
+    #[test]
+    fn equal_priority_is_listed_oldest_first_regardless_of_stage_or_updates() {
+        let tasks: Vec<TaskDto> = vec![
+            prioritized(
+                "newest",
+                TaskStageDto::Attention,
+                TaskPriorityDto::Normal,
+                "2026-01-03T00:00:00Z",
+            ),
+            prioritized(
+                "oldest",
+                TaskStageDto::Backlog,
+                TaskPriorityDto::Normal,
+                "2026-01-01T00:00:00Z",
+            ),
+            prioritized(
+                "middle",
+                TaskStageDto::Review,
+                TaskPriorityDto::Normal,
+                "2026-01-02T00:00:00Z",
+            ),
+        ];
+
+        assert_eq!(lane_ids_of(&tasks), vec!["oldest", "middle", "newest"]);
+    }
+
+    #[test]
+    fn higher_priority_beats_age() {
+        let tasks: Vec<TaskDto> = vec![
+            prioritized(
+                "old-normal",
+                TaskStageDto::Working,
+                TaskPriorityDto::Normal,
+                "2026-01-01T00:00:00Z",
+            ),
+            prioritized(
+                "new-urgent",
+                TaskStageDto::Working,
+                TaskPriorityDto::Urgent,
+                "2026-01-05T00:00:00Z",
+            ),
+            prioritized(
+                "old-low",
+                TaskStageDto::Working,
+                TaskPriorityDto::Low,
+                "2025-12-01T00:00:00Z",
+            ),
+            prioritized(
+                "mid-high",
+                TaskStageDto::Working,
+                TaskPriorityDto::High,
+                "2026-01-03T00:00:00Z",
+            ),
+            prioritized(
+                "old-high",
+                TaskStageDto::Working,
+                TaskPriorityDto::High,
+                "2026-01-02T00:00:00Z",
+            ),
+        ];
+
         assert_eq!(
-            ids,
+            lane_ids_of(&tasks),
             vec![
-                "attention",
-                "new-review",
-                "old-review",
-                "working",
-                "backlog"
+                "new-urgent",
+                "old-high",
+                "mid-high",
+                "old-normal",
+                "old-low"
             ]
         );
+    }
+
+    #[test]
+    fn card_key_changes_when_priority_changes() {
+        let base: TaskDto = task("a", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z");
+        let mut urgent: TaskDto = base.clone();
+        urgent.priority = TaskPriorityDto::Urgent;
+
+        assert_ne!(card_key(&base), card_key(&urgent));
     }
 
     #[test]

@@ -3,8 +3,21 @@ use leptos::prelude::*;
 
 use crate::core::components::form::{ActionError, SelectField, SelectOption, TextArea, TextField};
 use crate::core::components::modal::Modal;
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::WorkspaceOptionDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
+    TaskPriorityDto, WorkspaceOptionDto,
+};
 use crate::modules::tasks::presentation::state::board_state::BoardState;
+
+/// Opciones del desplegable de prioridad, de menor a mayor.
+pub fn priority_select_options() -> Vec<SelectOption> {
+    TaskPriorityDto::ALL
+        .into_iter()
+        .map(|p: TaskPriorityDto| SelectOption {
+            value: p.as_str().to_string(),
+            label: p.label().to_string(),
+        })
+        .collect()
+}
 
 /// Modal de alta de tarea (Backlog o iniciada). La edición vive en su propia pantalla.
 #[component]
@@ -67,6 +80,11 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                     placeholder="Describe lo que debe hacer el agente…"
                     required=true
                 />
+                <SelectField
+                    label="Prioridad"
+                    value=state.form_priority
+                    options=priority_select_options()
+                />
                 <label class="row min-h-10 items-center gap-2 text-sm text-fg">
                     <input
                         type="checkbox"
@@ -93,5 +111,26 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                 </div>
             </form>
         </Modal>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn priority_options_cover_every_priority_in_ascending_order() {
+        let options: Vec<SelectOption> = priority_select_options();
+        let labels: Vec<&str> = options
+            .iter()
+            .map(|o: &SelectOption| o.label.as_str())
+            .collect();
+        let values: Vec<&str> = options
+            .iter()
+            .map(|o: &SelectOption| o.value.as_str())
+            .collect();
+
+        assert_eq!(labels, vec!["Baja", "Normal", "Alta", "Urgente"]);
+        assert_eq!(values, vec!["low", "normal", "high", "urgent"]);
     }
 }

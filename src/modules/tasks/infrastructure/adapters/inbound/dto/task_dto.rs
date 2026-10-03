@@ -83,6 +83,72 @@ impl TaskStageDto {
     }
 }
 
+/// Prioridad de una tarea: las más altas se listan primero en el tablero.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskPriorityDto {
+    Low,
+    #[default]
+    Normal,
+    High,
+    Urgent,
+}
+
+impl TaskPriorityDto {
+    pub const ALL: [TaskPriorityDto; 4] = [
+        TaskPriorityDto::Low,
+        TaskPriorityDto::Normal,
+        TaskPriorityDto::High,
+        TaskPriorityDto::Urgent,
+    ];
+
+    /// Valor serializado (el mismo que usa serde), útil para controles de formulario.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            TaskPriorityDto::Low => "low",
+            TaskPriorityDto::Normal => "normal",
+            TaskPriorityDto::High => "high",
+            TaskPriorityDto::Urgent => "urgent",
+        }
+    }
+
+    /// Inverso de `as_str`; `None` si el valor no corresponde a ninguna prioridad.
+    pub fn from_value(value: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|p: &TaskPriorityDto| p.as_str() == value)
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            TaskPriorityDto::Low => "Baja",
+            TaskPriorityDto::Normal => "Normal",
+            TaskPriorityDto::High => "Alta",
+            TaskPriorityDto::Urgent => "Urgente",
+        }
+    }
+
+    /// Variante visual del badge (`error`, `warn`, `info`, `muted`).
+    pub fn variant(&self) -> &'static str {
+        match self {
+            TaskPriorityDto::Low => "muted",
+            TaskPriorityDto::Normal => "info",
+            TaskPriorityDto::High => "warn",
+            TaskPriorityDto::Urgent => "error",
+        }
+    }
+
+    /// Orden de listado: a mayor rango, más arriba (espejo de `TaskPriority::rank`).
+    pub fn rank(&self) -> u8 {
+        match self {
+            TaskPriorityDto::Low => 0,
+            TaskPriorityDto::Normal => 1,
+            TaskPriorityDto::High => 2,
+            TaskPriorityDto::Urgent => 3,
+        }
+    }
+}
+
 /// Acciones disponibles según las reglas de dominio (calculadas en el servidor).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskActionsDto {
@@ -108,6 +174,7 @@ pub struct TaskDto {
     pub base_branch: String,
     pub worktree_path: String,
     pub status: TaskStatusDto,
+    pub priority: TaskPriorityDto,
     pub error: Option<String>,
     pub actions: TaskActionsDto,
     pub stage: TaskStageDto,
@@ -132,6 +199,8 @@ pub struct CreateTaskDto {
     pub title: String,
     pub prompt: String,
     #[serde(default)]
+    pub priority: TaskPriorityDto,
+    #[serde(default)]
     pub start_now: bool,
 }
 
@@ -139,6 +208,8 @@ pub struct CreateTaskDto {
 pub struct UpdateTaskDto {
     pub title: String,
     pub prompt: String,
+    #[serde(default)]
+    pub priority: TaskPriorityDto,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -201,6 +272,28 @@ mod mapping {
         }
     }
 
+    impl From<TaskPriority> for TaskPriorityDto {
+        fn from(priority: TaskPriority) -> Self {
+            match priority {
+                TaskPriority::Low => TaskPriorityDto::Low,
+                TaskPriority::Normal => TaskPriorityDto::Normal,
+                TaskPriority::High => TaskPriorityDto::High,
+                TaskPriority::Urgent => TaskPriorityDto::Urgent,
+            }
+        }
+    }
+
+    impl From<TaskPriorityDto> for TaskPriority {
+        fn from(priority: TaskPriorityDto) -> Self {
+            match priority {
+                TaskPriorityDto::Low => TaskPriority::Low,
+                TaskPriorityDto::Normal => TaskPriority::Normal,
+                TaskPriorityDto::High => TaskPriority::High,
+                TaskPriorityDto::Urgent => TaskPriority::Urgent,
+            }
+        }
+    }
+
     impl From<TaskStage> for TaskStageDto {
         fn from(stage: TaskStage) -> Self {
             match stage {
@@ -227,6 +320,7 @@ mod mapping {
                 base_branch: task.base_branch,
                 worktree_path: task.worktree_path.to_string_lossy().into_owned(),
                 status: task.status.into(),
+                priority: task.priority.into(),
                 error: task.error,
                 actions: task.status.into(),
                 stage: stage.into(),
@@ -253,7 +347,7 @@ mod mapping {
                 workspace_id: dto.workspace_id,
                 title: dto.title,
                 prompt: dto.prompt,
-                priority: TaskPriority::default(),
+                priority: dto.priority.into(),
                 start_now: dto.start_now,
             }
         }
@@ -417,6 +511,59 @@ mod mapping {
         fn status_dto_serializes_as_snake_case() {
             let json: String = serde_json::to_string(&TaskStatusDto::AwaitingReview).expect("json");
             assert_eq!(json, "\"awaiting_review\"");
+        }
+
+        #[test]
+        fn priority_maps_both_ways_for_every_variant() {
+            for priority in TaskPriority::ALL {
+                let dto: TaskPriorityDto = priority.into();
+                assert_eq!(dto.as_str(), priority.as_str());
+                assert_eq!(dto.rank(), priority.rank());
+                assert_eq!(TaskPriority::from(dto), priority);
+            }
+        }
+
+        #[test]
+        fn task_dto_carries_the_domain_priority() {
+            let mut urgent: Task = task(TaskStatus::Backlog);
+            urgent.priority = TaskPriority::Urgent;
+
+            assert_eq!(TaskDto::from(urgent).priority, TaskPriorityDto::Urgent);
+        }
+
+        #[test]
+        fn create_task_dto_maps_priority_to_new_task() {
+            let dto: CreateTaskDto = CreateTaskDto {
+                priority: TaskPriorityDto::High,
+                ..Default::default()
+            };
+
+            assert_eq!(NewTask::from(dto).priority, TaskPriority::High);
+        }
+
+        #[test]
+        fn missing_priority_in_payload_defaults_to_normal() {
+            let create: CreateTaskDto =
+                serde_json::from_str(r#"{"workspace_id":"w","title":"t","prompt":"p"}"#)
+                    .expect("create");
+            let update: UpdateTaskDto =
+                serde_json::from_str(r#"{"title":"t","prompt":"p"}"#).expect("update");
+
+            assert_eq!(create.priority, TaskPriorityDto::Normal);
+            assert_eq!(update.priority, TaskPriorityDto::Normal);
+        }
+
+        #[test]
+        fn priority_dto_serializes_as_snake_case_and_parses_back() {
+            let json: String = serde_json::to_string(&TaskPriorityDto::Urgent).expect("json");
+            assert_eq!(json, "\"urgent\"");
+            for priority in TaskPriorityDto::ALL {
+                assert_eq!(
+                    TaskPriorityDto::from_value(priority.as_str()),
+                    Some(priority)
+                );
+            }
+            assert_eq!(TaskPriorityDto::from_value("nope"), None);
         }
 
         #[test]
