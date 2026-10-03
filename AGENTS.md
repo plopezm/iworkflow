@@ -207,7 +207,7 @@ end2end/                              # Tests e2e (Playwright vía cargo-leptos)
 - Evitar tareas fire-and-forget (`tokio::spawn`, `spawn_local`) sin gestionar su resultado o `JoinHandle`.
 - Prohibido `unwrap()` / `expect()` / `panic!` fuera de tests y del arranque en `main.rs`; los errores se propagan con `Result` y `?`, definidos con `thiserror`.
 - Prohibido `unsafe` salvo petición explícita del usuario.
-- Nada de SQL crudo (`sql_query`) salvo que el query builder de Diesel no lo permita, y siempre con parámetros `bind`.
+- Nada de SQL crudo (`sql_query`) salvo que el query builder de Diesel no lo permita o sean configuraciones de BD como `pragmas`, y siempre con parámetros `bind`.
 
 ## 7. Comandos
 
