@@ -111,9 +111,10 @@ pub fn is_page_inactive() -> bool {
     }
 }
 
-/// Shows an OS notification; clicking it focuses the window and navigates to `click_path`.
-/// Does nothing unless permission is granted.
-pub fn show_notification(title: &str, body: &str, click_path: &str) {
+/// Shows an OS notification; clicking it focuses the window and runs `on_click`.
+/// `tag` replaces any earlier notification with the same tag. Does nothing unless
+/// permission is granted.
+pub fn show_notification(title: &str, body: &str, tag: &str, on_click: impl FnOnce() + 'static) {
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::JsCast;
@@ -124,34 +125,32 @@ pub fn show_notification(title: &str, body: &str, click_path: &str) {
         }
         let options: web_sys::NotificationOptions = web_sys::NotificationOptions::new();
         options.set_body(body);
-        options.set_tag(click_path);
+        options.set_tag(tag);
         // Same tag replaces the previous notification of the task; still alert for it.
         options.set_renotify(true);
         let Ok(notification) = web_sys::Notification::new_with_options(title, &options) else {
             leptos::logging::error!("no se pudo mostrar la notificación");
             return;
         };
-        let path: String = click_path.to_string();
-        let on_click: Closure<dyn FnMut(web_sys::Event)> =
+        let handler: Closure<dyn FnMut(web_sys::Event)> =
             Closure::once(move |_: web_sys::Event| {
-                if let Some(window) = web_sys::window() {
-                    if window.focus().is_err() {
-                        leptos::logging::error!("no se pudo enfocar la ventana");
-                    }
-                    if window.location().set_href(&path).is_err() {
-                        leptos::logging::error!("no se pudo navegar a {path}");
-                    }
+                if let Some(window) = web_sys::window()
+                    && window.focus().is_err()
+                {
+                    leptos::logging::error!("no se pudo enfocar la ventana");
                 }
+                on_click();
             });
-        notification.set_onclick(Some(on_click.as_ref().unchecked_ref()));
+        notification.set_onclick(Some(handler.as_ref().unchecked_ref()));
         // The notification owns the handler. `Closure::once` frees itself after the click;
         // if the notification is dismissed unclicked, the leak is one small closure per
         // notification, bounded by the number of task transitions.
-        on_click.forget();
+        handler.forget();
     }
     #[cfg(not(feature = "hydrate"))]
     {
-        let _args: (&str, &str, &str) = (title, body, click_path);
+        let _args: (&str, &str, &str) = (title, body, tag);
+        drop(on_click);
     }
 }
 

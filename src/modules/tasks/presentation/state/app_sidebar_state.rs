@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use leptos::prelude::*;
-use leptos_router::hooks::use_location;
+use leptos_router::NavigateOptions;
+use leptos_router::hooks::{use_location, use_navigate};
 
 use crate::core::components::browser_notification::{
     NotificationPermission, current_permission, is_page_inactive, request_permission,
@@ -104,6 +105,9 @@ impl AppSidebarState {
     pub fn new() -> Self {
         let tick: RwSignal<u32> = RwSignal::new(0);
         let pathname: Memo<String> = use_location().pathname;
+        // Needs the router context, so it is obtained here and not in the click handler.
+        // The returned type is opaque (`impl Fn`), so it cannot be annotated.
+        let navigate = use_navigate();
         let tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> =
             Resource::new(move || (tick.get(), pathname.get()), |_| list_tasks(None));
         let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = Resource::new(
@@ -138,8 +142,11 @@ impl AppSidebarState {
                 }
                 // The first snapshot (page load) only seeds the baseline.
                 if let Some(previous) = &previous {
-                    notify_transitions(previous, &tasks);
+                    notify_transitions(previous, &tasks, &navigate);
                 }
+                // The baseline always advances: a transition seen while the page is active
+                // or without permission is intentionally not re-notified later (the sidebar
+                // already shows the attention).
                 return Some(build_snapshots(&tasks));
             }
             previous
@@ -172,7 +179,10 @@ impl AppSidebarState {
 }
 
 /// Raises OS notifications for task transitions, only while the page is inactive.
-fn notify_transitions(previous: &HashMap<String, TaskSnapshot>, tasks: &[TaskDto]) {
+fn notify_transitions<N>(previous: &HashMap<String, TaskSnapshot>, tasks: &[TaskDto], navigate: &N)
+where
+    N: Fn(&str, NavigateOptions) + Clone + 'static,
+{
     if !is_page_inactive() {
         return;
     }
@@ -182,7 +192,12 @@ fn notify_transitions(previous: &HashMap<String, TaskSnapshot>, tasks: &[TaskDto
             title,
             body,
         } = notification;
-        show_notification(&title, &body, &task_path(&task_id));
+        let path: String = task_path(&task_id);
+        let navigate: N = navigate.clone();
+        let target: String = path.clone();
+        show_notification(&title, &body, &path, move || {
+            navigate(&target, NavigateOptions::default());
+        });
     }
 }
 

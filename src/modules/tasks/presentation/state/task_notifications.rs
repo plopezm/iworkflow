@@ -62,6 +62,9 @@ pub fn detect_task_notifications(
     tasks
         .iter()
         .filter_map(|t: &TaskDto| {
+            // Tasks absent from the baseline never notify (avoids notifying on load or for
+            // new tasks). A second pending dialog does not re-notify either, because
+            // `needs_attention` stays true.
             let before: &TaskSnapshot = previous.get(&t.id)?;
             let status_reason: Option<&'static str> = if before.status != t.status {
                 status_reason(t.status)
