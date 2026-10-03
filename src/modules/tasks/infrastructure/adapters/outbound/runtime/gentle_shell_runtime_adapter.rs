@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::path::Path;
 use std::process::{ExitStatus, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -26,6 +27,9 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::rpc_prot
 const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
 /// Identificador del runtime `pi` en `LaunchOptions::runtime`.
 const PI_RUNTIME: &str = "pi";
+/// Prefijo de las variables de configuración de cargo-leptos/Leptos. El agente trabaja
+/// en proyectos Leptos ajenos: no debe heredar las del propio servidor de pi-workflow.
+const LEPTOS_ENV_PREFIX: &str = "LEPTOS_";
 const RESUME_FLAG: &str = "--continue";
 const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -97,6 +101,23 @@ fn lock(registry: &Registry) -> Result<MutexGuard<'_, HashMap<TaskId, AgentProce
         .map_err(|_| TaskError::Runtime("registro de procesos corrupto".to_string()))
 }
 
+/// Claves de `vars` que pertenecen a Leptos y deben eliminarse del entorno del agente.
+/// Compara bytes para no fallar con claves que no sean Unicode válido.
+fn leptos_env_keys(vars: impl Iterator<Item = OsString>) -> Vec<OsString> {
+    vars.filter(|key: &OsString| {
+        key.as_encoded_bytes()
+            .starts_with(LEPTOS_ENV_PREFIX.as_bytes())
+    })
+    .collect()
+}
+
+/// Marca como eliminadas del entorno del hijo las claves de Leptos heredadas.
+fn strip_leptos_env(command: &mut Command, vars: impl Iterator<Item = OsString>) {
+    for key in leptos_env_keys(vars) {
+        command.env_remove(key);
+    }
+}
+
 fn pipe_error(name: &str) -> TaskError {
     TaskError::Runtime(format!("no se pudo abrir {name} del agente"))
 }
@@ -136,7 +157,9 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
             ));
         }
         let program: &str = self.program_for(options);
-        let mut child: Child = Command::new(program)
+        let mut command: Command = Command::new(program);
+        strip_leptos_env(&mut command, std::env::vars_os().map(|(key, _)| key));
+        let mut child: Child = command
             .args(&self.base_args)
             .args(resume.then_some(RESUME_FLAG))
             .args(model_args(options))
@@ -347,5 +370,56 @@ async fn log_stderr(task_id: TaskId, stderr: ChildStderr) {
     let mut lines: tokio::io::Lines<BufReader<ChildStderr>> = BufReader::new(stderr).lines();
     while let Ok(Some(line)) = lines.next_line().await {
         tracing::debug!(%task_id, "agente stderr: {line}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+
+    use super::*;
+
+    fn os_keys(keys: &[&str]) -> Vec<OsString> {
+        keys.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn leptos_env_keys_selects_only_leptos_variables() {
+        let vars: Vec<OsString> = os_keys(&[
+            "PATH",
+            "LEPTOS_SITE_ADDR",
+            "HOME",
+            "LEPTOS_ENV",
+            "MY_LEPTOS_X",
+        ]);
+
+        let keys: Vec<OsString> = leptos_env_keys(vars.into_iter());
+
+        assert_eq!(keys, os_keys(&["LEPTOS_SITE_ADDR", "LEPTOS_ENV"]));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn leptos_env_keys_does_not_panic_on_non_unicode_keys() {
+        use std::os::unix::ffi::OsStringExt;
+        let non_unicode: OsString = OsString::from_vec(b"LEPTOS_\xff".to_vec());
+        let vars: Vec<OsString> = vec![OsString::from_vec(b"\xff".to_vec()), non_unicode.clone()];
+
+        let keys: Vec<OsString> = leptos_env_keys(vars.into_iter());
+
+        assert_eq!(keys, vec![non_unicode]);
+    }
+
+    #[test]
+    fn strip_leptos_env_marks_leptos_keys_as_removed_on_the_command() {
+        let mut command: Command = Command::new("true");
+
+        strip_leptos_env(
+            &mut command,
+            os_keys(&["LEPTOS_SITE_ADDR", "PATH"]).into_iter(),
+        );
+
+        let removed: Vec<(&OsStr, Option<&OsStr>)> = command.as_std().get_envs().collect();
+        assert_eq!(removed, vec![(OsStr::new("LEPTOS_SITE_ADDR"), None)]);
     }
 }
