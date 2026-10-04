@@ -1,15 +1,14 @@
 //! Thin wrapper over the Web Notifications API. Real behavior only under `hydrate`;
-//! on the server every call is a no-op and permission is `Unsupported`.
+//! on the server every call is a no-op.
 
 /// Notification permission as seen by the page.
+#[cfg_attr(not(any(feature = "hydrate", test)), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NotificationPermission {
-    /// Not asked yet; a user gesture may request it.
+enum NotificationPermission {
+    /// Not asked yet; the browser may prompt the user.
     Default,
     Granted,
     Denied,
-    /// No Notification API (server render or unsupported browser).
-    Unsupported,
 }
 
 #[cfg(feature = "hydrate")]
@@ -23,123 +22,86 @@ impl From<web_sys::NotificationPermission> for NotificationPermission {
     }
 }
 
+/// The browser has not asked the user yet, so its native prompt can still be shown.
+#[cfg_attr(not(any(feature = "hydrate", test)), allow(dead_code))]
+fn should_request(permission: NotificationPermission) -> bool {
+    permission == NotificationPermission::Default
+}
+
+/// Notifications may only be shown once the user granted permission.
+#[cfg_attr(not(any(feature = "hydrate", test)), allow(dead_code))]
+fn can_show(permission: NotificationPermission) -> bool {
+    permission == NotificationPermission::Granted
+}
+
 /// Whether the notification API exists in this browser.
 #[cfg(feature = "hydrate")]
 fn is_supported() -> bool {
+    use wasm_bindgen::JsValue;
+
     web_sys::window()
-        .and_then(|window: web_sys::Window| js_sys_has(&window, "Notification"))
+        .map(|window: web_sys::Window| {
+            let value: Result<JsValue, JsValue> =
+                js_sys::Reflect::get(window.as_ref(), &JsValue::from_str("Notification"));
+            value.is_ok_and(|v: JsValue| !v.is_undefined())
+        })
         .unwrap_or(false)
 }
 
+/// Current permission, `None` when the browser has no Notification API.
 #[cfg(feature = "hydrate")]
-fn js_sys_has(window: &web_sys::Window, key: &str) -> Option<bool> {
-    use wasm_bindgen::JsValue;
-    let value: Result<JsValue, JsValue> =
-        js_sys::Reflect::get(window.as_ref(), &JsValue::from_str(key));
-    value.ok().map(|v: JsValue| !v.is_undefined())
+fn current_permission() -> Option<NotificationPermission> {
+    is_supported().then(|| web_sys::Notification::permission().into())
 }
 
-/// Current permission state.
-pub fn current_permission() -> NotificationPermission {
+/// Triggers the browser's native permission prompt on the user's first click on the page
+/// (browsers only honor the request from a user gesture). Does nothing if permission was
+/// already decided or the API is missing.
+pub fn request_permission_on_first_interaction() {
     #[cfg(feature = "hydrate")]
     {
-        if is_supported() {
-            web_sys::Notification::permission().into()
-        } else {
-            NotificationPermission::Unsupported
-        }
-    }
-    #[cfg(not(feature = "hydrate"))]
-    {
-        NotificationPermission::Unsupported
-    }
-}
-
-/// Asks the user for permission (call from a user gesture) and reports the outcome.
-pub fn request_permission(on_done: impl Fn(NotificationPermission) + 'static) {
-    #[cfg(feature = "hydrate")]
-    {
-        use std::cell::RefCell;
-        use std::rc::Rc;
-
-        /// Permission callback shared with the browser closure; `take()` makes it fire once.
-        type SharedDone = Rc<RefCell<Option<Box<dyn Fn(NotificationPermission)>>>>;
-
         use wasm_bindgen::JsCast;
         use wasm_bindgen::closure::Closure;
 
-        if !is_supported() {
-            on_done(NotificationPermission::Unsupported);
+        if !current_permission().is_some_and(should_request) {
             return;
         }
-        // Shared so the error path can still report; taken on first use so it fires once.
-        let on_done: SharedDone = Rc::new(RefCell::new(Some(Box::new(on_done))));
-        let callback_done: SharedDone = Rc::clone(&on_done);
-        let callback: Closure<dyn FnMut(web_sys::NotificationPermission)> =
-            Closure::once(move |_: web_sys::NotificationPermission| {
-                if let Some(done) = callback_done.take() {
-                    done(current_permission());
+        let Some(document) = web_sys::window().and_then(|w: web_sys::Window| w.document()) else {
+            return;
+        };
+        let handler: Closure<dyn FnMut(web_sys::Event)> =
+            Closure::once(move |_: web_sys::Event| {
+                if web_sys::Notification::request_permission().is_err() {
+                    leptos::logging::error!("no se pudo solicitar el permiso de notificaciones");
                 }
             });
-        if web_sys::Notification::request_permission_with_permission_callback(
-            callback.as_ref().unchecked_ref(),
-        )
-        .is_err()
+        let options: web_sys::AddEventListenerOptions = web_sys::AddEventListenerOptions::new();
+        options.set_once(true);
+        if document
+            .add_event_listener_with_callback_and_add_event_listener_options(
+                "click",
+                handler.as_ref().unchecked_ref(),
+                &options,
+            )
+            .is_err()
         {
-            leptos::logging::error!("no se pudo solicitar el permiso de notificaciones");
-            // The browser never got the callback, so report the outcome ourselves and
-            // let the closure drop instead of leaking it.
-            if let Some(done) = on_done.take() {
-                done(current_permission());
-            }
+            leptos::logging::error!("no se pudo registrar el listener de notificaciones");
             return;
         }
-        // The browser keeps the callback until it fires once.
-        callback.forget();
-    }
-    #[cfg(not(feature = "hydrate"))]
-    {
-        on_done(NotificationPermission::Unsupported);
+        // The one-shot listener owns the handler until the first click.
+        handler.forget();
     }
 }
 
-/// The user is not looking at the page: tab hidden, window minimized, or focus elsewhere
-/// (e.g. another window covering the browser, where `document.hidden` stays `false`).
-#[cfg_attr(not(any(feature = "hydrate", test)), allow(dead_code))]
-fn is_inactive(hidden: bool, has_focus: bool) -> bool {
-    hidden || !has_focus
-}
-
-/// Whether the page is currently inactive (see [`is_inactive`]). Without a window or
-/// document (server render) it reports `false`, so nothing is notified.
-pub fn is_page_inactive() -> bool {
-    #[cfg(feature = "hydrate")]
-    {
-        web_sys::window()
-            .and_then(|window: web_sys::Window| window.document())
-            .map(|document: web_sys::Document| {
-                // A failed focus query counts as focused: err on the side of not notifying.
-                let has_focus: bool = document.has_focus().unwrap_or(true);
-                is_inactive(document.hidden(), has_focus)
-            })
-            .unwrap_or(false)
-    }
-    #[cfg(not(feature = "hydrate"))]
-    {
-        false
-    }
-}
-
-/// Shows an OS notification; clicking it focuses the window and runs `on_click`.
-/// `tag` replaces any earlier notification with the same tag. Does nothing unless
-/// permission is granted.
-pub fn show_notification(title: &str, body: &str, tag: &str, on_click: impl FnOnce() + 'static) {
+/// Shows a native notification; clicking it focuses the window. `tag` replaces any earlier
+/// notification with the same tag. Does nothing unless permission is granted.
+pub fn show_notification(title: &str, body: &str, tag: &str) {
     #[cfg(feature = "hydrate")]
     {
         use wasm_bindgen::JsCast;
         use wasm_bindgen::closure::Closure;
 
-        if current_permission() != NotificationPermission::Granted {
+        if !current_permission().is_some_and(can_show) {
             return;
         }
         let options: web_sys::NotificationOptions = web_sys::NotificationOptions::new();
@@ -158,18 +120,14 @@ pub fn show_notification(title: &str, body: &str, tag: &str, on_click: impl FnOn
                 {
                     leptos::logging::error!("no se pudo enfocar la ventana");
                 }
-                on_click();
             });
         notification.set_onclick(Some(handler.as_ref().unchecked_ref()));
-        // The notification owns the handler. `Closure::once` frees itself after the click;
-        // if the notification is dismissed unclicked, the leak is one small closure per
-        // notification, bounded by the number of task transitions.
+        // The notification owns the handler; `Closure::once` frees itself after the click.
         handler.forget();
     }
     #[cfg(not(feature = "hydrate"))]
     {
         let _args: (&str, &str, &str) = (title, body, tag);
-        drop(on_click);
     }
 }
 
@@ -178,15 +136,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn server_side_permission_is_unsupported() {
-        assert_eq!(current_permission(), NotificationPermission::Unsupported);
+    fn only_undecided_permission_triggers_the_prompt() {
+        assert!(should_request(NotificationPermission::Default));
+        assert!(!should_request(NotificationPermission::Granted));
+        assert!(!should_request(NotificationPermission::Denied));
     }
 
     #[test]
-    fn page_is_inactive_when_hidden_or_unfocused() {
-        assert!(!is_inactive(false, true));
-        assert!(is_inactive(true, true));
-        assert!(is_inactive(false, false));
-        assert!(is_inactive(true, false));
+    fn only_granted_permission_allows_showing() {
+        assert!(can_show(NotificationPermission::Granted));
+        assert!(!can_show(NotificationPermission::Default));
+        assert!(!can_show(NotificationPermission::Denied));
+    }
+
+    #[test]
+    fn server_side_calls_are_noops() {
+        request_permission_on_first_interaction();
+        show_notification("t", "b", "tag");
     }
 }
