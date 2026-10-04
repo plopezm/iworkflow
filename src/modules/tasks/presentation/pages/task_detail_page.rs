@@ -269,7 +269,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                 <TranscriptView transcript=state.transcript />
                             </div>
                             <button
-                                class="btn-secondary absolute right-4 bottom-3 rounded-full shadow-md group-data-[at-bottom=true]/scroll:hidden"
+                                class="btn-secondary absolute right-4 bottom-3 rounded-full shadow-md group-data-[at-bottom=true]/scroll:hidden!"
                                 aria-label="Ir al último mensaje"
                                 on:click=move |_| scroll_to_bottom(TRANSCRIPT_SCROLL_ID)
                             >
