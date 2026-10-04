@@ -14,7 +14,13 @@ function fakeEl({ scrollHeight = 1000, clientHeight = 400, scrollTop = 600 } = {
   return el;
 }
 
+let timers = [];
+globalThis.setTimeout = (fn) => { timers.push(fn); return timers.length; };
+globalThis.clearTimeout = (id) => { if (id) timers[id - 1] = null; };
+const fireTimers = () => { const t = timers; timers = []; t.forEach((fn) => fn?.()); };
+
 function installDom(el) {
+  timers = [];
   globalThis.requestAnimationFrame = (fn) => fn();
   globalThis.document = { getElementById: (id) => (id === 'log' ? el : null) };
 }
@@ -77,6 +83,36 @@ test('a manual gesture cancels the smooth scroll', () => {
   mod.pi_scroll_to_bottom('log');
   el.emit('wheel');
   el.scrollTop = 200;
+  el.emit('scroll');
+  assert.equal(el.parentElement.dataset.atBottom, 'false');
+});
+
+test('scrollend ends the smooth scroll even when it stops short of the bottom', () => {
+  const el = fakeEl({ scrollTop: 100 });
+  installDom(el);
+  mod.pi_follow_bottom('log');
+  mod.pi_scroll_to_bottom('log');
+  el.scrollHeight = 2000; // content grew: the animation lands far from the new end
+  el.scrollTop = 600;
+  el.emit('scrollend');
+  assert.equal(el.parentElement.dataset.atBottom, 'false');
+  el.scrollTop = 300;
+  el.emit('scroll'); // user scroll is no longer swallowed
+  assert.equal(el.parentElement.dataset.atBottom, 'false');
+  mod.pi_follow_bottom('log');
+  assert.equal(el.scrollTop, 300, 'not stuck, so follow does not move');
+});
+
+test('a safety timeout clears the smooth flag when scrollend never fires', () => {
+  const el = fakeEl({ scrollTop: 100 });
+  installDom(el);
+  mod.pi_follow_bottom('log');
+  mod.pi_scroll_to_bottom('log');
+  el.scrollHeight = 2000;
+  el.scrollTop = 600;
+  fireTimers();
+  assert.equal(el.parentElement.dataset.atBottom, 'false');
+  el.scrollTop = 300;
   el.emit('scroll');
   assert.equal(el.parentElement.dataset.atBottom, 'false');
 });
