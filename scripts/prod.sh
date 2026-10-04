@@ -37,7 +37,7 @@ run() {
   export LEPTOS_OUTPUT_NAME="$BIN_NAME"
   export LEPTOS_SITE_ROOT="$DIST_DIR/site"
   export LEPTOS_SITE_PKG_DIR="pkg"
-  export LEPTOS_SITE_ADDR="${LEPTOS_SITE_ADDR:-0.0.0.0:3000}"
+  export LEPTOS_SITE_ADDR="${LEPTOS_SITE_ADDR:-0.0.0.0:9000}"
   export LEPTOS_ENV="PROD"
   echo "Serving on http://$LEPTOS_SITE_ADDR"
   exec "$DIST_DIR/$BIN_NAME"
