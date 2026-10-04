@@ -3,7 +3,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::components::A;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
-use crate::core::browser::{confirm, follow_bottom};
+use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -261,11 +261,20 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                         })}
                     </Transition>
                     <Show when=move || shows_workspace.get()>
-                        <div
-                            id=TRANSCRIPT_SCROLL_ID
-                            class="stack min-h-0 flex-1 overflow-y-auto p-4"
-                        >
-                            <TranscriptView transcript=state.transcript />
+                        <div class="group/scroll relative flex min-h-0 flex-1 flex-col" data-at-bottom="true">
+                            <div
+                                id=TRANSCRIPT_SCROLL_ID
+                                class="stack min-h-0 flex-1 overflow-y-auto p-4"
+                            >
+                                <TranscriptView transcript=state.transcript />
+                            </div>
+                            <button
+                                class="btn-secondary absolute right-4 bottom-3 rounded-full shadow-md group-data-[at-bottom=true]/scroll:hidden"
+                                aria-label="Ir al último mensaje"
+                                on:click=move |_| scroll_to_bottom(TRANSCRIPT_SCROLL_ID)
+                            >
+                                "↓ Último mensaje"
+                            </button>
                         </div>
                         <div class="stack max-h-[60vh] shrink-0 gap-2 overflow-y-auto border-t border-border bg-surface p-3">
                             {move || {
