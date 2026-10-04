@@ -40,28 +40,24 @@ export function pi_history_back() {
   window.history.back();
   return true;
 }
-const PI_STICK_THRESHOLD_PX = 80;
-export function pi_follow_bottom(id) {
-  requestAnimationFrame(() => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (el.__piStuck === undefined) {
-      el.__piStuck = true;
-      el.addEventListener('scroll', () => {
-        el.__piStuck = el.scrollHeight - el.scrollTop - el.clientHeight < PI_STICK_THRESHOLD_PX;
-      });
-    }
-    if (el.__piStuck) el.scrollTop = el.scrollHeight;
-  });
-}
 "#)]
     extern "C" {
         pub fn pi_theme_read(key: &str) -> Option<String>;
         pub fn pi_theme_write(key: &str, value: &str);
         pub fn pi_prefers_dark() -> bool;
         pub fn pi_set_document_theme(theme: &str);
-        pub fn pi_follow_bottom(id: &str);
         pub fn pi_history_back() -> bool;
+    }
+}
+
+#[cfg(feature = "hydrate")]
+mod follow_js {
+    use wasm_bindgen::prelude::wasm_bindgen;
+
+    #[wasm_bindgen(module = "/src/core/follow_bottom.js")]
+    extern "C" {
+        pub fn pi_follow_bottom(id: &str);
+        pub fn pi_scroll_to_bottom(id: &str);
     }
 }
 
@@ -118,7 +114,19 @@ pub fn set_document_theme(theme: &str) {
 pub fn follow_bottom(id: &str) {
     #[cfg(feature = "hydrate")]
     {
-        theme_js::pi_follow_bottom(id);
+        follow_js::pi_follow_bottom(id);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _id: &str = id;
+    }
+}
+
+/// Desplaza el contenedor `id` hasta su final y reactiva el seguimiento automático.
+pub fn scroll_to_bottom(id: &str) {
+    #[cfg(feature = "hydrate")]
+    {
+        follow_js::pi_scroll_to_bottom(id);
     }
     #[cfg(not(feature = "hydrate"))]
     {
