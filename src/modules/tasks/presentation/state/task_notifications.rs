@@ -1,19 +1,19 @@
 use std::collections::HashMap;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    TaskDto, TaskStatusDto,
+    TaskDto, TaskStageDto,
 };
 
 /// Minimal per-task state remembered between refreshes to detect transitions.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TaskSnapshot {
-    pub status: TaskStatusDto,
+    pub stage: TaskStageDto,
 }
 
-/// Notification body shown when a task finishes.
-const FINISHED_BODY: &str = "Tarea terminada";
+/// Notification body shown when a task needs human intervention.
+const ATTENTION_BODY: &str = "Necesita atención";
 
-/// A notification to raise for a task that just finished.
+/// A notification to raise for a task that just started needing human attention.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskNotification {
     pub task_id: String,
@@ -25,12 +25,13 @@ pub struct TaskNotification {
 pub fn build_snapshots(tasks: &[TaskDto]) -> HashMap<String, TaskSnapshot> {
     tasks
         .iter()
-        .map(|t: &TaskDto| (t.id.clone(), TaskSnapshot { status: t.status }))
+        .map(|t: &TaskDto| (t.id.clone(), TaskSnapshot { stage: t.stage }))
         .collect()
 }
 
-/// Notifications for tasks that went from `Starting`/`Running` to `Idle` since `previous`.
-/// Tasks absent from `previous` and any other transition never notify.
+/// Notifications for tasks that entered the `Attention` stage ("Necesita atención") since
+/// `previous`. Tasks absent from `previous`, tasks already in `Attention` and every other
+/// transition (finishing work, review, done...) never notify.
 pub fn detect_task_notifications(
     previous: &HashMap<String, TaskSnapshot>,
     tasks: &[TaskDto],
@@ -39,17 +40,14 @@ pub fn detect_task_notifications(
         .iter()
         .filter_map(|t: &TaskDto| {
             let before: &TaskSnapshot = previous.get(&t.id)?;
-            let was_working: bool = matches!(
-                before.status,
-                TaskStatusDto::Starting | TaskStatusDto::Running
-            );
-            if !(was_working && t.status == TaskStatusDto::Idle) {
+            let was_attention: bool = before.stage == TaskStageDto::Attention;
+            if was_attention || t.stage != TaskStageDto::Attention {
                 return None;
             }
             Some(TaskNotification {
                 task_id: t.id.clone(),
                 title: t.title.clone(),
-                body: FINISHED_BODY.to_string(),
+                body: ATTENTION_BODY.to_string(),
             })
         })
         .collect()
@@ -82,9 +80,9 @@ pub fn plan_notifications(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStageDto;
+    use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStatusDto;
 
-    fn task(id: &str, status: TaskStatusDto) -> TaskDto {
+    fn task(id: &str, stage: TaskStageDto) -> TaskDto {
         TaskDto {
             id: id.to_string(),
             workspace_id: "w".to_string(),
@@ -93,97 +91,87 @@ mod tests {
             branch: "pi/x".to_string(),
             base_branch: "main".to_string(),
             worktree_path: "/wt".to_string(),
-            status,
+            status: TaskStatusDto::Running,
             priority: Default::default(),
             error: None,
             actions: Default::default(),
-            stage: TaskStageDto::Working,
-            needs_attention: false,
+            stage,
+            needs_attention: matches!(stage, TaskStageDto::Attention | TaskStageDto::Review),
             pending_dialogs: 0,
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
         }
     }
 
-    fn detect(before: TaskStatusDto, after: TaskStatusDto) -> Vec<TaskNotification> {
+    fn detect(before: TaskStageDto, after: TaskStageDto) -> Vec<TaskNotification> {
         detect_task_notifications(&build_snapshots(&[task("a", before)]), &[task("a", after)])
     }
 
     #[test]
-    fn running_to_idle_notifies() {
+    fn entering_attention_notifies() {
         assert_eq!(
-            detect(TaskStatusDto::Running, TaskStatusDto::Idle),
+            detect(TaskStageDto::Working, TaskStageDto::Attention),
             vec![TaskNotification {
                 task_id: "a".to_string(),
                 title: "tarea a".to_string(),
-                body: "Tarea terminada".to_string(),
+                body: "Necesita atención".to_string(),
             }]
         );
-    }
-
-    #[test]
-    fn starting_to_idle_notifies() {
         assert_eq!(
-            detect(TaskStatusDto::Starting, TaskStatusDto::Idle).len(),
+            detect(TaskStageDto::Review, TaskStageDto::Attention).len(),
             1
         );
     }
 
     #[test]
-    fn unchanged_status_does_not_notify() {
-        assert!(detect(TaskStatusDto::Idle, TaskStatusDto::Idle).is_empty());
-        assert!(detect(TaskStatusDto::Running, TaskStatusDto::Running).is_empty());
+    fn staying_in_attention_does_not_notify() {
+        assert!(detect(TaskStageDto::Attention, TaskStageDto::Attention).is_empty());
     }
 
     #[test]
-    fn other_transitions_do_not_notify() {
-        let targets: [TaskStatusDto; 6] = [
-            TaskStatusDto::AwaitingReview,
-            TaskStatusDto::Merged,
-            TaskStatusDto::Failed,
-            TaskStatusDto::Conflict,
-            TaskStatusDto::Interrupted,
-            TaskStatusDto::Discarded,
+    fn transitions_not_ending_in_attention_do_not_notify() {
+        let targets: [TaskStageDto; 4] = [
+            TaskStageDto::Backlog,
+            TaskStageDto::Working,
+            TaskStageDto::Review,
+            TaskStageDto::Done,
         ];
-        for status in targets {
-            assert!(
-                detect(TaskStatusDto::Running, status).is_empty(),
-                "{status:?}"
-            );
+        for after in targets {
+            for before in [TaskStageDto::Working, TaskStageDto::Attention] {
+                assert!(detect(before, after).is_empty(), "{before:?} -> {after:?}");
+            }
         }
-        assert!(detect(TaskStatusDto::Backlog, TaskStatusDto::Idle).is_empty());
-        assert!(detect(TaskStatusDto::Idle, TaskStatusDto::Running).is_empty());
     }
 
     #[test]
     fn new_task_does_not_notify() {
-        let after: [TaskDto; 1] = [task("a", TaskStatusDto::Idle)];
+        let after: [TaskDto; 1] = [task("a", TaskStageDto::Attention)];
         assert!(detect_task_notifications(&HashMap::new(), &after).is_empty());
     }
 
     #[test]
     fn first_snapshot_seeds_baseline_silently() {
-        let tasks: [TaskDto; 1] = [task("a", TaskStatusDto::Idle)];
+        let tasks: [TaskDto; 1] = [task("a", TaskStageDto::Attention)];
         let plan: NotificationPlan = plan_notifications(None, &tasks);
         assert!(plan.notifications.is_empty());
         assert_eq!(plan.next_baseline, build_snapshots(&tasks));
     }
 
     #[test]
-    fn second_snapshot_notifies_on_finish() {
+    fn second_snapshot_notifies_on_attention() {
         let first: HashMap<String, TaskSnapshot> =
-            build_snapshots(&[task("a", TaskStatusDto::Running)]);
+            build_snapshots(&[task("a", TaskStageDto::Working)]);
         let plan: NotificationPlan =
-            plan_notifications(Some(&first), &[task("a", TaskStatusDto::Idle)]);
+            plan_notifications(Some(&first), &[task("a", TaskStageDto::Attention)]);
         assert_eq!(plan.notifications.len(), 1);
-        assert_eq!(plan.notifications[0].body, "Tarea terminada");
+        assert_eq!(plan.notifications[0].body, "Necesita atención");
     }
 
     #[test]
-    fn baseline_advances_so_a_finish_notifies_once() {
+    fn baseline_advances_so_attention_notifies_once() {
         let first: HashMap<String, TaskSnapshot> =
-            build_snapshots(&[task("a", TaskStatusDto::Running)]);
-        let after: [TaskDto; 1] = [task("a", TaskStatusDto::Idle)];
+            build_snapshots(&[task("a", TaskStageDto::Working)]);
+        let after: [TaskDto; 1] = [task("a", TaskStageDto::Attention)];
         let plan: NotificationPlan = plan_notifications(Some(&first), &after);
         assert_eq!(plan.next_baseline, build_snapshots(&after));
         let again: NotificationPlan = plan_notifications(Some(&plan.next_baseline), &after);
@@ -193,9 +181,9 @@ mod tests {
     #[test]
     fn baseline_reflects_removed_and_new_tasks() {
         let first: HashMap<String, TaskSnapshot> =
-            build_snapshots(&[task("a", TaskStatusDto::Running)]);
+            build_snapshots(&[task("a", TaskStageDto::Working)]);
         let plan: NotificationPlan =
-            plan_notifications(Some(&first), &[task("b", TaskStatusDto::Idle)]);
+            plan_notifications(Some(&first), &[task("b", TaskStageDto::Attention)]);
         assert!(plan.notifications.is_empty());
         assert!(!plan.next_baseline.contains_key("a"));
         assert!(plan.next_baseline.contains_key("b"));
