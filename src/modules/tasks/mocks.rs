@@ -67,6 +67,7 @@ mock! {
         async fn commit_all(&self, path: &Path, message: &str) -> Result<bool, TaskError>;
         async fn diff(&self, repo: &Path, base_branch: &str, branch: &str) -> Result<TaskDiff, TaskError>;
         async fn merge(&self, repo: &Path, base_branch: &str, branch: &str, message: &str) -> Result<MergeOutcome, TaskError>;
+        async fn exists(&self, path: &Path) -> bool;
         async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError>;
     }
 }

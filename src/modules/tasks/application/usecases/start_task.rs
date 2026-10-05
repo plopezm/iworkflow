@@ -90,10 +90,32 @@ impl StartTask {
             )
             .await
         {
-            self.lifecycle.repository().revert_start_claim(id).await?;
-            self.lifecycle
-                .notify_status(id, TaskStatus::Backlog, None)
-                .await?;
+            match self.lifecycle.repository().revert_start_claim(id).await {
+                Ok(_) => {
+                    self.lifecycle
+                        .notify_status(id, TaskStatus::Backlog, None)
+                        .await?;
+                }
+                Err(revert_error) => {
+                    tracing::warn!(
+                        task_id = %id,
+                        %revert_error,
+                        create_error = %error,
+                        "no se pudo revertir la reclamación de arranque; se marca la tarea como fallida"
+                    );
+                    if let Err(transition_error) = self
+                        .lifecycle
+                        .transition(id, TaskStatus::Failed, Some(error.to_string()))
+                        .await
+                    {
+                        tracing::warn!(
+                            task_id = %id,
+                            %transition_error,
+                            "no se pudo marcar como fallida la tarea tras el fallo del worktree"
+                        );
+                    }
+                }
+            }
             return Err(error);
         }
 
@@ -105,6 +127,15 @@ impl StartTask {
 
         if let Err(error) = self.launch(&task).await {
             let message: String = error.to_string();
+            if self.runtime.is_running(id).await
+                && let Err(stop_error) = self.runtime.stop(id).await
+            {
+                tracing::warn!(
+                    task_id = %id,
+                    %stop_error,
+                    "no se pudo detener el agente tras fallar el lanzamiento"
+                );
+            }
             self.lifecycle
                 .transition(id, TaskStatus::Failed, Some(message.clone()))
                 .await?;
@@ -172,6 +203,13 @@ mod tests {
         worktrees
     }
 
+    fn runtime_not_running() -> MockAgentRuntime {
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_is_running().returning(|_| false);
+        runtime.expect_stop().never();
+        runtime
+    }
+
     fn lifecycle_accepting_plan(task: Task, recorded: &Recorded) -> Arc<TaskLifecycle> {
         let mut repository: MockTaskRepository =
             test_support::repository_with(Some(task), recorded);
@@ -226,6 +264,8 @@ mod tests {
         runtime.expect_start().returning(|_, _, _, _, _| {
             Err(TaskError::Runtime("no existe gentle-shell".to_string()))
         });
+        runtime.expect_is_running().returning(|_| false);
+        runtime.expect_stop().never();
         let use_case: StartTask = StartTask::new(
             lifecycle_accepting_plan(task, &recorded),
             Arc::new(worktrees()),
@@ -280,6 +320,78 @@ mod tests {
 
         assert_eq!(result, Err(TaskError::Git("no space left".to_string())));
         assert!(recorded.statuses().is_empty());
+    }
+
+    #[tokio::test]
+    async fn returns_create_error_and_marks_failed_when_revert_also_fails() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_worktree_path()
+            .returning(|ws, dir| PathBuf::from(format!("/wt/{ws}/{dir}")));
+        worktrees
+            .expect_create()
+            .returning(|_, _, _, _| Err(TaskError::Git("no space left".to_string())));
+        let mut repository: MockTaskRepository =
+            test_support::repository_with(Some(task), &recorded);
+        repository
+            .expect_claim_for_start()
+            .times(1)
+            .returning(|_, _, _, _| Ok(true));
+        repository
+            .expect_revert_start_claim()
+            .times(1)
+            .returning(|_| Err(TaskError::Repository("db bloqueada".to_string())));
+        let use_case: StartTask = StartTask::new(
+            test_support::lifecycle_with(repository, &recorded),
+            Arc::new(worktrees),
+            Arc::new(MockAgentRuntime::new()),
+            Arc::new(MockLaunchSettings::new()),
+            Arc::new(MockAgentEventSink::new()),
+        );
+
+        let result: Result<Task, TaskError> = use_case.execute(id).await;
+
+        assert_eq!(result, Err(TaskError::Git("no space left".to_string())));
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Failed]);
+        assert!(
+            recorded
+                .last_error()
+                .expect("error")
+                .contains("no space left")
+        );
+    }
+
+    #[tokio::test]
+    async fn stops_runtime_when_prompt_send_fails_after_start() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_start()
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        runtime
+            .expect_send()
+            .times(1)
+            .returning(|_, _| Err(TaskError::Runtime("pipe roto".to_string())));
+        runtime.expect_is_running().times(1).returning(|_| true);
+        runtime.expect_stop().times(1).returning(|_| Ok(()));
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            default_launch_settings(),
+            Arc::new(MockAgentEventSink::new()),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Failed);
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Failed]);
     }
 
     #[tokio::test]
@@ -419,7 +531,7 @@ mod tests {
         let use_case: StartTask = StartTask::new(
             lifecycle_accepting_plan(task, &recorded),
             Arc::new(worktrees()),
-            Arc::new(MockAgentRuntime::new()),
+            Arc::new(runtime_not_running()),
             Arc::new(launch_settings),
             Arc::new(MockAgentEventSink::new()),
         );

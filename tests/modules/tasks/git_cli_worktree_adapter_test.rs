@@ -224,3 +224,123 @@ async fn concurrent_merges_into_the_same_base_both_succeed() {
     assert!(f.repo.join("a.txt").exists());
     assert!(f.repo.join("b.txt").exists());
 }
+
+/// Provoca un conflicto en README.md entre `main` y la rama de la tarea.
+async fn make_conflict(f: &Fixture) {
+    std::fs::write(f.worktree.join("README.md"), "desde la tarea\n").expect("write");
+    f.adapter
+        .commit_all(&f.worktree, "pi: cambia")
+        .await
+        .expect("commit");
+    std::fs::write(f.repo.join("README.md"), "desde main\n").expect("write");
+    common::git(&f.repo, &["commit", "-qam", "main cambia"]);
+}
+
+fn has_merge_head(repo: &std::path::Path) -> bool {
+    std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["rev-parse", "-q", "--verify", "MERGE_HEAD"])
+        .output()
+        .expect("git")
+        .status
+        .success()
+}
+
+#[tokio::test]
+async fn conflict_in_checked_out_base_leaves_no_merge_pending() {
+    let f: Fixture = fixture_with_worktree().await;
+    make_conflict(&f).await;
+
+    let outcome: MergeOutcome = f
+        .adapter
+        .merge(&f.repo, "main", BRANCH, "Merge tarea")
+        .await
+        .expect("merge");
+
+    assert!(matches!(outcome, MergeOutcome::Conflict { .. }));
+    assert!(!has_merge_head(&f.repo));
+    assert_eq!(common::git(&f.repo, &["status", "--porcelain"]), "");
+}
+
+#[tokio::test]
+async fn conflict_through_temporary_worktree_leaves_nothing_behind() {
+    let f: Fixture = fixture_with_worktree().await;
+    make_conflict(&f).await;
+    common::git(&f.repo, &["checkout", "-q", "-b", "otra"]);
+    let before: String = common::git(&f.repo, &["rev-parse", "main"]);
+
+    let outcome: MergeOutcome = f
+        .adapter
+        .merge(&f.repo, "main", BRANCH, "Merge tarea")
+        .await
+        .expect("merge");
+
+    assert_eq!(
+        outcome,
+        MergeOutcome::Conflict {
+            files: vec!["README.md".to_string()]
+        }
+    );
+    assert_eq!(common::git(&f.repo, &["rev-parse", "main"]), before);
+    let worktrees: String = common::git(&f.repo, &["worktree", "list"]);
+    assert!(!worktrees.contains(".merge"));
+    let merge_dir: PathBuf = f._worktrees_dir.path().join(".merge");
+    let leftovers: usize = std::fs::read_dir(&merge_dir)
+        .map(|entries| entries.count())
+        .unwrap_or(0);
+    assert_eq!(leftovers, 0);
+}
+
+#[tokio::test]
+async fn stale_merge_worktree_does_not_block_later_merges() {
+    let f: Fixture = fixture_with_worktree().await;
+    common::git(&f.repo, &["checkout", "-q", "-b", "otra"]);
+    std::fs::write(f.worktree.join("nuevo.txt"), "hola\n").expect("write");
+    f.adapter
+        .commit_all(&f.worktree, "pi: nuevo")
+        .await
+        .expect("commit");
+    // Restos de un merge anterior interrumpido: worktree registrado en la ruta fija antigua.
+    let stale: PathBuf = f._worktrees_dir.path().join(".merge").join(
+        iworkflow::modules::tasks::domain::models::task::slugify(BRANCH),
+    );
+    std::fs::create_dir_all(stale.parent().expect("parent")).expect("mkdir");
+    common::git(
+        &f.repo,
+        &[
+            "worktree",
+            "add",
+            "--detach",
+            &stale.to_string_lossy(),
+            "main",
+        ],
+    );
+
+    let outcome: MergeOutcome = f
+        .adapter
+        .merge(&f.repo, "main", BRANCH, "Merge tarea")
+        .await
+        .expect("merge");
+
+    assert_eq!(outcome, MergeOutcome::Merged);
+    assert_eq!(
+        common::git(&f.repo, &["log", "-1", "--format=%s", "main"]),
+        "Merge tarea"
+    );
+}
+
+#[tokio::test]
+async fn exists_reflects_worktree_folder_presence() {
+    let f: Fixture = fixture_with_worktree().await;
+    let before: bool = f.adapter.exists(&f.worktree).await;
+
+    f.adapter
+        .remove(&f.repo, &f.worktree, BRANCH)
+        .await
+        .expect("remove");
+    let after: bool = f.adapter.exists(&f.worktree).await;
+
+    assert!(before);
+    assert!(!after);
+}

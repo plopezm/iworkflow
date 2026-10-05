@@ -37,6 +37,9 @@ pub trait WorktreePort: Send + Sync {
         message: &str,
     ) -> Result<MergeOutcome, TaskError>;
 
+    /// Indica si la carpeta del worktree existe en disco.
+    async fn exists(&self, path: &Path) -> bool;
+
     /// Elimina el worktree (si existe) y la rama.
     async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError>;
 }

@@ -23,6 +23,8 @@ pub enum TaskError {
     AgentNotRunning,
     #[error("error del agente: {0}")]
     Runtime(String),
+    #[error("el worktree de la tarea ya no existe en {0}; solo se puede descartar la tarea")]
+    WorktreeMissing(String),
     #[error("error de git: {0}")]
     Git(String),
     #[error("el repositorio principal no está listo para el merge: {0}")]

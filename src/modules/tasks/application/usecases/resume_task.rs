@@ -7,10 +7,12 @@ use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
+use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Relanza el agente en el worktree existente continuando su sesión previa.
 pub struct ResumeTask {
     lifecycle: Arc<TaskLifecycle>,
+    worktrees: Arc<dyn WorktreePort>,
     runtime: Arc<dyn AgentRuntimePort>,
     launch_settings: Arc<dyn LaunchSettingsPort>,
     sink: Arc<dyn AgentEventSink>,
@@ -19,12 +21,14 @@ pub struct ResumeTask {
 impl ResumeTask {
     pub fn new(
         lifecycle: Arc<TaskLifecycle>,
+        worktrees: Arc<dyn WorktreePort>,
         runtime: Arc<dyn AgentRuntimePort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
         sink: Arc<dyn AgentEventSink>,
     ) -> Self {
         Self {
             lifecycle,
+            worktrees,
             runtime,
             launch_settings,
             sink,
@@ -35,6 +39,11 @@ impl ResumeTask {
         let task: Task = self.lifecycle.load(id).await?;
         if !task.status.can_resume() {
             return Err(invalid_state("reanudar", task.status));
+        }
+        if !self.worktrees.exists(&task.worktree_path).await {
+            return Err(TaskError::WorktreeMissing(
+                task.worktree_path.display().to_string(),
+            ));
         }
         let options: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
         self.runtime
@@ -50,7 +59,35 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded, WORKTREE};
-    use crate::modules::tasks::mocks::{MockAgentEventSink, MockAgentRuntime, MockLaunchSettings};
+    use crate::modules::tasks::mocks::{
+        MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockWorktree,
+    };
+
+    fn worktrees_existing(exists: bool) -> Arc<dyn WorktreePort> {
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees.expect_exists().returning(move |_| exists);
+        Arc::new(worktrees)
+    }
+
+    #[tokio::test]
+    async fn rejects_missing_worktree_without_starting_agent() {
+        let task: Task = test_support::task(TaskStatus::Interrupted);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+
+        let result: Result<(), TaskError> = ResumeTask::new(
+            test_support::lifecycle(Some(task), &recorded),
+            worktrees_existing(false),
+            Arc::new(MockAgentRuntime::new()),
+            Arc::new(MockLaunchSettings::new()),
+            Arc::new(MockAgentEventSink::new()),
+        )
+        .execute(id)
+        .await;
+
+        assert!(matches!(result, Err(TaskError::WorktreeMissing(ref p)) if p == WORKTREE));
+        assert!(recorded.statuses().is_empty());
+    }
 
     fn launch_settings(runtime: Option<&'static str>) -> Arc<dyn LaunchSettingsPort> {
         let mut settings: MockLaunchSettings = MockLaunchSettings::new();
@@ -80,6 +117,7 @@ mod tests {
 
         let result: Result<(), TaskError> = ResumeTask::new(
             test_support::lifecycle(Some(task), &recorded),
+            worktrees_existing(true),
             Arc::new(MockAgentRuntime::new()),
             Arc::new(settings),
             Arc::new(MockAgentEventSink::new()),
@@ -107,6 +145,7 @@ mod tests {
 
         ResumeTask::new(
             test_support::lifecycle(Some(task), &recorded),
+            worktrees_existing(true),
             Arc::new(runtime),
             launch_settings(Some("pi")),
             Arc::new(MockAgentEventSink::new()),
@@ -130,6 +169,7 @@ mod tests {
 
         ResumeTask::new(
             test_support::lifecycle(Some(task), &recorded),
+            worktrees_existing(true),
             Arc::new(runtime),
             launch_settings(None),
             Arc::new(MockAgentEventSink::new()),
@@ -147,6 +187,7 @@ mod tests {
         let id: TaskId = task.id;
         let result: Result<(), TaskError> = ResumeTask::new(
             test_support::lifecycle(Some(task), &Recorded::default()),
+            worktrees_existing(true),
             Arc::new(MockAgentRuntime::new()),
             Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
