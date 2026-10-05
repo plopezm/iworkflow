@@ -226,3 +226,57 @@ async fn no_agent_event_is_lost_while_sqlite_stays_locked_past_busy_timeout() {
     want.sort();
     assert_eq!(pending, want, "diálogos pendientes inconsistentes");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn flush_events_persists_everything_accepted_before_returning() {
+    let db: common::TestDb = common::test_db().await;
+    let now: DateTime<Utc> = Utc::now().trunc_subsecs(6);
+    let workspace: Workspace = Workspace {
+        id: WorkspaceId::new(),
+        name: "demo".to_string(),
+        path: PathBuf::from("/repos/demo"),
+        base_branch: "main".to_string(),
+        created_at: now,
+    };
+    WorkspaceRepositoryAdapter::new(db.pool.clone())
+        .save(&workspace)
+        .await
+        .expect("workspace");
+    let task: Task = Task {
+        id: TaskId::new(),
+        workspace_id: workspace.id.to_string(),
+        title: "viva".to_string(),
+        prompt: "haz algo".to_string(),
+        branch: "pi/viva".to_string(),
+        base_branch: "main".to_string(),
+        worktree_path: PathBuf::from("/wt/viva"),
+        status: TaskStatus::Running,
+        priority: TaskPriority::default(),
+        error: None,
+        pending_dialogs: Vec::new(),
+        subagents: SubagentActivity::default(),
+        created_at: now,
+        updated_at: now,
+    };
+    let repository: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    repository.insert(&task).await.expect("insert");
+
+    let ctx: TasksContext = TasksContext::with_runtime(
+        db.pool.clone(),
+        db.dir.path().join("worktrees"),
+        Arc::new(StubWorkspaces),
+        Arc::new(StubRuntime),
+        Arc::new(StubLaunchSettings),
+    );
+
+    for i in 0..EVENT_COUNT {
+        ctx.event_sink.handle(task.id, event(i)).await;
+    }
+    ctx.flush_events().await;
+
+    let persisted: Vec<(i64, AgentEvent)> =
+        agent_events(repository.events(task.id, None).await.expect("events"));
+    let actual: Vec<AgentEvent> = persisted.into_iter().map(|(_, e)| e).collect();
+    let expected: Vec<AgentEvent> = (0..EVENT_COUNT).map(event).collect();
+    assert_eq!(actual, expected, "flush devolvió con eventos sin persistir");
+}

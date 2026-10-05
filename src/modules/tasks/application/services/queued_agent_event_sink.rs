@@ -1,14 +1,21 @@
 use std::sync::Arc;
 
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 
-type QueueSender = mpsc::Sender<(TaskId, AgentEvent)>;
-type QueueReceiver = mpsc::Receiver<(TaskId, AgentEvent)>;
+enum QueueItem {
+    Event(TaskId, AgentEvent),
+    /// Marcador de sincronización: el worker responde al llegar a él, es decir,
+    /// tras procesar todo lo encolado antes.
+    Flush(oneshot::Sender<()>),
+}
+
+type QueueSender = mpsc::Sender<QueueItem>;
+type QueueReceiver = mpsc::Receiver<QueueItem>;
 
 pub const DEFAULT_QUEUE_CAPACITY: usize = 4096;
 
@@ -35,14 +42,26 @@ impl QueuedAgentEventSink {
         let (sender, mut receiver): (QueueSender, QueueReceiver) = mpsc::channel(capacity.max(1));
         let worker_sink: Arc<dyn AgentEventSink> = Arc::clone(&inner);
         let worker: JoinHandle<()> = tokio::spawn(async move {
-            while let Some((task_id, event)) = receiver.recv().await {
-                // Cada evento corre en su propia tarea: un pánico solo pierde ese
-                // evento y no arrastra al resto de la cola ni al worker.
-                let sink: Arc<dyn AgentEventSink> = Arc::clone(&worker_sink);
-                let result: Result<(), tokio::task::JoinError> =
-                    tokio::spawn(async move { sink.handle(task_id, event).await }).await;
-                if let Err(error) = result {
-                    tracing::error!(%task_id, %error, "el procesado de un evento de agente falló");
+            while let Some(item) = receiver.recv().await {
+                match item {
+                    QueueItem::Event(task_id, event) => {
+                        // Cada evento corre en su propia tarea: un pánico solo pierde
+                        // ese evento y no arrastra al resto de la cola ni al worker.
+                        let sink: Arc<dyn AgentEventSink> = Arc::clone(&worker_sink);
+                        let result: Result<(), tokio::task::JoinError> =
+                            tokio::spawn(async move { sink.handle(task_id, event).await }).await;
+                        if let Err(error) = result {
+                            tracing::error!(
+                                %task_id,
+                                %error,
+                                "el procesado de un evento de agente falló"
+                            );
+                        }
+                    }
+                    QueueItem::Flush(done) => {
+                        // Si quien espera ya no está, no hay nadie a quien avisar.
+                        let _ = done.send(());
+                    }
                 }
             }
         });
@@ -51,6 +70,20 @@ impl QueuedAgentEventSink {
             worker,
             inner,
         }
+    }
+
+    /// Espera a que se hayan procesado todos los eventos aceptados hasta ahora.
+    ///
+    /// Encola un marcador (esperando hueco, sin descartar) y aguarda a que el
+    /// worker lo alcance. Si el worker ya no existe, los eventos se procesaron
+    /// en línea y retorna de inmediato.
+    pub async fn flush(&self) {
+        let (done, completed): (oneshot::Sender<()>, oneshot::Receiver<()>) = oneshot::channel();
+        if self.sender.send(QueueItem::Flush(done)).await.is_err() {
+            return;
+        }
+        // Un error aquí significa que el worker murió antes de responder.
+        let _ = completed.await;
     }
 
     /// Cierra la cola y espera a que el worker procese todo lo encolado.
@@ -66,8 +99,8 @@ impl QueuedAgentEventSink {
 #[async_trait::async_trait]
 impl AgentEventSink for QueuedAgentEventSink {
     async fn handle(&self, task_id: TaskId, event: AgentEvent) {
-        if let Err(mpsc::error::SendError((task_id, event))) =
-            self.sender.send((task_id, event)).await
+        if let Err(mpsc::error::SendError(QueueItem::Event(task_id, event))) =
+            self.sender.send(QueueItem::Event(task_id, event)).await
         {
             tracing::error!(
                 task_id = %task_id,
@@ -258,5 +291,56 @@ mod tests {
         sink.handle(task, event("after")).await;
         assert_eq!(texts(&log, task), vec!["after".to_string()]);
         sink.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn flush_waits_for_slow_queued_events() {
+        let log: Log = new_log();
+        let mut inner = RecordingSink::new(log.clone());
+        inner.delay = Some(Duration::from_millis(20));
+        let sink = QueuedAgentEventSink::new(Arc::new(inner), 64);
+        let task: TaskId = TaskId::new();
+        for i in 0..10 {
+            sink.handle(task, event(&i.to_string())).await;
+        }
+        sink.flush().await;
+        assert_eq!(texts(&log, task), expected(0..10));
+        sink.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn flush_on_empty_queue_returns() {
+        let log: Log = new_log();
+        let sink = QueuedAgentEventSink::new(Arc::new(RecordingSink::new(log)), 4);
+        let result = tokio::time::timeout(Duration::from_secs(1), sink.flush()).await;
+        assert!(result.is_ok());
+        sink.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn flush_after_worker_died_returns() {
+        let log: Log = new_log();
+        let sink = QueuedAgentEventSink::new(Arc::new(RecordingSink::new(log)), 4);
+        sink.worker.abort();
+        tokio::time::timeout(Duration::from_secs(1), sink.sender.closed())
+            .await
+            .unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(1), sink.flush()).await;
+        assert!(result.is_ok());
+        sink.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn events_after_a_flush_are_still_processed() {
+        let log: Log = new_log();
+        let sink = QueuedAgentEventSink::new(Arc::new(RecordingSink::new(log.clone())), 4);
+        let task: TaskId = TaskId::new();
+        sink.handle(task, event("0")).await;
+        sink.flush().await;
+        sink.handle(task, event("1")).await;
+        sink.flush().await;
+        sink.handle(task, event("2")).await;
+        sink.shutdown().await;
+        assert_eq!(texts(&log, task), expected(0..3));
     }
 }

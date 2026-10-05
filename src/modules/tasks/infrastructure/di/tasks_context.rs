@@ -72,6 +72,8 @@ pub struct TasksContext {
     pub event_bus: BroadcastTaskEventBus,
     /// Sink de eventos de agente (cola con reintento persistente hacia SQLite).
     pub event_sink: Arc<dyn AgentEventSink>,
+    /// Misma instancia que `event_sink`, para poder vaciarla en el apagado.
+    event_queue: Arc<QueuedAgentEventSink>,
 }
 
 impl TasksContext {
@@ -129,8 +131,9 @@ impl TasksContext {
             workspaces.clone(),
         ));
         let handler: Arc<dyn AgentEventSink> = Arc::new(HandleAgentEvent::new(events_lifecycle));
-        let sink: Arc<dyn AgentEventSink> =
+        let event_queue: Arc<QueuedAgentEventSink> =
             Arc::new(QueuedAgentEventSink::new(handler, DEFAULT_QUEUE_CAPACITY));
+        let sink: Arc<dyn AgentEventSink> = event_queue.clone();
         let start_task: Arc<StartTask> = Arc::new(StartTask::new(
             lifecycle.clone(),
             worktrees.clone(),
@@ -177,6 +180,12 @@ impl TasksContext {
             reconcile_tasks: Arc::new(ReconcileTasks::new(lifecycle)),
             event_bus,
             event_sink: sink,
+            event_queue,
         }
+    }
+
+    /// Espera a que se persistan todos los eventos de agente ya aceptados.
+    pub async fn flush_events(&self) {
+        self.event_queue.flush().await;
     }
 }

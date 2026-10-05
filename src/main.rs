@@ -55,8 +55,51 @@ async fn main() {
     let listener: tokio::net::TcpListener =
         tokio::net::TcpListener::bind(&addr).await.expect("bind");
     axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("servidor");
+
+    match tokio::time::timeout(SHUTDOWN_FLUSH_TIMEOUT, state.tasks.flush_events()).await {
+        Ok(()) => tracing::info!("eventos de agente pendientes persistidos; apagando"),
+        Err(_) => tracing::info!(
+            "tiempo agotado ({SHUTDOWN_FLUSH_TIMEOUT:?}) vaciando eventos de agente; apagando"
+        ),
+    }
+}
+
+#[cfg(feature = "ssr")]
+const SHUTDOWN_FLUSH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Se resuelve al recibir SIGINT (Ctrl+C) o, en unix, SIGTERM.
+#[cfg(feature = "ssr")]
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::error!(%error, "no se pudo escuchar SIGINT");
+            std::future::pending::<()>().await;
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut stream) => {
+                stream.recv().await;
+            }
+            Err(error) => {
+                tracing::error!(%error, "no se pudo escuchar SIGTERM");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
+    tracing::info!("señal de apagado recibida");
 }
 
 #[cfg(not(feature = "ssr"))]
