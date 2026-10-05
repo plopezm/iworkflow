@@ -17,7 +17,7 @@ uuid = { version = "1", features = ["v4", "serde", "js"] }
 chrono = { version = "0.4", features = ["serde"] }
 
 # ssr
-axum = { version = "0.8", optional = true }
+axum = { version = "0.8", features = ["ws"], optional = true }
 leptos_axum = { version = "0.8", optional = true }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "sync", "fs", "time", "signal"], optional = true }
 tokio-stream = { version = "0.1", features = ["sync"], optional = true }
