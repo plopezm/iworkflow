@@ -15,7 +15,7 @@ Builds on feat/terminal-session (unmerged).
 - [x] 1. Domain + use cases: session metadata (workspace name, created_at), `PtyPort` list/attach (scrollback + broadcast), ListTerminals / AttachTerminal use cases, OpenTerminal returns session info; mocks + tests
 - [x] 2. PTY adapter: persistent registry, broadcast + scrollback ring buffer, exit detection, drop kills all; integration tests (reattach replays output, list, close)
 - [x] 3. WS adapter attach-by-id + DI + server fns (`open_terminal`, `list_terminals`, `close_terminal`) + DTOs and mapping tests
-- [ ] 4. UI: `/terminals` list page + sidebar link, `/terminals/:id` page with close button, new-session redirect from `/workspaces/:id/terminal`, state + helpers tests
+- [x] 4. UI: `/terminals` list page + sidebar link, `/terminals/:id` page with close button, new-session redirect from `/workspaces/:id/terminal`, state + helpers tests
 - [ ] 5. Checks (fmt, clippy ssr/hydrate, tests, live smoke) + codegraph sync
 
 ## Evidence
