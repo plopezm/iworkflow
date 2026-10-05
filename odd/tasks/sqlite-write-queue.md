@@ -19,12 +19,17 @@ writer, on-disk spool (a process crash with queued events can still lose them; d
 - [x] T1 `TaskError::Busy` + adapter `db_error` mapping + tests
 - [x] T2 `RetryingTaskRepository` decorator + policy + unit tests (mockall, paused time)
 - [x] T3 `QueuedAgentEventSink` + unit tests (order, no loss, backpressure, worker lifecycle)
-- [ ] T4 DI wiring in `tasks_context.rs` + integration test: external connection holds write lock past `busy_timeout`, all events persisted in order after release
-- [ ] T5 Final checks (fmt, clippy ssr+hydrate, tests), codegraph sync, docs note
+- [x] T4 DI wiring in `tasks_context.rs` + integration test: external connection holds write lock past `busy_timeout`, all events persisted in order after release
+- [x] T5 Final checks (fmt, clippy ssr+hydrate, tests), codegraph sync, docs note
 
 ## Evidence
 - T0: 9cbe634
 - T1: 2aa655e (fmt, clippy ssr+hydrate, 360 lib tests + integration ok)
 - T2: ee01c1c (7 tests; mutation-checked: no-retry, no-cap, retry-nonTransient all killed)
 - T3: c92815c (7 tests; mutation-checked: try_send, no-op handle, no panic isolation all killed)
-(commit ids and check results go here)
+- T4: 78bea3c (integration test 6.6s; mutants killed: plain wiring blocks reader, queue-without-retry loses dialog-0)
+- T5: fmt ok; clippy ssr --all-targets and hydrate wasm32 -D warnings clean; cargo test --features ssr: 446 passed, 0 failed; codegraph sync done.
+
+## Known limits
+- Events still in memory are lost if the process is killed. Queue.shutdown() exists but main.rs has no graceful-shutdown hook yet.
+- Not run: cargo leptos test, e2e.
