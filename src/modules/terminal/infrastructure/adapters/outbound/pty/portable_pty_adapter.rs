@@ -21,6 +21,7 @@ const FALLBACK_SHELL: &str = "/bin/sh";
 const TERM_VALUE: &str = "xterm-256color";
 const OUTPUT_CHANNEL_CAPACITY: usize = 256;
 const SCROLLBACK_LIMIT: usize = 64 * 1024;
+const EXITED_MESSAGE: &str = "la sesión de terminal ya terminó";
 const READ_BUFFER_SIZE: usize = 8192;
 
 /// Salida compartida entre el hilo lector y los adjuntos.
@@ -42,14 +43,25 @@ struct SessionEntry {
 }
 
 impl SessionEntry {
-    fn snapshot(&self) -> TerminalSession {
-        let running: bool = self
-            .output
+    fn is_running(&self) -> bool {
+        self.output
             .lock()
             .map(|output: MutexGuard<'_, SharedOutput>| output.sender.is_some())
-            .unwrap_or(false);
+            .unwrap_or(false)
+    }
+
+    /// Falla con un error claro si la shell ya terminó (la sesión sigue listada hasta `close`).
+    fn ensure_running(&self) -> Result<(), TerminalError> {
+        if self.is_running() {
+            Ok(())
+        } else {
+            Err(TerminalError::Pty(EXITED_MESSAGE.to_string()))
+        }
+    }
+
+    fn snapshot(&self) -> TerminalSession {
         TerminalSession {
-            status: if running {
+            status: if self.is_running() {
                 TerminalStatus::Running
             } else {
                 TerminalStatus::Exited
@@ -227,6 +239,7 @@ impl PtyPort for PortablePtyAdapter {
         let entry: &mut SessionEntry = sessions
             .get_mut(&id)
             .ok_or(TerminalError::SessionNotFound)?;
+        entry.ensure_running()?;
         entry.writer.write_all(&bytes).map_err(pty_error)?;
         entry.writer.flush().map_err(pty_error)
     }
@@ -234,6 +247,7 @@ impl PtyPort for PortablePtyAdapter {
     async fn resize(&self, id: TerminalSessionId, size: TerminalSize) -> Result<(), TerminalError> {
         let sessions = self.lock()?;
         let entry: &SessionEntry = sessions.get(&id).ok_or(TerminalError::SessionNotFound)?;
+        entry.ensure_running()?;
         entry.master.resize(to_pty_size(size)).map_err(pty_error)
     }
 
@@ -265,7 +279,10 @@ impl PtyPort for PortablePtyAdapter {
             .output
             .lock()
             .map_err(|_| TerminalError::Pty("salida de sesión envenenada".to_string()))?;
-        // Scrollback y suscripción bajo el mismo lock: no se pierde ni duplica salida.
+        // Scrollback y suscripción bajo el mismo lock que usa el lector al añadir y enviar
+        // (`pump_output`): cada chunk queda en el snapshot o llega por el receptor, nunca en
+        // ambos ni en ninguno. `send` de broadcast no bloquea, así que un suscriptor lento
+        // solo recibe `Lagged` y no frena al lector.
         let receiver = match &output.sender {
             Some(sender) => sender.subscribe(),
             None => broadcast::channel::<Vec<u8>>(1).1,
