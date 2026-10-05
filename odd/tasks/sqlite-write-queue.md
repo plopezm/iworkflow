@@ -31,5 +31,8 @@ writer, on-disk spool (a process crash with queued events can still lose them; d
 - T5: fmt ok; clippy ssr --all-targets and hydrate wasm32 -D warnings clean; cargo test --features ssr: 446 passed, 0 failed; codegraph sync done.
 
 ## Known limits
-- Events still in memory are lost if the process is killed. Queue.shutdown() exists but main.rs has no graceful-shutdown hook yet.
+- Events still in memory are lost on kill -9 / power loss (graceful SIGINT/SIGTERM now flushes, 30s cap).
 - Not run: cargo leptos test, e2e.
+
+## Follow-up (shutdown)
+- QueuedAgentEventSink::flush + TasksContext::flush_events + axum graceful shutdown. Smoke-tested with real SIGTERM and SIGINT: logged \"eventos de agente pendientes persistidos; apagando\" and exited.
