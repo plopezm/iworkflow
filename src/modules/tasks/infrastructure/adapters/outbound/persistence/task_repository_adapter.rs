@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
-use diesel_async::{AsyncConnection, RunQueryDsl};
+use diesel_async::RunQueryDsl;
 
 use crate::core::db::pool::{DbConnection, DbPool};
 use crate::core::db::schema::{task_events, tasks};
@@ -229,7 +229,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         let mut connection: DbConnection = self.connection().await?;
         let id_str: String = id.to_string();
         connection
-            .transaction::<(), DieselError, _>(async move |conn| {
+            .immediate_transaction::<(), DieselError, _>(async move |conn| {
                 let row: Option<TaskRow> = tasks::table
                     .find(id_str.clone())
                     .select(TaskRow::as_select())
@@ -270,7 +270,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         let mut connection: DbConnection = self.connection().await?;
         let id_str: String = id.to_string();
         connection
-            .transaction::<(), DieselError, _>(async move |conn| {
+            .immediate_transaction::<(), DieselError, _>(async move |conn| {
                 let row: Option<TaskRow> = tasks::table
                     .find(id_str.clone())
                     .select(TaskRow::as_select())
@@ -337,7 +337,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
     ) -> Result<Option<Vec<TaskId>>, TaskError> {
         let mut connection: DbConnection = self.connection().await?;
         connection
-            .transaction::<Option<Vec<TaskId>>, DieselError, _>(async move |conn| {
+            .immediate_transaction::<Option<Vec<TaskId>>, DieselError, _>(async move |conn| {
                 let rows: Vec<TaskRow> = tasks::table
                     .filter(tasks::workspace_id.eq(workspace_id.clone()))
                     .select(TaskRow::as_select())

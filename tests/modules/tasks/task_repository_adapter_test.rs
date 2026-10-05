@@ -590,3 +590,131 @@ async fn priority_persists_on_insert_and_defaults_to_normal() {
         TaskPriority::Normal
     );
 }
+
+const CONCURRENT_TASKS: usize = 6;
+const OPS_PER_TASK: usize = 25;
+
+/// Mezcla escrituras concurrentes (transacciones read-modify-write y escrituras simples)
+/// sobre las mismas filas. Ninguna debe fallar con `database is locked` ni perder datos.
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn concurrent_writers_never_fail_nor_lose_updates() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/concurrent").await;
+    let adapter: std::sync::Arc<TaskRepositoryAdapter> =
+        std::sync::Arc::new(TaskRepositoryAdapter::new(db.pool.clone()));
+
+    let mut tasks: Vec<Task> = Vec::new();
+    for index in 0..CONCURRENT_TASKS {
+        let t: Task = task(&ws.id.to_string(), &format!("conc{index}"));
+        adapter.insert(&t).await.expect("insert");
+        adapter
+            .update_status(t.id, TaskStatus::Running, None)
+            .await
+            .expect("running");
+        tasks.push(t);
+    }
+
+    let mut handles: Vec<tokio::task::JoinHandle<Result<(), String>>> = Vec::new();
+    for t in &tasks {
+        for op in 0..OPS_PER_TASK {
+            let id: TaskId = t.id;
+            let repo: std::sync::Arc<TaskRepositoryAdapter> = adapter.clone();
+            handles.push(tokio::spawn(async move {
+                let dialog_id: String = format!("d{op}");
+                repo.add_pending_dialog(id, PendingDialog::new(dialog_id.clone(), None))
+                    .await
+                    .map_err(|e| format!("add: {e}"))?;
+                repo.append_event(
+                    id,
+                    TaskEventKind::Agent {
+                        event: AgentEvent::UserMessage {
+                            text: format!("m{op}"),
+                        },
+                    },
+                )
+                .await
+                .map_err(|e| format!("append: {e}"))?;
+                repo.set_subagent_activity(id, SubagentActivity::new(1, 0))
+                    .await
+                    .map_err(|e| format!("subagents: {e}"))?;
+                // Los pares pares se resuelven; los impares quedan pendientes.
+                if op % 2 == 0 {
+                    repo.remove_pending_dialog(id, dialog_id)
+                        .await
+                        .map_err(|e| format!("remove: {e}"))?;
+                }
+                Ok(())
+            }));
+        }
+    }
+
+    let mut failures: Vec<String> = Vec::new();
+    for handle in handles {
+        if let Err(message) = handle.await.expect("join") {
+            failures.push(message);
+        }
+    }
+    assert!(failures.is_empty(), "escrituras fallidas: {failures:?}");
+
+    for t in &tasks {
+        let found: Task = adapter.find(t.id).await.expect("find").expect("existe");
+        let mut ids: Vec<String> = found
+            .pending_dialogs
+            .iter()
+            .map(|d: &PendingDialog| d.id.clone())
+            .collect();
+        ids.sort();
+        let mut expected: Vec<String> = (0..OPS_PER_TASK)
+            .filter(|op: &usize| op % 2 == 1)
+            .map(|op: usize| format!("d{op}"))
+            .collect();
+        expected.sort();
+        assert_eq!(ids, expected, "se perdió una actualización de diálogos");
+
+        let events: Vec<TaskEvent> = adapter.events(t.id, None).await.expect("events");
+        assert_eq!(events.len(), OPS_PER_TASK, "faltan eventos");
+    }
+}
+
+/// El borrado transaccional de un workspace no debe fallar mientras otras tareas escriben.
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn delete_inactive_by_workspace_survives_concurrent_writes() {
+    let db: common::TestDb = common::test_db().await;
+    let target: Workspace = workspace(&db, "/repos/target").await;
+    let busy: Workspace = workspace(&db, "/repos/busy").await;
+    let adapter: std::sync::Arc<TaskRepositoryAdapter> =
+        std::sync::Arc::new(TaskRepositoryAdapter::new(db.pool.clone()));
+
+    let live: Task = task(&busy.id.to_string(), "live");
+    adapter.insert(&live).await.expect("insert");
+    adapter
+        .update_status(live.id, TaskStatus::Running, None)
+        .await
+        .expect("running");
+
+    let mut handles: Vec<tokio::task::JoinHandle<Result<(), String>>> = Vec::new();
+    for op in 0..60 {
+        let repo: std::sync::Arc<TaskRepositoryAdapter> = adapter.clone();
+        let id: TaskId = live.id;
+        let target_id: String = target.id.to_string();
+        handles.push(tokio::spawn(async move {
+            if op % 6 == 0 {
+                repo.delete_inactive_by_workspace(target_id)
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| format!("delete: {e}"))
+            } else {
+                repo.add_pending_dialog(id, PendingDialog::new(format!("x{op}"), None))
+                    .await
+                    .map_err(|e| format!("add: {e}"))
+            }
+        }));
+    }
+    let mut failures: Vec<String> = Vec::new();
+    for handle in handles {
+        if let Err(message) = handle.await.expect("join") {
+            failures.push(message);
+        }
+    }
+    assert!(failures.is_empty(), "escrituras fallidas: {failures:?}");
+}
