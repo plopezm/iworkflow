@@ -13,12 +13,15 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use futures::{SinkExt, StreamExt};
 use serde::Deserialize;
-use tokio::sync::mpsc::Receiver;
+use tokio::sync::broadcast::Receiver;
+use tokio::sync::broadcast::error::RecvError;
 use uuid::Uuid;
 
 use crate::modules::terminal::domain::errors::terminal_error::TerminalError;
+use crate::modules::terminal::domain::models::terminal_attachment::TerminalAttachment;
 use crate::modules::terminal::domain::models::terminal_session::TerminalSession;
 use crate::modules::terminal::domain::models::terminal_session_id::TerminalSessionId;
+use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::client_message::ClientMessage;
 use crate::modules::terminal::infrastructure::di::terminal_context::TerminalContext;
 
@@ -91,20 +94,19 @@ async fn terminal_ws(
         return (StatusCode::BAD_REQUEST, "id de workspace inválido").into_response();
     };
 
-    let session: TerminalSession = match context
-        .open
-        .execute(
-            workspace_id,
-            query.cols.unwrap_or(DEFAULT_COLS),
-            query.rows.unwrap_or(DEFAULT_ROWS),
-        )
-        .await
-    {
+    let size: TerminalSize = match TerminalSize::new(
+        query.cols.unwrap_or(DEFAULT_COLS),
+        query.rows.unwrap_or(DEFAULT_ROWS),
+    ) {
+        Ok(size) => size,
+        Err(error) => return (status_for(&error), error.to_string()).into_response(),
+    };
+    let session: TerminalSession = match context.open.execute(workspace_id, size).await {
         Ok(session) => session,
         Err(error) => return (status_for(&error), error.to_string()).into_response(),
     };
-    let output: Receiver<Vec<u8>> = match context.subscribe.execute(session.id).await {
-        Ok(output) => output,
+    let attachment: TerminalAttachment = match context.attach.execute(session.id).await {
+        Ok(attachment) => attachment,
         Err(error) => {
             if let Err(close_error) = context.close.execute(session.id).await {
                 tracing::warn!(%close_error, "no se pudo cerrar la sesión de terminal");
@@ -113,7 +115,8 @@ async fn terminal_ws(
         }
     };
 
-    upgrade.on_upgrade(move |socket: WebSocket| run_session(socket, context, session.id, output))
+    upgrade
+        .on_upgrade(move |socket: WebSocket| run_session(socket, context, session.id, attachment))
 }
 
 /// Puentea socket y PTY hasta que uno de los dos termina; después cierra la sesión.
@@ -121,19 +124,30 @@ async fn run_session(
     socket: WebSocket,
     context: TerminalContext,
     id: TerminalSessionId,
-    mut output: Receiver<Vec<u8>>,
+    attachment: TerminalAttachment,
 ) {
     let (mut sink, mut stream) = socket.split();
+    let mut output: Receiver<Vec<u8>> = attachment.output;
+    // Sesión recién creada: el scrollback replicado es lo ya emitido antes de adjuntar.
+    if !attachment.scrollback.is_empty()
+        && sink
+            .send(Message::Binary(attachment.scrollback.into()))
+            .await
+            .is_err()
+    {
+        return;
+    }
     loop {
         tokio::select! {
             chunk = output.recv() => match chunk {
-                Some(bytes) => {
+                Ok(bytes) => {
                     if sink.send(Message::Binary(bytes.into())).await.is_err() {
                         break;
                     }
                 }
+                Err(RecvError::Lagged(_)) => {}
                 // La shell terminó: se cierra el socket.
-                None => break,
+                Err(RecvError::Closed) => break,
             },
             frame = stream.next() => match frame {
                 Some(Ok(Message::Binary(bytes))) => {

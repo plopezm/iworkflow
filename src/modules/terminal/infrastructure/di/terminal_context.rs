@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use crate::modules::terminal::application::usecases::close_terminal::CloseTerminal;
+use crate::modules::terminal::application::usecases::list_terminals::ListTerminals;
 use crate::modules::terminal::application::usecases::open_terminal::OpenTerminal;
 use crate::modules::terminal::application::usecases::resize_terminal::ResizeTerminal;
-use crate::modules::terminal::application::usecases::subscribe_terminal_output::SubscribeTerminalOutput;
+use crate::modules::terminal::application::usecases::attach_terminal::AttachTerminal;
 use crate::modules::terminal::application::usecases::write_terminal::WriteTerminal;
 use crate::modules::terminal::domain::ports::outbound::pty_port::PtyPort;
 use crate::modules::terminal::domain::ports::outbound::workspace_path_port::WorkspacePathPort;
@@ -18,7 +19,8 @@ pub struct TerminalContext {
     pub write: Arc<WriteTerminal>,
     pub resize: Arc<ResizeTerminal>,
     pub close: Arc<CloseTerminal>,
-    pub subscribe: Arc<SubscribeTerminalOutput>,
+    pub attach: Arc<AttachTerminal>,
+    pub list: Arc<ListTerminals>,
 }
 
 impl TerminalContext {
@@ -31,7 +33,8 @@ impl TerminalContext {
             write: Arc::new(WriteTerminal::new(pty.clone())),
             resize: Arc::new(ResizeTerminal::new(pty.clone())),
             close: Arc::new(CloseTerminal::new(pty.clone())),
-            subscribe: Arc::new(SubscribeTerminalOutput::new(pty)),
+            attach: Arc::new(AttachTerminal::new(pty.clone())),
+            list: Arc::new(ListTerminals::new(pty)),
         }
     }
 }

@@ -1,13 +1,18 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 
+use chrono::Utc;
+use uuid::Uuid;
+
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
-use tokio::sync::mpsc::{Receiver, Sender, channel};
+use tokio::sync::broadcast::{self, Sender};
 
 use crate::modules::terminal::domain::errors::terminal_error::TerminalError;
+use crate::modules::terminal::domain::models::terminal_attachment::TerminalAttachment;
+use crate::modules::terminal::domain::models::terminal_session::{TerminalSession, TerminalStatus};
 use crate::modules::terminal::domain::models::terminal_session_id::TerminalSessionId;
 use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
 use crate::modules::terminal::domain::ports::outbound::pty_port::PtyPort;
@@ -15,18 +20,44 @@ use crate::modules::terminal::domain::ports::outbound::pty_port::PtyPort;
 const FALLBACK_SHELL: &str = "/bin/sh";
 const TERM_VALUE: &str = "xterm-256color";
 const OUTPUT_CHANNEL_CAPACITY: usize = 256;
+const SCROLLBACK_LIMIT: usize = 64 * 1024;
 const READ_BUFFER_SIZE: usize = 8192;
 
+/// Salida compartida entre el hilo lector y los adjuntos.
+struct SharedOutput {
+    scrollback: Vec<u8>,
+    /// `None` cuando la shell terminó: los receptores ven el canal cerrado.
+    sender: Option<Sender<Vec<u8>>>,
+}
+
+type SharedOutputHandle = Arc<Mutex<SharedOutput>>;
+
 struct SessionEntry {
+    meta: TerminalSession,
+    output: SharedOutputHandle,
     master: Box<dyn MasterPty + Send>,
     writer: Box<dyn Write + Send>,
     child: Box<dyn Child + Send + Sync>,
-    /// Receptor pendiente de entregar a `subscribe` (solo se puede suscribir una vez).
-    output: Option<Receiver<Vec<u8>>>,
     reader: Option<JoinHandle<()>>,
 }
 
 impl SessionEntry {
+    fn snapshot(&self) -> TerminalSession {
+        let running: bool = self
+            .output
+            .lock()
+            .map(|output: MutexGuard<'_, SharedOutput>| output.sender.is_some())
+            .unwrap_or(false);
+        TerminalSession {
+            status: if running {
+                TerminalStatus::Running
+            } else {
+                TerminalStatus::Exited
+            },
+            ..self.meta.clone()
+        }
+    }
+
     /// Mata el proceso hijo y lo recoge sin bloquear.
     fn terminate(&mut self) {
         let _ = self.child.kill();
@@ -76,19 +107,28 @@ fn to_pty_size(size: TerminalSize) -> PtySize {
     }
 }
 
-/// Vuelca la salida del PTY al canal. Termina en EOF, error de lectura o receptor cerrado.
-fn pump_output(mut reader: Box<dyn Read + Send>, sender: Sender<Vec<u8>>) {
+/// Vuelca la salida del PTY al scrollback y al canal. Termina en EOF o error de lectura.
+fn pump_output(mut reader: Box<dyn Read + Send>, shared: SharedOutputHandle) {
     let mut buffer: [u8; READ_BUFFER_SIZE] = [0; READ_BUFFER_SIZE];
     loop {
         match reader.read(&mut buffer) {
             Ok(0) | Err(_) => break,
             Ok(read) => {
-                // `blocking_send` aplica backpressure; falla solo si el receptor se cerró.
-                if sender.blocking_send(buffer[..read].to_vec()).is_err() {
-                    break;
+                let Ok(mut output) = shared.lock() else {
+                    return;
+                };
+                output.scrollback.extend_from_slice(&buffer[..read]);
+                let excess: usize = output.scrollback.len().saturating_sub(SCROLLBACK_LIMIT);
+                output.scrollback.drain(..excess);
+                if let Some(sender) = &output.sender {
+                    // Sin receptores `send` falla; la salida ya quedó en el scrollback.
+                    let _ = sender.send(buffer[..read].to_vec());
                 }
             }
         }
+    }
+    if let Ok(mut output) = shared.lock() {
+        output.sender = None;
     }
 }
 
@@ -96,9 +136,11 @@ fn pump_output(mut reader: Box<dyn Read + Send>, sender: Sender<Vec<u8>>) {
 impl PtyPort for PortablePtyAdapter {
     async fn spawn(
         &self,
+        workspace_id: Uuid,
+        workspace_name: &str,
         cwd: &Path,
         size: TerminalSize,
-    ) -> Result<TerminalSessionId, TerminalError> {
+    ) -> Result<TerminalSession, TerminalError> {
         let shell: String = self.shell.clone().unwrap_or_else(|| {
             std::env::var("SHELL")
                 .ok()
@@ -134,10 +176,15 @@ impl PtyPort for PortablePtyAdapter {
             }
         };
 
-        let (sender, receiver) = channel::<Vec<u8>>(OUTPUT_CHANNEL_CAPACITY);
+        let (sender, _) = broadcast::channel::<Vec<u8>>(OUTPUT_CHANNEL_CAPACITY);
+        let shared: SharedOutputHandle = Arc::new(Mutex::new(SharedOutput {
+            scrollback: Vec::new(),
+            sender: Some(sender),
+        }));
+        let pump_shared: SharedOutputHandle = shared.clone();
         let handle: Result<JoinHandle<()>, std::io::Error> = std::thread::Builder::new()
             .name("terminal-pty-reader".to_string())
-            .spawn(move || pump_output(reader, sender));
+            .spawn(move || pump_output(reader, pump_shared));
         let handle: JoinHandle<()> = match handle {
             Ok(handle) => handle,
             Err(error) => {
@@ -147,18 +194,25 @@ impl PtyPort for PortablePtyAdapter {
             }
         };
 
-        let id: TerminalSessionId = TerminalSessionId::new();
+        let meta: TerminalSession = TerminalSession {
+            id: TerminalSessionId::new(),
+            workspace_id,
+            workspace_name: workspace_name.to_string(),
+            created_at: Utc::now(),
+            status: TerminalStatus::Running,
+        };
         let entry: SessionEntry = SessionEntry {
+            meta: meta.clone(),
+            output: shared,
             master: pair.master,
             writer,
             child,
-            output: Some(receiver),
             reader: Some(handle),
         };
         match self.lock() {
             Ok(mut sessions) => {
-                sessions.insert(id, entry);
-                Ok(id)
+                sessions.insert(meta.id, entry);
+                Ok(meta)
             }
             Err(error) => {
                 let mut entry: SessionEntry = entry;
@@ -199,15 +253,27 @@ impl PtyPort for PortablePtyAdapter {
         Ok(())
     }
 
-    async fn subscribe(&self, id: TerminalSessionId) -> Result<Receiver<Vec<u8>>, TerminalError> {
-        let mut sessions = self.lock()?;
-        let entry: &mut SessionEntry = sessions
-            .get_mut(&id)
-            .ok_or(TerminalError::SessionNotFound)?;
-        entry
+    async fn list(&self) -> Result<Vec<TerminalSession>, TerminalError> {
+        let sessions = self.lock()?;
+        Ok(sessions.values().map(SessionEntry::snapshot).collect())
+    }
+
+    async fn attach(&self, id: TerminalSessionId) -> Result<TerminalAttachment, TerminalError> {
+        let sessions = self.lock()?;
+        let entry: &SessionEntry = sessions.get(&id).ok_or(TerminalError::SessionNotFound)?;
+        let output = entry
             .output
-            .take()
-            .ok_or_else(|| TerminalError::Pty("la sesión ya tiene un suscriptor".to_string()))
+            .lock()
+            .map_err(|_| TerminalError::Pty("salida de sesión envenenada".to_string()))?;
+        // Scrollback y suscripción bajo el mismo lock: no se pierde ni duplica salida.
+        let receiver = match &output.sender {
+            Some(sender) => sender.subscribe(),
+            None => broadcast::channel::<Vec<u8>>(1).1,
+        };
+        Ok(TerminalAttachment {
+            scrollback: output.scrollback.clone(),
+            output: receiver,
+        })
     }
 }
 
@@ -243,7 +309,7 @@ mod tests {
         );
         assert_eq!(adapter.close(id).await, Err(TerminalError::SessionNotFound));
         assert_eq!(
-            adapter.subscribe(id).await.err(),
+            adapter.attach(id).await.err(),
             Some(TerminalError::SessionNotFound)
         );
     }

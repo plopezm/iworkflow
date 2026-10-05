@@ -20,6 +20,7 @@ use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPr
 use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
+use crate::modules::terminal::domain::models::workspace_target::WorkspaceTarget;
 use crate::modules::terminal::infrastructure::adapters::outbound::workspace_path::resolver_workspace_path_adapter::{
     PathLookupFuture, PathResolver,
 };
@@ -131,7 +132,10 @@ fn workspace_path_resolver(get_workspace: Arc<GetWorkspace>) -> PathResolver {
         let get_workspace: Arc<GetWorkspace> = get_workspace.clone();
         Box::pin(async move {
             match get_workspace.execute(WorkspaceId::from_uuid(id)).await {
-                Ok(workspace) => Ok(Some(workspace.path)),
+                Ok(workspace) => Ok(Some(WorkspaceTarget {
+                    name: workspace.name,
+                    path: workspace.path,
+                })),
                 Err(WorkspaceError::NotFound(_)) => Ok(None),
                 Err(error) => Err(error.to_string()),
             }
