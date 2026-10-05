@@ -7,27 +7,27 @@ use std::time::{Duration, Instant};
 
 use chrono::{DateTime, SubsecRound, Utc};
 use diesel::{Connection, RunQueryDsl, SqliteConnection};
-use pi_workflow::modules::tasks::domain::errors::task_error::TaskError;
-use pi_workflow::modules::tasks::domain::models::agent_command::AgentCommand;
-use pi_workflow::modules::tasks::domain::models::agent_event::{
+use iworkflow::modules::tasks::domain::errors::task_error::TaskError;
+use iworkflow::modules::tasks::domain::models::agent_command::AgentCommand;
+use iworkflow::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogKind, DialogRequest,
 };
-use pi_workflow::modules::tasks::domain::models::launch_options::LaunchOptions;
-use pi_workflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
-use pi_workflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
-use pi_workflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
-use pi_workflow::modules::tasks::domain::models::task_priority::TaskPriority;
-use pi_workflow::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
-use pi_workflow::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
-use pi_workflow::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
-use pi_workflow::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
-use pi_workflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
-use pi_workflow::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
-use pi_workflow::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
-use pi_workflow::modules::tasks::infrastructure::di::tasks_context::TasksContext;
-use pi_workflow::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
-use pi_workflow::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
-use pi_workflow::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
+use iworkflow::modules::tasks::domain::models::launch_options::LaunchOptions;
+use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
+use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
+use iworkflow::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
+use iworkflow::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
+use iworkflow::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
+use iworkflow::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
+use iworkflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
+use iworkflow::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
+use iworkflow::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
+use iworkflow::modules::tasks::infrastructure::di::tasks_context::TasksContext;
+use iworkflow::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+use iworkflow::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
+use iworkflow::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
 
 const EVENT_COUNT: usize = 50;
 const LOCK_HOLD: Duration = Duration::from_millis(6500);

@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use pi_workflow::core::db::pool::{DbPool, build_pool, run_migrations};
+use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
 use tempfile::TempDir;
 
 /// Base de datos SQLite temporal con migraciones aplicadas. Mantener vivo el `TempDir`.

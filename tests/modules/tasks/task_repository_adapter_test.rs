@@ -4,18 +4,18 @@ mod common;
 use std::path::PathBuf;
 
 use chrono::{DateTime, SubsecRound, Utc};
-use pi_workflow::modules::tasks::domain::models::agent_event::AgentEvent;
-use pi_workflow::modules::tasks::domain::models::pending_dialog::PendingDialog;
-use pi_workflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
-use pi_workflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
-use pi_workflow::modules::tasks::domain::models::task_priority::TaskPriority;
-use pi_workflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
-use pi_workflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
-use pi_workflow::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
-use pi_workflow::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
-use pi_workflow::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
-use pi_workflow::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
-use pi_workflow::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
+use iworkflow::modules::tasks::domain::models::agent_event::AgentEvent;
+use iworkflow::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
+use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
+use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use iworkflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
+use iworkflow::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
+use iworkflow::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+use iworkflow::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+use iworkflow::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
+use iworkflow::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
 
 async fn workspace(db: &common::TestDb, path: &str) -> Workspace {
     let workspace: Workspace = Workspace {

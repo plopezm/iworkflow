@@ -3,11 +3,11 @@ mod common;
 
 use std::path::PathBuf;
 
-use pi_workflow::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
-use pi_workflow::modules::workspaces::domain::ports::outbound::git_repository_port::{
+use iworkflow::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+use iworkflow::modules::workspaces::domain::ports::outbound::git_repository_port::{
     GitRepositoryInfo, GitRepositoryPort,
 };
-use pi_workflow::modules::workspaces::infrastructure::adapters::outbound::git::git_cli_repository_adapter::GitCliRepositoryAdapter;
+use iworkflow::modules::workspaces::infrastructure::adapters::outbound::git::git_cli_repository_adapter::GitCliRepositoryAdapter;
 
 #[tokio::test]
 async fn inspect_resolves_root_and_branch_from_subfolder() {

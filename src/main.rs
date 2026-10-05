@@ -4,20 +4,20 @@
 #[tokio::main]
 async fn main() {
     use axum::Router;
+    use iworkflow::app::{App, shell};
+    use iworkflow::app_state::AppState;
+    use iworkflow::core::config::AppConfig;
+    use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
+    use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
     use leptos::prelude::*;
     use leptos_axum::{AxumRouteListing, LeptosRoutes, generate_route_list};
-    use pi_workflow::app::{App, shell};
-    use pi_workflow::app_state::AppState;
-    use pi_workflow::core::config::AppConfig;
-    use pi_workflow::core::db::pool::{DbPool, build_pool, run_migrations};
-    use pi_workflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
     use tracing_subscriber::EnvFilter;
 
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
             EnvFilter::from_default_env()
-                .add_directive("pi_workflow=info".parse().expect("directiva válida")),
+                .add_directive("iworkflow=info".parse().expect("directiva válida")),
         )
         .init();
 

@@ -1,4 +1,4 @@
-# pi-workflow
+# iworkflow
 
 Dashboard web para lanzar y controlar instancias de `gentle-shell` (pi) en modo RPC.
 Cada tarea corre en su propio **git worktree**; al terminar revisas el diff y decides si integrarla.
@@ -43,9 +43,9 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 
 | Variable | Por defecto |
 |---|---|
-| `PIWF_DATABASE_URL` | `~/.pi-dashboard/workspaces.db` (SQLite, migraciones automáticas) |
-| `PIWF_WORKTREES_DIR` | `~/.pi-dashboard/worktrees` |
-| `PIWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
+| `IWF_DATABASE_URL` | `~/.iworkflow/workspaces.db` (SQLite, migraciones automáticas) |
+| `IWF_WORKTREES_DIR` | `~/.iworkflow/worktrees` |
+| `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
 
 En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
 
@@ -58,7 +58,7 @@ En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
 ```
 
 `build` ejecuta `cargo leptos build --release` y copia en `dist/` el binario
-`pi-workflow` y la carpeta `site/` (WASM, JS y CSS). Ambos son necesarios: sin
+`iworkflow` y la carpeta `site/` (WASM, JS y CSS). Ambos son necesarios: sin
 `site/` la página se sirve pero no hidrata.
 
 `run` exporta las variables de Leptos (`LEPTOS_SITE_ROOT`, `LEPTOS_ENV=PROD`…) y
@@ -77,7 +77,7 @@ también se aplica. Variables propias del script:
 > `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
 
 Para desplegar en otra máquina basta con copiar `dist/` y lanzarlo con
-`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./pi-workflow`
+`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow`
 desde dentro de esa carpeta.
 
 ## Desarrollo

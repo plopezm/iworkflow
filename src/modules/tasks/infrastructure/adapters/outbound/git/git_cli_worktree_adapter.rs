@@ -9,8 +9,8 @@ use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 /// Tamaño máximo del parche devuelto al cliente.
 const MAX_PATCH_BYTES: usize = 1024 * 1024;
 /// Identidad usada solo si el repositorio no tiene una configurada.
-const FALLBACK_USER_NAME: &str = "pi-workflow";
-const FALLBACK_USER_EMAIL: &str = "pi-workflow@localhost";
+const FALLBACK_USER_NAME: &str = "iworkflow";
+const FALLBACK_USER_EMAIL: &str = "iworkflow@localhost";
 /// Subcarpeta (dentro de la raíz de worktrees) para merges temporales.
 const MERGE_DIR: &str = ".merge";
 

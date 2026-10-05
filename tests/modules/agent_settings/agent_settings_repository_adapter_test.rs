@@ -1,13 +1,13 @@
 #[path = "../../common/mod.rs"]
 mod common;
 
-use pi_workflow::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
-use pi_workflow::modules::agent_settings::domain::models::agent_settings::AgentSettings;
-use pi_workflow::modules::agent_settings::domain::models::model_ref::ModelRef;
-use pi_workflow::modules::agent_settings::domain::models::profile_name::ProfileName;
-use pi_workflow::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
-use pi_workflow::modules::agent_settings::domain::ports::outbound::agent_settings_repository_port::AgentSettingsRepositoryPort;
-use pi_workflow::modules::agent_settings::infrastructure::adapters::outbound::persistence::agent_settings_repository_adapter::AgentSettingsRepositoryAdapter;
+use iworkflow::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
+use iworkflow::modules::agent_settings::domain::models::agent_settings::AgentSettings;
+use iworkflow::modules::agent_settings::domain::models::model_ref::ModelRef;
+use iworkflow::modules::agent_settings::domain::models::profile_name::ProfileName;
+use iworkflow::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
+use iworkflow::modules::agent_settings::domain::ports::outbound::agent_settings_repository_port::AgentSettingsRepositoryPort;
+use iworkflow::modules::agent_settings::infrastructure::adapters::outbound::persistence::agent_settings_repository_adapter::AgentSettingsRepositoryAdapter;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn missing_row_returns_default_settings() {

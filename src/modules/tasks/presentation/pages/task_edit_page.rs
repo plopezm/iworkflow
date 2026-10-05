@@ -46,7 +46,7 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
     });
 
     view! {
-        <Title text="Editar tarea · pi-workflow" />
+        <Title text="Editar tarea · iworkflow" />
         <div class="mx-auto w-full max-w-5xl p-4 md:p-6">
             <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
                 {move || Suspend::new(async move {

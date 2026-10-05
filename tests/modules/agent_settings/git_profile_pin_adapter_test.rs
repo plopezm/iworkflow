@@ -3,9 +3,9 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use pi_workflow::modules::agent_settings::domain::models::profile_name::ProfileName;
-use pi_workflow::modules::agent_settings::domain::ports::outbound::profile_pin_port::ProfilePinPort;
-use pi_workflow::modules::agent_settings::infrastructure::adapters::outbound::git::git_profile_pin_adapter::GitProfilePinAdapter;
+use iworkflow::modules::agent_settings::domain::models::profile_name::ProfileName;
+use iworkflow::modules::agent_settings::domain::ports::outbound::profile_pin_port::ProfilePinPort;
+use iworkflow::modules::agent_settings::infrastructure::adapters::outbound::git::git_profile_pin_adapter::GitProfilePinAdapter;
 
 fn pin_path(common_dir: &Path) -> PathBuf {
     common_dir.join("gentle-ai/profile-pin.json")

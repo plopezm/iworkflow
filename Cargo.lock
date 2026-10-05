@@ -1151,6 +1151,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "iworkflow"
+version = "0.2.0"
+dependencies = [
+ "any_spawner",
+ "async-trait",
+ "axum",
+ "chrono",
+ "console_error_panic_hook",
+ "diesel",
+ "diesel-async",
+ "diesel_migrations",
+ "dotenvy",
+ "futures",
+ "js-sys",
+ "leptos",
+ "leptos_axum",
+ "leptos_meta",
+ "leptos_router",
+ "libsqlite3-sys",
+ "mockall",
+ "multer",
+ "pulldown-cmark",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "js-sys"
 version = "0.3.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1653,42 +1689,6 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
-
-[[package]]
-name = "pi-workflow"
-version = "0.2.0"
-dependencies = [
- "any_spawner",
- "async-trait",
- "axum",
- "chrono",
- "console_error_panic_hook",
- "diesel",
- "diesel-async",
- "diesel_migrations",
- "dotenvy",
- "futures",
- "js-sys",
- "leptos",
- "leptos_axum",
- "leptos_meta",
- "leptos_router",
- "libsqlite3-sys",
- "mockall",
- "multer",
- "pulldown-cmark",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-subscriber",
- "uuid",
- "wasm-bindgen",
- "web-sys",
-]
 
 [[package]]
 name = "pin-project"

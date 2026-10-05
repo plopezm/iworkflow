@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 const DEFAULT_GENTLE_SHELL_BIN: &str = "gentle-shell";
 const DEFAULT_PI_BIN: &str = "pi";
-const DEFAULT_DATA_DIR: &str = ".pi-dashboard";
+const DEFAULT_DATA_DIR: &str = ".iworkflow";
 const DEFAULT_DATABASE_FILE: &str = "workspaces.db";
 const DEFAULT_WORKTREES_DIR: &str = "worktrees";
 const DEFAULT_AGENTS_FILES_DIR: &str = "agents-files";
@@ -39,24 +39,24 @@ impl AppConfig {
             .map(PathBuf::from)
             .map_err(|_| ConfigError::Missing("HOME"))?;
         let data_dir: PathBuf = home.join(DEFAULT_DATA_DIR);
-        let database_url: String = std::env::var("PIWF_DATABASE_URL").unwrap_or_else(|_| {
+        let database_url: String = std::env::var("IWF_DATABASE_URL").unwrap_or_else(|_| {
             data_dir
                 .join(DEFAULT_DATABASE_FILE)
                 .to_string_lossy()
                 .into_owned()
         });
-        let gentle_shell_bin: String = std::env::var("PIWF_GENTLE_SHELL_BIN")
+        let gentle_shell_bin: String = std::env::var("IWF_GENTLE_SHELL_BIN")
             .unwrap_or_else(|_| DEFAULT_GENTLE_SHELL_BIN.to_string());
         let pi_bin: String =
-            std::env::var("PIWF_PI_BIN").unwrap_or_else(|_| DEFAULT_PI_BIN.to_string());
-        let worktrees_dir: PathBuf = std::env::var("PIWF_WORKTREES_DIR")
+            std::env::var("IWF_PI_BIN").unwrap_or_else(|_| DEFAULT_PI_BIN.to_string());
+        let worktrees_dir: PathBuf = std::env::var("IWF_WORKTREES_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| data_dir.join(DEFAULT_WORKTREES_DIR));
-        let gentle_pi_config_home: PathBuf = std::env::var("PIWF_GENTLE_PI_CONFIG_HOME")
+        let gentle_pi_config_home: PathBuf = std::env::var("IWF_GENTLE_PI_CONFIG_HOME")
             .map(PathBuf::from)
             .unwrap_or_else(|_| home.join(DEFAULT_GENTLE_PI_CONFIG_DIR));
         let agents_files_dir: PathBuf = resolve_agents_files_dir(
-            std::env::var("PIWF_AGENTS_FILES_DIR").ok(),
+            std::env::var("IWF_AGENTS_FILES_DIR").ok(),
             &database_url,
             &data_dir,
         );
@@ -72,7 +72,7 @@ impl AppConfig {
     }
 }
 
-/// `PIWF_AGENTS_FILES_DIR`, o `agents-files` junto a la base de datos, o bajo la carpeta de datos.
+/// `IWF_AGENTS_FILES_DIR`, o `agents-files` junto a la base de datos, o bajo la carpeta de datos.
 fn resolve_agents_files_dir(
     env_value: Option<String>,
     database_url: &str,
@@ -96,18 +96,15 @@ mod tests {
         let dir: PathBuf = resolve_agents_files_dir(
             Some("/custom/agents".to_string()),
             "/data/workspaces.db",
-            Path::new("/home/u/.pi-dashboard"),
+            Path::new("/home/u/.iworkflow"),
         );
         assert_eq!(dir, PathBuf::from("/custom/agents"));
     }
 
     #[test]
     fn defaults_next_to_the_database() {
-        let dir: PathBuf = resolve_agents_files_dir(
-            None,
-            "/data/workspaces.db",
-            Path::new("/home/u/.pi-dashboard"),
-        );
+        let dir: PathBuf =
+            resolve_agents_files_dir(None, "/data/workspaces.db", Path::new("/home/u/.iworkflow"));
         assert_eq!(dir, PathBuf::from("/data/agents-files"));
     }
 
@@ -116,7 +113,7 @@ mod tests {
         let dir: PathBuf = resolve_agents_files_dir(
             Some("  ".to_string()),
             "/data/workspaces.db",
-            Path::new("/home/u/.pi-dashboard"),
+            Path::new("/home/u/.iworkflow"),
         );
         assert_eq!(dir, PathBuf::from("/data/agents-files"));
     }
@@ -124,7 +121,7 @@ mod tests {
     #[test]
     fn falls_back_to_data_dir_without_database_parent() {
         let dir: PathBuf =
-            resolve_agents_files_dir(None, "workspaces.db", Path::new("/home/u/.pi-dashboard"));
-        assert_eq!(dir, PathBuf::from("/home/u/.pi-dashboard/agents-files"));
+            resolve_agents_files_dir(None, "workspaces.db", Path::new("/home/u/.iworkflow"));
+        assert_eq!(dir, PathBuf::from("/home/u/.iworkflow/agents-files"));
     }
 }

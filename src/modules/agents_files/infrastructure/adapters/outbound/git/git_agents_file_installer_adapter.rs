@@ -7,8 +7,8 @@ use crate::modules::agents_files::domain::ports::outbound::agents_file_installer
 
 const TARGET_FILE_NAME: &str = "AGENTS.md";
 const COMMIT_MESSAGE: &str = "docs: add AGENTS.md";
-const FALLBACK_USER_NAME: &str = "pi-workflow";
-const FALLBACK_USER_EMAIL: &str = "pi-workflow@localhost";
+const FALLBACK_USER_NAME: &str = "iworkflow";
+const FALLBACK_USER_EMAIL: &str = "iworkflow@localhost";
 
 /// Escribe `AGENTS.md` en una carpeta y, si es un repositorio git, lo commitea solo a él.
 #[derive(Default)]

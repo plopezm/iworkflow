@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and run pi-workflow in release mode.
+# Build and run iworkflow in release mode.
 #
 #   ./scripts/prod.sh build   # cargo leptos build --release + package into $DIST_DIR
 #   ./scripts/prod.sh run     # start the packaged binary
@@ -8,12 +8,12 @@
 # Environment:
 #   DIST_DIR          output directory (default: <repo>/dist)
 #   LEPTOS_SITE_ADDR  listen address (default: 0.0.0.0:3000, all interfaces)
-# The server also reads PIWF_DATABASE_URL, PIWF_WORKTREES_DIR, PIWF_GENTLE_SHELL_BIN and a
+# The server also reads IWF_DATABASE_URL, IWF_WORKTREES_DIR, IWF_GENTLE_SHELL_BIN and a
 # `.env` file from the current directory.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
-BIN_NAME="pi-workflow"
+BIN_NAME="iworkflow"
 
 build() {
   cd "$ROOT"

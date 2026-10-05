@@ -4,7 +4,7 @@
 - Lenguaje: Rust (edición 2021 o superior)
 - Framework: Leptos full-stack (SSR + hidratación, reactividad con Signals) sobre `axum`, gestionado con `cargo-leptos`
 - ORM: Diesel (`diesel` + `diesel-async` con `SyncConnectionWrapper<SqliteConnection>` y pool `deadpool`), migraciones con `diesel_cli` y embebidas (`embed_migrations!`) que se aplican al arrancar
-- Base de datos: SQLite (`libsqlite3-sys` bundled) en `~/.pi-dashboard/workspaces.db` (override con `PIWF_DATABASE_URL`)
+- Base de datos: SQLite (`libsqlite3-sys` bundled) en `~/.iworkflow/workspaces.db` (override con `IWF_DATABASE_URL`)
 - Búsqueda código: Usa codegraph, mantén actualizado los grafos en cada feature
 - Diseño: Usa tailwind css
 

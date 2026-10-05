@@ -3,10 +3,10 @@ mod common;
 
 use std::path::{Path, PathBuf};
 
-use pi_workflow::modules::agents_files::domain::errors::agents_file_error::AgentsFileError;
-use pi_workflow::modules::agents_files::domain::models::install_outcome::InstallOutcome;
-use pi_workflow::modules::agents_files::domain::ports::outbound::agents_file_installer_port::AgentsFileInstallerPort;
-use pi_workflow::modules::agents_files::infrastructure::adapters::outbound::git::git_agents_file_installer_adapter::GitAgentsFileInstallerAdapter;
+use iworkflow::modules::agents_files::domain::errors::agents_file_error::AgentsFileError;
+use iworkflow::modules::agents_files::domain::models::install_outcome::InstallOutcome;
+use iworkflow::modules::agents_files::domain::ports::outbound::agents_file_installer_port::AgentsFileInstallerPort;
+use iworkflow::modules::agents_files::infrastructure::adapters::outbound::git::git_agents_file_installer_adapter::GitAgentsFileInstallerAdapter;
 use tempfile::TempDir;
 
 #[tokio::test]

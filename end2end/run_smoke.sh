@@ -21,13 +21,13 @@ echo hola > "$REPO/README.md"
 git -C "$REPO" add .
 git -C "$REPO" -c user.name=smoke -c user.email=smoke@localhost commit -qm init
 
-PIWF_DATABASE_URL="$WORK/db.sqlite" \
-PIWF_WORKTREES_DIR="$WORK/worktrees" \
-PIWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
-PIWF_PI_BIN="$ROOT/tests/fixtures/smoke_pi.sh" \
+IWF_DATABASE_URL="$WORK/db.sqlite" \
+IWF_WORKTREES_DIR="$WORK/worktrees" \
+IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
+IWF_PI_BIN="$ROOT/tests/fixtures/smoke_pi.sh" \
 LEPTOS_SITE_ROOT=target/site \
 LEPTOS_SITE_ADDR="127.0.0.1:$PORT" \
-  ./target/debug/pi-workflow > "$WORK/server.log" 2>&1 &
+  ./target/debug/iworkflow > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 50); do
   curl -fs "http://127.0.0.1:$PORT/" > /dev/null && break

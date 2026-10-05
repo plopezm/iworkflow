@@ -1,5 +1,5 @@
 [package]
-name = "pi-workflow"
+name = "iworkflow"
 version = "0.2.0"
 edition = "2024"
 
@@ -75,7 +75,7 @@ codegen-units = 1
 panic = "abort"
 
 [package.metadata.leptos]
-output-name = "pi-workflow"
+output-name = "iworkflow"
 site-root = "target/site"
 site-pkg-dir = "pkg"
 tailwind-input-file = "style/tailwind.css"

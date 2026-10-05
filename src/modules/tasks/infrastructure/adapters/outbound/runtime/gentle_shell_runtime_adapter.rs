@@ -28,8 +28,8 @@ const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
 /// Identificador del runtime `pi` en `LaunchOptions::runtime`.
 const PI_RUNTIME: &str = "pi";
 /// Prefijos de las variables de configuración del propio servidor: las de cargo-leptos/Leptos
-/// y las de pi-workflow. El agente trabaja en proyectos ajenos y no debe heredarlas.
-const SERVER_ENV_PREFIXES: [&str; 2] = ["LEPTOS_", "PIWF_"];
+/// y las de iworkflow. El agente trabaja en proyectos ajenos y no debe heredarlas.
+const SERVER_ENV_PREFIXES: [&str; 2] = ["LEPTOS_", "IWF_"];
 const RESUME_FLAG: &str = "--continue";
 const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -422,13 +422,12 @@ mod tests {
     }
 
     #[test]
-    fn server_env_keys_selects_piwf_variables() {
-        let vars: Vec<OsString> =
-            os_keys(&["PIWF_PI_BIN", "PATH", "MY_PIWF_X", "PIWF_WORKTREES_DIR"]);
+    fn server_env_keys_selects_iwf_variables() {
+        let vars: Vec<OsString> = os_keys(&["IWF_PI_BIN", "PATH", "MY_IWF_X", "IWF_WORKTREES_DIR"]);
 
         let keys: Vec<OsString> = server_env_keys(vars.into_iter());
 
-        assert_eq!(keys, os_keys(&["PIWF_PI_BIN", "PIWF_WORKTREES_DIR"]));
+        assert_eq!(keys, os_keys(&["IWF_PI_BIN", "IWF_WORKTREES_DIR"]));
     }
 
     #[cfg(unix)]

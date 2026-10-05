@@ -88,9 +88,9 @@ impl GitRepositoryPort for GitCliRepositoryAdapter {
         let mut commit_args: Vec<String> = Vec::new();
         if !has_git_identity(root).await? {
             commit_args.push("-c".to_string());
-            commit_args.push("user.name=pi-workflow".to_string());
+            commit_args.push("user.name=iworkflow".to_string());
             commit_args.push("-c".to_string());
-            commit_args.push("user.email=pi-workflow@localhost".to_string());
+            commit_args.push("user.email=iworkflow@localhost".to_string());
         }
         commit_args.push("commit-tree".to_string());
         commit_args.push(empty_tree);

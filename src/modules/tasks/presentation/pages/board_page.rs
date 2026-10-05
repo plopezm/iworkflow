@@ -129,9 +129,9 @@ pub fn BoardPage() -> impl IntoView {
     let document_title: Memo<String> = Memo::new(move |_| {
         let count: usize = attention_count.get();
         if count > 0 {
-            format!("({count}) pi-workflow")
+            format!("({count}) iworkflow")
         } else {
-            "pi-workflow".to_string()
+            "iworkflow".to_string()
         }
     });
 

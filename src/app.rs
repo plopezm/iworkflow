@@ -37,7 +37,7 @@ fn app_sidebar() -> impl IntoView {
     view! {
         <div class="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
             <A href="/" attr:class="text-sm font-bold tracking-widest uppercase">
-                "pi-workflow"
+                "iworkflow"
             </A>
             <DropdownMenu
                 label="Actions"
@@ -71,10 +71,10 @@ pub fn App() -> impl IntoView {
     provide_theme_mode();
 
     view! {
-        <Stylesheet id="leptos" href="/pkg/pi-workflow.css" />
-        <Title text="pi-workflow" />
+        <Stylesheet id="leptos" href="/pkg/iworkflow.css" />
+        <Title text="iworkflow" />
         <Router>
-            <AppShell brand="pi-workflow" sidebar=app_sidebar>
+            <AppShell brand="iworkflow" sidebar=app_sidebar>
                 <Routes fallback=|| "Página no encontrada.".into_view()>
                     <Route path=StaticSegment("") view=BoardPage />
                     <Route path=StaticSegment("workspaces") view=WorkspacesPage />

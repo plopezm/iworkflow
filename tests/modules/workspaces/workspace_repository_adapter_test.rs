@@ -4,10 +4,10 @@ mod common;
 use std::path::PathBuf;
 
 use chrono::{DateTime, SubsecRound, Utc};
-use pi_workflow::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
-use pi_workflow::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
-use pi_workflow::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
-use pi_workflow::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
+use iworkflow::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
+use iworkflow::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+use iworkflow::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
+use iworkflow::modules::workspaces::infrastructure::adapters::outbound::persistence::workspace_repository_adapter::WorkspaceRepositoryAdapter;
 
 fn workspace(name: &str, path: &str) -> Workspace {
     let created_at: DateTime<Utc> = Utc::now().trunc_subsecs(6);
