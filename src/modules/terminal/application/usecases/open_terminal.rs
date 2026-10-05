@@ -53,7 +53,7 @@ mod tests {
         let mut pty: MockPty = MockPty::new();
         pty.expect_spawn()
             .withf(|cwd, size| {
-                cwd == PathBuf::from("/tmp/ws") && size.cols == 80 && size.rows == 24
+                cwd == std::path::Path::new("/tmp/ws") && size.cols == 80 && size.rows == 24
             })
             .returning(move |_, _| Ok(session_id));
 

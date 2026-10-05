@@ -31,6 +31,7 @@ libsqlite3-sys = { version = ">=0.17.2, <0.39.0", features = ["bundled"], option
 dotenvy = { version = "0.15", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+portable-pty = { version = "0.9", optional = true }
 
 # hydrate
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -62,6 +63,7 @@ ssr = [
     "dep:dotenvy",
     "dep:tracing",
     "dep:tracing-subscriber",
+    "dep:portable-pty",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
@@ -142,4 +144,9 @@ required-features = ["ssr"]
 [[test]]
 name = "git_agents_file_installer_adapter_test"
 path = "tests/modules/agents_files/git_agents_file_installer_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "portable_pty_adapter_test"
+path = "tests/modules/terminal/portable_pty_adapter_test.rs"
 required-features = ["ssr"]
