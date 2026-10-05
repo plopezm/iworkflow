@@ -11,6 +11,7 @@ use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
 use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
+use crate::modules::terminal::presentation::pages::terminal_page::TerminalPage;
 use crate::modules::workspaces::presentation::pages::workspaces_page::WorkspacesPage;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -78,6 +79,10 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| "Página no encontrada.".into_view()>
                     <Route path=StaticSegment("") view=BoardPage />
                     <Route path=StaticSegment("workspaces") view=WorkspacesPage />
+                    <Route
+                        path=(StaticSegment("workspaces"), ParamSegment("id"), StaticSegment("terminal"))
+                        view=TerminalPage
+                    />
                     <Route path=StaticSegment("agents-files") view=AgentsFilesPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
                     <Route

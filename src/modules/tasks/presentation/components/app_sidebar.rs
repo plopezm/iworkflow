@@ -22,6 +22,7 @@ pub fn AppSidebar() -> impl IntoView {
                 each=move || state.workspace_rows.get()
                 key=|row: &SidebarWorkspaceRow| format!("{}|{}|{}", row.id, row.name, row.subtitle)
                 children=move |row: SidebarWorkspaceRow| {
+                    let terminal_href: String = format!("/workspaces/{}/terminal", row.id);
                     view! {
                         <SidebarItem
                             href=format!("/#lane-{}", row.id)
@@ -30,6 +31,9 @@ pub fn AppSidebar() -> impl IntoView {
                             selected=Signal::derive(|| false)
                             menu=move || {
                                 view! {
+                                    <A href=terminal_href.clone() attr:class=MENU_ITEM_CLASS>
+                                        "Abrir terminal"
+                                    </A>
                                     <A href="/workspaces" attr:class=MENU_ITEM_CLASS>
                                         "Gestionar workspaces"
                                     </A>
