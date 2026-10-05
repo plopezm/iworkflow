@@ -9,6 +9,7 @@ async fn main() {
     use iworkflow::core::config::AppConfig;
     use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
+    use iworkflow::modules::terminal::infrastructure::adapters::inbound::ws::terminal_ws_router;
     use leptos::prelude::*;
     use leptos_axum::{AxumRouteListing, LeptosRoutes, generate_route_list};
     use tracing_subscriber::EnvFilter;
@@ -44,6 +45,7 @@ async fn main() {
     let context_state: AppState = state.clone();
     let app: Router = Router::new()
         .merge(task_events_router(state.tasks.clone()))
+        .merge(terminal_ws_router(state.terminal.clone()))
         .leptos_routes_with_context(&leptos_options, routes, move || context_state.provide(), {
             let options: LeptosOptions = leptos_options.clone();
             move || shell(options.clone())

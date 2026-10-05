@@ -11,6 +11,9 @@ use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
 use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
+use crate::modules::terminal::presentation::pages::new_terminal_page::NewTerminalPage;
+use crate::modules::terminal::presentation::pages::terminal_session_page::TerminalSessionPage;
+use crate::modules::terminal::presentation::pages::terminals_page::TerminalsPage;
 use crate::modules::workspaces::presentation::pages::workspaces_page::WorkspacesPage;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
@@ -50,6 +53,9 @@ fn app_sidebar() -> impl IntoView {
                 <A href="/workspaces" attr:class="menu-item">
                     "Workspaces"
                 </A>
+                <A href="/terminals" attr:class="menu-item">
+                    "Terminales"
+                </A>
                 <A href="/agents-files" attr:class="menu-item">
                     "AGENTS.md"
                 </A>
@@ -78,6 +84,15 @@ pub fn App() -> impl IntoView {
                 <Routes fallback=|| "Página no encontrada.".into_view()>
                     <Route path=StaticSegment("") view=BoardPage />
                     <Route path=StaticSegment("workspaces") view=WorkspacesPage />
+                    <Route
+                        path=(StaticSegment("workspaces"), ParamSegment("id"), StaticSegment("terminal"))
+                        view=NewTerminalPage
+                    />
+                    <Route path=StaticSegment("terminals") view=TerminalsPage />
+                    <Route
+                        path=(StaticSegment("terminals"), ParamSegment("session_id"))
+                        view=TerminalSessionPage
+                    />
                     <Route path=StaticSegment("agents-files") view=AgentsFilesPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
                     <Route

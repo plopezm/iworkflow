@@ -20,6 +20,11 @@ use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPr
 use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
+use crate::modules::terminal::domain::models::workspace_target::WorkspaceTarget;
+use crate::modules::terminal::infrastructure::adapters::outbound::workspace_path::resolver_workspace_path_adapter::{
+    PathLookupFuture, PathResolver,
+};
+use crate::modules::terminal::infrastructure::di::terminal_context::TerminalContext;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
@@ -45,6 +50,7 @@ pub struct AppState {
     pub tasks: TasksContext,
     pub agent_settings: AgentSettingsContext,
     pub agents_files: AgentsFilesContext,
+    pub terminal: TerminalContext,
 }
 
 impl AppState {
@@ -63,6 +69,8 @@ impl AppState {
             get_workspace: get_workspace.clone(),
             list_workspaces: list_workspaces.clone(),
         });
+        let terminal: TerminalContext =
+            TerminalContext::new(workspace_path_resolver(get_workspace.clone()));
         let agents_files: AgentsFilesContext =
             AgentsFilesContext::new(pool.clone(), config.agents_files_dir.clone(), projects);
         let agent_settings: AgentSettingsContext = AgentSettingsContext::new(
@@ -104,6 +112,7 @@ impl AppState {
             tasks,
             agent_settings,
             agents_files,
+            terminal,
         }
     }
 
@@ -113,7 +122,25 @@ impl AppState {
         provide_context(self.tasks.clone());
         provide_context(self.agent_settings.clone());
         provide_context(self.agents_files.clone());
+        provide_context(self.terminal.clone());
     }
+}
+
+/// Expone el directorio de un workspace al feature de terminal como una closure.
+fn workspace_path_resolver(get_workspace: Arc<GetWorkspace>) -> PathResolver {
+    Arc::new(move |id: uuid::Uuid| -> PathLookupFuture {
+        let get_workspace: Arc<GetWorkspace> = get_workspace.clone();
+        Box::pin(async move {
+            match get_workspace.execute(WorkspaceId::from_uuid(id)).await {
+                Ok(workspace) => Ok(Some(WorkspaceTarget {
+                    name: workspace.name,
+                    path: workspace.path,
+                })),
+                Err(WorkspaceError::NotFound(_)) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            }
+        })
+    })
 }
 
 /// Expone los workspaces al feature de tareas a través de su propio puerto.
