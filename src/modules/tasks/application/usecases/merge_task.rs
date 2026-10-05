@@ -103,6 +103,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cleanup_failure_still_marks_merged_with_error() {
+        let recorded: Recorded = Recorded::default();
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_merge()
+            .returning(|_, _, _, _| Ok(MergeOutcome::Merged));
+        worktrees
+            .expect_remove()
+            .times(1)
+            .returning(|_, _, _| Err(TaskError::Git("boom".to_string())));
+
+        let outcome: MergeOutcome = merge(worktrees, TaskStatus::AwaitingReview, &recorded)
+            .await
+            .expect("merge");
+
+        assert_eq!(outcome, MergeOutcome::Merged);
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Merged]);
+        assert!(
+            recorded
+                .last_error()
+                .is_some_and(|e: String| e.contains("no se pudo limpiar"))
+        );
+    }
+
+    #[tokio::test]
     async fn conflict_keeps_worktree() {
         let recorded: Recorded = Recorded::default();
         let mut worktrees: MockWorktree = MockWorktree::new();

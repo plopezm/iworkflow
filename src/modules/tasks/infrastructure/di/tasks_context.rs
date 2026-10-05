@@ -151,7 +151,10 @@ impl TasksContext {
             start_task,
             update_task: Arc::new(UpdateTask::new(lifecycle.clone())),
             delete_task: Arc::new(DeleteTask::new(lifecycle.clone())),
-            delete_workspace_tasks: Arc::new(DeleteWorkspaceTasks::new(lifecycle.clone())),
+            delete_workspace_tasks: Arc::new(DeleteWorkspaceTasks::new(
+                lifecycle.clone(),
+                worktrees.clone(),
+            )),
             send_message: Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone())),
             abort_task: Arc::new(AbortTask::new(lifecycle.clone(), runtime.clone())),
             answer_dialog: Arc::new(AnswerDialog::new(lifecycle.clone(), runtime.clone())),
