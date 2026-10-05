@@ -129,6 +129,10 @@ impl WorktreePort for GitCliWorktreeAdapter {
         self.root.join(workspace_name).join(dir_name)
     }
 
+    async fn exists(&self, path: &Path) -> bool {
+        matches!(tokio::fs::try_exists(path).await, Ok(true))
+    }
+
     async fn create(
         &self,
         repo: &Path,

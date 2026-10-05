@@ -329,3 +329,18 @@ async fn stale_merge_worktree_does_not_block_later_merges() {
         "Merge tarea"
     );
 }
+
+#[tokio::test]
+async fn exists_reflects_worktree_folder_presence() {
+    let f: Fixture = fixture_with_worktree().await;
+    let before: bool = f.adapter.exists(&f.worktree).await;
+
+    f.adapter
+        .remove(&f.repo, &f.worktree, BRANCH)
+        .await
+        .expect("remove");
+    let after: bool = f.adapter.exists(&f.worktree).await;
+
+    assert!(before);
+    assert!(!after);
+}
