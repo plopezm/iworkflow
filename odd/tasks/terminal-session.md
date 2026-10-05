@@ -15,3 +15,4 @@ Decision: real PTY streamed over WebSocket (axum `ws`), `portable-pty` on the se
 (commits recorded here per task)
 - task 1: 0dfa8fb
 - task 2: d883b3b
+- task 3: 1cc403f
