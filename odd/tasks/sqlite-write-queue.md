@@ -36,3 +36,9 @@ writer, on-disk spool (a process crash with queued events can still lose them; d
 
 ## Follow-up (shutdown)
 - QueuedAgentEventSink::flush + TasksContext::flush_events + axum graceful shutdown. Smoke-tested with real SIGTERM and SIGINT: logged \"eventos de agente pendientes persistidos; apagando\" and exited.
+
+## Native review (high risk, 4 lenses) — approved, acknowledged (lineage review-db5839cd5cd32f95)
+Advisory, non-blocking:
+- Fixed after approval (separate commit): open SSE streams kept `axum::serve` from finishing on SIGTERM/SIGINT (R3/R4, main.rs). Reproduced with a connected curl client; now a 5 s grace then forced stop, flush always runs; flush timeout logged as `error`.
+- Open: `RetryPolicy::persistent` retries forever by design (R1); a permanently locked DB fills the 4096 queue and then applies backpressure to the agent reader.
+- Open (readability, optional): queue docs/consts (R2-001/002), test helper extraction in event_queue_resilience_test (R2-005).

@@ -54,18 +54,39 @@ async fn main() {
     tracing::info!("escuchando en http://{addr}");
     let listener: tokio::net::TcpListener =
         tokio::net::TcpListener::bind(&addr).await.expect("bind");
-    axum::serve(listener, app.into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
-        .await
-        .expect("servidor");
+    let signal_received: std::sync::Arc<tokio::sync::Notify> =
+        std::sync::Arc::new(tokio::sync::Notify::new());
+    let notifier: std::sync::Arc<tokio::sync::Notify> = signal_received.clone();
+    let server = axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(async move {
+            shutdown_signal().await;
+            notifier.notify_one();
+        })
+        .into_future();
+
+    // Los streams SSE no terminan solos: tras la señal el servidor tiene un plazo de
+    // gracia y, si sigue con conexiones abiertas, se continúa con el apagado.
+    tokio::select! {
+        result = server => result.expect("servidor"),
+        () = async {
+            signal_received.notified().await;
+            tokio::time::sleep(SHUTDOWN_GRACE).await;
+        } => tracing::warn!(
+            "conexiones abiertas tras {SHUTDOWN_GRACE:?}; se fuerza el apagado del servidor"
+        ),
+    }
 
     match tokio::time::timeout(SHUTDOWN_FLUSH_TIMEOUT, state.tasks.flush_events()).await {
         Ok(()) => tracing::info!("eventos de agente pendientes persistidos; apagando"),
-        Err(_) => tracing::info!(
-            "tiempo agotado ({SHUTDOWN_FLUSH_TIMEOUT:?}) vaciando eventos de agente; apagando"
+        Err(_) => tracing::error!(
+            "tiempo agotado ({SHUTDOWN_FLUSH_TIMEOUT:?}) vaciando eventos de agente: \
+             los eventos pendientes se pierden"
         ),
     }
 }
+
+#[cfg(feature = "ssr")]
+const SHUTDOWN_GRACE: std::time::Duration = std::time::Duration::from_secs(5);
 
 #[cfg(feature = "ssr")]
 const SHUTDOWN_FLUSH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
