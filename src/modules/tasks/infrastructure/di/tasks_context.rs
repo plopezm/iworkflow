@@ -2,6 +2,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::core::db::pool::DbPool;
+use crate::modules::tasks::application::services::queued_agent_event_sink::{
+    DEFAULT_QUEUE_CAPACITY, QueuedAgentEventSink,
+};
 use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::abort_task::AbortTask;
 use crate::modules::tasks::application::usecases::answer_dialog::AnswerDialog;
@@ -31,6 +34,9 @@ use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::Works
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 use crate::modules::tasks::infrastructure::adapters::outbound::events::broadcast_task_event_bus::BroadcastTaskEventBus;
 use crate::modules::tasks::infrastructure::adapters::outbound::git::git_cli_worktree_adapter::GitCliWorktreeAdapter;
+use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retrying_task_repository::{
+    RetryPolicy, RetryingTaskRepository,
+};
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::gentle_shell_runtime_adapter::GentleShellRuntimeAdapter;
 
@@ -64,9 +70,12 @@ pub struct TasksContext {
     pub reconcile_tasks: Arc<ReconcileTasks>,
     /// Bus en vivo consumido por el endpoint SSE.
     pub event_bus: BroadcastTaskEventBus,
+    /// Sink de eventos de agente (cola con reintento persistente hacia SQLite).
+    pub event_sink: Arc<dyn AgentEventSink>,
 }
 
 impl TasksContext {
+    /// Requiere un runtime de tokio activo: lanza el worker de la cola de eventos.
     pub fn new(
         pool: DbPool,
         settings: TasksSettings,
@@ -87,6 +96,8 @@ impl TasksContext {
     }
 
     /// Permite sustituir el runtime de agentes (tests de extremo a extremo).
+    ///
+    /// Requiere un runtime de tokio activo: lanza el worker de la cola de eventos.
     pub fn with_runtime(
         pool: DbPool,
         worktrees_dir: PathBuf,
@@ -94,16 +105,32 @@ impl TasksContext {
         runtime: Arc<dyn AgentRuntimePort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
     ) -> Self {
-        let repository: Arc<dyn TaskRepositoryPort> = Arc::new(TaskRepositoryAdapter::new(pool));
+        let base_repository: Arc<dyn TaskRepositoryPort> =
+            Arc::new(TaskRepositoryAdapter::new(pool));
+        let repository: Arc<dyn TaskRepositoryPort> = Arc::new(RetryingTaskRepository::new(
+            base_repository.clone(),
+            RetryPolicy::bounded(),
+        ));
+        let events_repository: Arc<dyn TaskRepositoryPort> = Arc::new(RetryingTaskRepository::new(
+            base_repository,
+            RetryPolicy::persistent(),
+        ));
         let event_bus: BroadcastTaskEventBus = BroadcastTaskEventBus::new();
         let publisher: Arc<dyn TaskEventPublisherPort> = Arc::new(event_bus.clone());
         let worktrees: Arc<dyn WorktreePort> = Arc::new(GitCliWorktreeAdapter::new(worktrees_dir));
         let lifecycle: Arc<TaskLifecycle> = Arc::new(TaskLifecycle::new(
             repository.clone(),
+            publisher.clone(),
+            workspaces.clone(),
+        ));
+        let events_lifecycle: Arc<TaskLifecycle> = Arc::new(TaskLifecycle::new(
+            events_repository,
             publisher,
             workspaces.clone(),
         ));
-        let sink: Arc<dyn AgentEventSink> = Arc::new(HandleAgentEvent::new(lifecycle.clone()));
+        let handler: Arc<dyn AgentEventSink> = Arc::new(HandleAgentEvent::new(events_lifecycle));
+        let sink: Arc<dyn AgentEventSink> =
+            Arc::new(QueuedAgentEventSink::new(handler, DEFAULT_QUEUE_CAPACITY));
         let start_task: Arc<StartTask> = Arc::new(StartTask::new(
             lifecycle.clone(),
             worktrees.clone(),
@@ -134,7 +161,7 @@ impl TasksContext {
                 lifecycle.clone(),
                 runtime.clone(),
                 launch_settings,
-                sink,
+                sink.clone(),
             )),
             merge_task: Arc::new(MergeTask::new(lifecycle.clone(), worktrees.clone())),
             discard_task: Arc::new(DiscardTask::new(
@@ -149,6 +176,7 @@ impl TasksContext {
             list_workspace_options: Arc::new(ListWorkspaceOptions::new(workspaces)),
             reconcile_tasks: Arc::new(ReconcileTasks::new(lifecycle)),
             event_bus,
+            event_sink: sink,
         }
     }
 }
