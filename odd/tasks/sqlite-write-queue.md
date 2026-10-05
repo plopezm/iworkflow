@@ -16,7 +16,7 @@ writer, on-disk spool (a process crash with queued events can still lose them; d
 ## Tasks
 - [ ] T0 Commit existing fix: `immediate_transaction` + concurrency tests (branch `fix/sqlite-write-queue`)
 - [x] T1 `TaskError::Busy` + adapter `db_error` mapping + tests
-- [ ] T2 `RetryingTaskRepository` decorator + policy + unit tests (mockall, paused time)
+- [x] T2 `RetryingTaskRepository` decorator + policy + unit tests (mockall, paused time)
 - [ ] T3 `QueuedAgentEventSink` + unit tests (order, no loss, backpressure, worker lifecycle)
 - [ ] T4 DI wiring in `tasks_context.rs` + integration test: external connection holds write lock past `busy_timeout`, all events persisted in order after release
 - [ ] T5 Final checks (fmt, clippy ssr+hydrate, tests), codegraph sync, docs note
@@ -24,4 +24,5 @@ writer, on-disk spool (a process crash with queued events can still lose them; d
 ## Evidence
 - T0: 9cbe634
 - T1: 2aa655e (fmt, clippy ssr+hydrate, 360 lib tests + integration ok)
+- T2: ee01c1c (7 tests; mutation-checked: no-retry, no-cap, retry-nonTransient all killed)
 (commit ids and check results go here)
