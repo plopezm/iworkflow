@@ -38,8 +38,22 @@ impl TaskRepositoryAdapter {
     }
 }
 
+fn is_lock_error(error: &DieselError) -> bool {
+    match error {
+        DieselError::DatabaseError(_, info) => {
+            let message: String = info.message().to_lowercase();
+            message.contains("database is locked") || message.contains("database table is locked")
+        }
+        _ => false,
+    }
+}
+
 fn db_error(error: DieselError) -> TaskError {
-    TaskError::Repository(error.to_string())
+    if is_lock_error(&error) {
+        TaskError::Busy(error.to_string())
+    } else {
+        TaskError::Repository(error.to_string())
+    }
 }
 
 fn to_tasks(rows: Vec<TaskRow>) -> Result<Vec<Task>, TaskError> {
@@ -394,5 +408,72 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
             .await
             .map_err(db_error)?;
         rows.into_iter().map(TaskEvent::try_from).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use diesel::result::{DatabaseErrorInformation, DatabaseErrorKind};
+
+    struct FakeInfo(&'static str);
+
+    impl DatabaseErrorInformation for FakeInfo {
+        fn message(&self) -> &str {
+            self.0
+        }
+        fn details(&self) -> Option<&str> {
+            None
+        }
+        fn hint(&self) -> Option<&str> {
+            None
+        }
+        fn table_name(&self) -> Option<&str> {
+            None
+        }
+        fn column_name(&self) -> Option<&str> {
+            None
+        }
+        fn constraint_name(&self) -> Option<&str> {
+            None
+        }
+        fn statement_position(&self) -> Option<i32> {
+            None
+        }
+    }
+
+    fn database_error(message: &'static str) -> DieselError {
+        DieselError::DatabaseError(DatabaseErrorKind::Unknown, Box::new(FakeInfo(message)))
+    }
+
+    #[test]
+    fn database_is_locked_maps_to_busy() {
+        let error: TaskError = db_error(database_error("database is locked"));
+        assert!(matches!(error, TaskError::Busy(_)));
+    }
+
+    #[test]
+    fn table_locked_maps_to_busy_case_insensitive() {
+        let error: TaskError = db_error(database_error("Database TABLE is LOCKED"));
+        assert!(matches!(error, TaskError::Busy(_)));
+    }
+
+    #[test]
+    fn other_database_error_maps_to_repository() {
+        let error: TaskError = db_error(database_error("UNIQUE constraint failed"));
+        assert!(matches!(error, TaskError::Repository(_)));
+    }
+
+    #[test]
+    fn not_found_maps_to_repository() {
+        let error: TaskError = db_error(DieselError::NotFound);
+        assert!(matches!(error, TaskError::Repository(_)));
+    }
+
+    #[test]
+    fn is_transient_only_for_busy() {
+        assert!(TaskError::Busy("x".to_string()).is_transient());
+        assert!(!TaskError::Repository("x".to_string()).is_transient());
+        assert!(!TaskError::EmptyPrompt.is_transient());
     }
 }

@@ -29,6 +29,15 @@ pub enum TaskError {
     MergeBlocked(String),
     #[error("error de persistencia: {0}")]
     Repository(String),
+    #[error("error de persistencia: {0}")]
+    Busy(String),
     #[error("el workspace tiene tareas activas")]
     WorkspaceHasActiveTasks,
+}
+
+impl TaskError {
+    /// Errores temporales que merecen reintento (p. ej. SQLite bloqueada).
+    pub fn is_transient(&self) -> bool {
+        matches!(self, TaskError::Busy(_))
+    }
 }
