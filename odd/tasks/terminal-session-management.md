@@ -19,3 +19,4 @@ Builds on feat/terminal-session (unmerged).
 - [ ] 5. Checks (fmt, clippy ssr/hydrate, tests, live smoke) + codegraph sync
 
 ## Evidence
+- task 1: 5bb5407
