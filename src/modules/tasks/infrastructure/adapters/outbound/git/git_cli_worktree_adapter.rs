@@ -97,10 +97,25 @@ impl GitCliWorktreeAdapter {
         if result.success {
             return Ok(MergeOutcome::Merged);
         }
-        let conflicted: String = git(target, &["diff", "--name-only", "--diff-filter=U"]).await?;
-        let files: Vec<String> = conflicted.lines().map(str::to_string).collect();
-        // Deja la rama base intacta pase lo que pase.
-        let _aborted: GitOutput = git_raw(target, &["merge", "--abort"]).await?;
+        // Sin MERGE_HEAD no hay merge pendiente (p. ej. git lo rechazó antes de empezar).
+        let pending: bool = git_raw(target, &["rev-parse", "-q", "--verify", "MERGE_HEAD"])
+            .await
+            .map(|output| output.success)
+            .unwrap_or(false);
+        let conflicted: Result<String, TaskError> =
+            git(target, &["diff", "--name-only", "--diff-filter=U"]).await;
+        if pending {
+            // Deja la rama base intacta pase lo que pase.
+            let aborted: GitOutput = git_raw(target, &["merge", "--abort"]).await?;
+            if !aborted.success {
+                return Err(TaskError::Git(format!(
+                    "no se pudo abortar el merge en {}; queda un merge pendiente y hay que ejecutar `git merge --abort` manualmente: {}",
+                    target.display(),
+                    aborted.stderr
+                )));
+            }
+        }
+        let files: Vec<String> = conflicted?.lines().map(str::to_string).collect();
         if files.is_empty() {
             return Err(TaskError::Git(format!("merge fallido: {}", result.stderr)));
         }
@@ -206,16 +221,33 @@ impl WorktreePort for GitCliWorktreeAdapter {
         }
 
         // La rama base no está checkouteada: se integra en un worktree temporal.
-        let temp: PathBuf = self.root.join(MERGE_DIR).join(slugify(branch));
+        let unique: String = format!("{}-{}", slugify(branch), uuid::Uuid::new_v4());
+        let temp: PathBuf = self.root.join(MERGE_DIR).join(unique);
         if let Some(parent) = temp.parent() {
             tokio::fs::create_dir_all(parent).await.map_err(|e| {
                 TaskError::Git(format!("no se pudo crear {}: {e}", parent.display()))
             })?;
         }
         let temp_arg: String = temp.to_string_lossy().into_owned();
+        // Limpia registros de worktrees temporales huérfanos de merges anteriores.
+        if let Err(error) = git(repo, &["worktree", "prune"]).await {
+            tracing::warn!("no se pudo ejecutar git worktree prune antes del merge: {error}");
+        }
         git(repo, &["worktree", "add", &temp_arg, base_branch]).await?;
         let outcome: Result<MergeOutcome, TaskError> = self.merge_in(&temp, branch, message).await;
-        git(repo, &["worktree", "remove", "--force", &temp_arg]).await?;
+        // La limpieza nunca cambia el resultado del merge.
+        if let Err(error) = git(repo, &["worktree", "remove", "--force", &temp_arg]).await {
+            tracing::warn!(
+                "no se pudo eliminar el worktree temporal {}: {error}; se intenta borrar la carpeta",
+                temp.display()
+            );
+            if let Err(error) = tokio::fs::remove_dir_all(&temp).await {
+                tracing::warn!("no se pudo borrar {}: {error}", temp.display());
+            }
+            if let Err(error) = git(repo, &["worktree", "prune"]).await {
+                tracing::warn!("no se pudo ejecutar git worktree prune tras el merge: {error}");
+            }
+        }
         outcome
     }
 
