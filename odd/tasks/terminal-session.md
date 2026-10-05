@@ -9,7 +9,7 @@ Decision: real PTY streamed over WebSocket (axum `ws`), `portable-pty` on the se
 - [x] 2. PTY adapter (`portable-pty`, ssr only) + session registry; integration test spawning `sh`
 - [x] 3. DI context (`terminal_context.rs`) + `AppState` wiring + WebSocket inbound adapter (axum router merged in `main.rs`) with message-mapping tests
 - [x] 4. Presentation: xterm.js asset, `TerminalPage`/component, state, route `/workspaces/:id/terminal`, entry point from workspaces page (tailwind)
-- [ ] 5. Checks: fmt, clippy ssr/hydrate, tests, manual smoke; update codegraph
+- [x] 5. Checks: fmt, clippy ssr/hydrate, tests, manual smoke; update codegraph
 
 ## Evidence
 (commits recorded here per task)
@@ -17,3 +17,4 @@ Decision: real PTY streamed over WebSocket (axum `ws`), `portable-pty` on the se
 - task 2: d883b3b
 - task 3: 1cc403f
 - task 4: 4800c59
+- task 5: checks fmt/clippy ssr+hydrate/test ssr ok; live WS smoke ok (101, PTY output, Origin 403)
