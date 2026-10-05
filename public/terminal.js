@@ -1,4 +1,4 @@
-// Glue entre xterm.js y el WebSocket `/terminal/ws/{workspaceId}`.
+// Glue entre xterm.js y el WebSocket `/terminal/ws/session/{sessionId}`.
 // Requiere `Terminal` (xterm.js) y `FitAddon.FitAddon` (addon-fit.js) ya cargados.
 (function () {
   "use strict";
@@ -17,15 +17,15 @@
     };
   }
 
-  function socketUrl(workspaceId, cols, rows) {
+  function socketUrl(sessionId, cols, rows) {
     var scheme = location.protocol === "https:" ? "wss:" : "ws:";
     return (
-      scheme + "//" + location.host + "/terminal/ws/" + encodeURIComponent(workspaceId) +
+      scheme + "//" + location.host + "/terminal/ws/session/" + encodeURIComponent(sessionId) +
       "?cols=" + cols + "&rows=" + rows
     );
   }
 
-  function open(el, workspaceId) {
+  function open(el, sessionId) {
     var term = new window.Terminal({
       cursorBlink: true,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
@@ -38,7 +38,7 @@
     fit.fit();
 
     var encoder = new TextEncoder();
-    var ws = new WebSocket(socketUrl(workspaceId, term.cols, term.rows));
+    var ws = new WebSocket(socketUrl(sessionId, term.cols, term.rows));
     ws.binaryType = "arraybuffer";
 
     function sendResize() {

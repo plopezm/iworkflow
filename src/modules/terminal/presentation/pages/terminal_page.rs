@@ -25,7 +25,8 @@ pub fn TerminalPage() -> impl IntoView {
                             "Volver"
                         </A>
                     </header>
-                    <TerminalView workspace_id=workspace_id />
+                    // TODO(task 4): temporal; TerminalView espera un id de sesión, no de workspace.
+                    <TerminalView session_id=workspace_id />
                 </section>
             }
         }}

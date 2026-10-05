@@ -1,9 +1,9 @@
-//! Endpoint WebSocket con una sesión de terminal en el directorio de un workspace.
+//! Endpoint WebSocket que se adjunta a una sesión de terminal existente por id.
 //!
 //! Protocolo: servidor → cliente, frames binarios con la salida del PTY; cliente →
 //! servidor, frame binario = bytes de entrada y frame de texto = JSON de redimensionado
-//! (ver `ClientMessage`). El tamaño inicial llega en la query `cols`/`rows` (80x24 por
-//! defecto). La sesión se cierra al cerrarse el socket o al terminar la shell.
+//! (ver `ClientMessage`). El tamaño inicial opcional llega en la query `cols`/`rows`.
+//! La sesión sobrevive al socket: solo se cierra con `close_terminal` o al salir la shell.
 
 use axum::Router;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -19,15 +19,11 @@ use uuid::Uuid;
 
 use crate::modules::terminal::domain::errors::terminal_error::TerminalError;
 use crate::modules::terminal::domain::models::terminal_attachment::TerminalAttachment;
-use crate::modules::terminal::domain::models::terminal_session::TerminalSession;
 use crate::modules::terminal::domain::models::terminal_session_id::TerminalSessionId;
-use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::client_message::ClientMessage;
 use crate::modules::terminal::infrastructure::di::terminal_context::TerminalContext;
 
-pub const TERMINAL_WS_PATH: &str = "/terminal/ws/{workspace_id}";
-const DEFAULT_COLS: u16 = 80;
-const DEFAULT_ROWS: u16 = 24;
+pub const TERMINAL_WS_PATH: &str = "/terminal/ws/session/{session_id}";
 
 #[derive(Debug, Deserialize)]
 pub struct TerminalQuery {
@@ -79,7 +75,7 @@ fn header_str(headers: &HeaderMap, name: header::HeaderName) -> Option<&str> {
 
 async fn terminal_ws(
     State(context): State<TerminalContext>,
-    Path(workspace_id): Path<String>,
+    Path(session_id): Path<String>,
     Query(query): Query<TerminalQuery>,
     headers: HeaderMap,
     upgrade: WebSocketUpgrade,
@@ -90,36 +86,32 @@ async fn terminal_ws(
     ) {
         return (StatusCode::FORBIDDEN, "origen no permitido").into_response();
     }
-    let Ok(workspace_id) = Uuid::parse_str(&workspace_id) else {
-        return (StatusCode::BAD_REQUEST, "id de workspace inválido").into_response();
+    let Ok(session_id) = Uuid::parse_str(&session_id) else {
+        return (StatusCode::BAD_REQUEST, "id de sesión inválido").into_response();
     };
+    let id: TerminalSessionId = TerminalSessionId::from_uuid(session_id);
 
-    let size: TerminalSize = match TerminalSize::new(
-        query.cols.unwrap_or(DEFAULT_COLS),
-        query.rows.unwrap_or(DEFAULT_ROWS),
-    ) {
-        Ok(size) => size,
-        Err(error) => return (status_for(&error), error.to_string()).into_response(),
-    };
-    let session: TerminalSession = match context.open.execute(workspace_id, size).await {
-        Ok(session) => session,
-        Err(error) => return (status_for(&error), error.to_string()).into_response(),
-    };
-    let attachment: TerminalAttachment = match context.attach.execute(session.id).await {
+    let attachment: TerminalAttachment = match context.attach.execute(id).await {
         Ok(attachment) => attachment,
-        Err(error) => {
-            if let Err(close_error) = context.close.execute(session.id).await {
-                tracing::warn!(%close_error, "no se pudo cerrar la sesión de terminal");
-            }
-            return (status_for(&error), error.to_string()).into_response();
-        }
+        Err(error) => return (status_for(&error), error.to_string()).into_response(),
     };
+    // Una sesión terminada no admite resize: el error se ignora.
+    if let Some((cols, rows)) = initial_size(&query)
+        && let Err(error) = context.resize.execute(id, cols, rows).await
+    {
+        tracing::debug!(%error, "redimensionado inicial ignorado");
+    }
 
-    upgrade
-        .on_upgrade(move |socket: WebSocket| run_session(socket, context, session.id, attachment))
+    upgrade.on_upgrade(move |socket: WebSocket| run_session(socket, context, id, attachment))
 }
 
-/// Puentea socket y PTY hasta que uno de los dos termina; después cierra la sesión.
+/// Tamaño inicial pedido en la query; solo cuenta si vienen `cols` y `rows`.
+fn initial_size(query: &TerminalQuery) -> Option<(u16, u16)> {
+    query.cols.zip(query.rows)
+}
+
+/// Puentea socket y PTY: scrollback primero y salida en vivo después. La sesión sobrevive
+/// al socket; solo se cierra el socket cuando la shell termina.
 async fn run_session(
     socket: WebSocket,
     context: TerminalContext,
@@ -128,7 +120,6 @@ async fn run_session(
 ) {
     let (mut sink, mut stream) = socket.split();
     let mut output: Receiver<Vec<u8>> = attachment.output;
-    // Sesión recién creada: el scrollback replicado es lo ya emitido antes de adjuntar.
     if !attachment.scrollback.is_empty()
         && sink
             .send(Message::Binary(attachment.scrollback.into()))
@@ -170,10 +161,7 @@ async fn run_session(
         }
     }
 
-    if let Err(error) = context.close.execute(id).await {
-        tracing::warn!(%error, "no se pudo cerrar la sesión de terminal");
-    }
-    // El cliente puede haberse ido ya: el cierre del socket es best-effort.
+    // La sesión NO se cierra aquí. El cliente puede haberse ido ya: best-effort.
     if let Err(error) = sink.send(Message::Close(None)).await {
         tracing::debug!(%error, "socket de terminal ya cerrado");
     }
@@ -236,6 +224,20 @@ mod tests {
     fn missing_origin_is_allowed() {
         assert!(is_same_origin(None, Some("localhost:3000")));
         assert!(is_same_origin(None, None));
+    }
+
+    #[test]
+    fn initial_size_requires_both_dimensions() {
+        let both: TerminalQuery = TerminalQuery {
+            cols: Some(100),
+            rows: Some(30),
+        };
+        assert_eq!(initial_size(&both), Some((100, 30)));
+        let partial: TerminalQuery = TerminalQuery {
+            cols: Some(100),
+            rows: None,
+        };
+        assert_eq!(initial_size(&partial), None);
     }
 
     #[test]

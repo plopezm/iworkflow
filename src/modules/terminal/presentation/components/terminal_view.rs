@@ -36,12 +36,12 @@ function loadCss(href) {
   document.head.appendChild(link);
 }
 
-export function iwf_terminal_open(el, workspaceId) {
+export function iwf_terminal_open(el, sessionId) {
   const handle = { inner: null, closed: false };
   loadCss(CSS);
   (async () => {
     for (const src of ASSETS) await loadScript(src);
-    if (!handle.closed) handle.inner = window.iwfTerminal.open(el, workspaceId);
+    if (!handle.closed) handle.inner = window.iwfTerminal.open(el, sessionId);
   })().catch((e) => console.error(e));
   return handle;
 }
@@ -55,14 +55,14 @@ export function iwf_terminal_close(handle) {
 }
 "#)]
     extern "C" {
-        pub fn iwf_terminal_open(el: &JsValue, workspace_id: &str) -> JsValue;
+        pub fn iwf_terminal_open(el: &JsValue, session_id: &str) -> JsValue;
         pub fn iwf_terminal_close(handle: &JsValue);
     }
 }
 
-/// Monta un xterm.js conectado a la sesión de terminal del workspace. Solo actúa en el navegador.
+/// Monta un xterm.js conectado a la sesión de terminal por id. Solo actúa en el navegador.
 #[component]
-pub fn TerminalView(#[prop(into)] workspace_id: String) -> impl IntoView {
+pub fn TerminalView(#[prop(into)] session_id: String) -> impl IntoView {
     let container: NodeRef<html::Div> = NodeRef::new();
 
     #[cfg(feature = "hydrate")]
@@ -75,7 +75,7 @@ pub fn TerminalView(#[prop(into)] workspace_id: String) -> impl IntoView {
             if let Some(el) = container.get()
                 && handle.with_value(Option::is_none)
             {
-                let opened: JsValue = js::iwf_terminal_open(&JsValue::from(el), &workspace_id);
+                let opened: JsValue = js::iwf_terminal_open(&JsValue::from(el), &session_id);
                 handle.set_value(Some(opened));
             }
         });
@@ -86,7 +86,7 @@ pub fn TerminalView(#[prop(into)] workspace_id: String) -> impl IntoView {
         });
     }
     #[cfg(not(feature = "hydrate"))]
-    let _workspace_id: String = workspace_id;
+    let _session_id: String = session_id;
 
     view! { <div node_ref=container class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface p-2"></div> }
 }
