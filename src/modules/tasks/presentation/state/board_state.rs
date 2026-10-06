@@ -93,11 +93,14 @@ pub fn build_lanes(
     }
 
     for lane in &mut lanes {
+        // `sort_by` is stable: attention-first keeps the priority/age order within each group.
         lane.tasks.sort_by(|a: &TaskDto, b: &TaskDto| {
-            b.priority
-                .rank()
-                .cmp(&a.priority.rank())
-                .then_with(|| compare_created_at(&a.created_at, &b.created_at))
+            b.needs_attention.cmp(&a.needs_attention).then_with(|| {
+                b.priority
+                    .rank()
+                    .cmp(&a.priority.rank())
+                    .then_with(|| compare_created_at(&a.created_at, &b.created_at))
+            })
         });
         lane.total = lane.tasks.len();
         lane.attention_count = lane
@@ -116,6 +119,20 @@ pub fn build_lanes(
     });
 
     lanes
+}
+
+/// Etiqueta del contador de tareas de un carril ("1 tarea" / "3 tareas").
+pub fn lane_total_label(total: usize) -> String {
+    if total == 1 {
+        "1 tarea".to_string()
+    } else {
+        format!("{total} tareas")
+    }
+}
+
+/// Etiqueta del contador de atención de un carril; `None` cuando no hay ninguna.
+pub fn lane_attention_label(attention: usize) -> Option<String> {
+    (attention > 0).then(|| format!("{attention} atención"))
 }
 
 /// Clave de una tarjeta para el `<For>` del tablero: identifica la tarea y cambia cuando
@@ -454,11 +471,11 @@ mod tests {
     }
 
     #[test]
-    fn equal_priority_is_listed_oldest_first_regardless_of_stage_or_updates() {
+    fn equal_priority_is_listed_oldest_first_regardless_of_non_attention_stage_or_updates() {
         let tasks: Vec<TaskDto> = vec![
             prioritized(
                 "newest",
-                TaskStageDto::Attention,
+                TaskStageDto::Working,
                 TaskPriorityDto::Normal,
                 "2026-01-03T00:00:00Z",
             ),
@@ -470,7 +487,7 @@ mod tests {
             ),
             prioritized(
                 "middle",
-                TaskStageDto::Review,
+                TaskStageDto::Backlog,
                 TaskPriorityDto::Normal,
                 "2026-01-02T00:00:00Z",
             ),
@@ -524,6 +541,49 @@ mod tests {
                 "old-low"
             ]
         );
+    }
+
+    #[test]
+    fn attention_tasks_come_first_keeping_order_within_groups() {
+        let tasks: Vec<TaskDto> = vec![
+            prioritized(
+                "w-old",
+                TaskStageDto::Working,
+                TaskPriorityDto::Normal,
+                "2026-01-01T00:00:00Z",
+            ),
+            prioritized(
+                "a-new",
+                TaskStageDto::Attention,
+                TaskPriorityDto::Normal,
+                "2026-01-03T00:00:00Z",
+            ),
+            prioritized(
+                "w-new",
+                TaskStageDto::Working,
+                TaskPriorityDto::Normal,
+                "2026-01-02T00:00:00Z",
+            ),
+            prioritized(
+                "r-old",
+                TaskStageDto::Review,
+                TaskPriorityDto::Normal,
+                "2026-01-02T12:00:00Z",
+            ),
+        ];
+
+        assert_eq!(
+            lane_ids_of(&tasks),
+            vec!["r-old", "a-new", "w-old", "w-new"]
+        );
+    }
+
+    #[test]
+    fn lane_labels_are_singular_and_plural() {
+        assert_eq!(lane_total_label(1), "1 tarea");
+        assert_eq!(lane_total_label(3), "3 tareas");
+        assert_eq!(lane_attention_label(0), None);
+        assert_eq!(lane_attention_label(2), Some("2 atención".to_string()));
     }
 
     #[test]

@@ -44,7 +44,12 @@ pub fn AppSidebar() -> impl IntoView {
                 }
             />
             <Show when=move || workspace_count.get() == 0>
-                <p class="muted">"Aún no hay workspaces."</p>
+                <div class="stack gap-1.5">
+                    <p class="muted">"Aún no hay workspaces."</p>
+                    <A href="/workspaces" attr:class="btn-ghost min-h-9 px-3 py-1.5 text-xs">
+                        "Registrar workspace"
+                    </A>
+                </div>
             </Show>
         </SidebarSection>
         <SidebarSection title="Requieren atención" count=task_count>

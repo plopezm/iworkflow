@@ -17,7 +17,16 @@
   --color-purple: var(--c-purple);
   --color-pink: var(--c-pink);
 
-  --font-ui: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-ui: "Martian Mono", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-mono: "Martian Mono", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+
+  /* Instrument-panel geometry: near-square corners; pills stay round. */
+  --radius-sm: 1px;
+  --radius: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --radius-xl: 6px;
 
   --color-stage-backlog: var(--c-stage-backlog);
   --color-stage-working: var(--c-stage-working);
@@ -37,52 +46,91 @@
   --animate-bounce-soft: bounce-soft 0.6s ease-in-out;
 }
 
-/* Light: cream/purple. Dark: gentle-ai "Gentle" palette (accent = blue #7FB4CA). */
+/* Mission-control palette.
+   Light = bone logbook paper, ink text, vermilion signal.
+   Dark  = warm graphite console, amber phosphor signal. */
 :root {
   color-scheme: light;
-  --c-bg: #f7f1e3;
-  --c-surface: #fbf7ec;
-  --c-surface-2: #efe7d3;
-  --c-surface-3: #e6dcc3;
-  --c-border: #d8cfb8;
-  --c-fg: #2b2620;
-  --c-muted: #7a7061;
-  --c-accent: #6d4bd1;
-  --c-on-accent: #ffffff;
-  --c-ok: #2f8f5b;
-  --c-warn: #b7791f;
-  --c-error: #c2415a;
-  --c-purple: #9b6fe0;
-  --c-pink: #d9558f;
-  --c-stage-backlog: #8a8272;
-  --c-stage-working: #6d4bd1;
-  --c-stage-attention: #c2415a;
-  --c-stage-review: #b7791f;
-  --c-stage-done: #2f8f5b;
+  --c-bg: #ece6d6;
+  --c-surface: #f5f0e2;
+  --c-surface-2: #e3dcc8;
+  --c-surface-3: #d6cdb4;
+  --c-border: #c9bfa4;
+  --c-fg: #1d1a14;
+  --c-muted: #6e6552;
+  --c-accent: #d9400b;
+  --c-on-accent: #fff6e8;
+  --c-ok: #2d7a4f;
+  --c-warn: #a86a05;
+  --c-error: #b4233f;
+  --c-purple: #6a4fb8;
+  --c-pink: #b8447c;
+  --c-stage-backlog: #7d745f;
+  --c-stage-working: #d9400b;
+  --c-stage-attention: #b4233f;
+  --c-stage-review: #a86a05;
+  --c-stage-done: #2d7a4f;
+  --c-grid: rgba(29, 26, 20, 0.07);
+  --c-grain-opacity: 0.5;
 }
 
-/* Muted is lifted from Gentle's #5C6170 to keep body-size text legible on #06080f. */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --c-bg: #06080f;
-  --c-surface: #0d0f14;
-  --c-surface-2: #151926;
-  --c-surface-3: #232a40;
-  --c-border: #313342;
-  --c-fg: #f3f6f9;
-  --c-muted: #8b91a5;
-  --c-accent: #7fb4ca;
-  --c-on-accent: #06080f;
-  --c-ok: #b7cc85;
-  --c-warn: #deba87;
-  --c-error: #cb7c94;
-  --c-purple: #b99bf2;
-  --c-pink: #c99ad6;
-  --c-stage-backlog: #8b91a5;
-  --c-stage-working: #7fb4ca;
-  --c-stage-attention: #cb7c94;
-  --c-stage-review: #deba87;
-  --c-stage-done: #b7cc85;
+  --c-bg: #0c0b09;
+  --c-surface: #14120f;
+  --c-surface-2: #1d1a15;
+  --c-surface-3: #2a261e;
+  --c-border: #3a352a;
+  --c-fg: #efe7d4;
+  --c-muted: #9a917c;
+  --c-accent: #ffb020;
+  --c-on-accent: #161000;
+  --c-ok: #9fd18b;
+  --c-warn: #f0c26a;
+  --c-error: #ff7a85;
+  --c-purple: #c4a8ff;
+  --c-pink: #ee9ac8;
+  --c-stage-backlog: #9a917c;
+  --c-stage-working: #ffb020;
+  --c-stage-attention: #ff7a85;
+  --c-stage-review: #6fc3df;
+  --c-stage-done: #9fd18b;
+  --c-grid: rgba(255, 176, 32, 0.055);
+  --c-grain-opacity: 0.35;
+}
+
+/* ── Fonts (self-hosted) ───────────────────────── */
+@font-face {
+  font-family: "Martian Mono";
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/martian-mono-400.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Martian Mono";
+  font-weight: 500;
+  font-display: swap;
+  src: url("/fonts/martian-mono-500.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Martian Mono";
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/martian-mono-700.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-serif.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Instrument Serif";
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/instrument-serif-italic.ttf") format("truetype");
 }
 
 html,
@@ -118,7 +166,56 @@ body {
   background-color: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-ui);
-  font-size: 13px;
+  font-size: 12.5px;
+  letter-spacing: -0.01em;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Film grain over everything: gives the flat surfaces a printed/phosphor texture. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: var(--c-grain-opacity);
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* Blueprint dot grid behind the working area. */
+.grid-bg {
+  background-image: radial-gradient(var(--c-grid) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+/* ── Typography helpers ────────────────────────── */
+.page-title {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  font-weight: 400;
+  color: var(--color-fg);
+}
+.page-title em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+.eyebrow {
+  @apply text-[10px] font-medium tracking-[0.22em] text-muted uppercase;
 }
 
 /* ── Keyframes ─────────────────────────────────── */
@@ -173,27 +270,52 @@ body {
 
 /* ── Buttons ────────────────────────────────────── */
 .btn-primary {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent transition-colors duration-150 hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-[11px] font-bold tracking-wider text-on-accent uppercase transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50;
+  box-shadow: 2px 2px 0 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+.btn-primary:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 0 0 0 0 transparent;
 }
 .btn-secondary {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-semibold text-fg transition-colors duration-150 hover:border-accent/60 hover:bg-accent/10 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-[11px] font-medium tracking-wider text-fg uppercase transition-colors duration-150 hover:border-accent hover:bg-accent/10 hover:text-accent active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-danger {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-error bg-error px-3 py-1.5 text-xs font-semibold text-on-accent transition-colors duration-150 hover:brightness-110 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-error bg-error px-3 py-1.5 text-[11px] font-bold tracking-wider text-bg uppercase transition-colors duration-150 hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-ghost {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-xs font-semibold text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-[11px] font-medium tracking-wider text-muted uppercase transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 /* ── Flat bordered surfaces ─────────────────────── */
+/* In the components layer so utilities (e.g. stage rails) can override the border. */
+@layer components {
 .card {
-  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3;
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3 transition-[border-color,transform,box-shadow] duration-200;
+  /* Registration ticks in the top-right corner, like a printed form. */
+  background-image:
+    linear-gradient(var(--color-border), var(--color-border)),
+    linear-gradient(var(--color-border), var(--color-border));
+  background-repeat: no-repeat;
+  background-size: 9px 1px, 1px 9px;
+  background-position: right 5px top 5px, right 5px top 5px;
+}
+}
+article.card:hover {
+  border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--color-accent) 55%, transparent);
 }
 .card-title {
-  @apply text-xs font-bold tracking-widest text-muted uppercase;
+  @apply text-[10px] font-bold tracking-[0.2em] text-muted uppercase;
 }
 .task-title {
-  @apply text-base font-bold text-fg;
+  font-family: var(--font-display);
+  @apply text-2xl leading-tight font-normal text-fg;
 }
 
 .section-header {
@@ -202,13 +324,16 @@ body {
 
 /* ── Sidebar menus & right-panel tabs ───────────── */
 .menu-item {
-  @apply block cursor-pointer rounded px-2.5 py-1.5 text-left text-xs whitespace-nowrap text-fg hover:bg-accent/10;
+  @apply block cursor-pointer rounded px-2.5 py-1.5 text-left text-[11px] tracking-wider whitespace-nowrap text-fg uppercase hover:bg-accent/10 hover:text-accent;
 }
 .menu-item[aria-current="page"] {
   @apply text-accent;
 }
+.menu-item[aria-current="page"]::before {
+  content: "▸ ";
+}
 .tab {
-  @apply flex min-h-8 shrink-0 cursor-pointer items-center rounded-md border border-border bg-surface px-3 py-1 text-xs text-muted transition-colors duration-150 hover:text-fg;
+  @apply flex min-h-8 shrink-0 cursor-pointer items-center rounded-md border border-transparent bg-transparent px-3 py-1 text-[11px] tracking-wider text-muted uppercase transition-colors duration-150 hover:text-fg;
 }
 .tab-selected {
   @apply border-accent bg-accent/10 text-accent;
@@ -216,7 +341,11 @@ body {
 
 /* ── Form controls ──────────────────────────────── */
 .input {
-  @apply w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
+  @apply w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-fg transition-shadow placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
+}
+.input:focus-visible,
+.composer textarea:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 .input-lg {
   @apply px-4 py-3 text-base leading-relaxed;
@@ -224,7 +353,7 @@ body {
 
 /* ── Filter chips ───────────────────────────────── */
 .chip {
-  @apply flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-2.5 py-1 text-xs text-muted transition-colors duration-150 hover:border-accent/50 hover:text-fg;
+  @apply flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] tracking-wide text-muted transition-colors duration-150 hover:border-accent/50 hover:text-fg;
 }
 .chip-selected {
   @apply border-accent bg-accent/10 text-accent;
@@ -260,7 +389,7 @@ body {
 
 /* ── Badges (status + stage) ────────────────────── */
 .badge {
-  @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium;
+  @apply inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase;
 }
 .badge-ok {
   @apply border-ok/40 bg-ok/10 text-ok;
@@ -298,7 +427,7 @@ body {
   @apply w-full border-collapse text-sm;
 }
 .data-table th {
-  @apply border-b border-border px-3 py-2.5 text-left text-xs tracking-widest text-muted uppercase;
+  @apply border-b-2 border-border px-3 py-2.5 text-left text-[10px] font-medium tracking-[0.2em] text-muted uppercase;
 }
 .data-table td {
   @apply border-b border-border px-3 py-2.5 align-top;
@@ -315,10 +444,10 @@ body {
   @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3 animate-fade-in;
 }
 .msg-role {
-  @apply mb-1.5 text-[10px] tracking-[0.15em] text-muted uppercase;
+  @apply mb-1.5 text-[10px] font-bold tracking-[0.2em] text-muted uppercase;
 }
 .msg-user {
-  @apply border-l-[3px] border-l-accent;
+  @apply border-l-[3px] border-l-accent bg-surface-2/60;
 }
 .msg-assistant {
   @apply border-l-[3px] border-l-ok;
@@ -357,7 +486,8 @@ body {
 .markdown h1,
 .markdown h2,
 .markdown h3 {
-  @apply font-semibold;
+  font-family: var(--font-display);
+  @apply text-lg leading-tight font-normal;
 }
 .markdown blockquote {
   @apply border-l-2 border-border pl-3 text-muted;
@@ -541,4 +671,37 @@ body {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+/* ── Orchestrated entrance ──────────────────────── */
+.reveal > * {
+  animation: slide-up 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.reveal > *:nth-child(1) { animation-delay: 0.02s; }
+.reveal > *:nth-child(2) { animation-delay: 0.07s; }
+.reveal > *:nth-child(3) { animation-delay: 0.12s; }
+.reveal > *:nth-child(4) { animation-delay: 0.17s; }
+.reveal > *:nth-child(5) { animation-delay: 0.22s; }
+.reveal > *:nth-child(6) { animation-delay: 0.27s; }
+.reveal > *:nth-child(n + 7) { animation-delay: 0.32s; }
+
+/* Live "on air" dot for working tasks. */
+.live-dot {
+  @apply inline-block h-1.5 w-1.5 rounded-full bg-current;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: live-ping 1.6s ease-out infinite;
+}
+@keyframes live-ping {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

@@ -30,6 +30,50 @@ const TAB_STATE: &str = "estado";
 /// Id del contenedor con scroll de la conversación.
 const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
 
+/// Longitud máxima (en caracteres) de la rama mostrada en la cabecera.
+const BRANCH_MAX_CHARS: usize = 36;
+
+/// Whether `value` looks like a hex id: a canonical uuid or a hex run of 8+ digits.
+fn is_id_like(value: &str) -> bool {
+    let hex_only: bool = value
+        .chars()
+        .all(|c: char| c.is_ascii_hexdigit() || c == '-');
+    let digits: usize = value.chars().filter(|c: &char| *c != '-').count();
+    hex_only && digits >= 8
+}
+
+/// Shortens a branch for display: drops a trailing uuid-like suffix and middle-truncates
+/// what is left to `BRANCH_MAX_CHARS` characters.
+pub fn short_branch(branch: &str) -> String {
+    let mut base: &str = branch;
+    // A uuid has 4 dashes, so try the last 1..=5 dash-separated chunks as the suffix.
+    for chunks in (1..=5).rev() {
+        let parts: Vec<&str> = branch.rsplitn(chunks + 1, '-').collect();
+        if parts.len() == chunks + 1 {
+            let suffix: String = parts[..chunks]
+                .iter()
+                .rev()
+                .copied()
+                .collect::<Vec<&str>>()
+                .join("-");
+            if is_id_like(&suffix) && (chunks > 1 || suffix.len() >= 8) {
+                base = parts[chunks];
+                break;
+            }
+        }
+    }
+    let chars: Vec<char> = base.chars().collect();
+    if chars.len() <= BRANCH_MAX_CHARS {
+        return base.to_string();
+    }
+    let keep: usize = BRANCH_MAX_CHARS - 1;
+    let head: usize = keep.div_ceil(2);
+    let tail: usize = keep - head;
+    let start: String = chars[..head].iter().collect();
+    let end: String = chars[chars.len() - tail..].iter().collect();
+    format!("{start}…{end}")
+}
+
 /// Tarjeta simplificada de una tarea en Backlog: prompt y acciones de iniciar/editar/borrar.
 #[component]
 fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
@@ -216,13 +260,15 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                             let task: TaskDto = task;
                                             let is_backlog: bool = task.stage == TaskStageDto::Backlog;
                                             view! {
-                                                <h1 class="truncate text-sm font-bold">{task.title.clone()}</h1>
+                                                <h1 class="page-title truncate text-xl">{task.title.clone()}</h1>
                                                 {(!is_backlog)
                                                     .then(|| {
                                                         view! {
                                                             <p class="truncate text-[11px] text-muted">
                                                                 "Rama "
-                                                                <code class="font-mono">{task.branch.clone()}</code>
+                                                                <code class="font-mono" title=task.branch.clone()>
+                                                                    {short_branch(&task.branch)}
+                                                                </code>
                                                                 " desde "
                                                                 <code class="font-mono">{task.base_branch.clone()}</code>
                                                             </p>
@@ -394,10 +440,12 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                                                 }
                                                             })
                                                     }}
-                                                    <p class="muted break-all">
-                                                        "Worktree "
-                                                        <code class="font-mono text-xs">{task.worktree_path.clone()}</code>
-                                                    </p>
+                                                    <div class="stack gap-1">
+                                                        <span class="eyebrow">"Worktree"</span>
+                                                        <code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">
+                                                            {task.worktree_path.clone()}
+                                                        </code>
+                                                    </div>
                                                 }
                                                     .into_any()
                                             }
@@ -421,5 +469,34 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                 </Show>
             </div>
         </Show>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_branch_drops_uuid_suffix() {
+        assert_eq!(
+            short_branch("pi/fix-login-3f2a9c1e-5b7d-4e8a-9c0b-1a2b3c4d5e6f"),
+            "pi/fix-login"
+        );
+    }
+
+    #[test]
+    fn short_branch_keeps_short_plain_names() {
+        assert_eq!(short_branch("pi/fix-login"), "pi/fix-login");
+        assert_eq!(short_branch("main"), "main");
+    }
+
+    #[test]
+    fn short_branch_middle_truncates_long_names() {
+        let long: String = format!("pi/{}", "a-very-long-descriptive-name".repeat(3));
+        let short: String = short_branch(&long);
+        assert_eq!(short.chars().count(), BRANCH_MAX_CHARS);
+        assert!(short.contains('…'));
+        assert!(short.starts_with("pi/"));
+        assert!(short.ends_with("name"));
     }
 }

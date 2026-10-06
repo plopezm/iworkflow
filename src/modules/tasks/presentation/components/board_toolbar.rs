@@ -24,7 +24,7 @@ pub fn BoardToolbar(
     view! {
         <div class="flex shrink-0 flex-col gap-2 border-b border-border bg-surface px-4 py-2.5">
             <div class="flex items-center justify-between gap-3">
-                <h1 class="text-sm font-bold tracking-widest uppercase">"Tablero"</h1>
+                <h1 class="page-title">"Tablero"</h1>
                 <button class="btn-primary" on:click=move |_| on_new_task.run(())>
                     <span class="text-lg leading-none">+</span>
                     <span class="hidden sm:inline">"Nueva tarea"</span>

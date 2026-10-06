@@ -72,6 +72,12 @@ fn markdown_body(text: String) -> impl IntoView {
     view! { <div class="markdown" inner_html=render_markdown(&text)></div> }
 }
 
+/// Summary for startup notices that dump launch details (`args=... cwd=...`), which are
+/// collapsed by default; `None` for ordinary notices.
+fn launch_notice_summary(message: &str) -> Option<&'static str> {
+    (message.contains("args=") || message.contains("cwd=")).then_some("Detalles de arranque")
+}
+
 fn notice_class(level: NoticeLevelDto) -> &'static str {
     match level {
         NoticeLevelDto::Info => "notice notice-info",
@@ -163,7 +169,16 @@ fn render_item(item: TranscriptItem) -> AnyView {
             .into_any()
         }
         TranscriptItem::Notice { level, message } => {
-            view! { <div class=notice_class(level)>{message}</div> }.into_any()
+            match launch_notice_summary(&message) {
+                Some(summary) => view! {
+                    <details class=notice_class(level)>
+                        <summary class="cursor-pointer">{summary}</summary>
+                        <pre class="mt-2 font-mono text-[11px] break-all whitespace-pre-wrap">{message}</pre>
+                    </details>
+                }
+                .into_any(),
+                None => view! { <div class=notice_class(level)>{message}</div> }.into_any(),
+            }
         }
         TranscriptItem::Status { status, error } => view! {
             <div class="status-line">
@@ -237,6 +252,15 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn launch_notices_are_collapsed() {
+        assert_eq!(
+            launch_notice_summary("Arrancando agente args=[--x] cwd=/wt"),
+            Some("Detalles de arranque")
+        );
+        assert_eq!(launch_notice_summary("Conflictos en a.rs"), None);
+    }
 
     #[test]
     fn args_summary_prefers_path_over_raw_json() {

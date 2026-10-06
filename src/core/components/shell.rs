@@ -285,9 +285,9 @@ pub fn AppShell(
                     >
                         "☰"
                     </button>
-                    <span class="text-sm font-bold tracking-widest uppercase">{brand}</span>
+                    <span class="font-display text-xl leading-none">{brand}</span>
                 </header>
-                <main class="min-h-0 flex-1 overflow-hidden">{children()}</main>
+                <main class="grid-bg min-h-0 flex-1 overflow-hidden">{children()}</main>
             </div>
         </div>
     }

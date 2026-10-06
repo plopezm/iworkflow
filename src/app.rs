@@ -38,9 +38,10 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
 /// Contenido de la barra lateral: marca y menú de navegación, listados y ajustes del agente.
 fn app_sidebar() -> impl IntoView {
     view! {
-        <div class="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
-            <A href="/" attr:class="text-sm font-bold tracking-widest uppercase">
-                "iworkflow"
+        <div class="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
+            <A href="/" attr:class="flex items-baseline gap-1.5 leading-none">
+                <span class="font-display text-2xl">"iworkflow"</span>
+                <span class="live-dot text-accent" aria-hidden="true"></span>
             </A>
             <DropdownMenu
                 label="Actions"
