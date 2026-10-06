@@ -107,7 +107,7 @@ pub fn TerminalView(#[prop(into)] session_id: String) -> impl IntoView {
     };
 
     view! {
-        <div node_ref=container class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface p-2"></div>
+        <div node_ref=container class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface p-2 pb-3"></div>
         <TerminalKeyBar on_key=on_key />
     }
 }

@@ -30,7 +30,7 @@ pub fn TerminalSessionPage() -> impl IntoView {
                 <Show when=move || state.closed.get()>
                     <Redirect path=terminals_path() />
                 </Show>
-                <section class="stack h-full min-h-0 gap-3 animate-slide-up">
+                <section class="stack h-full min-h-0 gap-3 px-4 pt-4 pb-6 animate-slide-up">
                     <header class="row justify-between">
                         <h1 class="page-title truncate text-xl">
                             <Suspense fallback=fallback_title>
