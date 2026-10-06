@@ -12,6 +12,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
+use crate::core::env::{LoginShellInvocation, login_shell_invocation};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
@@ -27,9 +28,6 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::rpc_prot
 const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
 /// Identificador del runtime `pi` en `LaunchOptions::runtime`.
 const PI_RUNTIME: &str = "pi";
-/// Prefijos de las variables de configuración del propio servidor: las de cargo-leptos/Leptos
-/// y las de iworkflow. El agente trabaja en proyectos ajenos y no debe heredarlas.
-const SERVER_ENV_PREFIXES: [&str; 2] = ["LEPTOS_", "IWF_"];
 const RESUME_FLAG: &str = "--continue";
 const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -101,40 +99,29 @@ fn lock(registry: &Registry) -> Result<MutexGuard<'_, HashMap<TaskId, AgentProce
         .map_err(|_| TaskError::Runtime("registro de procesos corrupto".to_string()))
 }
 
-/// Claves de `vars` que pertenecen al servidor y deben eliminarse del entorno del agente.
-/// Compara bytes para no fallar con claves que no sean Unicode válido.
-fn server_env_keys(vars: impl Iterator<Item = OsString>) -> Vec<OsString> {
-    vars.filter(|key: &OsString| {
-        SERVER_ENV_PREFIXES
-            .iter()
-            .any(|prefix: &&str| key.as_encoded_bytes().starts_with(prefix.as_bytes()))
-    })
-    .collect()
-}
-
-/// Marca como eliminadas del entorno del hijo las claves del servidor heredadas.
-fn strip_server_env(command: &mut Command, vars: impl Iterator<Item = OsString>) {
-    for key in server_env_keys(vars) {
-        command.env_remove(key);
-    }
-}
-
-/// Construye el comando del agente: argumentos, directorio, entorno limpio del servidor y pipes.
+/// Construye el comando del agente: lanzado con `exec` desde la shell de login, directorio,
+/// entorno vacío con solo las variables de sesión (`vars` filtradas) y pipes.
 fn build_command(
     program: &str,
     base_args: &[String],
     resume: bool,
     options: &LaunchOptions,
     cwd: &Path,
-    inherited_keys: impl Iterator<Item = OsString>,
+    vars: impl Iterator<Item = (OsString, OsString)>,
 ) -> Command {
-    let mut command: Command = Command::new(program);
-    strip_server_env(&mut command, inherited_keys);
+    let agent_args: Vec<String> = base_args
+        .iter()
+        .cloned()
+        .chain(resume.then(|| RESUME_FLAG.to_string()))
+        .chain(model_args(options))
+        .chain(thinking_args(options))
+        .collect();
+    let invocation: LoginShellInvocation = login_shell_invocation(program, &agent_args, vars);
+    let mut command: Command = Command::new(invocation.shell);
     command
-        .args(base_args)
-        .args(resume.then_some(RESUME_FLAG))
-        .args(model_args(options))
-        .args(thinking_args(options))
+        .env_clear()
+        .envs(invocation.env)
+        .args(invocation.args)
         .current_dir(cwd)
         .env(INTERACTIVE_HOST_ENV, "1")
         .stdin(Stdio::piped())
@@ -183,14 +170,13 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
             ));
         }
         let program: &str = self.program_for(options);
-        let inherited: Vec<OsString> = std::env::vars_os().map(|(key, _)| key).collect();
         let mut command: Command = build_command(
             program,
             &self.base_args,
             resume,
             options,
             cwd,
-            inherited.into_iter(),
+            std::env::vars_os(),
         );
         let mut child: Child = command
             .spawn()
@@ -401,74 +387,133 @@ mod tests {
     use std::ffi::OsStr;
 
     use super::*;
+    use crate::modules::tasks::domain::models::launch_options::LaunchModel;
 
-    fn os_keys(keys: &[&str]) -> Vec<OsString> {
-        keys.iter().map(OsString::from).collect()
+    fn pairs(entries: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
+        entries
+            .iter()
+            .map(|(key, value): &(&str, &str)| (OsString::from(key), OsString::from(value)))
+            .collect()
+    }
+
+    fn parent_env() -> Vec<(OsString, OsString)> {
+        pairs(&[
+            ("LEPTOS_ENV", "dev"),
+            ("CARGO_MANIFEST_DIR", "/src"),
+            ("VIRTUAL_ENV", "/venv"),
+            ("PATH", "/venv/bin"),
+            ("HOME", "/home/u"),
+            ("SHELL", "/bin/zsh"),
+        ])
+    }
+
+    fn std_args(command: &Command) -> Vec<String> {
+        command
+            .as_std()
+            .get_args()
+            .map(|arg: &OsStr| arg.to_string_lossy().into_owned())
+            .collect()
     }
 
     #[test]
-    fn server_env_keys_selects_only_leptos_variables() {
-        let vars: Vec<OsString> = os_keys(&[
-            "PATH",
-            "LEPTOS_SITE_ADDR",
-            "HOME",
-            "LEPTOS_ENV",
-            "MY_LEPTOS_X",
-        ]);
-
-        let keys: Vec<OsString> = server_env_keys(vars.into_iter());
-
-        assert_eq!(keys, os_keys(&["LEPTOS_SITE_ADDR", "LEPTOS_ENV"]));
-    }
-
-    #[test]
-    fn server_env_keys_selects_iwf_variables() {
-        let vars: Vec<OsString> = os_keys(&["IWF_PI_BIN", "PATH", "MY_IWF_X", "IWF_WORKTREES_DIR"]);
-
-        let keys: Vec<OsString> = server_env_keys(vars.into_iter());
-
-        assert_eq!(keys, os_keys(&["IWF_PI_BIN", "IWF_WORKTREES_DIR"]));
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn server_env_keys_does_not_panic_on_non_unicode_keys() {
-        use std::os::unix::ffi::OsStringExt;
-        let non_unicode: OsString = OsString::from_vec(b"LEPTOS_\xff".to_vec());
-        let vars: Vec<OsString> = vec![OsString::from_vec(b"\xff".to_vec()), non_unicode.clone()];
-
-        let keys: Vec<OsString> = server_env_keys(vars.into_iter());
-
-        assert_eq!(keys, vec![non_unicode]);
-    }
-
-    #[test]
-    fn strip_server_env_marks_leptos_keys_as_removed_on_the_command() {
-        let mut command: Command = Command::new("true");
-
-        strip_server_env(
-            &mut command,
-            os_keys(&["LEPTOS_SITE_ADDR", "PATH"]).into_iter(),
-        );
-
-        let removed: Vec<(&OsStr, Option<&OsStr>)> = command.as_std().get_envs().collect();
-        assert_eq!(removed, vec![(OsStr::new("LEPTOS_SITE_ADDR"), None)]);
-    }
-
-    #[test]
-    fn build_command_strips_leptos_env_and_keeps_interactive_flag() {
+    fn build_command_clears_the_environment_down_to_session_variables() {
         let command: Command = build_command(
-            "true",
+            "agent",
             &[],
             false,
             &LaunchOptions::default(),
             Path::new("."),
-            os_keys(&["LEPTOS_ENV", "PATH"]).into_iter(),
+            parent_env().into_iter(),
         );
 
-        let envs: Vec<(&OsStr, Option<&OsStr>)> = command.as_std().get_envs().collect();
-        assert!(envs.contains(&(OsStr::new("LEPTOS_ENV"), None)));
-        assert!(envs.contains(&(OsStr::new(INTERACTIVE_HOST_ENV), Some(OsStr::new("1")))));
-        assert!(!envs.iter().any(|(key, _)| *key == OsStr::new("PATH")));
+        let mut keys: Vec<String> = command
+            .as_std()
+            .get_envs()
+            .map(|(key, value): (&OsStr, Option<&OsStr>)| {
+                assert!(value.is_some(), "{key:?} no debe marcarse como eliminada");
+                key.to_string_lossy().into_owned()
+            })
+            .collect();
+        keys.sort();
+        assert_eq!(
+            keys,
+            vec![
+                "GENTLE_SHELL_INTERACTIVE_HOST".to_string(),
+                "HOME".to_string(),
+                "PATH".to_string(),
+                "SHELL".to_string(),
+            ]
+        );
+        let path: Option<&OsStr> = command
+            .as_std()
+            .get_envs()
+            .find(|(key, _): &(&OsStr, Option<&OsStr>)| *key == OsStr::new("PATH"))
+            .and_then(|(_, value): (&OsStr, Option<&OsStr>)| value);
+        assert_eq!(path, Some(OsStr::new(crate::core::env::DEFAULT_PATH)));
+    }
+
+    #[test]
+    fn build_command_sets_the_interactive_flag() {
+        let command: Command = build_command(
+            "agent",
+            &[],
+            false,
+            &LaunchOptions::default(),
+            Path::new("."),
+            parent_env().into_iter(),
+        );
+
+        assert!(
+            command
+                .as_std()
+                .get_envs()
+                .any(|entry: (&OsStr, Option<&OsStr>)| entry
+                    == (OsStr::new(INTERACTIVE_HOST_ENV), Some(OsStr::new("1"))))
+        );
+    }
+
+    #[test]
+    fn build_command_launches_the_agent_with_exec_through_the_login_shell() {
+        let command: Command = build_command(
+            "agent",
+            &["--mode".to_string(), "rpc".to_string()],
+            false,
+            &LaunchOptions::default(),
+            Path::new("."),
+            parent_env().into_iter(),
+        );
+
+        assert_eq!(command.as_std().get_program(), OsStr::new("/bin/zsh"));
+        assert_eq!(
+            std_args(&command),
+            vec!["-l", "-c", "exec 'agent' '--mode' 'rpc'"]
+        );
+    }
+
+    #[test]
+    fn build_command_quotes_resume_model_and_thinking_args() {
+        let options: LaunchOptions = LaunchOptions {
+            model: Some(LaunchModel {
+                provider: "anthropic".to_string(),
+                model: "claude 5".to_string(),
+            }),
+            thinking: Some("high".to_string()),
+            ..LaunchOptions::default()
+        };
+
+        let command: Command = build_command(
+            "agent",
+            &["--mode".to_string(), "rpc".to_string()],
+            true,
+            &options,
+            Path::new("."),
+            parent_env().into_iter(),
+        );
+
+        assert_eq!(
+            std_args(&command)[2],
+            "exec 'agent' '--mode' 'rpc' '--continue' '--provider' 'anthropic' \
+             '--model' 'claude 5' '--thinking' 'high'"
+        );
     }
 }
