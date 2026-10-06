@@ -1,7 +1,6 @@
 use leptos::prelude::*;
 use leptos_meta::Title;
 use leptos_router::NavigateOptions;
-use leptos_router::components::A;
 use leptos_router::hooks::use_navigate;
 
 use crate::core::components::layout::ErrorText;
@@ -171,20 +170,7 @@ pub fn BoardPage() -> impl IntoView {
         <Show when=move || {
             loaded.get() && lanes.with(|l: &Vec<LaneView>| l.is_empty()) && !filters_active.get()
         }>
-            <div class="stack mx-auto items-center gap-3 p-10 text-center">
-                <p class="muted">"Aún no hay tareas. Registra un workspace y crea la primera."</p>
-                <div class="row gap-2">
-                    <A href="/workspaces" attr:class="btn-ghost min-h-9 px-3 py-1.5 text-xs">
-                        "Registrar workspace"
-                    </A>
-                    <button
-                        class="btn-primary min-h-9 px-3 py-1.5 text-xs"
-                        on:click=move |_| state.open_create()
-                    >
-                        "Crear la primera tarea"
-                    </button>
-                </div>
-            </div>
+            <p class="muted p-8 text-center">"Aún no hay tareas."</p>
         </Show>
         <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| !l.is_empty())>
             <div class="reveal flex min-h-0 flex-1 snap-x snap-mandatory gap-5 overflow-x-auto p-5">
