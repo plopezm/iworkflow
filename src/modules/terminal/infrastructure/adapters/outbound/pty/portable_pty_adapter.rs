@@ -11,6 +11,7 @@ use uuid::Uuid;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use tokio::sync::broadcast::{self, Sender};
 
+use crate::core::env::{DEFAULT_PATH, LOGIN_SHELL_FLAG, session_env};
 use crate::modules::terminal::domain::errors::terminal_error::TerminalError;
 use crate::modules::terminal::domain::models::terminal_attachment::TerminalAttachment;
 use crate::modules::terminal::domain::models::terminal_session::{TerminalSession, TerminalStatus};
@@ -19,43 +20,8 @@ use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
 use crate::modules::terminal::domain::ports::outbound::pty_port::PtyPort;
 
 const FALLBACK_SHELL: &str = "/bin/sh";
-/// `PATH` base del sistema. No se hereda el del padre (puede traer entornos virtuales, shells de
-/// nix, etc. de la terminal desde la que se lanzó el servidor): los perfiles de la shell lo amplían.
-const DEFAULT_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
-/// Pide a la shell que se comporte como shell de login y cargue los perfiles del sistema y del usuario.
-const LOGIN_SHELL_FLAG: &str = "-l";
 const TERM_VALUE: &str = "xterm-256color";
 const OUTPUT_CHANNEL_CAPACITY: usize = 256;
-/// Variables que cualquier sesión de usuario trae por defecto (login, locale, escritorio).
-/// La terminal parte de un entorno limpio con solo estas: lo que el proceso padre (cargo-leptos,
-/// iworkflow, etc.) haya añadido no se hereda, para no solapar con los proyectos del usuario.
-const DEFAULT_ENV_KEYS: [&str; 23] = [
-    "HOME",
-    "USER",
-    "LOGNAME",
-    "SHELL",
-    "LANG",
-    "LANGUAGE",
-    "TZ",
-    "DISPLAY",
-    "WAYLAND_DISPLAY",
-    "XAUTHORITY",
-    "DBUS_SESSION_BUS_ADDRESS",
-    "SSH_AUTH_SOCK",
-    "COLORTERM",
-    "XDG_RUNTIME_DIR",
-    "XDG_SESSION_ID",
-    "XDG_SESSION_TYPE",
-    "XDG_CURRENT_DESKTOP",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-    "XDG_CACHE_HOME",
-    "XDG_STATE_HOME",
-    "XDG_DATA_DIRS",
-    "XDG_CONFIG_DIRS",
-];
-/// Prefijo de las variables de locale (`LC_ALL`, `LC_CTYPE`...), también por defecto.
-const LOCALE_ENV_PREFIX: &str = "LC_";
 const SCROLLBACK_LIMIT: usize = 64 * 1024;
 const EXITED_MESSAGE: &str = "la sesión de terminal ya terminó";
 const READ_BUFFER_SIZE: usize = 8192;
@@ -80,27 +46,13 @@ fn shell_command(
     let mut command: CommandBuilder = CommandBuilder::new(shell);
     command.arg(LOGIN_SHELL_FLAG);
     command.env_clear();
-    for (key, value) in default_terminal_env(vars) {
+    for (key, value) in session_env(vars) {
         command.env(key, value);
     }
     command.cwd(cwd);
     command.env("PATH", DEFAULT_PATH);
     command.env("TERM", TERM_VALUE);
     command
-}
-
-/// Pares de `vars` que forman el entorno por defecto de una terminal nueva.
-fn default_terminal_env(
-    vars: impl Iterator<Item = (OsString, OsString)>,
-) -> Vec<(OsString, OsString)> {
-    vars.filter(|(key, _): &(OsString, OsString)| {
-        let bytes: &[u8] = key.as_encoded_bytes();
-        bytes.starts_with(LOCALE_ENV_PREFIX.as_bytes())
-            || DEFAULT_ENV_KEYS
-                .iter()
-                .any(|allowed: &&str| bytes == allowed.as_bytes())
-    })
-    .collect()
 }
 
 struct SessionEntry {
@@ -387,23 +339,6 @@ mod tests {
     }
 
     #[test]
-    fn default_terminal_env_drops_variables_set_by_the_parent() {
-        let vars: Vec<(OsString, OsString)> = pairs(&[
-            ("LEPTOS_SITE_ADDR", "127.0.0.1:3000"),
-            ("IWF_DATABASE_URL", "x.db"),
-            ("CARGO_MANIFEST_DIR", "/src"),
-            ("RUST_LOG", "debug"),
-            ("VIRTUAL_ENV", "/venv"),
-            ("PATH", "/venv/bin:/usr/bin"),
-            ("HOME", "/home/u"),
-            ("LC_ALL", "C"),
-            ("MY_HOME", "/nope"),
-        ]);
-        let kept: Vec<(OsString, OsString)> = default_terminal_env(vars.into_iter());
-        assert_eq!(kept, pairs(&[("HOME", "/home/u"), ("LC_ALL", "C")]));
-    }
-
-    #[test]
     fn shell_command_is_a_login_shell_with_a_clean_environment() {
         let vars: Vec<(OsString, OsString)> = pairs(&[
             ("LEPTOS_SITE_ADDR", "127.0.0.1:3000"),
@@ -435,34 +370,6 @@ mod tests {
             command.get_env("TERM"),
             Some(std::ffi::OsStr::new(TERM_VALUE))
         );
-    }
-
-    #[test]
-    fn default_terminal_env_keeps_system_session_variables() {
-        let vars: Vec<(OsString, OsString)> = pairs(&[
-            ("DISPLAY", ":0"),
-            ("WAYLAND_DISPLAY", "wayland-1"),
-            ("XDG_RUNTIME_DIR", "/run/user/1000"),
-            ("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus"),
-            ("LANG", "es_ES.UTF-8"),
-            ("LC_TIME", "es_ES.UTF-8"),
-            ("CARGO_PKG_NAME", "iworkflow"),
-        ]);
-        let kept: Vec<(OsString, OsString)> = default_terminal_env(vars.into_iter());
-        assert_eq!(kept.len(), 6);
-        assert!(
-            kept.iter()
-                .all(|(key, _): &(OsString, OsString)| key != "CARGO_PKG_NAME")
-        );
-    }
-
-    #[test]
-    fn default_terminal_env_does_not_panic_on_non_unicode_keys() {
-        use std::os::unix::ffi::OsStringExt;
-        let odd: OsString = OsString::from_vec(b"LC_\xff".to_vec());
-        let kept: Vec<(OsString, OsString)> =
-            default_terminal_env(vec![(odd.clone(), OsString::from("v"))].into_iter());
-        assert_eq!(kept, vec![(odd, OsString::from("v"))]);
     }
 
     #[tokio::test]

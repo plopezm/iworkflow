@@ -327,67 +327,111 @@ async fn reports_exit_and_unregisters_when_process_dies() {
     );
 }
 
+/// Agente falso ejecutable que anuncia su nombre y se queda leyendo stdin hasta EOF.
+fn named_agent(dir: &tempfile::TempDir, name: &str) -> String {
+    use std::os::unix::fs::PermissionsExt;
+    let path: PathBuf = dir.path().join(name);
+    let script: String = format!(
+        "#!/bin/sh\nprintf '%s\\n' '{{\"type\":\"extension_ui_request\",\"id\":\"n\",\"method\":\"notify\",\"message\":\"agent={name}\"}}'\ncat >/dev/null\n"
+    );
+    std::fs::write(&path, script).expect("write");
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+    path.to_string_lossy().into_owned()
+}
+
+/// Lanza el runtime pedido y devuelve el nombre con el que se anunció el agente.
+async fn launched_agent_for(runtime: Option<&str>) -> String {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: GentleShellRuntimeAdapter =
+        GentleShellRuntimeAdapter::new(named_agent(&dir, "gentle-shell"), named_agent(&dir, "pi"))
+            .with_stop_timeout(Duration::from_millis(500));
+    let options: LaunchOptions = LaunchOptions {
+        runtime: runtime.map(str::to_string),
+        ..LaunchOptions::default()
+    };
+    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
+    let task_id: TaskId = TaskId::new();
+
+    adapter
+        .start(task_id, dir.path(), false, &options, sink.clone())
+        .await
+        .expect("start");
+    let notice: AgentEvent = sink.wait_for(|e| is_notice_containing(e, "agent=")).await;
+    adapter.stop(task_id).await.expect("stop");
+    match notice {
+        AgentEvent::Notice { message, .. } => message,
+        other => panic!("se esperaba un aviso, no {other:?}"),
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
-async fn missing_binary_is_a_runtime_error() {
+async fn missing_binary_exits_with_the_shell_not_found_code() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
     let adapter: GentleShellRuntimeAdapter =
         GentleShellRuntimeAdapter::new("/nonexistent/gentle-shell", "/nonexistent/pi");
+    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
 
-    let result: Result<(), TaskError> = adapter
+    // Con la shell de login el lanzamiento no falla: es `exec` quien no encuentra el binario.
+    adapter
         .start(
             TaskId::new(),
             dir.path(),
             false,
             &LaunchOptions::default(),
-            Arc::new(CollectingSink::default()),
-        )
-        .await;
-
-    assert!(
-        matches!(result, Err(TaskError::Runtime(message)) if message.contains("no se pudo lanzar"))
-    );
-}
-
-async fn launch_error_for(runtime: Option<&str>) -> String {
-    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter =
-        GentleShellRuntimeAdapter::new("/nonexistent/gentle-shell", "/nonexistent/pi");
-    let options: LaunchOptions = LaunchOptions {
-        runtime: runtime.map(str::to_string),
-        ..LaunchOptions::default()
-    };
-
-    match adapter
-        .start(
-            TaskId::new(),
-            dir.path(),
-            false,
-            &options,
-            Arc::new(CollectingSink::default()),
+            sink.clone(),
         )
         .await
-    {
-        Err(TaskError::Runtime(message)) => message,
-        other => panic!("se esperaba un error de runtime, no {other:?}"),
-    }
+        .expect("start");
+
+    let exited: AgentEvent = sink
+        .wait_for(|e| matches!(e, AgentEvent::ProcessExited { .. }))
+        .await;
+    assert_eq!(exited, AgentEvent::ProcessExited { code: Some(127) });
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn pi_runtime_launches_the_pi_binary() {
-    assert!(
-        launch_error_for(Some("pi"))
-            .await
-            .contains("/nonexistent/pi")
-    );
+    assert!(launched_agent_for(Some("pi")).await.contains("agent=pi"));
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn default_and_gentle_shell_runtime_launch_gentle_shell() {
     for runtime in [None, Some("gentle-shell")] {
         assert!(
-            launch_error_for(runtime)
+            launched_agent_for(runtime)
                 .await
-                .contains("/nonexistent/gentle-shell")
+                .contains("agent=gentle-shell")
         );
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn agent_does_not_inherit_the_server_environment() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    // `cargo test` exporta CARGO_MANIFEST_DIR; el agente no debe verlo pero sí HOME.
+    let script: &str = "printf '{\"type\":\"extension_ui_request\",\"id\":\"e\",\"method\":\"notify\",\"message\":\"env cargo=[%s] home=[%s]\"}\\n' \"$CARGO_MANIFEST_DIR\" \"$HOME\"; cat >/dev/null";
+    let adapter: GentleShellRuntimeAdapter =
+        GentleShellRuntimeAdapter::with_command("sh", vec!["-c".into(), script.into()])
+            .with_stop_timeout(Duration::from_millis(500));
+    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
+    let task_id: TaskId = TaskId::new();
+
+    adapter
+        .start(
+            task_id,
+            dir.path(),
+            false,
+            &LaunchOptions::default(),
+            sink.clone(),
+        )
+        .await
+        .expect("start");
+    let notice: AgentEvent = sink
+        .wait_for(|e| is_notice_containing(e, "env cargo="))
+        .await;
+    adapter.stop(task_id).await.expect("stop");
+
+    let home: String = std::env::var("HOME").expect("HOME");
+    assert!(is_notice_containing(&notice, "cargo=[]"));
+    assert!(is_notice_containing(&notice, &format!("home=[{home}]")));
 }
