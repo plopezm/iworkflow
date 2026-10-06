@@ -88,6 +88,57 @@ async fn spawns_in_the_given_cwd() {
 }
 
 #[tokio::test]
+async fn shell_keeps_system_variables_but_not_those_set_by_the_parent() {
+    // `cargo test` exporta CARGO_MANIFEST_DIR al proceso de test: es una variable del padre.
+    assert!(std::env::var_os("CARGO_MANIFEST_DIR").is_some());
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: PortablePtyAdapter = PortablePtyAdapter::with_shell("sh");
+    let id: TerminalSessionId = spawn_sh(&adapter, dir.path(), "demo").await;
+    let mut output: Receiver<Vec<u8>> = adapter.attach(id).await.expect("attach").output;
+    adapter
+        .write(
+            id,
+            b"echo parent=${CARGO_MANIFEST_DIR-unset} home=${HOME:+set} term=$TERM\n".to_vec(),
+        )
+        .await
+        .expect("write");
+    let seen: String = read_until(&mut output, "term=xterm-256color").await;
+    assert!(seen.contains("parent=unset"), "salida: {seen:?}");
+    assert!(seen.contains("home=set"), "salida: {seen:?}");
+    adapter
+        .write(id, b"echo path=$PATH\n".to_vec())
+        .await
+        .expect("write");
+    let path_seen: String = read_until(&mut output, "path=/").await;
+    // El PATH no es el del padre (que en este proceso incluye el de cargo).
+    let parent_path: String = std::env::var("PATH").unwrap_or_default();
+    assert!(
+        !path_seen.contains(&format!("path={parent_path}"))
+            || parent_path == "/usr/local/bin:/usr/bin:/bin",
+        "salida: {path_seen:?}"
+    );
+    adapter.close(id).await.expect("close");
+}
+
+#[tokio::test]
+async fn shell_starts_as_a_login_shell() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: PortablePtyAdapter = PortablePtyAdapter::with_shell("sh");
+    let id: TerminalSessionId = spawn_sh(&adapter, dir.path(), "demo").await;
+    let mut output: Receiver<Vec<u8>> = adapter.attach(id).await.expect("attach").output;
+    // `$-` no distingue el login en sh; `shopt login_shell` solo existe en bash, por eso se
+    // comprueba con el argv real del proceso (`$0` de un login sh empieza por `-` o la shell
+    // recibió `-l`).
+    adapter
+        .write(id, b"ps -o args= -p $$ | sed 's/^/args=/'\n".to_vec())
+        .await
+        .expect("write");
+    let seen: String = read_until(&mut output, " -l").await;
+    assert!(seen.contains("args="), "salida: {seen:?}");
+    adapter.close(id).await.expect("close");
+}
+
+#[tokio::test]
 async fn unknown_session_is_not_found() {
     let adapter: PortablePtyAdapter = PortablePtyAdapter::new();
     let id: TerminalSessionId = TerminalSessionId::new();
