@@ -4,7 +4,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::Tas
 use crate::modules::tasks::presentation::components::task_card::{
     TaskCard, TaskCardBusy, TaskCardHandlers,
 };
-use crate::modules::tasks::presentation::state::board_state::{LaneView, card_key};
+use crate::modules::tasks::presentation::state::board_state::{
+    LaneView, card_key, lane_attention_label, lane_total_label,
+};
 
 /// Carril del tablero: cabecera con contadores del workspace y sus tarjetas.
 #[component]
@@ -39,12 +41,13 @@ pub fn BoardLane(
                 </div>
                 <div class="row gap-1.5">
                     <span class="badge badge-muted">
-                        {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.total))}
+                        {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| lane_total_label(l.total)))}
                     </span>
                     {move || {
                         let attention: usize = lane
                             .with(|l: &Option<LaneView>| l.as_ref().map_or(0, |l: &LaneView| l.attention_count));
-                        (attention > 0).then(|| view! { <span class="badge badge-attention">{attention}</span> })
+                        lane_attention_label(attention)
+                            .map(|label: String| view! { <span class="badge badge-attention">{label}</span> })
                     }}
                 </div>
             </header>

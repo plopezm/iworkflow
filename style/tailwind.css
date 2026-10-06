@@ -292,6 +292,8 @@ body::after {
 }
 
 /* ── Flat bordered surfaces ─────────────────────── */
+/* In the components layer so utilities (e.g. stage rails) can override the border. */
+@layer components {
 .card {
   @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3 transition-[border-color,transform,box-shadow] duration-200;
   /* Registration ticks in the top-right corner, like a printed form. */
@@ -301,6 +303,7 @@ body::after {
   background-repeat: no-repeat;
   background-size: 9px 1px, 1px 9px;
   background-position: right 5px top 5px, right 5px top 5px;
+}
 }
 article.card:hover {
   border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));

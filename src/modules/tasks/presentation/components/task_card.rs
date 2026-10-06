@@ -51,26 +51,37 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
     let id: String = task.id.clone();
     let title: String = task.title.clone();
     let is_backlog: bool = task.stage == TaskStageDto::Backlog;
-    let article_class: Memo<String> = Memo::new(move |_| {
-        let base: &str = if task.needs_attention {
-            "card border-l-[3px] border-l-stage-attention animate-fade-in animate-pulse-glow stack gap-2.5"
+    let show_prompt: bool = prompt_adds_info(&task.title, &task.prompt);
+    let article_class: String = format!(
+        "card {} animate-fade-in stack gap-2.5{}",
+        stage_rail_class(task.stage),
+        if task.needs_attention {
+            " animate-pulse-glow"
         } else {
-            "card animate-fade-in stack gap-2.5"
-        };
-        base.to_string()
-    });
+            ""
+        }
+    );
 
     view! {
-        <article class=move || article_class.get()
-        >
+        <article class=article_class>
             <div class="row justify-between gap-2">
                 <A
                     href=format!("/tasks/{id}")
-                    attr:class="line-clamp-1 font-medium text-fg hover:text-accent transition-colors"
+                    attr:class="line-clamp-2 font-medium text-fg hover:text-accent transition-colors"
                 >
                     {title}
                 </A>
-                <StageBadge stage=task.stage />
+                <div class="row shrink-0 gap-1.5">
+                    <StageBadge stage=task.stage />
+                    {(task.pending_dialogs > 0)
+                        .then(|| {
+                            view! {
+                                <span class="badge badge-muted">
+                                    {pending_dialogs_label(task.pending_dialogs)}
+                                </span>
+                            }
+                        })}
+                </div>
             </div>
             {(task.priority != TaskPriorityDto::Normal)
                 .then(|| {
@@ -83,27 +94,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                         </div>
                     }
                 })}
-            {task
-                .needs_attention
-                .then(|| {
-                    view! {
-                        <div class="row gap-1.5">
-                            <span class="badge badge-attention">
-                                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-current"></span>
-                                "Necesita atención"
-                            </span>
-                            {(task.pending_dialogs > 0)
-                                .then(|| {
-                                    view! {
-                                        <span class="badge badge-muted">
-                                            {pending_dialogs_label(task.pending_dialogs)}
-                                        </span>
-                                    }
-                                })}
-                        </div>
-                    }
-                })}
-            <p class="muted line-clamp-2">{task.prompt.clone()}</p>
+            {show_prompt.then(|| view! { <p class="muted line-clamp-2">{task.prompt.clone()}</p> })}
             {(!is_backlog)
                 .then(|| {
                     view! {
@@ -148,7 +139,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     .then(|| {
                                         view! {
                                             <button
-                                                class="btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                                                class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
                                                 on:click=move |_| handlers.edit.run(edit_task.clone())
                                             >
                                                 "Editar"
@@ -160,7 +151,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     .then(|| {
                                         view! {
                                             <button
-                                                class="btn-danger min-h-9 px-3 py-1.5 text-xs"
+                                                class="btn-ghost min-h-9 px-3 py-1.5 text-xs hover:bg-error/10 hover:text-error"
                                                 disabled=move || delete_busy.get()
                                                 on:click=move |_| {
                                                     if confirm("¿Borrar esta tarea de la lista de pendientes?") {
@@ -188,7 +179,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                             view! {
                                 <A
                                     href=format!("/tasks/{id}")
-                                    attr:class="btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                                    attr:class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
                                 >
                                     "Abrir"
                                 </A>
@@ -229,6 +220,28 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
     }
 }
 
+/// Left-rail classes (full literals so Tailwind can see them) colored by stage.
+fn stage_rail_class(stage: TaskStageDto) -> &'static str {
+    match stage {
+        TaskStageDto::Backlog => "border-l-[3px] border-l-stage-backlog",
+        TaskStageDto::Working => "border-l-[3px] border-l-stage-working",
+        TaskStageDto::Attention => "border-l-[3px] border-l-stage-attention",
+        TaskStageDto::Review => "border-l-[3px] border-l-stage-review",
+        TaskStageDto::Done => "border-l-[3px] border-l-stage-done",
+    }
+}
+
+/// Whether the prompt adds information beyond the title (titles are often the prompt
+/// truncated with a trailing '…').
+pub fn prompt_adds_info(title: &str, prompt: &str) -> bool {
+    let prompt: &str = prompt.trim();
+    if prompt.is_empty() {
+        return false;
+    }
+    let stem: &str = title.trim().trim_end_matches('…').trim_end();
+    stem.is_empty() || !prompt.starts_with(stem)
+}
+
 /// Etiqueta con singular/plural del número de diálogos pendientes.
 fn pending_dialogs_label(count: usize) -> String {
     if count == 1 {
@@ -249,6 +262,28 @@ mod tests {
             "2026-09-28 16:39"
         );
         assert_eq!(short_timestamp("corto"), "corto");
+    }
+
+    #[test]
+    fn prompt_hidden_when_it_repeats_the_title() {
+        assert!(!prompt_adds_info("Arreglar login", "Arreglar login"));
+        assert!(!prompt_adds_info(
+            "Arreglar el log…",
+            " Arreglar el login del panel "
+        ));
+        assert!(!prompt_adds_info("t", "  "));
+    }
+
+    #[test]
+    fn prompt_shown_when_it_differs_from_the_title() {
+        assert!(prompt_adds_info("Arreglar login", "Revisar el flujo OAuth"));
+        assert!(prompt_adds_info("", "algo"));
+    }
+
+    #[test]
+    fn stage_rail_is_colored_per_stage() {
+        assert!(stage_rail_class(TaskStageDto::Working).ends_with("stage-working"));
+        assert!(stage_rail_class(TaskStageDto::Done).ends_with("stage-done"));
     }
 
     #[test]
