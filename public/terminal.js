@@ -95,6 +95,27 @@
     };
   }
 
+  var KEYS = {
+    tab: "\t",
+    ctrl_c: "\x03",
+    up: "A",
+    down: "B",
+    right: "C",
+    left: "D",
+  };
+
+  // Envía una tecla con nombre como si se hubiera pulsado en el teclado.
+  function sendKey(handle, key) {
+    if (!handle || !handle.term || !Object.prototype.hasOwnProperty.call(KEYS, key)) return;
+    var seq = KEYS[key];
+    if (seq.length === 1 && seq >= "A" && seq <= "D") {
+      var app = handle.term.modes && handle.term.modes.applicationCursorKeysMode;
+      seq = (app ? "\x1bO" : "\x1b[") + seq;
+    }
+    handle.term.input(seq, true);
+    handle.term.focus();
+  }
+
   function close(handle) {
     if (handle && handle.cleanup) {
       handle.cleanup();
@@ -102,5 +123,5 @@
     }
   }
 
-  window.iwfTerminal = { open: open, close: close };
+  window.iwfTerminal = { open: open, close: close, sendKey: sendKey };
 })();

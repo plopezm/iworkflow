@@ -1,6 +1,8 @@
 use leptos::html;
 use leptos::prelude::*;
 
+use crate::modules::terminal::presentation::components::terminal_key_bar::TerminalKeyBar;
+
 #[cfg(feature = "hydrate")]
 mod js {
     use wasm_bindgen::JsValue;
@@ -46,6 +48,10 @@ export function iwf_terminal_open(el, sessionId) {
   return handle;
 }
 
+export function iwf_terminal_send_key(handle, key) {
+  if (handle.inner) window.iwfTerminal.sendKey(handle.inner, key);
+}
+
 export function iwf_terminal_close(handle) {
   handle.closed = true;
   if (handle.inner) {
@@ -56,17 +62,19 @@ export function iwf_terminal_close(handle) {
 "#)]
     extern "C" {
         pub fn iwf_terminal_open(el: &JsValue, session_id: &str) -> JsValue;
+        pub fn iwf_terminal_send_key(handle: &JsValue, key: &str);
         pub fn iwf_terminal_close(handle: &JsValue);
     }
 }
 
-/// Monta un xterm.js conectado a la sesión de terminal por id. Solo actúa en el navegador.
+/// Monta un xterm.js conectado a la sesión de terminal por id, con una hilera de teclas
+/// especiales debajo. Solo actúa en el navegador.
 #[component]
 pub fn TerminalView(#[prop(into)] session_id: String) -> impl IntoView {
     let container: NodeRef<html::Div> = NodeRef::new();
 
     #[cfg(feature = "hydrate")]
-    {
+    let on_key: Callback<&'static str> = {
         use wasm_bindgen::JsValue;
 
         let handle: StoredValue<Option<JsValue>, LocalStorage> = StoredValue::new_local(None);
@@ -84,9 +92,22 @@ pub fn TerminalView(#[prop(into)] session_id: String) -> impl IntoView {
                 js::iwf_terminal_close(&opened);
             }
         });
-    }
+        Callback::new(move |key: &'static str| {
+            handle.with_value(|opened: &Option<JsValue>| {
+                if let Some(opened) = opened {
+                    js::iwf_terminal_send_key(opened, key);
+                }
+            });
+        })
+    };
     #[cfg(not(feature = "hydrate"))]
-    let _session_id: String = session_id;
+    let on_key: Callback<&'static str> = {
+        let _session_id: String = session_id;
+        Callback::new(|_key: &'static str| {})
+    };
 
-    view! { <div node_ref=container class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface p-2"></div> }
+    view! {
+        <div node_ref=container class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface p-2"></div>
+        <TerminalKeyBar on_key=on_key />
+    }
 }
