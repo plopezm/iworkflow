@@ -30,10 +30,10 @@ pub fn BoardLane(
         >
             <header class="flex shrink-0 items-start justify-between gap-2">
                 <div class="stack gap-0.5">
-                    <h2 class="font-semibold text-fg">
+                    <h2 class="font-display text-xl leading-none text-fg">
                         {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.workspace_name.clone()))}
                     </h2>
-                    <code class="text-xs text-muted">
+                    <code class="eyebrow normal-case tracking-wider">
                         {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.base_branch.clone()))}
                     </code>
                 </div>
@@ -48,7 +48,7 @@ pub fn BoardLane(
                     }}
                 </div>
             </header>
-            <div class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1">
+            <div class="reveal flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pr-1">
                 <For
                     each=move || {
                         lane.with(|l: &Option<LaneView>| {

@@ -164,7 +164,7 @@ pub fn BoardPage() -> impl IntoView {
             <p class="muted p-8 text-center">"No hay tareas visibles con estos filtros."</p>
         </Show>
         <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| !l.is_empty())>
-            <div class="flex min-h-0 flex-1 snap-x snap-mandatory gap-4 overflow-x-auto p-4">
+            <div class="reveal flex min-h-0 flex-1 snap-x snap-mandatory gap-5 overflow-x-auto p-5">
                 <For
                     each=move || lanes.with(|l: &Vec<LaneView>| lane_ids(l))
                     key=|id: &String| id.clone()

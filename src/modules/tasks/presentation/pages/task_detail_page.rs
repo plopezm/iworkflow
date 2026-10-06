@@ -216,7 +216,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                             let task: TaskDto = task;
                                             let is_backlog: bool = task.stage == TaskStageDto::Backlog;
                                             view! {
-                                                <h1 class="truncate text-sm font-bold">{task.title.clone()}</h1>
+                                                <h1 class="page-title truncate text-xl">{task.title.clone()}</h1>
                                                 {(!is_backlog)
                                                     .then(|| {
                                                         view! {

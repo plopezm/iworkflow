@@ -17,7 +17,7 @@ pub fn TerminalsPage() -> impl IntoView {
         <Title text="Terminales" />
         <div class="flex h-full min-h-0 flex-col">
             <div class="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2.5">
-                <h1 class="text-sm font-bold tracking-widest uppercase">"Terminales"</h1>
+                <h1 class="page-title">"Terminales"</h1>
                 <button
                     class="btn-secondary min-h-8 px-2.5 py-1 text-xs"
                     on:click=move |_| state.reload()

@@ -20,7 +20,7 @@ pub fn StageBadge(stage: TaskStageDto) -> impl IntoView {
     view! {
         <span class=format!("badge badge-{variant}")>
             {(stage == TaskStageDto::Working)
-                .then(|| view! { <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-current"></span> })}
+                .then(|| view! { <span class="live-dot"></span> })}
             {stage.label()}
         </span>
     }

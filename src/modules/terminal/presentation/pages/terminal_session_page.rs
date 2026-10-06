@@ -32,7 +32,7 @@ pub fn TerminalSessionPage() -> impl IntoView {
                 </Show>
                 <section class="stack h-full min-h-0 gap-3 animate-slide-up">
                     <header class="row justify-between">
-                        <h1 class="truncate text-base font-semibold text-fg">
+                        <h1 class="page-title truncate text-xl">
                             <Suspense fallback=fallback_title>
                                 {title_view}
                             </Suspense>

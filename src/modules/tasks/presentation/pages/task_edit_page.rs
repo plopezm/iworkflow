@@ -65,7 +65,7 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                         state.submit();
                                     }
                                 >
-                                    <h1 class="text-xl font-bold text-fg">"Editar tarea"</h1>
+                                    <h1 class="page-title">"Editar tarea"</h1>
                                     <TextField
                                         label="Título (opcional)"
                                         value=state.form_title

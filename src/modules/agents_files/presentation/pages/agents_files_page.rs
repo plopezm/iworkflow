@@ -38,7 +38,7 @@ pub fn AgentsFilesPage() -> impl IntoView {
     view! {
         <div class="flex h-full min-h-0 flex-col">
             <div class="flex shrink-0 items-center border-b border-border bg-surface px-4 py-2.5">
-                <h1 class="text-sm font-bold tracking-widest uppercase">"AGENTS.md"</h1>
+                <h1 class="page-title">"AGENTS.md"</h1>
             </div>
             <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
                 <Card title="Subir fichero">
