@@ -21,6 +21,7 @@ use crate::modules::tasks::presentation::components::task_actions::{
 };
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
 use crate::modules::tasks::presentation::components::transcript_view::TranscriptView;
+use crate::modules::tasks::presentation::state::diff_report_state::DiffReportState;
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
@@ -160,6 +161,7 @@ pub fn TaskDetailPage() -> impl IntoView {
 #[component]
 fn TaskDetailContent(task_id: String) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
+    let report: DiffReportState = DiffReportState::new(state.task_id, state.transcript, state.send);
     let right_open: RwSignal<bool> = RwSignal::new(true);
     let right_overlay: RwSignal<bool> = RwSignal::new(false);
     let active_tab: RwSignal<String> = RwSignal::new(TAB_ACTIONS.to_string());
@@ -391,7 +393,15 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                 <Suspense fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
                                     {move || Suspend::new(async move {
                                         match state.diff.await {
-                                            Some(Ok(diff)) => view! { <DiffView diff /> }.into_any(),
+                                            Some(Ok(diff)) => {
+                                                let title: String = state
+                                                    .task
+                                                    .get()
+                                                    .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
+                                                    .map(|t: TaskDto| t.title)
+                                                    .unwrap_or_else(|| "Informe de cambios".to_string());
+                                                view! { <DiffView diff title report /> }.into_any()
+                                            }
                                             Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
                                             None => {
                                                 view! { <p class="muted">"Sin diff disponible para esta tarea."</p> }
