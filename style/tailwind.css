@@ -705,3 +705,97 @@ article.card:hover {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Printable diff report ──────────────────────── */
+.print-report {
+  @apply fixed inset-0 z-[100] flex flex-col overflow-hidden bg-bg;
+}
+.print-report-toolbar {
+  @apply flex shrink-0 gap-2 border-b border-border bg-surface p-3;
+}
+.print-report-page {
+  @apply mx-auto w-full max-w-4xl flex-1 overflow-y-auto p-6;
+}
+.print-report-page h1 {
+  @apply mb-3 text-2xl font-bold;
+}
+.print-report-page h2 {
+  @apply mb-2 mt-5 text-lg font-semibold;
+}
+.print-report-block {
+  @apply whitespace-pre-wrap break-words rounded-md bg-surface-2/40 p-3 text-sm;
+}
+.print-report-file {
+  @apply mt-4;
+}
+
+@media print {
+  /* Only the report (its portal container in <body>) is printed. */
+  body > *:not(:has(.print-report)) {
+    display: none !important;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .print-report {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .print-report-toolbar {
+    display: none !important;
+  }
+  .print-report-page {
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .print-report,
+  .print-report * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #111;
+  }
+  .print-report .print-report-block,
+  .print-report .diff {
+    background: #fff !important;
+    border: 1px solid #ccc !important;
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .print-report .diff div {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-report .diff-add {
+    background: #e6ffed !important;
+    color: #14532d !important;
+  }
+  .print-report .diff-del {
+    background: #ffeef0 !important;
+    color: #7f1d1d !important;
+  }
+  .print-report .diff-hunk {
+    color: #6b21a8 !important;
+  }
+  .print-report .diff-file {
+    color: #1d4ed8 !important;
+    break-after: avoid;
+  }
+  .print-report .diff-meta,
+  .print-report .diff-ctx {
+    color: #555 !important;
+  }
+  .print-report-file {
+    break-inside: auto;
+  }
+}

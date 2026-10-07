@@ -4,6 +4,7 @@ pub mod board_lane;
 pub mod board_toolbar;
 pub mod composer;
 pub mod dialog_panel;
+pub mod diff_report;
 pub mod diff_view;
 pub mod stage_badge;
 pub mod task_actions;
