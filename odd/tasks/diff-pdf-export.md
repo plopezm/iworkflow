@@ -10,3 +10,4 @@ overlay (decisions by user: explanations from the agent, browser printing).
 - [x] 3. `DiffReport` printable component (Portal overlay) + `@media print` CSS
 - [x] 4. Buttons above the diff in `DiffView` wired to the state in `task_detail_page`
 - [x] 5. fmt, clippy ssr/hydrate, tests; commit
+- [x] 6. Show send failures in the report state (Failed phase, waiting banner replaced by an error with close) + automated tests of the state wiring

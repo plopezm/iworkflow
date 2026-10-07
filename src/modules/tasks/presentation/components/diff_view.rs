@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::components::layout::ErrorText;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::presentation::components::diff_report::DiffReport;
 use crate::modules::tasks::presentation::state::diff_report_state::{DiffReportState, ReportPhase};
@@ -55,6 +56,28 @@ pub fn DiffView(
                             <button type="button" class="btn-ghost" on:click=move |_| report.close()>
                                 "Cancelar"
                             </button>
+                        </div>
+                    }
+                        .into_any()
+                }
+                ReportPhase::Failed(error) => {
+                    view! {
+                        <div class="notice animate-fade-in flex items-center justify-between gap-2">
+                            <ErrorText message=format!(
+                                "No se pudo pedir la explicación al agente: {error}",
+                            ) />
+                            <span class="flex gap-2">
+                                <button
+                                    type="button"
+                                    class="btn-secondary"
+                                    on:click=move |_| report.request_explanation()
+                                >
+                                    "Reintentar"
+                                </button>
+                                <button type="button" class="btn-ghost" on:click=move |_| report.close()>
+                                    "Cerrar"
+                                </button>
+                            </span>
                         </div>
                     }
                         .into_any()
