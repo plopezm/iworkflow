@@ -269,6 +269,8 @@ body::after {
 }
 
 /* ── Buttons ────────────────────────────────────── */
+/* In the components layer so utilities (e.g. `md:hidden`, `rounded-full`) can override them. */
+@layer components {
 .btn-primary {
   @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-[11px] font-bold tracking-wider text-on-accent uppercase transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50;
   box-shadow: 2px 2px 0 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
@@ -289,6 +291,7 @@ body::after {
 }
 .btn-ghost {
   @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-[11px] font-medium tracking-wider text-muted uppercase transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+}
 }
 
 /* ── Flat bordered surfaces ─────────────────────── */
