@@ -158,6 +158,7 @@ pub struct TaskActionsDto {
     pub can_resume: bool,
     pub can_merge: bool,
     pub can_discard: bool,
+    pub can_reset: bool,
     pub can_view_diff: bool,
     pub can_start: bool,
     pub can_edit: bool,
@@ -264,6 +265,7 @@ mod mapping {
                 can_resume: status.can_resume(),
                 can_merge: status.can_merge(),
                 can_discard: status.can_discard(),
+                can_reset: status.can_reset(),
                 can_view_diff: !status.is_closed() && status != TaskStatus::Backlog,
                 can_start: status.can_start(),
                 can_edit: status.can_edit(),
@@ -476,8 +478,20 @@ mod mapping {
             assert!(backlog.actions.can_delete);
             assert!(!backlog.actions.can_view_diff);
             assert!(!backlog.actions.can_discard);
+            assert!(!backlog.actions.can_reset);
             assert_eq!(backlog.stage, TaskStageDto::Backlog);
             assert!(!backlog.needs_attention);
+        }
+
+        #[test]
+        fn can_reset_follows_domain_rule() {
+            let running: TaskDto = TaskDto::from(task(TaskStatus::Running));
+            let discarded: TaskDto = TaskDto::from(task(TaskStatus::Discarded));
+            let merged: TaskDto = TaskDto::from(task(TaskStatus::Merged));
+
+            assert!(running.actions.can_reset);
+            assert!(discarded.actions.can_reset);
+            assert!(!merged.actions.can_reset);
         }
 
         #[test]

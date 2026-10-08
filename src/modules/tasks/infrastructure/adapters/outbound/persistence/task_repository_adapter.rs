@@ -239,6 +239,47 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         Ok(updated > 0)
     }
 
+    async fn reset_to_backlog(&self, id: TaskId) -> Result<bool, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let id_str: String = id.to_string();
+        let resettable: Vec<String> = TaskStatus::ALL
+            .into_iter()
+            .filter(|s: &TaskStatus| s.can_reset())
+            .map(|s: TaskStatus| s.as_str().to_string())
+            .collect();
+        connection
+            .immediate_transaction::<bool, DieselError, _>(async move |conn| {
+                let now: NaiveDateTime = Utc::now().naive_utc();
+                let updated: usize = diesel::update(
+                    tasks::table
+                        .filter(tasks::id.eq(id_str.clone()))
+                        .filter(tasks::status.eq_any(resettable)),
+                )
+                .set((
+                    tasks::branch.eq(""),
+                    tasks::worktree_path.eq(""),
+                    tasks::base_branch.eq(""),
+                    tasks::status.eq(TaskStatus::Backlog.as_str()),
+                    tasks::error.eq(None::<String>),
+                    tasks::pending_dialogs.eq(encode_pending_dialogs(&[])),
+                    tasks::subagents_active.eq(0),
+                    tasks::subagents_waiting.eq(0),
+                    tasks::updated_at.eq(now),
+                ))
+                .execute(conn)
+                .await?;
+                if updated == 0 {
+                    return Ok(false);
+                }
+                diesel::delete(task_events::table.filter(task_events::task_id.eq(id_str)))
+                    .execute(conn)
+                    .await?;
+                Ok(true)
+            })
+            .await
+            .map_err(db_error)
+    }
+
     async fn add_pending_dialog(&self, id: TaskId, dialog: PendingDialog) -> Result<(), TaskError> {
         let mut connection: DbConnection = self.connection().await?;
         let id_str: String = id.to_string();

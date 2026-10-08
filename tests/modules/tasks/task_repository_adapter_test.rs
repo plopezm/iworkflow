@@ -322,6 +322,97 @@ async fn revert_start_claim_ignores_tasks_not_in_starting() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn reset_to_backlog_deletes_events_and_clears_fields() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let other: Task = task(&ws.id.to_string(), "otra");
+    let running: Task = Task {
+        status: TaskStatus::Running,
+        error: Some("fallo".to_string()),
+        pending_dialogs: vec![PendingDialog::new("d1".to_string(), None)],
+        subagents: SubagentActivity::new(2, 1),
+        ..task(&ws.id.to_string(), "uno")
+    };
+    adapter.insert(&running).await.expect("insert");
+    adapter.insert(&other).await.expect("insert");
+    for id in [running.id, other.id] {
+        adapter
+            .append_event(id, TaskEventKind::status(TaskStatus::Running, None))
+            .await
+            .expect("evento");
+    }
+
+    let reset: bool = adapter.reset_to_backlog(running.id).await.expect("reset");
+
+    assert!(reset);
+    let after: Task = found(&adapter, running.id).await;
+    assert_eq!(after.status, TaskStatus::Backlog);
+    assert_eq!(after.branch, "");
+    assert_eq!(after.base_branch, "");
+    assert_eq!(after.worktree_path, PathBuf::new());
+    assert_eq!(after.error, None);
+    assert!(after.pending_dialogs.is_empty());
+    assert_eq!(after.subagents, SubagentActivity::default());
+    assert_eq!(after.title, running.title);
+    assert_eq!(after.prompt, running.prompt);
+    assert!(
+        adapter
+            .events(running.id, None)
+            .await
+            .expect("events")
+            .is_empty()
+    );
+    assert_eq!(
+        adapter.events(other.id, None).await.expect("events").len(),
+        1
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reset_to_backlog_ignores_backlog_merged_finishing_and_missing_tasks() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    for (title, status) in [
+        ("b", TaskStatus::Backlog),
+        ("m", TaskStatus::Merged),
+        ("f", TaskStatus::Finishing),
+    ] {
+        let original: Task = Task {
+            status,
+            ..task(&ws.id.to_string(), title)
+        };
+        adapter.insert(&original).await.expect("insert");
+        adapter
+            .append_event(original.id, TaskEventKind::status(status, None))
+            .await
+            .expect("evento");
+
+        let reset: bool = adapter.reset_to_backlog(original.id).await.expect("reset");
+
+        assert!(!reset);
+        let after: Task = found(&adapter, original.id).await;
+        assert_eq!(after.status, status);
+        assert_eq!(after.branch, original.branch);
+        assert_eq!(
+            adapter
+                .events(original.id, None)
+                .await
+                .expect("events")
+                .len(),
+            1
+        );
+    }
+
+    let missing: bool = adapter
+        .reset_to_backlog(TaskId::new())
+        .await
+        .expect("reset");
+    assert!(!missing);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn pending_dialogs_add_remove_clear_and_ignore_duplicates() {
     let db: common::TestDb = common::test_db().await;
     let ws: Workspace = workspace(&db, "/repos/a").await;

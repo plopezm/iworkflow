@@ -172,6 +172,11 @@ impl TaskRepositoryPort for RetryingTaskRepository {
             .await
     }
 
+    async fn reset_to_backlog(&self, id: TaskId) -> Result<bool, TaskError> {
+        self.retry("reset_to_backlog", || self.inner.reset_to_backlog(id))
+            .await
+    }
+
     async fn add_pending_dialog(&self, id: TaskId, dialog: PendingDialog) -> Result<(), TaskError> {
         self.retry("add_pending_dialog", || {
             self.inner.add_pending_dialog(id, dialog.clone())

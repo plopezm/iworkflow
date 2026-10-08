@@ -45,6 +45,11 @@ pub trait TaskRepositoryPort: Send + Sync {
     /// reclamarla): `Starting` -> `Backlog`, solo si la tarea sigue en `Starting`.
     /// Devuelve `false` si no se pudo revertir.
     async fn revert_start_claim(&self, id: TaskId) -> Result<bool, TaskError>;
+    /// Restablece la tarea a `Backlog` en una única transacción: borra sus eventos y
+    /// vacía rama, worktree, rama base, error, diálogos y actividad de subagentes. Solo
+    /// se aplica si el estado cumple `TaskStatus::can_reset`; devuelve `false` (sin
+    /// modificar nada) si la tarea no existe o su estado no lo permite.
+    async fn reset_to_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
     /// Añade un diálogo pendiente, en una única transacción que ignora la petición si
     /// la tarea no existe, ya no tiene un agente vivo, o el diálogo ya estaba en la
     /// lista (evita diálogos duplicados o huérfanos por condiciones de carrera).

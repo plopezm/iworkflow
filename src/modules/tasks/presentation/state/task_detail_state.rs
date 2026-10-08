@@ -6,8 +6,8 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResumeTask,
-    SendTaskMessage, StartTask, get_task, get_task_diff,
+    AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResetTask,
+    ResumeTask, SendTaskMessage, StartTask, get_task, get_task_diff,
 };
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
@@ -33,6 +33,7 @@ pub struct TaskDetailState {
     pub resume: ServerAction<ResumeTask>,
     pub merge: ServerAction<MergeTask>,
     pub discard: ServerAction<DiscardTask>,
+    pub reset: ServerAction<ResetTask>,
     pub start: ServerAction<StartTask>,
     pub delete: ServerAction<DeleteTask>,
     /// Se incrementa con cada cambio de estado o edición recibido por SSE.
@@ -51,6 +52,7 @@ impl TaskDetailState {
         let resume: ServerAction<ResumeTask> = ServerAction::new();
         let merge: ServerAction<MergeTask> = ServerAction::new();
         let discard: ServerAction<DiscardTask> = ServerAction::new();
+        let reset: ServerAction<ResetTask> = ServerAction::new();
         let start: ServerAction<StartTask> = ServerAction::new();
         let delete: ServerAction<DeleteTask> = ServerAction::new();
         let show_diff: RwSignal<bool> = RwSignal::new(false);
@@ -64,6 +66,7 @@ impl TaskDetailState {
                     resume.version().get(),
                     merge.version().get(),
                     discard.version().get(),
+                    reset.version().get(),
                     start.version().get(),
                 )
             },
@@ -108,11 +111,18 @@ impl TaskDetailState {
             resume,
             merge,
             discard,
+            reset,
             start,
             delete,
             status_version,
             removed: RwSignal::new(false),
         };
+        // Tras restablecer, el historial local ya no existe en el servidor.
+        Effect::new(move |_| {
+            if matches!(reset.value().get(), Some(Ok(_))) {
+                state.transcript.set(Transcript::default());
+            }
+        });
         state.connect_events();
         state
     }
@@ -168,6 +178,12 @@ impl TaskDetailState {
         });
     }
 
+    pub fn reset(&self) {
+        self.reset.dispatch(ResetTask {
+            id: self.task_id.get_value(),
+        });
+    }
+
     pub fn start(&self) {
         self.start.dispatch(StartTask {
             id: self.task_id.get_value(),
@@ -194,6 +210,7 @@ impl TaskDetailState {
             .or_else(|| error_of(self.resume.value().get()))
             .or_else(|| error_of(self.merge.value().get()))
             .or_else(|| error_of(self.discard.value().get()))
+            .or_else(|| error_of(self.reset.value().get()))
             .or_else(|| error_of(self.start.value().get()))
             .or_else(|| error_of(self.delete.value().get()))
     }

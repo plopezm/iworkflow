@@ -46,6 +46,7 @@ mock! {
             base_branch: String,
         ) -> Result<bool, TaskError>;
         async fn revert_start_claim(&self, id: TaskId) -> Result<bool, TaskError>;
+        async fn reset_to_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
         async fn add_pending_dialog(&self, id: TaskId, dialog: PendingDialog) -> Result<(), TaskError>;
         async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError>;
         async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError>;
