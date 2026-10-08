@@ -8,3 +8,5 @@ Acción "Restablecer" en la pantalla de la tarea: detiene el agente, elimina wor
 - [x] 4. Server fn `reset_task`, `can_reset` en `TaskActionsDto` + tests
 - [x] 5. UI: botón "Restablecer" en `TaskActions`, `TaskDetailState.reset`
 - [x] 6. fmt, clippy ssr/hydrate, tests
+
+Commit: fe10884
