@@ -161,6 +161,17 @@ pub fn TaskDetailPage() -> impl IntoView {
 #[component]
 fn TaskDetailContent(task_id: String) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
+    let navigate = use_navigate();
+    // Restablecer deja la tarea en Backlog, que no tiene pantalla propia: vuelta al tablero.
+    Effect::new(move |_| {
+        let reset_done: bool = state
+            .reset
+            .value()
+            .with(|r: &Option<Result<(), ServerFnError>>| matches!(r, Some(Ok(()))));
+        if reset_done {
+            navigate("/", NavigateOptions::default());
+        }
+    });
     let report: DiffReportState = DiffReportState::new(state.task_id, state.transcript, state.send);
     let right_open: RwSignal<bool> = RwSignal::new(true);
     let right_overlay: RwSignal<bool> = RwSignal::new(false);
