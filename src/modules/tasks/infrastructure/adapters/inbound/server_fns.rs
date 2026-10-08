@@ -197,6 +197,15 @@ pub async fn discard_task(id: String) -> Result<(), ServerFnError> {
 }
 
 #[server]
+pub async fn reset_task(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .reset_task
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
 pub async fn get_task_diff(id: String) -> Result<TaskDiffDto, ServerFnError> {
     support::context()?
         .get_task_diff

@@ -185,6 +185,15 @@ impl TaskStatus {
         !self.is_closed() && *self != TaskStatus::Finishing && *self != TaskStatus::Backlog
     }
 
+    /// Restablecer vuelve la tarea a `Backlog`: no tiene sentido en `Backlog`, un merge no se
+    /// puede deshacer y `Finishing` tiene una operación en curso.
+    pub fn can_reset(&self) -> bool {
+        !matches!(
+            self,
+            TaskStatus::Backlog | TaskStatus::Merged | TaskStatus::Finishing
+        )
+    }
+
     /// Solo una tarea en `Backlog` puede arrancarse.
     pub fn can_start(&self) -> bool {
         matches!(self, TaskStatus::Backlog)
@@ -532,6 +541,16 @@ mod tests {
         assert!(TaskStatus::Conflict.can_resume());
         assert!(!TaskStatus::Merged.can_discard());
         assert!(!TaskStatus::Finishing.can_discard());
+    }
+
+    #[test]
+    fn reset_is_not_allowed_in_backlog_merged_or_finishing() {
+        assert!(!TaskStatus::Backlog.can_reset());
+        assert!(!TaskStatus::Merged.can_reset());
+        assert!(!TaskStatus::Finishing.can_reset());
+        assert!(TaskStatus::Discarded.can_reset());
+        assert!(TaskStatus::Running.can_reset());
+        assert!(TaskStatus::Conflict.can_reset());
     }
 
     #[test]

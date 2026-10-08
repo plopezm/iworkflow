@@ -11,6 +11,7 @@ pub struct TaskActionHandlers {
     pub resume: Callback<()>,
     pub merge: Callback<()>,
     pub discard: Callback<()>,
+    pub reset: Callback<()>,
     pub toggle_diff: Callback<()>,
 }
 
@@ -105,6 +106,22 @@ pub fn TaskActions(
                             )
                         >
                             "Descartar"
+                        </button>
+                    }
+                })}
+            {actions
+                .can_reset
+                .then(|| {
+                    view! {
+                        <button
+                            class="btn-danger"
+                            disabled=move || busy.get()
+                            on:click=confirmed(
+                                "¿Restablecer la tarea? Se detendrá el agente, se borrarán el worktree, la rama y el historial, y volverá a Backlog.",
+                                handlers.reset,
+                            )
+                        >
+                            "Restablecer"
                         </button>
                     }
                 })}

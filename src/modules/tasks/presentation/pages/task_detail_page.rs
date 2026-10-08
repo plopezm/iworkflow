@@ -176,6 +176,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         resume: Callback::new(move |_| state.resume()),
         merge: Callback::new(move |_| state.merge()),
         discard: Callback::new(move |_| state.discard()),
+        reset: Callback::new(move |_| state.reset()),
         toggle_diff: Callback::new(move |_| {
             let next: &str = if state.show_diff.get_untracked() {
                 TAB_ACTIONS
@@ -189,6 +190,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         state.finish.pending().get()
             || state.merge.pending().get()
             || state.discard.pending().get()
+            || state.reset.pending().get()
             || state.resume.pending().get()
             || state.abort.pending().get()
     });

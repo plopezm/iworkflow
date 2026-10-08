@@ -13,6 +13,7 @@ pub mod list_tasks;
 pub mod list_workspace_options;
 pub mod merge_task;
 pub mod reconcile_tasks;
+pub mod reset_task;
 pub mod resume_task;
 pub mod send_message;
 pub mod start_task;

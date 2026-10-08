@@ -21,6 +21,7 @@ use crate::modules::tasks::application::usecases::list_tasks::ListTasks;
 use crate::modules::tasks::application::usecases::list_workspace_options::ListWorkspaceOptions;
 use crate::modules::tasks::application::usecases::merge_task::MergeTask;
 use crate::modules::tasks::application::usecases::reconcile_tasks::ReconcileTasks;
+use crate::modules::tasks::application::usecases::reset_task::ResetTask;
 use crate::modules::tasks::application::usecases::resume_task::ResumeTask;
 use crate::modules::tasks::application::usecases::send_message::SendMessage;
 use crate::modules::tasks::application::usecases::start_task::StartTask;
@@ -68,6 +69,7 @@ pub struct TasksContext {
     pub list_tasks: Arc<ListTasks>,
     pub list_workspace_options: Arc<ListWorkspaceOptions>,
     pub reconcile_tasks: Arc<ReconcileTasks>,
+    pub reset_task: Arc<ResetTask>,
     /// Bus en vivo consumido por el endpoint SSE.
     pub event_bus: BroadcastTaskEventBus,
     /// Sink de eventos de agente (cola con reintento persistente hacia SQLite).
@@ -172,6 +174,11 @@ impl TasksContext {
             )),
             merge_task: Arc::new(MergeTask::new(lifecycle.clone(), worktrees.clone())),
             discard_task: Arc::new(DiscardTask::new(
+                lifecycle.clone(),
+                worktrees.clone(),
+                runtime.clone(),
+            )),
+            reset_task: Arc::new(ResetTask::new(
                 lifecycle.clone(),
                 worktrees.clone(),
                 runtime,
