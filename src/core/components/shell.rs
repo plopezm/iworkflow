@@ -285,7 +285,9 @@ pub fn AppShell(
                     >
                         "☰"
                     </button>
-                    <span class="font-display text-xl leading-none">{brand}</span>
+                    <A href="/" attr:class="font-display text-xl leading-none">
+                        {brand}
+                    </A>
                 </header>
                 <main class="grid-bg min-h-0 flex-1 overflow-hidden">{children()}</main>
             </div>
