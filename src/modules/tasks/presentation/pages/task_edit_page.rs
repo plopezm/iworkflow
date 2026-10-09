@@ -48,7 +48,7 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
 
     view! {
         <Title text="Editar tarea · iworkflow" />
-        <div class="mx-auto w-full max-w-5xl p-4 md:p-6">
+        <div class="mx-auto w-full max-w-5xl p-4 pb-10 md:p-6 md:pb-12">
             <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
                 {move || Suspend::new(async move {
                     match state.task.await {
