@@ -403,11 +403,11 @@ Rust puro. Sin Leptos, Diesel ni axum.
 
 | Fichero | Contenido |
 |---|---|
-| `task.rs` | `Task`, `TaskId` (newtype de `Uuid`), `TaskStatus` (11 estados + reglas de transición), `TaskStage` (vista agregada para el tablero), `NewTask`, helpers `branch_name(...)` |
+| `task.rs` | `Task`, `TaskId` (newtype de `Uuid`), `TaskStatus` (11 estados + reglas de transición, `can_view_diff`), `diff_range: Option<DiffRange>`, `TaskStage` (vista agregada para el tablero), `NewTask`, helpers `branch_name(...)` |
 | `agent_event.rs` | `AgentEvent`: eventos normalizados que emite el agente (`RunStarted`, `TextDelta`, `ToolFinished`, `DialogRequested`, `ProcessExited`, …) |
 | `agent_command.rs` | `AgentCommand`: órdenes hacia el agente (`Prompt`, `Steer`, `FollowUp`, `Abort`, `AnswerDialog`) |
 | `task_event.rs` | `TaskEvent` / `TaskEventKind`: lo que se persiste y se difunde (estado, agente, efímeros) |
-| `worktree.rs` | `MergeOutcome` (`Merged` / `Conflict { files }`), `TaskDiff` |
+| `worktree.rs` | `MergeOutcome` (`Merged` / `Conflict { files }`), `TaskDiff`, `DiffRange` (`base_sha..head_sha`: commits de la tarea, para regenerar su diff tras integrar) |
 | `workspace_ref.rs` | Vista mínima de un workspace desde el punto de vista de tareas |
 
 La parte más importante es que `TaskStatus` **encapsula las reglas**:
@@ -449,7 +449,7 @@ Lectura para Java: `matches!(x, A | B)` es un `switch` que devuelve `boolean`; l
 | `TaskRepositoryPort` | Persistir tareas y eventos; operaciones condicionales atómicas | `TaskRepositoryAdapter` (Diesel) |
 | `TaskAttachmentRepositoryPort` | Metadatos de imágenes adjuntas | `TaskAttachmentRepositoryAdapter` (Diesel) |
 | `AttachmentStoragePort` | Ficheros de imagen en disco | `FsAttachmentStorageAdapter` |
-| `WorktreePort` | `git worktree add`, commit, diff, merge, remove | `GitCliWorktreeAdapter` (ejecuta `git`) |
+| `WorktreePort` | `git worktree add`, commit, diff, `pin_range` / `diff_range` (diff de tareas integradas), merge, remove | `GitCliWorktreeAdapter` (ejecuta `git`) |
 | `AgentRuntimePort` | Lanzar/parar/hablar con el proceso del agente | `GentleShellRuntimeAdapter` |
 | `TaskEventPublisherPort` | Difundir eventos en vivo | `BroadcastTaskEventBus` (tokio broadcast) |
 | `WorkspaceLookupPort` | Consultar workspaces | `WorkspaceLookupBridge` (en `app_state.rs`) |
@@ -605,6 +605,8 @@ presentation/
 
 La página crea su estado, y los componentes pintan. Detalle completo en [§9](#9-frontend-leptos-y-signals).
 
+`state/diff_report_state.rs` gestiona el informe imprimible (PDF) del diff, simple o con explicaciones del agente (`ReportPhase`: `Preparing` → `Plain`/`Waiting` → `Ready`). Mientras está ocupado muestra el `ProgressDialog` cancelable de `core/components/`; el render pesado se retrasa un instante (`PREPARE_DELAY`) para que el navegador pinte antes el diálogo.
+
 ---
 
 ## 7. Flujos de extremo a extremo
@@ -728,7 +730,7 @@ flowchart LR
     D -- DiscardTask --> H[Discarded]
 ```
 
-`MergeTask` (resumen): llama a `worktrees.merge(...)`, que devuelve un `MergeOutcome`; con `match` se decide entre pasar a `Merged` (intentando limpiar el worktree) o `Conflict` con la lista de ficheros. Las reglas de `GitCliWorktreeAdapter` (rechazar si la rama base tiene cambios sin commitear, merge en worktree temporal si la rama base no está checkouteada, abortar ante conflictos) están en el adaptador, no en el caso de uso: son detalles de git.
+`MergeTask` (resumen): antes de integrar fija el rango de commits con `worktrees.pin_range(...)` (debe ser *antes*: tras el merge el merge-base coincide con la punta) y crea la referencia `refs/iworkflow/tasks/<id>` para que los commits sobrevivan al borrado de la rama. Tras un merge correcto guarda el rango con `record_diff_range` (columnas `base_sha`/`head_sha` de `tasks`). Fijar y guardar son *best-effort*: un fallo no impide integrar, solo deja una nota en el error de la tarea. Así, `GetTaskDiff` en una tarea `Merged` regenera el diff con `worktrees.diff_range(...)` en lugar de `diff(base, rama)`. Luego llama a `worktrees.merge(...)`, que devuelve un `MergeOutcome`; con `match` se decide entre pasar a `Merged` (intentando limpiar el worktree) o `Conflict` con la lista de ficheros. Las reglas de `GitCliWorktreeAdapter` (rechazar si la rama base tiene cambios sin commitear, merge en worktree temporal si la rama base no está checkouteada, abortar ante conflictos) están en el adaptador, no en el caso de uso: son detalles de git.
 
 ### 7.4 Reinicio del servidor
 
