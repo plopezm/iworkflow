@@ -125,7 +125,7 @@ Linux usa glibc dinámica; compilar en Ubuntu 22.04 mantiene bajo el requisito m
 
 ## Desarrollo
 
-Arquitectura y reglas en [AGENTS.md](AGENTS.md). Comprobaciones:
+Guía de la arquitectura y del código en [ARCHITECTURE.md](ARCHITECTURE.md); reglas del proyecto en [AGENTS.md](AGENTS.md). Comprobaciones:
 
 ```bash
 cargo fmt --all -- --check
