@@ -111,10 +111,10 @@ pub fn preview_data_url(image: &ImageAttachmentDto) -> String {
     format!("data:{};base64,{}", image.mime_type, image.data)
 }
 
-/// Texto de ayuda con el contador y el límite de tamaño.
+/// Texto de ayuda compacto: contador y tamaño máximo por imagen.
 pub fn hint_text(count: usize, limits: ImageLimits) -> String {
     format!(
-        "{count}/{} imágenes · máx. {} MiB cada una",
+        "{count}/{} · {} MiB",
         limits.max_images,
         limits.max_bytes / (1024 * 1024)
     )
@@ -321,9 +321,6 @@ mod tests {
 
     #[test]
     fn hint_shows_count_and_size() {
-        assert_eq!(
-            hint_text(2, ImageLimits::default()),
-            "2/5 imágenes · máx. 4 MiB cada una"
-        );
+        assert_eq!(hint_text(2, ImageLimits::default()), "2/5 · 4 MiB");
     }
 }

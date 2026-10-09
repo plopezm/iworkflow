@@ -115,69 +115,98 @@ pub fn paste_callback(attachments: ImageAttachments) -> Callback<ClipboardEvent>
     Callback::new(move |ev: ClipboardEvent| handle_paste_images(ev, attachments))
 }
 
-/// Selector de imágenes: botón de ficheros/cámara, miniaturas con quitar, contador y error en línea.
+/// Botón compacto de adjuntar: icono, contador y límite de tamaño en una sola línea.
 #[component]
-pub fn ImagePicker(attachments: ImageAttachments) -> impl IntoView {
+pub fn ImageAttachButton(attachments: ImageAttachments) -> impl IntoView {
     let limits = attachments.limits;
     let at_limit: Signal<bool> = Signal::derive(move || attachments.count() >= limits.max_images);
 
     view! {
+        <label
+            class="btn-secondary cursor-pointer"
+            class:opacity-50=move || at_limit.get()
+            title=format!("Adjuntar imágenes (máx. {} MiB cada una)", limits.max_bytes / (1024 * 1024))
+        >
+            <svg
+                class="h-4 w-4 shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+            >
+                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+            </svg>
+            <span class="sr-only sm:not-sr-only">"Adjuntar"</span>
+            <span class="text-[10px] font-normal tracking-normal text-muted normal-case">
+                {move || hint_text(attachments.count(), limits)}
+            </span>
+            <input
+                type="file"
+                class="sr-only"
+                accept=ACCEPT_ATTRIBUTE
+                multiple
+                disabled=move || at_limit.get()
+                on:change=move |ev: Event| handle_input_change(ev, attachments)
+            />
+        </label>
+    }
+}
+
+/// Error en línea y miniaturas con quitar; no ocupa espacio si no hay nada que mostrar.
+#[component]
+pub fn ImagePreviews(attachments: ImageAttachments) -> impl IntoView {
+    view! {
+        <Show when=move || attachments.error.with(Option::is_some)>
+            <p class="text-sm text-error" role="alert">
+                {move || attachments.error.get().unwrap_or_default()}
+            </p>
+        </Show>
+        <Show when=move || !attachments.is_empty()>
+            <ul class="flex flex-wrap gap-2">
+                {move || {
+                    attachments
+                        .images
+                        .get()
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, image): (usize, ImageAttachmentDto)| {
+                            view! {
+                                <li class="relative h-20 w-20 overflow-hidden rounded-md border border-border bg-surface">
+                                    <img
+                                        src=preview_data_url(&image)
+                                        alt=image.name.clone()
+                                        class="h-full w-full object-cover"
+                                    />
+                                    <button
+                                        type="button"
+                                        class="absolute top-0 right-0 flex h-7 w-7 items-center justify-center bg-bg/80 text-fg hover:text-error"
+                                        aria-label=format!("Quitar {}", image.name)
+                                        on:click=move |_| attachments.remove(index)
+                                    >
+                                        "×"
+                                    </button>
+                                </li>
+                            }
+                        })
+                        .collect_view()
+                }}
+            </ul>
+        </Show>
+    }
+}
+
+/// Selector completo (botón + previsualizaciones) para formularios sin barra de acciones propia.
+#[component]
+pub fn ImagePicker(attachments: ImageAttachments) -> impl IntoView {
+    view! {
         <div class="stack gap-2">
-            <div class="row gap-3">
-                <label
-                    class="btn-secondary min-h-11 cursor-pointer px-4"
-                    class:opacity-50=move || at_limit.get()
-                >
-                    "Adjuntar imágenes"
-                    <input
-                        type="file"
-                        class="sr-only"
-                        accept=ACCEPT_ATTRIBUTE
-                        multiple
-                        disabled=move || at_limit.get()
-                        on:change=move |ev: Event| handle_input_change(ev, attachments)
-                    />
-                </label>
-                <span class="text-xs text-muted">
-                    {move || hint_text(attachments.count(), limits)}
-                </span>
+            <div class="row">
+                <ImageAttachButton attachments />
             </div>
-            <Show when=move || attachments.error.with(Option::is_some)>
-                <p class="text-sm text-error" role="alert">
-                    {move || attachments.error.get().unwrap_or_default()}
-                </p>
-            </Show>
-            <Show when=move || !attachments.is_empty()>
-                <ul class="flex flex-wrap gap-2">
-                    {move || {
-                        attachments
-                            .images
-                            .get()
-                            .into_iter()
-                            .enumerate()
-                            .map(|(index, image): (usize, ImageAttachmentDto)| {
-                                view! {
-                                    <li class="relative h-20 w-20 overflow-hidden rounded-md border border-border bg-surface">
-                                        <img
-                                            src=preview_data_url(&image)
-                                            alt=image.name.clone()
-                                            class="h-full w-full object-cover"
-                                        />
-                                        <button
-                                            type="button"
-                                            class="absolute top-0 right-0 flex h-7 w-7 items-center justify-center bg-bg/80 text-fg hover:text-error"
-                                            aria-label=format!("Quitar {}", image.name)
-                                            on:click=move |_| attachments.remove(index)
-                                        >
-                                            "×"
-                                        </button>
-                                    </li>
-                                }
-                            })
-                            .collect_view()
-                    }}
-                </ul>
-            </Show>
+            <ImagePreviews attachments />
         </div>
     }
 }

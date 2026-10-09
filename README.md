@@ -80,6 +80,49 @@ Para desplegar en otra máquina basta con copiar `dist/` y lanzarlo con
 `LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow`
 desde dentro de esa carpeta.
 
+## Binarios precompilados (GitHub Actions)
+
+El workflow `.github/workflows/release.yml` compila en Linux (`ubuntu-22.04`) y en
+Windows (`windows-latest`) con los mismos pasos que `scripts/prod.sh build`
+(`cargo leptos build --release` + binario y `site/`).
+
+- **Cuándo corre:** al subir un tag `v*`, manualmente (*Run workflow*) y en PRs que
+  modifiquen el propio workflow.
+- **Dónde salen los binarios:** como artefactos del run
+  (`iworkflow-linux-x86_64`, `iworkflow-windows-x86_64`). Con un tag `v*` se publican
+  además en la GitHub Release (`.tar.gz` en Linux, `.zip` en Windows).
+
+```bash
+git tag v0.5.0 && git push origin v0.5.0
+```
+
+Cada archivo contiene `iworkflow` (o `iworkflow.exe`) y la carpeta `site/`, que deben
+estar juntos. Para arrancarlo, desde la carpeta descomprimida:
+
+```bash
+# Linux
+LEPTOS_OUTPUT_NAME=iworkflow LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD \
+  LEPTOS_SITE_ADDR=127.0.0.1:3000 ./iworkflow
+```
+
+```powershell
+# Windows (PowerShell)
+$env:LEPTOS_OUTPUT_NAME="iworkflow"; $env:LEPTOS_SITE_ROOT="site"; $env:LEPTOS_ENV="PROD"
+$env:LEPTOS_SITE_ADDR="127.0.0.1:3000"; .\iworkflow.exe
+```
+
+**Qué es autocontenido:** SQLite va incluido en ambos binarios y el de Windows enlaza
+el runtime de MSVC de forma estática (no requiere el VC++ Redistributable). El de
+Linux usa glibc dinámica; compilar en Ubuntu 22.04 mantiene bajo el requisito mínimo.
+
+**Limitaciones:**
+
+- No es un único fichero: los assets web se sirven desde `site/` en disco. Un
+  ejecutable único requeriría incrustarlos en el binario (p. ej. con `rust-embed`).
+- El soporte en Windows no está verificado: parte del código asume Unix (shell de
+  respaldo `/bin/sh` para agentes y terminal), por lo que puede haber funciones que no
+  operen igual que en Linux.
+
 ## Desarrollo
 
 Arquitectura y reglas en [AGENTS.md](AGENTS.md). Comprobaciones:

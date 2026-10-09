@@ -13,6 +13,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
+/// Los mensajes del usuario se encolan siempre como `Steer`.
+const SEND_MODE: MessageModeDto = MessageModeDto::Steer;
+
 /// Espera antes de reabrir el stream SSE cuando el navegador lo da por cerrado.
 #[cfg(feature = "hydrate")]
 const SSE_RECONNECT_DELAY: std::time::Duration = std::time::Duration::from_secs(3);
@@ -27,7 +30,6 @@ pub struct TaskDetailState {
     pub show_diff: RwSignal<bool>,
     pub diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>>,
     pub message: RwSignal<String>,
-    pub mode: RwSignal<MessageModeDto>,
     /// Imágenes adjuntas al próximo mensaje.
     pub images: ImageAttachments,
     pub send: ServerAction<SendTaskMessage>,
@@ -125,7 +127,6 @@ impl TaskDetailState {
             show_diff,
             diff,
             message: RwSignal::new(String::new()),
-            mode: RwSignal::new(MessageModeDto::Steer),
             images: ImageAttachments::new(),
             send,
             answer,
@@ -153,12 +154,8 @@ impl TaskDetailState {
     pub fn send_message(&self) {
         let message: String = self.message.get_untracked();
         let images: Vec<ImageAttachmentDto> = self.images.images.get_untracked();
-        let Some(action) = build_send_message(
-            self.task_id.get_value(),
-            message,
-            images,
-            self.mode.get_untracked(),
-        ) else {
+        let Some(action) = build_send_message(self.task_id.get_value(), message, images, SEND_MODE)
+        else {
             return;
         };
         self.send.dispatch(action);

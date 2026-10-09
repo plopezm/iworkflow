@@ -1,0 +1,100 @@
+name: Build binaries
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-22.04 # oldest hosted runner: keeps the glibc requirement low
+            bin: iworkflow
+            archive: tar.gz
+          - name: windows-x86_64
+            os: windows-latest
+            bin: iworkflow.exe
+            archive: zip
+            # Statically link the MSVC runtime so no VC++ redistributable is needed.
+            # Scoped to the host target so the wasm build is unaffected.
+            rustflags: "-C target-feature=+crt-static"
+    env:
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: ${{ matrix.rustflags }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+
+      - name: Install cargo-leptos
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-leptos
+
+      # Same steps as `scripts/prod.sh build`.
+      - name: Build (release)
+        run: cargo leptos build --release
+
+      - name: Package
+        id: package
+        run: |
+          set -euo pipefail
+          NAME="iworkflow-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}-${{ matrix.name }}"
+          mkdir -p "dist/$NAME"
+          cp "target/release/${{ matrix.bin }}" "dist/$NAME/"
+          cp -r target/site "dist/$NAME/site"
+          cd dist
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a -tzip "$NAME.zip" "$NAME" > /dev/null
+            echo "file=dist/$NAME.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "$NAME.tar.gz" "$NAME"
+            echo "file=dist/$NAME.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: iworkflow-${{ matrix.name }}
+          path: ${{ steps.package.outputs.file }}
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
