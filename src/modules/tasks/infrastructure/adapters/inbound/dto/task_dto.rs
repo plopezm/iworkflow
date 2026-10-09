@@ -217,6 +217,9 @@ pub struct UpdateTaskDto {
     pub priority: TaskPriorityDto,
     #[serde(default)]
     pub images: Vec<ImageAttachmentDto>,
+    /// Ids de adjuntos ya guardados que se quitan de la tarea.
+    #[serde(default)]
+    pub remove_attachment_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -580,6 +583,7 @@ mod mapping {
                 serde_json::from_str(r#"{"title":"t","prompt":"p"}"#).expect("update");
 
             assert!(update.images.is_empty());
+            assert!(update.remove_attachment_ids.is_empty());
         }
 
         #[test]

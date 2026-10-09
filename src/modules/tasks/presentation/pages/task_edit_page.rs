@@ -6,6 +6,7 @@ use leptos_router::hooks::{use_navigate, use_params_map};
 use crate::core::browser::history_back;
 use crate::core::components::form::{ActionError, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
+use crate::modules::tasks::presentation::components::existing_attachments::ExistingAttachments;
 use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
 use crate::modules::tasks::presentation::components::task_modal::priority_select_options;
 use crate::modules::tasks::presentation::state::task_edit_state::TaskEditState;
@@ -86,6 +87,14 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                         large=true
                                         on_paste=paste_callback(state.images)
                                     />
+                                    <Transition>
+                                        <ExistingAttachments
+                                            items=Signal::derive(move || state.visible_attachments())
+                                            on_remove=Callback::new(move |id: String| {
+                                                state.mark_removed(&id)
+                                            })
+                                        />
+                                    </Transition>
                                     <ImagePicker attachments=state.images />
                                     <ActionError result=state.update.value().into() />
                                     <div class="row justify-end gap-2">

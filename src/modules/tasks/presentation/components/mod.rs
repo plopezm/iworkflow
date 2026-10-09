@@ -6,6 +6,7 @@ pub mod composer;
 pub mod dialog_panel;
 pub mod diff_report;
 pub mod diff_view;
+pub mod existing_attachments;
 pub mod image_picker;
 pub mod stage_badge;
 pub mod task_actions;

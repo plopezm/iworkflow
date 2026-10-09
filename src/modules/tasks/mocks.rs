@@ -33,6 +33,8 @@ mock! {
     impl TaskAttachmentRepositoryPort for TaskAttachmentRepository {
         async fn insert_many(&self, task_id: TaskId, attachments: &[StoredAttachment]) -> Result<(), TaskError>;
         async fn list_by_task(&self, task_id: TaskId) -> Result<Vec<StoredAttachment>, TaskError>;
+        async fn remove(&self, task_id: TaskId, ids: &[String]) -> Result<Vec<StoredAttachment>, TaskError>;
+        async fn delete_by_task(&self, task_id: TaskId) -> Result<(), TaskError>;
     }
 }
 

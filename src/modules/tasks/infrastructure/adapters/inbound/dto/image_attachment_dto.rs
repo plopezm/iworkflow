@@ -8,9 +8,31 @@ pub struct ImageAttachmentDto {
     pub data: String,
 }
 
+/// Imagen adjunta ya guardada que viaja servidor -> cliente; `data` está codificada en base64.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskAttachmentDto {
+    pub id: String,
+    pub name: String,
+    pub mime_type: String,
+    pub data: String,
+}
+
 #[cfg(feature = "ssr")]
 mod mapping {
-    use super::ImageAttachmentDto;
+    use super::{ImageAttachmentDto, TaskAttachmentDto};
+    use crate::modules::tasks::domain::models::task_attachment_content::TaskAttachmentContent;
+
+    impl From<TaskAttachmentContent> for TaskAttachmentDto {
+        fn from(attachment: TaskAttachmentContent) -> Self {
+            Self {
+                id: attachment.id,
+                name: attachment.name,
+                mime_type: attachment.mime_type,
+                data: attachment.data,
+            }
+        }
+    }
+
     use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 
     impl From<ImageAttachmentDto> for ImageAttachment {
@@ -39,6 +61,7 @@ mod tests {
     use super::*;
     use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
     use crate::modules::tasks::domain::models::task::NewTask;
+    use crate::modules::tasks::domain::models::task_attachment_content::TaskAttachmentContent;
     use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::CreateTaskDto;
 
     fn dto() -> ImageAttachmentDto {
@@ -60,6 +83,27 @@ mod tests {
         assert_eq!(domain.mime_type, "image/png");
         assert_eq!(domain.data, "aGVsbG8=");
         assert_eq!(back, original);
+    }
+
+    #[test]
+    fn task_attachment_dto_maps_from_the_domain() {
+        let dto: TaskAttachmentDto = TaskAttachmentContent {
+            id: "id-1".to_string(),
+            name: "a.png".to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGVsbG8=".to_string(),
+        }
+        .into();
+
+        assert_eq!(
+            dto,
+            TaskAttachmentDto {
+                id: "id-1".to_string(),
+                name: "a.png".to_string(),
+                mime_type: "image/png".to_string(),
+                data: "aGVsbG8=".to_string(),
+            }
+        );
     }
 
     #[test]

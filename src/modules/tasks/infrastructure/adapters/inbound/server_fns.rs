@@ -1,7 +1,9 @@
 use leptos::prelude::*;
 use leptos::server_fn::codec::Json;
 
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::{
+    ImageAttachmentDto, TaskAttachmentDto,
+};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, UpdateTaskDto,
@@ -156,10 +158,26 @@ pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, Se
             input.prompt,
             input.priority.into(),
             input.images.into_iter().map(Into::into).collect(),
+            input.remove_attachment_ids,
         )
         .await
         .map_err(support::to_server_error)?;
     Ok(TaskDto::from(task))
+}
+
+#[server]
+pub async fn list_task_attachments(id: String) -> Result<Vec<TaskAttachmentDto>, ServerFnError> {
+    use crate::modules::tasks::domain::models::task_attachment_content::TaskAttachmentContent;
+
+    let attachments: Vec<TaskAttachmentContent> = support::context()?
+        .list_task_attachments
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(attachments
+        .into_iter()
+        .map(TaskAttachmentDto::from)
+        .collect())
 }
 
 #[server]

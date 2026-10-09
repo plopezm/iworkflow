@@ -1,11 +1,15 @@
 use leptos::prelude::*;
 
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::{
+    ImageAttachmentDto, TaskAttachmentDto,
+};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, TaskPriorityDto, UpdateTaskDto,
 };
-use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{UpdateTask, get_task};
-use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
+use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
+    UpdateTask, get_task, list_task_attachments,
+};
+use crate::modules::tasks::presentation::state::image_attachments::{ImageAttachments, MAX_IMAGES};
 
 /// Estado de la pantalla de edición de una tarea.
 #[derive(Clone, Copy)]
@@ -19,6 +23,37 @@ pub struct TaskEditState {
     pub form_priority: RwSignal<String>,
     /// Imágenes nuevas a añadir a las ya adjuntas.
     pub images: ImageAttachments,
+    /// Imágenes ya guardadas en la tarea.
+    pub attachments: Resource<Result<Vec<TaskAttachmentDto>, ServerFnError>>,
+    /// Ids de imágenes guardadas marcadas para quitar al guardar.
+    pub removed_ids: RwSignal<Vec<String>>,
+}
+
+/// Marca o desmarca `id` para quitar (función pura).
+pub fn toggle_removed(removed: &mut Vec<String>, id: &str) {
+    match removed.iter().position(|r: &String| r == id) {
+        Some(index) => {
+            removed.remove(index);
+        }
+        None => removed.push(id.to_string()),
+    }
+}
+
+/// Imágenes guardadas que se conservan: las existentes menos las marcadas (función pura).
+pub fn visible_attachments(
+    existing: &[TaskAttachmentDto],
+    removed: &[String],
+) -> Vec<TaskAttachmentDto> {
+    existing
+        .iter()
+        .filter(|a: &&TaskAttachmentDto| !removed.contains(&a.id))
+        .cloned()
+        .collect()
+}
+
+/// Huecos libres para imágenes nuevas dado el total conservado (función pura).
+pub fn remaining_slots(kept: usize) -> usize {
+    MAX_IMAGES.saturating_sub(kept)
 }
 
 /// Construye el DTO de edición con las imágenes nuevas (función pura).
@@ -27,12 +62,14 @@ pub fn build_update_task_dto(
     prompt: String,
     priority: &str,
     images: Vec<ImageAttachmentDto>,
+    remove_attachment_ids: Vec<String>,
 ) -> UpdateTaskDto {
     UpdateTaskDto {
         title,
         prompt,
         priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
         images,
+        remove_attachment_ids,
     }
 }
 
@@ -41,6 +78,18 @@ impl TaskEditState {
         let id: StoredValue<String> = StoredValue::new(task_id);
         let task: Resource<Result<TaskDto, ServerFnError>> =
             Resource::new(|| (), move |_| get_task(id.get_value()));
+        let attachments: Resource<Result<Vec<TaskAttachmentDto>, ServerFnError>> =
+            Resource::new(|| (), move |_| list_task_attachments(id.get_value()));
+        let removed_ids: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
+        let images: ImageAttachments = ImageAttachments::new();
+        Effect::new(move |_| {
+            let kept: usize = visible_attachments(
+                &attachments.get().and_then(Result::ok).unwrap_or_default(),
+                &removed_ids.get(),
+            )
+            .len();
+            images.reserved.set(kept);
+        });
         Self {
             task_id: id,
             task,
@@ -48,8 +97,27 @@ impl TaskEditState {
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
-            images: ImageAttachments::new(),
+            images,
+            attachments,
+            removed_ids,
         }
+    }
+
+    /// Imágenes guardadas que siguen visibles (sin las marcadas para quitar).
+    pub fn visible_attachments(&self) -> Vec<TaskAttachmentDto> {
+        let existing: Vec<TaskAttachmentDto> = self
+            .attachments
+            .get()
+            .and_then(Result::ok)
+            .unwrap_or_default();
+        self.removed_ids
+            .with(|removed: &Vec<String>| visible_attachments(&existing, removed))
+    }
+
+    /// Marca una imagen guardada para quitarla al guardar.
+    pub fn mark_removed(&self, id: &str) {
+        self.removed_ids
+            .update(|removed: &mut Vec<String>| toggle_removed(removed, id));
     }
 
     /// Precarga el formulario con los datos actuales de la tarea.
@@ -67,6 +135,7 @@ impl TaskEditState {
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
                 self.images.images.get_untracked(),
+                self.removed_ids.get_untracked(),
             ),
         });
     }
@@ -120,9 +189,59 @@ mod tests {
             "p".to_string(),
             "urgent",
             vec![image.clone()],
+            vec!["a1".to_string()],
         );
         assert_eq!(dto.images, vec![image]);
+        assert_eq!(dto.remove_attachment_ids, vec!["a1".to_string()]);
         assert_eq!(dto.priority, TaskPriorityDto::Urgent);
+    }
+
+    fn stored(id: &str) -> TaskAttachmentDto {
+        TaskAttachmentDto {
+            id: id.to_string(),
+            name: format!("{id}.png"),
+            mime_type: "image/png".to_string(),
+            data: "aGk=".to_string(),
+        }
+    }
+
+    #[test]
+    fn toggle_removed_marks_and_unmarks() {
+        let mut removed: Vec<String> = Vec::new();
+        toggle_removed(&mut removed, "a");
+        toggle_removed(&mut removed, "b");
+        assert_eq!(removed, vec!["a".to_string(), "b".to_string()]);
+        toggle_removed(&mut removed, "a");
+        assert_eq!(removed, vec!["b".to_string()]);
+    }
+
+    #[test]
+    fn visible_attachments_excludes_removed_ids() {
+        let existing: Vec<TaskAttachmentDto> = vec![stored("a"), stored("b"), stored("c")];
+        let visible: Vec<TaskAttachmentDto> =
+            visible_attachments(&existing, &["b".to_string(), "zz".to_string()]);
+        assert_eq!(visible, vec![stored("a"), stored("c")]);
+        assert_eq!(visible_attachments(&existing, &[]).len(), 3);
+    }
+
+    #[test]
+    fn remaining_slots_respects_total_maximum() {
+        assert_eq!(remaining_slots(0), MAX_IMAGES);
+        assert_eq!(remaining_slots(2), MAX_IMAGES - 2);
+        assert_eq!(remaining_slots(MAX_IMAGES + 3), 0);
+    }
+
+    #[tokio::test]
+    async fn marking_removed_updates_state_and_submit_payload() {
+        let _init: Result<(), _> = Executor::init_tokio();
+        let owner: Owner = Owner::new();
+        owner.with(|| {
+            let state: TaskEditState = TaskEditState::new("t1".to_string());
+            state.mark_removed("a");
+            assert_eq!(state.removed_ids.get_untracked(), vec!["a".to_string()]);
+            state.mark_removed("a");
+            assert!(state.removed_ids.get_untracked().is_empty());
+        });
     }
 
     #[tokio::test]

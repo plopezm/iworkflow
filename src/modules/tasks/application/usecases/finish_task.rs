@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::modules::tasks::application::services::attachment_cleanup::AttachmentCleanup;
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
@@ -7,11 +8,12 @@ use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRun
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Cierra el agente, consolida los cambios pendientes en un commit y deja la
-/// tarea lista para revisión manual.
+/// tarea lista para revisión manual. Después limpia (mejor esfuerzo) sus imágenes adjuntas.
 pub struct FinishTask {
     lifecycle: Arc<TaskLifecycle>,
     worktrees: Arc<dyn WorktreePort>,
     runtime: Arc<dyn AgentRuntimePort>,
+    cleanup: Arc<AttachmentCleanup>,
 }
 
 impl FinishTask {
@@ -19,11 +21,13 @@ impl FinishTask {
         lifecycle: Arc<TaskLifecycle>,
         worktrees: Arc<dyn WorktreePort>,
         runtime: Arc<dyn AgentRuntimePort>,
+        cleanup: Arc<AttachmentCleanup>,
     ) -> Self {
         Self {
             lifecycle,
             worktrees,
             runtime,
+            cleanup,
         }
     }
 
@@ -44,7 +48,9 @@ impl FinishTask {
         }
         self.lifecycle
             .transition(id, TaskStatus::AwaitingReview, None)
-            .await
+            .await?;
+        self.cleanup.cleanup_task(id).await;
+        Ok(())
     }
 
     async fn consolidate(&self, task: &Task) -> Result<(), TaskError> {
@@ -65,7 +71,37 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded, WORKTREE};
-    use crate::modules::tasks::mocks::{MockAgentRuntime, MockWorktree};
+    use crate::modules::tasks::mocks::{
+        MockAgentRuntime, MockAttachmentStorage, MockTaskAttachmentRepository, MockWorktree,
+    };
+
+    /// Cleanup whose ports fail the test if they are called.
+    fn untouched_cleanup() -> Arc<AttachmentCleanup> {
+        Arc::new(AttachmentCleanup::new(
+            Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
+        ))
+    }
+
+    fn cleanup_expecting(
+        repo_result: Result<(), TaskError>,
+        storage_result: Result<(), TaskError>,
+    ) -> Arc<AttachmentCleanup> {
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments
+            .expect_delete_by_task()
+            .times(1)
+            .return_once(move |_| repo_result);
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        storage
+            .expect_delete_task_dir()
+            .times(1)
+            .return_once(move |_| storage_result);
+        Arc::new(AttachmentCleanup::new(
+            Arc::new(attachments),
+            Arc::new(storage),
+        ))
+    }
 
     fn running_runtime() -> MockAgentRuntime {
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
@@ -92,6 +128,7 @@ mod tests {
             test_support::lifecycle(Some(task), &recorded),
             Arc::new(worktrees),
             Arc::new(running_runtime()),
+            cleanup_expecting(Ok(()), Ok(())),
         )
         .execute(id)
         .await
@@ -119,6 +156,7 @@ mod tests {
             test_support::lifecycle(Some(task), &recorded),
             Arc::new(worktrees),
             Arc::new(runtime),
+            untouched_cleanup(),
         )
         .execute(id)
         .await;
@@ -138,9 +176,37 @@ mod tests {
             test_support::lifecycle(Some(task), &Recorded::default()),
             Arc::new(MockWorktree::new()),
             Arc::new(MockAgentRuntime::new()),
+            untouched_cleanup(),
         )
         .execute(id)
         .await;
         assert!(matches!(result, Err(TaskError::InvalidState { .. })));
+    }
+
+    #[tokio::test]
+    async fn cleanup_failures_do_not_fail_the_finish() {
+        let task: Task = test_support::task(TaskStatus::Idle);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees.expect_commit_all().returning(|_, _| Ok(true));
+
+        let result: Result<(), TaskError> = FinishTask::new(
+            test_support::lifecycle(Some(task), &recorded),
+            Arc::new(worktrees),
+            Arc::new(running_runtime()),
+            cleanup_expecting(
+                Err(TaskError::Repository("db".to_string())),
+                Err(TaskError::Repository("disk".to_string())),
+            ),
+        )
+        .execute(id)
+        .await;
+
+        assert_eq!(result, Ok(()));
+        assert_eq!(
+            recorded.statuses(),
+            vec![TaskStatus::Finishing, TaskStatus::AwaitingReview]
+        );
     }
 }

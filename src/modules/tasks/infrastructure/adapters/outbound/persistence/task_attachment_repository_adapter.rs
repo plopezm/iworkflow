@@ -97,4 +97,49 @@ impl TaskAttachmentRepositoryPort for TaskAttachmentRepositoryAdapter {
             .map_err(db_error)?;
         Ok(rows.into_iter().map(StoredAttachment::from).collect())
     }
+
+    async fn remove(
+        &self,
+        task_id: TaskId,
+        ids: &[String],
+    ) -> Result<Vec<StoredAttachment>, TaskError> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let task_id: String = task_id.to_string();
+        let ids: Vec<String> = ids.to_vec();
+        let mut connection: DbConnection = self.connection().await?;
+        let rows: Vec<TaskAttachmentRow> = connection
+            .immediate_transaction::<Vec<TaskAttachmentRow>, DieselError, _>(async move |conn| {
+                let rows: Vec<TaskAttachmentRow> = task_attachments::table
+                    .filter(task_attachments::task_id.eq(&task_id))
+                    .filter(task_attachments::id.eq_any(&ids))
+                    .order(task_attachments::position.asc())
+                    .select(TaskAttachmentRow::as_select())
+                    .load(conn)
+                    .await?;
+                diesel::delete(
+                    task_attachments::table
+                        .filter(task_attachments::task_id.eq(&task_id))
+                        .filter(task_attachments::id.eq_any(&ids)),
+                )
+                .execute(conn)
+                .await?;
+                Ok(rows)
+            })
+            .await
+            .map_err(db_error)?;
+        Ok(rows.into_iter().map(StoredAttachment::from).collect())
+    }
+
+    async fn delete_by_task(&self, task_id: TaskId) -> Result<(), TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        diesel::delete(
+            task_attachments::table.filter(task_attachments::task_id.eq(task_id.to_string())),
+        )
+        .execute(&mut connection)
+        .await
+        .map_err(db_error)?;
+        Ok(())
+    }
 }

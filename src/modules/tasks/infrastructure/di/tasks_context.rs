@@ -9,10 +9,12 @@ use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::abort_task::AbortTask;
 use crate::modules::tasks::application::usecases::answer_dialog::AnswerDialog;
 use crate::modules::tasks::application::usecases::create_task::CreateTask;
+use crate::modules::tasks::application::services::attachment_cleanup::AttachmentCleanup;
 use crate::modules::tasks::application::usecases::delete_task::DeleteTask;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::application::usecases::discard_task::DiscardTask;
 use crate::modules::tasks::application::usecases::finish_task::FinishTask;
+use crate::modules::tasks::application::usecases::list_task_attachments::ListTaskAttachments;
 use crate::modules::tasks::application::usecases::get_task::GetTask;
 use crate::modules::tasks::application::usecases::get_task_diff::GetTaskDiff;
 use crate::modules::tasks::application::usecases::get_task_events::GetTaskEvents;
@@ -69,6 +71,7 @@ pub struct TasksContext {
     pub merge_task: Arc<MergeTask>,
     pub discard_task: Arc<DiscardTask>,
     pub get_task: Arc<GetTask>,
+    pub list_task_attachments: Arc<ListTaskAttachments>,
     pub get_task_diff: Arc<GetTaskDiff>,
     pub get_task_events: Arc<GetTaskEvents>,
     pub list_tasks: Arc<ListTasks>,
@@ -175,7 +178,7 @@ impl TasksContext {
             delete_workspace_tasks: Arc::new(DeleteWorkspaceTasks::new(
                 lifecycle.clone(),
                 worktrees.clone(),
-                storage,
+                storage.clone(),
             )),
             send_message: Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone())),
             abort_task: Arc::new(AbortTask::new(lifecycle.clone(), runtime.clone())),
@@ -184,6 +187,7 @@ impl TasksContext {
                 lifecycle.clone(),
                 worktrees.clone(),
                 runtime.clone(),
+                Arc::new(AttachmentCleanup::new(attachments.clone(), storage.clone())),
             )),
             resume_task: Arc::new(ResumeTask::new(
                 lifecycle.clone(),
@@ -204,6 +208,7 @@ impl TasksContext {
                 runtime,
             )),
             get_task: Arc::new(GetTask::new(lifecycle.clone())),
+            list_task_attachments: Arc::new(ListTaskAttachments::new(attachments, storage)),
             get_task_diff: Arc::new(GetTaskDiff::new(lifecycle.clone(), worktrees.clone())),
             get_task_events: Arc::new(GetTaskEvents::new(repository.clone())),
             list_tasks: Arc::new(ListTasks::new(repository)),
