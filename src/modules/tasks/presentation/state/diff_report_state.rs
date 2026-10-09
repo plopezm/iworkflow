@@ -10,7 +10,6 @@ use crate::modules::tasks::presentation::state::diff_report::{
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
 /// Time given to the browser to paint the loading dialog before rendering the report.
-#[cfg(feature = "hydrate")]
 const PREPARE_DELAY: std::time::Duration = std::time::Duration::from_millis(80);
 
 /// What the user asked for.
@@ -175,8 +174,7 @@ impl DiffReportState {
             dispatch,
             phase,
         };
-        // Browser only: gives the dialog one tick to paint before the report is rendered.
-        #[cfg(feature = "hydrate")]
+        // Gives the dialog one tick to paint before the report is rendered (effects only run in the browser).
         Effect::new(move |_| {
             let is_rendered: bool = rendered.get();
             if content.with(ReportPhase::has_report) && !is_rendered {
@@ -186,7 +184,6 @@ impl DiffReportState {
         state
     }
 
-    #[cfg(feature = "hydrate")]
     fn schedule_render(&self) {
         let state: Self = *self;
         let scheduled_epoch: usize = self.epoch.get_untracked();
@@ -196,7 +193,6 @@ impl DiffReportState {
         );
     }
 
-    #[cfg(any(feature = "hydrate", test))]
     /// Timer entry point: renders only if no request or close happened since `scheduled_epoch`.
     ///
     /// The timer can fire after the screen was torn down, so it never panics on disposed signals.
