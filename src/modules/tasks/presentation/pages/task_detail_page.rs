@@ -7,7 +7,7 @@ use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    MergeOutcomeDto, TaskDto, TaskStageDto, TaskStatusDto,
+    MergeOutcomeDto, TaskDto, TaskStageDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
     DialogAnswerDto, DialogRequestDto,
@@ -225,14 +225,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
     let can_message: Memo<bool> = Memo::new(move |_| {
         loaded_task.with(|t: &Option<TaskDto>| matches!(t, Some(t) if t.actions.can_message))
     });
-    let agent_busy: Memo<bool> = Memo::new(move |_| {
-        loaded_task.with(|t: &Option<TaskDto>| {
-            matches!(
-                t,
-                Some(t) if matches!(t.status, TaskStatusDto::Running | TaskStatusDto::Starting)
-            )
-        })
-    });
     let prompt: Memo<String> = Memo::new(move |_| {
         loaded_task.with(|t: &Option<TaskDto>| {
             t.as_ref()
@@ -366,9 +358,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                             <Show when=move || can_message.get()>
                                 <Composer
                                     message=state.message
-                                    mode=state.mode
                                     attachments=state.images
-                                    agent_busy=agent_busy
                                     pending=state.send.pending()
                                     on_send
                                 />
