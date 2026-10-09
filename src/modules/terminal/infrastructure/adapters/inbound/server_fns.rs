@@ -89,6 +89,20 @@ pub async fn open_terminal(
 }
 
 #[server]
+pub async fn open_home_terminal(cols: u16, rows: u16) -> Result<TerminalSessionDto, ServerFnError> {
+    use crate::modules::terminal::domain::models::terminal_session::TerminalSession;
+    use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
+
+    let size: TerminalSize = TerminalSize::new(cols, rows).map_err(support::to_server_error)?;
+    let session: TerminalSession = support::context()?
+        .open_home
+        .execute(size)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(TerminalSessionDto::from(session))
+}
+
+#[server]
 pub async fn list_terminals() -> Result<Vec<TerminalSessionDto>, ServerFnError> {
     use crate::modules::terminal::domain::models::terminal_session::TerminalSession;
 

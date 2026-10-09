@@ -5,7 +5,10 @@ use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_s
     TerminalSessionDto, TerminalStatusDto,
 };
 use crate::modules::terminal::infrastructure::adapters::inbound::server_fns::{
-    close_terminal, list_terminals,
+    close_terminal, list_terminals, open_home_terminal,
+};
+use crate::modules::terminal::presentation::state::new_terminal_state::{
+    DEFAULT_COLS, DEFAULT_ROWS,
 };
 
 const SHORT_ID_LEN: usize = 8;
@@ -42,6 +45,7 @@ pub struct TerminalsState {
     refresh: RwSignal<u32>,
     pub sessions: Resource<Result<Vec<TerminalSessionDto>, ServerFnError>>,
     pub close: Action<String, Result<(), ServerFnError>>,
+    pub open_home: Action<(), Result<TerminalSessionDto, ServerFnError>>,
 }
 
 impl TerminalsState {
@@ -49,6 +53,8 @@ impl TerminalsState {
         let refresh: RwSignal<u32> = RwSignal::new(0);
         let close: Action<String, Result<(), ServerFnError>> =
             Action::new(|id: &String| close_terminal(id.clone()));
+        let open_home: Action<(), Result<TerminalSessionDto, ServerFnError>> =
+            Action::new(|_: &()| open_home_terminal(DEFAULT_COLS, DEFAULT_ROWS));
         let sessions: Resource<Result<Vec<TerminalSessionDto>, ServerFnError>> = Resource::new(
             move || (refresh.get(), close.version().get()),
             |_| list_terminals(),
@@ -57,11 +63,17 @@ impl TerminalsState {
             refresh,
             sessions,
             close,
+            open_home,
         }
     }
 
     pub fn reload(&self) {
         self.refresh.update(|n: &mut u32| *n += 1);
+    }
+
+    /// Lanza una terminal nueva en `$HOME`; al terminar, `open_home.value()` trae la sesión.
+    pub fn open_home_session(&self) {
+        self.open_home.dispatch(());
     }
 
     pub fn close_session(&self, id: String) {

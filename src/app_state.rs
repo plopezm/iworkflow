@@ -69,8 +69,10 @@ impl AppState {
             get_workspace: get_workspace.clone(),
             list_workspaces: list_workspaces.clone(),
         });
-        let terminal: TerminalContext =
-            TerminalContext::new(workspace_path_resolver(get_workspace.clone()));
+        let terminal: TerminalContext = TerminalContext::new(
+            workspace_path_resolver(get_workspace.clone()),
+            config.home_dir.clone(),
+        );
         let agents_files: AgentsFilesContext =
             AgentsFilesContext::new(pool.clone(), config.agents_files_dir.clone(), projects);
         let agent_settings: AgentSettingsContext = AgentSettingsContext::new(
