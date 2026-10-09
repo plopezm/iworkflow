@@ -108,7 +108,12 @@ pub fn base64_from_data_url(url: &str) -> Option<&str> {
 
 /// URL `data:` para previsualizar una imagen.
 pub fn preview_data_url(image: &ImageAttachmentDto) -> String {
-    format!("data:{};base64,{}", image.mime_type, image.data)
+    data_url(&image.mime_type, &image.data)
+}
+
+/// URL `data:` a partir del tipo MIME y los datos en base64.
+pub fn data_url(mime_type: &str, data: &str) -> String {
+    format!("data:{mime_type};base64,{data}")
 }
 
 /// Texto de ayuda compacto: contador y tamaño máximo por imagen.
@@ -126,6 +131,8 @@ pub struct ImageAttachments {
     pub images: RwSignal<Vec<ImageAttachmentDto>>,
     pub error: RwSignal<Option<String>>,
     pub limits: ImageLimits,
+    /// Huecos ya ocupados por imágenes guardadas (se descuentan del límite).
+    pub reserved: RwSignal<usize>,
 }
 
 impl ImageAttachments {
@@ -138,6 +145,7 @@ impl ImageAttachments {
             images: RwSignal::new(Vec::new()),
             error: RwSignal::new(None),
             limits,
+            reserved: RwSignal::new(0),
         }
     }
 
@@ -147,6 +155,11 @@ impl ImageAttachments {
 
     pub fn count(&self) -> usize {
         self.images.with(Vec::len)
+    }
+
+    /// Imágenes nuevas más las ya guardadas que se conservan.
+    pub fn total(&self) -> usize {
+        self.count() + self.reserved.get()
     }
 
     /// Descarta imágenes y error.
@@ -177,12 +190,24 @@ impl ImageAttachments {
         mime_type: &str,
         size_bytes: usize,
     ) -> Result<(), ImageRejection> {
-        validate_file(name, mime_type, size_bytes, self.count(), self.limits)
+        validate_file(
+            name,
+            mime_type,
+            size_bytes,
+            self.count() + self.reserved.get_untracked(),
+            self.limits,
+        )
     }
 
     /// Añade una imagen leída; el error queda en línea. Seguro si el estado ya se liberó.
     pub fn push(&self, image: ImageAttachmentDto) {
-        let limits: ImageLimits = self.limits;
+        let limits: ImageLimits = ImageLimits {
+            max_images: self
+                .limits
+                .max_images
+                .saturating_sub(self.reserved.get_untracked()),
+            ..self.limits
+        };
         let outcome: Option<Result<(), ImageRejection>> = self
             .images
             .try_update(|list: &mut Vec<ImageAttachmentDto>| add_image(list, image, limits));
@@ -232,6 +257,11 @@ mod tests {
         assert_eq!(MAX_IMAGE_BYTES, domain::MAX_IMAGE_BYTES);
         assert_eq!(ALLOWED_MIME_TYPES, domain::ALLOWED_IMAGE_MIME_TYPES);
         assert_eq!(ACCEPT_ATTRIBUTE, ALLOWED_MIME_TYPES.join(","));
+    }
+
+    #[test]
+    fn data_url_joins_mime_and_data() {
+        assert_eq!(data_url("image/png", "aGk="), "data:image/png;base64,aGk=");
     }
 
     #[test]

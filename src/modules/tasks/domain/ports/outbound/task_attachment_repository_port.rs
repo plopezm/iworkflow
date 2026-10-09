@@ -13,4 +13,13 @@ pub trait TaskAttachmentRepositoryPort: Send + Sync {
     ) -> Result<(), TaskError>;
     /// Metadatos de las imágenes de la tarea ordenados por posición.
     async fn list_by_task(&self, task_id: TaskId) -> Result<Vec<StoredAttachment>, TaskError>;
+    /// Borra solo las filas de la tarea cuyo id esté en `ids` (los desconocidos se ignoran), en
+    /// una única transacción, y devuelve las eliminadas para que el llamador borre sus ficheros.
+    async fn remove(
+        &self,
+        task_id: TaskId,
+        ids: &[String],
+    ) -> Result<Vec<StoredAttachment>, TaskError>;
+    /// Borra todos los metadatos de imágenes de la tarea.
+    async fn delete_by_task(&self, task_id: TaskId) -> Result<(), TaskError>;
 }

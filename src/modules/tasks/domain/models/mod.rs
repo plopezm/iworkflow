@@ -6,6 +6,7 @@ pub mod pending_dialog;
 pub mod stored_attachment;
 pub mod subagent_activity;
 pub mod task;
+pub mod task_attachment_content;
 pub mod task_event;
 pub mod task_priority;
 pub mod workspace_ref;

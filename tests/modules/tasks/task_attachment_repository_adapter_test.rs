@@ -252,3 +252,115 @@ async fn appending_to_a_task_does_not_depend_on_other_tasks_positions() {
         vec![image("c.png", "t/c.png")]
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn remove_deletes_only_the_requested_rows_of_that_task() {
+    let db: common::TestDb = common::test_db().await;
+    let first: Task = backlog_task(&db, "uno").await;
+    let second: Task = backlog_task(&db, "dos").await;
+    let adapter: TaskAttachmentRepositoryAdapter =
+        TaskAttachmentRepositoryAdapter::new(db.pool.clone());
+    let images: Vec<StoredAttachment> = vec![
+        image("a.png", "t/a.png"),
+        image("b.png", "t/b.png"),
+        image("c.png", "t/c.png"),
+    ];
+    adapter
+        .insert_many(first.id, &images)
+        .await
+        .expect("insert");
+    let foreign: StoredAttachment = image("x.png", "t/x.png");
+    adapter
+        .insert_many(second.id, std::slice::from_ref(&foreign))
+        .await
+        .expect("insert");
+
+    let removed: Vec<StoredAttachment> = adapter
+        .remove(
+            first.id,
+            &[
+                images[1].id.clone(),
+                foreign.id.clone(),
+                "unknown".to_string(),
+            ],
+        )
+        .await
+        .expect("remove");
+
+    assert_eq!(removed, vec![images[1].clone()]);
+    assert_eq!(
+        adapter.list_by_task(first.id).await.expect("list"),
+        vec![images[0].clone(), images[2].clone()]
+    );
+    assert_eq!(
+        adapter.list_by_task(second.id).await.expect("list"),
+        vec![foreign]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn remove_with_no_ids_is_a_no_op_and_insert_appends_after_gaps() {
+    let db: common::TestDb = common::test_db().await;
+    let task: Task = backlog_task(&db, "uno").await;
+    let adapter: TaskAttachmentRepositoryAdapter =
+        TaskAttachmentRepositoryAdapter::new(db.pool.clone());
+    let images: Vec<StoredAttachment> = vec![image("a.png", "t/a.png"), image("b.png", "t/b.png")];
+    adapter.insert_many(task.id, &images).await.expect("insert");
+
+    assert!(
+        adapter
+            .remove(task.id, &[])
+            .await
+            .expect("remove")
+            .is_empty()
+    );
+    adapter
+        .remove(task.id, &[images[0].id.clone()])
+        .await
+        .expect("remove");
+    let appended: StoredAttachment = image("c.png", "t/c.png");
+    adapter
+        .insert_many(task.id, std::slice::from_ref(&appended))
+        .await
+        .expect("insert");
+
+    assert_eq!(
+        adapter.list_by_task(task.id).await.expect("list"),
+        vec![images[1].clone(), appended]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn delete_by_task_removes_only_that_tasks_rows() {
+    let db: common::TestDb = common::test_db().await;
+    let first: Task = backlog_task(&db, "uno").await;
+    let second: Task = backlog_task(&db, "dos").await;
+    let adapter: TaskAttachmentRepositoryAdapter =
+        TaskAttachmentRepositoryAdapter::new(db.pool.clone());
+    adapter
+        .insert_many(first.id, &[image("a.png", "t/a.png")])
+        .await
+        .expect("insert");
+    adapter
+        .insert_many(second.id, &[image("b.png", "t/b.png")])
+        .await
+        .expect("insert");
+
+    adapter.delete_by_task(first.id).await.expect("delete");
+    adapter
+        .delete_by_task(TaskId::new())
+        .await
+        .expect("missing task is fine");
+
+    assert!(
+        adapter
+            .list_by_task(first.id)
+            .await
+            .expect("list")
+            .is_empty()
+    );
+    assert_eq!(
+        adapter.list_by_task(second.id).await.expect("list").len(),
+        1
+    );
+}

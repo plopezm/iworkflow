@@ -119,7 +119,7 @@ pub fn paste_callback(attachments: ImageAttachments) -> Callback<ClipboardEvent>
 #[component]
 pub fn ImageAttachButton(attachments: ImageAttachments) -> impl IntoView {
     let limits = attachments.limits;
-    let at_limit: Signal<bool> = Signal::derive(move || attachments.count() >= limits.max_images);
+    let at_limit: Signal<bool> = Signal::derive(move || attachments.total() >= limits.max_images);
 
     view! {
         <label
@@ -141,7 +141,7 @@ pub fn ImageAttachButton(attachments: ImageAttachments) -> impl IntoView {
             </svg>
             <span class="sr-only sm:not-sr-only">"Adjuntar"</span>
             <span class="text-[10px] font-normal tracking-normal text-muted normal-case">
-                {move || hint_text(attachments.count(), limits)}
+                {move || hint_text(attachments.total(), limits)}
             </span>
             <input
                 type="file"
