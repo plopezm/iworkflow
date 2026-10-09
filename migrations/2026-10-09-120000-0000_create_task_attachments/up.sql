@@ -4,7 +4,8 @@ CREATE TABLE task_attachments (
     position INTEGER NOT NULL,
     name TEXT NOT NULL,
     mime_type TEXT NOT NULL,
-    data TEXT NOT NULL,
+    path TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
     created_at TIMESTAMP NOT NULL
 );
 

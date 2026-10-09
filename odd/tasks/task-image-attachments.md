@@ -35,9 +35,9 @@ Limits (domain constants): max 5 images per message, 5 MiB each, mime in png/jpe
 
 Replace base64 TEXT in SQLite with files on disk; SQLite keeps only a relative path. Max image size 4 MiB. Migration `2026-10-09-120000-0000_create_task_attachments` is rewritten in place (unmerged, not applied locally).
 
-- [ ] 6. File-backed attachments
+- [x] 6. File-backed attachments
   - Outbound port `AttachmentStoragePort` (save/read/delete_task_dir) + FS adapter under `~/.iworkflow/attachments/<task_id>/<attachment_id>.<ext>` (`IWF_ATTACHMENTS_DIR` override, resolved in `core/config.rs` like `agents-files`); path stored relative.
   - Table keeps `id, task_id, position, name, mime_type, path, size_bytes, created_at` (no `data`); `list_by_task` returns metadata, `StartTask` reads bytes via the storage port to build `ImageAttachment`s.
   - Files removed when a task/workspace tasks are deleted; save-then-insert with file cleanup on failure; `CreateTask` rollback also deletes files.
   - Limit 4 MiB in domain, client state, hints, tests; `SERVER_FN_MAX_BODY_BYTES` -> 30 MiB.
-- [ ] 7. Verification + native review
+- [x] 7. Verification + native review

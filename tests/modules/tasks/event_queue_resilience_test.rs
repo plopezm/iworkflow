@@ -160,6 +160,7 @@ async fn no_agent_event_is_lost_while_sqlite_stays_locked_past_busy_timeout() {
     let ctx: TasksContext = TasksContext::with_runtime(
         db.pool.clone(),
         db.dir.path().join("worktrees"),
+        db.dir.path().join("attachments"),
         Arc::new(StubWorkspaces),
         Arc::new(StubRuntime),
         Arc::new(StubLaunchSettings),
@@ -265,6 +266,7 @@ async fn flush_events_persists_everything_accepted_before_returning() {
     let ctx: TasksContext = TasksContext::with_runtime(
         db.pool.clone(),
         db.dir.path().join("worktrees"),
+        db.dir.path().join("attachments"),
         Arc::new(StubWorkspaces),
         Arc::new(StubRuntime),
         Arc::new(StubLaunchSettings),

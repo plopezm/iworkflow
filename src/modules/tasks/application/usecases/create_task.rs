@@ -8,11 +8,14 @@ use chrono::Utc;
 use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
+use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 use crate::modules::tasks::domain::models::task::{
     CreatedTask, NewTask, Task, TaskId, TaskStatus, branch_name, workspace_dir_name,
     worktree_dir_name,
 };
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
+use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
@@ -24,6 +27,7 @@ pub struct CreateTask {
     worktrees: Arc<dyn WorktreePort>,
     start_task: Arc<StartTask>,
     attachments: Arc<dyn TaskAttachmentRepositoryPort>,
+    storage: Arc<dyn AttachmentStoragePort>,
 }
 
 impl CreateTask {
@@ -32,13 +36,54 @@ impl CreateTask {
         worktrees: Arc<dyn WorktreePort>,
         start_task: Arc<StartTask>,
         attachments: Arc<dyn TaskAttachmentRepositoryPort>,
+        storage: Arc<dyn AttachmentStoragePort>,
     ) -> Self {
         Self {
             lifecycle,
             worktrees,
             start_task,
             attachments,
+            storage,
         }
+    }
+
+    /// Guarda los ficheros en disco y después sus metadatos. Si algo falla, borra lo escrito.
+    async fn store_images(
+        &self,
+        task_id: TaskId,
+        images: &[ImageAttachment],
+    ) -> Result<(), TaskError> {
+        let result: Result<(), TaskError> = self.save_and_register(task_id, images).await;
+        if result.is_err()
+            && let Err(cleanup_error) = self.storage.delete_task_dir(task_id).await
+        {
+            tracing::warn!(
+                %task_id,
+                %cleanup_error,
+                "no se pudieron borrar los adjuntos escritos tras un fallo"
+            );
+        }
+        result
+    }
+
+    async fn save_and_register(
+        &self,
+        task_id: TaskId,
+        images: &[ImageAttachment],
+    ) -> Result<(), TaskError> {
+        let mut stored: Vec<StoredAttachment> = Vec::with_capacity(images.len());
+        for image in images {
+            let id: String = Uuid::new_v4().to_string();
+            let path: String = self.storage.save(task_id, &id, image).await?;
+            stored.push(StoredAttachment {
+                id,
+                name: image.name.clone(),
+                mime_type: image.mime_type.clone(),
+                path,
+                size_bytes: image.decoded_len() as u64,
+            });
+        }
+        self.attachments.insert_many(task_id, &stored).await
     }
 
     pub async fn execute(&self, input: NewTask) -> Result<CreatedTask, TaskError> {
@@ -72,7 +117,7 @@ impl CreateTask {
         };
         self.lifecycle.repository().insert(&task).await?;
         if !input.images.is_empty()
-            && let Err(error) = self.attachments.insert_many(id, &input.images).await
+            && let Err(error) = self.store_images(id, &input.images).await
         {
             if let Err(cleanup_error) = self.lifecycle.repository().delete_if_backlog(id).await {
                 tracing::warn!(
@@ -120,8 +165,9 @@ mod tests {
     use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
     use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
     use crate::modules::tasks::mocks::{
-        MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockTaskAttachmentRepository,
-        MockTaskEventPublisher, MockTaskRepository, MockWorkspaceLookup, MockWorktree,
+        MockAgentEventSink, MockAgentRuntime, MockAttachmentStorage, MockLaunchSettings,
+        MockTaskAttachmentRepository, MockTaskEventPublisher, MockTaskRepository,
+        MockWorkspaceLookup, MockWorktree,
     };
 
     fn default_launch_settings() -> Arc<dyn LaunchSettingsPort> {
@@ -160,6 +206,7 @@ mod tests {
             Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         ))
     }
 
@@ -177,6 +224,7 @@ mod tests {
             Arc::new(worktrees_computing_path_only()),
             no_op_start_task(&recorded),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         );
 
         let created: CreatedTask = use_case.execute(input(false)).await.expect("creada");
@@ -198,21 +246,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stores_attached_images_right_after_inserting_the_task() {
+    async fn stores_files_first_and_then_their_metadata() {
         let recorded: Recorded = Recorded::default();
         let images: Vec<ImageAttachment> = vec![png("a.png"), png("b.png")];
-        let expected: Vec<ImageAttachment> = images.clone();
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        let mut order: mockall::Sequence = mockall::Sequence::new();
+        storage
+            .expect_save()
+            .times(2)
+            .in_sequence(&mut order)
+            .returning(|task_id: TaskId, id: &str, _| Ok(format!("{task_id}/{id}.png")));
         let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
         attachments
             .expect_insert_many()
-            .withf(move |_, stored: &[ImageAttachment]| stored == expected.as_slice())
+            .withf(|task_id: &TaskId, stored: &[StoredAttachment]| {
+                stored.len() == 2
+                    && stored[0].name == "a.png"
+                    && stored[1].name == "b.png"
+                    && stored[0].path == format!("{task_id}/{}.png", stored[0].id)
+                    && stored[0].mime_type == "image/png"
+                    && stored[0].size_bytes == 2
+            })
             .times(1)
+            .in_sequence(&mut order)
             .returning(|_, _| Ok(()));
+        storage.expect_delete_task_dir().never();
         let use_case: CreateTask = CreateTask::new(
             lifecycle_accepting_insert(&recorded),
             Arc::new(worktrees_computing_path_only()),
             no_op_start_task(&recorded),
             Arc::new(attachments),
+            Arc::new(storage),
         );
         let with_images: NewTask = NewTask {
             images,
@@ -229,18 +293,21 @@ mod tests {
         let recorded: Recorded = Recorded::default();
         let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
         attachments.expect_insert_many().never();
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        storage.expect_save().never();
         let use_case: CreateTask = CreateTask::new(
             lifecycle_accepting_insert(&recorded),
             Arc::new(worktrees_computing_path_only()),
             no_op_start_task(&recorded),
             Arc::new(attachments),
+            Arc::new(storage),
         );
 
         use_case.execute(input(false)).await.expect("creada");
     }
 
     #[tokio::test]
-    async fn deletes_the_task_and_propagates_when_storing_images_fails() {
+    async fn deletes_files_and_task_and_propagates_when_inserting_rows_fails() {
         let recorded: Recorded = Recorded::default();
         let mut repository: MockTaskRepository = test_support::repository_with(None, &recorded);
         repository.expect_insert().times(1).returning(|_| Ok(()));
@@ -248,6 +315,15 @@ mod tests {
             .expect_delete_if_backlog()
             .times(1)
             .returning(|_| Ok(true));
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        storage
+            .expect_save()
+            .times(1)
+            .returning(|task_id: TaskId, id: &str, _| Ok(format!("{task_id}/{id}.png")));
+        storage
+            .expect_delete_task_dir()
+            .times(1)
+            .returning(|_| Ok(()));
         let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
         attachments
             .expect_insert_many()
@@ -258,6 +334,7 @@ mod tests {
             Arc::new(worktrees_computing_path_only()),
             no_op_start_task(&recorded),
             Arc::new(attachments),
+            Arc::new(storage),
         );
         let with_images: NewTask = NewTask {
             images: vec![png("a.png")],
@@ -274,6 +351,52 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cleans_up_and_returns_the_original_error_when_saving_a_file_fails() {
+        let recorded: Recorded = Recorded::default();
+        let mut repository: MockTaskRepository = test_support::repository_with(None, &recorded);
+        repository.expect_insert().times(1).returning(|_| Ok(()));
+        repository
+            .expect_delete_if_backlog()
+            .times(1)
+            .returning(|_| Ok(true));
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        let mut calls: u32 = 0;
+        storage
+            .expect_save()
+            .times(2)
+            .returning(move |task_id: TaskId, id: &str, _| {
+                calls += 1;
+                if calls == 1 {
+                    Ok(format!("{task_id}/{id}.png"))
+                } else {
+                    Err(TaskError::Storage("sin espacio".to_string()))
+                }
+            });
+        // El fallo de limpieza solo se registra: el error devuelto es el original.
+        storage
+            .expect_delete_task_dir()
+            .times(1)
+            .returning(|_| Err(TaskError::Storage("permiso denegado".to_string())));
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments.expect_insert_many().never();
+        let use_case: CreateTask = CreateTask::new(
+            test_support::lifecycle_with(repository, &recorded),
+            Arc::new(worktrees_computing_path_only()),
+            no_op_start_task(&recorded),
+            Arc::new(attachments),
+            Arc::new(storage),
+        );
+        let with_images: NewTask = NewTask {
+            images: vec![png("a.png"), png("b.png")],
+            ..input(false)
+        };
+
+        let result: Result<CreatedTask, TaskError> = use_case.execute(with_images).await;
+
+        assert_eq!(result, Err(TaskError::Storage("sin espacio".to_string())));
+    }
+
+    #[tokio::test]
     async fn rejects_invalid_images_before_touching_the_repository() {
         let recorded: Recorded = Recorded::default();
         let use_case: CreateTask = CreateTask::new(
@@ -281,6 +404,7 @@ mod tests {
             Arc::new(MockWorktree::new()),
             no_op_start_task(&recorded),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         );
         let invalid: NewTask = NewTask {
             images: vec![ImageAttachment {
@@ -303,6 +427,7 @@ mod tests {
             Arc::new(worktrees_computing_path_only()),
             no_op_start_task(&recorded),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         );
         let urgent: NewTask = NewTask {
             priority: TaskPriority::Urgent,
@@ -402,8 +527,15 @@ mod tests {
             default_launch_settings(),
             Arc::new(MockAgentEventSink::new()),
             attachments.clone(),
+            Arc::new(MockAttachmentStorage::new()),
         ));
-        let use_case: CreateTask = CreateTask::new(lifecycle, worktrees, start_task, attachments);
+        let use_case: CreateTask = CreateTask::new(
+            lifecycle,
+            worktrees,
+            start_task,
+            attachments,
+            Arc::new(MockAttachmentStorage::new()),
+        );
 
         let created: CreatedTask = use_case.execute(input(true)).await.expect("creada");
 
@@ -421,6 +553,7 @@ mod tests {
             Arc::new(worktrees_computing_path_only()),
             no_op_start_task(&recorded),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         );
 
         let created: CreatedTask = use_case.execute(input(true)).await.expect("creada");
@@ -442,6 +575,7 @@ mod tests {
             Arc::new(worktrees_computing_path_only()),
             no_op_start_task(&recorded),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         );
 
         let result: Result<CreatedTask, TaskError> = use_case.execute(input(true)).await;
@@ -468,8 +602,10 @@ mod tests {
                 Arc::new(MockLaunchSettings::new()),
                 Arc::new(MockAgentEventSink::new()),
                 Arc::new(MockTaskAttachmentRepository::new()),
+                Arc::new(MockAttachmentStorage::new()),
             )),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         );
 
         let result: Result<CreatedTask, TaskError> = use_case.execute(input(false)).await;
@@ -488,6 +624,7 @@ mod tests {
             Arc::new(MockWorktree::new()),
             no_op_start_task(&recorded),
             Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
         );
         let mut empty: NewTask = input(false);
         empty.prompt = "   ".to_string();

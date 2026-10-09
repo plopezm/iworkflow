@@ -24,6 +24,7 @@ tokio-stream = { version = "0.1", features = ["sync"], optional = true }
 futures = { version = "0.3", optional = true }
 multer = { version = "3.1", optional = true }
 async-trait = { version = "0.1", optional = true }
+base64 = { version = "0.22", optional = true }
 diesel = { version = "2.3", features = ["sqlite", "chrono", "returning_clauses_for_sqlite_3_35"], optional = true }
 diesel-async = { version = "0.9", features = ["sqlite", "deadpool", "async-connection-wrapper", "migrations"], optional = true }
 diesel_migrations = { version = "2.3", features = ["sqlite"], optional = true }
@@ -56,6 +57,7 @@ ssr = [
     "dep:multer",
     "dep:leptos_axum",
     "dep:async-trait",
+    "dep:base64",
     "dep:diesel",
     "dep:diesel-async",
     "dep:diesel_migrations",
@@ -109,6 +111,11 @@ required-features = ["ssr"]
 [[test]]
 name = "task_attachment_repository_adapter_test"
 path = "tests/modules/tasks/task_attachment_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "fs_attachment_storage_adapter_test"
+path = "tests/modules/tasks/fs_attachment_storage_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]

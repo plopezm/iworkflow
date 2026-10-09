@@ -27,7 +27,8 @@ diesel::table! {
         position -> Integer,
         name -> Text,
         mime_type -> Text,
-        data -> Text,
+        path -> Text,
+        size_bytes -> Integer,
         created_at -> Timestamp,
     }
 }

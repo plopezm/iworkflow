@@ -4,19 +4,26 @@ use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::{Task, TaskId};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
+use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Borra en cascada las tareas inactivas de un workspace, al eliminarlo.
 pub struct DeleteWorkspaceTasks {
     lifecycle: Arc<TaskLifecycle>,
     worktrees: Arc<dyn WorktreePort>,
+    storage: Arc<dyn AttachmentStoragePort>,
 }
 
 impl DeleteWorkspaceTasks {
-    pub fn new(lifecycle: Arc<TaskLifecycle>, worktrees: Arc<dyn WorktreePort>) -> Self {
+    pub fn new(
+        lifecycle: Arc<TaskLifecycle>,
+        worktrees: Arc<dyn WorktreePort>,
+        storage: Arc<dyn AttachmentStoragePort>,
+    ) -> Self {
         Self {
             lifecycle,
             worktrees,
+            storage,
         }
     }
 
@@ -38,6 +45,9 @@ impl DeleteWorkspaceTasks {
             .await?;
         let ids: Vec<TaskId> = deleted.ok_or(TaskError::WorkspaceHasActiveTasks)?;
         for id in ids {
+            if let Err(error) = self.storage.delete_task_dir(id).await {
+                tracing::warn!(task_id = %id, %error, "no se pudieron borrar los adjuntos de la tarea");
+            }
             self.lifecycle.notify_removed(id).await?;
         }
         Ok(())
@@ -72,12 +82,13 @@ mod tests {
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
     use crate::modules::tasks::domain::models::task::TaskStatus;
-    use crate::modules::tasks::mocks::{MockTaskRepository, MockWorktree};
+    use crate::modules::tasks::mocks::{MockAttachmentStorage, MockTaskRepository, MockWorktree};
 
     fn use_case(
         mut repository: MockTaskRepository,
         tasks: Vec<Task>,
         worktrees: MockWorktree,
+        storage: MockAttachmentStorage,
         recorded: &Recorded,
     ) -> DeleteWorkspaceTasks {
         repository
@@ -86,7 +97,17 @@ mod tests {
         DeleteWorkspaceTasks::new(
             test_support::lifecycle_with(repository, recorded),
             Arc::new(worktrees),
+            Arc::new(storage),
         )
+    }
+
+    fn storage_cleaning(times: usize) -> MockAttachmentStorage {
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        storage
+            .expect_delete_task_dir()
+            .times(times)
+            .returning(|_| Ok(()));
+        storage
     }
 
     fn repository_deleting(ids: Vec<TaskId>, recorded: &Recorded) -> MockTaskRepository {
@@ -111,6 +132,7 @@ mod tests {
             repository_deleting(vec![id], &recorded),
             vec![task],
             worktrees,
+            storage_cleaning(1),
             &recorded,
         )
         .execute("ws-1".to_string())
@@ -143,6 +165,7 @@ mod tests {
             repository_deleting(ids, &recorded),
             vec![merged, discarded, backlog],
             worktrees,
+            storage_cleaning(3),
             &recorded,
         )
         .execute("ws-1".to_string())
@@ -167,6 +190,34 @@ mod tests {
             repository_deleting(vec![id], &recorded),
             vec![task],
             worktrees,
+            storage_cleaning(1),
+            &recorded,
+        )
+        .execute("ws-1".to_string())
+        .await
+        .expect("borrado");
+
+        assert_eq!(recorded.published.lock().expect("lock").len(), 1);
+    }
+
+    #[tokio::test]
+    async fn attachment_cleanup_failure_does_not_block_deletion() {
+        let mut task: Task = test_support::task(TaskStatus::Backlog);
+        task.branch = String::new();
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        storage
+            .expect_delete_task_dir()
+            .withf(move |task_id: &TaskId| *task_id == id)
+            .times(1)
+            .returning(|_| Err(TaskError::Storage("permiso denegado".to_string())));
+
+        use_case(
+            repository_deleting(vec![id], &recorded),
+            vec![task],
+            MockWorktree::new(),
+            storage,
             &recorded,
         )
         .execute("ws-1".to_string())
@@ -186,10 +237,15 @@ mod tests {
         let mut worktrees: MockWorktree = MockWorktree::new();
         worktrees.expect_remove().never();
 
-        let result: Result<(), TaskError> =
-            use_case(repository, vec![merged, running], worktrees, &recorded)
-                .execute("ws-1".to_string())
-                .await;
+        let result: Result<(), TaskError> = use_case(
+            repository,
+            vec![merged, running],
+            worktrees,
+            storage_cleaning(0),
+            &recorded,
+        )
+        .execute("ws-1".to_string())
+        .await;
 
         assert_eq!(result, Err(TaskError::WorkspaceHasActiveTasks));
     }

@@ -2,8 +2,8 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 
 /// Máximo de imágenes adjuntas por mensaje.
 pub const MAX_IMAGES_PER_MESSAGE: usize = 5;
-/// Tamaño máximo (decodificado) de cada imagen: 5 MiB.
-pub const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+/// Tamaño máximo (decodificado) de cada imagen: 4 MiB.
+pub const MAX_IMAGE_BYTES: usize = 4 * 1024 * 1024;
 /// Tipos MIME de imagen admitidos.
 pub const ALLOWED_IMAGE_MIME_TYPES: [&str; 4] =
     ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -33,7 +33,7 @@ impl ImageAttachment {
         }
         if self.decoded_len() > MAX_IMAGE_BYTES {
             return Err(TaskError::InvalidAttachment(format!(
-                "{}: la imagen supera los 5 MiB",
+                "{}: la imagen supera los 4 MiB",
                 self.name
             )));
         }
@@ -51,7 +51,7 @@ impl ImageAttachment {
     }
 
     /// Tamaño decodificado estimado a partir de la longitud del base64.
-    fn decoded_len(&self) -> usize {
+    pub fn decoded_len(&self) -> usize {
         let padding: usize = self
             .data
             .bytes()
@@ -72,6 +72,11 @@ mod tests {
             mime_type: mime.to_string(),
             data: data.to_string(),
         }
+    }
+
+    #[test]
+    fn max_image_size_is_four_mib() {
+        assert_eq!(MAX_IMAGE_BYTES, 4 * 1024 * 1024);
     }
 
     #[test]

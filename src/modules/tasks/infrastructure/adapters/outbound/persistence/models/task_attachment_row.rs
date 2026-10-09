@@ -3,7 +3,7 @@ use diesel::prelude::*;
 
 use crate::core::db::schema::task_attachments;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
-use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
+use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 
 #[derive(Debug, Clone, Queryable, Selectable)]
 #[diesel(table_name = task_attachments)]
@@ -14,7 +14,8 @@ pub struct TaskAttachmentRow {
     pub position: i32,
     pub name: String,
     pub mime_type: String,
-    pub data: String,
+    pub path: String,
+    pub size_bytes: i32,
     pub created_at: NaiveDateTime,
 }
 
@@ -26,7 +27,8 @@ pub struct NewTaskAttachmentRow {
     pub position: i32,
     pub name: String,
     pub mime_type: String,
-    pub data: String,
+    pub path: String,
+    pub size_bytes: i32,
     pub created_at: NaiveDateTime,
 }
 
@@ -34,29 +36,34 @@ impl NewTaskAttachmentRow {
     pub fn new(
         task_id: &str,
         position: usize,
-        image: &ImageAttachment,
+        attachment: &StoredAttachment,
         created_at: NaiveDateTime,
     ) -> Result<Self, TaskError> {
         let position: i32 = i32::try_from(position)
             .map_err(|e| TaskError::Repository(format!("posición de adjunto inválida: {e}")))?;
+        let size_bytes: i32 = i32::try_from(attachment.size_bytes)
+            .map_err(|e| TaskError::Repository(format!("tamaño de adjunto inválido: {e}")))?;
         Ok(Self {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: attachment.id.clone(),
             task_id: task_id.to_string(),
             position,
-            name: image.name.clone(),
-            mime_type: image.mime_type.clone(),
-            data: image.data.clone(),
+            name: attachment.name.clone(),
+            mime_type: attachment.mime_type.clone(),
+            path: attachment.path.clone(),
+            size_bytes,
             created_at,
         })
     }
 }
 
-impl From<TaskAttachmentRow> for ImageAttachment {
+impl From<TaskAttachmentRow> for StoredAttachment {
     fn from(row: TaskAttachmentRow) -> Self {
         Self {
+            id: row.id,
             name: row.name,
             mime_type: row.mime_type,
-            data: row.data,
+            path: row.path,
+            size_bytes: u64::try_from(row.size_bytes).unwrap_or_default(),
         }
     }
 }

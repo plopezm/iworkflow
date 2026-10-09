@@ -1,9 +1,9 @@
 use axum::Router;
 use axum::extract::DefaultBodyLimit;
 
-/// Tope del cuerpo de las peticiones de server functions: 5 imágenes de 5 MiB en base64
-/// (~34 MiB) más margen. El límite por defecto de axum es 2 MiB.
-pub const SERVER_FN_MAX_BODY_BYTES: usize = 40 * 1024 * 1024;
+/// Tope del cuerpo de las peticiones de server functions: 5 imágenes de 4 MiB en base64
+/// (~26,7 MiB) más margen. El límite por defecto de axum es 2 MiB.
+pub const SERVER_FN_MAX_BODY_BYTES: usize = 30 * 1024 * 1024;
 
 /// Eleva el límite de cuerpo solo para las rutas del `router` recibido.
 pub fn with_server_fn_body_limit<S>(router: Router<S>) -> Router<S>
@@ -51,6 +51,11 @@ mod tests {
         )
     }
 
+    #[test]
+    fn body_limit_fits_five_four_mib_images_in_base64() {
+        assert_eq!(SERVER_FN_MAX_BODY_BYTES, 30 * 1024 * 1024);
+    }
+
     #[tokio::test]
     async fn default_axum_limit_rejects_a_payload_of_five_images() {
         let status: String = post_status(router(), SERVER_FN_MAX_BODY_BYTES - 1024 * 1024).await;
@@ -61,7 +66,7 @@ mod tests {
     #[tokio::test]
     async fn scoped_limit_accepts_a_payload_of_five_images() {
         let status: String =
-            post_status(with_server_fn_body_limit(router()), 35 * 1024 * 1024).await;
+            post_status(with_server_fn_body_limit(router()), 27 * 1024 * 1024).await;
 
         assert!(status.contains("200"), "{status}");
     }

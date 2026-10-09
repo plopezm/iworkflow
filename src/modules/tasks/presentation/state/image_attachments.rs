@@ -5,8 +5,8 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachm
 
 /// Máximo de imágenes por mensaje (refleja `MAX_IMAGES_PER_MESSAGE` del dominio).
 pub const MAX_IMAGES: usize = 5;
-/// Tamaño máximo de cada imagen en bytes (refleja `MAX_IMAGE_BYTES` del dominio): 5 MiB.
-pub const MAX_IMAGE_BYTES: usize = 5 * 1024 * 1024;
+/// Tamaño máximo de cada imagen en bytes (refleja `MAX_IMAGE_BYTES` del dominio): 4 MiB.
+pub const MAX_IMAGE_BYTES: usize = 4 * 1024 * 1024;
 /// Tipos MIME admitidos (refleja `ALLOWED_IMAGE_MIME_TYPES` del dominio).
 pub const ALLOWED_MIME_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 /// Valor del atributo `accept` del selector de ficheros.
@@ -256,7 +256,7 @@ mod tests {
             validate_file("a.png", "image/png", MAX_IMAGE_BYTES + 1, 0, limits),
             Err(ImageRejection::TooLarge {
                 name: "a.png".to_string(),
-                max_mib: 5
+                max_mib: 4
             })
         );
         assert_eq!(
@@ -315,10 +315,15 @@ mod tests {
     }
 
     #[test]
+    fn max_image_size_is_four_mib() {
+        assert_eq!(MAX_IMAGE_BYTES, 4 * 1024 * 1024);
+    }
+
+    #[test]
     fn hint_shows_count_and_size() {
         assert_eq!(
             hint_text(2, ImageLimits::default()),
-            "2/5 imágenes · máx. 5 MiB cada una"
+            "2/5 imágenes · máx. 4 MiB cada una"
         );
     }
 }

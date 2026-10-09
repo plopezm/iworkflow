@@ -35,6 +35,8 @@ pub enum TaskError {
     Repository(String),
     #[error("error de persistencia: {0}")]
     Busy(String),
+    #[error("error de almacenamiento de adjuntos: {0}")]
+    Storage(String),
     #[error("el workspace tiene tareas activas")]
     WorkspaceHasActiveTasks,
 }

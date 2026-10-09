@@ -1,4 +1,5 @@
 pub mod agent_runtime_port;
+pub mod attachment_storage_port;
 pub mod launch_settings_port;
 pub mod task_attachment_repository_port;
 pub mod task_event_publisher_port;
