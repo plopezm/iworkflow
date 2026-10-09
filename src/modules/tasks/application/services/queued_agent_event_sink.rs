@@ -126,6 +126,7 @@ mod tests {
     fn event(text: &str) -> AgentEvent {
         AgentEvent::UserMessage {
             text: text.to_string(),
+            images: 0,
         }
     }
 
@@ -156,7 +157,7 @@ mod tests {
             if let Some(delay) = self.delay {
                 tokio::time::sleep(delay).await;
             }
-            let AgentEvent::UserMessage { text } = event else {
+            let AgentEvent::UserMessage { text, .. } = event else {
                 return;
             };
             if text == PANIC_MARKER {

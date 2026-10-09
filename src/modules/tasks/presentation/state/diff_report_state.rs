@@ -156,6 +156,7 @@ mod tests {
     fn user(text: &str) -> TranscriptItem {
         TranscriptItem::User {
             text: text.to_string(),
+            images: 0,
         }
     }
 

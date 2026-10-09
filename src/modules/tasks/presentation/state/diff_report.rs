@@ -64,7 +64,7 @@ pub fn find_explanation(transcript: &Transcript, prompt: &str, since: usize) -> 
     }
     let items: &[TranscriptItem] = transcript.items.get(since..)?;
     let prompt_index: usize = items.iter().rposition(
-        |item: &TranscriptItem| matches!(item, TranscriptItem::User { text } if text == prompt),
+        |item: &TranscriptItem| matches!(item, TranscriptItem::User { text, .. } if text == prompt),
     )?;
     let after: &[TranscriptItem] = &items[prompt_index + 1..];
 
@@ -102,6 +102,7 @@ mod tests {
     fn user(text: &str) -> TranscriptItem {
         TranscriptItem::User {
             text: text.to_string(),
+            images: 0,
         }
     }
 

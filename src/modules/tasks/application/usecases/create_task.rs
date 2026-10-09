@@ -254,6 +254,7 @@ mod tests {
                 *command
                     == AgentCommand::Prompt {
                         message: "Arregla el login roto".to_string(),
+                        images: Vec::new(),
                     }
             })
             .times(1)

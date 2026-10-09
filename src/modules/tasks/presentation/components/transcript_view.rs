@@ -4,7 +4,9 @@ use crate::core::components::layout::ErrorText;
 use crate::core::markdown::render_markdown;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::NoticeLevelDto;
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
-use crate::modules::tasks::presentation::state::transcript::{Transcript, TranscriptItem};
+use crate::modules::tasks::presentation::state::transcript::{
+    Transcript, TranscriptItem, images_label,
+};
 
 /// Longitud máxima del resumen de argumentos de una herramienta.
 const ARGS_PREVIEW_CHARS: usize = 80;
@@ -88,10 +90,13 @@ fn notice_class(level: NoticeLevelDto) -> &'static str {
 
 fn render_item(item: TranscriptItem) -> AnyView {
     match item {
-        TranscriptItem::User { text } => view! {
+        TranscriptItem::User { text, images } => view! {
             <div class="msg msg-user animate-slide-in-right">
                 <span class="msg-role">"Tú"</span>
-                <pre class="whitespace-pre-wrap break-words">{text}</pre>
+                {(images > 0)
+                    .then(|| view! { <span class="msg-attachments">{images_label(images)}</span> })}
+                {(!text.is_empty())
+                    .then(|| view! { <pre class="whitespace-pre-wrap break-words">{text}</pre> })}
             </div>
         }
         .into_any(),

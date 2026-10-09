@@ -161,6 +161,7 @@ impl StartTask {
                 task.id,
                 AgentCommand::Prompt {
                     message: task.prompt.clone(),
+                    images: Vec::new(),
                 },
             )
             .await
@@ -237,6 +238,7 @@ mod tests {
                 *command
                     == AgentCommand::Prompt {
                         message: "Arregla el login".to_string(),
+                        images: Vec::new(),
                     }
             })
             .times(1)

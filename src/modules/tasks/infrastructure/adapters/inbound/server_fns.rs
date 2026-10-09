@@ -94,7 +94,7 @@ pub async fn send_task_message(
 ) -> Result<(), ServerFnError> {
     support::context()?
         .send_message
-        .execute(support::task_id(&id)?, message, mode.into())
+        .execute(support::task_id(&id)?, message, Vec::new(), mode.into())
         .await
         .map_err(support::to_server_error)
 }

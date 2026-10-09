@@ -101,6 +101,7 @@ fn event(i: usize) -> AgentEvent {
         },
         _ => AgentEvent::UserMessage {
             text: format!("mensaje {i}"),
+            images: 0,
         },
     }
 }

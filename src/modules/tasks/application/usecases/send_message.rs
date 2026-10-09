@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::{AgentCommand, MessageMode};
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 
@@ -22,10 +23,12 @@ impl SendMessage {
         &self,
         id: TaskId,
         message: String,
+        images: Vec<ImageAttachment>,
         mode: MessageMode,
     ) -> Result<(), TaskError> {
         let message: String = message.trim().to_string();
-        if message.is_empty() {
+        let images: Vec<ImageAttachment> = ImageAttachment::validate_all(images)?;
+        if message.is_empty() && images.is_empty() {
             return Err(TaskError::EmptyMessage);
         }
         let task: Task = self.lifecycle.load(id).await?;
@@ -33,9 +36,9 @@ impl SendMessage {
             return Err(invalid_state("enviar mensaje", task.status));
         }
         let command: AgentCommand = match (task.status, mode) {
-            (TaskStatus::Idle, _) => AgentCommand::Prompt { message },
-            (_, MessageMode::Steer) => AgentCommand::Steer { message },
-            (_, MessageMode::FollowUp) => AgentCommand::FollowUp { message },
+            (TaskStatus::Idle, _) => AgentCommand::Prompt { message, images },
+            (_, MessageMode::Steer) => AgentCommand::Steer { message, images },
+            (_, MessageMode::FollowUp) => AgentCommand::FollowUp { message, images },
         };
         self.runtime.send(id, command).await
     }
@@ -57,7 +60,25 @@ mod tests {
         runtime
     }
 
+    fn png() -> ImageAttachment {
+        ImageAttachment {
+            name: "a.png".to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGk=".to_string(),
+        }
+    }
+
     async fn send(
+        status: TaskStatus,
+        mode: MessageMode,
+        runtime: MockAgentRuntime,
+    ) -> Result<(), TaskError> {
+        send_with("  hola ", Vec::new(), status, mode, runtime).await
+    }
+
+    async fn send_with(
+        message: &str,
+        images: Vec<ImageAttachment>,
         status: TaskStatus,
         mode: MessageMode,
         runtime: MockAgentRuntime,
@@ -68,7 +89,7 @@ mod tests {
             test_support::lifecycle(Some(task), &Recorded::default()),
             Arc::new(runtime),
         )
-        .execute(id, "  hola ".to_string(), mode)
+        .execute(id, message.to_string(), images, mode)
         .await
     }
 
@@ -76,6 +97,7 @@ mod tests {
     async fn idle_agent_receives_prompt() {
         let runtime: MockAgentRuntime = runtime_expecting(AgentCommand::Prompt {
             message: "hola".to_string(),
+            images: Vec::new(),
         });
         assert_eq!(
             send(TaskStatus::Idle, MessageMode::Steer, runtime).await,
@@ -87,9 +109,11 @@ mod tests {
     async fn running_agent_receives_steer_or_follow_up() {
         let steer: MockAgentRuntime = runtime_expecting(AgentCommand::Steer {
             message: "hola".to_string(),
+            images: Vec::new(),
         });
         let follow: MockAgentRuntime = runtime_expecting(AgentCommand::FollowUp {
             message: "hola".to_string(),
+            images: Vec::new(),
         });
         assert_eq!(
             send(TaskStatus::Running, MessageMode::Steer, steer).await,
@@ -110,5 +134,52 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(TaskError::InvalidState { .. })));
+    }
+
+    #[tokio::test]
+    async fn forwards_images_and_allows_empty_text_with_images() {
+        let runtime: MockAgentRuntime = runtime_expecting(AgentCommand::Prompt {
+            message: String::new(),
+            images: vec![png()],
+        });
+        assert_eq!(
+            send_with(
+                "  ",
+                vec![png()],
+                TaskStatus::Idle,
+                MessageMode::Steer,
+                runtime
+            )
+            .await,
+            Ok(())
+        );
+    }
+
+    #[tokio::test]
+    async fn rejects_empty_text_without_images() {
+        let result: Result<(), TaskError> = send_with(
+            "  ",
+            Vec::new(),
+            TaskStatus::Idle,
+            MessageMode::Steer,
+            MockAgentRuntime::new(),
+        )
+        .await;
+        assert_eq!(result, Err(TaskError::EmptyMessage));
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_images() {
+        let mut bad: ImageAttachment = png();
+        bad.mime_type = "application/pdf".to_string();
+        let result: Result<(), TaskError> = send_with(
+            "hola",
+            vec![bad],
+            TaskStatus::Idle,
+            MessageMode::Steer,
+            MockAgentRuntime::new(),
+        )
+        .await;
+        assert!(matches!(result, Err(TaskError::InvalidAttachment(_))));
     }
 }

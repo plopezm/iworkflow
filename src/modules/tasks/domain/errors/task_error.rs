@@ -10,6 +10,8 @@ pub enum TaskError {
     InvalidPriority(String),
     #[error("el mensaje está vacío")]
     EmptyMessage,
+    #[error("adjunto inválido: {0}")]
+    InvalidAttachment(String),
     #[error("tarea no encontrada: {0}")]
     NotFound(String),
     #[error("workspace no encontrado: {0}")]
