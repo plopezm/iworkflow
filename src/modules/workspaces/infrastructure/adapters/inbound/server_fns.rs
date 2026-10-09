@@ -2,7 +2,8 @@ use leptos::prelude::*;
 
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::directory_dto::DirectoryListingDto;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
-    AgentsFileOptionDto, RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, WorkspaceDto,
+    AgentsFileOptionDto, RegisterWorkspaceDto, RegisterWorkspaceOutcomeDto, UpdateWorkspaceDto,
+    WorkspaceDto,
 };
 
 #[cfg(feature = "ssr")]
@@ -71,6 +72,35 @@ pub async fn list_workspaces() -> Result<Vec<WorkspaceDto>, ServerFnError> {
         .await
         .map_err(support::to_server_error)?;
     Ok(workspaces.into_iter().map(WorkspaceDto::from).collect())
+}
+
+#[server]
+pub async fn get_workspace(id: String) -> Result<WorkspaceDto, ServerFnError> {
+    use crate::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+
+    let id: WorkspaceId = WorkspaceId::parse(&id).map_err(support::to_server_error)?;
+    let workspace: Workspace = support::context()?
+        .get_workspace
+        .execute(id)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(WorkspaceDto::from(workspace))
+}
+
+#[server]
+pub async fn update_workspace(
+    id: String,
+    input: UpdateWorkspaceDto,
+) -> Result<WorkspaceDto, ServerFnError> {
+    use crate::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
+
+    let id: WorkspaceId = WorkspaceId::parse(&id).map_err(support::to_server_error)?;
+    let workspace: Workspace = support::context()?
+        .update_workspace
+        .execute(id, input.into())
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(WorkspaceDto::from(workspace))
 }
 
 #[server]

@@ -25,6 +25,7 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
                 .map(|w: WorkspaceDto| {
                     let id: String = w.id.clone();
                     let name: String = w.name.clone();
+                    let edit_href: String = format!("/workspaces/{}/edit", w.id);
                     let terminal_href: String = format!("/workspaces/{}/terminal", w.id);
                     view! {
                         <article class="card stack gap-1.5 animate-slide-up">
@@ -34,6 +35,12 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
                                     {w.name}
                                 </span>
                                 <div class="row gap-1.5">
+                                <A
+                                    href=edit_href
+                                    attr:class="btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"
+                                >
+                                    "Editar"
+                                </A>
                                 <A
                                     href=terminal_href
                                     attr:class="btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"

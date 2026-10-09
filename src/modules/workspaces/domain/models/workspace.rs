@@ -99,6 +99,39 @@ impl NewWorkspace {
     }
 }
 
+/// Datos de entrada para editar un workspace existente (la ruta no es editable).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceUpdate {
+    pub name: String,
+    /// Si es `None` se conserva la rama base actual.
+    pub base_branch: Option<String>,
+    /// Fichero AGENTS.md guardado que sustituye al AGENTS.md del proyecto.
+    pub agents_file_id: Option<String>,
+}
+
+impl WorkspaceUpdate {
+    /// Normaliza y valida las invariantes que no dependen de infraestructura.
+    pub fn validated(self) -> Result<Self, WorkspaceError> {
+        let name: String = self.name.trim().to_string();
+        if name.is_empty() || name.chars().count() > MAX_NAME_LENGTH {
+            return Err(WorkspaceError::InvalidName);
+        }
+        let base_branch: Option<String> = self
+            .base_branch
+            .map(|b: String| b.trim().to_string())
+            .filter(|b: &String| !b.is_empty());
+        let agents_file_id: Option<String> = self
+            .agents_file_id
+            .map(|id: String| id.trim().to_string())
+            .filter(|id: &String| !id.is_empty());
+        Ok(Self {
+            name,
+            base_branch,
+            agents_file_id,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,6 +181,42 @@ mod tests {
         let result: Result<NewWorkspace, WorkspaceError> =
             input("demo", "relative/dir", None).validated();
         assert!(matches!(result, Err(WorkspaceError::PathNotAbsolute(_))));
+    }
+
+    fn update(name: &str, branch: Option<&str>, agents: Option<&str>) -> WorkspaceUpdate {
+        WorkspaceUpdate {
+            name: name.to_string(),
+            base_branch: branch.map(str::to_string),
+            agents_file_id: agents.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn update_validated_trims_and_maps_blanks_to_none() {
+        let result: WorkspaceUpdate = update("  demo ", Some("  dev "), Some(" abc "))
+            .validated()
+            .expect("válido");
+        assert_eq!(result, update("demo", Some("dev"), Some("abc")));
+
+        let blank: WorkspaceUpdate = update("demo", Some("  "), Some("  "))
+            .validated()
+            .expect("válido");
+        assert_eq!(blank, update("demo", None, None));
+    }
+
+    #[test]
+    fn update_validated_rejects_blank_and_too_long_name() {
+        assert_eq!(
+            update("   ", None, None).validated(),
+            Err(WorkspaceError::InvalidName)
+        );
+        let long: String = "a".repeat(MAX_NAME_LENGTH + 1);
+        assert_eq!(
+            update(&long, None, None).validated(),
+            Err(WorkspaceError::InvalidName)
+        );
+        let max: String = "a".repeat(MAX_NAME_LENGTH);
+        assert!(update(&max, None, None).validated().is_ok());
     }
 
     #[test]

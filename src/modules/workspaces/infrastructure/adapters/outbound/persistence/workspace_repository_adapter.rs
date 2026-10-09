@@ -9,7 +9,9 @@ use crate::core::db::schema::workspaces;
 use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
 use crate::modules::workspaces::domain::models::workspace::{Workspace, WorkspaceId};
 use crate::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
-use crate::modules::workspaces::infrastructure::adapters::outbound::persistence::models::workspace_row::WorkspaceRow;
+use crate::modules::workspaces::infrastructure::adapters::outbound::persistence::models::workspace_row::{
+    WorkspaceChangeset, WorkspaceRow,
+};
 
 const SQLITE_FK_MESSAGE: &str = "FOREIGN KEY constraint failed";
 
@@ -75,6 +77,19 @@ impl WorkspaceRepositoryPort for WorkspaceRepositoryAdapter {
             .await
             .map_err(|e: DieselError| map_error(e, None))?;
         to_domain(rows)
+    }
+
+    async fn update(&self, workspace: &Workspace) -> Result<(), WorkspaceError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let updated: usize = diesel::update(workspaces::table.find(workspace.id.to_string()))
+            .set(WorkspaceChangeset::from(workspace))
+            .execute(&mut connection)
+            .await
+            .map_err(|e: DieselError| map_error(e, Some(workspace)))?;
+        if updated == 0 {
+            return Err(WorkspaceError::NotFound(workspace.id.to_string()));
+        }
+        Ok(())
     }
 
     async fn find_by_id(&self, id: WorkspaceId) -> Result<Option<Workspace>, WorkspaceError> {

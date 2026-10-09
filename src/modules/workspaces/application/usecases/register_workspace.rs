@@ -89,7 +89,7 @@ impl RegisterWorkspace {
 
         if let Some(agents_file_id) = input.agents_file_id.as_deref() {
             self.agents_files
-                .install(agents_file_id, &info.root)
+                .install(agents_file_id, &info.root, false)
                 .await?;
         }
 
@@ -499,10 +499,12 @@ mod tests {
         let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
         agents_files
             .expect_install()
-            .withf(|id: &str, root: &Path| id == "abc" && root == Path::new(ROOT))
+            .withf(|id: &str, root: &Path, overwrite: &bool| {
+                id == "abc" && root == Path::new(ROOT) && !*overwrite
+            })
             .times(1)
             .in_sequence(&mut seq)
-            .returning(|_, _| Ok(()));
+            .returning(|_, _, _| Ok(()));
         let mut repository: MockWorkspaceRepository = empty_repository();
         repository
             .expect_save()
@@ -524,7 +526,7 @@ mod tests {
     #[tokio::test]
     async fn install_error_aborts_without_saving() {
         let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
-        agents_files.expect_install().returning(|_, _| {
+        agents_files.expect_install().returning(|_, _, _| {
             Err(WorkspaceError::AgentsFileTargetExists(
                 "/repos/demo/AGENTS.md".to_string(),
             ))
@@ -561,7 +563,7 @@ mod tests {
             .expect_install()
             .times(1)
             .in_sequence(&mut seq)
-            .returning(|_, _| Ok(()));
+            .returning(|_, _, _| Ok(()));
         let mut repository: MockWorkspaceRepository = empty_repository();
         repository.expect_save().times(1).returning(|_| Ok(()));
         let use_case: RegisterWorkspace =

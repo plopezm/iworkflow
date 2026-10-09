@@ -21,6 +21,7 @@ mock! {
     impl WorkspaceRepositoryPort for WorkspaceRepository {
         async fn save(&self, workspace: &Workspace) -> Result<(), WorkspaceError>;
         async fn list(&self) -> Result<Vec<Workspace>, WorkspaceError>;
+        async fn update(&self, workspace: &Workspace) -> Result<(), WorkspaceError>;
         async fn find_by_id(&self, id: WorkspaceId) -> Result<Option<Workspace>, WorkspaceError>;
         async fn find_by_path(&self, path: &Path) -> Result<Option<Workspace>, WorkspaceError>;
         async fn delete(&self, id: WorkspaceId) -> Result<(), WorkspaceError>;
@@ -42,7 +43,7 @@ mock! {
     #[async_trait::async_trait]
     impl AgentsFilesPort for AgentsFiles {
         async fn list_options(&self) -> Result<Vec<AgentsFileOption>, WorkspaceError>;
-        async fn install(&self, agents_file_id: &str, root: &Path) -> Result<(), WorkspaceError>;
+        async fn install(&self, agents_file_id: &str, root: &Path, overwrite: bool) -> Result<(), WorkspaceError>;
     }
 }
 
