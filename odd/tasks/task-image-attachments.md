@@ -18,10 +18,10 @@ Limits (domain constants): max 5 images per message, 5 MiB each, mime in png/jpe
   - `CreateTask` stores images; `StartTask` loads them and sends with the initial `Prompt`.
 - [x] 3. Server functions + DTOs
   - `ImageAttachmentDto` (base64), `CreateTaskDto.images`, `send_task_message(.., images)`; mapping tests; raise body limit for these routes if needed.
-- [ ] 4. UI
+- [x] 4. UI
   - Reusable `ImagePicker` component (file input, paste, thumbnails, remove) used in `TaskModal` and `Composer`; state signals in board/detail state.
   - Transcript shows image count for user messages.
-- [ ] 5. Verification: fmt, clippy ssr + hydrate, `cargo test --features ssr`.
+- [x] 5. Verification: fmt, clippy ssr + hydrate, `cargo test --features ssr`.
 
 ## Evidence
 

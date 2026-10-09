@@ -37,7 +37,7 @@ portable-pty = { version = "0.9", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", features = ["AddEventListenerOptions", "Document", "Event", "EventSource", "MessageEvent", "Notification", "NotificationOptions", "NotificationPermission", "Window"], optional = true }
+web-sys = { version = "0.3", features = ["AddEventListenerOptions", "Blob", "ClipboardEvent", "DataTransfer", "Document", "Event", "EventSource", "EventTarget", "File", "FileList", "FileReader", "HtmlInputElement", "MessageEvent", "Notification", "NotificationOptions", "NotificationPermission", "Window"], optional = true }
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
 
 [dev-dependencies]
