@@ -25,6 +25,18 @@ pub struct RegisterWorkspaceDto {
     pub agents_file_id: Option<String>,
 }
 
+/// Datos editables de un workspace (la ruta no se puede cambiar).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateWorkspaceDto {
+    pub name: String,
+    /// Vacío o ausente: conservar la rama base actual.
+    #[serde(default)]
+    pub base_branch: Option<String>,
+    /// Fichero AGENTS.md guardado que sustituye al del proyecto.
+    #[serde(default)]
+    pub agents_file_id: Option<String>,
+}
+
 /// Fichero AGENTS.md ofrecido al registrar un proyecto nuevo.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AgentsFileOptionDto {
@@ -60,12 +72,14 @@ mod mapping {
 
     use super::{
         AgentsFileOptionDto, InitializationReasonDto, RegisterWorkspaceDto,
-        RegisterWorkspaceOutcomeDto, WorkspaceDto,
+        RegisterWorkspaceOutcomeDto, UpdateWorkspaceDto, WorkspaceDto,
     };
     use crate::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
     use crate::modules::workspaces::domain::models::agents_file_option::AgentsFileOption;
     use crate::modules::workspaces::domain::models::initialization_reason::InitializationReason;
-    use crate::modules::workspaces::domain::models::workspace::{NewWorkspace, Workspace};
+    use crate::modules::workspaces::domain::models::workspace::{
+        NewWorkspace, Workspace, WorkspaceUpdate,
+    };
 
     impl From<Workspace> for WorkspaceDto {
         fn from(workspace: Workspace) -> Self {
@@ -86,6 +100,16 @@ mod mapping {
                 path: PathBuf::from(dto.path.trim()),
                 base_branch: dto.base_branch,
                 initialize: dto.initialize,
+                agents_file_id: dto.agents_file_id,
+            }
+        }
+    }
+
+    impl From<UpdateWorkspaceDto> for WorkspaceUpdate {
+        fn from(dto: UpdateWorkspaceDto) -> Self {
+            Self {
+                name: dto.name,
+                base_branch: dto.base_branch,
                 agents_file_id: dto.agents_file_id,
             }
         }
@@ -179,6 +203,44 @@ mod mapping {
 
             assert_eq!(dto.agents_file_id, None);
             assert!(!dto.initialize);
+        }
+
+        #[test]
+        fn update_dto_maps_to_domain_update() {
+            let dto: UpdateWorkspaceDto = UpdateWorkspaceDto {
+                name: "Demo".to_string(),
+                base_branch: Some("dev".to_string()),
+                agents_file_id: Some("abc".to_string()),
+            };
+
+            let update: WorkspaceUpdate = WorkspaceUpdate::from(dto);
+
+            assert_eq!(update.name, "Demo");
+            assert_eq!(update.base_branch, Some("dev".to_string()));
+            assert_eq!(update.agents_file_id, Some("abc".to_string()));
+        }
+
+        #[test]
+        fn update_dto_blank_strings_become_none_after_validation() {
+            let dto: UpdateWorkspaceDto = UpdateWorkspaceDto {
+                name: " Demo ".to_string(),
+                base_branch: Some("  ".to_string()),
+                agents_file_id: Some(String::new()),
+            };
+
+            let update: WorkspaceUpdate = WorkspaceUpdate::from(dto).validated().expect("valid");
+
+            assert_eq!(update.name, "Demo");
+            assert_eq!(update.base_branch, None);
+            assert_eq!(update.agents_file_id, None);
+        }
+
+        #[test]
+        fn update_dto_without_optional_fields_deserializes_to_none() {
+            let dto: UpdateWorkspaceDto = serde_json::from_str(r#"{"name":"Demo"}"#).expect("json");
+
+            assert_eq!(dto.base_branch, None);
+            assert_eq!(dto.agents_file_id, None);
         }
 
         #[test]

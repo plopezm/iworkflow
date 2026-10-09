@@ -19,6 +19,23 @@ pub struct WorkspaceRow {
     pub created_at: NaiveDateTime,
 }
 
+/// Campos editables de un workspace (la ruta y la fecha de alta no cambian).
+#[derive(Debug, Clone, AsChangeset)]
+#[diesel(table_name = workspaces)]
+pub struct WorkspaceChangeset {
+    pub name: String,
+    pub base_branch: String,
+}
+
+impl From<&Workspace> for WorkspaceChangeset {
+    fn from(workspace: &Workspace) -> Self {
+        Self {
+            name: workspace.name.clone(),
+            base_branch: workspace.base_branch.clone(),
+        }
+    }
+}
+
 impl From<&Workspace> for WorkspaceRow {
     fn from(workspace: &Workspace) -> Self {
         Self {

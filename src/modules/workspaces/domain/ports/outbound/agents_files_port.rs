@@ -8,6 +8,12 @@ use crate::modules::workspaces::domain::models::agents_file_option::AgentsFileOp
 pub trait AgentsFilesPort: Send + Sync {
     async fn list_options(&self) -> Result<Vec<AgentsFileOption>, WorkspaceError>;
 
-    /// Escribe el fichero como `AGENTS.md` en `root` sin sobrescribir uno existente.
-    async fn install(&self, agents_file_id: &str, root: &Path) -> Result<(), WorkspaceError>;
+    /// Escribe el fichero como `AGENTS.md` en `root`. Con `overwrite` sustituye el existente;
+    /// sin él devuelve `AgentsFileTargetExists`.
+    async fn install(
+        &self,
+        agents_file_id: &str,
+        root: &Path,
+        overwrite: bool,
+    ) -> Result<(), WorkspaceError>;
 }

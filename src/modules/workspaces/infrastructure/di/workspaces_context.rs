@@ -9,6 +9,7 @@ use crate::modules::workspaces::application::usecases::get_workspace::GetWorkspa
 use crate::modules::workspaces::application::usecases::list_agents_file_options::ListAgentsFileOptions;
 use crate::modules::workspaces::application::usecases::list_workspaces::ListWorkspaces;
 use crate::modules::workspaces::application::usecases::register_workspace::RegisterWorkspace;
+use crate::modules::workspaces::application::usecases::update_workspace::UpdateWorkspace;
 use crate::modules::workspaces::domain::ports::outbound::agents_files_port::AgentsFilesPort;
 use crate::modules::workspaces::domain::ports::outbound::directory_browser_port::DirectoryBrowserPort;
 use crate::modules::workspaces::domain::ports::outbound::git_repository_port::GitRepositoryPort;
@@ -23,6 +24,7 @@ pub struct WorkspacesContext {
     pub register_workspace: Arc<RegisterWorkspace>,
     pub list_workspaces: Arc<ListWorkspaces>,
     pub get_workspace: Arc<GetWorkspace>,
+    pub update_workspace: Arc<UpdateWorkspace>,
     pub delete_workspace: Arc<DeleteWorkspace>,
     pub browse_directories: Arc<BrowseDirectories>,
     pub create_directory: Arc<CreateDirectory>,
@@ -44,11 +46,16 @@ impl WorkspacesContext {
         Self {
             register_workspace: Arc::new(RegisterWorkspace::new(
                 repository.clone(),
-                git,
+                git.clone(),
                 agents_files.clone(),
             )),
             list_workspaces: Arc::new(ListWorkspaces::new(repository.clone())),
             get_workspace: Arc::new(GetWorkspace::new(repository.clone())),
+            update_workspace: Arc::new(UpdateWorkspace::new(
+                repository.clone(),
+                git,
+                agents_files.clone(),
+            )),
             delete_workspace: Arc::new(DeleteWorkspace::new(repository, tasks)),
             browse_directories: Arc::new(BrowseDirectories::new(
                 directory_browser.clone(),

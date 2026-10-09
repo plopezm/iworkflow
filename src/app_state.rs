@@ -296,10 +296,11 @@ impl AgentsFilesPort for AgentsFilesBridge {
         &self,
         agents_file_id: &str,
         root: &std::path::Path,
+        overwrite: bool,
     ) -> Result<(), WorkspaceError> {
         let id: AgentsFileId = AgentsFileId::parse(agents_file_id).map_err(to_workspace_error)?;
         self.install
-            .execute(id, root, false)
+            .execute(id, root, overwrite)
             .await
             .map(|_| ())
             .map_err(to_workspace_error)

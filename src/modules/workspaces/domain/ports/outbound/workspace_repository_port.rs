@@ -7,6 +7,8 @@ use crate::modules::workspaces::domain::models::workspace::{Workspace, Workspace
 pub trait WorkspaceRepositoryPort: Send + Sync {
     async fn save(&self, workspace: &Workspace) -> Result<(), WorkspaceError>;
     async fn list(&self) -> Result<Vec<Workspace>, WorkspaceError>;
+    /// Actualiza nombre y rama base. Devuelve `NotFound` si no existe.
+    async fn update(&self, workspace: &Workspace) -> Result<(), WorkspaceError>;
     async fn find_by_id(&self, id: WorkspaceId) -> Result<Option<Workspace>, WorkspaceError>;
     async fn find_by_path(&self, path: &Path) -> Result<Option<Workspace>, WorkspaceError>;
     /// Devuelve `NotFound` si no existe. Si quedara alguna tarea referenciándolo (el

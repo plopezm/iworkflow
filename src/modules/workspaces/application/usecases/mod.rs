@@ -5,3 +5,4 @@ pub mod get_workspace;
 pub mod list_agents_file_options;
 pub mod list_workspaces;
 pub mod register_workspace;
+pub mod update_workspace;

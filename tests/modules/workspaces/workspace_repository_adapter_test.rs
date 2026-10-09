@@ -85,3 +85,43 @@ async fn delete_removes_and_reports_missing() {
     assert_eq!(adapter.find_by_id(saved.id).await.expect("find"), None);
     assert_eq!(again, Err(WorkspaceError::NotFound(saved.id.to_string())));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn update_changes_name_and_branch_but_not_path() {
+    let db: common::TestDb = common::test_db().await;
+    let adapter: WorkspaceRepositoryAdapter = WorkspaceRepositoryAdapter::new(db.pool.clone());
+    let saved: Workspace = workspace("a", "/repos/a");
+    adapter.save(&saved).await.expect("save");
+
+    let edited: Workspace = Workspace {
+        name: "renombrado".to_string(),
+        base_branch: "develop".to_string(),
+        path: PathBuf::from("/repos/otra"),
+        ..saved.clone()
+    };
+    adapter.update(&edited).await.expect("update");
+
+    let found: Workspace = adapter
+        .find_by_id(saved.id)
+        .await
+        .expect("find")
+        .expect("existe");
+    assert_eq!(found.name, "renombrado");
+    assert_eq!(found.base_branch, "develop");
+    assert_eq!(found.path, saved.path);
+    assert_eq!(found.created_at, saved.created_at);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn update_reports_missing_workspace() {
+    let db: common::TestDb = common::test_db().await;
+    let adapter: WorkspaceRepositoryAdapter = WorkspaceRepositoryAdapter::new(db.pool.clone());
+    let missing: Workspace = workspace("a", "/repos/a");
+
+    let result: Result<(), WorkspaceError> = adapter.update(&missing).await;
+
+    assert_eq!(
+        result,
+        Err(WorkspaceError::NotFound(missing.id.to_string()))
+    );
+}
