@@ -96,6 +96,8 @@ mock! {
         async fn create(&self, repo: &Path, base_branch: &str, branch: &str, path: &Path) -> Result<(), TaskError>;
         async fn commit_all(&self, path: &Path, message: &str) -> Result<bool, TaskError>;
         async fn diff(&self, repo: &Path, base_branch: &str, branch: &str) -> Result<TaskDiff, TaskError>;
+        async fn pin_range(&self, repo: &Path, base_branch: &str, branch: &str, pin_ref: &str) -> Result<DiffRange, TaskError>;
+        async fn diff_range(&self, repo: &Path, range: &DiffRange) -> Result<TaskDiff, TaskError>;
         async fn merge(&self, repo: &Path, base_branch: &str, branch: &str, message: &str) -> Result<MergeOutcome, TaskError>;
         async fn exists(&self, path: &Path) -> bool;
         async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError>;

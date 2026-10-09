@@ -10,7 +10,7 @@ Decisions by user: only future tasks; already merged / discarded tasks get no di
 Capture is best-effort: a failed capture/pin never blocks the merge (noted in the task error text instead).
 
 - [x] 1. Persistence: migration (`base_sha`, `head_sha` nullable on `tasks`, up/down, redo OK), `schema.rs`, `TaskRow`, `Task.diff_range: Option<DiffRange>`, `TaskRepositoryPort::record_diff_range` + adapter + integration test
-- [ ] 2. Git port: `WorktreePort::pin_range` (resolve merge-base + branch tip, `update-ref` pin) and `diff_range`; adapter, `mocks.rs`, integration tests (merge, branch deleted, diff regenerated)
+- [x] 2. Git port: `WorktreePort::pin_range` (resolve merge-base + branch tip, `update-ref` pin) and `diff_range`; adapter, `mocks.rs`, integration tests (merge, branch deleted, diff regenerated)
 - [ ] 3. `MergeTask`: pin before merge, record range after `Merged`, best-effort errors; unit tests
 - [ ] 4. `GetTaskDiff` for merged tasks with a range (open tasks unchanged, closed without range -> clear error); `can_view_diff` + DTO/server-fn mapping tests
 - [ ] 5. fmt, clippy ssr/hydrate, tests, codegraph refresh; final commit evidence
