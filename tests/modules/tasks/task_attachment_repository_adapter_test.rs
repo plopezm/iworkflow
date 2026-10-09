@@ -212,18 +212,43 @@ async fn images_are_deleted_with_their_workspace_tasks() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_position_cannot_be_used_twice_for_the_same_task() {
+async fn inserting_again_appends_after_the_existing_images() {
     let db: common::TestDb = common::test_db().await;
-    let task: Task = backlog_task(&db, "dup").await;
+    let task: Task = backlog_task(&db, "append").await;
     let adapter: TaskAttachmentRepositoryAdapter =
         TaskAttachmentRepositoryAdapter::new(db.pool.clone());
-    let first: Vec<StoredAttachment> = vec![image("a.png", "t/a.png")];
+    let first: Vec<StoredAttachment> = vec![image("a.png", "t/a.png"), image("b.png", "t/b.png")];
+    let second: Vec<StoredAttachment> = vec![image("c.png", "t/c.png"), image("d.png", "t/d.png")];
 
-    adapter.insert_many(task.id, &first).await.expect("insert");
-    let second: Result<(), TaskError> = adapter
-        .insert_many(task.id, &[image("b.png", "t/b.png")])
-        .await;
+    adapter.insert_many(task.id, &first).await.expect("first");
+    adapter.insert_many(task.id, &second).await.expect("second");
 
-    assert!(matches!(second, Err(TaskError::Repository(_))));
-    assert_eq!(adapter.list_by_task(task.id).await.expect("list"), first);
+    let expected: Vec<StoredAttachment> = first.into_iter().chain(second).collect();
+    assert_eq!(adapter.list_by_task(task.id).await.expect("list"), expected);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn appending_to_a_task_does_not_depend_on_other_tasks_positions() {
+    let db: common::TestDb = common::test_db().await;
+    let first: Task = backlog_task(&db, "uno").await;
+    let second: Task = backlog_task(&db, "dos").await;
+    let adapter: TaskAttachmentRepositoryAdapter =
+        TaskAttachmentRepositoryAdapter::new(db.pool.clone());
+    adapter
+        .insert_many(
+            first.id,
+            &[image("a.png", "t/a.png"), image("b.png", "t/b.png")],
+        )
+        .await
+        .expect("insert");
+
+    adapter
+        .insert_many(second.id, &[image("c.png", "t/c.png")])
+        .await
+        .expect("insert");
+
+    assert_eq!(
+        adapter.list_by_task(second.id).await.expect("list"),
+        vec![image("c.png", "t/c.png")]
+    );
 }

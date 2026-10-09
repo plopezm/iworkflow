@@ -162,11 +162,15 @@ impl TasksContext {
                 lifecycle.clone(),
                 worktrees.clone(),
                 start_task.clone(),
-                attachments,
+                attachments.clone(),
                 storage.clone(),
             )),
             start_task,
-            update_task: Arc::new(UpdateTask::new(lifecycle.clone())),
+            update_task: Arc::new(UpdateTask::new(
+                lifecycle.clone(),
+                attachments.clone(),
+                storage.clone(),
+            )),
             delete_task: Arc::new(DeleteTask::new(lifecycle.clone(), storage.clone())),
             delete_workspace_tasks: Arc::new(DeleteWorkspaceTasks::new(
                 lifecycle.clone(),

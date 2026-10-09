@@ -215,6 +215,8 @@ pub struct UpdateTaskDto {
     pub prompt: String,
     #[serde(default)]
     pub priority: TaskPriorityDto,
+    #[serde(default)]
+    pub images: Vec<ImageAttachmentDto>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -570,6 +572,14 @@ mod mapping {
 
             assert_eq!(create.priority, TaskPriorityDto::Normal);
             assert_eq!(update.priority, TaskPriorityDto::Normal);
+        }
+
+        #[test]
+        fn missing_images_in_update_payload_default_to_empty() {
+            let update: UpdateTaskDto =
+                serde_json::from_str(r#"{"title":"t","prompt":"p"}"#).expect("update");
+
+            assert!(update.images.is_empty());
         }
 
         #[test]

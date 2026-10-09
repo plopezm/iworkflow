@@ -6,6 +6,7 @@ use leptos_router::hooks::{use_navigate, use_params_map};
 use crate::core::browser::history_back;
 use crate::core::components::form::{ActionError, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
+use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
 use crate::modules::tasks::presentation::components::task_modal::priority_select_options;
 use crate::modules::tasks::presentation::state::task_edit_state::TaskEditState;
 
@@ -82,7 +83,9 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                         placeholder="Describe lo que debe hacer el agente…"
                                         required=true
                                         large=true
+                                        on_paste=paste_callback(state.images)
                                     />
+                                    <ImagePicker attachments=state.images />
                                     <ActionError result=state.update.value().into() />
                                     <div class="row justify-end gap-2">
                                         <button

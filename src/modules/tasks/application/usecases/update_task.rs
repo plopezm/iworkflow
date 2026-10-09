@@ -1,18 +1,84 @@
 use std::sync::Arc;
 
+use uuid::Uuid;
+
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::image_attachment::{
+    ImageAttachment, MAX_IMAGES_PER_MESSAGE,
+};
+use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 use crate::modules::tasks::domain::models::task::{NewTask, Task, TaskId};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
+use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 
-/// Edita titulo, prompt y prioridad de una tarea en `Backlog` (misma validacion que al crearla).
+/// Edita titulo, prompt y prioridad de una tarea en `Backlog` (misma validacion que al crearla)
+/// y añade imágenes nuevas a las ya adjuntas.
 pub struct UpdateTask {
     lifecycle: Arc<TaskLifecycle>,
+    attachments: Arc<dyn TaskAttachmentRepositoryPort>,
+    storage: Arc<dyn AttachmentStoragePort>,
 }
 
 impl UpdateTask {
-    pub fn new(lifecycle: Arc<TaskLifecycle>) -> Self {
-        Self { lifecycle }
+    pub fn new(
+        lifecycle: Arc<TaskLifecycle>,
+        attachments: Arc<dyn TaskAttachmentRepositoryPort>,
+        storage: Arc<dyn AttachmentStoragePort>,
+    ) -> Self {
+        Self {
+            lifecycle,
+            attachments,
+            storage,
+        }
+    }
+
+    /// Guarda los ficheros nuevos y después sus metadatos. Si algo falla, borra solo lo recién escrito.
+    async fn store_new_images(
+        &self,
+        task_id: TaskId,
+        images: &[ImageAttachment],
+    ) -> Result<(), TaskError> {
+        let mut saved_paths: Vec<String> = Vec::with_capacity(images.len());
+        let result: Result<(), TaskError> = self
+            .save_and_register(task_id, images, &mut saved_paths)
+            .await;
+        if result.is_err() {
+            for path in &saved_paths {
+                if let Err(cleanup_error) = self.storage.delete(path).await {
+                    tracing::warn!(
+                        %task_id,
+                        %path,
+                        %cleanup_error,
+                        "no se pudo borrar un adjunto escrito tras un fallo"
+                    );
+                }
+            }
+        }
+        result
+    }
+
+    async fn save_and_register(
+        &self,
+        task_id: TaskId,
+        images: &[ImageAttachment],
+        saved_paths: &mut Vec<String>,
+    ) -> Result<(), TaskError> {
+        let mut stored: Vec<StoredAttachment> = Vec::with_capacity(images.len());
+        for image in images {
+            let id: String = Uuid::new_v4().to_string();
+            let path: String = self.storage.save(task_id, &id, image).await?;
+            saved_paths.push(path.clone());
+            stored.push(StoredAttachment {
+                id,
+                name: image.name.clone(),
+                mime_type: image.mime_type.clone(),
+                path,
+                size_bytes: image.decoded_len() as u64,
+            });
+        }
+        self.attachments.insert_many(task_id, &stored).await
     }
 
     pub async fn execute(
@@ -21,6 +87,7 @@ impl UpdateTask {
         title: String,
         prompt: String,
         priority: TaskPriority,
+        images: Vec<ImageAttachment>,
     ) -> Result<Task, TaskError> {
         let task: Task = self.lifecycle.load(id).await?;
         if !task.status.can_edit() {
@@ -35,6 +102,15 @@ impl UpdateTask {
             start_now: false,
         }
         .validated()?;
+        let images: Vec<ImageAttachment> = ImageAttachment::validate_all(images)?;
+        if !images.is_empty() {
+            let existing: usize = self.attachments.list_by_task(id).await?.len();
+            if existing + images.len() > MAX_IMAGES_PER_MESSAGE {
+                return Err(TaskError::InvalidAttachment(format!(
+                    "máximo {MAX_IMAGES_PER_MESSAGE} imágenes por tarea"
+                )));
+            }
+        }
 
         let updated: bool = self
             .lifecycle
@@ -48,6 +124,9 @@ impl UpdateTask {
             .await?;
         if !updated {
             return Err(self.lifecycle.conflict(id, "editar").await);
+        }
+        if !images.is_empty() {
+            self.store_new_images(id, &images).await?;
         }
         self.lifecycle.notify_changed(id).await?;
 
@@ -65,7 +144,44 @@ mod tests {
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
     use crate::modules::tasks::domain::models::task::TaskStatus;
-    use crate::modules::tasks::mocks::MockTaskRepository;
+    use crate::modules::tasks::mocks::{
+        MockAttachmentStorage, MockTaskAttachmentRepository, MockTaskRepository,
+    };
+
+    fn use_case_with(
+        lifecycle: Arc<TaskLifecycle>,
+        attachments: MockTaskAttachmentRepository,
+        storage: MockAttachmentStorage,
+    ) -> UpdateTask {
+        UpdateTask::new(lifecycle, Arc::new(attachments), Arc::new(storage))
+    }
+
+    /// Use case whose attachment ports fail the test if they are called.
+    fn use_case(lifecycle: Arc<TaskLifecycle>) -> UpdateTask {
+        use_case_with(
+            lifecycle,
+            MockTaskAttachmentRepository::new(),
+            MockAttachmentStorage::new(),
+        )
+    }
+
+    fn image(name: &str) -> ImageAttachment {
+        ImageAttachment {
+            name: name.to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGVsbG8=".to_string(),
+        }
+    }
+
+    fn stored(name: &str) -> StoredAttachment {
+        StoredAttachment {
+            id: name.to_string(),
+            name: name.to_string(),
+            mime_type: "image/png".to_string(),
+            path: format!("t/{name}"),
+            size_bytes: 5,
+        }
+    }
 
     fn lifecycle_accepting_update(task: Task, recorded: &Recorded) -> Arc<TaskLifecycle> {
         let mut repository: MockTaskRepository =
@@ -83,12 +199,13 @@ mod tests {
         let id: TaskId = task.id;
         let recorded: Recorded = Recorded::default();
 
-        let updated: Task = UpdateTask::new(lifecycle_accepting_update(task, &recorded))
+        let updated: Task = use_case(lifecycle_accepting_update(task, &recorded))
             .execute(
                 id,
                 "Nuevo titulo".to_string(),
                 "Nuevo prompt".to_string(),
                 TaskPriority::default(),
+                Vec::new(),
             )
             .await
             .expect("editada");
@@ -110,8 +227,14 @@ mod tests {
             .withf(|_, _, _, priority: &TaskPriority| *priority == TaskPriority::Urgent)
             .returning(|_, _, _, _| Ok(true));
 
-        let updated: Task = UpdateTask::new(test_support::lifecycle_with(repository, &recorded))
-            .execute(id, "t".to_string(), "p".to_string(), TaskPriority::Urgent)
+        let updated: Task = use_case(test_support::lifecycle_with(repository, &recorded))
+            .execute(
+                id,
+                "t".to_string(),
+                "p".to_string(),
+                TaskPriority::Urgent,
+                Vec::new(),
+            )
             .await
             .expect("editada");
 
@@ -124,12 +247,13 @@ mod tests {
         let id: TaskId = task.id;
         let recorded: Recorded = Recorded::default();
 
-        let updated: Task = UpdateTask::new(lifecycle_accepting_update(task, &recorded))
+        let updated: Task = use_case(lifecycle_accepting_update(task, &recorded))
             .execute(
                 id,
                 "  ".to_string(),
                 "Arregla el test\nmas".to_string(),
                 TaskPriority::default(),
+                Vec::new(),
             )
             .await
             .expect("editada");
@@ -142,12 +266,13 @@ mod tests {
         let task: Task = test_support::task(TaskStatus::Running);
         let id: TaskId = task.id;
         let result: Result<Task, TaskError> =
-            UpdateTask::new(test_support::lifecycle(Some(task), &Recorded::default()))
+            use_case(test_support::lifecycle(Some(task), &Recorded::default()))
                 .execute(
                     id,
                     "t".to_string(),
                     "p".to_string(),
                     TaskPriority::default(),
+                    Vec::new(),
                 )
                 .await;
 
@@ -167,12 +292,13 @@ mod tests {
             .returning(|_, _, _, _| Ok(false));
 
         let result: Result<Task, TaskError> =
-            UpdateTask::new(test_support::lifecycle_with(repository, &recorded))
+            use_case(test_support::lifecycle_with(repository, &recorded))
                 .execute(
                     id,
                     "t".to_string(),
                     "p".to_string(),
                     TaskPriority::default(),
+                    Vec::new(),
                 )
                 .await;
 
@@ -184,15 +310,142 @@ mod tests {
         let task: Task = test_support::task(TaskStatus::Backlog);
         let id: TaskId = task.id;
         let result: Result<Task, TaskError> =
-            UpdateTask::new(test_support::lifecycle(Some(task), &Recorded::default()))
+            use_case(test_support::lifecycle(Some(task), &Recorded::default()))
                 .execute(
                     id,
                     "t".to_string(),
                     "   ".to_string(),
                     TaskPriority::default(),
+                    Vec::new(),
                 )
                 .await;
 
         assert_eq!(result, Err(TaskError::EmptyPrompt));
+    }
+
+    #[tokio::test]
+    async fn stores_new_images_after_updating_details() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments
+            .expect_list_by_task()
+            .times(1)
+            .returning(|_| Ok(vec![stored("old.png")]));
+        attachments
+            .expect_insert_many()
+            .times(1)
+            .withf(|_, items: &[StoredAttachment]| items.len() == 2 && items[0].path == "t/a.png")
+            .returning(|_, _| Ok(()));
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        storage
+            .expect_save()
+            .times(2)
+            .returning(|_, _, image: &ImageAttachment| Ok(format!("t/{}", image.name)));
+
+        use_case_with(
+            lifecycle_accepting_update(task, &recorded),
+            attachments,
+            storage,
+        )
+        .execute(
+            id,
+            "t".to_string(),
+            "p".to_string(),
+            TaskPriority::default(),
+            vec![image("a.png"), image("b.png")],
+        )
+        .await
+        .expect("editada");
+    }
+
+    #[tokio::test]
+    async fn rejects_images_beyond_the_per_task_limit() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments
+            .expect_list_by_task()
+            .times(1)
+            .returning(|_| Ok(vec![stored("1"), stored("2"), stored("3"), stored("4")]));
+
+        let result: Result<Task, TaskError> = use_case_with(
+            test_support::lifecycle(Some(task), &Recorded::default()),
+            attachments,
+            MockAttachmentStorage::new(),
+        )
+        .execute(
+            id,
+            "t".to_string(),
+            "p".to_string(),
+            TaskPriority::default(),
+            vec![image("a.png"), image("b.png")],
+        )
+        .await;
+
+        assert!(matches!(result, Err(TaskError::InvalidAttachment(_))));
+    }
+
+    #[tokio::test]
+    async fn rejects_invalid_images() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let mut bad: ImageAttachment = image("a.txt");
+        bad.mime_type = "text/plain".to_string();
+
+        let result: Result<Task, TaskError> =
+            use_case(test_support::lifecycle(Some(task), &Recorded::default()))
+                .execute(
+                    id,
+                    "t".to_string(),
+                    "p".to_string(),
+                    TaskPriority::default(),
+                    vec![bad],
+                )
+                .await;
+
+        assert!(matches!(result, Err(TaskError::InvalidAttachment(_))));
+    }
+
+    #[tokio::test]
+    async fn deletes_only_new_files_when_registering_them_fails() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments
+            .expect_list_by_task()
+            .returning(|_| Ok(vec![stored("old.png")]));
+        attachments
+            .expect_insert_many()
+            .times(1)
+            .returning(|_, _| Err(TaskError::Repository("boom".to_string())));
+        let mut storage: MockAttachmentStorage = MockAttachmentStorage::new();
+        storage
+            .expect_save()
+            .times(2)
+            .returning(|_, _, image: &ImageAttachment| Ok(format!("t/{}", image.name)));
+        storage
+            .expect_delete()
+            .times(2)
+            .withf(|path: &str| path == "t/a.png" || path == "t/b.png")
+            .returning(|_| Err(TaskError::Repository("cleanup".to_string())));
+
+        let result: Result<Task, TaskError> = use_case_with(
+            lifecycle_accepting_update(task, &recorded),
+            attachments,
+            storage,
+        )
+        .execute(
+            id,
+            "t".to_string(),
+            "p".to_string(),
+            TaskPriority::default(),
+            vec![image("a.png"), image("b.png")],
+        )
+        .await;
+
+        assert_eq!(result, Err(TaskError::Repository("boom".to_string())));
     }
 }
