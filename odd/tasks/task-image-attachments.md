@@ -12,8 +12,8 @@ Limits (domain constants): max 5 images per message, 5 MiB each, mime in png/jpe
   - `AgentCommand::{Prompt,Steer,FollowUp}` gain `images: Vec<ImageAttachment>`; `rpc_protocol::encode` emits `images` only when non-empty; `UserMessage` event carries `images: u32` (`#[serde(default)]`) decoded from user content image blocks; DTO + transcript show "N imagen(es)".
   - `SendMessage::execute` takes images (text or images required; text still trimmed).
   - Tests: encode/decode, validation, SendMessage with images.
-- [ ] 2. Persistence of initial-prompt images (Backlog -> start)
-  - Migration `task_attachments` (task_id FK cascade, id, name, mime_type, data BLOB, created_at) with up/down; regenerate schema.rs.
+- [x] 2. Persistence of initial-prompt images (Backlog -> start)
+  - Migration `task_attachments` (task_id FK cascade, id, name, mime_type, data TEXT base64, created_at) with up/down; regenerate schema.rs.
   - Outbound port `TaskAttachmentRepositoryPort` (insert_many, list_by_task) + Diesel adapter + integration test; mocks.
   - `CreateTask` stores images; `StartTask` loads them and sends with the initial `Prompt`.
 - [ ] 3. Server functions + DTOs

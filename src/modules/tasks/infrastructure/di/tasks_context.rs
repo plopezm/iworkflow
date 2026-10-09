@@ -29,6 +29,7 @@ use crate::modules::tasks::application::usecases::update_task::UpdateTask;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
+use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
@@ -38,6 +39,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::git::git_cli_work
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retrying_task_repository::{
     RetryPolicy, RetryingTaskRepository,
 };
+use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_attachment_repository_adapter::TaskAttachmentRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::gentle_shell_runtime_adapter::GentleShellRuntimeAdapter;
 
@@ -109,6 +111,8 @@ impl TasksContext {
         runtime: Arc<dyn AgentRuntimePort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
     ) -> Self {
+        let attachments: Arc<dyn TaskAttachmentRepositoryPort> =
+            Arc::new(TaskAttachmentRepositoryAdapter::new(pool.clone()));
         let base_repository: Arc<dyn TaskRepositoryPort> =
             Arc::new(TaskRepositoryAdapter::new(pool));
         let repository: Arc<dyn TaskRepositoryPort> = Arc::new(RetryingTaskRepository::new(
@@ -142,6 +146,7 @@ impl TasksContext {
             runtime.clone(),
             launch_settings.clone(),
             sink.clone(),
+            attachments.clone(),
         ));
 
         Self {
@@ -149,6 +154,7 @@ impl TasksContext {
                 lifecycle.clone(),
                 worktrees.clone(),
                 start_task.clone(),
+                attachments,
             )),
             start_task,
             update_task: Arc::new(UpdateTask::new(lifecycle.clone())),

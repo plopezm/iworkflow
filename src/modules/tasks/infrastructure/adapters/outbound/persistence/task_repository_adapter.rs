@@ -48,7 +48,7 @@ fn is_lock_error(error: &DieselError) -> bool {
     }
 }
 
-fn db_error(error: DieselError) -> TaskError {
+pub(super) fn db_error(error: DieselError) -> TaskError {
     if is_lock_error(&error) {
         TaskError::Busy(error.to_string())
     } else {

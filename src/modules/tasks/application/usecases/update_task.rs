@@ -31,6 +31,7 @@ impl UpdateTask {
             title,
             prompt,
             priority,
+            images: Vec::new(),
             start_now: false,
         }
         .validated()?;

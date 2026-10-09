@@ -107,6 +107,11 @@ path = "tests/modules/tasks/git_cli_worktree_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]
+name = "task_attachment_repository_adapter_test"
+path = "tests/modules/tasks/task_attachment_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "task_repository_adapter_test"
 path = "tests/modules/tasks/task_repository_adapter_test.rs"
 required-features = ["ssr"]

@@ -6,6 +6,7 @@ use mockall::mock;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
@@ -17,10 +18,21 @@ use crate::modules::tasks::domain::models::worktree::{MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
+use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
+
+mock! {
+    pub TaskAttachmentRepository {}
+
+    #[async_trait::async_trait]
+    impl TaskAttachmentRepositoryPort for TaskAttachmentRepository {
+        async fn insert_many(&self, task_id: TaskId, images: &[ImageAttachment]) -> Result<(), TaskError>;
+        async fn list_by_task(&self, task_id: TaskId) -> Result<Vec<ImageAttachment>, TaskError>;
+    }
+}
 
 mock! {
     pub TaskRepository {}

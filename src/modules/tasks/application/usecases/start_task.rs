@@ -8,6 +8,7 @@ use chrono::Utc;
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::{
     Task, TaskId, TaskStatus, branch_name, workspace_dir_name, worktree_dir_name,
@@ -16,6 +17,7 @@ use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
+use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Arranca una tarea en `Backlog`: crea el worktree, lanza el agente y le envía el
@@ -29,6 +31,7 @@ pub struct StartTask {
     runtime: Arc<dyn AgentRuntimePort>,
     launch_settings: Arc<dyn LaunchSettingsPort>,
     sink: Arc<dyn AgentEventSink>,
+    attachments: Arc<dyn TaskAttachmentRepositoryPort>,
 }
 
 impl StartTask {
@@ -38,6 +41,7 @@ impl StartTask {
         runtime: Arc<dyn AgentRuntimePort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
         sink: Arc<dyn AgentEventSink>,
+        attachments: Arc<dyn TaskAttachmentRepositoryPort>,
     ) -> Self {
         Self {
             lifecycle,
@@ -45,6 +49,7 @@ impl StartTask {
             runtime,
             launch_settings,
             sink,
+            attachments,
         }
     }
 
@@ -147,6 +152,7 @@ impl StartTask {
 
     async fn launch(&self, task: &Task) -> Result<(), TaskError> {
         let options: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
+        let images: Vec<ImageAttachment> = self.attachments.list_by_task(task.id).await?;
         self.runtime
             .start(
                 task.id,
@@ -161,7 +167,7 @@ impl StartTask {
                 task.id,
                 AgentCommand::Prompt {
                     message: task.prompt.clone(),
-                    images: Vec::new(),
+                    images,
                 },
             )
             .await
@@ -174,9 +180,12 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
+    use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
     use crate::modules::tasks::domain::models::launch_options::LaunchModel;
+    use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
     use crate::modules::tasks::mocks::{
-        MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockTaskRepository, MockWorktree,
+        MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockTaskAttachmentRepository,
+        MockTaskRepository, MockWorktree,
     };
 
     fn default_launch_settings() -> Arc<dyn LaunchSettingsPort> {
@@ -249,12 +258,101 @@ mod tests {
             Arc::new(runtime),
             default_launch_settings(),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let task: Task = use_case.execute(id).await.expect("iniciada");
 
         assert_eq!(task.status, TaskStatus::Starting);
         assert!(recorded.statuses().is_empty());
+    }
+
+    fn png(name: &str) -> ImageAttachment {
+        ImageAttachment {
+            name: name.to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGk=".to_string(),
+        }
+    }
+
+    fn no_attachments() -> Arc<dyn TaskAttachmentRepositoryPort> {
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments
+            .expect_list_by_task()
+            .returning(|_| Ok(Vec::new()));
+        Arc::new(attachments)
+    }
+
+    #[tokio::test]
+    async fn sends_stored_images_with_the_initial_prompt() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let images: Vec<ImageAttachment> = vec![png("a.png"), png("b.png")];
+        let stored: Vec<ImageAttachment> = images.clone();
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments
+            .expect_list_by_task()
+            .withf(move |task_id: &TaskId| *task_id == id)
+            .times(1)
+            .returning(move |_| Ok(stored.clone()));
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_start().returning(|_, _, _, _, _| Ok(()));
+        runtime
+            .expect_send()
+            .withf(move |_, command: &AgentCommand| {
+                *command
+                    == AgentCommand::Prompt {
+                        message: "Arregla el login".to_string(),
+                        images: images.clone(),
+                    }
+            })
+            .times(1)
+            .returning(|_, _| Ok(()));
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            default_launch_settings(),
+            Arc::new(MockAgentEventSink::new()),
+            Arc::new(attachments),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Starting);
+    }
+
+    #[tokio::test]
+    async fn marks_task_failed_without_starting_agent_when_images_cannot_be_loaded() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut attachments: MockTaskAttachmentRepository = MockTaskAttachmentRepository::new();
+        attachments
+            .expect_list_by_task()
+            .times(1)
+            .returning(|_| Err(TaskError::Repository("adjuntos ilegibles".to_string())));
+        let mut runtime: MockAgentRuntime = runtime_not_running();
+        runtime.expect_start().never();
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            default_launch_settings(),
+            Arc::new(MockAgentEventSink::new()),
+            Arc::new(attachments),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Failed);
+        assert!(
+            recorded
+                .last_error()
+                .expect("error")
+                .contains("adjuntos ilegibles")
+        );
     }
 
     #[tokio::test]
@@ -274,6 +372,7 @@ mod tests {
             Arc::new(runtime),
             default_launch_settings(),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let task: Task = use_case.execute(id).await.expect("iniciada");
@@ -316,6 +415,7 @@ mod tests {
             Arc::new(MockAgentRuntime::new()),
             Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let result: Result<Task, TaskError> = use_case.execute(id).await;
@@ -352,6 +452,7 @@ mod tests {
             Arc::new(MockAgentRuntime::new()),
             Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let result: Result<Task, TaskError> = use_case.execute(id).await;
@@ -388,6 +489,7 @@ mod tests {
             Arc::new(runtime),
             default_launch_settings(),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let task: Task = use_case.execute(id).await.expect("iniciada");
@@ -417,6 +519,7 @@ mod tests {
             Arc::new(MockAgentRuntime::new()),
             Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let result: Result<Task, TaskError> = use_case.execute(id).await;
@@ -435,6 +538,7 @@ mod tests {
             Arc::new(MockAgentRuntime::new()),
             Arc::new(MockLaunchSettings::new()),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         )
         .execute(id)
         .await;
@@ -477,6 +581,7 @@ mod tests {
             Arc::new(runtime),
             Arc::new(launch_settings),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let task: Task = use_case.execute(id).await.expect("iniciada");
@@ -512,6 +617,7 @@ mod tests {
             Arc::new(runtime),
             Arc::new(launch_settings),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let task: Task = use_case.execute(id).await.expect("iniciada");
@@ -536,6 +642,7 @@ mod tests {
             Arc::new(runtime_not_running()),
             Arc::new(launch_settings),
             Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
         );
 
         let task: Task = use_case.execute(id).await.expect("iniciada");

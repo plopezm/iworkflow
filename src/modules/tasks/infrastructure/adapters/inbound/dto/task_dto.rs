@@ -350,6 +350,7 @@ mod mapping {
                 title: dto.title,
                 prompt: dto.prompt,
                 priority: dto.priority.into(),
+                images: Vec::new(),
                 start_now: dto.start_now,
             }
         }

@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
@@ -333,6 +334,8 @@ pub struct NewTask {
     pub title: String,
     pub prompt: String,
     pub priority: TaskPriority,
+    /// Imágenes adjuntas al prompt inicial.
+    pub images: Vec<ImageAttachment>,
     /// Si es `true`, la tarea arranca (worktree + agente) inmediatamente tras crearse.
     pub start_now: bool,
 }
@@ -355,6 +358,7 @@ impl NewTask {
             title,
             prompt,
             priority: self.priority,
+            images: ImageAttachment::validate_all(self.images)?,
             start_now: self.start_now,
         })
     }
@@ -460,6 +464,7 @@ mod tests {
             title: "  ".to_string(),
             prompt: "  Arregla el test\nmás detalles".to_string(),
             priority: TaskPriority::default(),
+            images: Vec::new(),
             start_now: false,
         }
         .validated()
@@ -475,11 +480,50 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::Urgent,
+            images: Vec::new(),
             start_now: false,
         }
         .validated()
         .expect("válida");
         assert_eq!(task.priority, TaskPriority::Urgent);
+    }
+
+    #[test]
+    fn new_task_rejects_invalid_images() {
+        let result: Result<NewTask, TaskError> = NewTask {
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            priority: TaskPriority::default(),
+            images: vec![ImageAttachment {
+                name: "a.bmp".to_string(),
+                mime_type: "image/bmp".to_string(),
+                data: "aGk=".to_string(),
+            }],
+            start_now: false,
+        }
+        .validated();
+        assert!(matches!(result, Err(TaskError::InvalidAttachment(_))));
+    }
+
+    #[test]
+    fn new_task_keeps_valid_images() {
+        let image: ImageAttachment = ImageAttachment {
+            name: "a.png".to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGk=".to_string(),
+        };
+        let task: NewTask = NewTask {
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            priority: TaskPriority::default(),
+            images: vec![image.clone()],
+            start_now: false,
+        }
+        .validated()
+        .expect("válida");
+        assert_eq!(task.images, vec![image]);
     }
 
     #[test]
@@ -489,6 +533,7 @@ mod tests {
             title: "t".to_string(),
             prompt: " \n ".to_string(),
             priority: TaskPriority::default(),
+            images: Vec::new(),
             start_now: false,
         }
         .validated();
