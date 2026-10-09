@@ -42,3 +42,4 @@ Replace base64 TEXT in SQLite with files on disk; SQLite keeps only a relative p
   - Limit 4 MiB in domain, client state, hints, tests; `SERVER_FN_MAX_BODY_BYTES` -> 30 MiB.
 - [x] 7. Verification + native review
 - Task 6: `cc5b123` — RED observed for limits and FS adapter (compile); use-case RED not observed separately. Independent verifier: fmt, clippy ssr/hydrate ok, cargo test --features ssr 646 passed 0 failed; migration run/redo ok. Not run: cargo leptos test, e2e, browser. size_bytes estimated from base64 length.
+- Follow-up: `task_attachments (task_id, position)` index made UNIQUE (review advisory R3-001). RED observed (duplicate position accepted); 647 ssr tests pass, migration run/redo ok, clippy ssr + fmt ok. Not natively reviewed (one-line SQL + test).

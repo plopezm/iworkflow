@@ -210,3 +210,20 @@ async fn images_are_deleted_with_their_workspace_tasks() {
             .is_empty()
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_position_cannot_be_used_twice_for_the_same_task() {
+    let db: common::TestDb = common::test_db().await;
+    let task: Task = backlog_task(&db, "dup").await;
+    let adapter: TaskAttachmentRepositoryAdapter =
+        TaskAttachmentRepositoryAdapter::new(db.pool.clone());
+    let first: Vec<StoredAttachment> = vec![image("a.png", "t/a.png")];
+
+    adapter.insert_many(task.id, &first).await.expect("insert");
+    let second: Result<(), TaskError> = adapter
+        .insert_many(task.id, &[image("b.png", "t/b.png")])
+        .await;
+
+    assert!(matches!(second, Err(TaskError::Repository(_))));
+    assert_eq!(adapter.list_by_task(task.id).await.expect("list"), first);
+}

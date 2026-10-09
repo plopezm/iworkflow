@@ -9,4 +9,4 @@ CREATE TABLE task_attachments (
     created_at TIMESTAMP NOT NULL
 );
 
-CREATE INDEX task_attachments_task_id_position_idx ON task_attachments (task_id, position);
+CREATE UNIQUE INDEX task_attachments_task_id_position_idx ON task_attachments (task_id, position);
