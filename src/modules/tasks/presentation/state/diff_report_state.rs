@@ -191,13 +191,19 @@ impl DiffReportState {
         let state: Self = *self;
         let scheduled_epoch: usize = self.epoch.get_untracked();
         set_timeout(
-            move || {
-                if state.epoch.get_untracked() == scheduled_epoch {
-                    state.finish_preparing();
-                }
-            },
+            move || state.render_if_current(scheduled_epoch),
             PREPARE_DELAY,
         );
+    }
+
+    #[cfg(any(feature = "hydrate", test))]
+    /// Timer entry point: renders only if no request or close happened since `scheduled_epoch`.
+    ///
+    /// The timer can fire after the screen was torn down, so it never panics on disposed signals.
+    fn render_if_current(&self, scheduled_epoch: usize) {
+        if self.epoch.try_get_untracked() == Some(scheduled_epoch) {
+            self.finish_preparing();
+        }
     }
 
     /// Starts a new request: invalidates pending render timers and hides any rendered report.
@@ -214,8 +220,12 @@ impl DiffReportState {
 
     /// Lets the complete report render, unless the user closed it in the meantime.
     pub fn finish_preparing(&self) {
-        if self.request.get_untracked() != ReportRequest::None {
-            self.rendered.set(true);
+        if self
+            .request
+            .try_get_untracked()
+            .is_some_and(|request: ReportRequest| request != ReportRequest::None)
+        {
+            let _ = self.rendered.try_set(true);
         }
     }
 
@@ -359,6 +369,50 @@ mod tests {
         assert!(!ReportPhase::Plain.is_waiting());
         assert!(!ReportPhase::Ready("x".to_string()).is_waiting());
         assert!(!ReportPhase::Failed("e".to_string()).is_waiting());
+    }
+
+    #[tokio::test]
+    async fn stale_render_timer_is_ignored() {
+        with_owner(|| {
+            let fx: Fixture = fixture(Vec::new());
+            fx.state.open_plain();
+            let stale: usize = fx.state.epoch.get_untracked();
+            // A newer request invalidates the timer scheduled for the previous one.
+            fx.state.open_plain();
+            fx.state.render_if_current(stale);
+            assert_eq!(fx.state.phase.get_untracked(), ReportPhase::Preparing);
+            fx.state.render_if_current(fx.state.epoch.get_untracked());
+            assert_eq!(fx.state.phase.get_untracked(), ReportPhase::Plain);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn render_timer_after_close_does_nothing() {
+        with_owner(|| {
+            let fx: Fixture = fixture(Vec::new());
+            fx.state.open_plain();
+            let scheduled: usize = fx.state.epoch.get_untracked();
+            fx.state.close();
+            fx.state.render_if_current(scheduled);
+            assert_eq!(fx.state.phase.get_untracked(), ReportPhase::Idle);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn render_timer_after_the_screen_is_gone_does_not_panic() {
+        let _init: Result<(), _> = Executor::init_tokio();
+        let owner: Owner = Owner::new();
+        let state: DiffReportState = owner.with(|| {
+            let fx: Fixture = fixture(Vec::new());
+            fx.state.open_plain();
+            fx.state
+        });
+        let scheduled: usize = owner.with(|| state.epoch.get_untracked());
+        owner.cleanup();
+        state.render_if_current(scheduled);
+        state.finish_preparing();
     }
 
     #[test]
