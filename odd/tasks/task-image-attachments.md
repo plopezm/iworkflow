@@ -30,3 +30,14 @@ Limits (domain constants): max 5 images per message, 5 MiB each, mime in png/jpe
 - Task 3: `16893d9` — RED (compile) observed; body-limit tests against a real axum server (413 without layer, 200 at 35 MiB, 413 over 40 MiB); full ssr suite, fmt, clippy ssr/hydrate ok. Not tested: full leptos server-fn request, main.rs wiring.
 - Task 4: `d858b85` — RED not observed; unit tests for validation/DTO building; cargo leptos build ok. Not tested in a browser (picker, paste, mobile camera/gallery); no e2e harness for modal/upload.
 - Task 5: independent verifier: fmt, clippy ssr+hydrate ok, cargo test --features ssr 627 passed 0 failed; layer purity grep clean; no new non-test unwrap/expect. Not run: cargo leptos test, e2e.
+
+## Follow-up: store images on disk (user decision)
+
+Replace base64 TEXT in SQLite with files on disk; SQLite keeps only a relative path. Max image size 4 MiB. Migration `2026-10-09-120000-0000_create_task_attachments` is rewritten in place (unmerged, not applied locally).
+
+- [ ] 6. File-backed attachments
+  - Outbound port `AttachmentStoragePort` (save/read/delete_task_dir) + FS adapter under `~/.iworkflow/attachments/<task_id>/<attachment_id>.<ext>` (`IWF_ATTACHMENTS_DIR` override, resolved in `core/config.rs` like `agents-files`); path stored relative.
+  - Table keeps `id, task_id, position, name, mime_type, path, size_bytes, created_at` (no `data`); `list_by_task` returns metadata, `StartTask` reads bytes via the storage port to build `ImageAttachment`s.
+  - Files removed when a task/workspace tasks are deleted; save-then-insert with file cleanup on failure; `CreateTask` rollback also deletes files.
+  - Limit 4 MiB in domain, client state, hints, tests; `SERVER_FN_MAX_BODY_BYTES` -> 30 MiB.
+- [ ] 7. Verification + native review
