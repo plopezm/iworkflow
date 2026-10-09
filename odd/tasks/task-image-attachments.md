@@ -28,3 +28,5 @@ Limits (domain constants): max 5 images per message, 5 MiB each, mime in png/jpe
 - Task 1: `600f899` — 274 lib tasks tests, runtime adapter tests, fmt + clippy ssr/hydrate ok. RED not observed (tests written with implementation).
 - Task 2: `47efd80` — compile-failure RED observed; full `cargo test --features ssr` green (incl. 6 adapter integration tests), migration redo ok, fmt + clippy ssr/hydrate ok. Attachment writes bypass RetryingTaskRepository (Busy on lock, CreateTask rolls back).
 - Task 3: `16893d9` — RED (compile) observed; body-limit tests against a real axum server (413 without layer, 200 at 35 MiB, 413 over 40 MiB); full ssr suite, fmt, clippy ssr/hydrate ok. Not tested: full leptos server-fn request, main.rs wiring.
+- Task 4: `d858b85` — RED not observed; unit tests for validation/DTO building; cargo leptos build ok. Not tested in a browser (picker, paste, mobile camera/gallery); no e2e harness for modal/upload.
+- Task 5: independent verifier: fmt, clippy ssr+hydrate ok, cargo test --features ssr 627 passed 0 failed; layer purity grep clean; no new non-test unwrap/expect. Not run: cargo leptos test, e2e.
