@@ -6,6 +6,7 @@ use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::worktree::DiffRange;
 
 #[async_trait::async_trait]
 pub trait TaskRepositoryPort: Send + Sync {
@@ -65,6 +66,8 @@ pub trait TaskRepositoryPort: Send + Sync {
         id: TaskId,
         activity: SubagentActivity,
     ) -> Result<(), TaskError>;
+    /// Registra el rango de commits final de la tarea. No falla si la tarea ya no existe.
+    async fn record_diff_range(&self, id: TaskId, range: DiffRange) -> Result<(), TaskError>;
     /// Borrado físico, solo si la tarea sigue en `Backlog` (los eventos asociados se
     /// eliminan en cascada). Devuelve `false` (sin modificar nada) si la tarea no
     /// existe o ya no está en `Backlog`.

@@ -15,7 +15,7 @@ use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
-use crate::modules::tasks::domain::models::worktree::{MergeOutcome, TaskDiff};
+use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
@@ -79,6 +79,7 @@ mock! {
         async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError>;
         async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError>;
         async fn set_subagent_activity(&self, id: TaskId, activity: SubagentActivity) -> Result<(), TaskError>;
+        async fn record_diff_range(&self, id: TaskId, range: DiffRange) -> Result<(), TaskError>;
         async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
         async fn delete_inactive_by_workspace(&self, workspace_id: String) -> Result<Option<Vec<TaskId>>, TaskError>;
         async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError>;

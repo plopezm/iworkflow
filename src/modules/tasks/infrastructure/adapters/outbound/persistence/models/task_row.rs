@@ -11,6 +11,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::worktree::DiffRange;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable)]
 #[diesel(table_name = tasks)]
@@ -32,6 +33,8 @@ pub struct TaskRow {
     pub subagents_active: i32,
     pub subagents_waiting: i32,
     pub priority: String,
+    pub base_sha: Option<String>,
+    pub head_sha: Option<String>,
 }
 
 /// JSON por defecto cuando la serialización (imposible en la práctica) fallara.
@@ -105,6 +108,14 @@ impl From<&Task> for TaskRow {
             subagents_active: clamp_count(task.subagents.active),
             subagents_waiting: clamp_count(task.subagents.waiting),
             priority: task.priority.as_str().to_string(),
+            base_sha: task
+                .diff_range
+                .as_ref()
+                .map(|r: &DiffRange| r.base_sha.clone()),
+            head_sha: task
+                .diff_range
+                .as_ref()
+                .map(|r: &DiffRange| r.head_sha.clone()),
         }
     }
 }
@@ -131,6 +142,10 @@ impl TryFrom<TaskRow> for Task {
                 u32::try_from(row.subagents_active).unwrap_or(0),
                 u32::try_from(row.subagents_waiting).unwrap_or(0),
             ),
+            diff_range: match (row.base_sha, row.head_sha) {
+                (Some(base_sha), Some(head_sha)) => Some(DiffRange { base_sha, head_sha }),
+                _ => None,
+            },
             created_at: row.created_at.and_utc(),
             updated_at: row.updated_at.and_utc(),
         })
@@ -151,6 +166,48 @@ mod tests {
                 PendingDialog::new("d2".to_string(), None),
             ]
         );
+    }
+
+    fn sample_task(diff_range: Option<DiffRange>) -> Task {
+        let now: DateTime<Utc> = Utc::now();
+        Task {
+            id: TaskId::new(),
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            branch: "b".to_string(),
+            base_branch: "main".to_string(),
+            worktree_path: PathBuf::from("/tmp/wt"),
+            status: TaskStatus::Merged,
+            priority: TaskPriority::default(),
+            error: None,
+            pending_dialogs: Vec::new(),
+            subagents: SubagentActivity::default(),
+            diff_range,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn diff_range_round_trips_through_the_row() {
+        let range: DiffRange = DiffRange {
+            base_sha: "aaa".to_string(),
+            head_sha: "bbb".to_string(),
+        };
+        let row: TaskRow = TaskRow::from(&sample_task(Some(range.clone())));
+        assert_eq!(row.base_sha.as_deref(), Some("aaa"));
+        assert_eq!(row.head_sha.as_deref(), Some("bbb"));
+        let task: Task = Task::try_from(row).expect("task");
+        assert_eq!(task.diff_range, Some(range));
+    }
+
+    #[test]
+    fn missing_or_partial_diff_range_maps_to_none() {
+        let mut row: TaskRow = TaskRow::from(&sample_task(None));
+        assert_eq!(Task::try_from(row.clone()).expect("task").diff_range, None);
+        row.base_sha = Some("aaa".to_string());
+        assert_eq!(Task::try_from(row).expect("task").diff_range, None);
     }
 
     #[test]

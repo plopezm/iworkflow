@@ -112,6 +112,7 @@ impl CreateTask {
             error: None,
             pending_dialogs: Vec::new(),
             subagents: Default::default(),
+            diff_range: None,
             created_at: now,
             updated_at: now,
         };

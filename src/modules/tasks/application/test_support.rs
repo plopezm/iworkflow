@@ -45,6 +45,7 @@ pub fn task_with_pending_dialogs(status: TaskStatus, ids: Vec<String>) -> Task {
         error: None,
         pending_dialogs,
         subagents: Default::default(),
+        diff_range: None,
         created_at: Utc::now(),
         updated_at: Utc::now(),
     }

@@ -43,6 +43,7 @@ async fn backlog_task(db: &common::TestDb, title: &str) -> Task {
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
+        diff_range: None,
         created_at: now,
         updated_at: now,
     };

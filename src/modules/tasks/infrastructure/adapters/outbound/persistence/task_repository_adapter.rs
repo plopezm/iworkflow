@@ -12,6 +12,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::worktree::DiffRange;
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::models::task_event_row::{
@@ -165,6 +166,19 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         .execute(&mut connection)
         .await
         .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn record_diff_range(&self, id: TaskId, range: DiffRange) -> Result<(), TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        diesel::update(tasks::table.find(id.to_string()))
+            .set((
+                tasks::base_sha.eq(range.base_sha),
+                tasks::head_sha.eq(range.head_sha),
+            ))
+            .execute(&mut connection)
+            .await
+            .map_err(db_error)?;
         Ok(())
     }
 

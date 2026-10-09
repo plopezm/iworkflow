@@ -10,6 +10,7 @@ use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivi
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
 use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use iworkflow::modules::tasks::domain::models::worktree::DiffRange;
 use iworkflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use iworkflow::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
 use iworkflow::modules::workspaces::domain::errors::workspace_error::WorkspaceError;
@@ -47,6 +48,7 @@ fn task(workspace_id: &str, title: &str) -> Task {
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
+        diff_range: None,
         created_at: now,
         updated_at: now,
     }
@@ -810,4 +812,64 @@ async fn delete_inactive_by_workspace_survives_concurrent_writes() {
         }
     }
     assert!(failures.is_empty(), "escrituras fallidas: {failures:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn records_diff_range_and_returns_it_on_find() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let original: Task = task(&ws.id.to_string(), "uno");
+    adapter.insert(&original).await.expect("insert");
+    let range: DiffRange = DiffRange {
+        base_sha: "aaa111".to_string(),
+        head_sha: "bbb222".to_string(),
+    };
+
+    adapter
+        .record_diff_range(original.id, range.clone())
+        .await
+        .expect("record");
+
+    let found: Task = adapter
+        .find(original.id)
+        .await
+        .expect("find")
+        .expect("existe");
+    assert_eq!(found.diff_range, Some(range));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn task_without_recorded_range_has_none() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let original: Task = task(&ws.id.to_string(), "uno");
+    adapter.insert(&original).await.expect("insert");
+
+    let found: Task = adapter
+        .find(original.id)
+        .await
+        .expect("find")
+        .expect("existe");
+
+    assert_eq!(found.diff_range, None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn recording_diff_range_for_missing_task_is_not_an_error() {
+    let db: common::TestDb = common::test_db().await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+
+    let result = adapter
+        .record_diff_range(
+            TaskId::new(),
+            DiffRange {
+                base_sha: "aaa".to_string(),
+                head_sha: "bbb".to_string(),
+            },
+        )
+        .await;
+
+    assert!(result.is_ok());
 }
