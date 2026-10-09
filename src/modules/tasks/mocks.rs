@@ -15,7 +15,7 @@ use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
-use crate::modules::tasks::domain::models::worktree::{MergeOutcome, TaskDiff};
+use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
@@ -79,6 +79,7 @@ mock! {
         async fn remove_pending_dialog(&self, id: TaskId, dialog_id: String) -> Result<(), TaskError>;
         async fn clear_pending_dialogs(&self, id: TaskId) -> Result<(), TaskError>;
         async fn set_subagent_activity(&self, id: TaskId, activity: SubagentActivity) -> Result<(), TaskError>;
+        async fn record_diff_range(&self, id: TaskId, range: DiffRange) -> Result<(), TaskError>;
         async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError>;
         async fn delete_inactive_by_workspace(&self, workspace_id: String) -> Result<Option<Vec<TaskId>>, TaskError>;
         async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError>;
@@ -95,6 +96,8 @@ mock! {
         async fn create(&self, repo: &Path, base_branch: &str, branch: &str, path: &Path) -> Result<(), TaskError>;
         async fn commit_all(&self, path: &Path, message: &str) -> Result<bool, TaskError>;
         async fn diff(&self, repo: &Path, base_branch: &str, branch: &str) -> Result<TaskDiff, TaskError>;
+        async fn pin_range(&self, repo: &Path, base_branch: &str, branch: &str, pin_ref: &str) -> Result<DiffRange, TaskError>;
+        async fn diff_range(&self, repo: &Path, range: &DiffRange) -> Result<TaskDiff, TaskError>;
         async fn merge(&self, repo: &Path, base_branch: &str, branch: &str, message: &str) -> Result<MergeOutcome, TaskError>;
         async fn exists(&self, path: &Path) -> bool;
         async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError>;

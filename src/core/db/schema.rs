@@ -59,6 +59,8 @@ diesel::table! {
         subagents_active -> Integer,
         subagents_waiting -> Integer,
         priority -> Text,
+        base_sha -> Nullable<Text>,
+        head_sha -> Nullable<Text>,
     }
 }
 

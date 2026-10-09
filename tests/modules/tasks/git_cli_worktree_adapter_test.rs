@@ -4,7 +4,7 @@ mod common;
 use std::path::PathBuf;
 
 use iworkflow::modules::tasks::domain::errors::task_error::TaskError;
-use iworkflow::modules::tasks::domain::models::worktree::{MergeOutcome, TaskDiff};
+use iworkflow::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 use iworkflow::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 use iworkflow::modules::tasks::infrastructure::adapters::outbound::git::git_cli_worktree_adapter::GitCliWorktreeAdapter;
 
@@ -343,4 +343,91 @@ async fn exists_reflects_worktree_folder_presence() {
 
     assert!(before);
     assert!(!after);
+}
+
+const PIN_REF: &str = "refs/iworkflow/tasks/1234";
+
+async fn commit_file(f: &Fixture, name: &str, content: &str, message: &str) {
+    std::fs::write(f.worktree.join(name), content).expect("write");
+    f.adapter
+        .commit_all(&f.worktree, message)
+        .await
+        .expect("commit");
+}
+
+#[tokio::test]
+async fn pin_range_returns_merge_base_and_tip_and_creates_ref() {
+    let f: Fixture = fixture_with_worktree().await;
+    let main_sha: String = common::git(&f.repo, &["rev-parse", "main"]);
+    commit_file(&f, "nuevo.txt", "hola\n", "pi: nuevo").await;
+
+    let range: DiffRange = f
+        .adapter
+        .pin_range(&f.repo, "main", BRANCH, PIN_REF)
+        .await
+        .expect("pin");
+
+    assert_eq!(range.base_sha, main_sha);
+    assert_eq!(
+        range.head_sha,
+        common::git(&f.worktree, &["rev-parse", "HEAD"])
+    );
+    assert_eq!(
+        common::git(&f.repo, &["rev-parse", PIN_REF]),
+        range.head_sha
+    );
+}
+
+#[tokio::test]
+async fn diff_range_matches_diff_after_merge_and_cleanup() {
+    let f: Fixture = fixture_with_worktree().await;
+    commit_file(&f, "nuevo.txt", "hola\n", "pi: nuevo").await;
+    commit_file(&f, "otro.txt", "adios\n", "pi: otro").await;
+    let before: TaskDiff = f.adapter.diff(&f.repo, "main", BRANCH).await.expect("diff");
+    let range: DiffRange = f
+        .adapter
+        .pin_range(&f.repo, "main", BRANCH, PIN_REF)
+        .await
+        .expect("pin");
+
+    let outcome: MergeOutcome = f
+        .adapter
+        .merge(&f.repo, "main", BRANCH, "Merge tarea")
+        .await
+        .expect("merge");
+    f.adapter
+        .remove(&f.repo, &f.worktree, BRANCH)
+        .await
+        .expect("remove");
+    let after: TaskDiff = f.adapter.diff_range(&f.repo, &range).await.expect("range");
+
+    assert_eq!(outcome, MergeOutcome::Merged);
+    assert_eq!(common::git(&f.repo, &["branch", "--list", BRANCH]), "");
+    assert_eq!(after.patch, before.patch);
+    assert_eq!(after.stat, before.stat);
+    assert_eq!(after.commits, before.commits);
+    assert_eq!(after.commits.len(), 2);
+    assert_eq!(
+        common::git(&f.repo, &["rev-parse", PIN_REF]),
+        range.head_sha
+    );
+}
+
+#[tokio::test]
+async fn diff_range_truncates_long_patches_like_diff() {
+    let f: Fixture = fixture_with_worktree().await;
+    let big: String = "linea de relleno\n".repeat(80_000);
+    commit_file(&f, "grande.txt", &big, "pi: grande").await;
+    let range: DiffRange = f
+        .adapter
+        .pin_range(&f.repo, "main", BRANCH, PIN_REF)
+        .await
+        .expect("pin");
+
+    let plain: TaskDiff = f.adapter.diff(&f.repo, "main", BRANCH).await.expect("diff");
+    let ranged: TaskDiff = f.adapter.diff_range(&f.repo, &range).await.expect("range");
+
+    assert!(ranged.truncated);
+    assert_eq!(ranged.patch.len(), plain.patch.len());
+    assert_eq!(ranged.patch, plain.patch);
 }

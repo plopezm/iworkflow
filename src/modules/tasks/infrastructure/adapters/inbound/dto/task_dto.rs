@@ -265,8 +265,9 @@ mod mapping {
         }
     }
 
-    impl From<TaskStatus> for TaskActionsDto {
-        fn from(status: TaskStatus) -> Self {
+    impl From<&Task> for TaskActionsDto {
+        fn from(task: &Task) -> Self {
+            let status: TaskStatus = task.status;
             Self {
                 can_message: status.accepts_messages(),
                 can_abort: status.has_live_agent(),
@@ -275,7 +276,7 @@ mod mapping {
                 can_merge: status.can_merge(),
                 can_discard: status.can_discard(),
                 can_reset: status.can_reset(),
-                can_view_diff: !status.is_closed() && status != TaskStatus::Backlog,
+                can_view_diff: task.can_view_diff(),
                 can_start: status.can_start(),
                 can_edit: status.can_edit(),
                 can_delete: status.can_delete(),
@@ -322,6 +323,7 @@ mod mapping {
             let stage: TaskStage = task.stage();
             let needs_attention: bool = task.needs_attention();
             let pending_dialogs: usize = task.pending_dialog_count();
+            let actions: TaskActionsDto = TaskActionsDto::from(&task);
             Self {
                 id: task.id.to_string(),
                 workspace_id: task.workspace_id,
@@ -333,7 +335,7 @@ mod mapping {
                 status: task.status.into(),
                 priority: task.priority.into(),
                 error: task.error,
-                actions: task.status.into(),
+                actions,
                 stage: stage.into(),
                 needs_attention,
                 pending_dialogs,
@@ -391,6 +393,7 @@ mod mapping {
 
         use super::*;
         use crate::modules::tasks::domain::models::task::TaskId;
+        use crate::modules::tasks::domain::models::worktree::DiffRange;
 
         fn task(status: TaskStatus) -> Task {
             Task {
@@ -406,6 +409,7 @@ mod mapping {
                 error: None,
                 pending_dialogs: Vec::new(),
                 subagents: Default::default(),
+                diff_range: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             }
@@ -491,6 +495,19 @@ mod mapping {
             assert!(!backlog.actions.can_reset);
             assert_eq!(backlog.stage, TaskStageDto::Backlog);
             assert!(!backlog.needs_attention);
+        }
+
+        #[test]
+        fn can_view_diff_follows_task_diff_range() {
+            let mut merged: Task = task(TaskStatus::Merged);
+            assert!(!TaskDto::from(merged.clone()).actions.can_view_diff);
+            merged.diff_range = Some(DiffRange {
+                base_sha: "a".into(),
+                head_sha: "b".into(),
+            });
+            assert!(TaskDto::from(merged).actions.can_view_diff);
+            let review: TaskDto = TaskDto::from(task(TaskStatus::AwaitingReview));
+            assert!(review.actions.can_view_diff);
         }
 
         #[test]

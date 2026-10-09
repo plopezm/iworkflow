@@ -10,6 +10,7 @@ use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::worktree::DiffRange;
 
 const MAX_TITLE_LENGTH: usize = 120;
 const MAX_SLUG_LENGTH: usize = 40;
@@ -257,6 +258,8 @@ pub struct Task {
     pub pending_dialogs: Vec<PendingDialog>,
     /// Subagentes vivos del agente principal (siguen trabajando aunque este se asiente).
     pub subagents: SubagentActivity,
+    /// Rango de commits final de la tarea, registrado al integrarla (`None` si no se capturó).
+    pub diff_range: Option<DiffRange>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -271,6 +274,16 @@ pub struct CreatedTask {
 }
 
 impl Task {
+    /// Se puede consultar el diff: en tareas abiertas (salvo `Backlog`, sin rama) y en tareas
+    /// integradas cuyo rango de commits quedó registrado.
+    pub fn can_view_diff(&self) -> bool {
+        match self.status {
+            TaskStatus::Backlog | TaskStatus::Discarded => false,
+            TaskStatus::Merged => self.diff_range.is_some(),
+            _ => true,
+        }
+    }
+
     /// Diálogos pendientes que no han caducado en `now`.
     pub fn pending_dialog_count_at(&self, now: DateTime<Utc>) -> usize {
         self.pending_dialogs
@@ -659,9 +672,32 @@ mod tests {
             error: None,
             pending_dialogs,
             subagents: SubagentActivity::default(),
+            diff_range: None,
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         }
+    }
+
+    #[test]
+    fn can_view_diff_for_open_tasks_except_backlog() {
+        for status in TaskStatus::ALL {
+            let expected: bool = !status.is_closed() && status != TaskStatus::Backlog;
+            assert_eq!(task_with(status, vec![]).can_view_diff(), expected);
+        }
+    }
+
+    #[test]
+    fn can_view_diff_for_merged_only_with_range() {
+        let mut merged: Task = task_with(TaskStatus::Merged, vec![]);
+        assert!(!merged.can_view_diff());
+        merged.diff_range = Some(DiffRange {
+            base_sha: "a".to_string(),
+            head_sha: "b".to_string(),
+        });
+        assert!(merged.can_view_diff());
+        let mut discarded: Task = task_with(TaskStatus::Discarded, vec![]);
+        discarded.diff_range = merged.diff_range.clone();
+        assert!(!discarded.can_view_diff());
     }
 
     #[test]

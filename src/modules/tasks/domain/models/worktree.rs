@@ -10,6 +10,14 @@ pub struct TaskDiff {
     pub commits: Vec<String>,
 }
 
+/// Rango de commits (`base_sha..head_sha`) que contiene el trabajo de una tarea. Permite
+/// regenerar su diff aunque la rama y el worktree ya no existan.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiffRange {
+    pub base_sha: String,
+    pub head_sha: String,
+}
+
 /// Resultado de integrar la rama de una tarea en la base.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MergeOutcome {

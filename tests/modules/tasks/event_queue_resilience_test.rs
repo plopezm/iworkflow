@@ -151,6 +151,7 @@ async fn no_agent_event_is_lost_while_sqlite_stays_locked_past_busy_timeout() {
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
+        diff_range: None,
         created_at: now,
         updated_at: now,
     };
@@ -257,6 +258,7 @@ async fn flush_events_persists_everything_accepted_before_returning() {
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
+        diff_range: None,
         created_at: now,
         updated_at: now,
     };

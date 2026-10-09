@@ -11,6 +11,7 @@ use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::worktree::DiffRange;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 
 /// Espera inicial antes del primer reintento.
@@ -205,6 +206,13 @@ impl TaskRepositoryPort for RetryingTaskRepository {
     ) -> Result<(), TaskError> {
         self.retry("set_subagent_activity", || {
             self.inner.set_subagent_activity(id, activity)
+        })
+        .await
+    }
+
+    async fn record_diff_range(&self, id: TaskId, range: DiffRange) -> Result<(), TaskError> {
+        self.retry("record_diff_range", || {
+            self.inner.record_diff_range(id, range.clone())
         })
         .await
     }

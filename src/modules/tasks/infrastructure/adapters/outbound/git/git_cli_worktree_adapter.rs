@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::core::git::{GitCommandError, GitOutput, run_git, run_git_raw};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::slugify;
-use crate::modules::tasks::domain::models::worktree::{MergeOutcome, TaskDiff};
+use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Tamaño máximo del parche devuelto al cliente.
@@ -40,6 +40,34 @@ async fn git(dir: &Path, args: &[&str]) -> Result<String, TaskError> {
 
 async fn git_raw(dir: &Path, args: &[&str]) -> Result<GitOutput, TaskError> {
     run_git_raw(dir, args).await.map_err(git_error)
+}
+
+/// Construye un `TaskDiff` con `git diff <diff_spec>` y `git log <log_range>`; el parche se
+/// trunca a `MAX_PATCH_BYTES`.
+async fn build_diff(repo: &Path, diff_spec: &str, log_range: &str) -> Result<TaskDiff, TaskError> {
+    let stat: String = git(repo, &["diff", "--stat", diff_spec]).await?;
+    let full_patch: String = git(repo, &["diff", diff_spec]).await?;
+    let commits: Vec<String> = git(repo, &["log", "--oneline", log_range])
+        .await?
+        .lines()
+        .map(str::to_string)
+        .collect();
+    let truncated: bool = full_patch.len() > MAX_PATCH_BYTES;
+    let patch: String = if truncated {
+        let mut cut: usize = MAX_PATCH_BYTES;
+        while !full_patch.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        full_patch[..cut].to_string()
+    } else {
+        full_patch
+    };
+    Ok(TaskDiff {
+        stat,
+        patch,
+        truncated,
+        commits,
+    })
 }
 
 /// Argumentos `-c user.*` si el repositorio no tiene identidad configurada.
@@ -173,31 +201,30 @@ impl WorktreePort for GitCliWorktreeAdapter {
         base_branch: &str,
         branch: &str,
     ) -> Result<TaskDiff, TaskError> {
-        let range: String = format!("{base_branch}...{branch}");
+        let diff_spec: String = format!("{base_branch}...{branch}");
         let log_range: String = format!("{base_branch}..{branch}");
-        let stat: String = git(repo, &["diff", "--stat", &range]).await?;
-        let full_patch: String = git(repo, &["diff", &range]).await?;
-        let commits: Vec<String> = git(repo, &["log", "--oneline", &log_range])
+        build_diff(repo, &diff_spec, &log_range).await
+    }
+
+    async fn pin_range(
+        &self,
+        repo: &Path,
+        base_branch: &str,
+        branch: &str,
+        pin_ref: &str,
+    ) -> Result<DiffRange, TaskError> {
+        let base_sha: String = git(repo, &["merge-base", base_branch, branch])
             .await?
-            .lines()
-            .map(str::to_string)
-            .collect();
-        let truncated: bool = full_patch.len() > MAX_PATCH_BYTES;
-        let patch: String = if truncated {
-            let mut cut: usize = MAX_PATCH_BYTES;
-            while !full_patch.is_char_boundary(cut) {
-                cut -= 1;
-            }
-            full_patch[..cut].to_string()
-        } else {
-            full_patch
-        };
-        Ok(TaskDiff {
-            stat,
-            patch,
-            truncated,
-            commits,
-        })
+            .trim()
+            .to_string();
+        let head_sha: String = git(repo, &["rev-parse", branch]).await?.trim().to_string();
+        git(repo, &["update-ref", pin_ref, &head_sha]).await?;
+        Ok(DiffRange { base_sha, head_sha })
+    }
+
+    async fn diff_range(&self, repo: &Path, range: &DiffRange) -> Result<TaskDiff, TaskError> {
+        let diff_spec: String = format!("{}..{}", range.base_sha, range.head_sha);
+        build_diff(repo, &diff_spec, &diff_spec).await
     }
 
     async fn merge(

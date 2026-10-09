@@ -97,7 +97,7 @@ impl TaskDetailState {
             move |_| get_task(id.get_value()),
         );
         // El diff depende de la tarea ya refrescada (no de los eventos): solo se pide si
-        // está visible y el estado lo permite (tras merge o descarte no hay worktree).
+        // está visible y la tarea lo permite (`can_view_diff`: abierta, o integrada con rango guardado).
         let diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>> = Resource::new(
             move || {
                 let current: Option<(bool, String)> = task
