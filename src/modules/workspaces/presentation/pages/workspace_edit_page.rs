@@ -6,7 +6,7 @@ use leptos_router::hooks::{use_navigate, use_params_map};
 use crate::core::components::form::{ActionError, SelectField, SelectOption, TextField};
 use crate::core::components::layout::ErrorText;
 use crate::modules::workspaces::presentation::state::workspace_edit_state::{
-    WorkspaceEditState, agents_select_options,
+    WorkspaceEditState, split_agents_options,
 };
 
 const WORKSPACES_HREF: &str = "/workspaces";
@@ -54,9 +54,10 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
                         match state.workspace.await {
                             Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
                             Ok(workspace) => {
-                                let options: Vec<SelectOption> = agents_select_options(
-                                    state.agents_file_options.await.unwrap_or_default(),
-                                );
+                                let (options, options_error): (
+                                    Vec<SelectOption>,
+                                    Option<String>,
+                                ) = split_agents_options(state.agents_file_options.await);
                                 view! {
                                     <form
                                         class="card stack gap-4 p-5 md:p-6"
@@ -83,6 +84,10 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
                                             value=state.form_base_branch
                                             placeholder="main"
                                         />
+                                        {options_error
+                                            .map(|message: String| {
+                                                view! { <ErrorText message /> }
+                                            })}
                                         {(!options.is_empty())
                                             .then(|| {
                                                 view! {

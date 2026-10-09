@@ -9,6 +9,9 @@ use crate::modules::workspaces::domain::ports::outbound::git_repository_port::Gi
 use crate::modules::workspaces::domain::ports::outbound::workspace_repository_port::WorkspaceRepositoryPort;
 
 /// Edita nombre y rama base de un workspace y, opcionalmente, sustituye su AGENTS.md.
+/// Primero persiste el workspace y después instala el AGENTS.md (la sobrescritura es
+/// irreversible). Si la instalación falla se restaura el workspace original; si esa
+/// restauración también falla, el error combina ambos fallos.
 /// La ruta no se puede cambiar: las tareas y sus worktrees dependen de ella.
 pub struct UpdateWorkspace {
     repository: Arc<dyn WorkspaceRepositoryPort>,
@@ -51,18 +54,27 @@ impl UpdateWorkspace {
             _ => current.base_branch.clone(),
         };
 
-        if let Some(agents_file_id) = input.agents_file_id.as_deref() {
-            self.agents_files
-                .install(agents_file_id, &current.path, true)
-                .await?;
-        }
-
+        let original: Workspace = current.clone();
         let updated: Workspace = Workspace {
             name: input.name,
             base_branch,
             ..current
         };
         self.repository.update(&updated).await?;
+
+        if let Some(agents_file_id) = input.agents_file_id.as_deref()
+            && let Err(install_error) = self
+                .agents_files
+                .install(agents_file_id, &updated.path, true)
+                .await
+        {
+            return match self.repository.update(&original).await {
+                Ok(()) => Err(install_error),
+                Err(revert_error) => Err(WorkspaceError::Repository(format!(
+                    "{install_error}; además falló la restauración del workspace: {revert_error}"
+                ))),
+            };
+        }
         Ok(updated)
     }
 }
@@ -231,9 +243,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn installs_agents_file_with_overwrite_before_saving() {
+    async fn saves_then_installs_agents_file_with_overwrite() {
         let workspace: Workspace = existing();
         let mut seq: Sequence = Sequence::new();
+        let mut repository: MockWorkspaceRepository = repository_with(&workspace);
+        repository
+            .expect_update()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(()));
         let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
         agents_files
             .expect_install()
@@ -243,12 +261,6 @@ mod tests {
             .times(1)
             .in_sequence(&mut seq)
             .returning(|_, _, _| Ok(()));
-        let mut repository: MockWorkspaceRepository = repository_with(&workspace);
-        repository
-            .expect_update()
-            .times(1)
-            .in_sequence(&mut seq)
-            .returning(|_| Ok(()));
 
         let result: Result<Workspace, WorkspaceError> =
             use_case(repository, MockGitRepository::new(), agents_files)
@@ -259,24 +271,71 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn install_error_aborts_without_saving() {
+    async fn install_error_restores_original_workspace() {
         let workspace: Workspace = existing();
+        let mut seq: Sequence = Sequence::new();
+        let mut repository: MockWorkspaceRepository = repository_with(&workspace);
+        repository
+            .expect_update()
+            .withf(|w: &Workspace| w.name == "Nuevo" && w.base_branch == "develop")
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(()));
+        repository
+            .expect_update()
+            .withf(|w: &Workspace| w.name == "Demo" && w.base_branch == "main")
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(()));
+        let mut git: MockGitRepository = MockGitRepository::new();
+        git.expect_branch_exists().returning(|_, _| Ok(true));
         let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
         agents_files
             .expect_install()
             .returning(|id, _, _| Err(WorkspaceError::AgentsFileNotFound(id.to_string())));
-        let mut repository: MockWorkspaceRepository = repository_with(&workspace);
-        repository.expect_update().times(0);
 
-        let result: Result<Workspace, WorkspaceError> =
-            use_case(repository, MockGitRepository::new(), agents_files)
-                .execute(workspace.id, input("Demo", None, Some("zzz")))
-                .await;
+        let result: Result<Workspace, WorkspaceError> = use_case(repository, git, agents_files)
+            .execute(workspace.id, input("Nuevo", Some("develop"), Some("zzz")))
+            .await;
 
         assert_eq!(
             result,
             Err(WorkspaceError::AgentsFileNotFound("zzz".to_string()))
         );
+    }
+
+    #[tokio::test]
+    async fn revert_failure_reports_both_errors() {
+        let workspace: Workspace = existing();
+        let mut seq: Sequence = Sequence::new();
+        let mut repository: MockWorkspaceRepository = repository_with(&workspace);
+        repository
+            .expect_update()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Ok(()));
+        repository
+            .expect_update()
+            .times(1)
+            .in_sequence(&mut seq)
+            .returning(|_| Err(WorkspaceError::Repository("revert boom".to_string())));
+        let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
+        agents_files
+            .expect_install()
+            .returning(|id, _, _| Err(WorkspaceError::AgentsFileNotFound(id.to_string())));
+
+        let result: Result<Workspace, WorkspaceError> =
+            use_case(repository, MockGitRepository::new(), agents_files)
+                .execute(workspace.id, input("Nuevo", None, Some("zzz")))
+                .await;
+
+        match result {
+            Err(WorkspaceError::Repository(message)) => {
+                assert!(message.contains("zzz"), "{message}");
+                assert!(message.contains("revert boom"), "{message}");
+            }
+            other => panic!("unexpected result: {other:?}"),
+        }
     }
 
     #[tokio::test]
@@ -286,10 +345,12 @@ mod tests {
         repository
             .expect_update()
             .returning(|_| Err(WorkspaceError::Repository("boom".to_string())));
+        let mut agents_files: MockAgentsFiles = MockAgentsFiles::new();
+        agents_files.expect_install().times(0);
 
         let result: Result<Workspace, WorkspaceError> =
-            use_case(repository, MockGitRepository::new(), MockAgentsFiles::new())
-                .execute(workspace.id, input("Demo", None, None))
+            use_case(repository, MockGitRepository::new(), agents_files)
+                .execute(workspace.id, input("Demo", None, Some("abc")))
                 .await;
 
         assert_eq!(result, Err(WorkspaceError::Repository("boom".to_string())));

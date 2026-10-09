@@ -21,7 +21,8 @@ pub struct WorkspaceEditState {
     pub form_agents_file_id: RwSignal<String>,
 }
 
-/// Construye el DTO de edición; los campos vacíos se envían como `None` (función pura).
+/// Construye el DTO de edición (función pura). Los campos opcionales se envían tal cual:
+/// el servidor recorta y convierte los vacíos en `None` (`WorkspaceUpdate::validated`).
 pub fn build_update_workspace_dto(
     name: &str,
     base_branch: &str,
@@ -29,8 +30,8 @@ pub fn build_update_workspace_dto(
 ) -> UpdateWorkspaceDto {
     UpdateWorkspaceDto {
         name: name.to_string(),
-        base_branch: non_blank(base_branch),
-        agents_file_id: non_blank(agents_file_id),
+        base_branch: Some(base_branch.to_string()),
+        agents_file_id: Some(agents_file_id.to_string()),
     }
 }
 
@@ -45,9 +46,18 @@ pub fn agents_select_options(options: Vec<AgentsFileOptionDto>) -> Vec<SelectOpt
         .collect()
 }
 
-fn non_blank(value: &str) -> Option<String> {
-    let trimmed: &str = value.trim();
-    (!trimmed.is_empty()).then(|| trimmed.to_string())
+/// Separa el resultado del listado en opciones y mensaje de error opcional (función pura),
+/// para seguir mostrando el formulario aunque el listado falle.
+pub fn split_agents_options(
+    result: Result<Vec<AgentsFileOptionDto>, ServerFnError>,
+) -> (Vec<SelectOption>, Option<String>) {
+    match result {
+        Ok(options) => (agents_select_options(options), None),
+        Err(e) => (
+            Vec::new(),
+            Some(format!("No se pudieron cargar los ficheros AGENTS.md: {e}")),
+        ),
+    }
 }
 
 impl WorkspaceEditState {
@@ -107,14 +117,32 @@ mod tests {
     }
 
     #[test]
-    fn dto_maps_blank_optionals_to_none_and_trims() {
-        let blank: UpdateWorkspaceDto = build_update_workspace_dto("Demo", "  ", "");
-        assert_eq!(blank.base_branch, None);
-        assert_eq!(blank.agents_file_id, None);
+    fn dto_forwards_fields_verbatim_and_leaves_normalization_to_the_server() {
+        let dto: UpdateWorkspaceDto = build_update_workspace_dto("Demo", " dev ", "");
+        assert_eq!(dto.name, "Demo");
+        assert_eq!(dto.base_branch, Some(" dev ".to_string()));
+        assert_eq!(dto.agents_file_id, Some(String::new()));
+    }
 
-        let filled: UpdateWorkspaceDto = build_update_workspace_dto("Demo", " dev ", " abc ");
-        assert_eq!(filled.base_branch, Some("dev".to_string()));
-        assert_eq!(filled.agents_file_id, Some("abc".to_string()));
+    #[test]
+    fn split_agents_options_maps_ok_without_error() {
+        let (options, error): (Vec<SelectOption>, Option<String>) =
+            split_agents_options(Ok(vec![AgentsFileOptionDto {
+                id: "a".to_string(),
+                description: "Rust".to_string(),
+            }]));
+        assert_eq!(options.len(), 1);
+        assert_eq!(options[0].value, "a");
+        assert_eq!(error, None);
+    }
+
+    #[test]
+    fn split_agents_options_surfaces_error_with_empty_options() {
+        let (options, error): (Vec<SelectOption>, Option<String>) =
+            split_agents_options(Err(ServerFnError::new("boom")));
+        assert!(options.is_empty());
+        let message: String = error.expect("error message");
+        assert!(message.contains("boom"), "{message}");
     }
 
     #[test]

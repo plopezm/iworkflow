@@ -221,6 +221,21 @@ mod mapping {
         }
 
         #[test]
+        fn update_dto_blank_strings_become_none_after_validation() {
+            let dto: UpdateWorkspaceDto = UpdateWorkspaceDto {
+                name: " Demo ".to_string(),
+                base_branch: Some("  ".to_string()),
+                agents_file_id: Some(String::new()),
+            };
+
+            let update: WorkspaceUpdate = WorkspaceUpdate::from(dto).validated().expect("valid");
+
+            assert_eq!(update.name, "Demo");
+            assert_eq!(update.base_branch, None);
+            assert_eq!(update.agents_file_id, None);
+        }
+
+        #[test]
         fn update_dto_without_optional_fields_deserializes_to_none() {
             let dto: UpdateWorkspaceDto = serde_json::from_str(r#"{"name":"Demo"}"#).expect("json");
 
