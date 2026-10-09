@@ -37,7 +37,7 @@ fn focus_first_field() {
 #[component]
 pub fn Modal(
     #[prop(into)] title: Signal<String>,
-    open: RwSignal<bool>,
+    #[prop(into)] open: Signal<bool>,
     on_close: Callback<()>,
     children: ChildrenFn,
 ) -> impl IntoView {

@@ -3,6 +3,7 @@ pub mod confirm_panel;
 pub mod form;
 pub mod layout;
 pub mod modal;
+pub mod progress_dialog;
 pub mod select;
 pub mod shell;
 pub mod theme_toggle;

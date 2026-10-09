@@ -1,9 +1,17 @@
 use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
+use crate::core::components::progress_dialog::ProgressDialog;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::presentation::components::diff_report::DiffReport;
 use crate::modules::tasks::presentation::state::diff_report_state::{DiffReportState, ReportPhase};
+
+const PROGRESS_TITLE: &str = "Generando PDF";
+const WAITING_MESSAGE: &str = "El agente está redactando la explicación de los cambios. \
+El PDF se abrirá al terminar; si cancelas, el agente seguirá con su respuesta en segundo plano.";
+
+const PREPARING_MESSAGE: &str =
+    "Preparando el informe con los cambios. Puede tardar si el diff es grande.";
 
 /// Clase CSS de una línea de un parche unificado.
 pub fn line_class(line: &str) -> &'static str {
@@ -33,8 +41,22 @@ pub fn DiffView(
     }
     let report_diff: TaskDiffDto = diff.clone();
     let on_close: Callback<()> = Callback::new(move |_| report.close());
+    let busy: Signal<bool> = Signal::derive(move || report.phase.with(ReportPhase::is_busy));
+    let progress_message: Signal<String> = Signal::derive(move || {
+        if report.phase.with(ReportPhase::is_waiting) {
+            WAITING_MESSAGE.to_string()
+        } else {
+            PREPARING_MESSAGE.to_string()
+        }
+    });
     view! {
         <div class="stack">
+            <ProgressDialog
+                title=Signal::derive(|| PROGRESS_TITLE.to_string())
+                message=progress_message
+                open=busy
+                on_cancel=on_close
+            />
             <div class="flex flex-wrap gap-2">
                 <button type="button" class="btn-secondary" on:click=move |_| report.open_plain()>
                     "Exportar PDF"
@@ -49,17 +71,7 @@ pub fn DiffView(
             </div>
             {move || match report.phase.get() {
                 ReportPhase::Idle => ().into_any(),
-                ReportPhase::Waiting => {
-                    view! {
-                        <div class="notice animate-fade-in flex items-center justify-between gap-2">
-                            <span>"Esperando la explicación del agente…"</span>
-                            <button type="button" class="btn-ghost" on:click=move |_| report.close()>
-                                "Cancelar"
-                            </button>
-                        </div>
-                    }
-                        .into_any()
-                }
+                ReportPhase::Waiting | ReportPhase::Preparing => ().into_any(),
                 ReportPhase::Failed(error) => {
                     view! {
                         <div class="notice animate-fade-in flex items-center justify-between gap-2">
