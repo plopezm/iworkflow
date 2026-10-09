@@ -35,8 +35,8 @@ let page;
   await page.reload();
   await page.waitForLoadState('networkidle');
   if ((await runtime.inputValue()) !== 'pi') throw new Error('el agente pi no persistió');
-  if (await page.getByLabel(/^Perfil/).count()) throw new Error('el perfil debería ocultarse con pi');
-  step('agente pi seleccionado y persistido (perfil oculto)');
+  if (!(await page.getByLabel(/^Perfil/).count())) throw new Error('el perfil debería seguir visible con pi');
+  step('agente pi seleccionado y persistido (perfil visible)');
 
   // Edición en pantalla propia (no en diálogo): crear en Backlog, editar, guardar y volver.
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
@@ -49,7 +49,8 @@ let page;
   if (await page.getByRole('dialog').count()) throw new Error('la edición no debe abrir un diálogo');
   await page.getByRole('heading', { name: 'Editar tarea' }).waitFor();
   if ((await page.getByLabel('Prompt').inputValue()) !== 'Tarea en backlog') throw new Error('el prompt no se precargó');
-  await page.getByLabel('Prompt').fill('Tarea en backlog editada');
+  await page.getByLabel(/^Título/).fill('Tarea en backlog editada');
+  await page.getByLabel('Prompt').fill('Prompt editado');
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
   await page.waitForURL(url => !url.pathname.endsWith('/edit'));
   await page.getByText('Tarea en backlog editada').first().waitFor();

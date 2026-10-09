@@ -14,12 +14,20 @@ cargo leptos build
 # registra workspaces y cambia ajustes, y ensuciaría su base de datos).
 PORT="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
 
+# Un repo por smoke: el servidor rechaza registrar dos veces la misma ruta y comparten BD.
+make_repo() {
+  mkdir -p "$1"
+  git -C "$1" init -q -b main
+  echo hola > "$1/README.md"
+  git -C "$1" add .
+  git -C "$1" -c user.name=smoke -c user.email=smoke@localhost commit -qm init
+}
 REPO="$WORK/repo"
-mkdir -p "$REPO"
-git -C "$REPO" init -q -b main
-echo hola > "$REPO/README.md"
-git -C "$REPO" add .
-git -C "$REPO" -c user.name=smoke -c user.email=smoke@localhost commit -qm init
+REPO_KEYS="$WORK/keys/project"
+REPO_RECONNECT="$WORK/reconnect/project"
+make_repo "$REPO"
+make_repo "$REPO_KEYS"
+make_repo "$REPO_RECONNECT"
 
 IWF_DATABASE_URL="$WORK/db.sqlite" \
 IWF_WORKTREES_DIR="$WORK/worktrees" \
@@ -34,7 +42,7 @@ for _ in $(seq 1 50); do
   sleep 0.2
 done
 
-SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" node end2end/terminal_keys_smoke.cjs
-SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" node end2end/terminal_reconnect_smoke.cjs
+SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO_KEYS" node end2end/terminal_keys_smoke.cjs
+SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO_RECONNECT" node end2end/terminal_reconnect_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" SMOKE_SCREENSHOT="$WORK/ui-review.png" node end2end/ui_smoke.cjs
 git -C "$REPO" log --oneline -1 | grep -q "Merge tarea pi:" && echo "merge verificado en $REPO"
