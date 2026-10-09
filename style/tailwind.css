@@ -549,6 +549,17 @@ article.card:hover {
 .notice-error {
   @apply border-error/30 text-error;
 }
+.progress-track {
+  @apply relative h-2 w-full overflow-hidden rounded-full bg-surface-2;
+}
+.progress-bar {
+  @apply absolute inset-y-0 w-2/5 rounded-full bg-accent;
+  animation: progress-slide 1.4s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
 .status-line {
   @apply flex flex-wrap items-center gap-2 text-sm;
 }
