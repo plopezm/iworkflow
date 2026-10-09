@@ -135,6 +135,7 @@ impl TaskDetailState {
         self.send.dispatch(SendTaskMessage {
             id: self.task_id.get_value(),
             message,
+            images: Vec::new(),
             mode: self.mode.get_untracked(),
         });
         self.message.set(String::new());

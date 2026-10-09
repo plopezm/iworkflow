@@ -16,7 +16,7 @@ Limits (domain constants): max 5 images per message, 5 MiB each, mime in png/jpe
   - Migration `task_attachments` (task_id FK cascade, id, name, mime_type, data TEXT base64, created_at) with up/down; regenerate schema.rs.
   - Outbound port `TaskAttachmentRepositoryPort` (insert_many, list_by_task) + Diesel adapter + integration test; mocks.
   - `CreateTask` stores images; `StartTask` loads them and sends with the initial `Prompt`.
-- [ ] 3. Server functions + DTOs
+- [x] 3. Server functions + DTOs
   - `ImageAttachmentDto` (base64), `CreateTaskDto.images`, `send_task_message(.., images)`; mapping tests; raise body limit for these routes if needed.
 - [ ] 4. UI
   - Reusable `ImagePicker` component (file input, paste, thumbnails, remove) used in `TaskModal` and `Composer`; state signals in board/detail state.

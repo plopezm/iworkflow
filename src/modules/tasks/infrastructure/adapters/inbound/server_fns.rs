@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos::server_fn::codec::Json;
 
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, UpdateTaskDto,
@@ -41,6 +42,19 @@ mod support {
                     "el agente de la tarea no está en ejecución".to_string()
                 )
             );
+        }
+
+        #[test]
+        fn invalid_attachment_message_is_preserved() {
+            let error: TaskError =
+                TaskError::InvalidAttachment("a.png: la imagen está vacía".to_string());
+            let expected: String = error.to_string();
+
+            assert_eq!(
+                to_server_error(error),
+                ServerFnError::ServerError(expected.clone())
+            );
+            assert!(expected.contains("a.png: la imagen está vacía"));
         }
 
         #[test]
@@ -90,11 +104,17 @@ pub async fn create_task(input: CreateTaskDto) -> Result<CreatedTaskDto, ServerF
 pub async fn send_task_message(
     id: String,
     message: String,
+    images: Vec<ImageAttachmentDto>,
     mode: MessageModeDto,
 ) -> Result<(), ServerFnError> {
     support::context()?
         .send_message
-        .execute(support::task_id(&id)?, message, Vec::new(), mode.into())
+        .execute(
+            support::task_id(&id)?,
+            message,
+            images.into_iter().map(Into::into).collect(),
+            mode.into(),
+        )
         .await
         .map_err(support::to_server_error)
 }

@@ -91,6 +91,7 @@ impl DiffReportState {
             send.dispatch(SendTaskMessage {
                 id: task_id.get_value(),
                 message,
+                images: Vec::new(),
                 mode: MessageModeDto::FollowUp,
             });
         });

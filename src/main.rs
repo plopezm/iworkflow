@@ -8,6 +8,7 @@ async fn main() {
     use iworkflow::app_state::AppState;
     use iworkflow::core::config::AppConfig;
     use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
+    use iworkflow::core::http::body_limit::with_server_fn_body_limit;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
     use iworkflow::modules::terminal::infrastructure::adapters::inbound::ws::terminal_ws_router;
     use leptos::prelude::*;
@@ -43,14 +44,20 @@ async fn main() {
     let routes: Vec<AxumRouteListing> = generate_route_list(App);
 
     let context_state: AppState = state.clone();
+    // Las server functions cuelgan del router de Leptos: solo ahí se eleva el límite de
+    // cuerpo (2 MiB por defecto) para admitir mensajes con imágenes en base64.
+    let leptos_router: Router<LeptosOptions> = with_server_fn_body_limit(
+        Router::new()
+            .leptos_routes_with_context(&leptos_options, routes, move || context_state.provide(), {
+                let options: LeptosOptions = leptos_options.clone();
+                move || shell(options.clone())
+            })
+            .fallback(leptos_axum::file_and_error_handler(shell)),
+    );
     let app: Router = Router::new()
         .merge(task_events_router(state.tasks.clone()))
         .merge(terminal_ws_router(state.terminal.clone()))
-        .leptos_routes_with_context(&leptos_options, routes, move || context_state.provide(), {
-            let options: LeptosOptions = leptos_options.clone();
-            move || shell(options.clone())
-        })
-        .fallback(leptos_axum::file_and_error_handler(shell))
+        .merge(leptos_router)
         .with_state(leptos_options);
 
     tracing::info!("escuchando en http://{addr}");

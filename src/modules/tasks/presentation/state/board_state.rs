@@ -290,6 +290,7 @@ impl BoardState {
                 priority: TaskPriorityDto::from_value(&self.form_priority.get_untracked())
                     .unwrap_or_default(),
                 start_now: self.form_start_now.get_untracked(),
+                images: Vec::new(),
             },
         });
     }
