@@ -131,6 +131,7 @@ async fn appends_events_with_increasing_seq_and_reads_after_cursor() {
             TaskEventKind::Agent {
                 event: AgentEvent::UserMessage {
                     text: "hola".into(),
+                    images: 0,
                 },
             },
         )
@@ -720,6 +721,7 @@ async fn concurrent_writers_never_fail_nor_lose_updates() {
                     TaskEventKind::Agent {
                         event: AgentEvent::UserMessage {
                             text: format!("m{op}"),
+                            images: 0,
                         },
                     },
                 )

@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MessageModeDto, TaskDto,
@@ -9,6 +10,7 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResetTask,
     ResumeTask, SendTaskMessage, StartTask, get_task, get_task_diff,
 };
+use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
 /// Espera antes de reabrir el stream SSE cuando el navegador lo da por cerrado.
@@ -26,6 +28,8 @@ pub struct TaskDetailState {
     pub diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>>,
     pub message: RwSignal<String>,
     pub mode: RwSignal<MessageModeDto>,
+    /// Imágenes adjuntas al próximo mensaje.
+    pub images: ImageAttachments,
     pub send: ServerAction<SendTaskMessage>,
     pub answer: ServerAction<AnswerTaskDialog>,
     pub abort: ServerAction<AbortTask>,
@@ -40,6 +44,24 @@ pub struct TaskDetailState {
     pub status_version: RwSignal<u32>,
     /// Se marca cuando la tarea se elimina desde el tablero mientras se ve el detalle.
     pub removed: RwSignal<bool>,
+}
+
+/// Construye el envío de un mensaje; `None` si no hay texto ni imágenes (función pura).
+pub fn build_send_message(
+    id: String,
+    message: String,
+    images: Vec<ImageAttachmentDto>,
+    mode: MessageModeDto,
+) -> Option<SendTaskMessage> {
+    if message.trim().is_empty() && images.is_empty() {
+        return None;
+    }
+    Some(SendTaskMessage {
+        id,
+        message,
+        images,
+        mode,
+    })
 }
 
 impl TaskDetailState {
@@ -104,6 +126,7 @@ impl TaskDetailState {
             diff,
             message: RwSignal::new(String::new()),
             mode: RwSignal::new(MessageModeDto::Steer),
+            images: ImageAttachments::new(),
             send,
             answer,
             abort,
@@ -129,15 +152,18 @@ impl TaskDetailState {
 
     pub fn send_message(&self) {
         let message: String = self.message.get_untracked();
-        if message.trim().is_empty() {
-            return;
-        }
-        self.send.dispatch(SendTaskMessage {
-            id: self.task_id.get_value(),
+        let images: Vec<ImageAttachmentDto> = self.images.images.get_untracked();
+        let Some(action) = build_send_message(
+            self.task_id.get_value(),
             message,
-            mode: self.mode.get_untracked(),
-        });
+            images,
+            self.mode.get_untracked(),
+        ) else {
+            return;
+        };
+        self.send.dispatch(action);
         self.message.set(String::new());
+        self.images.clear();
     }
 
     pub fn answer_dialog(&self, dialog_id: String, answer: DialogAnswerDto) {
@@ -363,5 +389,41 @@ impl TaskDetailState {
         };
         open(&url, signals, slot);
         on_cleanup(move || teardown(slot));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn image() -> ImageAttachmentDto {
+        ImageAttachmentDto {
+            name: "a.png".to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGVsbG8=".to_string(),
+        }
+    }
+
+    #[test]
+    fn send_requires_text_or_images() {
+        assert!(
+            build_send_message("t".into(), "  ".into(), vec![], MessageModeDto::Steer).is_none()
+        );
+        assert!(
+            build_send_message("t".into(), "hola".into(), vec![], MessageModeDto::Steer).is_some()
+        );
+    }
+
+    #[test]
+    fn send_with_only_images_carries_them() {
+        let action: Option<SendTaskMessage> = build_send_message(
+            "t".into(),
+            String::new(),
+            vec![image()],
+            MessageModeDto::FollowUp,
+        );
+        let action: SendTaskMessage = action.expect("images alone are enough");
+        assert_eq!(action.images, vec![image()]);
+        assert_eq!(action.id, "t");
     }
 }

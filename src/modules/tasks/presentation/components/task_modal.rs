@@ -6,6 +6,7 @@ use crate::core::components::modal::Modal;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskPriorityDto, WorkspaceOptionDto,
 };
+use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
 use crate::modules::tasks::presentation::state::board_state::BoardState;
 
 /// Opciones del desplegable de prioridad, de menor a mayor.
@@ -79,7 +80,9 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                     value=state.form_prompt
                     placeholder="Describe lo que debe hacer el agente…"
                     required=true
+                    on_paste=paste_callback(state.images)
                 />
+                <ImagePicker attachments=state.images />
                 <SelectField
                     label="Prioridad"
                     value=state.form_priority

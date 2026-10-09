@@ -367,6 +367,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                 <Composer
                                     message=state.message
                                     mode=state.mode
+                                    attachments=state.images
                                     agent_busy=agent_busy
                                     pending=state.send.pending()
                                     on_send

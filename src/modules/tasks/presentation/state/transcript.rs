@@ -11,6 +11,8 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dt
 pub enum TranscriptItem {
     User {
         text: String,
+        /// Imágenes adjuntas al mensaje.
+        images: u32,
     },
     Assistant {
         text: String,
@@ -40,6 +42,15 @@ pub enum TranscriptItem {
     Exit {
         code: Option<i32>,
     },
+}
+
+/// Etiqueta del adjunto de un mensaje de usuario ("📎 2 imágenes").
+pub fn images_label(count: u32) -> String {
+    if count == 1 {
+        "📎 1 imagen".to_string()
+    } else {
+        format!("📎 {count} imágenes")
+    }
 }
 
 /// Estado de pantalla derivado del stream de eventos.
@@ -78,7 +89,9 @@ impl Transcript {
         match event {
             AgentEventDto::RunStarted => {}
             AgentEventDto::RunSettled => self.clear_streaming(),
-            AgentEventDto::UserMessage { text } => self.items.push(TranscriptItem::User { text }),
+            AgentEventDto::UserMessage { text, images } => {
+                self.items.push(TranscriptItem::User { text, images })
+            }
             AgentEventDto::AssistantMessage {
                 text,
                 thinking,
@@ -227,6 +240,28 @@ impl Transcript {
 mod tests {
     use super::*;
     use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogKindDto;
+
+    #[test]
+    fn labels_images_with_singular_and_plural() {
+        assert_eq!(images_label(1), "📎 1 imagen");
+        assert_eq!(images_label(2), "📎 2 imágenes");
+    }
+
+    #[test]
+    fn user_message_keeps_image_count() {
+        let mut transcript: Transcript = Transcript::default();
+        transcript.apply(agent(AgentEventDto::UserMessage {
+            text: String::new(),
+            images: 2,
+        }));
+        assert_eq!(
+            transcript.items,
+            vec![TranscriptItem::User {
+                text: String::new(),
+                images: 2
+            }]
+        );
+    }
 
     fn agent(event: AgentEventDto) -> TaskEventDto {
         TaskEventDto {

@@ -91,6 +91,7 @@ impl DiffReportState {
             send.dispatch(SendTaskMessage {
                 id: task_id.get_value(),
                 message,
+                images: Vec::new(),
                 mode: MessageModeDto::FollowUp,
             });
         });
@@ -156,6 +157,7 @@ mod tests {
     fn user(text: &str) -> TranscriptItem {
         TranscriptItem::User {
             text: text.to_string(),
+            images: 0,
         }
     }
 

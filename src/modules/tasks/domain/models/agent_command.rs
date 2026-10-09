@@ -1,4 +1,5 @@
 use crate::modules::tasks::domain::models::agent_event::DialogAnswer;
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 
 /// Modo de entrega de un mensaje del usuario al agente.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,12 +15,15 @@ pub enum MessageMode {
 pub enum AgentCommand {
     Prompt {
         message: String,
+        images: Vec<ImageAttachment>,
     },
     Steer {
         message: String,
+        images: Vec<ImageAttachment>,
     },
     FollowUp {
         message: String,
+        images: Vec<ImageAttachment>,
     },
     Abort,
     AnswerDialog {

@@ -8,4 +8,6 @@ pub mod db;
 pub mod env;
 #[cfg(feature = "ssr")]
 pub mod git;
+#[cfg(feature = "ssr")]
+pub mod http;
 pub mod markdown;

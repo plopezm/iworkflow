@@ -44,6 +44,9 @@ pub enum AgentEvent {
     RunSettled,
     UserMessage {
         text: String,
+        /// Número de imágenes adjuntas al mensaje.
+        #[serde(default)]
+        images: u32,
     },
     AssistantMessage {
         text: String,

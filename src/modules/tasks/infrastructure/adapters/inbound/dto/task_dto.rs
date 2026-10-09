@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::image_attachment_dto::ImageAttachmentDto;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatusDto {
@@ -203,6 +205,8 @@ pub struct CreateTaskDto {
     pub priority: TaskPriorityDto,
     #[serde(default)]
     pub start_now: bool,
+    #[serde(default)]
+    pub images: Vec<ImageAttachmentDto>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -350,6 +354,7 @@ mod mapping {
                 title: dto.title,
                 prompt: dto.prompt,
                 priority: dto.priority.into(),
+                images: dto.images.into_iter().map(Into::into).collect(),
                 start_now: dto.start_now,
             }
         }

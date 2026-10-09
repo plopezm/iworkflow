@@ -6,26 +6,45 @@ use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogAnswer, DialogKind, DialogRequest, NoticeLevel,
 };
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 
 /// Límite de caracteres de salidas y argumentos de herramientas que se conservan.
 const MAX_TOOL_TEXT_CHARS: usize = 20_000;
 
+/// Añade el campo `images` de pi solo si hay imágenes que enviar.
+fn with_images(mut record: Value, images: &[ImageAttachment]) -> Value {
+    if !images.is_empty() {
+        record["images"] = images
+            .iter()
+            .map(|image: &ImageAttachment| {
+                json!({ "type": "image", "data": image.data, "mimeType": image.mime_type })
+            })
+            .collect();
+    }
+    record
+}
+
 /// Serializa una orden como un registro JSONL (sin salto de línea final).
 pub fn encode(command: &AgentCommand, request_id: &str) -> String {
     let record: Value = match command {
-        AgentCommand::Prompt { message } => json!({
-            "id": request_id,
-            "type": "prompt",
-            "message": message,
-            // Evita el error de pi si el agente siguiera ocupado.
-            "streamingBehavior": "followUp",
-        }),
-        AgentCommand::Steer { message } => {
-            json!({ "id": request_id, "type": "steer", "message": message })
-        }
-        AgentCommand::FollowUp { message } => {
-            json!({ "id": request_id, "type": "follow_up", "message": message })
-        }
+        AgentCommand::Prompt { message, images } => with_images(
+            json!({
+                "id": request_id,
+                "type": "prompt",
+                "message": message,
+                // Evita el error de pi si el agente siguiera ocupado.
+                "streamingBehavior": "followUp",
+            }),
+            images,
+        ),
+        AgentCommand::Steer { message, images } => with_images(
+            json!({ "id": request_id, "type": "steer", "message": message }),
+            images,
+        ),
+        AgentCommand::FollowUp { message, images } => with_images(
+            json!({ "id": request_id, "type": "follow_up", "message": message }),
+            images,
+        ),
         AgentCommand::Abort => json!({ "id": request_id, "type": "abort" }),
         AgentCommand::AnswerDialog { dialog_id, answer } => {
             let mut response: Map<String, Value> = Map::new();
@@ -181,7 +200,8 @@ fn decode_message(message: Option<&Value>) -> Option<AgentEvent> {
     match str_field(message, "role")? {
         "user" => {
             let text: String = content_text(message.get("content"));
-            (!text.is_empty()).then_some(AgentEvent::UserMessage { text })
+            let images: u32 = count_blocks(message.get("content"), "image");
+            (!text.is_empty() || images > 0).then_some(AgentEvent::UserMessage { text, images })
         }
         "assistant" => {
             let text: String = blocks_text(message.get("content"), "text", "text");
@@ -309,6 +329,19 @@ fn content_text(content: Option<&Value>) -> String {
     }
 }
 
+fn count_blocks(content: Option<&Value>, block_type: &str) -> u32 {
+    let count: usize = content
+        .and_then(Value::as_array)
+        .map(|blocks: &Vec<Value>| {
+            blocks
+                .iter()
+                .filter(|b: &&Value| str_field(b, "type") == Some(block_type))
+                .count()
+        })
+        .unwrap_or(0);
+    u32::try_from(count).unwrap_or(u32::MAX)
+}
+
 fn blocks_text(content: Option<&Value>, block_type: &str, field: &str) -> String {
     content
         .and_then(Value::as_array)
@@ -367,7 +400,8 @@ mod tests {
         assert_eq!(
             encode(
                 &AgentCommand::Steer {
-                    message: "para".into()
+                    message: "para".into(),
+                    images: Vec::new(),
                 },
                 "r1"
             ),
@@ -380,12 +414,54 @@ mod tests {
         let prompt: Value = serde_json::from_str(&encode(
             &AgentCommand::Prompt {
                 message: "hola".into(),
+                images: Vec::new(),
             },
             "r3",
         ))
         .expect("json");
         assert_eq!(prompt["type"], "prompt");
         assert_eq!(prompt["streamingBehavior"], "followUp");
+        assert!(prompt.get("images").is_none());
+    }
+
+    #[test]
+    fn encodes_images_for_prompt_steer_and_follow_up() {
+        let images: Vec<ImageAttachment> = vec![ImageAttachment {
+            name: "a.png".into(),
+            mime_type: "image/png".into(),
+            data: "aGk=".into(),
+        }];
+        let commands: Vec<(AgentCommand, &str)> = vec![
+            (
+                AgentCommand::Prompt {
+                    message: "m".into(),
+                    images: images.clone(),
+                },
+                "prompt",
+            ),
+            (
+                AgentCommand::Steer {
+                    message: "m".into(),
+                    images: images.clone(),
+                },
+                "steer",
+            ),
+            (
+                AgentCommand::FollowUp {
+                    message: "m".into(),
+                    images: images.clone(),
+                },
+                "follow_up",
+            ),
+        ];
+        for (command, kind) in commands {
+            let record: Value = serde_json::from_str(&encode(&command, "r")).expect("json");
+            assert_eq!(record["type"], kind);
+            assert_eq!(
+                record["images"],
+                json!([{ "type": "image", "data": "aGk=", "mimeType": "image/png" }])
+            );
+        }
     }
 
     #[test]
@@ -453,7 +529,47 @@ mod tests {
         assert_eq!(
             one(r#"{"type":"message_end","message":{"role":"user","content":"Arregla"}}"#),
             AgentEvent::UserMessage {
-                text: "Arregla".into()
+                text: "Arregla".into(),
+                images: 0
+            }
+        );
+    }
+
+    #[test]
+    fn decodes_user_message_counting_images() {
+        assert_eq!(
+            one(
+                r#"{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"mira"},{"type":"image","data":"x","mimeType":"image/png"},{"type":"image","data":"y","mimeType":"image/png"}]}}"#
+            ),
+            AgentEvent::UserMessage {
+                text: "mira".into(),
+                images: 2
+            }
+        );
+    }
+
+    #[test]
+    fn decodes_user_message_with_images_but_no_text() {
+        assert_eq!(
+            one(
+                r#"{"type":"message_end","message":{"role":"user","content":[{"type":"image","data":"x","mimeType":"image/png"}]}}"#
+            ),
+            AgentEvent::UserMessage {
+                text: String::new(),
+                images: 1
+            }
+        );
+    }
+
+    #[test]
+    fn legacy_user_message_events_deserialize_without_images() {
+        let event: AgentEvent =
+            serde_json::from_str(r#"{"type":"user_message","text":"hola"}"#).expect("legacy");
+        assert_eq!(
+            event,
+            AgentEvent::UserMessage {
+                text: "hola".into(),
+                images: 0
             }
         );
     }

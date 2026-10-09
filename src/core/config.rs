@@ -6,6 +6,7 @@ const DEFAULT_DATA_DIR: &str = ".iworkflow";
 const DEFAULT_DATABASE_FILE: &str = "workspaces.db";
 const DEFAULT_WORKTREES_DIR: &str = "worktrees";
 const DEFAULT_AGENTS_FILES_DIR: &str = "agents-files";
+const DEFAULT_ATTACHMENTS_DIR: &str = "attachments";
 const DEFAULT_GENTLE_PI_CONFIG_DIR: &str = ".pi/gentle-ai";
 
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +32,8 @@ pub struct AppConfig {
     pub gentle_pi_config_home: PathBuf,
     /// Carpeta donde se guardan los ficheros AGENTS.md subidos.
     pub agents_files_dir: PathBuf,
+    /// Carpeta donde se guardan las imágenes adjuntas a las tareas.
+    pub attachments_dir: PathBuf,
 }
 
 impl AppConfig {
@@ -60,6 +63,11 @@ impl AppConfig {
             &database_url,
             &data_dir,
         );
+        let attachments_dir: PathBuf = resolve_attachments_dir(
+            std::env::var("IWF_ATTACHMENTS_DIR").ok(),
+            &database_url,
+            &data_dir,
+        );
         Ok(Self {
             database_url,
             gentle_shell_bin,
@@ -68,6 +76,7 @@ impl AppConfig {
             home_dir: home,
             gentle_pi_config_home,
             agents_files_dir,
+            attachments_dir,
         })
     }
 }
@@ -78,12 +87,30 @@ fn resolve_agents_files_dir(
     database_url: &str,
     data_dir: &Path,
 ) -> PathBuf {
+    resolve_data_subdir(env_value, database_url, data_dir, DEFAULT_AGENTS_FILES_DIR)
+}
+
+/// `IWF_ATTACHMENTS_DIR`, o `attachments` junto a la base de datos, o bajo la carpeta de datos.
+fn resolve_attachments_dir(
+    env_value: Option<String>,
+    database_url: &str,
+    data_dir: &Path,
+) -> PathBuf {
+    resolve_data_subdir(env_value, database_url, data_dir, DEFAULT_ATTACHMENTS_DIR)
+}
+
+fn resolve_data_subdir(
+    env_value: Option<String>,
+    database_url: &str,
+    data_dir: &Path,
+    default_name: &str,
+) -> PathBuf {
     if let Some(dir) = env_value.filter(|v: &String| !v.trim().is_empty()) {
         return PathBuf::from(dir);
     }
     match Path::new(database_url).parent() {
-        Some(parent) if !parent.as_os_str().is_empty() => parent.join(DEFAULT_AGENTS_FILES_DIR),
-        _ => data_dir.join(DEFAULT_AGENTS_FILES_DIR),
+        Some(parent) if !parent.as_os_str().is_empty() => parent.join(default_name),
+        _ => data_dir.join(default_name),
     }
 }
 
@@ -123,5 +150,39 @@ mod tests {
         let dir: PathBuf =
             resolve_agents_files_dir(None, "workspaces.db", Path::new("/home/u/.iworkflow"));
         assert_eq!(dir, PathBuf::from("/home/u/.iworkflow/agents-files"));
+    }
+
+    #[test]
+    fn attachments_env_value_wins() {
+        let dir: PathBuf = resolve_attachments_dir(
+            Some("/custom/attachments".to_string()),
+            "/data/workspaces.db",
+            Path::new("/home/u/.iworkflow"),
+        );
+        assert_eq!(dir, PathBuf::from("/custom/attachments"));
+    }
+
+    #[test]
+    fn attachments_default_next_to_the_database() {
+        let dir: PathBuf =
+            resolve_attachments_dir(None, "/data/workspaces.db", Path::new("/home/u/.iworkflow"));
+        assert_eq!(dir, PathBuf::from("/data/attachments"));
+    }
+
+    #[test]
+    fn attachments_blank_env_falls_back_to_database_parent() {
+        let dir: PathBuf = resolve_attachments_dir(
+            Some("  ".to_string()),
+            "/data/workspaces.db",
+            Path::new("/home/u/.iworkflow"),
+        );
+        assert_eq!(dir, PathBuf::from("/data/attachments"));
+    }
+
+    #[test]
+    fn attachments_fall_back_to_data_dir_without_database_parent() {
+        let dir: PathBuf =
+            resolve_attachments_dir(None, "workspaces.db", Path::new("/home/u/.iworkflow"));
+        assert_eq!(dir, PathBuf::from("/home/u/.iworkflow/attachments"));
     }
 }

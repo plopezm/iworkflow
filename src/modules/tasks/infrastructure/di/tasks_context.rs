@@ -28,7 +28,9 @@ use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::application::usecases::update_task::UpdateTask;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
+use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
+use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
@@ -38,7 +40,9 @@ use crate::modules::tasks::infrastructure::adapters::outbound::git::git_cli_work
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retrying_task_repository::{
     RetryPolicy, RetryingTaskRepository,
 };
+use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_attachment_repository_adapter::TaskAttachmentRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
+use crate::modules::tasks::infrastructure::adapters::outbound::storage::fs_attachment_storage_adapter::FsAttachmentStorageAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::gentle_shell_runtime_adapter::GentleShellRuntimeAdapter;
 
 /// Configuración propia del feature de tareas.
@@ -47,6 +51,7 @@ pub struct TasksSettings {
     pub gentle_shell_bin: String,
     pub pi_bin: String,
     pub worktrees_dir: PathBuf,
+    pub attachments_dir: PathBuf,
 }
 
 #[derive(Clone)]
@@ -93,6 +98,7 @@ impl TasksContext {
         Self::with_runtime(
             pool,
             settings.worktrees_dir,
+            settings.attachments_dir,
             workspaces,
             runtime,
             launch_settings,
@@ -105,10 +111,15 @@ impl TasksContext {
     pub fn with_runtime(
         pool: DbPool,
         worktrees_dir: PathBuf,
+        attachments_dir: PathBuf,
         workspaces: Arc<dyn WorkspaceLookupPort>,
         runtime: Arc<dyn AgentRuntimePort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
     ) -> Self {
+        let attachments: Arc<dyn TaskAttachmentRepositoryPort> =
+            Arc::new(TaskAttachmentRepositoryAdapter::new(pool.clone()));
+        let storage: Arc<dyn AttachmentStoragePort> =
+            Arc::new(FsAttachmentStorageAdapter::new(attachments_dir));
         let base_repository: Arc<dyn TaskRepositoryPort> =
             Arc::new(TaskRepositoryAdapter::new(pool));
         let repository: Arc<dyn TaskRepositoryPort> = Arc::new(RetryingTaskRepository::new(
@@ -142,6 +153,8 @@ impl TasksContext {
             runtime.clone(),
             launch_settings.clone(),
             sink.clone(),
+            attachments.clone(),
+            storage.clone(),
         ));
 
         Self {
@@ -149,13 +162,16 @@ impl TasksContext {
                 lifecycle.clone(),
                 worktrees.clone(),
                 start_task.clone(),
+                attachments,
+                storage.clone(),
             )),
             start_task,
             update_task: Arc::new(UpdateTask::new(lifecycle.clone())),
-            delete_task: Arc::new(DeleteTask::new(lifecycle.clone())),
+            delete_task: Arc::new(DeleteTask::new(lifecycle.clone(), storage.clone())),
             delete_workspace_tasks: Arc::new(DeleteWorkspaceTasks::new(
                 lifecycle.clone(),
                 worktrees.clone(),
+                storage,
             )),
             send_message: Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone())),
             abort_task: Arc::new(AbortTask::new(lifecycle.clone(), runtime.clone())),

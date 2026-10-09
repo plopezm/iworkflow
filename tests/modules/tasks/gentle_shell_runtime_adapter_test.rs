@@ -89,6 +89,7 @@ async fn runs_prompt_round_trip_and_stops_gracefully() {
             task_id,
             AgentCommand::Prompt {
                 message: "hola".into(),
+                images: Vec::new(),
             },
         )
         .await
@@ -235,6 +236,7 @@ async fn forwards_dialog_answers_and_reports_rejections() {
             task_id,
             AgentCommand::Steer {
                 message: "para".into(),
+                images: Vec::new(),
             },
         )
         .await

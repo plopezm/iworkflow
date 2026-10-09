@@ -1,12 +1,14 @@
 use leptos::prelude::*;
 
 use crate::core::components::toast::{ToastMessage, push_toast};
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_tasks, list_workspace_options,
 };
+use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
 
 /// Compara dos instantes RFC 3339 por su valor temporal; si alguno no se puede interpretar
@@ -197,6 +199,8 @@ pub struct BoardState {
     /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
     pub form_priority: RwSignal<String>,
     pub form_start_now: RwSignal<bool>,
+    /// Imágenes adjuntas al prompt inicial.
+    pub images: ImageAttachments,
     pub toasts: RwSignal<Vec<ToastMessage>>,
     toast_seq: RwSignal<u32>,
     pub start_target: RwSignal<Option<String>>,
@@ -210,6 +214,25 @@ pub struct BoardState {
 /// Texto del aviso cuando la tarea se crea pero no puede iniciarse.
 pub fn start_failed_after_create_text(error: &str) -> String {
     format!("Tarea creada en Por hacer, pero no se pudo iniciar: {error}")
+}
+
+/// Construye el DTO de alta con las imágenes adjuntas (función pura).
+pub fn build_create_task_dto(
+    workspace_id: String,
+    title: String,
+    prompt: String,
+    priority: &str,
+    start_now: bool,
+    images: Vec<ImageAttachmentDto>,
+) -> CreateTaskDto {
+    CreateTaskDto {
+        workspace_id,
+        title,
+        prompt,
+        priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
+        start_now,
+        images,
+    }
 }
 
 impl BoardState {
@@ -252,6 +275,7 @@ impl BoardState {
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
             form_start_now: RwSignal::new(false),
+            images: ImageAttachments::new(),
             toasts: RwSignal::new(Vec::new()),
             toast_seq: RwSignal::new(0),
             start_target: RwSignal::new(None),
@@ -273,24 +297,26 @@ impl BoardState {
         self.form_priority
             .set(TaskPriorityDto::default().as_str().to_string());
         self.form_start_now.set(false);
+        self.images.clear();
         self.modal_open.set(true);
     }
 
     pub fn close_modal(&self) {
         self.modal_open.set(false);
+        self.images.clear();
     }
 
     /// Envía el formulario de alta.
     pub fn submit(&self) {
         self.create.dispatch(CreateTask {
-            input: CreateTaskDto {
-                workspace_id: self.form_workspace_id.get_untracked(),
-                title: self.form_title.get_untracked(),
-                prompt: self.form_prompt.get_untracked(),
-                priority: TaskPriorityDto::from_value(&self.form_priority.get_untracked())
-                    .unwrap_or_default(),
-                start_now: self.form_start_now.get_untracked(),
-            },
+            input: build_create_task_dto(
+                self.form_workspace_id.get_untracked(),
+                self.form_title.get_untracked(),
+                self.form_prompt.get_untracked(),
+                &self.form_priority.get_untracked(),
+                self.form_start_now.get_untracked(),
+                self.images.images.get_untracked(),
+            ),
         });
     }
 
@@ -363,6 +389,26 @@ impl Default for BoardState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn create_dto_carries_images_and_priority() {
+        let image: ImageAttachmentDto = ImageAttachmentDto {
+            name: "a.png".to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGVsbG8=".to_string(),
+        };
+        let dto: CreateTaskDto = build_create_task_dto(
+            "ws".to_string(),
+            String::new(),
+            "haz algo".to_string(),
+            "high",
+            true,
+            vec![image.clone()],
+        );
+        assert_eq!(dto.images, vec![image]);
+        assert_eq!(dto.priority, TaskPriorityDto::High);
+        assert!(dto.start_now);
+    }
 
     #[test]
     fn start_failure_after_create_text_mentions_backlog_and_error() {

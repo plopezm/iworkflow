@@ -35,6 +35,9 @@ pub fn TextArea(
     /// Variante amplia: texto mayor y altura mínima generosa para aprovechar el espacio.
     #[prop(optional)]
     large: bool,
+    /// Manejador opcional de pegado (p. ej. para adjuntar imágenes del portapapeles).
+    #[prop(optional)]
+    on_paste: Option<Callback<leptos::ev::ClipboardEvent>>,
 ) -> impl IntoView {
     let class: &str = if large {
         "input input-lg min-h-[50vh] resize-y"
@@ -50,6 +53,11 @@ pub fn TextArea(
                 required=required
                 prop:value=move || value.get()
                 on:input=move |ev| value.set(event_target_value(&ev))
+                on:paste=move |ev| {
+                    if let Some(handler) = on_paste {
+                        handler.run(ev);
+                    }
+                }
             ></textarea>
         </label>
     }

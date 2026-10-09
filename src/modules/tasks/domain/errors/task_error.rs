@@ -10,6 +10,8 @@ pub enum TaskError {
     InvalidPriority(String),
     #[error("el mensaje está vacío")]
     EmptyMessage,
+    #[error("adjunto inválido: {0}")]
+    InvalidAttachment(String),
     #[error("tarea no encontrada: {0}")]
     NotFound(String),
     #[error("workspace no encontrado: {0}")]
@@ -33,6 +35,8 @@ pub enum TaskError {
     Repository(String),
     #[error("error de persistencia: {0}")]
     Busy(String),
+    #[error("error de almacenamiento de adjuntos: {0}")]
+    Storage(String),
     #[error("el workspace tiene tareas activas")]
     WorkspaceHasActiveTasks,
 }

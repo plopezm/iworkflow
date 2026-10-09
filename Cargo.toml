@@ -24,6 +24,7 @@ tokio-stream = { version = "0.1", features = ["sync"], optional = true }
 futures = { version = "0.3", optional = true }
 multer = { version = "3.1", optional = true }
 async-trait = { version = "0.1", optional = true }
+base64 = { version = "0.22", optional = true }
 diesel = { version = "2.3", features = ["sqlite", "chrono", "returning_clauses_for_sqlite_3_35"], optional = true }
 diesel-async = { version = "0.9", features = ["sqlite", "deadpool", "async-connection-wrapper", "migrations"], optional = true }
 diesel_migrations = { version = "2.3", features = ["sqlite"], optional = true }
@@ -37,7 +38,7 @@ portable-pty = { version = "0.9", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", features = ["AddEventListenerOptions", "Document", "Event", "EventSource", "MessageEvent", "Notification", "NotificationOptions", "NotificationPermission", "Window"], optional = true }
+web-sys = { version = "0.3", features = ["AddEventListenerOptions", "Blob", "ClipboardEvent", "DataTransfer", "Document", "Event", "EventSource", "EventTarget", "File", "FileList", "FileReader", "HtmlInputElement", "MessageEvent", "Notification", "NotificationOptions", "NotificationPermission", "Window"], optional = true }
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
 
 [dev-dependencies]
@@ -56,6 +57,7 @@ ssr = [
     "dep:multer",
     "dep:leptos_axum",
     "dep:async-trait",
+    "dep:base64",
     "dep:diesel",
     "dep:diesel-async",
     "dep:diesel_migrations",
@@ -104,6 +106,16 @@ required-features = ["ssr"]
 [[test]]
 name = "git_cli_worktree_adapter_test"
 path = "tests/modules/tasks/git_cli_worktree_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "task_attachment_repository_adapter_test"
+path = "tests/modules/tasks/task_attachment_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "fs_attachment_storage_adapter_test"
+path = "tests/modules/tasks/fs_attachment_storage_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]

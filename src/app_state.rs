@@ -92,6 +92,7 @@ impl AppState {
                 gentle_shell_bin: config.gentle_shell_bin.clone(),
                 pi_bin: config.pi_bin.clone(),
                 worktrees_dir: config.worktrees_dir.clone(),
+                attachments_dir: config.attachments_dir.clone(),
             },
             lookup,
             launch_settings,

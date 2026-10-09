@@ -42,6 +42,8 @@ pub enum AgentEventDto {
     RunSettled,
     UserMessage {
         text: String,
+        #[serde(default)]
+        images: u32,
     },
     AssistantMessage {
         text: String,
@@ -181,7 +183,9 @@ mod mapping {
             match event {
                 AgentEvent::RunStarted => AgentEventDto::RunStarted,
                 AgentEvent::RunSettled => AgentEventDto::RunSettled,
-                AgentEvent::UserMessage { text } => AgentEventDto::UserMessage { text },
+                AgentEvent::UserMessage { text, images } => {
+                    AgentEventDto::UserMessage { text, images }
+                }
                 AgentEvent::AssistantMessage {
                     text,
                     thinking,
