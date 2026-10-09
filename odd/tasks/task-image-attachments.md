@@ -26,3 +26,4 @@ Limits (domain constants): max 5 images per message, 5 MiB each, mime in png/jpe
 ## Evidence
 
 - Task 1: `600f899` — 274 lib tasks tests, runtime adapter tests, fmt + clippy ssr/hydrate ok. RED not observed (tests written with implementation).
+- Task 2: `47efd80` — compile-failure RED observed; full `cargo test --features ssr` green (incl. 6 adapter integration tests), migration redo ok, fmt + clippy ssr/hydrate ok. Attachment writes bypass RetryingTaskRepository (Busy on lock, CreateTask rolls back).
