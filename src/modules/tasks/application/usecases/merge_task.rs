@@ -4,7 +4,7 @@ use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
-use crate::modules::tasks::domain::models::worktree::MergeOutcome;
+use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome};
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Integra la rama de la tarea en la base tras la revisión manual y elimina el worktree.
@@ -29,6 +29,20 @@ impl MergeTask {
         }
         let workspace: WorkspaceRef = self.lifecycle.workspace(&task.workspace_id).await?;
         let message: String = format!("Merge tarea pi: {}", task.title);
+        // Fijar el rango es best-effort: un fallo no impide integrar, solo deja una nota.
+        let pin_ref: String = format!("refs/iworkflow/tasks/{id}");
+        let mut notes: Vec<String> = Vec::new();
+        let range: Option<DiffRange> = match self
+            .worktrees
+            .pin_range(&workspace.path, &task.base_branch, &task.branch, &pin_ref)
+            .await
+        {
+            Ok(range) => Some(range),
+            Err(e) => {
+                notes.push(format!("no se pudo fijar el rango del diff: {e}"));
+                None
+            }
+        };
         let outcome: MergeOutcome = self
             .worktrees
             .merge(&workspace.path, &task.base_branch, &task.branch, &message)
@@ -36,14 +50,29 @@ impl MergeTask {
 
         match &outcome {
             MergeOutcome::Merged => {
-                let cleanup_error: Option<String> = self
+                if let Some(range) = range
+                    && let Err(e) = self
+                        .lifecycle
+                        .repository()
+                        .record_diff_range(id, range)
+                        .await
+                {
+                    notes.push(format!("no se pudo guardar el rango del diff: {e}"));
+                }
+                if let Err(e) = self
                     .worktrees
                     .remove(&workspace.path, &task.worktree_path, &task.branch)
                     .await
-                    .err()
-                    .map(|e: TaskError| format!("integrada, pero no se pudo limpiar: {e}"));
+                {
+                    notes.push(format!("integrada, pero no se pudo limpiar: {e}"));
+                }
+                let error: Option<String> = if notes.is_empty() {
+                    None
+                } else {
+                    Some(notes.join("; "))
+                };
                 self.lifecycle
-                    .transition(id, TaskStatus::Merged, cleanup_error)
+                    .transition(id, TaskStatus::Merged, error)
                     .await?;
             }
             MergeOutcome::Conflict { files } => {
@@ -59,29 +88,71 @@ impl MergeTask {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
-    use crate::modules::tasks::mocks::MockWorktree;
+    use crate::modules::tasks::domain::models::worktree::DiffRange;
+    use crate::modules::tasks::mocks::{MockTaskRepository, MockWorktree};
+
+    type RecordedRanges = Arc<Mutex<Vec<DiffRange>>>;
+
+    fn sample_range() -> DiffRange {
+        DiffRange {
+            base_sha: "aaa".to_string(),
+            head_sha: "bbb".to_string(),
+        }
+    }
+
+    /// Worktree simulado cuyo `pin_range` devuelve `sample_range`.
+    fn worktrees_with_pin() -> MockWorktree {
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_pin_range()
+            .returning(|_, _, _, _| Ok(sample_range()));
+        worktrees
+    }
+
+    async fn merge_with(
+        worktrees: MockWorktree,
+        record_result: Result<(), TaskError>,
+        status: TaskStatus,
+        recorded: &Recorded,
+    ) -> (Result<MergeOutcome, TaskError>, RecordedRanges) {
+        let task: Task = test_support::task(status);
+        let id: TaskId = task.id;
+        let ranges: RecordedRanges = RecordedRanges::default();
+        let sink: RecordedRanges = ranges.clone();
+        let mut repository: MockTaskRepository =
+            test_support::repository_with(Some(task), recorded);
+        let mut result: Option<Result<(), TaskError>> = Some(record_result);
+        repository
+            .expect_record_diff_range()
+            .returning(move |_, range: DiffRange| {
+                sink.lock().expect("lock").push(range);
+                result.take().unwrap_or(Ok(()))
+            });
+        let outcome: Result<MergeOutcome, TaskError> = MergeTask::new(
+            test_support::lifecycle_with(repository, recorded),
+            Arc::new(worktrees),
+        )
+        .execute(id)
+        .await;
+        (outcome, ranges)
+    }
 
     async fn merge(
         worktrees: MockWorktree,
         status: TaskStatus,
         recorded: &Recorded,
     ) -> Result<MergeOutcome, TaskError> {
-        let task: Task = test_support::task(status);
-        let id: TaskId = task.id;
-        MergeTask::new(
-            test_support::lifecycle(Some(task), recorded),
-            Arc::new(worktrees),
-        )
-        .execute(id)
-        .await
+        merge_with(worktrees, Ok(()), status, recorded).await.0
     }
 
     #[tokio::test]
     async fn merges_and_removes_worktree() {
         let recorded: Recorded = Recorded::default();
-        let mut worktrees: MockWorktree = MockWorktree::new();
+        let mut worktrees: MockWorktree = worktrees_with_pin();
         worktrees
             .expect_merge()
             .withf(|_, base: &str, branch: &str, _| {
@@ -103,9 +174,104 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn cleanup_failure_still_marks_merged_with_error() {
+    async fn pins_range_before_merge_and_records_it_after() {
+        let recorded: Recorded = Recorded::default();
+        let task: Task = test_support::task(TaskStatus::AwaitingReview);
+        let expected_ref: String = format!("refs/iworkflow/tasks/{}", task.id);
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_pin_range()
+            .withf(move |_, base: &str, branch: &str, pin_ref: &str| {
+                base == "main" && branch == "pi/arregla-el-login-abc" && pin_ref == expected_ref
+            })
+            .times(1)
+            .returning(|_, _, _, _| Ok(sample_range()));
+        worktrees
+            .expect_merge()
+            .returning(|_, _, _, _| Ok(MergeOutcome::Merged));
+        worktrees.expect_remove().returning(|_, _, _| Ok(()));
+        let id: TaskId = task.id;
+        let ranges: RecordedRanges = RecordedRanges::default();
+        let sink: RecordedRanges = ranges.clone();
+        let mut repository: MockTaskRepository =
+            test_support::repository_with(Some(task), &recorded);
+        repository
+            .expect_record_diff_range()
+            .times(1)
+            .withf(move |task_id: &TaskId, _| *task_id == id)
+            .returning(move |_, range: DiffRange| {
+                sink.lock().expect("lock").push(range);
+                Ok(())
+            });
+
+        MergeTask::new(
+            test_support::lifecycle_with(repository, &recorded),
+            Arc::new(worktrees),
+        )
+        .execute(id)
+        .await
+        .expect("merge");
+
+        assert_eq!(*ranges.lock().expect("lock"), vec![sample_range()]);
+        assert_eq!(recorded.last_error(), None);
+    }
+
+    #[tokio::test]
+    async fn pin_failure_does_not_block_merge_and_leaves_note() {
         let recorded: Recorded = Recorded::default();
         let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_pin_range()
+            .returning(|_, _, _, _| Err(TaskError::Git("sin merge-base".to_string())));
+        worktrees
+            .expect_merge()
+            .returning(|_, _, _, _| Ok(MergeOutcome::Merged));
+        worktrees.expect_remove().returning(|_, _, _| Ok(()));
+
+        let (outcome, ranges): (Result<MergeOutcome, TaskError>, RecordedRanges) =
+            merge_with(worktrees, Ok(()), TaskStatus::AwaitingReview, &recorded).await;
+
+        assert_eq!(outcome.expect("merge"), MergeOutcome::Merged);
+        assert!(ranges.lock().expect("lock").is_empty());
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Merged]);
+        assert!(
+            recorded
+                .last_error()
+                .is_some_and(|e: String| e.contains("no se pudo fijar el rango del diff")
+                    && e.contains("sin merge-base"))
+        );
+    }
+
+    #[tokio::test]
+    async fn record_failure_still_marks_merged_with_note() {
+        let recorded: Recorded = Recorded::default();
+        let mut worktrees: MockWorktree = worktrees_with_pin();
+        worktrees
+            .expect_merge()
+            .returning(|_, _, _, _| Ok(MergeOutcome::Merged));
+        worktrees.expect_remove().returning(|_, _, _| Ok(()));
+
+        let (outcome, _): (Result<MergeOutcome, TaskError>, RecordedRanges) = merge_with(
+            worktrees,
+            Err(TaskError::Git("db".to_string())),
+            TaskStatus::AwaitingReview,
+            &recorded,
+        )
+        .await;
+
+        assert_eq!(outcome.expect("merge"), MergeOutcome::Merged);
+        assert_eq!(recorded.statuses(), vec![TaskStatus::Merged]);
+        assert!(
+            recorded
+                .last_error()
+                .is_some_and(|e: String| e.contains("no se pudo guardar el rango del diff"))
+        );
+    }
+
+    #[tokio::test]
+    async fn cleanup_failure_still_marks_merged_with_error() {
+        let recorded: Recorded = Recorded::default();
+        let mut worktrees: MockWorktree = worktrees_with_pin();
         worktrees
             .expect_merge()
             .returning(|_, _, _, _| Ok(MergeOutcome::Merged));
@@ -128,9 +294,33 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn conflict_keeps_worktree() {
+    async fn notes_and_cleanup_error_are_combined() {
         let recorded: Recorded = Recorded::default();
         let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_pin_range()
+            .returning(|_, _, _, _| Err(TaskError::Git("x".to_string())));
+        worktrees
+            .expect_merge()
+            .returning(|_, _, _, _| Ok(MergeOutcome::Merged));
+        worktrees
+            .expect_remove()
+            .returning(|_, _, _| Err(TaskError::Git("boom".to_string())));
+
+        merge(worktrees, TaskStatus::AwaitingReview, &recorded)
+            .await
+            .expect("merge");
+
+        let error: String = recorded.last_error().expect("error");
+        assert!(error.contains("integrada, pero no se pudo limpiar"));
+        assert!(error.contains("no se pudo fijar el rango del diff"));
+        assert!(error.contains("; "));
+    }
+
+    #[tokio::test]
+    async fn conflict_keeps_worktree_and_records_nothing() {
+        let recorded: Recorded = Recorded::default();
+        let mut worktrees: MockWorktree = worktrees_with_pin();
         worktrees.expect_merge().returning(|_, _, _, _| {
             Ok(MergeOutcome::Conflict {
                 files: vec!["src/a.rs".to_string()],
@@ -138,10 +328,11 @@ mod tests {
         });
         worktrees.expect_remove().never();
 
-        merge(worktrees, TaskStatus::AwaitingReview, &recorded)
-            .await
-            .expect("merge");
+        let (outcome, ranges): (Result<MergeOutcome, TaskError>, RecordedRanges) =
+            merge_with(worktrees, Ok(()), TaskStatus::AwaitingReview, &recorded).await;
+        outcome.expect("merge");
 
+        assert!(ranges.lock().expect("lock").is_empty());
         assert_eq!(recorded.statuses(), vec![TaskStatus::Conflict]);
         assert_eq!(
             recorded.last_error().as_deref(),
@@ -152,7 +343,7 @@ mod tests {
     #[tokio::test]
     async fn blocked_merge_does_not_change_status() {
         let recorded: Recorded = Recorded::default();
-        let mut worktrees: MockWorktree = MockWorktree::new();
+        let mut worktrees: MockWorktree = worktrees_with_pin();
         worktrees.expect_merge().returning(|_, _, _, _| {
             Err(TaskError::MergeBlocked("cambios sin commitear".to_string()))
         });
