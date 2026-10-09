@@ -155,6 +155,7 @@ pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, Se
             input.title,
             input.prompt,
             input.priority.into(),
+            input.images.into_iter().map(Into::into).collect(),
         )
         .await
         .map_err(support::to_server_error)?;

@@ -14,6 +14,18 @@ use crate::modules::tasks::infrastructure::adapters::outbound::persistence::mode
 };
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::db_error;
 
+/// Error type of the insert transaction: domain validation or a Diesel failure.
+enum TransactionError {
+    Domain(TaskError),
+    Db(DieselError),
+}
+
+impl From<DieselError> for TransactionError {
+    fn from(error: DieselError) -> Self {
+        Self::Db(error)
+    }
+}
+
 pub struct TaskAttachmentRepositoryAdapter {
     pool: DbPool,
 }
@@ -43,17 +55,23 @@ impl TaskAttachmentRepositoryPort for TaskAttachmentRepositoryAdapter {
         }
         let now: NaiveDateTime = Utc::now().naive_utc();
         let task_id: String = task_id.to_string();
-        let rows: Vec<NewTaskAttachmentRow> = attachments
-            .iter()
-            .enumerate()
-            .map(|(position, attachment)| {
-                NewTaskAttachmentRow::new(&task_id, position, attachment, now)
-            })
-            .collect::<Result<Vec<NewTaskAttachmentRow>, TaskError>>()?;
+        let attachments: Vec<StoredAttachment> = attachments.to_vec();
         let mut connection: DbConnection = self.connection().await?;
         connection
-            .immediate_transaction::<(), DieselError, _>(async move |conn| {
-                for row in rows {
+            .immediate_transaction::<(), TransactionError, _>(async move |conn| {
+                // Append after the existing rows; the write lock makes the offset race-free.
+                let max_position: Option<i32> = task_attachments::table
+                    .filter(task_attachments::task_id.eq(&task_id))
+                    .select(diesel::dsl::max(task_attachments::position))
+                    .first(conn)
+                    .await?;
+                let offset: usize = max_position.map_or(0, |max: i32| {
+                    usize::try_from(max).unwrap_or(0).saturating_add(1)
+                });
+                for (index, attachment) in attachments.iter().enumerate() {
+                    let row: NewTaskAttachmentRow =
+                        NewTaskAttachmentRow::new(&task_id, offset + index, attachment, now)
+                            .map_err(TransactionError::Domain)?;
                     diesel::insert_into(task_attachments::table)
                         .values(&row)
                         .execute(conn)
@@ -62,7 +80,10 @@ impl TaskAttachmentRepositoryPort for TaskAttachmentRepositoryAdapter {
                 Ok(())
             })
             .await
-            .map_err(db_error)
+            .map_err(|error: TransactionError| match error {
+                TransactionError::Domain(error) => error,
+                TransactionError::Db(error) => db_error(error),
+            })
     }
 
     async fn list_by_task(&self, task_id: TaskId) -> Result<Vec<StoredAttachment>, TaskError> {

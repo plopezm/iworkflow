@@ -1,9 +1,11 @@
 use leptos::prelude::*;
 
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, TaskPriorityDto, UpdateTaskDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{UpdateTask, get_task};
+use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 
 /// Estado de la pantalla de edición de una tarea.
 #[derive(Clone, Copy)]
@@ -15,6 +17,23 @@ pub struct TaskEditState {
     pub form_prompt: RwSignal<String>,
     /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
     pub form_priority: RwSignal<String>,
+    /// Imágenes nuevas a añadir a las ya adjuntas.
+    pub images: ImageAttachments,
+}
+
+/// Construye el DTO de edición con las imágenes nuevas (función pura).
+pub fn build_update_task_dto(
+    title: String,
+    prompt: String,
+    priority: &str,
+    images: Vec<ImageAttachmentDto>,
+) -> UpdateTaskDto {
+    UpdateTaskDto {
+        title,
+        prompt,
+        priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
+        images,
+    }
 }
 
 impl TaskEditState {
@@ -29,6 +48,7 @@ impl TaskEditState {
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
+            images: ImageAttachments::new(),
         }
     }
 
@@ -42,12 +62,12 @@ impl TaskEditState {
     pub fn submit(&self) {
         self.update.dispatch(UpdateTask {
             id: self.task_id.get_value(),
-            input: UpdateTaskDto {
-                title: self.form_title.get_untracked(),
-                prompt: self.form_prompt.get_untracked(),
-                priority: TaskPriorityDto::from_value(&self.form_priority.get_untracked())
-                    .unwrap_or_default(),
-            },
+            input: build_update_task_dto(
+                self.form_title.get_untracked(),
+                self.form_prompt.get_untracked(),
+                &self.form_priority.get_untracked(),
+                self.images.images.get_untracked(),
+            ),
         });
     }
 
@@ -86,6 +106,23 @@ mod tests {
             created_at: "2026-01-01T00:00:00Z".to_string(),
             updated_at: "2026-01-01T00:00:00Z".to_string(),
         }
+    }
+
+    #[test]
+    fn update_dto_carries_images_and_priority() {
+        let image: ImageAttachmentDto = ImageAttachmentDto {
+            name: "a.png".to_string(),
+            mime_type: "image/png".to_string(),
+            data: "aGVsbG8=".to_string(),
+        };
+        let dto: UpdateTaskDto = build_update_task_dto(
+            "t".to_string(),
+            "p".to_string(),
+            "urgent",
+            vec![image.clone()],
+        );
+        assert_eq!(dto.images, vec![image]);
+        assert_eq!(dto.priority, TaskPriorityDto::Urgent);
     }
 
     #[tokio::test]
