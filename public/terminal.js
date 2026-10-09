@@ -38,27 +38,83 @@
     fit.fit();
 
     var encoder = new TextEncoder();
-    var ws = new WebSocket(socketUrl(sessionId, term.cols, term.rows));
-    ws.binaryType = "arraybuffer";
+    var ws = null;
+    var disposed = false;
+    var everOpened = false;
+    var openedAt = 0;
+    var quickFailures = 0;
+    var retryTimer = null;
 
     function sendResize() {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
       }
     }
 
-    ws.onmessage = function (event) {
-      if (event.data instanceof ArrayBuffer) {
-        term.write(new Uint8Array(event.data));
+    // El navegador móvil suspende y mata el socket al minimizar, pero la sesión del
+    // servidor sigue viva: se reconecta y el servidor reenvía el scrollback.
+    function connect() {
+      var socket = new WebSocket(socketUrl(sessionId, term.cols, term.rows));
+      socket.binaryType = "arraybuffer";
+      ws = socket;
+      socket.onmessage = function (event) {
+        if (event.data instanceof ArrayBuffer) {
+          term.write(new Uint8Array(event.data));
+        }
+      };
+      var opened = false;
+      socket.onopen = function () {
+        opened = true;
+        // En una reconexión el scrollback se reenvía completo: se limpia para no duplicarlo.
+        if (everOpened) term.reset();
+        everOpened = true;
+        openedAt = Date.now();
+        sendResize();
+      };
+      socket.onclose = function () {
+        if (disposed || ws !== socket) return;
+        // Sin abrir (sesión inexistente) o abierto un instante (shell terminada): no se
+        // reintenta sin fin. Una caída tras uso normal sí se reintenta.
+        var failed = !opened || Date.now() - openedAt < 2000;
+        quickFailures = failed ? quickFailures + 1 : 0;
+        if (document.hidden && !opened) {
+          quickFailures = 0;
+          return;
+        }
+        if (quickFailures >= 3 || (!everOpened && failed)) {
+          term.write("\r\n[session closed]\r\n");
+          return;
+        }
+        scheduleReconnect(500 * (quickFailures + 1));
+      };
+    }
+
+    function scheduleReconnect(delay) {
+      if (disposed || retryTimer !== null) return;
+      retryTimer = setTimeout(function () {
+        retryTimer = null;
+        connect();
+      }, delay);
+    }
+
+    // Al volver a primer plano o recuperar red, reconecta de inmediato si el socket murió.
+    function ensureConnected() {
+      if (disposed || document.hidden) return;
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
       }
-    };
-    ws.onopen = sendResize;
-    ws.onclose = function () {
-      term.write("\r\n[session closed]\r\n");
-    };
+      quickFailures = 0;
+      connect();
+    }
+    document.addEventListener("visibilitychange", ensureConnected);
+    window.addEventListener("online", ensureConnected);
+    window.addEventListener("pageshow", ensureConnected);
+    connect();
 
     var dataSub = term.onData(function (data) {
-      if (ws.readyState === WebSocket.OPEN) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(encoder.encode(data));
       }
     });
@@ -82,14 +138,17 @@
     term.focus();
     return {
       term: term,
-      ws: ws,
       cleanup: function () {
+        disposed = true;
+        if (retryTimer !== null) clearTimeout(retryTimer);
+        document.removeEventListener("visibilitychange", ensureConnected);
+        window.removeEventListener("online", ensureConnected);
+        window.removeEventListener("pageshow", ensureConnected);
         observer.disconnect();
         themeObserver.disconnect();
         dataSub.dispose();
         resizeSub.dispose();
-        ws.onclose = null;
-        ws.close();
+        if (ws) ws.close();
         term.dispose();
       },
     };

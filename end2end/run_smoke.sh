@@ -35,5 +35,6 @@ for _ in $(seq 1 50); do
 done
 
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" node end2end/terminal_keys_smoke.cjs
+SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" node end2end/terminal_reconnect_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" SMOKE_SCREENSHOT="$WORK/ui-review.png" node end2end/ui_smoke.cjs
 git -C "$REPO" log --oneline -1 | grep -q "Merge tarea pi:" && echo "merge verificado en $REPO"
