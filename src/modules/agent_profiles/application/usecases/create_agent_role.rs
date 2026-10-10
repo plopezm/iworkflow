@@ -37,6 +37,8 @@ mod tests {
             name: RoleName::parse(raw).unwrap(),
             description: "d".to_string(),
             prompt: "p".to_string(),
+            model: None,
+            thinking: None,
         }
     }
 

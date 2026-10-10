@@ -112,9 +112,23 @@ fn single_line_value(label: &str, value: &str) -> Result<String, AgentProfilesEr
 fn render_role(role: &NewAgentRole) -> Result<String, AgentProfilesError> {
     let description: String = single_line_value("la descripción", &role.description)?;
     let mut out: String = format!(
-        "{FRONTMATTER_DELIMITER}\nname: {}\ndescription: {description}\n{FRONTMATTER_DELIMITER}\n",
+        "{FRONTMATTER_DELIMITER}\nname: {}\ndescription: {description}\n",
         role.name
     );
+    if let Some(model) = &role.model {
+        out.push_str(&format!(
+            "model: {}\n",
+            single_line_value("el modelo", model)?
+        ));
+    }
+    if let Some(thinking) = &role.thinking {
+        out.push_str(&format!(
+            "thinking: {}\n",
+            single_line_value("el razonamiento", thinking)?
+        ));
+    }
+    out.push_str(FRONTMATTER_DELIMITER);
+    out.push('\n');
     let prompt: &str = role.prompt.trim_end();
     if !prompt.is_empty() {
         out.push('\n');
@@ -155,6 +169,22 @@ async fn finish_write(path: &Path, written: std::io::Result<()>) -> Result<(), A
     Ok(())
 }
 
+/// Una entrada ilegible o mal formada se omite; un fallo al iterar el directorio es un error.
+async fn roles_from_entries<I>(entries: I) -> Result<Vec<AgentRole>, AgentProfilesError>
+where
+    I: IntoIterator<Item = std::io::Result<PathBuf>>,
+{
+    let mut roles: Vec<AgentRole> = Vec::new();
+    for entry in entries {
+        let path: PathBuf = entry.map_err(io_error)?;
+        if let Ok(Some(role)) = read_role_file(&path).await {
+            roles.push(role);
+        }
+    }
+    roles.sort_by(|a: &AgentRole, b: &AgentRole| a.name.cmp(&b.name));
+    Ok(roles)
+}
+
 #[async_trait::async_trait]
 impl AgentRolePort for AgentRoleDirAdapter {
     async fn list(&self) -> Result<Vec<AgentRole>, AgentProfilesError> {
@@ -163,21 +193,25 @@ impl AgentRolePort for AgentRoleDirAdapter {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(e) => return Err(io_error(e)),
         };
-        let mut roles: Vec<AgentRole> = Vec::new();
-        // Una entrada ilegible o mal formada se omite; solo falla si el directorio no se puede leer.
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let Ok(file_type) = entry.file_type().await else {
-                continue;
-            };
-            if !file_type.is_file() && !file_type.is_symlink() {
-                continue;
-            }
-            if let Ok(Some(role)) = read_role_file(&entry.path()).await {
-                roles.push(role);
+        let mut paths: Vec<std::io::Result<PathBuf>> = Vec::new();
+        loop {
+            match entries.next_entry().await {
+                Ok(Some(entry)) => {
+                    let Ok(file_type) = entry.file_type().await else {
+                        continue;
+                    };
+                    if file_type.is_file() || file_type.is_symlink() {
+                        paths.push(Ok(entry.path()));
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    paths.push(Err(e));
+                    break;
+                }
             }
         }
-        roles.sort_by(|a: &AgentRole, b: &AgentRole| a.name.cmp(&b.name));
-        Ok(roles)
+        roles_from_entries(paths).await
     }
 
     async fn create(&self, role: &NewAgentRole) -> Result<(), AgentProfilesError> {
@@ -216,6 +250,8 @@ mod tests {
             name: RoleName::parse("r").expect("name"),
             description: description.to_string(),
             prompt: prompt.to_string(),
+            model: None,
+            thinking: None,
         }
     }
 
@@ -273,5 +309,48 @@ mod tests {
         std::fs::write(&path, "ok").expect("seed");
         assert!(finish_write(&path, Ok(())).await.is_ok());
         assert!(path.exists());
+    }
+
+    #[tokio::test]
+    async fn iteration_error_fails_instead_of_truncating() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let good: PathBuf = dir.path().join("good.md");
+        std::fs::write(&good, "---\nname: good\n---\n").expect("seed");
+        let entries: Vec<std::io::Result<PathBuf>> =
+            vec![Ok(good), Err(std::io::Error::other("readdir failed"))];
+        let result: Result<Vec<AgentRole>, AgentProfilesError> = roles_from_entries(entries).await;
+        assert!(matches!(result, Err(AgentProfilesError::Io(_))));
+    }
+
+    #[tokio::test]
+    async fn unreadable_or_malformed_entries_are_skipped() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let good: PathBuf = dir.path().join("good.md");
+        std::fs::write(&good, "---\nname: good\n---\n").expect("seed");
+        let binary: PathBuf = dir.path().join("bin.md");
+        std::fs::write(&binary, [0xff_u8, 0xfe, 0x00]).expect("seed");
+        let entries: Vec<std::io::Result<PathBuf>> = vec![
+            Ok(dir.path().join("missing.md")),
+            Ok(binary),
+            Ok(dir.path().join("notes.txt")),
+            Ok(good),
+        ];
+        let roles: Vec<AgentRole> = roles_from_entries(entries).await.expect("roles");
+        assert_eq!(roles.len(), 1);
+        assert_eq!(roles[0].name.as_str(), "good");
+    }
+
+    #[test]
+    fn render_writes_model_and_thinking_only_when_present() {
+        let mut role: NewAgentRole = new_role("d", "body");
+        let plain: String = render_role(&role).expect("render");
+        assert!(!plain.contains("model:"));
+        assert!(!plain.contains("thinking:"));
+        role.model = Some("p/m".to_string());
+        role.thinking = Some("high".to_string());
+        let rendered: String = render_role(&role).expect("render");
+        assert!(rendered.contains("\nmodel: p/m\nthinking: high\n---\n"));
+        role.model = Some("a\nb".to_string());
+        assert!(render_role(&role).is_err());
     }
 }

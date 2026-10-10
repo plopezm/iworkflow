@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::modules::agent_profiles::domain::errors::agent_profiles_error::AgentProfilesError;
 use crate::modules::agent_profiles::domain::models::profile_name::is_valid_slug;
+use crate::modules::agent_profiles::domain::models::thinking_level::validate_thinking_level;
 
 /// Nombre de rol de agente validado (mismo formato slug que los perfiles).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -41,6 +42,30 @@ pub struct NewAgentRole {
     pub name: RoleName,
     pub description: String,
     pub prompt: String,
+    pub model: Option<String>,
+    pub thinking: Option<String>,
+}
+
+impl NewAgentRole {
+    /// Comprueba que el modelo (si existe) sea una sola línea no vacía y el nivel sea conocido.
+    pub fn validate(&self) -> Result<(), AgentProfilesError> {
+        if let Some(model) = &self.model {
+            if model.trim().is_empty() {
+                return Err(AgentProfilesError::InvalidRouting(
+                    "modelo vacío".to_string(),
+                ));
+            }
+            if model.contains('\n') || model.contains('\r') {
+                return Err(AgentProfilesError::InvalidRouting(
+                    "el modelo no puede contener saltos de línea".to_string(),
+                ));
+            }
+        }
+        if let Some(thinking) = &self.thinking {
+            validate_thinking_level(thinking)?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

@@ -139,17 +139,19 @@ mod mapping {
         }
     }
 
-    /// `model` y `thinking` del DTO no viajan al dominio: el fichero del rol se crea sin ellos
-    /// y su enrutado se edita después en un perfil o en `models.json`.
     impl TryFrom<NewAgentRoleDto> for NewAgentRole {
         type Error = AgentProfilesError;
 
         fn try_from(dto: NewAgentRoleDto) -> Result<Self, Self::Error> {
-            Ok(NewAgentRole {
+            let role: NewAgentRole = NewAgentRole {
                 name: RoleName::parse(&dto.name)?,
                 description: dto.description,
                 prompt: dto.prompt,
-            })
+                model: dto.model,
+                thinking: dto.thinking,
+            };
+            role.validate()?;
+            Ok(role)
         }
     }
 
@@ -280,6 +282,40 @@ mod mapping {
             assert_eq!(role.name.as_str(), "reviewer");
             assert_eq!(role.description, "Revisa");
             assert_eq!(role.prompt, "Eres un revisor");
+        }
+
+        #[test]
+        fn new_role_dto_maps_model_and_thinking() {
+            let dto: NewAgentRoleDto = NewAgentRoleDto {
+                name: "reviewer".to_string(),
+                description: String::new(),
+                prompt: String::new(),
+                model: Some("p/m".to_string()),
+                thinking: Some("high".to_string()),
+            };
+
+            let role: NewAgentRole = NewAgentRole::try_from(dto).unwrap();
+
+            assert_eq!(role.model.as_deref(), Some("p/m"));
+            assert_eq!(role.thinking.as_deref(), Some("high"));
+        }
+
+        #[test]
+        fn new_role_dto_rejects_invalid_thinking_blank_model_and_newlines() {
+            let build = |model: Option<&str>, thinking: Option<&str>| NewAgentRoleDto {
+                name: "reviewer".to_string(),
+                description: String::new(),
+                prompt: String::new(),
+                model: model.map(str::to_string),
+                thinking: thinking.map(str::to_string),
+            };
+
+            assert!(matches!(
+                NewAgentRole::try_from(build(None, Some("ultra"))),
+                Err(AgentProfilesError::InvalidRouting(_))
+            ));
+            assert!(NewAgentRole::try_from(build(Some("  "), None)).is_err());
+            assert!(NewAgentRole::try_from(build(Some("a\nb"), None)).is_err());
         }
 
         #[test]

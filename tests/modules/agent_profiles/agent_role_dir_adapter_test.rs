@@ -10,6 +10,8 @@ fn new_role(name: &str, description: &str, prompt: &str) -> NewAgentRole {
         name: RoleName::parse(name).expect("name"),
         description: description.to_string(),
         prompt: prompt.to_string(),
+        model: None,
+        thinking: None,
     }
 }
 
@@ -109,4 +111,37 @@ async fn list_skips_unreadable_entries() {
     let roles: Vec<AgentRole> = adapter.list().await.expect("list");
     let names: Vec<&str> = roles.iter().map(|r: &AgentRole| r.name.as_str()).collect();
     assert_eq!(names, vec!["good"]);
+}
+
+#[tokio::test]
+async fn create_with_model_and_thinking_persists_and_lists_them() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let agents: std::path::PathBuf = dir.path().join("agents");
+    let adapter: AgentRoleDirAdapter = AgentRoleDirAdapter::new(agents.clone());
+    let mut role: NewAgentRole = new_role("tuned", "Tuned role", "Body.");
+    role.model = Some("anthropic/claude".to_string());
+    role.thinking = Some("high".to_string());
+    adapter.create(&role).await.expect("create");
+
+    let content: String = std::fs::read_to_string(agents.join("tuned.md")).expect("read");
+    assert!(content.contains("\nmodel: anthropic/claude\n"));
+    assert!(content.contains("\nthinking: high\n"));
+    let roles: Vec<AgentRole> = adapter.list().await.expect("list");
+    assert_eq!(roles[0].model.as_deref(), Some("anthropic/claude"));
+    assert_eq!(roles[0].thinking.as_deref(), Some("high"));
+}
+
+#[tokio::test]
+async fn create_without_model_and_thinking_writes_no_such_lines() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let agents: std::path::PathBuf = dir.path().join("agents");
+    let adapter: AgentRoleDirAdapter = AgentRoleDirAdapter::new(agents.clone());
+    adapter
+        .create(&new_role("plain", "Plain", "Body."))
+        .await
+        .expect("create");
+
+    let content: String = std::fs::read_to_string(agents.join("plain.md")).expect("read");
+    assert!(!content.contains("model:"));
+    assert!(!content.contains("thinking:"));
 }
