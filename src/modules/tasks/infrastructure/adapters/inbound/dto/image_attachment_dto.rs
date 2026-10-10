@@ -8,27 +8,36 @@ pub struct ImageAttachmentDto {
     pub data: String,
 }
 
-/// Imagen adjunta ya guardada que viaja servidor -> cliente; `data` está codificada en base64.
+/// Ruta pública (relativa al origen) con el contenido de una imagen adjunta.
+pub fn attachment_url(task_id: &str, attachment_id: &str) -> String {
+    format!("/api/tasks/{task_id}/attachments/{attachment_id}")
+}
+
+/// Metadatos de una imagen adjunta ya guardada (servidor -> cliente); el contenido se pide
+/// a `url`, que el navegador cachea.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskAttachmentDto {
     pub id: String,
     pub name: String,
     pub mime_type: String,
-    pub data: String,
+    pub size_bytes: u64,
+    pub url: String,
 }
 
 #[cfg(feature = "ssr")]
 mod mapping {
+    use super::attachment_url;
     use super::{ImageAttachmentDto, TaskAttachmentDto};
-    use crate::modules::tasks::domain::models::task_attachment_content::TaskAttachmentContent;
+    use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 
-    impl From<TaskAttachmentContent> for TaskAttachmentDto {
-        fn from(attachment: TaskAttachmentContent) -> Self {
+    impl TaskAttachmentDto {
+        pub fn from_stored(task_id: &str, attachment: StoredAttachment) -> Self {
             Self {
+                url: attachment_url(task_id, &attachment.id),
                 id: attachment.id,
                 name: attachment.name,
                 mime_type: attachment.mime_type,
-                data: attachment.data,
+                size_bytes: attachment.size_bytes,
             }
         }
     }
@@ -60,8 +69,8 @@ mod mapping {
 mod tests {
     use super::*;
     use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
+    use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
     use crate::modules::tasks::domain::models::task::NewTask;
-    use crate::modules::tasks::domain::models::task_attachment_content::TaskAttachmentContent;
     use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::CreateTaskDto;
 
     fn dto() -> ImageAttachmentDto {
@@ -87,13 +96,16 @@ mod tests {
 
     #[test]
     fn task_attachment_dto_maps_from_the_domain() {
-        let dto: TaskAttachmentDto = TaskAttachmentContent {
-            id: "id-1".to_string(),
-            name: "a.png".to_string(),
-            mime_type: "image/png".to_string(),
-            data: "aGVsbG8=".to_string(),
-        }
-        .into();
+        let dto: TaskAttachmentDto = TaskAttachmentDto::from_stored(
+            "task-1",
+            StoredAttachment {
+                id: "id-1".to_string(),
+                name: "a.png".to_string(),
+                mime_type: "image/png".to_string(),
+                path: "task-1/id-1.png".to_string(),
+                size_bytes: 5,
+            },
+        );
 
         assert_eq!(
             dto,
@@ -101,7 +113,8 @@ mod tests {
                 id: "id-1".to_string(),
                 name: "a.png".to_string(),
                 mime_type: "image/png".to_string(),
-                data: "aGVsbG8=".to_string(),
+                size_bytes: 5,
+                url: "/api/tasks/task-1/attachments/id-1".to_string(),
             }
         );
     }

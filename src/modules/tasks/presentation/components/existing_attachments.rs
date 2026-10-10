@@ -1,7 +1,6 @@
 use leptos::prelude::*;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::TaskAttachmentDto;
-use crate::modules::tasks::presentation::state::image_attachments::data_url;
 
 /// Miniaturas de imágenes ya guardadas con botón para quitarlas; no ocupa espacio si no hay.
 #[component]
@@ -21,7 +20,7 @@ pub fn ExistingAttachments(
                             view! {
                                 <li class="relative h-20 w-20 overflow-hidden rounded-md border border-border bg-surface">
                                     <img
-                                        src=data_url(&item.mime_type, &item.data)
+                                        src=item.url.clone()
                                         alt=item.name.clone()
                                         title=item.name.clone()
                                         class="h-full w-full object-cover"

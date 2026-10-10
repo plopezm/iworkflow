@@ -9,6 +9,7 @@ async fn main() {
     use iworkflow::core::config::AppConfig;
     use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
     use iworkflow::core::http::body_limit::with_server_fn_body_limit;
+    use iworkflow::modules::tasks::infrastructure::adapters::inbound::attachment_http::task_attachments_router;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
     use iworkflow::modules::terminal::infrastructure::adapters::inbound::ws::terminal_ws_router;
     use leptos::prelude::*;
@@ -56,6 +57,7 @@ async fn main() {
     );
     let app: Router = Router::new()
         .merge(task_events_router(state.tasks.clone()))
+        .merge(task_attachments_router(state.tasks.clone()))
         .merge(terminal_ws_router(state.terminal.clone()))
         .merge(leptos_router)
         .with_state(leptos_options);

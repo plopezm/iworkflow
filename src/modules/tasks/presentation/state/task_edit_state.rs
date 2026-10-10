@@ -201,7 +201,8 @@ mod tests {
             id: id.to_string(),
             name: format!("{id}.png"),
             mime_type: "image/png".to_string(),
-            data: "aGk=".to_string(),
+            size_bytes: 2,
+            url: format!("/api/tasks/t/attachments/{id}"),
         }
     }
 

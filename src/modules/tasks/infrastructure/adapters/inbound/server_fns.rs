@@ -183,16 +183,19 @@ pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, Se
 
 #[server]
 pub async fn list_task_attachments(id: String) -> Result<Vec<TaskAttachmentDto>, ServerFnError> {
-    use crate::modules::tasks::domain::models::task_attachment_content::TaskAttachmentContent;
+    use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
+    use crate::modules::tasks::domain::models::task::TaskId;
 
-    let attachments: Vec<TaskAttachmentContent> = support::context()?
+    let task_id: TaskId = support::task_id(&id)?;
+    let attachments: Vec<StoredAttachment> = support::context()?
         .list_task_attachments
-        .execute(support::task_id(&id)?)
+        .execute(task_id)
         .await
         .map_err(support::to_server_error)?;
+    let task_id_text: String = task_id.to_string();
     Ok(attachments
         .into_iter()
-        .map(TaskAttachmentDto::from)
+        .map(|a: StoredAttachment| TaskAttachmentDto::from_stored(&task_id_text, a))
         .collect())
 }
 

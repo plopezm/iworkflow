@@ -45,6 +45,7 @@ mock! {
     impl AttachmentStoragePort for AttachmentStorage {
         async fn save(&self, task_id: TaskId, attachment_id: &str, image: &ImageAttachment) -> Result<String, TaskError>;
         async fn read(&self, path: &str) -> Result<String, TaskError>;
+        async fn read_bytes(&self, path: &str) -> Result<Vec<u8>, TaskError>;
         async fn delete(&self, path: &str) -> Result<(), TaskError>;
         async fn delete_task_dir(&self, task_id: TaskId) -> Result<(), TaskError>;
     }

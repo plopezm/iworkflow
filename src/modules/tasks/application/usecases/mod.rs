@@ -6,6 +6,7 @@ pub mod delete_workspace_tasks;
 pub mod discard_task;
 pub mod finish_task;
 pub mod get_task;
+pub mod get_task_attachment;
 pub mod get_task_diff;
 pub mod get_task_events;
 pub mod handle_agent_event;

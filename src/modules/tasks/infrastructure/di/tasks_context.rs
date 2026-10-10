@@ -16,6 +16,7 @@ use crate::modules::tasks::application::usecases::discard_task::DiscardTask;
 use crate::modules::tasks::application::usecases::finish_task::FinishTask;
 use crate::modules::tasks::application::usecases::list_task_attachments::ListTaskAttachments;
 use crate::modules::tasks::application::usecases::get_task::GetTask;
+use crate::modules::tasks::application::usecases::get_task_attachment::GetTaskAttachment;
 use crate::modules::tasks::application::usecases::get_task_diff::GetTaskDiff;
 use crate::modules::tasks::application::usecases::get_task_events::GetTaskEvents;
 use crate::modules::tasks::application::usecases::handle_agent_event::HandleAgentEvent;
@@ -74,6 +75,7 @@ pub struct TasksContext {
     pub discard_task: Arc<DiscardTask>,
     pub get_task: Arc<GetTask>,
     pub list_task_attachments: Arc<ListTaskAttachments>,
+    pub get_task_attachment: Arc<GetTaskAttachment>,
     pub get_task_diff: Arc<GetTaskDiff>,
     pub get_task_events: Arc<GetTaskEvents>,
     pub list_tasks: Arc<ListTasks>,
@@ -213,7 +215,8 @@ impl TasksContext {
                 runtime,
             )),
             get_task: Arc::new(GetTask::new(lifecycle.clone())),
-            list_task_attachments: Arc::new(ListTaskAttachments::new(attachments, storage)),
+            list_task_attachments: Arc::new(ListTaskAttachments::new(attachments.clone())),
+            get_task_attachment: Arc::new(GetTaskAttachment::new(attachments, storage)),
             get_task_diff: Arc::new(GetTaskDiff::new(lifecycle.clone(), diff_worktrees)),
             get_task_events: Arc::new(GetTaskEvents::new(repository.clone())),
             list_tasks: Arc::new(ListTasks::new(repository.clone())),

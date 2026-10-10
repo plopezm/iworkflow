@@ -15,6 +15,8 @@ pub trait AttachmentStoragePort: Send + Sync {
     ) -> Result<String, TaskError>;
     /// Lee el fichero y lo devuelve codificado en base64.
     async fn read(&self, path: &str) -> Result<String, TaskError>;
+    /// Lee el fichero tal cual; `TaskError::NotFound` si ya no existe.
+    async fn read_bytes(&self, path: &str) -> Result<Vec<u8>, TaskError>;
     /// Borra un fichero; no falla si ya no existe.
     async fn delete(&self, path: &str) -> Result<(), TaskError>;
     /// Borra el directorio de adjuntos de la tarea; no falla si no existe.

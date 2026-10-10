@@ -95,11 +95,21 @@ impl AttachmentStoragePort for FsAttachmentStorageAdapter {
     }
 
     async fn read(&self, path: &str) -> Result<String, TaskError> {
-        let full: PathBuf = self.resolve(path)?;
-        let bytes: Vec<u8> = tokio::fs::read(&full)
-            .await
-            .map_err(|e| TaskError::Storage(format!("no se pudo leer el adjunto {path}: {e}")))?;
+        let bytes: Vec<u8> = self.read_bytes(path).await.map_err(|error: TaskError| {
+            TaskError::Storage(format!("no se pudo leer el adjunto {path}: {error}"))
+        })?;
         Ok(STANDARD.encode(bytes))
+    }
+
+    async fn read_bytes(&self, path: &str) -> Result<Vec<u8>, TaskError> {
+        let full: PathBuf = self.resolve(path)?;
+        tokio::fs::read(&full).await.map_err(|e| {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                TaskError::NotFound(format!("adjunto {path}"))
+            } else {
+                TaskError::Storage(format!("no se pudo leer el adjunto {path}: {e}"))
+            }
+        })
     }
 
     async fn delete(&self, path: &str) -> Result<(), TaskError> {
