@@ -51,18 +51,18 @@ pub fn resolve_selected(store: &ProfileStoreDto, selected: Option<&str>) -> Opti
 
 /// Emisor de notificaciones (toasts) de éxito y error de las acciones.
 #[derive(Clone, Copy)]
-struct Notifier {
-    toasts: RwSignal<Vec<ToastMessage>>,
-    seq: RwSignal<u32>,
+pub(crate) struct Notifier {
+    pub(crate) toasts: RwSignal<Vec<ToastMessage>>,
+    pub(crate) seq: RwSignal<u32>,
 }
 
 impl Notifier {
-    fn say(&self, text: String) {
+    pub(crate) fn say(&self, text: String) {
         push_toast(self.toasts, self.seq, text);
     }
 
     /// Notifica el resultado de una acción y devuelve si fue correcto.
-    fn report<T>(&self, result: &Result<T, ServerFnError>, success: &str) -> bool {
+    pub(crate) fn report<T>(&self, result: &Result<T, ServerFnError>, success: &str) -> bool {
         match result {
             Ok(_) => {
                 self.say(success.to_string());

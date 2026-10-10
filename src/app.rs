@@ -5,6 +5,7 @@ use leptos_router::{ParamSegment, StaticSegment};
 
 use crate::core::components::shell::{AppShell, DropdownMenu};
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
+use crate::modules::agent_profiles::presentation::pages::models_page::ModelsPage;
 use crate::modules::agent_profiles::presentation::pages::profiles_page::ProfilesPage;
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
@@ -67,6 +68,9 @@ fn app_sidebar() -> impl IntoView {
                 <A href="/profiles" attr:class="menu-item">
                     "Perfiles"
                 </A>
+                <A href="/models" attr:class="menu-item">
+                    "Modelos"
+                </A>
             </DropdownMenu>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
@@ -120,6 +124,7 @@ pub fn App() -> impl IntoView {
                     />
                     <Route path=StaticSegment("agents-files") view=AgentsFilesPage />
                     <Route path=StaticSegment("profiles") view=ProfilesPage />
+                    <Route path=StaticSegment("models") view=ModelsPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
                     <Route
                         path=(StaticSegment("tasks"), ParamSegment("id"), StaticSegment("edit"))
