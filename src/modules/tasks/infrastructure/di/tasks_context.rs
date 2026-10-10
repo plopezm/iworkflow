@@ -39,6 +39,7 @@ use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRe
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 use crate::modules::tasks::infrastructure::adapters::outbound::events::broadcast_task_event_bus::BroadcastTaskEventBus;
+use crate::modules::tasks::infrastructure::adapters::outbound::git::caching_worktree::CachingWorktree;
 use crate::modules::tasks::infrastructure::adapters::outbound::git::git_cli_worktree_adapter::GitCliWorktreeAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retrying_task_repository::{
     RetryPolicy, RetryingTaskRepository,
@@ -138,6 +139,8 @@ impl TasksContext {
         let event_bus: BroadcastTaskEventBus = BroadcastTaskEventBus::new();
         let publisher: Arc<dyn TaskEventPublisherPort> = Arc::new(event_bus.clone());
         let worktrees: Arc<dyn WorktreePort> = Arc::new(GitCliWorktreeAdapter::new(worktrees_dir));
+        let diff_worktrees: Arc<dyn WorktreePort> =
+            Arc::new(CachingWorktree::new(worktrees.clone()));
         let lifecycle: Arc<TaskLifecycle> = Arc::new(TaskLifecycle::new(
             repository.clone(),
             publisher.clone(),
@@ -211,7 +214,7 @@ impl TasksContext {
             )),
             get_task: Arc::new(GetTask::new(lifecycle.clone())),
             list_task_attachments: Arc::new(ListTaskAttachments::new(attachments, storage)),
-            get_task_diff: Arc::new(GetTaskDiff::new(lifecycle.clone(), worktrees.clone())),
+            get_task_diff: Arc::new(GetTaskDiff::new(lifecycle.clone(), diff_worktrees)),
             get_task_events: Arc::new(GetTaskEvents::new(repository.clone())),
             list_tasks: Arc::new(ListTasks::new(repository.clone())),
             list_done_tasks: Arc::new(ListDoneTasks::new(repository)),

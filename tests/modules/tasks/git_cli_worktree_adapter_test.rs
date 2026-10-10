@@ -90,6 +90,40 @@ async fn diff_lists_changes_and_commits() {
 }
 
 #[tokio::test]
+async fn diff_fingerprint_changes_only_with_commits() {
+    let f: Fixture = fixture_with_worktree().await;
+    let initial: String = f
+        .adapter
+        .diff_fingerprint(&f.repo, "main", BRANCH)
+        .await
+        .expect("fingerprint");
+    std::fs::write(f.worktree.join("nuevo.txt"), "hola\n").expect("write");
+    let uncommitted: String = f
+        .adapter
+        .diff_fingerprint(&f.repo, "main", BRANCH)
+        .await
+        .expect("fingerprint");
+    f.adapter
+        .commit_all(&f.worktree, "pi: nuevo")
+        .await
+        .expect("commit");
+    let committed: String = f
+        .adapter
+        .diff_fingerprint(&f.repo, "main", BRANCH)
+        .await
+        .expect("fingerprint");
+    let missing: Result<String, TaskError> = f
+        .adapter
+        .diff_fingerprint(&f.repo, "main", "no-existe")
+        .await;
+
+    // El diff (`base...rama`) ignora lo no commiteado, por eso la huella tampoco lo ve.
+    assert_eq!(initial, uncommitted);
+    assert_ne!(initial, committed);
+    assert!(missing.is_err());
+}
+
+#[tokio::test]
 async fn merges_into_checked_out_base_and_removes_worktree() {
     let f: Fixture = fixture_with_worktree().await;
     std::fs::write(f.worktree.join("nuevo.txt"), "hola\n").expect("write");

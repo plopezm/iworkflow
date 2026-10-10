@@ -28,6 +28,15 @@ pub trait WorktreePort: Send + Sync {
         branch: &str,
     ) -> Result<TaskDiff, TaskError>;
 
+    /// Huella barata del resultado de `diff`: cambia si y solo si cambia el diff (el diff solo
+    /// depende de los commits de ambas ramas, no de cambios sin commitear).
+    async fn diff_fingerprint(
+        &self,
+        repo: &Path,
+        base_branch: &str,
+        branch: &str,
+    ) -> Result<String, TaskError>;
+
     /// Fija el rango de commits de `branch` respecto a `base_branch` (merge-base y punta) y crea
     /// la referencia `pin_ref` apuntando a la punta para que sobreviva al borrado de la rama.
     /// Hay que llamarlo ANTES del merge: después, el merge-base coincide con la punta.

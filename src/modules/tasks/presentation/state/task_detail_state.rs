@@ -3,7 +3,7 @@ use leptos::prelude::*;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    MessageModeDto, TaskDto,
+    MessageModeDto, TaskDto, TaskStatusDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
@@ -98,16 +98,18 @@ impl TaskDetailState {
         );
         // El diff depende de la tarea ya refrescada (no de los eventos): solo se pide si
         // está visible y la tarea lo permite (`can_view_diff`: abierta, o integrada con rango guardado).
+        // Se recarga al cambiar de estado (p. ej. al terminar un turno del agente), no en cada
+        // `updated_at`; el servidor además cachea el diff por huella de ramas.
         let diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>> = Resource::new(
             move || {
-                let current: Option<(bool, String)> = task
+                let current: Option<(bool, TaskStatusDto)> = task
                     .get()
                     .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
-                    .map(|t: TaskDto| (t.actions.can_view_diff, t.updated_at));
+                    .map(|t: TaskDto| (t.actions.can_view_diff, t.status));
                 let allowed: bool = current.as_ref().is_some_and(|(can, _)| *can);
                 (
                     show_diff.get() && allowed,
-                    current.map(|(_, updated)| updated),
+                    current.map(|(_, status)| status),
                 )
             },
             move |(visible, _)| async move {
