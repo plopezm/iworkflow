@@ -13,7 +13,7 @@ Design: new vertical slice `src/modules/agent_profiles/` (no imports from `agent
 - [x] T4 DTOs + server fns + `agent_profiles_context.rs` + app_state/config wiring + mapping tests
 - [x] T5 Presentation: state + `/profiles` page (CRUD, import/export, per-agent editor, new role) + nav link
 - [x] T6 Presentation: `/models` page (global models.json editor)
-- [ ] T7 Full verification (fmt, clippy ssr+hydrate, tests), README note
+- [x] T7 Full verification (fmt, clippy ssr+hydrate, tests), README note
 - T1 commit: d843bae (20 unit tests, clippy ssr ok; RED not observed, tests written alongside value objects)
 - T2 commit: e818300 (54 unit tests, RED observed 34 failed -> GREEN, clippy ssr all-targets ok)
 - T3 commit: 50afd0e (lib 74 + 20 integration tests, RED observed E0583, clippy ssr all-targets ok)
@@ -23,3 +23,5 @@ Design: new vertical slice `src/modules/agent_profiles/` (no imports from `agent
 - T5 commit: 7eb6e31 (lib 109, RED 12 failed -> GREEN 14, clippy ssr + hydrate ok, cargo leptos build ok). NOT verified in a browser: render/hydration/styling, file input, blob download, clipboard
 - T6 commit: 19fc5fd (lib 112, RED E0425 -> GREEN, clippy ssr + hydrate ok). Not verified in a browser
 - Review T5+T6 (approved, acknowledged). Non-blocking follow-ups: models_page.rs:42 unsaved editor draft is lost when a role is created (resource refetch rebuilds editor); profiles_page.rs:134 selected-profile tracking after await (rename/delete races)
+- T7 verification: fmt ok; clippy ssr all-targets + hydrate wasm ok; cargo test --features ssr: lib 790 + 14 integration bins ok; cargo leptos test 162/163 - terminal_key_bar::rendered_bar_has_one_button_per_key FAILS under hydrate, also on base 485f19f (pre-existing, unrelated; passes under ssr). Smoke test against the real binary with temp dirs: /profiles & /models 200, all 14 server fns round-trip, dropdown source list_profile_options returns new profiles. NOT verified: browser rendering/hydration/styling, file input, blob download, clipboard.
+- Open follow-ups (non-blocking, from reviews): role list truncation on dir iteration error; NewAgentRoleDto model/thinking dropped; models_page draft lost on role create; profiles_page selection tracking after await.
