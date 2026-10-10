@@ -9,6 +9,7 @@ Design: new vertical slice `src/modules/agent_profiles/` (no imports from `agent
 - [x] T1 Domain: models (ProfileName, RoutingEntry, Profile, ProfileStore, AgentRole), errors, outbound ports, `mocks.rs`
 - [x] T2 Use cases + unit tests (list, create, duplicate, rename, delete, set routing, export, import, create role, get/set global models)
 - [x] T3 File adapters (profiles store, global models.json, agents dir) + integration tests (tempfile)
+- [ ] T3b Review follow-ups (non-blocking WARNINGs from native review of T1-T3, approved & acknowledged): role list must skip unreadable/bad entries instead of failing; role create must not leave a partial file on write failure; exchange test must not depend on ~/.pi (use fixture); lost-update on profiles.json read-modify-write (serialize writes with a mutex in the store adapter)
 - [ ] T4 DTOs + server fns + `agent_profiles_context.rs` + app_state/config wiring + mapping tests
 - [ ] T5 Presentation: state + `/profiles` page (CRUD, import/export, per-agent editor, new role) + nav link
 - [ ] T6 Presentation: `/models` page (global models.json editor)
