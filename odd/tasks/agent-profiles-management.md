@@ -8,10 +8,11 @@ Design: new vertical slice `src/modules/agent_profiles/` (no imports from `agent
 
 - [x] T1 Domain: models (ProfileName, RoutingEntry, Profile, ProfileStore, AgentRole), errors, outbound ports, `mocks.rs`
 - [x] T2 Use cases + unit tests (list, create, duplicate, rename, delete, set routing, export, import, create role, get/set global models)
-- [ ] T3 File adapters (profiles store, global models.json, agents dir) + integration tests (tempfile)
+- [x] T3 File adapters (profiles store, global models.json, agents dir) + integration tests (tempfile)
 - [ ] T4 DTOs + server fns + `agent_profiles_context.rs` + app_state/config wiring + mapping tests
 - [ ] T5 Presentation: state + `/profiles` page (CRUD, import/export, per-agent editor, new role) + nav link
 - [ ] T6 Presentation: `/models` page (global models.json editor)
 - [ ] T7 Full verification (fmt, clippy ssr+hydrate, tests), README note
 - T1 commit: d843bae (20 unit tests, clippy ssr ok; RED not observed, tests written alongside value objects)
 - T2 commit: e818300 (54 unit tests, RED observed 34 failed -> GREEN, clippy ssr all-targets ok)
+- T3 commit: 50afd0e (lib 74 + 20 integration tests, RED observed E0583, clippy ssr all-targets ok)
