@@ -1,0 +1,15 @@
+# agent-profiles-management
+
+Goal: web screens equivalent to gentle-pi `/gentle:profiles` and `/gentle:models`: create / duplicate / rename / delete / import / export profiles, edit per-agent model + thinking, create new agent roles. Profiles created here show up in the existing profile dropdown (AgentSettingsBar reads the same `profiles.json`).
+
+Decisions (user): web pages `/profiles` and `/models` mirroring the commands (no command palette); no global "apply" (only manage + pick in dropdown; `/models` edits `models.json` only); new roles = `<role>.md` agent file in `~/.pi/agent/agents`.
+
+Design: new vertical slice `src/modules/agent_profiles/` (no imports from `agent_settings`); reads/writes `<gentle_pi_config_home>/profiles.json` (atomic tmp+rename, shape `gentle-pi.agent_model_profiles` v1), `models.json`, export envelope `gentle-pi.agent_model_profile` v1, agents dir `~/.pi/agent/agents`. Model options come through an outbound port implemented in the composition root (`app_state.rs`) by adapting `agent_settings::ListModels`.
+
+- [x] T1 Domain: models (ProfileName, RoutingEntry, Profile, ProfileStore, AgentRole), errors, outbound ports, `mocks.rs`
+- [ ] T2 Use cases + unit tests (list, create, duplicate, rename, delete, set routing, export, import, create role, get/set global models)
+- [ ] T3 File adapters (profiles store, global models.json, agents dir) + integration tests (tempfile)
+- [ ] T4 DTOs + server fns + `agent_profiles_context.rs` + app_state/config wiring + mapping tests
+- [ ] T5 Presentation: state + `/profiles` page (CRUD, import/export, per-agent editor, new role) + nav link
+- [ ] T6 Presentation: `/models` page (global models.json editor)
+- [ ] T7 Full verification (fmt, clippy ssr+hydrate, tests), README note
