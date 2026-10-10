@@ -3,7 +3,9 @@ use std::collections::BTreeMap;
 use leptos::prelude::*;
 
 use crate::core::components::form::SelectOption;
-use crate::modules::agent_profiles::infrastructure::adapters::inbound::dto::agent_profiles_dto::RoutingEntryDto;
+use crate::modules::agent_profiles::infrastructure::adapters::inbound::dto::agent_profiles_dto::{
+    AgentRoleDto, ModelOptionDto, RoutingEntryDto,
+};
 
 /// Clave reservada del agente orquestador; siempre se muestra la primera.
 pub const ORCHESTRATOR_KEY: &str = "orchestrator";
@@ -52,6 +54,33 @@ pub fn routing_from_rows(rows: &[RoutingRow]) -> BTreeMap<String, RoutingEntryDt
         .collect()
 }
 
+/// Opciones de modelo para el selector a partir de las del catálogo.
+pub fn model_select_options(options: &[ModelOptionDto]) -> Vec<SelectOption> {
+    options
+        .iter()
+        .map(|o: &ModelOptionDto| SelectOption {
+            value: o.id.clone(),
+            label: o.label.clone(),
+        })
+        .collect()
+}
+
+/// Nombres de los roles de agente.
+pub fn role_names(roles: &[AgentRoleDto]) -> Vec<String> {
+    roles
+        .iter()
+        .map(|role: &AgentRoleDto| role.name.clone())
+        .collect()
+}
+
+/// Mensaje del error de carga de un `Resource`, si lo hay.
+pub fn load_error<T>(loaded: &Option<Result<T, ServerFnError>>) -> Option<String> {
+    match loaded {
+        Some(Err(error)) => Some(error.to_string()),
+        _ => None,
+    }
+}
+
 /// Etiqueta de la opción "sin valor" del nivel de razonamiento.
 const INHERIT_LABEL: &str = "Heredar / por defecto";
 
@@ -85,10 +114,14 @@ fn addable_agents(roles: &[String], rows: &[RoutingRow]) -> Vec<String> {
 pub fn RoutingEditor(
     /// Filas iniciales; el editor se reconstruye para reiniciar el borrador.
     initial_rows: Vec<RoutingRow>,
-    model_options: Vec<SelectOption>,
-    thinking_levels: Vec<String>,
+    /// Catálogo de modelos, niveles y roles: son señales para que recargarlos no reconstruya
+    /// el editor ni descarte el borrador sin guardar.
+    #[prop(into)]
+    model_options: Signal<Vec<SelectOption>>,
+    #[prop(into)] thinking_levels: Signal<Vec<String>>,
     /// Roles que se pueden añadir como fila nueva.
-    roles: Vec<String>,
+    #[prop(into)]
+    roles: Signal<Vec<String>>,
     on_save: Callback<Vec<RoutingRow>>,
     #[prop(into)] saving: Signal<bool>,
     /// Prefijo único de los ids de `<datalist>` si hay varios editores en la página.
@@ -99,11 +132,9 @@ pub fn RoutingEditor(
     let to_add: RwSignal<String> = RwSignal::new(String::new());
     let datalist_id: String = format!("{id}-models");
     let datalist_ref: String = datalist_id.clone();
-    let roles: StoredValue<Vec<String>> = StoredValue::new(roles);
-    let levels: StoredValue<Vec<String>> = StoredValue::new(thinking_levels);
     let addable: Memo<Vec<String>> = Memo::new(move |_| {
         rows.with(|current: &Vec<RoutingRow>| {
-            roles.with_value(|known: &Vec<String>| addable_agents(known, current))
+            roles.with(|known: &Vec<String>| addable_agents(known, current))
         })
     });
 
@@ -134,12 +165,15 @@ pub fn RoutingEditor(
     view! {
         <div class="stack gap-3">
             <datalist id=datalist_id>
-                {model_options
-                    .into_iter()
-                    .map(|option: SelectOption| {
-                        view! { <option value=option.value>{option.label}</option> }
-                    })
-                    .collect_view()}
+                {move || {
+                    model_options
+                        .get()
+                        .into_iter()
+                        .map(|option: SelectOption| {
+                            view! { <option value=option.value>{option.label}</option> }
+                        })
+                        .collect_view()
+                }}
             </datalist>
             <ul class="stack gap-2">
                 <For
@@ -151,10 +185,7 @@ pub fn RoutingEditor(
                         let thinking_agent: String = agent.clone();
                         let remove_agent: String = agent.clone();
                         let thinking_current: String = row.thinking.clone();
-                        let choices: Vec<String> = levels
-                            .with_value(|known: &Vec<String>| {
-                                thinking_choices(known, &thinking_current)
-                            });
+                        let choices_current: String = thinking_current.clone();
                         view! {
                             <li class="card stack gap-2">
                                 <div class="row justify-between">
@@ -204,18 +235,20 @@ pub fn RoutingEditor(
                                         <option value="" selected=thinking_current.is_empty()>
                                             {INHERIT_LABEL}
                                         </option>
-                                        {choices
-                                            .into_iter()
-                                            .map(|level: String| {
-                                                let selected: bool = level == thinking_current;
-                                                let value: String = level.clone();
-                                                view! {
-                                                    <option value=value selected=selected>
-                                                        {level}
-                                                    </option>
-                                                }
-                                            })
-                                            .collect_view()}
+                                        {move || {
+                                            thinking_choices(&thinking_levels.get(), &choices_current)
+                                                .into_iter()
+                                                .map(|level: String| {
+                                                    let selected: bool = level == choices_current;
+                                                    let value: String = level.clone();
+                                                    view! {
+                                                        <option value=value selected=selected>
+                                                            {level}
+                                                        </option>
+                                                    }
+                                                })
+                                                .collect_view()
+                                        }}
                                     </select>
                                 </label>
                             </li>
@@ -387,5 +420,27 @@ mod tests {
             addable_agents(&roles, &rows),
             vec!["orchestrator".to_string(), "beta".to_string()]
         );
+    }
+
+    #[test]
+    fn model_select_options_map_id_and_label() {
+        let options: Vec<ModelOptionDto> = vec![ModelOptionDto {
+            id: "a/b".to_string(),
+            label: "A B".to_string(),
+        }];
+        let mapped: Vec<SelectOption> = model_select_options(&options);
+        assert_eq!(mapped.len(), 1);
+        assert_eq!(mapped[0].value, "a/b");
+        assert_eq!(mapped[0].label, "A B");
+    }
+
+    #[test]
+    fn load_error_reports_only_failures() {
+        let ok: Option<Result<u8, ServerFnError>> = Some(Ok(1));
+        let pending: Option<Result<u8, ServerFnError>> = None;
+        let failed: Option<Result<u8, ServerFnError>> = Some(Err(ServerFnError::new("boom")));
+        assert_eq!(load_error(&ok), None);
+        assert_eq!(load_error(&pending), None);
+        assert!(load_error(&failed).is_some_and(|m: String| m.contains("boom")));
     }
 }

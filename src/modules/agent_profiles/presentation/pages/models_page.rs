@@ -10,7 +10,7 @@ use crate::modules::agent_profiles::infrastructure::adapters::inbound::dto::agen
 };
 use crate::modules::agent_profiles::presentation::components::new_role_dialog::NewRoleDialog;
 use crate::modules::agent_profiles::presentation::components::routing_editor::{
-    RoutingEditor, RoutingRow, rows_from_routing,
+    RoutingEditor, RoutingRow, load_error, model_select_options, role_names, rows_from_routing,
 };
 use crate::modules::agent_profiles::presentation::state::models_state::ModelsState;
 
@@ -21,6 +21,30 @@ const MODELS_HELP: &str = "Routing global de modelos y esfuerzo por agente; los 
 pub fn ModelsPage() -> impl IntoView {
     let state: ModelsState = ModelsState::new();
     let busy: Signal<bool> = state.busy();
+    // El borrador del editor solo depende del routing: el resto del catálogo llega por señales.
+    let model_options: Signal<Vec<SelectOption>> = Signal::derive(move || {
+        state
+            .model_options
+            .get()
+            .and_then(|r: Result<Vec<ModelOptionDto>, ServerFnError>| r.ok())
+            .map(|options: Vec<ModelOptionDto>| model_select_options(&options))
+            .unwrap_or_default()
+    });
+    let thinking_levels: Signal<Vec<String>> = Signal::derive(move || {
+        state
+            .thinking_levels
+            .get()
+            .and_then(|r: Result<Vec<String>, ServerFnError>| r.ok())
+            .unwrap_or_default()
+    });
+    let role_names_signal: Signal<Vec<String>> = Signal::derive(move || {
+        state
+            .roles
+            .get()
+            .and_then(|r: Result<Vec<AgentRoleDto>, ServerFnError>| r.ok())
+            .map(|roles: Vec<AgentRoleDto>| role_names(&roles))
+            .unwrap_or_default()
+    });
 
     view! {
         <div class="flex h-full min-h-0 flex-col">
@@ -32,39 +56,36 @@ pub fn ModelsPage() -> impl IntoView {
             </div>
             <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
                 <p class="muted text-sm">{MODELS_HELP}</p>
+                {move || {
+                    let loaded: [Option<String>; 3] = [
+                        load_error(&state.model_options.get()),
+                        load_error(&state.thinking_levels.get()),
+                        load_error(&state.roles.get()),
+                    ];
+                    loaded
+                        .into_iter()
+                        .flatten()
+                        .next()
+                        .map(|message: String| view! { <ErrorText message /> })
+                }}
                 <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
                     {move || Suspend::new(async move {
                         let routing: Result<BTreeMap<String, RoutingEntryDto>, ServerFnError> =
                             state.routing.await;
-                        let options: Result<Vec<ModelOptionDto>, ServerFnError> =
-                            state.model_options.await;
-                        let levels: Result<Vec<String>, ServerFnError> = state.thinking_levels.await;
-                        let roles: Result<Vec<AgentRoleDto>, ServerFnError> = state.roles.await;
-                        let (routing, options, levels, roles) = match (routing, options, levels, roles) {
-                            (Ok(r), Ok(o), Ok(l), Ok(a)) => (r, o, l, a),
-                            (Err(e), ..) | (_, Err(e), ..) | (_, _, Err(e), _) | (.., Err(e)) => {
+                        let routing: BTreeMap<String, RoutingEntryDto> = match routing {
+                            Ok(r) => r,
+                            Err(e) => {
                                 return view! { <ErrorText message=e.to_string() /> }.into_any();
                             }
                         };
                         let initial_rows: Vec<RoutingRow> = rows_from_routing(&routing);
-                        let model_options: Vec<SelectOption> = options
-                            .into_iter()
-                            .map(|o: ModelOptionDto| SelectOption {
-                                value: o.id,
-                                label: o.label,
-                            })
-                            .collect();
-                        let role_names: Vec<String> = roles
-                            .into_iter()
-                            .map(|role: AgentRoleDto| role.name)
-                            .collect();
                         view! {
                             <Card title="Routing global">
                                 <RoutingEditor
                                     initial_rows
                                     model_options
-                                    thinking_levels=levels
-                                    roles=role_names
+                                    thinking_levels
+                                    roles=role_names_signal
                                     on_save=Callback::new(move |rows: Vec<RoutingRow>| state.save(rows))
                                     saving=state.saving()
                                 />

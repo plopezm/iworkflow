@@ -49,6 +49,80 @@ pub fn resolve_selected(store: &ProfileStoreDto, selected: Option<&str>) -> Opti
         .cloned()
 }
 
+/// Evento de una acción de perfiles que puede mover la selección al terminar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SelectionEvent {
+    /// Perfil nuevo (creado, duplicado o importado).
+    Added(String),
+    Renamed {
+        from: String,
+        to: String,
+    },
+    Deleted(String),
+}
+
+/// Nombres de los perfiles del almacén, en orden.
+pub fn store_names(store: &ProfileStoreDto) -> Vec<String> {
+    store
+        .profiles
+        .iter()
+        .map(|profile: &ProfileDto| profile.name.clone())
+        .collect()
+}
+
+/// Selección resultante al terminar una acción. `known_names` son los perfiles conocidos al
+/// lanzarla; `user_moved` indica que el usuario eligió otro perfil mientras la acción corría,
+/// en cuyo caso un resultado antiguo no debe pisar su elección.
+pub fn next_selection(
+    current: Option<&str>,
+    known_names: &[String],
+    event: &SelectionEvent,
+    user_moved: bool,
+) -> Option<String> {
+    let keep: Option<String> = current.map(str::to_string);
+    match event {
+        SelectionEvent::Added(_) if user_moved => keep,
+        SelectionEvent::Added(name) => Some(name.clone()),
+        SelectionEvent::Renamed { from, to } => {
+            let follows: bool = match current {
+                Some(name) => name == from,
+                None => !user_moved,
+            };
+            if follows { Some(to.clone()) } else { keep }
+        }
+        SelectionEvent::Deleted(name) => {
+            if current != Some(name.as_str()) {
+                return keep;
+            }
+            let position: Option<usize> = known_names.iter().position(|n: &String| n == name);
+            let remaining: Vec<&String> = known_names
+                .iter()
+                .filter(|n: &&String| *n != name)
+                .collect();
+            let neighbour: Option<&&String> =
+                position.and_then(|index: usize| remaining.get(index).or_else(|| remaining.last()));
+            neighbour.map(|n: &&String| (*n).clone())
+        }
+    }
+}
+
+/// Aplica `next_selection` a la selección tras una acción; `picks_at_start` es el contador de
+/// selecciones del usuario al lanzarla, para descartar su efecto si el usuario eligió después.
+fn move_selection(
+    selected: RwSignal<Option<String>>,
+    user_picks: StoredValue<u32>,
+    picks_at_start: u32,
+    known_names: &[String],
+    event: &SelectionEvent,
+) {
+    let user_moved: bool = user_picks.get_value() != picks_at_start;
+    let current: Option<String> = selected.get_untracked();
+    let next: Option<String> = next_selection(current.as_deref(), known_names, event, user_moved);
+    if next != current {
+        selected.set(next);
+    }
+}
+
 /// Emisor de notificaciones (toasts) de éxito y error de las acciones.
 #[derive(Clone, Copy)]
 pub(crate) struct Notifier {
@@ -87,6 +161,8 @@ pub struct ProfilesState {
     pub model_options: Resource<Result<Vec<ModelOptionDto>, ServerFnError>>,
     pub thinking_levels: Resource<Result<Vec<String>, ServerFnError>>,
     pub selected: RwSignal<Option<String>>,
+    /// Contador de selecciones hechas por el usuario; detecta resultados de acciones obsoletos.
+    user_picks: StoredValue<u32>,
     pub dialog: RwSignal<Option<ProfileDialog>>,
     pub confirming_delete: RwSignal<bool>,
     pub name_input: RwSignal<String>,
@@ -99,7 +175,7 @@ pub struct ProfilesState {
     create: Mutation<String, ProfileDto>,
     duplicate: Mutation<(String, String), ProfileDto>,
     rename: Mutation<(String, String), ProfileDto>,
-    delete: Mutation<String, ()>,
+    delete: Mutation<(String, Vec<String>), ()>,
     save_routing: Mutation<(String, Vec<RoutingRow>), ProfileDto>,
     import: Mutation<(String, Option<String>), ProfileDto>,
     export: Mutation<(String, ExportTarget), String>,
@@ -109,6 +185,7 @@ pub struct ProfilesState {
 impl ProfilesState {
     pub fn new() -> Self {
         let selected: RwSignal<Option<String>> = RwSignal::new(None);
+        let user_picks: StoredValue<u32> = StoredValue::new(0);
         let dialog: RwSignal<Option<ProfileDialog>> = RwSignal::new(None);
         let confirming_delete: RwSignal<bool> = RwSignal::new(false);
         let import_raw: RwSignal<String> = RwSignal::new(String::new());
@@ -123,10 +200,17 @@ impl ProfilesState {
 
         let create: Mutation<String, ProfileDto> = Action::new(move |name: &String| {
             let name: String = name.clone();
+            let picks_at_start: u32 = user_picks.get_value();
             async move {
                 let result: Result<ProfileDto, ServerFnError> = create_profile(name).await;
                 if let Ok(profile) = &result {
-                    selected.set(Some(profile.name.clone()));
+                    move_selection(
+                        selected,
+                        user_picks,
+                        picks_at_start,
+                        &[],
+                        &SelectionEvent::Added(profile.name.clone()),
+                    );
                     dialog.set(None);
                 }
                 notifier.report(&result, "Perfil creado");
@@ -136,11 +220,18 @@ impl ProfilesState {
         let duplicate: Mutation<(String, String), ProfileDto> =
             Action::new(move |(source, target): &(String, String)| {
                 let (source, target): (String, String) = (source.clone(), target.clone());
+                let picks_at_start: u32 = user_picks.get_value();
                 async move {
                     let result: Result<ProfileDto, ServerFnError> =
                         duplicate_profile(source, target).await;
                     if let Ok(profile) = &result {
-                        selected.set(Some(profile.name.clone()));
+                        move_selection(
+                            selected,
+                            user_picks,
+                            picks_at_start,
+                            &[],
+                            &SelectionEvent::Added(profile.name.clone()),
+                        );
                         dialog.set(None);
                     }
                     notifier.report(&result, "Perfil duplicado");
@@ -150,28 +241,47 @@ impl ProfilesState {
         let rename: Mutation<(String, String), ProfileDto> =
             Action::new(move |(from, to): &(String, String)| {
                 let (from, to): (String, String) = (from.clone(), to.clone());
+                let picks_at_start: u32 = user_picks.get_value();
                 async move {
-                    let result: Result<ProfileDto, ServerFnError> = rename_profile(from, to).await;
+                    let result: Result<ProfileDto, ServerFnError> =
+                        rename_profile(from.clone(), to).await;
                     if let Ok(profile) = &result {
-                        selected.set(Some(profile.name.clone()));
+                        move_selection(
+                            selected,
+                            user_picks,
+                            picks_at_start,
+                            &[],
+                            &SelectionEvent::Renamed {
+                                from,
+                                to: profile.name.clone(),
+                            },
+                        );
                         dialog.set(None);
                     }
                     notifier.report(&result, "Perfil renombrado");
                     result
                 }
             });
-        let delete: Mutation<String, ()> = Action::new(move |name: &String| {
-            let name: String = name.clone();
-            async move {
-                let result: Result<(), ServerFnError> = delete_profile(name).await;
-                if result.is_ok() {
-                    selected.set(None);
+        let delete: Mutation<(String, Vec<String>), ()> =
+            Action::new(move |(name, known): &(String, Vec<String>)| {
+                let (name, known): (String, Vec<String>) = (name.clone(), known.clone());
+                let picks_at_start: u32 = user_picks.get_value();
+                async move {
+                    let result: Result<(), ServerFnError> = delete_profile(name.clone()).await;
+                    if result.is_ok() {
+                        move_selection(
+                            selected,
+                            user_picks,
+                            picks_at_start,
+                            &known,
+                            &SelectionEvent::Deleted(name),
+                        );
+                    }
+                    confirming_delete.set(false);
+                    notifier.report(&result, "Perfil eliminado");
+                    result
                 }
-                confirming_delete.set(false);
-                notifier.report(&result, "Perfil eliminado");
-                result
-            }
-        });
+            });
         let save_routing: Mutation<(String, Vec<RoutingRow>), ProfileDto> =
             Action::new(move |(name, rows): &(String, Vec<RoutingRow>)| {
                 let name: String = name.clone();
@@ -186,11 +296,18 @@ impl ProfilesState {
         let import: Mutation<(String, Option<String>), ProfileDto> =
             Action::new(move |(raw, rename_to): &(String, Option<String>)| {
                 let (raw, rename_to): (String, Option<String>) = (raw.clone(), rename_to.clone());
+                let picks_at_start: u32 = user_picks.get_value();
                 async move {
                     let result: Result<ProfileDto, ServerFnError> =
                         import_profile(raw, rename_to).await;
                     if let Ok(profile) = &result {
-                        selected.set(Some(profile.name.clone()));
+                        move_selection(
+                            selected,
+                            user_picks,
+                            picks_at_start,
+                            &[],
+                            &SelectionEvent::Added(profile.name.clone()),
+                        );
                         dialog.set(None);
                         import_raw.set(String::new());
                         import_rename.set(String::new());
@@ -270,6 +387,7 @@ impl ProfilesState {
             model_options,
             thinking_levels,
             selected,
+            user_picks,
             dialog,
             confirming_delete,
             name_input: RwSignal::new(String::new()),
@@ -311,6 +429,8 @@ impl ProfilesState {
 
     pub fn select(&self, name: String) {
         self.confirming_delete.set(false);
+        self.user_picks
+            .update_value(|picks: &mut u32| *picks = picks.wrapping_add(1));
         self.selected.set(Some(name));
     }
 
@@ -343,7 +463,13 @@ impl ProfilesState {
     }
 
     pub fn delete_profile(&self, name: String) {
-        self.delete.dispatch(name);
+        let known: Vec<String> = self
+            .store
+            .get_untracked()
+            .and_then(|result: Result<ProfileStoreDto, ServerFnError>| result.ok())
+            .map(|store: ProfileStoreDto| store_names(&store))
+            .unwrap_or_default();
+        self.delete.dispatch((name, known));
     }
 
     pub fn save_routing(&self, name: String, rows: Vec<RoutingRow>) {
@@ -451,5 +577,114 @@ mod tests {
     #[test]
     fn resolve_empty_store_is_none() {
         assert_eq!(resolve_selected(&store(None, &[]), None), None);
+    }
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|n: &&str| (*n).to_string()).collect()
+    }
+
+    fn added(name: &str) -> SelectionEvent {
+        SelectionEvent::Added(name.to_string())
+    }
+
+    fn renamed(from: &str, to: &str) -> SelectionEvent {
+        SelectionEvent::Renamed {
+            from: from.to_string(),
+            to: to.to_string(),
+        }
+    }
+
+    fn deleted(name: &str) -> SelectionEvent {
+        SelectionEvent::Deleted(name.to_string())
+    }
+
+    #[test]
+    fn store_names_keeps_order() {
+        assert_eq!(store_names(&store(None, &["b", "a"])), names(&["b", "a"]));
+    }
+
+    #[test]
+    fn added_profile_is_selected() {
+        let next: Option<String> = next_selection(Some("a"), &names(&["a"]), &added("b"), false);
+        assert_eq!(next, Some("b".to_string()));
+        let from_none: Option<String> = next_selection(None, &names(&[]), &added("b"), false);
+        assert_eq!(from_none, Some("b".to_string()));
+    }
+
+    #[test]
+    fn added_profile_does_not_override_newer_user_selection() {
+        let next: Option<String> =
+            next_selection(Some("c"), &names(&["a", "c"]), &added("b"), true);
+        assert_eq!(next, Some("c".to_string()));
+    }
+
+    #[test]
+    fn rename_follows_selected_profile() {
+        let next: Option<String> =
+            next_selection(Some("a"), &names(&["a", "b"]), &renamed("a", "z"), false);
+        assert_eq!(next, Some("z".to_string()));
+    }
+
+    #[test]
+    fn rename_follows_implicit_selection() {
+        let next: Option<String> = next_selection(None, &names(&["a"]), &renamed("a", "z"), false);
+        assert_eq!(next, Some("z".to_string()));
+    }
+
+    #[test]
+    fn rename_keeps_other_selection_even_when_stale() {
+        let next: Option<String> =
+            next_selection(Some("b"), &names(&["a", "b"]), &renamed("a", "z"), true);
+        assert_eq!(next, Some("b".to_string()));
+        let no_explicit: Option<String> =
+            next_selection(None, &names(&["a", "b"]), &renamed("a", "z"), true);
+        assert_eq!(no_explicit, None);
+    }
+
+    #[test]
+    fn rename_follows_when_user_returned_to_renamed_profile() {
+        let next: Option<String> =
+            next_selection(Some("a"), &names(&["a", "b"]), &renamed("a", "z"), true);
+        assert_eq!(next, Some("z".to_string()));
+    }
+
+    #[test]
+    fn delete_of_selected_moves_to_next_remaining() {
+        let next: Option<String> =
+            next_selection(Some("b"), &names(&["a", "b", "c"]), &deleted("b"), false);
+        assert_eq!(next, Some("c".to_string()));
+    }
+
+    #[test]
+    fn delete_of_last_selected_moves_to_previous() {
+        let next: Option<String> =
+            next_selection(Some("c"), &names(&["a", "b", "c"]), &deleted("c"), false);
+        assert_eq!(next, Some("b".to_string()));
+    }
+
+    #[test]
+    fn delete_of_only_profile_selects_none() {
+        let next: Option<String> = next_selection(Some("a"), &names(&["a"]), &deleted("a"), false);
+        assert_eq!(next, None);
+    }
+
+    #[test]
+    fn delete_of_other_profile_keeps_selection() {
+        let next: Option<String> =
+            next_selection(Some("a"), &names(&["a", "b"]), &deleted("b"), false);
+        assert_eq!(next, Some("a".to_string()));
+    }
+
+    #[test]
+    fn delete_of_unknown_name_keeps_selection() {
+        let next: Option<String> =
+            next_selection(Some("a"), &names(&["a", "b"]), &deleted("ghost"), true);
+        assert_eq!(next, Some("a".to_string()));
+    }
+
+    #[test]
+    fn delete_with_implicit_selection_stays_implicit() {
+        let next: Option<String> = next_selection(None, &names(&["a", "b"]), &deleted("a"), false);
+        assert_eq!(next, None);
     }
 }
