@@ -54,7 +54,7 @@ pub fn build_workspace_rows(
             SidebarWorkspaceRow {
                 id: w.id.clone(),
                 name: w.name.clone(),
-                subtitle: format!("{} · {count} tareas", w.base_branch),
+                subtitle: format!("{} · {count} activas", w.base_branch),
             }
         })
         .collect()
@@ -224,8 +224,8 @@ mod tests {
             task("b", "w1", "2026-01-02T00:00:00Z"),
         ];
         let rows: Vec<SidebarWorkspaceRow> = build_workspace_rows(&workspaces, &tasks);
-        assert_eq!(rows[0].subtitle, "main · 2 tareas");
-        assert_eq!(rows[1].subtitle, "main · 0 tareas");
+        assert_eq!(rows[0].subtitle, "main · 2 activas");
+        assert_eq!(rows[1].subtitle, "main · 0 activas");
     }
 
     #[test]

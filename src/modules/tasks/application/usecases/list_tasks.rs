@@ -4,7 +4,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::Task;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 
-/// Lista las tareas (más recientes primero), opcionalmente de un workspace.
+/// Lista las tareas no finalizadas (más recientes primero), opcionalmente de un workspace.
 pub struct ListTasks {
     repository: Arc<dyn TaskRepositoryPort>,
 }
@@ -18,7 +18,7 @@ impl ListTasks {
         let workspace_id: Option<String> = workspace_id
             .map(|id: String| id.trim().to_string())
             .filter(|id: &String| !id.is_empty());
-        self.repository.list(workspace_id).await
+        self.repository.list_active(workspace_id).await
     }
 }
 
@@ -30,10 +30,10 @@ mod tests {
     use crate::modules::tasks::mocks::MockTaskRepository;
 
     #[tokio::test]
-    async fn blank_filter_lists_everything() {
+    async fn blank_filter_lists_all_active() {
         let mut repository: MockTaskRepository = MockTaskRepository::new();
         repository
-            .expect_list()
+            .expect_list_active()
             .with(eq(None))
             .times(1)
             .returning(|_| Ok(vec![]));

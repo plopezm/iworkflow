@@ -9,6 +9,7 @@ pub mod get_task;
 pub mod get_task_diff;
 pub mod get_task_events;
 pub mod handle_agent_event;
+pub mod list_done_tasks;
 pub mod list_task_attachments;
 pub mod list_tasks;
 pub mod list_workspace_options;

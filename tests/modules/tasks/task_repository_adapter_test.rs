@@ -873,3 +873,106 @@ async fn recording_diff_range_for_missing_task_is_not_an_error() {
 
     assert!(result.is_ok());
 }
+
+fn with_status(
+    workspace_id: &str,
+    title: &str,
+    status: TaskStatus,
+    created_at: DateTime<Utc>,
+) -> Task {
+    let mut t: Task = task(workspace_id, title);
+    t.status = status;
+    t.created_at = created_at;
+    t
+}
+
+fn titles(tasks: Vec<Task>) -> Vec<String> {
+    tasks.into_iter().map(|t: Task| t.title).collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn list_active_excludes_done_orders_newest_first_and_filters_workspace() {
+    let db: common::TestDb = common::test_db().await;
+    let a: Workspace = workspace(&db, "/repos/a").await;
+    let b: Workspace = workspace(&db, "/repos/b").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let base: DateTime<Utc> = Utc::now().trunc_subsecs(6);
+    let at = |s: i64| base + chrono::Duration::seconds(s);
+    for t in [
+        with_status(&a.id.to_string(), "backlog", TaskStatus::Backlog, at(1)),
+        with_status(&a.id.to_string(), "merged", TaskStatus::Merged, at(2)),
+        with_status(&a.id.to_string(), "running", TaskStatus::Running, at(3)),
+        with_status(&a.id.to_string(), "discarded", TaskStatus::Discarded, at(4)),
+        with_status(&a.id.to_string(), "failed", TaskStatus::Failed, at(5)),
+        with_status(&b.id.to_string(), "otra", TaskStatus::Idle, at(6)),
+    ] {
+        adapter.insert(&t).await.expect("insert");
+    }
+
+    let all: Vec<String> = titles(adapter.list_active(None).await.expect("active"));
+    let of_a: Vec<String> = titles(
+        adapter
+            .list_active(Some(a.id.to_string()))
+            .await
+            .expect("active"),
+    );
+
+    assert_eq!(all, vec!["otra", "failed", "running", "backlog"]);
+    assert_eq!(of_a, vec!["failed", "running", "backlog"]);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn list_done_page_pages_newest_first_with_id_tiebreak_and_workspace_filter() {
+    let db: common::TestDb = common::test_db().await;
+    let a: Workspace = workspace(&db, "/repos/a").await;
+    let b: Workspace = workspace(&db, "/repos/b").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let base: DateTime<Utc> = Utc::now().trunc_subsecs(6);
+    let at = |s: i64| base + chrono::Duration::seconds(s);
+    let mut done: Vec<Task> = vec![
+        with_status(&a.id.to_string(), "d1", TaskStatus::Merged, at(1)),
+        with_status(&a.id.to_string(), "d2", TaskStatus::Discarded, at(2)),
+        with_status(&a.id.to_string(), "d3", TaskStatus::Merged, at(3)),
+        with_status(&a.id.to_string(), "tie-x", TaskStatus::Merged, at(4)),
+        with_status(&a.id.to_string(), "tie-y", TaskStatus::Merged, at(4)),
+        with_status(&b.id.to_string(), "other", TaskStatus::Merged, at(5)),
+    ];
+    done.push(with_status(
+        &a.id.to_string(),
+        "live",
+        TaskStatus::Running,
+        at(6),
+    ));
+    for t in &done {
+        adapter.insert(t).await.expect("insert");
+    }
+    let (x, y): (&Task, &Task) = (&done[3], &done[4]);
+    let (first_tie, second_tie): (&str, &str) = if x.id.to_string() > y.id.to_string() {
+        (&x.title, &y.title)
+    } else {
+        (&y.title, &x.title)
+    };
+
+    let ws: Option<String> = Some(a.id.to_string());
+    let page1: Vec<String> = titles(
+        adapter
+            .list_done_page(ws.clone(), 3, 0)
+            .await
+            .expect("page"),
+    );
+    let page2: Vec<String> = titles(
+        adapter
+            .list_done_page(ws.clone(), 3, 3)
+            .await
+            .expect("page"),
+    );
+    let beyond: Vec<Task> = adapter.list_done_page(ws, 3, 6).await.expect("page");
+    let everyone: Vec<String> = titles(adapter.list_done_page(None, 10, 0).await.expect("page"));
+
+    assert_eq!(page1, vec![first_tie, second_tie, "d3"]);
+    assert_eq!(page2, vec!["d2", "d1"]);
+    assert!(beyond.is_empty());
+    assert_eq!(everyone.len(), 6);
+    assert_eq!(everyone[0], "other");
+    assert!(!everyone.contains(&"live".to_string()));
+}

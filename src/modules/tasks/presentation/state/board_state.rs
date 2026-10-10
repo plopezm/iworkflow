@@ -6,7 +6,8 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_tasks, list_workspace_options,
+    CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_done_tasks, list_tasks,
+    list_workspace_options,
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
@@ -21,6 +22,39 @@ fn compare_created_at(a: &str, b: &str) -> std::cmp::Ordering {
         (Some(left), Some(right)) => left.cmp(&right),
         _ => a.cmp(b),
     }
+}
+
+/// Tamaño de página de las tareas finalizadas.
+pub const DONE_PAGE_SIZE: usize = 50;
+
+/// Desplazamiento de la página `page` (empieza en 0) de tareas finalizadas.
+pub fn done_page_offset(page: usize) -> i64 {
+    i64::try_from(page * DONE_PAGE_SIZE).unwrap_or(i64::MAX)
+}
+
+/// Puede haber más tareas finalizadas si la última página cargada vino completa.
+pub fn done_has_more(loaded: usize, pages: usize) -> bool {
+    pages > 0 && loaded >= pages * DONE_PAGE_SIZE
+}
+
+/// Une las tareas activas con las finalizadas ya cargadas (función pura).
+pub fn combine_tasks(active: &[TaskDto], done: &[TaskDto]) -> Vec<TaskDto> {
+    active.iter().chain(done.iter()).cloned().collect()
+}
+
+/// Carga las primeras `pages` páginas de tareas finalizadas, parando en la primera incompleta.
+async fn fetch_done_pages(pages: usize) -> Result<Vec<TaskDto>, ServerFnError> {
+    let mut done: Vec<TaskDto> = Vec::new();
+    for page in 0..pages {
+        let batch: Vec<TaskDto> =
+            list_done_tasks(None, DONE_PAGE_SIZE as i64, done_page_offset(page)).await?;
+        let complete: bool = batch.len() >= DONE_PAGE_SIZE;
+        done.extend(batch);
+        if !complete {
+            break;
+        }
+    }
+    Ok(done)
 }
 
 /// Carril del tablero: todas las tareas visibles de un mismo workspace.
@@ -184,6 +218,10 @@ pub fn filter_label(stage: Option<TaskStageDto>) -> &'static str {
 #[derive(Clone, Copy)]
 pub struct BoardState {
     pub tasks: Resource<Result<Vec<TaskDto>, ServerFnError>>,
+    /// Tareas finalizadas cargadas (vacío mientras `show_done` esté desactivado).
+    pub done_tasks: Resource<Result<Vec<TaskDto>, ServerFnError>>,
+    /// Páginas de finalizadas que se piden al servidor ("Cargar más" la incrementa).
+    pub done_pages: RwSignal<usize>,
     pub workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>>,
     pub stage_filter: RwSignal<Option<TaskStageDto>>,
     pub show_done: RwSignal<bool>,
@@ -256,14 +294,39 @@ impl BoardState {
             },
             |_| list_tasks(None),
         );
+        let show_done: RwSignal<bool> = RwSignal::new(false);
+        let done_pages: RwSignal<usize> = RwSignal::new(1);
+        let done_tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> = Resource::new(
+            move || {
+                (
+                    show_done.get(),
+                    done_pages.get(),
+                    tick.get(),
+                    create.version().get(),
+                    delete.version().get(),
+                    start.version().get(),
+                    finish.version().get(),
+                    merge.version().get(),
+                )
+            },
+            |(show, pages, ..)| async move {
+                if show {
+                    fetch_done_pages(pages).await
+                } else {
+                    Ok(Vec::new())
+                }
+            },
+        );
         let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
             Resource::new(|| (), |_| list_workspace_options());
 
         let state: Self = Self {
             tasks,
+            done_tasks,
+            done_pages,
             workspaces,
             stage_filter: RwSignal::new(None),
-            show_done: RwSignal::new(false),
+            show_done,
             create,
             delete,
             start,
@@ -318,6 +381,11 @@ impl BoardState {
                 self.images.images.get_untracked(),
             ),
         });
+    }
+
+    /// Pide la siguiente página de tareas finalizadas.
+    pub fn load_more_done(&self) {
+        self.done_pages.update(|pages: &mut usize| *pages += 1);
     }
 
     pub fn start_task(&self, id: String) {
@@ -408,6 +476,40 @@ mod tests {
         assert_eq!(dto.images, vec![image]);
         assert_eq!(dto.priority, TaskPriorityDto::High);
         assert!(dto.start_now);
+    }
+
+    #[test]
+    fn done_paging_helpers() {
+        assert_eq!(done_page_offset(0), 0);
+        assert_eq!(done_page_offset(2), 100);
+        assert!(!done_has_more(0, 0));
+        assert!(!done_has_more(49, 1));
+        assert!(done_has_more(50, 1));
+        assert!(!done_has_more(50, 2));
+        assert!(done_has_more(100, 2));
+    }
+
+    #[test]
+    fn combine_tasks_appends_done_after_active_and_feeds_build_lanes() {
+        let active: Vec<TaskDto> = vec![task(
+            "a",
+            "ws-a",
+            TaskStageDto::Working,
+            "2026-01-01T00:00:00Z",
+        )];
+        let done: Vec<TaskDto> = vec![task(
+            "d",
+            "ws-a",
+            TaskStageDto::Done,
+            "2026-01-01T00:00:00Z",
+        )];
+
+        let combined: Vec<TaskDto> = combine_tasks(&active, &done);
+
+        let ids: Vec<&str> = combined.iter().map(|t: &TaskDto| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "d"]);
+        let lanes: Vec<LaneView> = build_lanes(&combined, &[workspace("ws-a", "A")], None, true);
+        assert_eq!(lanes[0].tasks.len(), 2);
     }
 
     #[test]

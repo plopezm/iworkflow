@@ -19,6 +19,7 @@ use crate::modules::tasks::application::usecases::get_task::GetTask;
 use crate::modules::tasks::application::usecases::get_task_diff::GetTaskDiff;
 use crate::modules::tasks::application::usecases::get_task_events::GetTaskEvents;
 use crate::modules::tasks::application::usecases::handle_agent_event::HandleAgentEvent;
+use crate::modules::tasks::application::usecases::list_done_tasks::ListDoneTasks;
 use crate::modules::tasks::application::usecases::list_tasks::ListTasks;
 use crate::modules::tasks::application::usecases::list_workspace_options::ListWorkspaceOptions;
 use crate::modules::tasks::application::usecases::merge_task::MergeTask;
@@ -75,6 +76,7 @@ pub struct TasksContext {
     pub get_task_diff: Arc<GetTaskDiff>,
     pub get_task_events: Arc<GetTaskEvents>,
     pub list_tasks: Arc<ListTasks>,
+    pub list_done_tasks: Arc<ListDoneTasks>,
     pub list_workspace_options: Arc<ListWorkspaceOptions>,
     pub reconcile_tasks: Arc<ReconcileTasks>,
     pub reset_task: Arc<ResetTask>,
@@ -211,7 +213,8 @@ impl TasksContext {
             list_task_attachments: Arc::new(ListTaskAttachments::new(attachments, storage)),
             get_task_diff: Arc::new(GetTaskDiff::new(lifecycle.clone(), worktrees.clone())),
             get_task_events: Arc::new(GetTaskEvents::new(repository.clone())),
-            list_tasks: Arc::new(ListTasks::new(repository)),
+            list_tasks: Arc::new(ListTasks::new(repository.clone())),
+            list_done_tasks: Arc::new(ListDoneTasks::new(repository)),
             list_workspace_options: Arc::new(ListWorkspaceOptions::new(workspaces)),
             reconcile_tasks: Arc::new(ReconcileTasks::new(lifecycle, worktrees)),
             event_bus,

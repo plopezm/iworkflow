@@ -119,6 +119,26 @@ impl TaskRepositoryPort for RetryingTaskRepository {
             .await
     }
 
+    async fn list_active(&self, workspace_id: Option<String>) -> Result<Vec<Task>, TaskError> {
+        self.retry("list_active", || {
+            self.inner.list_active(workspace_id.clone())
+        })
+        .await
+    }
+
+    async fn list_done_page(
+        &self,
+        workspace_id: Option<String>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Task>, TaskError> {
+        self.retry("list_done_page", || {
+            self.inner
+                .list_done_page(workspace_id.clone(), limit, offset)
+        })
+        .await
+    }
+
     async fn list_by_status(&self, statuses: &[TaskStatus]) -> Result<Vec<Task>, TaskError> {
         self.retry("list_by_status", || self.inner.list_by_status(statuses))
             .await
