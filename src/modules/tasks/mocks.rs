@@ -58,6 +58,8 @@ mock! {
         async fn insert(&self, task: &Task) -> Result<(), TaskError>;
         async fn find(&self, id: TaskId) -> Result<Option<Task>, TaskError>;
         async fn list(&self, workspace_id: Option<String>) -> Result<Vec<Task>, TaskError>;
+        async fn list_active(&self, workspace_id: Option<String>) -> Result<Vec<Task>, TaskError>;
+        async fn list_done_page(&self, workspace_id: Option<String>, limit: i64, offset: i64) -> Result<Vec<Task>, TaskError>;
         async fn list_by_status(&self, statuses: &[TaskStatus]) -> Result<Vec<Task>, TaskError>;
         async fn update_status(
             &self,

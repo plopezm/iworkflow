@@ -15,7 +15,7 @@ use crate::modules::tasks::presentation::components::task_card::{
 };
 use crate::modules::tasks::presentation::components::task_modal::TaskModal;
 use crate::modules::tasks::presentation::state::board_state::{
-    BoardState, LaneView, build_lanes, lane_ids,
+    BoardState, LaneView, build_lanes, combine_tasks, done_has_more, lane_ids,
 };
 
 #[component]
@@ -104,6 +104,7 @@ pub fn BoardPage() -> impl IntoView {
     // mientras se recarga, así el tablero no se reconstruye en cada refresco.
     let lanes: RwSignal<Vec<LaneView>> = RwSignal::new(Vec::new());
     let loaded: RwSignal<bool> = RwSignal::new(false);
+    let has_more_done: RwSignal<bool> = RwSignal::new(false);
     // Publica los carriles desde un `Effect`: solo corre en el cliente y tras la hidratación.
     // Escribirlos durante el render del `Suspend` hacía que el cliente hidratara el tablero
     // que el HTML del servidor (emitido antes de resolver el `Suspend`) no contenía.
@@ -113,15 +114,23 @@ pub fn BoardPage() -> impl IntoView {
         let workspaces: Option<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
             state.workspaces.get();
         let tasks: Option<Result<Vec<TaskDto>, ServerFnError>> = state.tasks.get();
-        match (workspaces, tasks) {
-            (Some(Ok(workspaces)), Some(Ok(tasks))) => {
+        let done: Option<Result<Vec<TaskDto>, ServerFnError>> = state.done_tasks.get();
+        let pages: usize = state.done_pages.get();
+        // Un fallo al cargar las finalizadas no debe ocultar las tareas activas: se pinta el
+        // tablero sin ellas.
+        let done: Option<Vec<TaskDto>> =
+            done.map(|loaded: Result<Vec<TaskDto>, ServerFnError>| loaded.unwrap_or_default());
+        match (workspaces, tasks, done) {
+            (Some(Ok(workspaces)), Some(Ok(active)), Some(done)) => {
+                has_more_done.set(show_done && done_has_more(done.len(), pages));
+                let tasks: Vec<TaskDto> = combine_tasks(&active, &done);
                 let next: Vec<LaneView> = build_lanes(&tasks, &workspaces, stage_filter, show_done);
                 if lanes.with_untracked(|current: &Vec<LaneView>| *current != next) {
                     lanes.set(next);
                 }
                 loaded.set(true);
             }
-            (Some(Err(_)), _) | (_, Some(Err(_))) => loaded.set(false),
+            (Some(Err(_)), _, _) | (_, Some(Err(_)), _) => loaded.set(false),
             // Recargando: se conserva el tablero anterior.
             _ => {}
         }
@@ -156,8 +165,11 @@ pub fn BoardPage() -> impl IntoView {
                     Ok(tasks) => {
                         attention_count
                             .set(tasks.iter().filter(|t: &&TaskDto| t.needs_attention).count());
-                        ().into_any()
                     }
+                    Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
+                }
+                match state.done_tasks.await {
+                    Ok(_) => ().into_any(),
                     Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
                 }
             })}
@@ -181,6 +193,17 @@ pub fn BoardPage() -> impl IntoView {
                         view! { <BoardLane workspace_id lanes handlers busy /> }
                     }
                 />
+            </div>
+        </Show>
+        <Show when=move || has_more_done.get()>
+            <div class="flex justify-center p-4">
+                <button
+                    type="button"
+                    class="btn-ghost"
+                    on:click=move |_| state.load_more_done()
+                >
+                    "Cargar más"
+                </button>
             </div>
         </Show>
         <Transition fallback=|| ()>

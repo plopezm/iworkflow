@@ -57,6 +57,15 @@ pub(super) fn db_error(error: DieselError) -> TaskError {
     }
 }
 
+/// Nombres de los estados finalizados (`TaskStatus::is_closed`).
+fn closed_status_names() -> Vec<&'static str> {
+    TaskStatus::ALL
+        .into_iter()
+        .filter(TaskStatus::is_closed)
+        .map(|s: TaskStatus| s.as_str())
+        .collect()
+}
+
 fn to_tasks(rows: Vec<TaskRow>) -> Result<Vec<Task>, TaskError> {
     rows.into_iter().map(Task::try_from).collect()
 }
@@ -90,6 +99,41 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         let mut query = tasks::table
             .select(TaskRow::as_select())
             .order(tasks::created_at.desc())
+            .into_boxed();
+        if let Some(workspace_id) = workspace_id {
+            query = query.filter(tasks::workspace_id.eq(workspace_id));
+        }
+        let rows: Vec<TaskRow> = query.load(&mut connection).await.map_err(db_error)?;
+        to_tasks(rows)
+    }
+
+    async fn list_active(&self, workspace_id: Option<String>) -> Result<Vec<Task>, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let mut query = tasks::table
+            .filter(tasks::status.ne_all(closed_status_names()))
+            .select(TaskRow::as_select())
+            .order((tasks::created_at.desc(), tasks::id.desc()))
+            .into_boxed();
+        if let Some(workspace_id) = workspace_id {
+            query = query.filter(tasks::workspace_id.eq(workspace_id));
+        }
+        let rows: Vec<TaskRow> = query.load(&mut connection).await.map_err(db_error)?;
+        to_tasks(rows)
+    }
+
+    async fn list_done_page(
+        &self,
+        workspace_id: Option<String>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Task>, TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let mut query = tasks::table
+            .filter(tasks::status.eq_any(closed_status_names()))
+            .select(TaskRow::as_select())
+            .order((tasks::created_at.desc(), tasks::id.desc()))
+            .limit(limit)
+            .offset(offset)
             .into_boxed();
         if let Some(workspace_id) = workspace_id {
             query = query.filter(tasks::workspace_id.eq(workspace_id));

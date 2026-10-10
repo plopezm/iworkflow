@@ -14,6 +14,15 @@ pub trait TaskRepositoryPort: Send + Sync {
     async fn find(&self, id: TaskId) -> Result<Option<Task>, TaskError>;
     /// Más recientes primero. Con `workspace_id` filtra por workspace.
     async fn list(&self, workspace_id: Option<String>) -> Result<Vec<Task>, TaskError>;
+    /// Tareas no finalizadas (ni `Merged` ni `Discarded`), más recientes primero.
+    async fn list_active(&self, workspace_id: Option<String>) -> Result<Vec<Task>, TaskError>;
+    /// Página de tareas finalizadas (`Merged`/`Discarded`), más recientes primero; desempate por id.
+    async fn list_done_page(
+        &self,
+        workspace_id: Option<String>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Task>, TaskError>;
     async fn list_by_status(&self, statuses: &[TaskStatus]) -> Result<Vec<Task>, TaskError>;
     async fn update_status(
         &self,

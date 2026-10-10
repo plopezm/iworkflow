@@ -79,6 +79,22 @@ pub async fn list_tasks(workspace_id: Option<String>) -> Result<Vec<TaskDto>, Se
 }
 
 #[server]
+pub async fn list_done_tasks(
+    workspace_id: Option<String>,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<TaskDto>, ServerFnError> {
+    use crate::modules::tasks::domain::models::task::Task;
+
+    let tasks: Vec<Task> = support::context()?
+        .list_done_tasks
+        .execute(workspace_id, limit, offset)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(tasks.into_iter().map(TaskDto::from).collect())
+}
+
+#[server]
 pub async fn get_task(id: String) -> Result<TaskDto, ServerFnError> {
     use crate::modules::tasks::domain::models::task::Task;
 
