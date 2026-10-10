@@ -4,6 +4,14 @@ use leptos::prelude::provide_context;
 
 use crate::core::config::AppConfig;
 use crate::core::db::pool::DbPool;
+use crate::modules::agent_profiles::domain::errors::agent_profiles_error::AgentProfilesError;
+use crate::modules::agent_profiles::domain::ports::outbound::model_options_port::{
+    ModelOption, ModelOptionsPort,
+};
+use crate::modules::agent_profiles::infrastructure::di::agent_profiles_context::{
+    AgentProfilesContext, AgentProfilesSettings,
+};
+use crate::modules::agent_settings::application::usecases::list_models::ListModels;
 use crate::modules::agents_files::domain::errors::agents_file_error::AgentsFileError;
 use crate::modules::agents_files::application::usecases::install_agents_file::InstallAgentsFile;
 use crate::modules::agents_files::application::usecases::list_agents_files::ListAgentsFiles;
@@ -54,6 +62,7 @@ pub struct AppState {
     pub workspaces: WorkspacesContext,
     pub tasks: TasksContext,
     pub agent_settings: AgentSettingsContext,
+    pub agent_profiles: AgentProfilesContext,
     pub agents_files: AgentsFilesContext,
     pub terminal: TerminalContext,
     pub project_tree: ProjectTreeContext,
@@ -91,6 +100,15 @@ impl AppState {
                 gentle_pi_config_home: config.gentle_pi_config_home.clone(),
             },
         );
+        let model_options: Arc<dyn ModelOptionsPort> = Arc::new(ModelOptionsBridge {
+            list_models: agent_settings.list_models.clone(),
+        });
+        let agent_profiles: AgentProfilesContext =
+            AgentProfilesContext::new(AgentProfilesSettings {
+                profiles_dir: config.gentle_pi_config_home.clone(),
+                agents_dir: config.pi_agents_dir.clone(),
+                model_options,
+            });
         let launch_settings: Arc<dyn LaunchSettingsPort> = Arc::new(LaunchSettingsBridge {
             prepare_launch: agent_settings.prepare_launch.clone(),
         });
@@ -122,6 +140,7 @@ impl AppState {
             workspaces,
             tasks,
             agent_settings,
+            agent_profiles,
             agents_files,
             terminal,
             project_tree,
@@ -133,6 +152,7 @@ impl AppState {
         provide_context(self.workspaces.clone());
         provide_context(self.tasks.clone());
         provide_context(self.agent_settings.clone());
+        provide_context(self.agent_profiles.clone());
         provide_context(self.agents_files.clone());
         provide_context(self.terminal.clone());
         provide_context(self.project_tree.clone());
@@ -244,6 +264,34 @@ fn to_project_ref(workspace: Workspace) -> ProjectRef {
         id: workspace.id.to_string(),
         name: workspace.name,
         path: workspace.path,
+    }
+}
+
+/// Expone el catálogo de modelos de `agent_settings` al feature de perfiles a través de su
+/// propio puerto; el id de modelo se compone como `provider/model`.
+pub struct ModelOptionsBridge {
+    pub list_models: Arc<ListModels>,
+}
+
+#[async_trait::async_trait]
+impl ModelOptionsPort for ModelOptionsBridge {
+    async fn list(&self) -> Result<Vec<ModelOption>, AgentProfilesError> {
+        self.list_models
+            .execute()
+            .await
+            .map(|models: Vec<ModelRef>| {
+                models
+                    .into_iter()
+                    .map(|model: ModelRef| {
+                        let id: String = format!("{}/{}", model.provider, model.model);
+                        ModelOption {
+                            label: id.clone(),
+                            id,
+                        }
+                    })
+                    .collect()
+            })
+            .map_err(|e: AgentSettingsError| AgentProfilesError::Io(e.to_string()))
     }
 }
 
