@@ -56,17 +56,15 @@ async fn rejects_invalid_documents() {
     }
 }
 
+const GENTLE_PI_EXPORT: &str = include_str!("../../fixtures/gentle_pi_profile.export.json");
+
 #[tokio::test]
-async fn parses_real_gentle_pi_export_when_present() {
-    let Some(home) = std::env::var_os("HOME") else {
-        return;
-    };
-    let path: std::path::PathBuf =
-        std::path::PathBuf::from(home).join(".pi/gentle-ai/profiles.export.json");
-    let Ok(raw) = std::fs::read_to_string(path) else {
-        return;
-    };
+async fn parses_gentle_pi_export_fixture() {
     let adapter: ProfileExchangeJsonAdapter = ProfileExchangeJsonAdapter::new();
-    let profile: Profile = adapter.parse_profile(&raw).await.expect("real export");
-    assert!(!profile.routing.is_empty());
+    let profile: Profile = adapter
+        .parse_profile(GENTLE_PI_EXPORT)
+        .await
+        .expect("fixture export");
+    assert_eq!(profile.name.as_str(), "Claude");
+    assert_eq!(profile.routing.len(), 6);
 }

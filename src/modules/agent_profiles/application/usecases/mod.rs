@@ -11,3 +11,4 @@ pub mod list_profiles;
 pub mod rename_profile;
 pub mod set_global_routing;
 pub mod set_profile_routing;
+pub mod write_guard;

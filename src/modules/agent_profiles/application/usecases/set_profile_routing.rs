@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::modules::agent_profiles::application::usecases::write_guard::{
+    WriteGuard, new_write_guard,
+};
 use crate::modules::agent_profiles::domain::errors::agent_profiles_error::AgentProfilesError;
 use crate::modules::agent_profiles::domain::models::profile::Profile;
 use crate::modules::agent_profiles::domain::models::profile_name::ProfileName;
@@ -11,11 +14,17 @@ use crate::modules::agent_profiles::domain::ports::outbound::profile_store_port:
 /// Reemplaza el routing (modelo y razonamiento por agente) de un perfil.
 pub struct SetProfileRouting {
     store: Arc<dyn ProfileStorePort>,
+    guard: WriteGuard,
 }
 
 impl SetProfileRouting {
     pub fn new(store: Arc<dyn ProfileStorePort>) -> Self {
-        Self { store }
+        Self::with_guard(store, new_write_guard())
+    }
+
+    /// Comparte el `guard` con el resto de casos de uso que mutan `profiles.json`.
+    pub fn with_guard(store: Arc<dyn ProfileStorePort>, guard: WriteGuard) -> Self {
+        Self { store, guard }
     }
 
     pub async fn execute(
@@ -24,6 +33,7 @@ impl SetProfileRouting {
         routing: BTreeMap<String, RoutingEntry>,
     ) -> Result<Profile, AgentProfilesError> {
         Profile::validate_routing(&routing)?;
+        let _lock: tokio::sync::MutexGuard<'_, ()> = self.guard.lock().await;
         let mut store: ProfileStore = self.store.load().await?;
         let updated: Profile = store
             .profiles

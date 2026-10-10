@@ -106,3 +106,35 @@ pub mod fixtures {
         port
     }
 }
+
+/// Almacén en memoria que cede el turno entre `load` y `save` para exponer carreras.
+pub struct YieldingInMemoryStore {
+    state: tokio::sync::Mutex<ProfileStore>,
+}
+
+impl YieldingInMemoryStore {
+    pub fn new(initial: ProfileStore) -> Self {
+        Self {
+            state: tokio::sync::Mutex::new(initial),
+        }
+    }
+
+    pub async fn snapshot(&self) -> ProfileStore {
+        self.state.lock().await.clone()
+    }
+}
+
+#[async_trait::async_trait]
+impl ProfileStorePort for YieldingInMemoryStore {
+    async fn load(&self) -> Result<ProfileStore, AgentProfilesError> {
+        let loaded: ProfileStore = self.state.lock().await.clone();
+        tokio::task::yield_now().await;
+        Ok(loaded)
+    }
+
+    async fn save(&self, store: &ProfileStore) -> Result<(), AgentProfilesError> {
+        tokio::task::yield_now().await;
+        *self.state.lock().await = store.clone();
+        Ok(())
+    }
+}

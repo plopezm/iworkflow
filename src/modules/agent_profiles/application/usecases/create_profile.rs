@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use crate::modules::agent_profiles::application::usecases::write_guard::{
+    WriteGuard, new_write_guard,
+};
 use crate::modules::agent_profiles::domain::errors::agent_profiles_error::AgentProfilesError;
 use crate::modules::agent_profiles::domain::models::profile::Profile;
 use crate::modules::agent_profiles::domain::models::profile_name::ProfileName;
@@ -10,14 +13,21 @@ use crate::modules::agent_profiles::domain::ports::outbound::profile_store_port:
 /// Crea un perfil vacío (sin routing) sin tocar el perfil activo.
 pub struct CreateProfile {
     store: Arc<dyn ProfileStorePort>,
+    guard: WriteGuard,
 }
 
 impl CreateProfile {
     pub fn new(store: Arc<dyn ProfileStorePort>) -> Self {
-        Self { store }
+        Self::with_guard(store, new_write_guard())
+    }
+
+    /// Comparte el `guard` con el resto de casos de uso que mutan `profiles.json`.
+    pub fn with_guard(store: Arc<dyn ProfileStorePort>, guard: WriteGuard) -> Self {
+        Self { store, guard }
     }
 
     pub async fn execute(&self, name: ProfileName) -> Result<Profile, AgentProfilesError> {
+        let _lock: tokio::sync::MutexGuard<'_, ()> = self.guard.lock().await;
         let mut store: ProfileStore = self.store.load().await?;
         if store.contains(&name) {
             return Err(AgentProfilesError::ProfileAlreadyExists(name.to_string()));
@@ -67,5 +77,17 @@ mod tests {
             result,
             Err(AgentProfilesError::ProfileAlreadyExists("a".to_string()))
         );
+    }
+
+    #[tokio::test]
+    async fn concurrent_creates_both_persist() {
+        use crate::modules::agent_profiles::mocks::YieldingInMemoryStore;
+
+        let fake: Arc<YieldingInMemoryStore> =
+            Arc::new(YieldingInMemoryStore::new(store(None, vec![])));
+        let usecase: Arc<CreateProfile> = Arc::new(CreateProfile::new(fake.clone()));
+        let (first, second) = tokio::join!(usecase.execute(name("a")), usecase.execute(name("b")));
+        assert!(first.is_ok() && second.is_ok());
+        assert_eq!(fake.snapshot().await.profiles.len(), 2);
     }
 }

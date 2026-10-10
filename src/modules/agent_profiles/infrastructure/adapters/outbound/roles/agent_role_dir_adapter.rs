@@ -146,6 +146,15 @@ async fn read_role_file(path: &Path) -> Result<Option<AgentRole>, AgentProfilesE
     Ok(role_from_file(&stem, &content))
 }
 
+/// Si la escritura falló tras `create_new`, borra el fichero a medias (mejor esfuerzo).
+async fn finish_write(path: &Path, written: std::io::Result<()>) -> Result<(), AgentProfilesError> {
+    if let Err(e) = written {
+        let _removed: std::io::Result<()> = tokio::fs::remove_file(path).await;
+        return Err(io_error(e));
+    }
+    Ok(())
+}
+
 #[async_trait::async_trait]
 impl AgentRolePort for AgentRoleDirAdapter {
     async fn list(&self) -> Result<Vec<AgentRole>, AgentProfilesError> {
@@ -155,12 +164,15 @@ impl AgentRolePort for AgentRoleDirAdapter {
             Err(e) => return Err(io_error(e)),
         };
         let mut roles: Vec<AgentRole> = Vec::new();
-        while let Some(entry) = entries.next_entry().await.map_err(io_error)? {
-            let file_type: std::fs::FileType = entry.file_type().await.map_err(io_error)?;
+        // Una entrada ilegible o mal formada se omite; solo falla si el directorio no se puede leer.
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let Ok(file_type) = entry.file_type().await else {
+                continue;
+            };
             if !file_type.is_file() && !file_type.is_symlink() {
                 continue;
             }
-            if let Some(role) = read_role_file(&entry.path()).await? {
+            if let Ok(Some(role)) = read_role_file(&entry.path()).await {
                 roles.push(role);
             }
         }
@@ -186,8 +198,12 @@ impl AgentRolePort for AgentRoleDirAdapter {
             }
             Err(e) => return Err(io_error(e)),
         };
-        file.write_all(content.as_bytes()).await.map_err(io_error)?;
-        file.flush().await.map_err(io_error)
+        let written: std::io::Result<()> = async {
+            file.write_all(content.as_bytes()).await?;
+            file.flush().await
+        }
+        .await;
+        finish_write(&path, written).await
     }
 }
 
@@ -243,5 +259,19 @@ mod tests {
     fn render_appends_prompt_with_single_trailing_newline() {
         let rendered: String = render_role(&new_role("d", "body\n\n")).expect("render");
         assert!(rendered.ends_with("---\n\nbody\n"));
+    }
+
+    #[tokio::test]
+    async fn failed_write_removes_created_file_and_returns_error() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let path: PathBuf = dir.path().join("partial.md");
+        std::fs::write(&path, "---\nname: par").expect("seed");
+        let failure: std::io::Result<()> = Err(std::io::Error::other("disk full"));
+        let result: Result<(), AgentProfilesError> = finish_write(&path, failure).await;
+        assert!(matches!(result, Err(AgentProfilesError::Io(_))));
+        assert!(!path.exists());
+        std::fs::write(&path, "ok").expect("seed");
+        assert!(finish_write(&path, Ok(())).await.is_ok());
+        assert!(path.exists());
     }
 }

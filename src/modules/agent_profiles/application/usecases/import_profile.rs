@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+use crate::modules::agent_profiles::application::usecases::write_guard::{
+    WriteGuard, new_write_guard,
+};
 use crate::modules::agent_profiles::domain::errors::agent_profiles_error::AgentProfilesError;
 use crate::modules::agent_profiles::domain::models::profile::Profile;
 use crate::modules::agent_profiles::domain::models::profile_name::ProfileName;
@@ -11,11 +14,25 @@ use crate::modules::agent_profiles::domain::ports::outbound::profile_store_port:
 pub struct ImportProfile {
     store: Arc<dyn ProfileStorePort>,
     exchange: Arc<dyn ProfileExchangePort>,
+    guard: WriteGuard,
 }
 
 impl ImportProfile {
     pub fn new(store: Arc<dyn ProfileStorePort>, exchange: Arc<dyn ProfileExchangePort>) -> Self {
-        Self { store, exchange }
+        Self::with_guard(store, exchange, new_write_guard())
+    }
+
+    /// Comparte el `guard` con el resto de casos de uso que mutan `profiles.json`.
+    pub fn with_guard(
+        store: Arc<dyn ProfileStorePort>,
+        exchange: Arc<dyn ProfileExchangePort>,
+        guard: WriteGuard,
+    ) -> Self {
+        Self {
+            store,
+            exchange,
+            guard,
+        }
     }
 
     pub async fn execute(
@@ -27,6 +44,7 @@ impl ImportProfile {
         if let Some(name) = rename_to {
             profile.name = name;
         }
+        let _lock: tokio::sync::MutexGuard<'_, ()> = self.guard.lock().await;
         let mut store: ProfileStore = self.store.load().await?;
         if store.contains(&profile.name) {
             return Err(AgentProfilesError::ProfileAlreadyExists(

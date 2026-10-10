@@ -96,3 +96,17 @@ async fn list_parses_existing_files_and_skips_non_md() {
     assert_eq!(roles[1].name.as_str(), "stem-only");
     assert_eq!(roles[1].description, "Quoted");
 }
+
+#[tokio::test]
+async fn list_skips_unreadable_entries() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(dir.path().join("good.md"), "---\nname: good\n---\nbody\n").expect("good");
+    std::fs::write(dir.path().join("binary.md"), [0xff_u8, 0xfe, 0x00, 0xc3]).expect("binary");
+    std::fs::write(dir.path().join("bad name.md"), "no frontmatter").expect("bad");
+    std::os::unix::fs::symlink(dir.path().join("gone"), dir.path().join("dangling.md"))
+        .expect("symlink");
+    let adapter: AgentRoleDirAdapter = AgentRoleDirAdapter::new(dir.path().to_path_buf());
+    let roles: Vec<AgentRole> = adapter.list().await.expect("list");
+    let names: Vec<&str> = roles.iter().map(|r: &AgentRole| r.name.as_str()).collect();
+    assert_eq!(names, vec!["good"]);
+}
