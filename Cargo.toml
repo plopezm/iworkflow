@@ -167,3 +167,23 @@ required-features = ["ssr"]
 name = "fs_directory_reader_adapter_test"
 path = "tests/modules/project_tree/fs_directory_reader_adapter_test.rs"
 required-features = ["ssr"]
+
+[[test]]
+name = "profile_store_file_adapter_test"
+path = "tests/modules/agent_profiles/profile_store_file_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "global_routing_file_adapter_test"
+path = "tests/modules/agent_profiles/global_routing_file_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "agent_role_dir_adapter_test"
+path = "tests/modules/agent_profiles/agent_role_dir_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "profile_exchange_json_adapter_test"
+path = "tests/modules/agent_profiles/profile_exchange_json_adapter_test.rs"
+required-features = ["ssr"]

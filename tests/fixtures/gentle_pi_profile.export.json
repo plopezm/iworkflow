@@ -1,0 +1,31 @@
+{
+  "kind": "gentle-pi.agent_model_profile",
+  "version": 1,
+  "name": "Claude",
+  "config": {
+    "review-refuter": {
+      "model": "claude-bridge/claude-opus-5-5",
+      "thinking": "high"
+    },
+    "review-validator": {
+      "model": "claude-bridge/claude-opus-5-5",
+      "thinking": "high"
+    },
+    "jd-judge-a": {
+      "model": "claude-bridge/claude-sonnet-5-5",
+      "thinking": "medium"
+    },
+    "jd-judge-b": {
+      "model": "claude-bridge/claude-opus-5-5",
+      "thinking": "medium"
+    },
+    "jd-fix-agent": {
+      "model": "claude-bridge/claude-haiku-5-5",
+      "thinking": "low"
+    },
+    "gentle-ai-explore": {
+      "model": "claude-bridge/claude-haiku-5-5",
+      "thinking": "low"
+    }
+  }
+}

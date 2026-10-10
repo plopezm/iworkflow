@@ -8,6 +8,7 @@ const DEFAULT_WORKTREES_DIR: &str = "worktrees";
 const DEFAULT_AGENTS_FILES_DIR: &str = "agents-files";
 const DEFAULT_ATTACHMENTS_DIR: &str = "attachments";
 const DEFAULT_GENTLE_PI_CONFIG_DIR: &str = ".pi/gentle-ai";
+const DEFAULT_PI_AGENTS_DIR: &str = ".pi/agent/agents";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
@@ -34,6 +35,8 @@ pub struct AppConfig {
     pub agents_files_dir: PathBuf,
     /// Carpeta donde se guardan las imágenes adjuntas a las tareas.
     pub attachments_dir: PathBuf,
+    /// Carpeta de pi donde viven los ficheros `<rol>.md` de los agentes.
+    pub pi_agents_dir: PathBuf,
 }
 
 impl AppConfig {
@@ -68,6 +71,8 @@ impl AppConfig {
             &database_url,
             &data_dir,
         );
+        let pi_agents_dir: PathBuf =
+            resolve_pi_agents_dir(std::env::var("IWF_PI_AGENTS_DIR").ok(), &home);
         Ok(Self {
             database_url,
             gentle_shell_bin,
@@ -77,7 +82,16 @@ impl AppConfig {
             gentle_pi_config_home,
             agents_files_dir,
             attachments_dir,
+            pi_agents_dir,
         })
+    }
+}
+
+/// `IWF_PI_AGENTS_DIR`, o `~/.pi/agent/agents`.
+fn resolve_pi_agents_dir(env_value: Option<String>, home: &Path) -> PathBuf {
+    match env_value.filter(|v: &String| !v.trim().is_empty()) {
+        Some(dir) => PathBuf::from(dir),
+        None => home.join(DEFAULT_PI_AGENTS_DIR),
     }
 }
 
@@ -117,6 +131,25 @@ fn resolve_data_subdir(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pi_agents_dir_env_value_wins() {
+        let dir: PathBuf =
+            resolve_pi_agents_dir(Some("/custom/agents".to_string()), Path::new("/home/u"));
+        assert_eq!(dir, PathBuf::from("/custom/agents"));
+    }
+
+    #[test]
+    fn pi_agents_dir_defaults_under_home() {
+        let dir: PathBuf = resolve_pi_agents_dir(None, Path::new("/home/u"));
+        assert_eq!(dir, PathBuf::from("/home/u/.pi/agent/agents"));
+    }
+
+    #[test]
+    fn pi_agents_dir_blank_env_falls_back_to_default() {
+        let dir: PathBuf = resolve_pi_agents_dir(Some(" ".to_string()), Path::new("/home/u"));
+        assert_eq!(dir, PathBuf::from("/home/u/.pi/agent/agents"));
+    }
 
     #[test]
     fn env_value_wins() {

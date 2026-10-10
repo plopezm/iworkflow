@@ -46,6 +46,19 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 | `IWF_DATABASE_URL` | `~/.iworkflow/workspaces.db` (SQLite, migraciones automáticas) |
 | `IWF_WORKTREES_DIR` | `~/.iworkflow/worktrees` |
 | `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
+| `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
+| `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
+
+## Perfiles y modelos de agentes
+
+Dos pantallas equivalentes a los comandos de gentle-pi, sobre los mismos ficheros:
+
+| Pantalla | Equivale a | Qué hace |
+|---|---|---|
+| `/profiles` | `/gentle:profiles` | Crear, duplicar, renombrar, eliminar, importar y exportar perfiles (`profiles.json`), editar modelo y esfuerzo por agente y crear roles de agente nuevos. |
+| `/models` | `/gentle:models` | Editar el routing global (`models.json`): modelo y esfuerzo por agente. |
+
+Los perfiles se eligen en el desplegable de ajustes del agente, que lee el mismo `profiles.json`. Estas pantallas no activan un perfil de forma global; solo lo gestionan. El bloqueo de escritura evita pisadas dentro de un proceso, no frente a otro proceso (p. ej. el TUI de gentle-pi) editando a la vez.
 
 En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
 

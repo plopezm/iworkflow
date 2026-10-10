@@ -146,3 +146,88 @@ pub fn history_back() -> bool {
         false
     }
 }
+
+#[cfg(feature = "hydrate")]
+mod file_js {
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen::prelude::wasm_bindgen;
+
+    #[wasm_bindgen(inline_js = r#"
+export function pi_download_text(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+export function pi_copy_text(text, on_done) {
+  if (!navigator.clipboard) { on_done(false); return; }
+  navigator.clipboard.writeText(text).then(() => on_done(true), () => on_done(false));
+}
+export function pi_read_first_file(input, on_done) {
+  const file = input && input.files && input.files[0];
+  if (!file) { on_done(false, ''); return; }
+  file.text().then((text) => on_done(true, text), (error) => on_done(false, String(error)));
+}
+"#)]
+    extern "C" {
+        pub fn pi_download_text(filename: &str, content: &str, mime: &str);
+        pub fn pi_copy_text(text: &str, on_done: &JsValue);
+        pub fn pi_read_first_file(input: &JsValue, on_done: &JsValue);
+    }
+}
+
+/// Descarga `content` como fichero de texto `filename`. Fuera del navegador no hace nada.
+pub fn download_text_file(filename: &str, content: &str, mime: &str) {
+    #[cfg(feature = "hydrate")]
+    {
+        file_js::pi_download_text(filename, content, mime);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _args: (&str, &str, &str) = (filename, content, mime);
+    }
+}
+
+/// Copia `text` al portapapeles y avisa del resultado (`true` = copiado) a `on_done`.
+/// Fuera del navegador avisa con `false`.
+pub fn copy_text_to_clipboard(text: &str, on_done: impl FnOnce(bool) + 'static) {
+    #[cfg(feature = "hydrate")]
+    {
+        let callback: wasm_bindgen::JsValue = wasm_bindgen::closure::Closure::once_into_js(on_done);
+        file_js::pi_copy_text(text, &callback);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _text: &str = text;
+        on_done(false);
+    }
+}
+
+/// Lee como texto el primer fichero del `<input type=file>` que originó `event` y entrega
+/// `Ok(texto)` o `Err(motivo)` a `on_done`. Fuera del navegador no hace nada.
+pub fn read_event_file_text(
+    event: leptos::ev::Event,
+    on_done: impl FnOnce(Result<String, String>) + 'static,
+) {
+    #[cfg(feature = "hydrate")]
+    {
+        let target: wasm_bindgen::JsValue = event
+            .target()
+            .map(wasm_bindgen::JsValue::from)
+            .unwrap_or(wasm_bindgen::JsValue::NULL);
+        let callback: wasm_bindgen::JsValue =
+            wasm_bindgen::closure::Closure::once_into_js(move |ok: bool, payload: String| {
+                on_done(if ok { Ok(payload) } else { Err(payload) });
+            });
+        file_js::pi_read_first_file(&target, &callback);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        drop((event, on_done));
+    }
+}
