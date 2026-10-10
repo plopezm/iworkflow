@@ -66,6 +66,15 @@ fn closed_status_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// Nombres de los estados activos (todos salvo `TaskStatus::is_closed`).
+fn active_status_names() -> Vec<&'static str> {
+    TaskStatus::ALL
+        .into_iter()
+        .filter(|s: &TaskStatus| !s.is_closed())
+        .map(|s: TaskStatus| s.as_str())
+        .collect()
+}
+
 fn to_tasks(rows: Vec<TaskRow>) -> Result<Vec<Task>, TaskError> {
     rows.into_iter().map(Task::try_from).collect()
 }
@@ -110,7 +119,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
     async fn list_active(&self, workspace_id: Option<String>) -> Result<Vec<Task>, TaskError> {
         let mut connection: DbConnection = self.connection().await?;
         let mut query = tasks::table
-            .filter(tasks::status.ne_all(closed_status_names()))
+            .filter(tasks::status.eq_any(active_status_names()))
             .select(TaskRow::as_select())
             .order((tasks::created_at.desc(), tasks::id.desc()))
             .into_boxed();
@@ -451,13 +460,13 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         let mut connection: DbConnection = self.connection().await?;
         connection
             .immediate_transaction::<Option<Vec<TaskId>>, DieselError, _>(async move |conn| {
-                let rows: Vec<TaskRow> = tasks::table
+                let rows: Vec<(String, String)> = tasks::table
                     .filter(tasks::workspace_id.eq(workspace_id.clone()))
-                    .select(TaskRow::as_select())
+                    .select((tasks::id, tasks::status))
                     .load(conn)
                     .await?;
-                let all_inactive: bool = rows.iter().all(|row: &TaskRow| {
-                    TaskStatus::parse(&row.status)
+                let all_inactive: bool = rows.iter().all(|(_, status): &(String, String)| {
+                    TaskStatus::parse(status)
                         .map(|status: TaskStatus| status.is_inactive())
                         .unwrap_or(false)
                 });
@@ -466,7 +475,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
                 }
                 let ids: Vec<TaskId> = rows
                     .iter()
-                    .filter_map(|row: &TaskRow| TaskId::parse(&row.id).ok())
+                    .filter_map(|(id, _): &(String, String)| TaskId::parse(id).ok())
                     .collect();
                 diesel::delete(tasks::table.filter(tasks::workspace_id.eq(workspace_id)))
                     .execute(conn)
@@ -574,5 +583,15 @@ mod tests {
         assert!(TaskError::Busy("x".to_string()).is_transient());
         assert!(!TaskError::Repository("x".to_string()).is_transient());
         assert!(!TaskError::EmptyPrompt.is_transient());
+    }
+
+    #[test]
+    fn active_and_closed_status_names_partition_all_statuses() {
+        let active: Vec<&str> = active_status_names();
+        let closed: Vec<&str> = closed_status_names();
+        assert!(active.iter().all(|name: &&str| !closed.contains(name)));
+        assert_eq!(active.len() + closed.len(), TaskStatus::ALL.len());
+        assert!(!active.contains(&"merged") && !active.contains(&"discarded"));
+        assert!(active.contains(&"backlog") && active.contains(&"failed"));
     }
 }
