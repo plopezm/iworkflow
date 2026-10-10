@@ -116,8 +116,12 @@ pub fn BoardPage() -> impl IntoView {
         let tasks: Option<Result<Vec<TaskDto>, ServerFnError>> = state.tasks.get();
         let done: Option<Result<Vec<TaskDto>, ServerFnError>> = state.done_tasks.get();
         let pages: usize = state.done_pages.get();
+        // Un fallo al cargar las finalizadas no debe ocultar las tareas activas: se pinta el
+        // tablero sin ellas.
+        let done: Option<Vec<TaskDto>> =
+            done.map(|loaded: Result<Vec<TaskDto>, ServerFnError>| loaded.unwrap_or_default());
         match (workspaces, tasks, done) {
-            (Some(Ok(workspaces)), Some(Ok(active)), Some(Ok(done))) => {
+            (Some(Ok(workspaces)), Some(Ok(active)), Some(done)) => {
                 has_more_done.set(show_done && done_has_more(done.len(), pages));
                 let tasks: Vec<TaskDto> = combine_tasks(&active, &done);
                 let next: Vec<LaneView> = build_lanes(&tasks, &workspaces, stage_filter, show_done);
@@ -126,7 +130,7 @@ pub fn BoardPage() -> impl IntoView {
                 }
                 loaded.set(true);
             }
-            (Some(Err(_)), _, _) | (_, Some(Err(_)), _) | (_, _, Some(Err(_))) => loaded.set(false),
+            (Some(Err(_)), _, _) | (_, Some(Err(_)), _) => loaded.set(false),
             // Recargando: se conserva el tablero anterior.
             _ => {}
         }

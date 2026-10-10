@@ -1,3 +1,6 @@
+use std::collections::HashSet;
+use std::future::Future;
+
 use leptos::prelude::*;
 
 use crate::core::components::toast::{ToastMessage, push_toast};
@@ -37,24 +40,53 @@ pub fn done_has_more(loaded: usize, pages: usize) -> bool {
     pages > 0 && loaded >= pages * DONE_PAGE_SIZE
 }
 
-/// Une las tareas activas con las finalizadas ya cargadas (función pura).
+/// Une las tareas activas con las finalizadas ya cargadas (función pura). Si una tarea aparece
+/// en ambas listas (cambió de estado entre dos cargas) prevalece la activa; los duplicados
+/// dentro de las finalizadas se descartan.
 pub fn combine_tasks(active: &[TaskDto], done: &[TaskDto]) -> Vec<TaskDto> {
-    active.iter().chain(done.iter()).cloned().collect()
+    let mut seen: HashSet<&str> = HashSet::new();
+    active
+        .iter()
+        .chain(done.iter())
+        .filter(|task: &&TaskDto| seen.insert(task.id.as_str()))
+        .cloned()
+        .collect()
 }
 
-/// Carga las primeras `pages` páginas de tareas finalizadas, parando en la primera incompleta.
-async fn fetch_done_pages(pages: usize) -> Result<Vec<TaskDto>, ServerFnError> {
+/// Recorre las primeras `pages` páginas de finalizadas con `fetch(página)`, parando en la
+/// primera incompleta. El desplazamiento puede repetir filas entre páginas si el conjunto cambia
+/// mientras se carga, por eso se descartan los ids ya vistos.
+async fn collect_done_pages<F, Fut>(
+    pages: usize,
+    mut fetch: F,
+) -> Result<Vec<TaskDto>, ServerFnError>
+where
+    F: FnMut(usize) -> Fut,
+    Fut: Future<Output = Result<Vec<TaskDto>, ServerFnError>>,
+{
     let mut done: Vec<TaskDto> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
     for page in 0..pages {
-        let batch: Vec<TaskDto> =
-            list_done_tasks(None, DONE_PAGE_SIZE as i64, done_page_offset(page)).await?;
+        let batch: Vec<TaskDto> = fetch(page).await?;
         let complete: bool = batch.len() >= DONE_PAGE_SIZE;
-        done.extend(batch);
+        done.extend(
+            batch
+                .into_iter()
+                .filter(|task: &TaskDto| seen.insert(task.id.clone())),
+        );
         if !complete {
             break;
         }
     }
     Ok(done)
+}
+
+/// Carga las primeras `pages` páginas de tareas finalizadas.
+async fn fetch_done_pages(pages: usize) -> Result<Vec<TaskDto>, ServerFnError> {
+    collect_done_pages(pages, |page: usize| {
+        list_done_tasks(None, DONE_PAGE_SIZE as i64, done_page_offset(page))
+    })
+    .await
 }
 
 /// Carril del tablero: todas las tareas visibles de un mismo workspace.
@@ -510,6 +542,91 @@ mod tests {
         assert_eq!(ids, vec!["a", "d"]);
         let lanes: Vec<LaneView> = build_lanes(&combined, &[workspace("ws-a", "A")], None, true);
         assert_eq!(lanes[0].tasks.len(), 2);
+    }
+
+    #[test]
+    fn combine_tasks_drops_ids_repeated_across_lists() {
+        let active: Vec<TaskDto> = vec![task(
+            "a",
+            "ws-a",
+            TaskStageDto::Working,
+            "2026-01-01T00:00:00Z",
+        )];
+        let done: Vec<TaskDto> = vec![
+            task("a", "ws-a", TaskStageDto::Done, "2026-01-01T00:00:00Z"),
+            task("d", "ws-a", TaskStageDto::Done, "2026-01-01T00:00:00Z"),
+            task("d", "ws-a", TaskStageDto::Done, "2026-01-01T00:00:00Z"),
+        ];
+
+        let combined: Vec<TaskDto> = combine_tasks(&active, &done);
+
+        let ids: Vec<&str> = combined.iter().map(|t: &TaskDto| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "d"]);
+        assert_eq!(combined[0].stage, TaskStageDto::Working);
+    }
+
+    fn full_page(prefix: &str) -> Vec<TaskDto> {
+        (0..DONE_PAGE_SIZE)
+            .map(|i: usize| {
+                task(
+                    &format!("{prefix}{i}"),
+                    "ws-a",
+                    TaskStageDto::Done,
+                    "2026-01-01T00:00:00Z",
+                )
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn collect_done_pages_stops_at_first_short_page() {
+        let mut calls: Vec<usize> = Vec::new();
+        let result: Vec<TaskDto> = collect_done_pages(5, |page: usize| {
+            calls.push(page);
+            let batch: Vec<TaskDto> = match page {
+                0 => full_page("p0-"),
+                _ => vec![task(
+                    "last",
+                    "ws-a",
+                    TaskStageDto::Done,
+                    "2026-01-01T00:00:00Z",
+                )],
+            };
+            async move { Ok(batch) }
+        })
+        .await
+        .expect("páginas");
+
+        assert_eq!(calls, vec![0, 1]);
+        assert_eq!(result.len(), DONE_PAGE_SIZE + 1);
+    }
+
+    #[tokio::test]
+    async fn collect_done_pages_dedupes_rows_repeated_between_pages() {
+        let result: Vec<TaskDto> = collect_done_pages(2, |page: usize| {
+            let mut batch: Vec<TaskDto> = full_page("p0-");
+            if page == 1 {
+                batch = vec![task(
+                    "p0-0",
+                    "ws-a",
+                    TaskStageDto::Done,
+                    "2026-01-01T00:00:00Z",
+                )];
+            }
+            async move { Ok(batch) }
+        })
+        .await
+        .expect("páginas");
+
+        assert_eq!(result.len(), DONE_PAGE_SIZE);
+    }
+
+    #[tokio::test]
+    async fn collect_done_pages_propagates_errors() {
+        let result: Result<Vec<TaskDto>, ServerFnError> =
+            collect_done_pages(2, |_page: usize| async { Err(ServerFnError::new("boom")) }).await;
+
+        assert!(result.is_err());
     }
 
     #[test]
