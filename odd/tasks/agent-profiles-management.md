@@ -22,3 +22,4 @@ Design: new vertical slice `src/modules/agent_profiles/` (no imports from `agent
 - Review T3b+T4 (approved, acknowledged). Non-blocking follow-ups for T7: role list silently truncates when dir iteration fails midway (agent_role_dir_adapter.rs ~l.168); NewAgentRoleDto model/thinking are dropped (decide: remove from DTO or persist in frontmatter)
 - T5 commit: 7eb6e31 (lib 109, RED 12 failed -> GREEN 14, clippy ssr + hydrate ok, cargo leptos build ok). NOT verified in a browser: render/hydration/styling, file input, blob download, clipboard
 - T6 commit: 19fc5fd (lib 112, RED E0425 -> GREEN, clippy ssr + hydrate ok). Not verified in a browser
+- Review T5+T6 (approved, acknowledged). Non-blocking follow-ups: models_page.rs:42 unsaved editor draft is lost when a role is created (resource refetch rebuilds editor); profiles_page.rs:134 selected-profile tracking after await (rename/delete races)
