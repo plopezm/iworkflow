@@ -66,3 +66,43 @@ mock! {
         async fn parse_profile(&self, raw: &str) -> Result<Profile, AgentProfilesError>;
     }
 }
+
+/// Helpers de construcción para los tests de casos de uso.
+pub mod fixtures {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::modules::agent_profiles::domain::models::profile_name::ProfileName;
+
+    pub fn name(raw: &str) -> ProfileName {
+        ProfileName::parse(raw).expect("nombre de test válido")
+    }
+
+    pub fn routing_of(model: &str) -> BTreeMap<String, RoutingEntry> {
+        BTreeMap::from([(
+            "sdd-apply".to_string(),
+            RoutingEntry {
+                model: Some(model.to_string()),
+                thinking: Some("high".to_string()),
+            },
+        )])
+    }
+
+    pub fn profile(raw: &str, model: &str) -> Profile {
+        Profile::new(name(raw), routing_of(model))
+    }
+
+    pub fn store(active: Option<&str>, profiles: Vec<Profile>) -> ProfileStore {
+        ProfileStore {
+            active: active.map(name),
+            profiles,
+        }
+    }
+
+    /// Mock de almacén que devuelve `initial` en `load` y no espera `save`.
+    pub fn store_port_loading(initial: ProfileStore) -> MockProfileStoreAdapter {
+        let mut port: MockProfileStoreAdapter = MockProfileStoreAdapter::new();
+        port.expect_load().returning(move || Ok(initial.clone()));
+        port
+    }
+}
