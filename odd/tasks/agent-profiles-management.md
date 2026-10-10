@@ -13,3 +13,4 @@ Design: new vertical slice `src/modules/agent_profiles/` (no imports from `agent
 - [ ] T5 Presentation: state + `/profiles` page (CRUD, import/export, per-agent editor, new role) + nav link
 - [ ] T6 Presentation: `/models` page (global models.json editor)
 - [ ] T7 Full verification (fmt, clippy ssr+hydrate, tests), README note
+- T1 commit: d843bae (20 unit tests, clippy ssr ok; RED not observed, tests written alongside value objects)
