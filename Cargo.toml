@@ -1,6 +1,6 @@
 [package]
 name = "iworkflow"
-version = "0.7.1"
+version = "0.7.2"
 edition = "2024"
 
 [lib]
@@ -45,7 +45,7 @@ pulldown-cmark = { version = "0.13.4", default-features = false, features = ["ht
 any_spawner = { version = "0.3", features = ["tokio"] }
 mockall = "0.15"
 tempfile = "3"
-tokio = { version = "1", features = ["test-util"] }
+tokio = { version = "1", features = ["test-util", "macros", "rt"] }
 
 [features]
 hydrate = ["leptos/hydrate", "dep:console_error_panic_hook", "dep:wasm-bindgen", "dep:web-sys", "dep:js-sys"]
