@@ -9,11 +9,10 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_done_tasks, list_tasks,
-    list_workspace_options,
+    CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_done_tasks,
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
-use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
+use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
 
 /// Compara dos instantes RFC 3339 por su valor temporal; si alguno no se puede interpretar
 /// se recurre a la comparación textual, que es cronológica para el formato que emite el servidor.
@@ -249,8 +248,10 @@ pub fn filter_label(stage: Option<TaskStageDto>) -> &'static str {
 /// Estado de la pantalla del tablero: tareas agrupadas por carril, filtros y modal de alta de tarea.
 #[derive(Clone, Copy)]
 pub struct BoardState {
-    pub tasks: Resource<Result<Vec<TaskDto>, ServerFnError>>,
-    /// Tareas finalizadas cargadas (vacío mientras `show_done` esté desactivado).
+    /// Almacén compartido (shell): tareas activas, finalizadas visibles y workspaces.
+    pub store: TaskStore,
+    /// Carga de las finalizadas (vacío mientras `show_done` esté desactivado); su resultado
+    /// se vuelca en `store.done`, que los eventos de SSE parchean sin recargar páginas.
     pub done_tasks: Resource<Result<Vec<TaskDto>, ServerFnError>>,
     /// Páginas de finalizadas que se piden al servidor ("Cargar más" la incrementa).
     pub done_pages: RwSignal<usize>,
@@ -277,8 +278,6 @@ pub struct BoardState {
     pub delete_target: RwSignal<Option<String>>,
     pub finish_target: RwSignal<Option<String>>,
     pub merge_target: RwSignal<Option<String>>,
-    #[cfg_attr(not(feature = "hydrate"), allow(dead_code))]
-    tick: RwSignal<u32>,
 }
 
 /// Texto del aviso cuando la tarea se crea pero no puede iniciarse.
@@ -312,36 +311,27 @@ impl BoardState {
         let start: ServerAction<StartTask> = ServerAction::new();
         let finish: ServerAction<FinishTask> = ServerAction::new();
         let merge: ServerAction<MergeTask> = ServerAction::new();
-        let tick: RwSignal<u32> = RwSignal::new(0);
-        let tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> = Resource::new(
-            move || {
-                (
-                    tick.get(),
-                    create.version().get(),
-                    delete.version().get(),
-                    start.version().get(),
-                    finish.version().get(),
-                    merge.version().get(),
-                )
-            },
-            |_| list_tasks(None),
-        );
-        let show_done: RwSignal<bool> = RwSignal::new(false);
+        let store: TaskStore = use_task_store();
+        let show_done: RwSignal<bool> = store.show_done;
+        // El tablero arranca sin finalizadas y, al salir, deja de parchearlas.
+        show_done.set(false);
+        on_cleanup(move || show_done.set(false));
         let done_pages: RwSignal<usize> = RwSignal::new(1);
+        // Crear una tarea en "Por hacer" no emite evento SSE (start/finish/merge/delete sí),
+        // así que el alta recarga el almacén. Solo mueve un contador (no llama al backend);
+        // la primera ejecución, al montar, se omite.
+        Effect::new(move |initialized: Option<bool>| {
+            create.version().track();
+            if initialized == Some(true) {
+                store.reload_all();
+            }
+            true
+        });
+        // Solo se recarga al (des)activar `show_done`, pedir más páginas o en una recarga
+        // completa del almacén; los `changed` sueltos parchean `store.done`.
         let done_tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> = Resource::new(
-            move || {
-                (
-                    show_done.get(),
-                    done_pages.get(),
-                    tick.get(),
-                    create.version().get(),
-                    delete.version().get(),
-                    start.version().get(),
-                    finish.version().get(),
-                    merge.version().get(),
-                )
-            },
-            |(show, pages, ..)| async move {
+            move || (show_done.get(), done_pages.get(), store.reload_count()),
+            |(show, pages, _)| async move {
                 if show {
                     fetch_done_pages(pages).await
                 } else {
@@ -349,11 +339,16 @@ impl BoardState {
                 }
             },
         );
-        let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
-            Resource::new(|| (), |_| list_workspace_options());
+        // Vuelca la carga al almacén (solo cliente); no coordina llamadas al backend.
+        Effect::new(move |_| {
+            if let Some(Ok(loaded)) = done_tasks.get() {
+                store.done.set(loaded);
+            }
+        });
+        let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = store.workspaces;
 
-        let state: Self = Self {
-            tasks,
+        Self {
+            store,
             done_tasks,
             done_pages,
             workspaces,
@@ -377,10 +372,7 @@ impl BoardState {
             delete_target: RwSignal::new(None),
             finish_target: RwSignal::new(None),
             merge_target: RwSignal::new(None),
-            tick,
-        };
-        state.connect_events();
-        state
+        }
     }
 
     /// Abre el modal de alta con el formulario vacío, descartando errores previos.
@@ -444,15 +436,12 @@ impl BoardState {
     /// de la tarea afectada cuando se conoce su id.
     pub fn notify_error(&self, task_id: Option<String>, message: String) {
         let title: Option<String> = task_id.as_deref().and_then(|id: &str| {
-            self.tasks
-                .get_untracked()
-                .and_then(|r: Result<Vec<TaskDto>, ServerFnError>| r.ok())
-                .and_then(|tasks: Vec<TaskDto>| {
-                    tasks
-                        .into_iter()
-                        .find(|t: &TaskDto| t.id == id)
-                        .map(|t: TaskDto| t.title)
-                })
+            self.store.active.with_untracked(|tasks: &Vec<TaskDto>| {
+                tasks
+                    .iter()
+                    .find(|t: &&TaskDto| t.id == id)
+                    .map(|t: &TaskDto| t.title.clone())
+            })
         });
         let text: String = match title.or(task_id) {
             Some(label) => format!("{label}: {message}"),
@@ -473,10 +462,6 @@ impl BoardState {
     pub fn dismiss_toast(&self, id: u32) {
         self.toasts
             .update(|list: &mut Vec<ToastMessage>| list.retain(|t: &ToastMessage| t.id != id));
-    }
-
-    fn connect_events(&self) {
-        subscribe_task_events(self.tick);
     }
 }
 

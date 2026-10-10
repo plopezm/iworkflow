@@ -9,13 +9,10 @@ use crate::core::components::browser_notification::{
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, WorkspaceOptionDto,
 };
-use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    list_tasks, list_workspace_options,
-};
-use crate::modules::tasks::presentation::state::task_events::subscribe_task_events;
 use crate::modules::tasks::presentation::state::task_notifications::{
     NotificationPlan, TaskNotification, TaskSnapshot, plan_notifications,
 };
+use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
 
 /// Fila de un workspace en la barra lateral.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,7 +87,7 @@ pub fn build_task_rows(
 }
 
 /// Estado de la barra lateral: listados de workspaces y tareas (ya calculados, fuera de
-/// `Suspend`) que se refrescan con SSE y al navegar.
+/// `Suspend`) derivados del `TaskStore` compartido, que se mantiene al día con SSE.
 #[derive(Clone, Copy)]
 pub struct AppSidebarState {
     pub workspace_rows: RwSignal<Vec<SidebarWorkspaceRow>>,
@@ -100,14 +97,8 @@ pub struct AppSidebarState {
 
 impl AppSidebarState {
     pub fn new() -> Self {
-        let tick: RwSignal<u32> = RwSignal::new(0);
+        let store: TaskStore = use_task_store();
         let pathname: Memo<String> = use_location().pathname;
-        let tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> =
-            Resource::new(move || (tick.get(), pathname.get()), |_| list_tasks(None));
-        let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = Resource::new(
-            move || (tick.get(), pathname.get()),
-            |_| list_workspace_options(),
-        );
         let workspace_rows: RwSignal<Vec<SidebarWorkspaceRow>> = RwSignal::new(Vec::new());
         let task_rows: RwSignal<Vec<SidebarTaskRow>> = RwSignal::new(Vec::new());
         // Client-only, after hydration: the browser shows its native prompt on first click.
@@ -118,9 +109,9 @@ impl AppSidebarState {
         Effect::new(move |last: Option<Option<HashMap<String, TaskSnapshot>>>| {
             let previous: Option<HashMap<String, TaskSnapshot>> = last.flatten();
             let loaded_workspaces: Option<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
-                workspaces.get();
-            let loaded_tasks: Option<Result<Vec<TaskDto>, ServerFnError>> = tasks.get();
-            if let (Some(Ok(workspaces)), Some(Ok(tasks))) = (loaded_workspaces, loaded_tasks) {
+                store.workspaces.get();
+            let tasks: Vec<TaskDto> = store.active.get();
+            if let (Some(Ok(workspaces)), true) = (loaded_workspaces, store.loaded.get()) {
                 let next_workspaces: Vec<SidebarWorkspaceRow> =
                     build_workspace_rows(&workspaces, &tasks);
                 let next_tasks: Vec<SidebarTaskRow> = build_task_rows(&tasks, &workspaces);
@@ -138,7 +129,6 @@ impl AppSidebarState {
             }
             previous
         });
-        subscribe_task_events(tick);
 
         Self {
             workspace_rows,

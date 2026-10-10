@@ -11,6 +11,7 @@ use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
 use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
+use crate::modules::tasks::presentation::state::task_store::TaskStore;
 use crate::modules::terminal::presentation::pages::new_terminal_page::NewTerminalPage;
 use crate::modules::terminal::presentation::pages::terminal_session_page::TerminalSessionPage;
 use crate::modules::terminal::presentation::pages::terminals_page::TerminalsPage;
@@ -73,6 +74,14 @@ fn app_sidebar() -> impl IntoView {
     }
 }
 
+/// Crea una sola vez el almacén de tareas (con su única suscripción SSE) y lo provee por
+/// contexto a la barra lateral y a las páginas. Debe ir dentro del `<Router>`.
+#[component]
+fn TaskStoreProvider(children: Children) -> impl IntoView {
+    provide_context(TaskStore::new());
+    children()
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
@@ -82,6 +91,7 @@ pub fn App() -> impl IntoView {
         <Stylesheet id="leptos" href="/pkg/iworkflow.css" />
         <Title text="iworkflow" />
         <Router>
+            <TaskStoreProvider>
             <AppShell brand="iworkflow" sidebar=app_sidebar>
                 <Routes fallback=|| "Página no encontrada.".into_view()>
                     <Route path=StaticSegment("") view=BoardPage />
@@ -107,6 +117,7 @@ pub fn App() -> impl IntoView {
                     />
                 </Routes>
             </AppShell>
+            </TaskStoreProvider>
         </Router>
     }
 }

@@ -32,6 +32,8 @@ pub const BOARD_EVENTS_PATH: &str = "/api/tasks/events";
 pub const RESET_EVENT: &str = "reset";
 pub const LAGGED_EVENT: &str = "lagged";
 pub const CHANGED_EVENT: &str = "changed";
+/// La tarea se eliminó: el tablero la descarta sin pedirla de nuevo.
+pub const REMOVED_EVENT: &str = "removed";
 const LAST_EVENT_ID_HEADER: &str = "last-event-id";
 
 #[derive(Debug, Default, Deserialize)]
@@ -112,14 +114,17 @@ fn is_board_relevant(kind: &TaskEventKind) -> bool {
 }
 
 /// Filtra el stream en vivo para el tablero: un `changed` con el id de la tarea por cada
-/// evento de estado o de agente relevante (diálogo abierto/resuelto, proceso terminado).
+/// evento de estado o de agente relevante (diálogo abierto/resuelto, proceso terminado) y
+/// un `removed` con el id cuando la tarea se elimina.
 pub fn board_event(item: Result<TaskEvent, BroadcastStreamRecvError>) -> Option<Event> {
     match item {
-        Ok(event) if is_board_relevant(&event.kind) => Some(
-            Event::default()
-                .event(CHANGED_EVENT)
-                .data(event.task_id.to_string()),
-        ),
+        Ok(event) if is_board_relevant(&event.kind) => {
+            let name: &'static str = match event.kind {
+                TaskEventKind::Removed => REMOVED_EVENT,
+                _ => CHANGED_EVENT,
+            };
+            Some(Event::default().event(name).data(event.task_id.to_string()))
+        }
         Ok(_) => None,
         Err(BroadcastStreamRecvError::Lagged(_)) => Some(control_event(LAGGED_EVENT)),
     }
@@ -292,6 +297,20 @@ mod tests {
     #[test]
     fn board_forwards_lagged_as_control_event() {
         assert!(board_event(Err(BroadcastStreamRecvError::Lagged(2))).is_some());
+    }
+
+    #[test]
+    fn board_removal_is_a_removed_event_with_the_task_id() {
+        let event: TaskEvent = with_kind(TaskEventKind::Removed);
+        let task_id: TaskId = event.task_id;
+        let rendered: String = format!("{:?}", board_event(Ok(event)).expect("evento"));
+        assert!(rendered.contains(REMOVED_EVENT), "{rendered}");
+        assert!(rendered.contains(&task_id.to_string()), "{rendered}");
+        let changed: String = format!(
+            "{:?}",
+            board_event(Ok(with_kind(TaskEventKind::Changed))).expect("evento")
+        );
+        assert!(!changed.contains(REMOVED_EVENT), "{changed}");
     }
 
     #[test]
