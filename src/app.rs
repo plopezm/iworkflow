@@ -7,6 +7,7 @@ use crate::core::components::shell::{AppShell, DropdownMenu};
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
+use crate::modules::project_tree::presentation::pages::project_tree_page::ProjectTreePage;
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
@@ -108,6 +109,10 @@ pub fn App() -> impl IntoView {
                     <Route
                         path=(StaticSegment("workspaces"), ParamSegment("id"), StaticSegment("edit"))
                         view=WorkspaceEditPage
+                    />
+                    <Route
+                        path=(StaticSegment("workspaces"), ParamSegment("id"))
+                        view=ProjectTreePage
                     />
                     <Route path=StaticSegment("agents-files") view=AgentsFilesPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
