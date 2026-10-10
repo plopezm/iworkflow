@@ -162,3 +162,8 @@ required-features = ["ssr"]
 name = "portable_pty_adapter_test"
 path = "tests/modules/terminal/portable_pty_adapter_test.rs"
 required-features = ["ssr"]
+
+[[test]]
+name = "fs_directory_reader_adapter_test"
+path = "tests/modules/project_tree/fs_directory_reader_adapter_test.rs"
+required-features = ["ssr"]

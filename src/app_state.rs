@@ -20,6 +20,11 @@ use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPr
 use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
+use crate::modules::project_tree::domain::models::workspace_root::WorkspaceRoot;
+use crate::modules::project_tree::infrastructure::adapters::outbound::workspace_root::resolver_workspace_root_adapter::{
+    RootLookupFuture, RootResolver,
+};
+use crate::modules::project_tree::infrastructure::di::project_tree_context::ProjectTreeContext;
 use crate::modules::terminal::domain::models::workspace_target::WorkspaceTarget;
 use crate::modules::terminal::infrastructure::adapters::outbound::workspace_path::resolver_workspace_path_adapter::{
     PathLookupFuture, PathResolver,
@@ -51,6 +56,7 @@ pub struct AppState {
     pub agent_settings: AgentSettingsContext,
     pub agents_files: AgentsFilesContext,
     pub terminal: TerminalContext,
+    pub project_tree: ProjectTreeContext,
 }
 
 impl AppState {
@@ -73,6 +79,8 @@ impl AppState {
             workspace_path_resolver(get_workspace.clone()),
             config.home_dir.clone(),
         );
+        let project_tree: ProjectTreeContext =
+            ProjectTreeContext::new(workspace_root_resolver(get_workspace.clone()));
         let agents_files: AgentsFilesContext =
             AgentsFilesContext::new(pool.clone(), config.agents_files_dir.clone(), projects);
         let agent_settings: AgentSettingsContext = AgentSettingsContext::new(
@@ -116,6 +124,7 @@ impl AppState {
             agent_settings,
             agents_files,
             terminal,
+            project_tree,
         }
     }
 
@@ -126,6 +135,7 @@ impl AppState {
         provide_context(self.agent_settings.clone());
         provide_context(self.agents_files.clone());
         provide_context(self.terminal.clone());
+        provide_context(self.project_tree.clone());
     }
 }
 
@@ -136,6 +146,23 @@ fn workspace_path_resolver(get_workspace: Arc<GetWorkspace>) -> PathResolver {
         Box::pin(async move {
             match get_workspace.execute(WorkspaceId::from_uuid(id)).await {
                 Ok(workspace) => Ok(Some(WorkspaceTarget {
+                    name: workspace.name,
+                    path: workspace.path,
+                })),
+                Err(WorkspaceError::NotFound(_)) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            }
+        })
+    })
+}
+
+/// Expone el directorio de un workspace al feature de árbol de proyecto como una closure.
+fn workspace_root_resolver(get_workspace: Arc<GetWorkspace>) -> RootResolver {
+    Arc::new(move |id: uuid::Uuid| -> RootLookupFuture {
+        let get_workspace: Arc<GetWorkspace> = get_workspace.clone();
+        Box::pin(async move {
+            match get_workspace.execute(WorkspaceId::from_uuid(id)).await {
+                Ok(workspace) => Ok(Some(WorkspaceRoot {
                     name: workspace.name,
                     path: workspace.path,
                 })),
