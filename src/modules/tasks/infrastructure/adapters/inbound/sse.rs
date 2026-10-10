@@ -1,17 +1,21 @@
 //! Endpoint SSE con el historial y el stream en vivo de una tarea.
 //!
 //! Protocolo: primero un evento `reset`, luego el historial persistido y después los
-//! eventos en vivo (`message` con un `TaskEventDto` en JSON). Si el suscriptor se
-//! queda atrás se emite `lagged` y el cliente debe reconectar.
+//! eventos en vivo (`message` con un `TaskEventDto` en JSON). Cada evento persistido
+//! lleva `id: <seq>`; los efímeros no llevan id. Si la petición trae `Last-Event-ID` (o
+//! `?after=<seq>`) solo se reenvían los eventos posteriores y no se emite `reset`, porque
+//! el cliente conserva lo ya recibido. Si el suscriptor se queda atrás se emite `lagged`
+//! y el cliente debe reconectar.
 
 use std::convert::Infallible;
 
 use axum::Router;
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::extract::{Path, Query, State};
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::get;
 use futures::stream::{self, Stream, StreamExt};
+use serde::Deserialize;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 
@@ -28,6 +32,25 @@ pub const BOARD_EVENTS_PATH: &str = "/api/tasks/events";
 pub const RESET_EVENT: &str = "reset";
 pub const LAGGED_EVENT: &str = "lagged";
 pub const CHANGED_EVENT: &str = "changed";
+/// La tarea se eliminó: el tablero la descarta sin pedirla de nuevo.
+pub const REMOVED_EVENT: &str = "removed";
+const LAST_EVENT_ID_HEADER: &str = "last-event-id";
+
+#[derive(Debug, Default, Deserialize)]
+struct ReplayQuery {
+    after: Option<String>,
+}
+
+fn parse_seq(raw: &str) -> Option<i64> {
+    raw.trim().parse::<i64>().ok().filter(|seq: &i64| *seq >= 0)
+}
+
+/// Cursor de reanudación: `Last-Event-ID` manda sobre `?after=`; valores inválidos se ignoran.
+pub fn parse_replay_cursor(last_event_id: Option<&str>, after: Option<&str>) -> Option<i64> {
+    last_event_id
+        .and_then(parse_seq)
+        .or_else(|| after.and_then(parse_seq))
+}
 
 /// Los navegadores descartan eventos SSE sin datos (y axum omite `data:` si está vacío),
 /// así que los eventos de control llevan su nombre como dato.
@@ -48,8 +71,12 @@ where
 
 fn to_sse(event: TaskEvent) -> Event {
     let dto: TaskEventDto = TaskEventDto::from(event);
+    let seq: Option<i64> = dto.seq;
     match serde_json::to_string(&dto) {
-        Ok(json) => Event::default().data(json),
+        Ok(json) => match seq {
+            Some(seq) => Event::default().id(seq.to_string()).data(json),
+            None => Event::default().data(json),
+        },
         Err(error) => Event::default().event("error").data(error.to_string()),
     }
 }
@@ -87,14 +114,17 @@ fn is_board_relevant(kind: &TaskEventKind) -> bool {
 }
 
 /// Filtra el stream en vivo para el tablero: un `changed` con el id de la tarea por cada
-/// evento de estado o de agente relevante (diálogo abierto/resuelto, proceso terminado).
+/// evento de estado o de agente relevante (diálogo abierto/resuelto, proceso terminado) y
+/// un `removed` con el id cuando la tarea se elimina.
 pub fn board_event(item: Result<TaskEvent, BroadcastStreamRecvError>) -> Option<Event> {
     match item {
-        Ok(event) if is_board_relevant(&event.kind) => Some(
-            Event::default()
-                .event(CHANGED_EVENT)
-                .data(event.task_id.to_string()),
-        ),
+        Ok(event) if is_board_relevant(&event.kind) => {
+            let name: &'static str = match event.kind {
+                TaskEventKind::Removed => REMOVED_EVENT,
+                _ => CHANGED_EVENT,
+            };
+            Some(Event::default().event(name).data(event.task_id.to_string()))
+        }
         Ok(_) => None,
         Err(BroadcastStreamRecvError::Lagged(_)) => Some(control_event(LAGGED_EVENT)),
     }
@@ -113,6 +143,8 @@ async fn stream_board_events(
 async fn stream_task_events(
     State(context): State<TasksContext>,
     Path(id): Path<String>,
+    Query(query): Query<ReplayQuery>,
+    headers: HeaderMap,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, (StatusCode, String)> {
     let task_id: TaskId =
         TaskId::parse(&id).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
@@ -125,16 +157,25 @@ async fn stream_task_events(
             other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
         })?;
 
+    let last_event_id: Option<&str> = headers
+        .get(LAST_EVENT_ID_HEADER)
+        .and_then(|value: &axum::http::HeaderValue| value.to_str().ok());
+    let cursor: Option<i64> = parse_replay_cursor(last_event_id, query.after.as_deref());
+
     // Suscribirse antes de leer el historial evita perder eventos intermedios.
     let receiver: tokio::sync::broadcast::Receiver<TaskEvent> = context.event_bus.subscribe();
     let history: Vec<TaskEvent> = context
         .get_task_events
-        .execute(task_id, None)
+        .execute(task_id, cursor)
         .await
         .map_err(|e: TaskError| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let last_seq: Option<i64> = history.last().and_then(|event: &TaskEvent| event.seq);
+    let last_seq: Option<i64> = history
+        .last()
+        .and_then(|event: &TaskEvent| event.seq)
+        .or(cursor);
 
-    let reset = stream::once(async { control_event(RESET_EVENT) });
+    // Con cursor el cliente conserva su transcript: no se reinicia.
+    let reset = stream::iter(cursor.is_none().then(|| control_event(RESET_EVENT)));
     let past = stream::iter(history.into_iter().map(to_sse));
     let live = BroadcastStream::new(receiver)
         .filter_map(move |item| async move { live_event(item, task_id, last_seq) });
@@ -158,6 +199,26 @@ mod tests {
             },
             created_at: chrono::Utc::now(),
         }
+    }
+
+    #[test]
+    fn replay_cursor_prefers_header_and_ignores_invalid_values() {
+        assert_eq!(parse_replay_cursor(None, None), None);
+        assert_eq!(parse_replay_cursor(Some("12"), Some("3")), Some(12));
+        assert_eq!(parse_replay_cursor(None, Some(" 3 ")), Some(3));
+        assert_eq!(parse_replay_cursor(Some("abc"), Some("3")), Some(3));
+        assert_eq!(parse_replay_cursor(Some("-1"), None), None);
+        assert_eq!(parse_replay_cursor(Some(""), Some("x")), None);
+        assert_eq!(parse_replay_cursor(Some("0"), None), Some(0));
+    }
+
+    #[test]
+    fn persisted_events_carry_id_and_ephemeral_do_not() {
+        let task_id: TaskId = TaskId::new();
+        let persisted: String = format!("{:?}", to_sse(event(task_id, Some(9))));
+        let ephemeral: String = format!("{:?}", to_sse(event(task_id, None)));
+        assert!(persisted.contains("id: 9"), "{persisted}");
+        assert!(!ephemeral.contains("id:"), "{ephemeral}");
     }
 
     #[test]
@@ -236,6 +297,20 @@ mod tests {
     #[test]
     fn board_forwards_lagged_as_control_event() {
         assert!(board_event(Err(BroadcastStreamRecvError::Lagged(2))).is_some());
+    }
+
+    #[test]
+    fn board_removal_is_a_removed_event_with_the_task_id() {
+        let event: TaskEvent = with_kind(TaskEventKind::Removed);
+        let task_id: TaskId = event.task_id;
+        let rendered: String = format!("{:?}", board_event(Ok(event)).expect("evento"));
+        assert!(rendered.contains(REMOVED_EVENT), "{rendered}");
+        assert!(rendered.contains(&task_id.to_string()), "{rendered}");
+        let changed: String = format!(
+            "{:?}",
+            board_event(Ok(with_kind(TaskEventKind::Changed))).expect("evento")
+        );
+        assert!(!changed.contains(REMOVED_EVENT), "{changed}");
     }
 
     #[test]

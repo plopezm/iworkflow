@@ -206,6 +206,17 @@ impl WorktreePort for GitCliWorktreeAdapter {
         build_diff(repo, &diff_spec, &log_range).await
     }
 
+    async fn diff_fingerprint(
+        &self,
+        repo: &Path,
+        base_branch: &str,
+        branch: &str,
+    ) -> Result<String, TaskError> {
+        // `base...branch` solo depende de las puntas de ambas ramas (merge-base incluido).
+        let shas: String = git(repo, &["rev-parse", base_branch, branch]).await?;
+        Ok(shas.split_whitespace().collect::<Vec<&str>>().join(":"))
+    }
+
     async fn pin_range(
         &self,
         repo: &Path,

@@ -15,7 +15,7 @@ use crate::modules::tasks::presentation::components::task_card::{
 };
 use crate::modules::tasks::presentation::components::task_modal::TaskModal;
 use crate::modules::tasks::presentation::state::board_state::{
-    BoardState, LaneView, build_lanes, combine_tasks, done_has_more, lane_ids,
+    BoardState, LaneView, build_lanes, combine_tasks, lane_ids,
 };
 
 #[component]
@@ -97,9 +97,15 @@ pub fn BoardPage() -> impl IntoView {
         }
     });
 
-    // Se actualiza dentro del `Suspend` de abajo (leer el resource fuera de
-    // Suspense/Transition provoca desajustes de hidratación).
-    let attention_count: RwSignal<usize> = RwSignal::new(0);
+    // Derivado del almacén compartido (señal, no `Resource`: no afecta a la hidratación).
+    let attention_count: Memo<usize> = Memo::new(move |_| {
+        state.store.active.with(|tasks: &Vec<TaskDto>| {
+            tasks
+                .iter()
+                .filter(|t: &&TaskDto| t.needs_attention)
+                .count()
+        })
+    });
     // Carriles ya calculados; viven fuera del `Suspend` y conservan el valor anterior
     // mientras se recarga, así el tablero no se reconstruye en cada refresco.
     let lanes: RwSignal<Vec<LaneView>> = RwSignal::new(Vec::new());
@@ -113,16 +119,19 @@ pub fn BoardPage() -> impl IntoView {
         let show_done: bool = state.show_done.get();
         let workspaces: Option<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
             state.workspaces.get();
-        let tasks: Option<Result<Vec<TaskDto>, ServerFnError>> = state.tasks.get();
-        let done: Option<Result<Vec<TaskDto>, ServerFnError>> = state.done_tasks.get();
-        let pages: usize = state.done_pages.get();
+        let tasks_failed: bool = state
+            .store
+            .tasks
+            .with(|r: &Option<Result<Vec<TaskDto>, ServerFnError>>| matches!(r, Some(Err(_))));
+        let active: Vec<TaskDto> = state.store.active.get();
+        let done: Vec<TaskDto> = state.store.done.get();
+        let more_done: bool = state.done_has_more.get();
+        let tasks_loaded: bool = state.store.loaded.get();
         // Un fallo al cargar las finalizadas no debe ocultar las tareas activas: se pinta el
         // tablero sin ellas.
-        let done: Option<Vec<TaskDto>> =
-            done.map(|loaded: Result<Vec<TaskDto>, ServerFnError>| loaded.unwrap_or_default());
-        match (workspaces, tasks, done) {
-            (Some(Ok(workspaces)), Some(Ok(active)), Some(done)) => {
-                has_more_done.set(show_done && done_has_more(done.len(), pages));
+        match (workspaces, tasks_loaded && !tasks_failed) {
+            (Some(Ok(workspaces)), true) => {
+                has_more_done.set(show_done && more_done);
                 let tasks: Vec<TaskDto> = combine_tasks(&active, &done);
                 let next: Vec<LaneView> = build_lanes(&tasks, &workspaces, stage_filter, show_done);
                 if lanes.with_untracked(|current: &Vec<LaneView>| *current != next) {
@@ -130,7 +139,8 @@ pub fn BoardPage() -> impl IntoView {
                 }
                 loaded.set(true);
             }
-            (Some(Err(_)), _, _) | (_, Some(Err(_)), _) => loaded.set(false),
+            (Some(Err(_)), _) => loaded.set(false),
+            _ if tasks_failed => loaded.set(false),
             // Recargando: se conserva el tablero anterior.
             _ => {}
         }
@@ -161,12 +171,8 @@ pub fn BoardPage() -> impl IntoView {
                 if let Err(e) = state.workspaces.await {
                     return view! { <ErrorText message=e.to_string() /> }.into_any();
                 }
-                match state.tasks.await {
-                    Ok(tasks) => {
-                        attention_count
-                            .set(tasks.iter().filter(|t: &&TaskDto| t.needs_attention).count());
-                    }
-                    Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
+                if let Err(e) = state.store.tasks.await {
+                    return view! { <ErrorText message=e.to_string() /> }.into_any();
                 }
                 match state.done_tasks.await {
                     Ok(_) => ().into_any(),

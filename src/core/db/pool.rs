@@ -14,8 +14,8 @@ pub type DbConnection = Object<DbConnectionRaw>;
 pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 /// Ajustes aplicados a cada conexión SQLite nueva.
-const CONNECTION_PRAGMAS: &str =
-    "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;";
+const CONNECTION_PRAGMAS: &str = "PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; \
+     PRAGMA synchronous = NORMAL; PRAGMA temp_store = MEMORY;";
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
@@ -64,4 +64,52 @@ pub async fn run_migrations(pool: &DbPool) -> Result<(), DbError> {
         .run_pending_migrations(MIGRATIONS)
         .map_err(|e| DbError::Migration(e.to_string()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use diesel::QueryableByName;
+    use diesel::sql_types::Text;
+    use diesel_async::RunQueryDsl;
+
+    #[derive(QueryableByName)]
+    struct IntPragma {
+        #[diesel(sql_type = diesel::sql_types::BigInt)]
+        value: i64,
+    }
+
+    #[derive(QueryableByName)]
+    struct TextPragma {
+        #[diesel(sql_type = Text)]
+        value: String,
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn pooled_connection_applies_performance_pragmas() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let url: String = dir.path().join("pragmas.db").to_string_lossy().into_owned();
+        let pool: DbPool = build_pool(&url).expect("pool");
+        let mut conn: DbConnection = pool.get().await.expect("conn");
+
+        let synchronous: Vec<IntPragma> =
+            diesel::sql_query("SELECT synchronous AS value FROM pragma_synchronous")
+                .load(&mut conn)
+                .await
+                .expect("synchronous");
+        let temp_store: Vec<IntPragma> =
+            diesel::sql_query("SELECT temp_store AS value FROM pragma_temp_store")
+                .load(&mut conn)
+                .await
+                .expect("temp_store");
+        let journal: Vec<TextPragma> =
+            diesel::sql_query("SELECT journal_mode AS value FROM pragma_journal_mode")
+                .load(&mut conn)
+                .await
+                .expect("journal");
+
+        assert_eq!(synchronous[0].value, 1, "NORMAL");
+        assert_eq!(temp_store[0].value, 2, "MEMORY");
+        assert_eq!(journal[0].value, "wal");
+    }
 }

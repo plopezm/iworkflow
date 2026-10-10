@@ -1,8 +1,6 @@
-/// Imagen adjunta de una tarea con su contenido; `data` está codificada en base64.
+/// Contenido binario de una imagen adjunta de una tarea, listo para servirse tal cual.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskAttachmentContent {
-    pub id: String,
-    pub name: String,
     pub mime_type: String,
-    pub data: String,
+    pub bytes: Vec<u8>,
 }

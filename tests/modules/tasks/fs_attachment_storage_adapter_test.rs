@@ -203,3 +203,23 @@ async fn delete_task_dir_removes_only_that_task_and_is_idempotent() {
     assert!(storage.read(&path).await.is_err());
     assert!(storage.read(&other_path).await.is_ok());
 }
+
+#[tokio::test]
+async fn read_bytes_returns_raw_bytes_and_not_found_for_missing_or_escaping_paths() {
+    let dir: TempDir = tempfile::tempdir().expect("tempdir");
+    let storage: FsAttachmentStorageAdapter = adapter(&dir);
+    let task_id: TaskId = TaskId::new();
+    let path: String = storage
+        .save(task_id, "att-1", &image("image/png"))
+        .await
+        .expect("save");
+
+    let bytes: Vec<u8> = storage.read_bytes(&path).await.expect("read_bytes");
+    let missing: Result<Vec<u8>, TaskError> =
+        storage.read_bytes(&format!("{task_id}/nope.png")).await;
+    let escaping: Result<Vec<u8>, TaskError> = storage.read_bytes("../secret").await;
+
+    assert_eq!(bytes, BYTES);
+    assert!(matches!(missing, Err(TaskError::NotFound(_))));
+    assert!(matches!(escaping, Err(TaskError::Storage(_))));
+}
