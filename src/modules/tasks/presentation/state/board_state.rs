@@ -34,9 +34,18 @@ pub fn done_page_offset(page: usize) -> i64 {
     i64::try_from(page * DONE_PAGE_SIZE).unwrap_or(i64::MAX)
 }
 
-/// Puede haber más tareas finalizadas si la última página cargada vino completa.
-pub fn done_has_more(loaded: usize, pages: usize) -> bool {
-    pages > 0 && loaded >= pages * DONE_PAGE_SIZE
+/// Puede haber más tareas finalizadas si la última página recibida del servidor vino completa.
+/// `None` significa que no se ha cargado ninguna página; no depende de los parches de SSE.
+pub fn done_has_more(last_page_len: Option<usize>) -> bool {
+    last_page_len.is_some_and(|len: usize| len >= DONE_PAGE_SIZE)
+}
+
+/// Resultado de cargar las páginas de finalizadas.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub struct DonePages {
+    pub tasks: Vec<TaskDto>,
+    /// Filas de la última página pedida (antes de descartar duplicados); `None` si no hubo ninguna.
+    pub last_page_len: Option<usize>,
 }
 
 /// Une las tareas activas con las finalizadas ya cargadas (función pura). Si una tarea aparece
@@ -55,19 +64,18 @@ pub fn combine_tasks(active: &[TaskDto], done: &[TaskDto]) -> Vec<TaskDto> {
 /// Recorre las primeras `pages` páginas de finalizadas con `fetch(página)`, parando en la
 /// primera incompleta. El desplazamiento puede repetir filas entre páginas si el conjunto cambia
 /// mientras se carga, por eso se descartan los ids ya vistos.
-async fn collect_done_pages<F, Fut>(
-    pages: usize,
-    mut fetch: F,
-) -> Result<Vec<TaskDto>, ServerFnError>
+async fn collect_done_pages<F, Fut>(pages: usize, mut fetch: F) -> Result<DonePages, ServerFnError>
 where
     F: FnMut(usize) -> Fut,
     Fut: Future<Output = Result<Vec<TaskDto>, ServerFnError>>,
 {
     let mut done: Vec<TaskDto> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
+    let mut last_page_len: Option<usize> = None;
     for page in 0..pages {
         let batch: Vec<TaskDto> = fetch(page).await?;
         let complete: bool = batch.len() >= DONE_PAGE_SIZE;
+        last_page_len = Some(batch.len());
         done.extend(
             batch
                 .into_iter()
@@ -77,11 +85,14 @@ where
             break;
         }
     }
-    Ok(done)
+    Ok(DonePages {
+        tasks: done,
+        last_page_len,
+    })
 }
 
 /// Carga las primeras `pages` páginas de tareas finalizadas.
-async fn fetch_done_pages(pages: usize) -> Result<Vec<TaskDto>, ServerFnError> {
+async fn fetch_done_pages(pages: usize) -> Result<DonePages, ServerFnError> {
     collect_done_pages(pages, |page: usize| {
         list_done_tasks(None, DONE_PAGE_SIZE as i64, done_page_offset(page))
     })
@@ -252,7 +263,10 @@ pub struct BoardState {
     pub store: TaskStore,
     /// Carga de las finalizadas (vacío mientras `show_done` esté desactivado); su resultado
     /// se vuelca en `store.done`, que los eventos de SSE parchean sin recargar páginas.
-    pub done_tasks: Resource<Result<Vec<TaskDto>, ServerFnError>>,
+    pub done_tasks: Resource<Result<DonePages, ServerFnError>>,
+    /// Si la última página de finalizadas pedida al servidor vino completa; solo cambia al
+    /// cargar, no con los parches de SSE sobre `store.done`.
+    pub done_has_more: RwSignal<bool>,
     /// Páginas de finalizadas que se piden al servidor ("Cargar más" la incrementa).
     pub done_pages: RwSignal<usize>,
     pub workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>>,
@@ -329,20 +343,22 @@ impl BoardState {
         });
         // Solo se recarga al (des)activar `show_done`, pedir más páginas o en una recarga
         // completa del almacén; los `changed` sueltos parchean `store.done`.
-        let done_tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> = Resource::new(
+        let done_tasks: Resource<Result<DonePages, ServerFnError>> = Resource::new(
             move || (show_done.get(), done_pages.get(), store.reload_count()),
             |(show, pages, _)| async move {
                 if show {
                     fetch_done_pages(pages).await
                 } else {
-                    Ok(Vec::new())
+                    Ok(DonePages::default())
                 }
             },
         );
         // Vuelca la carga al almacén (solo cliente); no coordina llamadas al backend.
+        let has_more: RwSignal<bool> = RwSignal::new(false);
         Effect::new(move |_| {
             if let Some(Ok(loaded)) = done_tasks.get() {
-                store.done.set(loaded);
+                has_more.set(done_has_more(loaded.last_page_len));
+                store.done.set(loaded.tasks);
             }
         });
         let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = store.workspaces;
@@ -350,6 +366,7 @@ impl BoardState {
         Self {
             store,
             done_tasks,
+            done_has_more: has_more,
             done_pages,
             workspaces,
             stage_filter: RwSignal::new(None),
@@ -499,11 +516,14 @@ mod tests {
     fn done_paging_helpers() {
         assert_eq!(done_page_offset(0), 0);
         assert_eq!(done_page_offset(2), 100);
-        assert!(!done_has_more(0, 0));
-        assert!(!done_has_more(49, 1));
-        assert!(done_has_more(50, 1));
-        assert!(!done_has_more(50, 2));
-        assert!(done_has_more(100, 2));
+    }
+
+    #[test]
+    fn done_has_more_depends_only_on_last_fetched_page() {
+        assert!(!done_has_more(None));
+        assert!(!done_has_more(Some(0)));
+        assert!(!done_has_more(Some(DONE_PAGE_SIZE - 1)));
+        assert!(done_has_more(Some(DONE_PAGE_SIZE)));
     }
 
     #[test]
@@ -566,7 +586,7 @@ mod tests {
     #[tokio::test]
     async fn collect_done_pages_stops_at_first_short_page() {
         let mut calls: Vec<usize> = Vec::new();
-        let result: Vec<TaskDto> = collect_done_pages(5, |page: usize| {
+        let result: DonePages = collect_done_pages(5, |page: usize| {
             calls.push(page);
             let batch: Vec<TaskDto> = match page {
                 0 => full_page("p0-"),
@@ -583,12 +603,14 @@ mod tests {
         .expect("páginas");
 
         assert_eq!(calls, vec![0, 1]);
-        assert_eq!(result.len(), DONE_PAGE_SIZE + 1);
+        assert_eq!(result.tasks.len(), DONE_PAGE_SIZE + 1);
+        assert_eq!(result.last_page_len, Some(1));
+        assert!(!done_has_more(result.last_page_len));
     }
 
     #[tokio::test]
     async fn collect_done_pages_dedupes_rows_repeated_between_pages() {
-        let result: Vec<TaskDto> = collect_done_pages(2, |page: usize| {
+        let result: DonePages = collect_done_pages(2, |page: usize| {
             let mut batch: Vec<TaskDto> = full_page("p0-");
             if page == 1 {
                 batch = vec![task(
@@ -603,12 +625,38 @@ mod tests {
         .await
         .expect("páginas");
 
-        assert_eq!(result.len(), DONE_PAGE_SIZE);
+        assert_eq!(result.tasks.len(), DONE_PAGE_SIZE);
+    }
+
+    #[tokio::test]
+    async fn collect_done_pages_full_page_reports_more_and_empty_extra_page_does_not() {
+        let full: DonePages = collect_done_pages(1, |_page: usize| async { Ok(full_page("p-")) })
+            .await
+            .expect("páginas");
+        assert!(done_has_more(full.last_page_len));
+
+        let extra_empty: DonePages = collect_done_pages(2, |page: usize| {
+            let batch: Vec<TaskDto> = if page == 0 {
+                full_page("p-")
+            } else {
+                Vec::new()
+            };
+            async move { Ok(batch) }
+        })
+        .await
+        .expect("páginas");
+        assert_eq!(extra_empty.tasks.len(), DONE_PAGE_SIZE);
+        assert!(!done_has_more(extra_empty.last_page_len));
+
+        let none: DonePages = collect_done_pages(0, |_page: usize| async { Ok(Vec::new()) })
+            .await
+            .expect("páginas");
+        assert!(!done_has_more(none.last_page_len));
     }
 
     #[tokio::test]
     async fn collect_done_pages_propagates_errors() {
-        let result: Result<Vec<TaskDto>, ServerFnError> =
+        let result: Result<DonePages, ServerFnError> =
             collect_done_pages(2, |_page: usize| async { Err(ServerFnError::new("boom")) }).await;
 
         assert!(result.is_err());

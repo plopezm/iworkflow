@@ -15,7 +15,7 @@ use crate::modules::tasks::presentation::components::task_card::{
 };
 use crate::modules::tasks::presentation::components::task_modal::TaskModal;
 use crate::modules::tasks::presentation::state::board_state::{
-    BoardState, LaneView, build_lanes, combine_tasks, done_has_more, lane_ids,
+    BoardState, LaneView, build_lanes, combine_tasks, lane_ids,
 };
 
 #[component]
@@ -125,13 +125,13 @@ pub fn BoardPage() -> impl IntoView {
             .with(|r: &Option<Result<Vec<TaskDto>, ServerFnError>>| matches!(r, Some(Err(_))));
         let active: Vec<TaskDto> = state.store.active.get();
         let done: Vec<TaskDto> = state.store.done.get();
-        let pages: usize = state.done_pages.get();
+        let more_done: bool = state.done_has_more.get();
         let tasks_loaded: bool = state.store.loaded.get();
         // Un fallo al cargar las finalizadas no debe ocultar las tareas activas: se pinta el
         // tablero sin ellas.
         match (workspaces, tasks_loaded && !tasks_failed) {
             (Some(Ok(workspaces)), true) => {
-                has_more_done.set(show_done && done_has_more(done.len(), pages));
+                has_more_done.set(show_done && more_done);
                 let tasks: Vec<TaskDto> = combine_tasks(&active, &done);
                 let next: Vec<LaneView> = build_lanes(&tasks, &workspaces, stage_filter, show_done);
                 if lanes.with_untracked(|current: &Vec<LaneView>| *current != next) {
