@@ -263,6 +263,8 @@ impl TaskDetailState {
         struct SseState {
             connection: Option<Connection>,
             reconnect: Option<TimeoutHandle>,
+            /// Último `seq` persistido recibido: evita duplicados y permite reanudar con `?after=`.
+            last_seq: Option<i64>,
         }
 
         /// Cierra la conexión actual y cancela cualquier reapertura pendiente.
@@ -316,7 +318,12 @@ impl TaskDetailState {
                 status_version,
                 removed,
             } = signals;
-            let Ok(source) = EventSource::new(url) else {
+            let resume_from: Option<i64> = slot.with_value(|state: &SseState| state.last_seq);
+            let full_url: String = match resume_from {
+                Some(seq) => format!("{url}?after={seq}"),
+                None => url.to_string(),
+            };
+            let Ok(source) = EventSource::new(&full_url) else {
                 connected.set(false);
                 return;
             };
@@ -328,6 +335,15 @@ impl TaskDetailState {
                     return;
                 };
                 if let Ok(event) = serde_json::from_str::<TaskEventDto>(&data) {
+                    if let Some(seq) = event.seq {
+                        let seen: bool = slot.with_value(|state: &SseState| {
+                            state.last_seq.is_some_and(|last: i64| seq <= last)
+                        });
+                        if seen {
+                            return;
+                        }
+                        slot.update_value(|state: &mut SseState| state.last_seq = Some(seq));
+                    }
                     match event.kind {
                         TaskEventKindDto::Status { .. } | TaskEventKindDto::Changed => {
                             status_version.update(|v: &mut u32| *v += 1);
@@ -339,6 +355,7 @@ impl TaskDetailState {
                 }
             });
             let on_reset: Handler = Closure::new(move |_: Event| {
+                slot.update_value(|state: &mut SseState| state.last_seq = None);
                 transcript.set(Transcript::default());
                 connected.set(true);
             });
@@ -354,7 +371,7 @@ impl TaskDetailState {
             });
             let lagged_url: String = url.to_string();
             let on_lagged: Handler = Closure::new(move |_: Event| {
-                // Se perdieron eventos en vivo: se reabre para recibir el historial completo.
+                // Se perdieron eventos en vivo: se reabre y se reclama lo posterior al último `seq`.
                 schedule_reopen(std::time::Duration::ZERO, lagged_url.clone(), signals, slot);
             });
             source.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
