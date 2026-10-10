@@ -26,6 +26,13 @@ pub fn workspaces_area_key(pathname: &str) -> String {
     }
 }
 
+/// Una carga completa quedó obsoleta si, tras empezar, llegó un parche (`changed`/`removed`)
+/// y ya había datos: aplicarla pisaría el parche más reciente, así que se descarta y se
+/// vuelve a pedir. La primera carga siempre se aplica (los parches previos no tenían base).
+pub fn reload_is_stale(started_gen: u32, current_gen: u32, loaded: bool) -> bool {
+    loaded && started_gen != current_gen
+}
+
 /// Almacén compartido de tareas activas (y finalizadas visibles) y de opciones de
 /// workspace. Se crea una sola vez en el shell de la app, junto con la única suscripción
 /// SSE, y se consume por contexto desde la barra lateral y el tablero.
@@ -36,6 +43,10 @@ pub fn workspaces_area_key(pathname: &str) -> String {
 #[derive(Clone, Copy)]
 pub struct TaskStore {
     reload: RwSignal<u32>,
+    /// Parches aplicados hasta ahora (se incrementa en cada `changed`/`removed`).
+    patch_gen: RwSignal<u32>,
+    /// Valor de `patch_gen` cuando empezó la última carga completa.
+    load_started_gen: RwSignal<u32>,
     /// Lectura inicial (SSR/hidratación) y recargas completas de las tareas activas.
     pub tasks: Resource<Result<Vec<TaskDto>, ServerFnError>>,
     pub workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>>,
@@ -55,8 +66,15 @@ impl TaskStore {
     pub fn new() -> Self {
         let pathname: Memo<String> = use_location().pathname;
         let reload: RwSignal<u32> = RwSignal::new(0);
-        let tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> =
-            Resource::new(move || reload.get(), |_| list_tasks(None));
+        let patch_gen: RwSignal<u32> = RwSignal::new(0);
+        let load_started_gen: RwSignal<u32> = RwSignal::new(0);
+        let tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> = Resource::new(
+            move || reload.get(),
+            move |_| {
+                load_started_gen.set(patch_gen.get_untracked());
+                list_tasks(None)
+            },
+        );
         let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = Resource::new(
             move || {
                 (
@@ -68,6 +86,8 @@ impl TaskStore {
         );
         let store: Self = Self {
             reload,
+            patch_gen,
+            load_started_gen,
             tasks,
             workspaces,
             active: RwSignal::new(Vec::new()),
@@ -80,6 +100,15 @@ impl TaskStore {
         // en la señal que también modifican los parches de SSE.
         Effect::new(move |_| {
             if let Some(Ok(loaded)) = store.tasks.get() {
+                if reload_is_stale(
+                    store.load_started_gen.get_untracked(),
+                    store.patch_gen.get_untracked(),
+                    store.loaded.get_untracked(),
+                ) {
+                    // Un parche llegó durante la carga: se descarta y se repite.
+                    store.reload_all();
+                    return;
+                }
                 store.active.set(loaded);
                 store.loaded.set(true);
             }
@@ -107,7 +136,12 @@ impl TaskStore {
         }
     }
 
+    fn bump_patch_gen(&self) {
+        self.patch_gen.update(|n: &mut u32| *n = n.wrapping_add(1));
+    }
+
     fn remove_local(&self, id: &str) {
+        self.bump_patch_gen();
         let active: RwSignal<Vec<TaskDto>> = self.active;
         let done: RwSignal<Vec<TaskDto>> = self.done;
         let mut next_active: Vec<TaskDto> = active.get_untracked();
@@ -121,6 +155,7 @@ impl TaskStore {
     fn patch_local(&self, task: TaskDto) {
         use crate::modules::tasks::presentation::state::task_merge::apply_task_change;
 
+        self.bump_patch_gen();
         let mut next_active: Vec<TaskDto> = self.active.get_untracked();
         let mut next_done: Vec<TaskDto> = self.done.get_untracked();
         apply_task_change(
@@ -171,6 +206,14 @@ pub fn use_task_store() -> TaskStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reload_is_stale_only_when_patched_after_first_load() {
+        assert!(reload_is_stale(1, 2, true));
+        assert!(!reload_is_stale(2, 2, true));
+        assert!(!reload_is_stale(0, 5, false));
+        assert!(reload_is_stale(u32::MAX, 0, true));
+    }
 
     #[test]
     fn workspaces_key_is_stable_outside_the_workspaces_area() {

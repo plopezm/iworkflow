@@ -327,6 +327,7 @@ impl TaskDetailState {
             };
             let Ok(source) = EventSource::new(&full_url) else {
                 connected.set(false);
+                schedule_reopen(SSE_RECONNECT_DELAY, url.to_string(), signals, slot);
                 return;
             };
             let on_message: Handler = Closure::new(move |event: Event| {
