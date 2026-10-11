@@ -94,6 +94,19 @@ fn thinking_choices(levels: &[String], current: &str) -> Vec<String> {
     choices
 }
 
+/// Opciones de modelo ofrecidas para una fila: las del catálogo más el valor actual si no
+/// figura entre ellas (para no perderlo al renderizar).
+fn model_choices(options: &[SelectOption], current: &str) -> Vec<SelectOption> {
+    let mut choices: Vec<SelectOption> = options.to_vec();
+    if !current.is_empty() && !choices.iter().any(|o: &SelectOption| o.value == current) {
+        choices.push(SelectOption {
+            value: current.to_string(),
+            label: current.to_string(),
+        });
+    }
+    choices
+}
+
 /// Agentes que aún no tienen fila y se pueden añadir (`orchestrator` incluido), sin repetidos.
 fn addable_agents(roles: &[String], rows: &[RoutingRow]) -> Vec<String> {
     let mut candidates: Vec<String> = vec![ORCHESTRATOR_KEY.to_string()];
@@ -108,7 +121,7 @@ fn addable_agents(roles: &[String], rows: &[RoutingRow]) -> Vec<String> {
     result
 }
 
-/// Editor genérico de enrutado: una fila por agente con modelo (con sugerencias y texto libre)
+/// Editor genérico de enrutado: una fila por agente con modelo (desplegable del catálogo)
 /// y nivel de razonamiento. Mantiene un borrador local y lo entrega a `on_save`.
 #[component]
 pub fn RoutingEditor(
@@ -124,14 +137,9 @@ pub fn RoutingEditor(
     roles: Signal<Vec<String>>,
     on_save: Callback<Vec<RoutingRow>>,
     #[prop(into)] saving: Signal<bool>,
-    /// Prefijo único de los ids de `<datalist>` si hay varios editores en la página.
-    #[prop(into, default = "routing-editor".to_string())]
-    id: String,
 ) -> impl IntoView {
     let rows: RwSignal<Vec<RoutingRow>> = RwSignal::new(initial_rows);
     let to_add: RwSignal<String> = RwSignal::new(String::new());
-    let datalist_id: String = format!("{id}-models");
-    let datalist_ref: String = datalist_id.clone();
     let addable: Memo<Vec<String>> = Memo::new(move |_| {
         rows.with(|current: &Vec<RoutingRow>| {
             roles.with(|known: &Vec<String>| addable_agents(known, current))
@@ -164,17 +172,6 @@ pub fn RoutingEditor(
 
     view! {
         <div class="stack gap-3">
-            <datalist id=datalist_id>
-                {move || {
-                    model_options
-                        .get()
-                        .into_iter()
-                        .map(|option: SelectOption| {
-                            view! { <option value=option.value>{option.label}</option> }
-                        })
-                        .collect_view()
-                }}
-            </datalist>
             <ul class="stack gap-2">
                 <For
                     each=move || rows.get()
@@ -184,6 +181,8 @@ pub fn RoutingEditor(
                         let model_agent: String = agent.clone();
                         let thinking_agent: String = agent.clone();
                         let remove_agent: String = agent.clone();
+                        let model_current: String = row.model.clone();
+                        let model_selected: String = model_current.clone();
                         let thinking_current: String = row.thinking.clone();
                         let choices_current: String = thinking_current.clone();
                         view! {
@@ -205,20 +204,33 @@ pub fn RoutingEditor(
                                 </div>
                                 <label class="stack gap-1.5">
                                     <span class="text-sm font-medium text-fg">"Modelo"</span>
-                                    <input
-                                        type="text"
+                                    <select
                                         class="input"
-                                        list=datalist_ref.clone()
-                                        placeholder="proveedor/modelo (vacío = por defecto)"
-                                        prop:value=row.model.clone()
-                                        on:input=move |ev| {
+                                        on:change=move |ev| {
                                             let value: String = event_target_value(&ev);
                                             update_row(
                                                 &model_agent,
                                                 &|r: &mut RoutingRow| r.model = value.clone(),
                                             );
                                         }
-                                    />
+                                    >
+                                        <option value="" selected=model_current.is_empty()>
+                                            {INHERIT_LABEL}
+                                        </option>
+                                        {move || {
+                                            model_choices(&model_options.get(), &model_selected)
+                                                .into_iter()
+                                                .map(|option: SelectOption| {
+                                                    let selected: bool = option.value == model_selected;
+                                                    view! {
+                                                        <option value=option.value selected=selected>
+                                                            {option.label}
+                                                        </option>
+                                                    }
+                                                })
+                                                .collect_view()
+                                        }}
+                                    </select>
                                 </label>
                                 <label class="stack gap-1.5">
                                     <span class="text-sm font-medium text-fg">"Razonamiento"</span>
@@ -406,6 +418,20 @@ mod tests {
             thinking_choices(&levels, "ultra"),
             vec!["low".to_string(), "high".to_string(), "ultra".to_string()]
         );
+    }
+
+    #[test]
+    fn model_choices_keep_unknown_current_value() {
+        let known: Vec<SelectOption> = vec![SelectOption {
+            value: "p/m".to_string(),
+            label: "p/m".to_string(),
+        }];
+
+        assert_eq!(model_choices(&known, "p/m"), known);
+        assert_eq!(model_choices(&known, ""), known);
+        let extended: Vec<SelectOption> = model_choices(&known, "x/y");
+        assert_eq!(extended.len(), 2);
+        assert_eq!(extended[1].value, "x/y");
     }
 
     #[test]
