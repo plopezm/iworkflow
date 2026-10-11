@@ -181,8 +181,17 @@ pub fn RoutingEditor(
                         let model_agent: String = agent.clone();
                         let thinking_agent: String = agent.clone();
                         let remove_agent: String = agent.clone();
-                        let model_current: String = row.model.clone();
-                        let model_selected: String = model_current.clone();
+                        let model_agent_live: String = agent.clone();
+                        let current_model = move || -> String {
+                            rows.with(|current: &Vec<RoutingRow>| {
+                                current
+                                    .iter()
+                                    .find(|r: &&RoutingRow| r.agent == model_agent_live)
+                                    .map(|r: &RoutingRow| r.model.clone())
+                                    .unwrap_or_default()
+                            })
+                        };
+                        let blank_selected = current_model.clone();
                         let thinking_current: String = row.thinking.clone();
                         let choices_current: String = thinking_current.clone();
                         view! {
@@ -214,14 +223,15 @@ pub fn RoutingEditor(
                                             );
                                         }
                                     >
-                                        <option value="" selected=model_current.is_empty()>
+                                        <option value="" selected=move || blank_selected().is_empty()>
                                             {INHERIT_LABEL}
                                         </option>
                                         {move || {
-                                            model_choices(&model_options.get(), &model_selected)
+                                            let live: String = current_model();
+                                            model_choices(&model_options.get(), &live)
                                                 .into_iter()
                                                 .map(|option: SelectOption| {
-                                                    let selected: bool = option.value == model_selected;
+                                                    let selected: bool = option.value == live;
                                                     view! {
                                                         <option value=option.value selected=selected>
                                                             {option.label}
