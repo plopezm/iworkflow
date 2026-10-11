@@ -70,7 +70,8 @@ pub fn ProfilesPage() -> impl IntoView {
             <div class="flex shrink-0 items-center border-b border-border bg-surface px-4 py-2.5">
                 <h1 class="page-title">"Perfiles"</h1>
             </div>
-            <div class="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[18rem_1fr]">
+            <div class="min-h-0 flex-1 overflow-y-auto">
+            <div class="grid gap-4 p-4 lg:grid-cols-[18rem_1fr]">
                 <div class="stack">
                     <Card title="Perfiles">
                         <div class="row gap-2">
@@ -288,6 +289,7 @@ pub fn ProfilesPage() -> impl IntoView {
                             .into_any()
                     })}
                 </Transition>
+            </div>
             </div>
             <NameDialog
                 title=Signal::derive(move || match state.dialog.get() {
