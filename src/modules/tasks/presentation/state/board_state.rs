@@ -173,11 +173,19 @@ pub fn build_lanes(
     for lane in &mut lanes {
         // `sort_by` is stable: attention-first keeps the priority/age order within each group.
         lane.tasks.sort_by(|a: &TaskDto, b: &TaskDto| {
-            b.needs_attention.cmp(&a.needs_attention).then_with(|| {
-                b.priority
-                    .rank()
-                    .cmp(&a.priority.rank())
-                    .then_with(|| compare_created_at(&a.created_at, &b.created_at))
+            let a_done: bool = a.stage == TaskStageDto::Done;
+            let b_done: bool = b.stage == TaskStageDto::Done;
+            // Las finalizadas van al final y por finalización descendente (la última cerrada primero).
+            a_done.cmp(&b_done).then_with(|| {
+                if a_done {
+                    return compare_created_at(&b.updated_at, &a.updated_at);
+                }
+                b.needs_attention.cmp(&a.needs_attention).then_with(|| {
+                    b.priority
+                        .rank()
+                        .cmp(&a.priority.rank())
+                        .then_with(|| compare_created_at(&a.created_at, &b.created_at))
+                })
             })
         });
         lane.total = lane.tasks.len();
@@ -989,5 +997,52 @@ mod tests {
         let lanes: Vec<LaneView> = build_lanes(&tasks, &[], None, false);
 
         assert_eq!(lanes[0].workspace_name, "missing-ws");
+    }
+
+    #[test]
+    fn done_tasks_follow_active_ones_ordered_by_latest_completion_first() {
+        let mut old_urgent: TaskDto = task(
+            "done-old",
+            "ws-a",
+            TaskStageDto::Done,
+            "2026-01-01T00:00:00Z",
+        );
+        old_urgent.priority = TaskPriorityDto::Urgent;
+        old_urgent.created_at = "2025-12-01T00:00:00Z".to_string();
+        let mut last: TaskDto = task(
+            "done-last",
+            "ws-a",
+            TaskStageDto::Done,
+            "2026-01-05T00:00:00Z",
+        );
+        last.priority = TaskPriorityDto::Low;
+        last.created_at = "2025-12-31T00:00:00Z".to_string();
+        let mut middle: TaskDto = task(
+            "done-mid",
+            "ws-a",
+            TaskStageDto::Done,
+            "2026-01-03T00:00:00Z",
+        );
+        middle.created_at = "2025-12-15T00:00:00Z".to_string();
+        let working: TaskDto = task(
+            "working",
+            "ws-a",
+            TaskStageDto::Working,
+            "2026-01-02T00:00:00Z",
+        );
+
+        let lanes: Vec<LaneView> = build_lanes(
+            &[old_urgent, working, last, middle],
+            &[workspace("ws-a", "A")],
+            None,
+            true,
+        );
+
+        let ids: Vec<&str> = lanes[0]
+            .tasks
+            .iter()
+            .map(|t: &TaskDto| t.id.as_str())
+            .collect();
+        assert_eq!(ids, vec!["working", "done-last", "done-mid", "done-old"]);
     }
 }

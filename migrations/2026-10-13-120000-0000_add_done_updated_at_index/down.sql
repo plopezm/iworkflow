@@ -1,0 +1,1 @@
+DROP INDEX tasks_status_updated_at_idx;
