@@ -330,7 +330,12 @@ impl TaskDetailState {
                 schedule_reopen(SSE_RECONNECT_DELAY, url.to_string(), signals, slot);
                 return;
             };
+            let on_open: Handler = Closure::new(move |_: Event| connected.set(true));
             let on_message: Handler = Closure::new(move |event: Event| {
+                // Si llegan datos, la conexión está viva aunque no hubiera `open`/`reset`.
+                if !connected.get_untracked() {
+                    connected.set(true);
+                }
                 let Some(data) = event
                     .dyn_ref::<MessageEvent>()
                     .and_then(|m: &MessageEvent| m.data().as_string())
@@ -377,6 +382,7 @@ impl TaskDetailState {
                 // Se perdieron eventos en vivo: se reabre y se reclama lo posterior al último `seq`.
                 schedule_reopen(std::time::Duration::ZERO, lagged_url.clone(), signals, slot);
             });
+            source.set_onopen(Some(on_open.as_ref().unchecked_ref()));
             source.set_onmessage(Some(on_message.as_ref().unchecked_ref()));
             source.set_onerror(Some(on_error.as_ref().unchecked_ref()));
             let listeners: [(&str, &Handler); 2] = [("reset", &on_reset), ("lagged", &on_lagged)];
@@ -391,7 +397,7 @@ impl TaskDetailState {
             slot.update_value(|state: &mut SseState| {
                 state.connection = Some(Connection {
                     source,
-                    _handlers: vec![on_message, on_reset, on_error, on_lagged],
+                    _handlers: vec![on_open, on_message, on_reset, on_error, on_lagged],
                 });
             });
         }
