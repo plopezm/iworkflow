@@ -140,7 +140,8 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         let mut query = tasks::table
             .filter(tasks::status.eq_any(closed_status_names()))
             .select(TaskRow::as_select())
-            .order((tasks::created_at.desc(), tasks::id.desc()))
+            // `updated_at` no cambia tras el cierre, así que equivale al instante de finalización.
+            .order((tasks::updated_at.desc(), tasks::id.desc()))
             .limit(limit)
             .offset(offset)
             .into_boxed();

@@ -883,6 +883,7 @@ fn with_status(
     let mut t: Task = task(workspace_id, title);
     t.status = status;
     t.created_at = created_at;
+    t.updated_at = created_at;
     t
 }
 
@@ -975,4 +976,25 @@ async fn list_done_page_pages_newest_first_with_id_tiebreak_and_workspace_filter
     assert_eq!(everyone.len(), 6);
     assert_eq!(everyone[0], "other");
     assert!(!everyone.contains(&"live".to_string()));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn list_done_page_orders_by_completion_instead_of_creation() {
+    let db: common::TestDb = common::test_db().await;
+    let a: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let base: DateTime<Utc> = Utc::now().trunc_subsecs(6);
+    let at = |s: i64| base + chrono::Duration::seconds(s);
+    let ws: String = a.id.to_string();
+    let mut created_first: Task = with_status(&ws, "created-first", TaskStatus::Merged, at(1));
+    created_first.updated_at = at(30);
+    let mut created_last: Task = with_status(&ws, "created-last", TaskStatus::Merged, at(10));
+    created_last.updated_at = at(20);
+    for t in [&created_first, &created_last] {
+        adapter.insert(t).await.expect("insert");
+    }
+
+    let page: Vec<String> = titles(adapter.list_done_page(None, 10, 0).await.expect("page"));
+
+    assert_eq!(page, vec!["created-first", "created-last"]);
 }
