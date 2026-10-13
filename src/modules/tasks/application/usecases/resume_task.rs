@@ -59,6 +59,7 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded, WORKTREE};
+    use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
     use crate::modules::tasks::mocks::{
         MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockWorktree,
     };
@@ -97,7 +98,7 @@ mod tests {
             .times(1)
             .returning(move |_| {
                 Ok(LaunchOptions {
-                    runtime: runtime.map(str::to_string),
+                    runtime: runtime.map(|r: &str| RuntimeId::parse(r).expect("runtime válido")),
                     ..LaunchOptions::default()
                 })
             });
@@ -138,7 +139,7 @@ mod tests {
         runtime
             .expect_start()
             .withf(|_, _, resume: &bool, options: &LaunchOptions, _| {
-                *resume && options.runtime.as_deref() == Some("pi")
+                *resume && options.runtime.as_ref().map(RuntimeId::as_str) == Some("pi")
             })
             .times(1)
             .returning(|_, _, _, _, _| Ok(()));

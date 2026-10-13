@@ -1,0 +1,31 @@
+# Feature: agent-runtime-abstraction
+
+Decouple the tasks module from pi/gentle-shell so other agents (not necessarily RPC/stdio) can be added.
+Branch: `pi/actualmente-iworkflow-soporta-pi-y-gentl-82f5ddd7-3aa7-4ff7-89a6-8bed8186bb27` (current).
+
+Decisions:
+- `AgentRuntimePort` is the transport-neutral contract (no process/RPC notions). Process supervision + JSONL stay inside the pi adapter.
+- Capabilities are declared per runtime; unsupported commands are REJECTED with an explicit `TaskError` (no silent degradation).
+- Runtime selected by a typed `RuntimeId` (not `String`); an `AgentRuntimeRouter` implements the port and delegates per task.
+- pi and gentle-shell = one `PiRpcRuntimeAdapter` registered twice with different binaries.
+- Out of scope: gentle-pi profiles/pin, settings UI redesign (UI only adapts to `RuntimeId`).
+
+## Tasks
+
+- [x] 1. Domain contract + capability checks
+  - `RuntimeId` value object, `AgentCapabilities` (steer, follow_up, dialogs, model_selection, thinking_levels, resume), `TaskError::Unsupported`.
+  - Port: neutral docs (`resume` semantics owned by port), `capabilities(task_id)`; `LaunchOptions.runtime: Option<RuntimeId>`.
+  - `SendMessage`/`AnswerDialog`/resume/start use cases reject unsupported commands/options; update `mocks.rs`; unit tests (RED first).
+- [ ] 2. Pi adapter extraction
+  - Move `GentleShellRuntimeAdapter` + `rpc_protocol.rs` into `runtime/pi/` as `PiRpcRuntimeAdapter` (single binary per instance, no `program_for`); declares full capabilities.
+  - Update integration tests under `tests/modules/tasks/`.
+- [ ] 3. Router, registry and DI
+  - `AgentRuntimeRouter` (task -> adapter map recorded at `start`, default runtime), registered in `tasks_context.rs`; config passes binaries per runtime id.
+  - Model catalog: per-runtime registry replacing the `match` in `AgentCliModelCatalogAdapter`; runtime without catalog -> empty list.
+  - Router unit tests + DI wiring test.
+- [ ] 4. Full verification
+  - fmt, clippy ssr + hydrate, `cargo test --features ssr`, `cargo leptos build`; codegraph refreshed.
+
+## Evidence
+
+(pending)

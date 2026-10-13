@@ -41,6 +41,7 @@ use crate::modules::terminal::infrastructure::di::terminal_context::TerminalCont
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
+use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
@@ -309,10 +310,12 @@ impl LaunchSettingsPort for LaunchSettingsBridge {
             .execute(cwd)
             .await
             .map_err(|error: AgentSettingsError| TaskError::Runtime(error.to_string()))?;
+        let runtime: Option<RuntimeId> = preferences
+            .runtime
+            .map(|r: AgentRuntime| RuntimeId::parse(r.as_str()))
+            .transpose()?;
         Ok(LaunchOptions {
-            runtime: preferences
-                .runtime
-                .map(|r: AgentRuntime| r.as_str().to_string()),
+            runtime,
             model: preferences.model.map(|m: ModelRef| LaunchModel {
                 provider: m.provider,
                 model: m.model,

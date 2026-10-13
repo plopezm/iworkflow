@@ -2,15 +2,20 @@ use std::path::Path;
 use std::sync::Arc;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 
-/// Gestión de procesos de agente (gentle-shell en modo RPC), uno por tarea.
+/// Control de agentes de código, uno por tarea. El puerto no presupone cómo se
+/// comunica cada implementación con su agente.
 #[async_trait::async_trait]
 pub trait AgentRuntimePort: Send + Sync {
-    /// Lanza el agente en `cwd`. Con `resume` continúa la sesión previa de esa carpeta.
+    /// Lanza el agente en `cwd` y empieza a entregar sus eventos al `sink`.
+    ///
+    /// `resume` significa «continuar la sesión previa de esa carpeta, si el agente lo
+    /// soporta»; si no, se arranca una sesión nueva.
     async fn start(
         &self,
         task_id: TaskId,
@@ -20,11 +25,17 @@ pub trait AgentRuntimePort: Send + Sync {
         sink: Arc<dyn AgentEventSink>,
     ) -> Result<(), TaskError>;
 
+    /// Entrega una orden al agente de la tarea. Las órdenes que el agente no declara
+    /// en [`capabilities`](Self::capabilities) pueden rechazarse con `TaskError::Unsupported`.
     async fn send(&self, task_id: TaskId, command: AgentCommand) -> Result<(), TaskError>;
 
-    /// Cierra el agente de forma ordenada (o lo mata tras un tiempo) y espera a que termine.
-    /// Cuando devuelve, el evento `ProcessExited` ya se ha entregado al sink.
+    /// Detiene el agente de forma ordenada (forzándolo si tarda demasiado) y espera a
+    /// que termine. Cuando devuelve, el evento `ProcessExited` ya se ha entregado al sink.
     async fn stop(&self, task_id: TaskId) -> Result<(), TaskError>;
 
     async fn is_running(&self, task_id: TaskId) -> bool;
+
+    /// Capacidades del agente de la tarea. Para una tarea desconocida devuelve
+    /// `AgentCapabilities::minimal()`.
+    fn capabilities(&self, task_id: TaskId) -> AgentCapabilities;
 }

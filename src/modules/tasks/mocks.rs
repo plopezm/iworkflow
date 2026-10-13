@@ -4,6 +4,7 @@ use std::sync::Arc;
 use mockall::mock;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
@@ -124,6 +125,7 @@ mock! {
         async fn send(&self, task_id: TaskId, command: AgentCommand) -> Result<(), TaskError>;
         async fn stop(&self, task_id: TaskId) -> Result<(), TaskError>;
         async fn is_running(&self, task_id: TaskId) -> bool;
+        fn capabilities(&self, task_id: TaskId) -> AgentCapabilities;
     }
 }
 

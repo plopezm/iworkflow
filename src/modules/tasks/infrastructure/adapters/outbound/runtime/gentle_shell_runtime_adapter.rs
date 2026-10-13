@@ -14,9 +14,11 @@ use uuid::Uuid;
 
 use crate::core::env::{LoginShellInvocation, login_shell_invocation};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -82,7 +84,10 @@ impl GentleShellRuntimeAdapter {
 
     /// Ejecutable a lanzar: `pi` solo si se pidió y está configurado.
     fn program_for(&self, options: &LaunchOptions) -> &str {
-        match (options.runtime.as_deref(), &self.pi_program) {
+        match (
+            options.runtime.as_ref().map(RuntimeId::as_str),
+            &self.pi_program,
+        ) {
             (Some(PI_RUNTIME), Some(pi)) => pi,
             _ => &self.program,
         }
@@ -262,6 +267,10 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
         self.registry()
             .map(|registry| registry.contains_key(&task_id))
             .unwrap_or(false)
+    }
+
+    fn capabilities(&self, _task_id: TaskId) -> AgentCapabilities {
+        AgentCapabilities::full()
     }
 }
 

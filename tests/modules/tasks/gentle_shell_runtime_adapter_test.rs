@@ -6,6 +6,7 @@ use iworkflow::modules::tasks::domain::errors::task_error::TaskError;
 use iworkflow::modules::tasks::domain::models::agent_command::AgentCommand;
 use iworkflow::modules::tasks::domain::models::agent_event::{AgentEvent, DialogAnswer, DialogKind, NoticeLevel};
 use iworkflow::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
+use iworkflow::modules::tasks::domain::models::runtime_id::RuntimeId;
 use iworkflow::modules::tasks::domain::models::task::TaskId;
 use iworkflow::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use iworkflow::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -348,7 +349,7 @@ async fn launched_agent_for(runtime: Option<&str>) -> String {
         GentleShellRuntimeAdapter::new(named_agent(&dir, "gentle-shell"), named_agent(&dir, "pi"))
             .with_stop_timeout(Duration::from_millis(500));
     let options: LaunchOptions = LaunchOptions {
-        runtime: runtime.map(str::to_string),
+        runtime: runtime.map(|r: &str| RuntimeId::parse(r).expect("runtime válido")),
         ..LaunchOptions::default()
     };
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
