@@ -28,4 +28,4 @@ Decisions:
 
 ## Evidence
 
-(pending)
+- Task 1: `bcfccb2` — RED observed (10 compile errors on new capability tests); 397 lib tasks tests + 6 integration binaries, fmt, clippy ssr + hydrate ok. Resume capability check deferred to task 3 (needs runtime known before start).
