@@ -30,3 +30,4 @@ Decisions:
 
 - Task 1: `bcfccb2` — RED observed (10 compile errors on new capability tests); 397 lib tasks tests + 6 integration binaries, fmt, clippy ssr + hydrate ok. Resume capability check deferred to task 3 (needs runtime known before start).
 - Task 2: `0ec6d6a` — pure refactor, no RED applicable; 400 lib tasks tests + 6 integration binaries (pi_rpc_runtime_adapter_test 9), fmt, clippy ssr/hydrate/tests ok. TemporaryRuntimeSelector to be replaced in task 3.
+- Task 3: `84fe5c5` — router mutation-style RED (3 tests failed against a broken router; not genuine test-first); 406 tasks + 50 agent_settings lib tests, integration binaries ok, fmt, clippy ssr/hydrate/tests ok. TasksContext::new/AppState::new now return Result. Resume capability pre-check (capabilities_for) not implemented.
