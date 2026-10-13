@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -7,6 +8,7 @@ use crate::modules::agent_settings::application::usecases::list_models::ListMode
 use crate::modules::agent_settings::application::usecases::list_profiles::ListProfiles;
 use crate::modules::agent_settings::application::usecases::prepare_launch::PrepareLaunch;
 use crate::modules::agent_settings::application::usecases::update_agent_settings::UpdateAgentSettings;
+use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::ports::outbound::agent_settings_repository_port::AgentSettingsRepositoryPort;
 use crate::modules::agent_settings::domain::ports::outbound::model_catalog_port::ModelCatalogPort;
 use crate::modules::agent_settings::domain::ports::outbound::profile_catalog_port::ProfileCatalogPort;
@@ -36,10 +38,11 @@ impl AgentSettingsContext {
     pub fn new(pool: DbPool, settings: AgentSettingsSettings) -> Self {
         let repository: Arc<dyn AgentSettingsRepositoryPort> =
             Arc::new(AgentSettingsRepositoryAdapter::new(pool));
-        let model_catalog: Arc<dyn ModelCatalogPort> = Arc::new(AgentCliModelCatalogAdapter::new(
-            settings.gentle_shell_bin,
-            settings.pi_bin,
-        ));
+        let model_catalog: Arc<dyn ModelCatalogPort> =
+            Arc::new(AgentCliModelCatalogAdapter::new(HashMap::from([
+                (AgentRuntime::GentleShell, settings.gentle_shell_bin),
+                (AgentRuntime::Pi, settings.pi_bin),
+            ])));
         let profile_catalog: Arc<dyn ProfileCatalogPort> = Arc::new(
             ProfilesFileCatalogAdapter::new(settings.gentle_pi_config_home),
         );

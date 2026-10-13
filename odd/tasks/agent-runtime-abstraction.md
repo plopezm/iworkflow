@@ -19,7 +19,7 @@ Decisions:
 - [x] 2. Pi adapter extraction
   - Move `GentleShellRuntimeAdapter` + `rpc_protocol.rs` into `runtime/pi/` as `PiRpcRuntimeAdapter` (single binary per instance, no `program_for`); declares full capabilities.
   - Update integration tests under `tests/modules/tasks/`.
-- [ ] 3. Router, registry and DI
+- [x] 3. Router, registry and DI
   - `AgentRuntimeRouter` (task -> adapter map recorded at `start`, default runtime), registered in `tasks_context.rs`; config passes binaries per runtime id.
   - Model catalog: per-runtime registry replacing the `match` in `AgentCliModelCatalogAdapter`; runtime without catalog -> empty list.
   - Router unit tests + DI wiring test.

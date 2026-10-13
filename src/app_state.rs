@@ -70,7 +70,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: DbPool, config: &AppConfig) -> Self {
+    pub fn new(pool: DbPool, config: &AppConfig) -> Result<Self, TaskError> {
         let workspace_repository: Arc<dyn WorkspaceRepositoryPort> =
             Arc::new(WorkspaceRepositoryAdapter::new(pool.clone()));
         let get_workspace: Arc<GetWorkspace> =
@@ -123,7 +123,7 @@ impl AppState {
             },
             lookup,
             launch_settings,
-        );
+        )?;
         let workspace_tasks: Arc<dyn WorkspaceTasksPort> = Arc::new(WorkspaceTasksBridge {
             delete_workspace_tasks: tasks.delete_workspace_tasks.clone(),
         });
@@ -137,7 +137,7 @@ impl AppState {
             workspace_tasks,
             workspace_agents_files,
         );
-        Self {
+        Ok(Self {
             workspaces,
             tasks,
             agent_settings,
@@ -145,7 +145,7 @@ impl AppState {
             agents_files,
             terminal,
             project_tree,
-        }
+        })
     }
 
     /// Registra cada contexto de feature para las server functions y el SSR.

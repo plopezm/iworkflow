@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::process::Output;
 use std::time::Duration;
@@ -13,35 +14,32 @@ use crate::modules::agent_settings::domain::ports::outbound::model_catalog_port:
 const LIST_MODELS_TIMEOUT: Duration = Duration::from_secs(10);
 const LIST_MODELS_FLAG: &str = "--list-models";
 
-/// Lista los modelos disponibles ejecutando `<bin> --list-models`, donde `<bin>` es
-/// gentle-shell o pi según el runtime elegido.
+/// Lista los modelos disponibles ejecutando `<bin> --list-models`, donde `<bin>` es el binario
+/// registrado para el runtime elegido. Un runtime sin binario registrado no tiene modelos.
 pub struct AgentCliModelCatalogAdapter {
-    gentle_shell_bin: String,
-    pi_bin: String,
+    bins: HashMap<AgentRuntime, String>,
     timeout: Duration,
 }
 
 impl AgentCliModelCatalogAdapter {
-    pub fn new(gentle_shell_bin: impl Into<String>, pi_bin: impl Into<String>) -> Self {
+    pub fn new(bins: HashMap<AgentRuntime, String>) -> Self {
         Self {
-            gentle_shell_bin: gentle_shell_bin.into(),
-            pi_bin: pi_bin.into(),
+            bins,
             timeout: LIST_MODELS_TIMEOUT,
         }
     }
 
-    fn bin_for(&self, runtime: AgentRuntime) -> &str {
-        match runtime {
-            AgentRuntime::GentleShell => &self.gentle_shell_bin,
-            AgentRuntime::Pi => &self.pi_bin,
-        }
+    fn bin_for(&self, runtime: AgentRuntime) -> Option<&str> {
+        self.bins.get(&runtime).map(String::as_str)
     }
 }
 
 #[async_trait::async_trait]
 impl ModelCatalogPort for AgentCliModelCatalogAdapter {
     async fn list(&self, runtime: AgentRuntime) -> Result<Vec<ModelRef>, AgentSettingsError> {
-        let bin: &str = self.bin_for(runtime);
+        let Some(bin) = self.bin_for(runtime) else {
+            return Ok(Vec::new());
+        };
         let output: Output = tokio::time::timeout(
             self.timeout,
             list_models_command(bin, std::env::vars_os()).output(),
@@ -98,14 +96,32 @@ mod tests {
 
     #[test]
     fn picks_the_binary_of_the_selected_runtime() {
-        let adapter: AgentCliModelCatalogAdapter =
-            AgentCliModelCatalogAdapter::new("gentle-shell-bin", "pi-bin");
+        let adapter: AgentCliModelCatalogAdapter = both_runtimes("gentle-shell-bin", "pi-bin");
 
         assert_eq!(
             adapter.bin_for(AgentRuntime::GentleShell),
-            "gentle-shell-bin"
+            Some("gentle-shell-bin")
         );
-        assert_eq!(adapter.bin_for(AgentRuntime::Pi), "pi-bin");
+        assert_eq!(adapter.bin_for(AgentRuntime::Pi), Some("pi-bin"));
+    }
+
+    fn both_runtimes(gentle_shell: &str, pi: &str) -> AgentCliModelCatalogAdapter {
+        AgentCliModelCatalogAdapter::new(HashMap::from([
+            (AgentRuntime::GentleShell, gentle_shell.to_string()),
+            (AgentRuntime::Pi, pi.to_string()),
+        ]))
+    }
+
+    #[tokio::test]
+    async fn runtime_without_a_registered_binary_lists_no_models() {
+        let adapter: AgentCliModelCatalogAdapter = AgentCliModelCatalogAdapter::new(HashMap::from(
+            [(AgentRuntime::Pi, "/no/existe".to_string())],
+        ));
+
+        let models: Result<Vec<ModelRef>, AgentSettingsError> =
+            adapter.list(AgentRuntime::GentleShell).await;
+
+        assert_eq!(models, Ok(Vec::new()));
     }
 
     #[test]
@@ -151,8 +167,7 @@ mod tests {
              echo 'anthropic claude-5 200000 8192 yes yes'\n\
              if [ -n \"$CARGO_MANIFEST_DIR\" ]; then echo 'leak leaked 1 1 no no'; fi",
         );
-        let adapter: AgentCliModelCatalogAdapter =
-            AgentCliModelCatalogAdapter::new(bin.clone(), bin);
+        let adapter: AgentCliModelCatalogAdapter = both_runtimes(&bin, &bin);
 
         let models: Vec<ModelRef> = adapter.list(AgentRuntime::Pi).await.expect("list");
 
@@ -169,8 +184,7 @@ mod tests {
     async fn failing_binary_is_a_catalog_error() {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
         let bin: String = fake_bin(&dir, "echo boom >&2; exit 2");
-        let adapter: AgentCliModelCatalogAdapter =
-            AgentCliModelCatalogAdapter::new(bin.clone(), bin);
+        let adapter: AgentCliModelCatalogAdapter = both_runtimes(&bin, &bin);
 
         let result: Result<Vec<ModelRef>, AgentSettingsError> =
             adapter.list(AgentRuntime::GentleShell).await;

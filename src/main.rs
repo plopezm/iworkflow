@@ -28,7 +28,7 @@ async fn main() {
     let pool: DbPool = build_pool(&config.database_url).expect("pool de Postgres");
     run_migrations(&pool).await.expect("migraciones");
 
-    let state: AppState = AppState::new(pool, &config);
+    let state: AppState = AppState::new(pool, &config).expect("runtimes de agente");
     let interrupted: usize = state
         .tasks
         .reconcile_tasks

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::core::db::pool::DbPool;
 use crate::modules::tasks::application::services::queued_agent_event_sink::{
@@ -32,11 +32,7 @@ use crate::modules::tasks::application::usecases::send_message::SendMessage;
 use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::application::usecases::update_task::UpdateTask;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
-use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
-use crate::modules::tasks::domain::models::agent_command::AgentCommand;
-use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
-use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
@@ -55,91 +51,13 @@ use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retr
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_attachment_repository_adapter::TaskAttachmentRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::storage::fs_attachment_storage_adapter::FsAttachmentStorageAdapter;
+use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_runtime_router::AgentRuntimeRouter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::pi_rpc_runtime_adapter::PiRpcRuntimeAdapter;
 
-/// Identificador del runtime `pi` en `LaunchOptions::runtime`.
+/// Id de gentle-shell (runtime predeterminado); igual a `AgentRuntime::GentleShell.as_str()`.
+const GENTLE_SHELL_RUNTIME: &str = "gentle-shell";
+/// Id de pi; igual a `AgentRuntime::Pi.as_str()`.
 const PI_RUNTIME: &str = "pi";
-
-/// Puente temporal: elige entre dos adaptadores según `LaunchOptions::runtime` (por defecto
-/// gentle-shell) y recuerda la elección por tarea para delegar el resto de operaciones.
-struct TemporaryRuntimeSelector {
-    gentle_shell: Arc<dyn AgentRuntimePort>,
-    pi: Arc<dyn AgentRuntimePort>,
-    chosen: Mutex<HashMap<TaskId, Arc<dyn AgentRuntimePort>>>,
-}
-
-impl TemporaryRuntimeSelector {
-    fn new(gentle_shell: Arc<dyn AgentRuntimePort>, pi: Arc<dyn AgentRuntimePort>) -> Self {
-        Self {
-            gentle_shell,
-            pi,
-            chosen: Mutex::new(HashMap::new()),
-        }
-    }
-
-    fn adapter_for(&self, options: &LaunchOptions) -> Arc<dyn AgentRuntimePort> {
-        match options.runtime.as_ref().map(RuntimeId::as_str) {
-            Some(PI_RUNTIME) => self.pi.clone(),
-            _ => self.gentle_shell.clone(),
-        }
-    }
-
-    fn chosen(&self, task_id: TaskId) -> Result<Option<Arc<dyn AgentRuntimePort>>, TaskError> {
-        let chosen: MutexGuard<'_, HashMap<TaskId, Arc<dyn AgentRuntimePort>>> = self
-            .chosen
-            .lock()
-            .map_err(|_| TaskError::Runtime("registro de runtimes corrupto".to_string()))?;
-        Ok(chosen.get(&task_id).cloned())
-    }
-}
-
-#[async_trait::async_trait]
-impl AgentRuntimePort for TemporaryRuntimeSelector {
-    async fn start(
-        &self,
-        task_id: TaskId,
-        cwd: &Path,
-        resume: bool,
-        options: &LaunchOptions,
-        sink: Arc<dyn AgentEventSink>,
-    ) -> Result<(), TaskError> {
-        let adapter: Arc<dyn AgentRuntimePort> = self.adapter_for(options);
-        adapter.start(task_id, cwd, resume, options, sink).await?;
-        self.chosen
-            .lock()
-            .map_err(|_| TaskError::Runtime("registro de runtimes corrupto".to_string()))?
-            .insert(task_id, adapter);
-        Ok(())
-    }
-
-    async fn send(&self, task_id: TaskId, command: AgentCommand) -> Result<(), TaskError> {
-        match self.chosen(task_id)? {
-            Some(adapter) => adapter.send(task_id, command).await,
-            None => Err(TaskError::AgentNotRunning),
-        }
-    }
-
-    async fn stop(&self, task_id: TaskId) -> Result<(), TaskError> {
-        match self.chosen(task_id)? {
-            Some(adapter) => adapter.stop(task_id).await,
-            None => Ok(()),
-        }
-    }
-
-    async fn is_running(&self, task_id: TaskId) -> bool {
-        match self.chosen(task_id) {
-            Ok(Some(adapter)) => adapter.is_running(task_id).await,
-            _ => false,
-        }
-    }
-
-    fn capabilities(&self, task_id: TaskId) -> AgentCapabilities {
-        match self.chosen(task_id) {
-            Ok(Some(adapter)) => adapter.capabilities(task_id),
-            _ => AgentCapabilities::minimal(),
-        }
-    }
-}
 
 /// Configuración propia del feature de tareas.
 #[derive(Debug, Clone)]
@@ -189,20 +107,35 @@ impl TasksContext {
         settings: TasksSettings,
         workspaces: Arc<dyn WorkspaceLookupPort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
-    ) -> Self {
-        let gentle_shell: Arc<dyn AgentRuntimePort> =
-            Arc::new(PiRpcRuntimeAdapter::new(settings.gentle_shell_bin));
-        let pi: Arc<dyn AgentRuntimePort> = Arc::new(PiRpcRuntimeAdapter::new(settings.pi_bin));
-        let runtime: Arc<dyn AgentRuntimePort> =
-            Arc::new(TemporaryRuntimeSelector::new(gentle_shell, pi));
-        Self::with_runtime(
+    ) -> Result<Self, TaskError> {
+        let runtime: Arc<dyn AgentRuntimePort> = Arc::new(Self::build_router(
+            settings.gentle_shell_bin,
+            settings.pi_bin,
+        )?);
+        Ok(Self::with_runtime(
             pool,
             settings.worktrees_dir,
             settings.attachments_dir,
             workspaces,
             runtime,
             launch_settings,
-        )
+        ))
+    }
+
+    /// Registra gentle-shell (predeterminado) y pi.
+    fn build_router(
+        gentle_shell_bin: String,
+        pi_bin: String,
+    ) -> Result<AgentRuntimeRouter, TaskError> {
+        let gentle_shell_id: RuntimeId = RuntimeId::parse(GENTLE_SHELL_RUNTIME)?;
+        let pi_id: RuntimeId = RuntimeId::parse(PI_RUNTIME)?;
+        let mut runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>> = HashMap::new();
+        runtimes.insert(
+            gentle_shell_id.clone(),
+            Arc::new(PiRpcRuntimeAdapter::new(gentle_shell_bin)),
+        );
+        runtimes.insert(pi_id, Arc::new(PiRpcRuntimeAdapter::new(pi_bin)));
+        AgentRuntimeRouter::new(gentle_shell_id, runtimes)
     }
 
     /// Permite sustituir el runtime de agentes (tests de extremo a extremo).
@@ -324,67 +257,5 @@ impl TasksContext {
     /// Espera a que se persistan todos los eventos de agente ya aceptados.
     pub async fn flush_events(&self) {
         self.event_queue.flush().await;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::modules::tasks::mocks::MockAgentRuntime;
-
-    fn started_mock() -> MockAgentRuntime {
-        let mut mock: MockAgentRuntime = MockAgentRuntime::new();
-        mock.expect_start()
-            .times(1)
-            .returning(|_, _, _, _, _| Ok(()));
-        mock
-    }
-
-    fn untouched_mock() -> MockAgentRuntime {
-        let mut mock: MockAgentRuntime = MockAgentRuntime::new();
-        mock.expect_start().never();
-        mock
-    }
-
-    async fn start_with(selector: &TemporaryRuntimeSelector, runtime: Option<&str>) {
-        let options: LaunchOptions = LaunchOptions {
-            runtime: runtime.map(|r: &str| RuntimeId::parse(r).expect("runtime válido")),
-            ..LaunchOptions::default()
-        };
-        let sink: Arc<dyn AgentEventSink> =
-            Arc::new(crate::modules::tasks::mocks::MockAgentEventSink::new());
-        selector
-            .start(TaskId::new(), Path::new("/tmp"), false, &options, sink)
-            .await
-            .expect("start");
-    }
-
-    #[tokio::test]
-    async fn pi_runtime_selects_the_pi_adapter() {
-        let selector: TemporaryRuntimeSelector =
-            TemporaryRuntimeSelector::new(Arc::new(untouched_mock()), Arc::new(started_mock()));
-        start_with(&selector, Some("pi")).await;
-    }
-
-    #[tokio::test]
-    async fn default_and_gentle_shell_select_the_gentle_shell_adapter() {
-        for runtime in [None, Some("gentle-shell")] {
-            let selector: TemporaryRuntimeSelector =
-                TemporaryRuntimeSelector::new(Arc::new(started_mock()), Arc::new(untouched_mock()));
-            start_with(&selector, runtime).await;
-        }
-    }
-
-    #[tokio::test]
-    async fn unknown_task_is_not_running() {
-        let selector: TemporaryRuntimeSelector =
-            TemporaryRuntimeSelector::new(Arc::new(untouched_mock()), Arc::new(untouched_mock()));
-        let task_id: TaskId = TaskId::new();
-        assert!(!selector.is_running(task_id).await);
-        assert_eq!(
-            selector.send(task_id, AgentCommand::Abort).await,
-            Err(TaskError::AgentNotRunning)
-        );
-        assert_eq!(selector.stop(task_id).await, Ok(()));
     }
 }
