@@ -18,18 +18,15 @@ use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
-use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
-use crate::modules::tasks::infrastructure::adapters::outbound::runtime::rpc_protocol::{
+use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::rpc_protocol::{
     decode, encode,
 };
 
 /// Activa diálogos (`ask_user_*`) y widgets de actividad en gentle-shell.
 const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
-/// Identificador del runtime `pi` en `LaunchOptions::runtime`.
-const PI_RUNTIME: &str = "pi";
 const RESUME_FLAG: &str = "--continue";
 const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -43,33 +40,26 @@ struct AgentProcess {
 
 type Registry = Arc<Mutex<HashMap<TaskId, AgentProcess>>>;
 
-/// Lanza y controla procesos `gentle-shell --mode rpc`, uno por tarea.
-pub struct GentleShellRuntimeAdapter {
+/// Lanza y controla procesos de un agente que habla el protocolo RPC de pi
+/// (`<programa> --mode rpc`), uno por tarea.
+pub struct PiRpcRuntimeAdapter {
     program: String,
-    pi_program: Option<String>,
     base_args: Vec<String>,
     stop_timeout: Duration,
     processes: Registry,
     generations: AtomicU64,
 }
 
-impl GentleShellRuntimeAdapter {
-    /// Runtime real: `<gentle_shell_bin> --mode rpc`, o `<pi_bin> --mode rpc` cuando
-    /// la tarea pide el runtime `pi`.
-    pub fn new(gentle_shell_bin: impl Into<String>, pi_bin: impl Into<String>) -> Self {
-        let mut adapter: Self = Self::with_command(
-            gentle_shell_bin,
-            vec!["--mode".to_string(), "rpc".to_string()],
-        );
-        adapter.pi_program = Some(pi_bin.into());
-        adapter
+impl PiRpcRuntimeAdapter {
+    /// Runtime real: `<program> --mode rpc`.
+    pub fn new(program: impl Into<String>) -> Self {
+        Self::with_command(program, vec!["--mode".to_string(), "rpc".to_string()])
     }
 
     /// Runtime con un comando arbitrario que hable el protocolo RPC (útil en tests).
     pub fn with_command(program: impl Into<String>, base_args: Vec<String>) -> Self {
         Self {
             program: program.into(),
-            pi_program: None,
             base_args,
             stop_timeout: DEFAULT_STOP_TIMEOUT,
             processes: Arc::new(Mutex::new(HashMap::new())),
@@ -80,17 +70,6 @@ impl GentleShellRuntimeAdapter {
     pub fn with_stop_timeout(mut self, timeout: Duration) -> Self {
         self.stop_timeout = timeout;
         self
-    }
-
-    /// Ejecutable a lanzar: `pi` solo si se pidió y está configurado.
-    fn program_for(&self, options: &LaunchOptions) -> &str {
-        match (
-            options.runtime.as_ref().map(RuntimeId::as_str),
-            &self.pi_program,
-        ) {
-            (Some(PI_RUNTIME), Some(pi)) => pi,
-            _ => &self.program,
-        }
     }
 
     fn registry(&self) -> Result<MutexGuard<'_, HashMap<TaskId, AgentProcess>>, TaskError> {
@@ -160,7 +139,7 @@ fn thinking_args(options: &LaunchOptions) -> Vec<String> {
 }
 
 #[async_trait::async_trait]
-impl AgentRuntimePort for GentleShellRuntimeAdapter {
+impl AgentRuntimePort for PiRpcRuntimeAdapter {
     async fn start(
         &self,
         task_id: TaskId,
@@ -174,7 +153,7 @@ impl AgentRuntimePort for GentleShellRuntimeAdapter {
                 "el agente ya está en ejecución".to_string(),
             ));
         }
-        let program: &str = self.program_for(options);
+        let program: &str = &self.program;
         let mut command: Command = build_command(
             program,
             &self.base_args,

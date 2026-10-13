@@ -16,7 +16,7 @@ Decisions:
   - `RuntimeId` value object, `AgentCapabilities` (steer, follow_up, dialogs, model_selection, thinking_levels, resume), `TaskError::Unsupported`.
   - Port: neutral docs (`resume` semantics owned by port), `capabilities(task_id)`; `LaunchOptions.runtime: Option<RuntimeId>`.
   - `SendMessage`/`AnswerDialog`/resume/start use cases reject unsupported commands/options; update `mocks.rs`; unit tests (RED first).
-- [ ] 2. Pi adapter extraction
+- [x] 2. Pi adapter extraction
   - Move `GentleShellRuntimeAdapter` + `rpc_protocol.rs` into `runtime/pi/` as `PiRpcRuntimeAdapter` (single binary per instance, no `program_for`); declares full capabilities.
   - Update integration tests under `tests/modules/tasks/`.
 - [ ] 3. Router, registry and DI
