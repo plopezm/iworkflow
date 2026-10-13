@@ -398,6 +398,15 @@ fn to_workspace_error(error: AgentsFileError) -> WorkspaceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::tasks::infrastructure::di::tasks_context::{
+        GENTLE_SHELL_RUNTIME, PI_RUNTIME,
+    };
+
+    #[test]
+    fn tasks_runtime_ids_match_agent_settings_runtimes() {
+        assert_eq!(GENTLE_SHELL_RUNTIME, AgentRuntime::GentleShell.as_str());
+        assert_eq!(PI_RUNTIME, AgentRuntime::Pi.as_str());
+    }
 
     #[test]
     fn not_found_and_invalid_id_map_to_agents_file_not_found() {

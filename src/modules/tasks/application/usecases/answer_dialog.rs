@@ -28,6 +28,9 @@ impl AnswerDialog {
         if !task.status.has_live_agent() {
             return Err(invalid_state("responder diálogo", task.status));
         }
+        if !self.runtime.is_running(id).await {
+            return Err(TaskError::AgentNotRunning);
+        }
         if !self.runtime.capabilities(id).dialogs {
             return Err(TaskError::Unsupported(
                 "el agente no soporta diálogos interactivos".to_string(),
@@ -63,6 +66,7 @@ mod tests {
         let id: TaskId = task.id;
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_is_running().returning(|_| true);
         runtime
             .expect_capabilities()
             .returning(|_| AgentCapabilities::full());
@@ -105,6 +109,7 @@ mod tests {
         let task: Task = test_support::task(TaskStatus::Running);
         let id: TaskId = task.id;
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_is_running().returning(|_| true);
         runtime
             .expect_capabilities()
             .returning(|_| AgentCapabilities::minimal());
@@ -122,5 +127,28 @@ mod tests {
         .await;
 
         assert!(matches!(result, Err(TaskError::Unsupported(_))));
+    }
+
+    #[tokio::test]
+    async fn stopped_task_yields_agent_not_running_before_checking_capabilities() {
+        let task: Task = test_support::task(TaskStatus::Running);
+        let id: TaskId = task.id;
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_is_running().times(1).returning(|_| false);
+        runtime.expect_capabilities().never();
+        runtime.expect_send().never();
+
+        let result: Result<(), TaskError> = AnswerDialog::new(
+            test_support::lifecycle(Some(task), &Recorded::default()),
+            Arc::new(runtime),
+        )
+        .execute(
+            id,
+            "d1".to_string(),
+            DialogAnswer::Confirmed { confirmed: true },
+        )
+        .await;
+
+        assert_eq!(result, Err(TaskError::AgentNotRunning));
     }
 }

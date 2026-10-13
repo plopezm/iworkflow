@@ -14,6 +14,7 @@ use iworkflow::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogKind, DialogRequest,
 };
 use iworkflow::modules::tasks::domain::models::launch_options::LaunchOptions;
+use iworkflow::modules::tasks::domain::models::runtime_id::RuntimeId;
 use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
@@ -64,6 +65,10 @@ impl AgentRuntimePort for StubRuntime {
     }
 
     fn capabilities(&self, _task_id: TaskId) -> AgentCapabilities {
+        AgentCapabilities::minimal()
+    }
+
+    fn runtime_capabilities(&self, _runtime: Option<&RuntimeId>) -> AgentCapabilities {
         AgentCapabilities::minimal()
     }
 }

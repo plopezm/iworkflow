@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
@@ -13,12 +14,20 @@ use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRun
 
 const REGISTRY_POISONED: &str = "registro de runtimes corrupto";
 
+/// Adaptador elegido para una tarea y la generación del registro que lo creó.
+#[derive(Clone)]
+struct Chosen {
+    generation: u64,
+    adapter: Arc<dyn AgentRuntimePort>,
+}
+
 /// Enruta cada tarea al adaptador del runtime elegido en `LaunchOptions::runtime` (o al
 /// predeterminado) y recuerda la elección por tarea para delegar el resto de operaciones.
 pub struct AgentRuntimeRouter {
     default: RuntimeId,
     runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>>,
-    chosen: Mutex<HashMap<TaskId, Arc<dyn AgentRuntimePort>>>,
+    chosen: Mutex<HashMap<TaskId, Chosen>>,
+    generations: AtomicU64,
 }
 
 impl AgentRuntimeRouter {
@@ -36,7 +45,13 @@ impl AgentRuntimeRouter {
             default,
             runtimes,
             chosen: Mutex::new(HashMap::new()),
+            generations: AtomicU64::new(0),
         })
+    }
+
+    /// Runtime usado cuando `LaunchOptions::runtime` es `None`.
+    pub fn default_runtime(&self) -> &RuntimeId {
+        &self.default
     }
 
     fn resolve(&self, options: &LaunchOptions) -> Result<Arc<dyn AgentRuntimePort>, TaskError> {
@@ -47,12 +62,18 @@ impl AgentRuntimeRouter {
             .ok_or_else(|| TaskError::Unsupported(format!("runtime de agente desconocido: {id}")))
     }
 
-    fn chosen_for(&self, task_id: TaskId) -> Result<Option<Arc<dyn AgentRuntimePort>>, TaskError> {
-        let chosen: MutexGuard<'_, HashMap<TaskId, Arc<dyn AgentRuntimePort>>> = self
+    fn chosen_entry(&self, task_id: TaskId) -> Result<Option<Chosen>, TaskError> {
+        let chosen: MutexGuard<'_, HashMap<TaskId, Chosen>> = self
             .chosen
             .lock()
             .map_err(|_| TaskError::Runtime(REGISTRY_POISONED.to_string()))?;
         Ok(chosen.get(&task_id).cloned())
+    }
+
+    fn chosen_for(&self, task_id: TaskId) -> Result<Option<Arc<dyn AgentRuntimePort>>, TaskError> {
+        Ok(self
+            .chosen_entry(task_id)?
+            .map(|entry: Chosen| entry.adapter))
     }
 }
 
@@ -67,11 +88,25 @@ impl AgentRuntimePort for AgentRuntimeRouter {
         sink: Arc<dyn AgentEventSink>,
     ) -> Result<(), TaskError> {
         let adapter: Arc<dyn AgentRuntimePort> = self.resolve(options)?;
+        if let Some(recorded) = self.chosen_for(task_id)?
+            && recorded.is_running(task_id).await
+        {
+            return Err(TaskError::Runtime(
+                "el agente ya está en ejecución".to_string(),
+            ));
+        }
         adapter.start(task_id, cwd, resume, options, sink).await?;
+        let generation: u64 = self.generations.fetch_add(1, Ordering::Relaxed);
         self.chosen
             .lock()
             .map_err(|_| TaskError::Runtime(REGISTRY_POISONED.to_string()))?
-            .insert(task_id, adapter);
+            .insert(
+                task_id,
+                Chosen {
+                    generation,
+                    adapter,
+                },
+            );
         Ok(())
     }
 
@@ -82,16 +117,24 @@ impl AgentRuntimePort for AgentRuntimeRouter {
         }
     }
 
-    /// Poda la entrada solo si el adaptador confirma la parada, para poder reintentar si falla.
+    /// Poda la entrada solo si el adaptador confirma la parada, para poder reintentar si falla,
+    /// y solo si sigue siendo la misma generación: un `start` concurrente que la haya recreado
+    /// mientras se esperaba al adaptador no se borra.
     async fn stop(&self, task_id: TaskId) -> Result<(), TaskError> {
-        let Some(adapter) = self.chosen_for(task_id)? else {
+        let Some(entry) = self.chosen_entry(task_id)? else {
             return Ok(());
         };
-        adapter.stop(task_id).await?;
-        self.chosen
+        entry.adapter.stop(task_id).await?;
+        let mut chosen: MutexGuard<'_, HashMap<TaskId, Chosen>> = self
+            .chosen
             .lock()
-            .map_err(|_| TaskError::Runtime(REGISTRY_POISONED.to_string()))?
-            .remove(&task_id);
+            .map_err(|_| TaskError::Runtime(REGISTRY_POISONED.to_string()))?;
+        if chosen
+            .get(&task_id)
+            .is_some_and(|current: &Chosen| current.generation == entry.generation)
+        {
+            chosen.remove(&task_id);
+        }
         Ok(())
     }
 
@@ -109,6 +152,14 @@ impl AgentRuntimePort for AgentRuntimeRouter {
         match self.chosen_for(task_id) {
             Ok(Some(adapter)) => adapter.capabilities(task_id),
             _ => AgentCapabilities::minimal(),
+        }
+    }
+
+    fn runtime_capabilities(&self, runtime: Option<&RuntimeId>) -> AgentCapabilities {
+        let id: &RuntimeId = runtime.unwrap_or(&self.default);
+        match self.runtimes.get(id) {
+            Some(adapter) => adapter.runtime_capabilities(Some(id)),
+            None => AgentCapabilities::minimal(),
         }
     }
 }
@@ -289,6 +340,112 @@ mod tests {
         );
         assert_eq!(router.stop(task_id).await, Ok(()));
         assert_eq!(router.capabilities(task_id), AgentCapabilities::minimal());
+    }
+
+    #[tokio::test]
+    async fn start_is_rejected_while_the_recorded_adapter_still_runs() {
+        let mut shell: MockAgentRuntime = started_mock();
+        shell.expect_is_running().times(1).returning(|_| true);
+        let router: AgentRuntimeRouter = router(shell, untouched_mock()).expect("router");
+        let task_id: TaskId = TaskId::new();
+        start_with(&router, task_id, None).await.expect("start");
+
+        // `pi` es un mock sin `start` esperado: llamarlo haría fallar el test.
+        let result: Result<(), TaskError> = start_with(&router, task_id, Some("pi")).await;
+
+        assert_eq!(
+            result,
+            Err(TaskError::Runtime(
+                "el agente ya está en ejecución".to_string()
+            ))
+        );
+    }
+
+    #[tokio::test]
+    async fn start_is_allowed_again_once_the_recorded_adapter_stopped() {
+        let mut shell: MockAgentRuntime = started_mock();
+        shell.expect_is_running().times(1).returning(|_| false);
+        let mut pi: MockAgentRuntime = started_mock();
+        pi.expect_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        let router: AgentRuntimeRouter = router(shell, pi).expect("router");
+        let task_id: TaskId = TaskId::new();
+        start_with(&router, task_id, None).await.expect("start");
+
+        start_with(&router, task_id, Some("pi"))
+            .await
+            .expect("reinicio");
+
+        assert_eq!(router.capabilities(task_id), AgentCapabilities::full());
+    }
+
+    /// Runtime cuyo `stop` relanza la misma tarea a través del router, simulando un `start`
+    /// concurrente que se cuela mientras `stop` espera al adaptador.
+    struct RestartingOnStop {
+        router: Arc<std::sync::OnceLock<Arc<AgentRuntimeRouter>>>,
+        task_id: TaskId,
+    }
+
+    #[async_trait::async_trait]
+    impl AgentRuntimePort for RestartingOnStop {
+        async fn start(
+            &self,
+            _: TaskId,
+            _: &Path,
+            _: bool,
+            _: &LaunchOptions,
+            _: Arc<dyn AgentEventSink>,
+        ) -> Result<(), TaskError> {
+            Ok(())
+        }
+
+        async fn send(&self, _: TaskId, _: AgentCommand) -> Result<(), TaskError> {
+            Ok(())
+        }
+
+        async fn stop(&self, _: TaskId) -> Result<(), TaskError> {
+            let router: &Arc<AgentRuntimeRouter> = self.router.get().expect("router listo");
+            start_with(router, self.task_id, Some("pi")).await
+        }
+
+        async fn is_running(&self, _: TaskId) -> bool {
+            false
+        }
+
+        fn capabilities(&self, _: TaskId) -> AgentCapabilities {
+            AgentCapabilities::minimal()
+        }
+
+        fn runtime_capabilities(&self, _: Option<&RuntimeId>) -> AgentCapabilities {
+            AgentCapabilities::minimal()
+        }
+    }
+
+    #[tokio::test]
+    async fn stop_does_not_prune_an_entry_recreated_by_a_concurrent_start() {
+        let task_id: TaskId = TaskId::new();
+        let cell: Arc<std::sync::OnceLock<Arc<AgentRuntimeRouter>>> =
+            Arc::new(std::sync::OnceLock::new());
+        let mut pi: MockAgentRuntime = started_mock();
+        pi.expect_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        let mut runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>> = HashMap::new();
+        runtimes.insert(
+            id("gentle-shell"),
+            Arc::new(RestartingOnStop {
+                router: cell.clone(),
+                task_id,
+            }),
+        );
+        runtimes.insert(id("pi"), Arc::new(pi));
+        let router: Arc<AgentRuntimeRouter> =
+            Arc::new(AgentRuntimeRouter::new(id("gentle-shell"), runtimes).expect("router"));
+        assert!(cell.set(router.clone()).is_ok());
+        start_with(&router, task_id, None).await.expect("start");
+
+        router.stop(task_id).await.expect("stop");
+
+        assert_eq!(router.capabilities(task_id), AgentCapabilities::full());
     }
 
     #[test]

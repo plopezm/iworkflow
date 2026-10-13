@@ -5,6 +5,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 
@@ -38,4 +39,14 @@ pub trait AgentRuntimePort: Send + Sync {
     /// Capacidades del agente de la tarea. Para una tarea desconocida devuelve
     /// `AgentCapabilities::minimal()`.
     fn capabilities(&self, task_id: TaskId) -> AgentCapabilities;
+
+    /// Capacidades del runtime que se usaría para un arranque con `runtime` (`None` = el
+    /// predeterminado), consultables antes de `start`. Un runtime desconocido devuelve
+    /// `AgentCapabilities::minimal()`.
+    ///
+    /// Los casos de uso de arranque/reanudación la usan para aplicar las capacidades al
+    /// lanzar: `ResumeTask` rechaza con `TaskError::Unsupported` si falta `resume`, y ambos
+    /// quitan `LaunchOptions::model` si falta `model_selection` y `LaunchOptions::thinking`
+    /// si falta `thinking_levels` antes de llamar a `start`.
+    fn runtime_capabilities(&self, runtime: Option<&RuntimeId>) -> AgentCapabilities;
 }

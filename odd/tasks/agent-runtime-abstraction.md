@@ -25,6 +25,12 @@ Decisions:
   - Router unit tests + DI wiring test.
 - [x] 4. Full verification
   - fmt, clippy ssr + hydrate, `cargo test --features ssr`, `cargo leptos build`; codegraph refreshed.
+- [ ] 5. Fix native review findings (lineage review-7096ec7a931d786d, all non-blocking)
+  - SendMessage: check `is_running` before capabilities so a stopped task yields `AgentNotRunning`, not `Unsupported`.
+  - Router: reject `start` when the recorded adapter for that task is still running; `stop` must not prune an entry re-created by a concurrent `start` (generation check).
+  - Enforce capabilities at launch: port gets `runtime_capabilities(Option<&RuntimeId>)`; ResumeTask rejects with `Unsupported` if `resume` is missing; StartTask drops model/thinking the runtime does not support.
+  - Test `build_router` wiring (ids registered, default, unknown id rejected); test in `app_state.rs` that the local runtime id consts equal `AgentRuntime::as_str()`.
+  - Fix the task doc: DI wiring test claim (task 3) and wording consistency.
 
 ## Evidence
 

@@ -10,6 +10,7 @@ use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
@@ -126,6 +127,7 @@ mock! {
         async fn stop(&self, task_id: TaskId) -> Result<(), TaskError>;
         async fn is_running(&self, task_id: TaskId) -> bool;
         fn capabilities(&self, task_id: TaskId) -> AgentCapabilities;
+        fn runtime_capabilities<'a>(&self, runtime: Option<&'a RuntimeId>) -> AgentCapabilities;
     }
 }
 

@@ -55,9 +55,9 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_ru
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::pi_rpc_runtime_adapter::PiRpcRuntimeAdapter;
 
 /// Id de gentle-shell (runtime predeterminado); igual a `AgentRuntime::GentleShell.as_str()`.
-const GENTLE_SHELL_RUNTIME: &str = "gentle-shell";
+pub(crate) const GENTLE_SHELL_RUNTIME: &str = "gentle-shell";
 /// Id de pi; igual a `AgentRuntime::Pi.as_str()`.
-const PI_RUNTIME: &str = "pi";
+pub(crate) const PI_RUNTIME: &str = "pi";
 
 /// Configuración propia del feature de tareas.
 #[derive(Debug, Clone)]
@@ -257,5 +257,81 @@ impl TasksContext {
     /// Espera a que se persistan todos los eventos de agente ya aceptados.
     pub async fn flush_events(&self) {
         self.event_queue.flush().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+    use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
+    use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+    use crate::modules::tasks::domain::models::task::TaskId;
+    use crate::modules::tasks::mocks::MockAgentEventSink;
+
+    // Binarios inexistentes: estos tests nunca llegan a lanzar un proceso.
+    const SHELL_BIN: &str = "/nonexistent/iwf-test-gentle-shell";
+    const PI_BIN: &str = "/nonexistent/iwf-test-pi";
+
+    fn router() -> AgentRuntimeRouter {
+        TasksContext::build_router(SHELL_BIN.to_string(), PI_BIN.to_string()).expect("router")
+    }
+
+    async fn start_with(
+        router: &AgentRuntimeRouter,
+        runtime: Option<&str>,
+    ) -> Result<(), TaskError> {
+        let options: LaunchOptions = LaunchOptions {
+            runtime: runtime.map(|r: &str| RuntimeId::parse(r).expect("runtime válido")),
+            ..LaunchOptions::default()
+        };
+        let sink: Arc<dyn AgentEventSink> = Arc::new(MockAgentEventSink::new());
+        router
+            .start(TaskId::new(), Path::new("/tmp"), false, &options, sink)
+            .await
+    }
+
+    #[test]
+    fn registers_both_runtimes_with_full_capabilities() {
+        let router: AgentRuntimeRouter = router();
+        for raw in [GENTLE_SHELL_RUNTIME, PI_RUNTIME] {
+            let id: RuntimeId = RuntimeId::parse(raw).expect("runtime válido");
+            assert_eq!(
+                router.runtime_capabilities(Some(&id)),
+                AgentCapabilities::full()
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_runtime_has_minimal_capabilities() {
+        let codex: RuntimeId = RuntimeId::parse("codex").expect("runtime válido");
+        assert_eq!(
+            router().runtime_capabilities(Some(&codex)),
+            AgentCapabilities::minimal()
+        );
+    }
+
+    #[test]
+    fn default_runtime_is_gentle_shell() {
+        let gentle_shell: RuntimeId =
+            RuntimeId::parse(GENTLE_SHELL_RUNTIME).expect("runtime válido");
+
+        assert_eq!(router().default_runtime(), &gentle_shell);
+        assert_eq!(
+            router().runtime_capabilities(None),
+            AgentCapabilities::full()
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_runtime_id_is_rejected_as_unsupported() {
+        let result: Result<(), TaskError> = start_with(&router(), Some("codex")).await;
+
+        assert!(matches!(
+            result,
+            Err(TaskError::Unsupported(message)) if message.contains("codex")
+        ));
     }
 }

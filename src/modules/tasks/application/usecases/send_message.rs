@@ -40,6 +40,13 @@ impl SendMessage {
             (_, MessageMode::Steer) => AgentCommand::Steer { message, images },
             (_, MessageMode::FollowUp) => AgentCommand::FollowUp { message, images },
         };
+        if matches!(
+            command,
+            AgentCommand::Steer { .. } | AgentCommand::FollowUp { .. }
+        ) && !self.runtime.is_running(id).await
+        {
+            return Err(TaskError::AgentNotRunning);
+        }
         match &command {
             AgentCommand::Steer { .. } if !self.runtime.capabilities(id).steer => {
                 return Err(TaskError::Unsupported(
@@ -130,6 +137,8 @@ mod tests {
             message: "hola".to_string(),
             images: Vec::new(),
         });
+        steer.expect_is_running().returning(|_| true);
+        follow.expect_is_running().returning(|_| true);
         steer
             .expect_capabilities()
             .returning(|_| AgentCapabilities::full());
@@ -208,12 +217,25 @@ mod tests {
     async fn rejects_steer_and_follow_up_when_runtime_lacks_capability() {
         for mode in [MessageMode::Steer, MessageMode::FollowUp] {
             let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+            runtime.expect_is_running().returning(|_| true);
             runtime
                 .expect_capabilities()
                 .returning(|_| AgentCapabilities::minimal());
             runtime.expect_send().never();
             let result: Result<(), TaskError> = send(TaskStatus::Running, mode, runtime).await;
             assert!(matches!(result, Err(TaskError::Unsupported(_))));
+        }
+    }
+
+    #[tokio::test]
+    async fn stopped_task_yields_agent_not_running_before_checking_capabilities() {
+        for mode in [MessageMode::Steer, MessageMode::FollowUp] {
+            let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+            runtime.expect_is_running().times(1).returning(|_| false);
+            runtime.expect_capabilities().never();
+            runtime.expect_send().never();
+            let result: Result<(), TaskError> = send(TaskStatus::Running, mode, runtime).await;
+            assert_eq!(result, Err(TaskError::AgentNotRunning));
         }
     }
 
