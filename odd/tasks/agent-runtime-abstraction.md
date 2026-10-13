@@ -29,3 +29,4 @@ Decisions:
 ## Evidence
 
 - Task 1: `bcfccb2` — RED observed (10 compile errors on new capability tests); 397 lib tasks tests + 6 integration binaries, fmt, clippy ssr + hydrate ok. Resume capability check deferred to task 3 (needs runtime known before start).
+- Task 2: `0ec6d6a` — pure refactor, no RED applicable; 400 lib tasks tests + 6 integration binaries (pi_rpc_runtime_adapter_test 9), fmt, clippy ssr/hydrate/tests ok. TemporaryRuntimeSelector to be replaced in task 3.
