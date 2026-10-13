@@ -296,9 +296,19 @@ impl WorktreePort for GitCliWorktreeAdapter {
     async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError> {
         if path.exists() {
             let path_arg: String = path.to_string_lossy().into_owned();
-            git(repo, &["worktree", "remove", "--force", &path_arg]).await?;
-        } else {
-            git(repo, &["worktree", "prune"]).await?;
+            // Si la carpeta ya no es un worktree válido, se descarta por borrado.
+            if let Err(error) = git(repo, &["worktree", "remove", "--force", &path_arg]).await {
+                tracing::warn!(
+                    "no se pudo eliminar el worktree {}: {error}; se borra la carpeta",
+                    path.display()
+                );
+                tokio::fs::remove_dir_all(path).await.map_err(|e| {
+                    TaskError::Git(format!("no se pudo borrar {}: {e}", path.display()))
+                })?;
+            }
+        }
+        if let Err(error) = git(repo, &["worktree", "prune"]).await {
+            tracing::warn!("no se pudo ejecutar git worktree prune: {error}");
         }
         let reference: String = format!("refs/heads/{branch}");
         let exists: bool = git_raw(repo, &["rev-parse", "--verify", "--quiet", &reference])

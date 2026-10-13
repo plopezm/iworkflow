@@ -465,3 +465,18 @@ async fn diff_range_truncates_long_patches_like_diff() {
     assert_eq!(ranged.patch.len(), plain.patch.len());
     assert_eq!(ranged.patch, plain.patch);
 }
+
+#[tokio::test]
+async fn remove_deletes_folder_that_is_no_longer_a_worktree() {
+    let f: Fixture = fixture_with_worktree().await;
+    // Simula un worktree corrupto: la carpeta existe pero git ya no la reconoce.
+    std::fs::remove_file(f.worktree.join(".git")).expect("remove .git file");
+
+    f.adapter
+        .remove(&f.repo, &f.worktree, BRANCH)
+        .await
+        .expect("remove");
+
+    assert!(!f.worktree.exists());
+    assert_eq!(common::git(&f.repo, &["branch", "--list", BRANCH]), "");
+}
