@@ -23,7 +23,7 @@ Decisions:
   - `AgentRuntimeRouter` (task -> adapter map recorded at `start`, default runtime), registered in `tasks_context.rs`; config passes binaries per runtime id.
   - Model catalog: per-runtime registry replacing the `match` in `AgentCliModelCatalogAdapter`; runtime without catalog -> empty list.
   - Router unit tests + DI wiring test.
-- [ ] 4. Full verification
+- [x] 4. Full verification
   - fmt, clippy ssr + hydrate, `cargo test --features ssr`, `cargo leptos build`; codegraph refreshed.
 
 ## Evidence
