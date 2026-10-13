@@ -25,7 +25,7 @@ Decisions:
   - Router unit tests + DI wiring test.
 - [x] 4. Full verification
   - fmt, clippy ssr + hydrate, `cargo test --features ssr`, `cargo leptos build`; codegraph refreshed.
-- [ ] 5. Fix native review findings (lineage review-7096ec7a931d786d, all non-blocking)
+- [x] 5. Fix native review findings (lineage review-7096ec7a931d786d, all non-blocking)
   - SendMessage: check `is_running` before capabilities so a stopped task yields `AgentNotRunning`, not `Unsupported`.
   - Router: reject `start` when the recorded adapter for that task is still running; `stop` must not prune an entry re-created by a concurrent `start` (generation check).
   - Enforce capabilities at launch: port gets `runtime_capabilities(Option<&RuntimeId>)`; ResumeTask rejects with `Unsupported` if `resume` is missing; StartTask drops model/thinking the runtime does not support.
@@ -38,3 +38,4 @@ Decisions:
 - Task 2: `0ec6d6a` — pure refactor, no RED applicable; 400 lib tasks tests + 6 integration binaries (pi_rpc_runtime_adapter_test 9), fmt, clippy ssr/hydrate/tests ok. TemporaryRuntimeSelector to be replaced in task 3.
 - Task 3: `84fe5c5` — router mutation-style RED (3 tests failed against a broken router; not genuine test-first); 406 tasks + 50 agent_settings lib tests, integration binaries ok, fmt, clippy ssr/hydrate/tests ok. TasksContext::new/AppState::new now return Result. Resume capability pre-check (capabilities_for) not implemented.
 - Task 4: verified at `84fe5c5`; docs fix `bff0bf5`. fmt, clippy ssr+hydrate, full cargo test --features ssr (21 result lines, 0 failures, 828 lib), cargo leptos build ok; no forbidden imports in tasks domain/application. Not verified: real pi/gentle-shell binaries end to end; codegraph not refreshed.
+- Task 5: `95f337f` — RED observed (12 failing new tests); 844 lib tests + 20 integration binaries, fmt, clippy ssr/tests/hydrate ok. No process-spawn test for build_router (login shell always spawns). Real pi/gentle-shell binaries still not exercised end to end.
