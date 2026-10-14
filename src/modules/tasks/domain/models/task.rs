@@ -131,6 +131,11 @@ impl TaskStatus {
         matches!(self, TaskStatus::Merged | TaskStatus::Discarded)
     }
 
+    /// El worktree de la tarea existe en disco (ni pendiente de arrancar ni cerrada).
+    pub fn has_worktree(&self) -> bool {
+        !self.is_inactive()
+    }
+
     pub fn accepts_messages(&self) -> bool {
         self.has_live_agent()
     }
@@ -629,6 +634,17 @@ mod tests {
         assert!(!TaskStatus::Backlog.can_finish());
         assert!(!TaskStatus::Backlog.can_resume());
         assert!(!TaskStatus::Backlog.can_merge());
+    }
+
+    #[test]
+    fn worktree_exists_unless_backlog_merged_or_discarded() {
+        for status in TaskStatus::ALL {
+            let expected: bool = !matches!(
+                status,
+                TaskStatus::Backlog | TaskStatus::Merged | TaskStatus::Discarded
+            );
+            assert_eq!(status.has_worktree(), expected, "{status:?}");
+        }
     }
 
     #[test]

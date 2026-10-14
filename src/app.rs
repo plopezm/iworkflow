@@ -15,6 +15,7 @@ use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
 use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
 use crate::modules::tasks::presentation::state::task_store::TaskStore;
+use crate::modules::terminal::presentation::pages::new_task_terminal_page::NewTaskTerminalPage;
 use crate::modules::terminal::presentation::pages::new_terminal_page::NewTerminalPage;
 use crate::modules::terminal::presentation::pages::terminal_session_page::TerminalSessionPage;
 use crate::modules::terminal::presentation::pages::terminals_page::TerminalsPage;
@@ -126,6 +127,10 @@ pub fn App() -> impl IntoView {
                     <Route path=StaticSegment("profiles") view=ProfilesPage />
                     <Route path=StaticSegment("models") view=ModelsPage />
                     <Route path=(StaticSegment("tasks"), ParamSegment("id")) view=TaskDetailPage />
+                    <Route
+                        path=(StaticSegment("tasks"), ParamSegment("id"), StaticSegment("terminal"))
+                        view=NewTaskTerminalPage
+                    />
                     <Route
                         path=(StaticSegment("tasks"), ParamSegment("id"), StaticSegment("edit"))
                         view=TaskEditPage

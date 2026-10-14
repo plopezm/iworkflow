@@ -4,12 +4,14 @@ use mockall::mock;
 use uuid::Uuid;
 
 use crate::modules::terminal::domain::errors::terminal_error::TerminalError;
+use crate::modules::terminal::domain::models::task_target::TaskTarget;
 use crate::modules::terminal::domain::models::terminal_attachment::TerminalAttachment;
 use crate::modules::terminal::domain::models::terminal_session::TerminalSession;
 use crate::modules::terminal::domain::models::terminal_session_id::TerminalSessionId;
 use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
 use crate::modules::terminal::domain::models::workspace_target::WorkspaceTarget;
 use crate::modules::terminal::domain::ports::outbound::pty_port::PtyPort;
+use crate::modules::terminal::domain::ports::outbound::task_path_port::TaskPathPort;
 use crate::modules::terminal::domain::ports::outbound::workspace_path_port::WorkspacePathPort;
 
 mock! {
@@ -32,5 +34,14 @@ mock! {
     #[async_trait::async_trait]
     impl WorkspacePathPort for WorkspacePath {
         async fn resolve(&self, workspace_id: Uuid) -> Result<WorkspaceTarget, TerminalError>;
+    }
+}
+
+mock! {
+    pub TaskPath {}
+
+    #[async_trait::async_trait]
+    impl TaskPathPort for TaskPath {
+        async fn resolve(&self, task_id: Uuid) -> Result<TaskTarget, TerminalError>;
     }
 }

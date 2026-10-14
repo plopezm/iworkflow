@@ -165,6 +165,7 @@ pub struct TaskActionsDto {
     pub can_start: bool,
     pub can_edit: bool,
     pub can_delete: bool,
+    pub can_open_terminal: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -280,6 +281,7 @@ mod mapping {
                 can_start: status.can_start(),
                 can_edit: status.can_edit(),
                 can_delete: status.can_delete(),
+                can_open_terminal: status.has_worktree(),
             }
         }
     }
@@ -412,6 +414,17 @@ mod mapping {
                 diff_range: None,
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
+            }
+        }
+
+        #[test]
+        fn open_terminal_action_follows_worktree_existence() {
+            for status in TaskStatus::ALL {
+                assert_eq!(
+                    TaskActionsDto::from(&task(status)).can_open_terminal,
+                    status.has_worktree(),
+                    "{status:?}"
+                );
             }
         }
 
