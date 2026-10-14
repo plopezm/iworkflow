@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::core::browser::confirm;
+use crate::core::components::layout::Badge;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskActionsDto;
 
 /// Callbacks de las acciones sobre una tarea.
@@ -13,6 +14,7 @@ pub struct TaskActionHandlers {
     pub discard: Callback<()>,
     pub reset: Callback<()>,
     pub toggle_diff: Callback<()>,
+    pub show_subagents: Callback<()>,
 }
 
 /// Ejecuta `action` solo si el usuario confirma `message`.
@@ -31,6 +33,7 @@ pub fn TaskActions(
     handlers: TaskActionHandlers,
     #[prop(into)] diff_visible: Signal<bool>,
     #[prop(into)] busy: Signal<bool>,
+    #[prop(into)] subagents_active: Signal<u32>,
 ) -> impl IntoView {
     view! {
         <div class="row">
@@ -77,6 +80,13 @@ pub fn TaskActions(
                         </button>
                     }
                 })}
+            <button class="btn-secondary" on:click=move |_| handlers.show_subagents.run(())>
+                "Subagentes"
+                {move || {
+                    let active: u32 = subagents_active.get();
+                    (active > 0).then(|| view! { <Badge text=active.to_string() variant="info" /> })
+                }}
+            </button>
             {actions
                 .can_merge
                 .then(|| {

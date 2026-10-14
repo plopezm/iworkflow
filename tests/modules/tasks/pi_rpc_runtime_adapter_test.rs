@@ -6,6 +6,7 @@ use iworkflow::modules::tasks::domain::errors::task_error::TaskError;
 use iworkflow::modules::tasks::domain::models::agent_command::AgentCommand;
 use iworkflow::modules::tasks::domain::models::agent_event::{AgentEvent, DialogAnswer, DialogKind, NoticeLevel};
 use iworkflow::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
+use iworkflow::modules::tasks::domain::models::subagent_task::{SubagentStatus, SubagentTask};
 use iworkflow::modules::tasks::domain::models::task::TaskId;
 use iworkflow::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use iworkflow::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -382,4 +383,90 @@ async fn agent_does_not_inherit_the_server_environment() {
     let home: String = std::env::var("HOME").expect("HOME");
     assert!(is_notice_containing(&notice, "cargo=[]"));
     assert!(is_notice_containing(&notice, &format!("home=[{home}]")));
+}
+
+/// Agente en python que publica un widget `gentle-agents` por carga y sale. Si se lanza con
+/// `--continue` (reanudación) no publica nada.
+fn widget_script(payloads: &[&str]) -> Vec<String> {
+    let mut lines: Vec<String> = vec![
+        "import json, sys".to_string(),
+        "def emit(p):".to_string(),
+        "    sys.stdout.write(json.dumps({'type': 'extension_ui_request', 'id': 'w', \
+         'method': 'setWidget', 'widgetKey': 'gentle-agents', 'widgetLines': [p]}) + '\\n')"
+            .to_string(),
+        "    sys.stdout.flush()".to_string(),
+    ];
+    lines.push("if '--continue' not in sys.argv:".to_string());
+    lines.push("    pass".to_string());
+    lines.extend(
+        payloads
+            .iter()
+            .map(|payload: &&str| format!("    emit({payload:?})")),
+    );
+    vec!["-c".to_string(), lines.join("\n")]
+}
+
+const RUNNING_SNAPSHOT: &str = r#"{"schema":"gentle-agents.activity/v1","summary":{"running":1,"queued":0,"waiting":0,"finished":0},"tasks":[{"summary":{"id":"t1","agent":"explore","status":"running"},"thread":{"items":[]}}]}"#;
+const DONE_SNAPSHOT: &str = r#"{"schema":"gentle-agents.activity/v1","summary":{"running":0,"queued":0,"waiting":0,"finished":1},"tasks":[{"summary":{"id":"t1","agent":"explore","status":"completed","turns":4},"thread":{"items":[{"kind":"text","text":"listo"}]}}]}"#;
+
+async fn run_to_exit(
+    adapter: &PiRpcRuntimeAdapter,
+    task_id: TaskId,
+    cwd: &Path,
+    resume: bool,
+) -> Arc<CollectingSink> {
+    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
+    adapter
+        .start(
+            task_id,
+            cwd,
+            resume,
+            &LaunchOptions::default(),
+            sink.clone(),
+        )
+        .await
+        .expect("start");
+    sink.wait_for(|e| matches!(e, AgentEvent::ProcessExited { .. }))
+        .await;
+    sink
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn keeps_the_latest_valid_subagent_snapshot_after_the_agent_exits() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: PiRpcRuntimeAdapter = PiRpcRuntimeAdapter::with_command(
+        "python3",
+        widget_script(&[RUNNING_SNAPSHOT, DONE_SNAPSHOT, "no json"]),
+    );
+    let task_id: TaskId = TaskId::new();
+
+    run_to_exit(&adapter, task_id, dir.path(), false).await;
+
+    assert!(!adapter.is_running(task_id).await);
+    let tasks: Vec<SubagentTask> = adapter.subagents(task_id).await;
+    assert_eq!(tasks.len(), 1);
+    assert_eq!(tasks[0].status, SubagentStatus::Completed);
+    assert_eq!(tasks[0].turns, 4);
+    assert!(adapter.subagents(TaskId::new()).await.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_new_start_discards_the_previous_subagents() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let task_id: TaskId = TaskId::new();
+    let adapter: PiRpcRuntimeAdapter =
+        PiRpcRuntimeAdapter::with_command("python3", widget_script(&[DONE_SNAPSHOT]));
+    run_to_exit(&adapter, task_id, dir.path(), false).await;
+    assert_eq!(adapter.subagents(task_id).await.len(), 1);
+
+    // Reanudar (`--continue`): esta vez el agente no publica nada y el arranque descarta lo anterior.
+    run_to_exit(&adapter, task_id, dir.path(), true).await;
+    assert!(adapter.subagents(task_id).await.is_empty());
+}
+
+#[test]
+fn declares_the_subagents_capability() {
+    let adapter: PiRpcRuntimeAdapter = PiRpcRuntimeAdapter::new("pi");
+    assert!(adapter.capabilities(TaskId::new()).subagents);
+    assert!(adapter.runtime_capabilities(None).subagents);
 }

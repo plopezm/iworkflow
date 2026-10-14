@@ -6,6 +6,7 @@ use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
+use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 
@@ -35,6 +36,10 @@ pub trait AgentRuntimePort: Send + Sync {
     async fn stop(&self, task_id: TaskId) -> Result<(), TaskError>;
 
     async fn is_running(&self, task_id: TaskId) -> bool;
+
+    /// Último estado conocido de los subagentes de la tarea (se conserva tras terminar el
+    /// agente). Vacío si la tarea es desconocida o el runtime no declara `subagents`.
+    async fn subagents(&self, task_id: TaskId) -> Vec<SubagentTask>;
 
     /// Capacidades del agente de la tarea. Para una tarea desconocida devuelve
     /// `AgentCapabilities::minimal()`.

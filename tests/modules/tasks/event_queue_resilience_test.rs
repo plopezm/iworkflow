@@ -16,6 +16,7 @@ use iworkflow::modules::tasks::domain::models::agent_event::{
 use iworkflow::modules::tasks::domain::models::launch_options::LaunchOptions;
 use iworkflow::modules::tasks::domain::models::runtime_id::RuntimeId;
 use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
+use iworkflow::modules::tasks::domain::models::subagent_task::SubagentTask;
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
@@ -62,6 +63,10 @@ impl AgentRuntimePort for StubRuntime {
 
     async fn is_running(&self, _task_id: TaskId) -> bool {
         false
+    }
+
+    async fn subagents(&self, _task_id: TaskId) -> Vec<SubagentTask> {
+        Vec::new()
     }
 
     fn capabilities(&self, _task_id: TaskId) -> AgentCapabilities {

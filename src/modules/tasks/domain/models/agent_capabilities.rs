@@ -8,6 +8,8 @@ pub struct AgentCapabilities {
     pub model_selection: bool,
     pub thinking_levels: bool,
     pub resume: bool,
+    /// Expone la actividad de los subagentes lanzados por el agente.
+    pub subagents: bool,
 }
 
 impl AgentCapabilities {
@@ -20,6 +22,7 @@ impl AgentCapabilities {
             model_selection: true,
             thinking_levels: true,
             resume: true,
+            subagents: true,
         }
     }
 
@@ -32,6 +35,7 @@ impl AgentCapabilities {
             model_selection: false,
             thinking_levels: false,
             resume: false,
+            subagents: false,
         }
     }
 }
@@ -50,6 +54,7 @@ mod tests {
                 && caps.model_selection
                 && caps.thinking_levels
                 && caps.resume
+                && caps.subagents
         );
     }
 
@@ -62,7 +67,8 @@ mod tests {
                 || caps.dialogs
                 || caps.model_selection
                 || caps.thinking_levels
-                || caps.resume)
+                || caps.resume
+                || caps.subagents)
         );
     }
 }

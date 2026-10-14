@@ -19,11 +19,12 @@ use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
+use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::rpc_protocol::{
-    decode, encode,
+    decode, decode_subagent_tasks, encode,
 };
 
 /// Activa diálogos (`ask_user_*`) y widgets de actividad en gentle-shell.
@@ -41,6 +42,9 @@ struct AgentProcess {
 
 type Registry = Arc<Mutex<HashMap<TaskId, AgentProcess>>>;
 
+/// Última instantánea de subagentes por tarea; sobrevive a la salida del proceso.
+type SubagentStore = Arc<Mutex<HashMap<TaskId, Vec<SubagentTask>>>>;
+
 /// Lanza y controla procesos de un agente que habla el protocolo RPC de pi
 /// (`<programa> --mode rpc`), uno por tarea.
 pub struct PiRpcRuntimeAdapter {
@@ -48,6 +52,7 @@ pub struct PiRpcRuntimeAdapter {
     base_args: Vec<String>,
     stop_timeout: Duration,
     processes: Registry,
+    subagent_tasks: SubagentStore,
     generations: AtomicU64,
 }
 
@@ -64,6 +69,7 @@ impl PiRpcRuntimeAdapter {
             base_args,
             stop_timeout: DEFAULT_STOP_TIMEOUT,
             processes: Arc::new(Mutex::new(HashMap::new())),
+            subagent_tasks: Arc::new(Mutex::new(HashMap::new())),
             generations: AtomicU64::new(0),
         }
     }
@@ -182,6 +188,11 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
             kill_rx,
         };
 
+        // Un arranque nuevo descarta los subagentes de la ejecución anterior.
+        self.subagent_tasks
+            .lock()
+            .map_err(|_| TaskError::Runtime("subagentes corruptos".to_string()))?
+            .remove(&task_id);
         // Se registra antes de que el supervisor pueda intentar desregistrarse.
         let mut registry: MutexGuard<'_, HashMap<TaskId, AgentProcess>> = self.registry()?;
         let supervisor: JoinHandle<()> = tokio::spawn(supervise(
@@ -190,6 +201,7 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
             io,
             sink,
             self.processes.clone(),
+            self.subagent_tasks.clone(),
         ));
         registry.insert(
             task_id,
@@ -249,6 +261,13 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
             .unwrap_or(false)
     }
 
+    async fn subagents(&self, task_id: TaskId) -> Vec<SubagentTask> {
+        self.subagent_tasks
+            .lock()
+            .map(|store| store.get(&task_id).cloned().unwrap_or_default())
+            .unwrap_or_default()
+    }
+
     fn capabilities(&self, _task_id: TaskId) -> AgentCapabilities {
         AgentCapabilities::full()
     }
@@ -274,6 +293,7 @@ async fn supervise(
     io: ProcessIo,
     sink: Arc<dyn AgentEventSink>,
     registry: Registry,
+    subagent_tasks: SubagentStore,
 ) {
     let ProcessIo {
         mut child,
@@ -284,7 +304,7 @@ async fn supervise(
         mut kill_rx,
     } = io;
     let writer = write_commands(stdin, command_rx);
-    let reader = read_events(task_id, stdout, sink.clone());
+    let reader = read_events(task_id, stdout, sink.clone(), subagent_tasks);
     let logger: JoinHandle<()> = tokio::spawn(log_stderr(task_id, stderr));
     tokio::pin!(writer, reader);
 
@@ -347,7 +367,12 @@ async fn write_commands(mut stdin: ChildStdin, mut commands: mpsc::UnboundedRece
     // Al soltar stdin, pi recibe EOF y se apaga ordenadamente.
 }
 
-async fn read_events(task_id: TaskId, stdout: ChildStdout, sink: Arc<dyn AgentEventSink>) {
+async fn read_events(
+    task_id: TaskId,
+    stdout: ChildStdout,
+    sink: Arc<dyn AgentEventSink>,
+    subagent_tasks: SubagentStore,
+) {
     let mut reader: BufReader<ChildStdout> = BufReader::new(stdout);
     let mut buffer: Vec<u8> = Vec::new();
     loop {
@@ -356,7 +381,17 @@ async fn read_events(task_id: TaskId, stdout: ChildStdout, sink: Arc<dyn AgentEv
             Ok(0) => break,
             Ok(_) => {
                 let line: String = String::from_utf8_lossy(&buffer).into_owned();
-                for event in decode(line.trim_end_matches(['\n', '\r'])) {
+                let line: &str = line.trim_end_matches(['\n', '\r']);
+                // Antes de despachar: al llegar `SubagentsChanged` la instantánea ya está.
+                if let Some(snapshot) = decode_subagent_tasks(line) {
+                    match subagent_tasks.lock() {
+                        Ok(mut store) => {
+                            store.insert(task_id, snapshot);
+                        }
+                        Err(_) => tracing::warn!(%task_id, "subagentes corruptos; se descarta"),
+                    }
+                }
+                for event in decode(line) {
                     sink.handle(task_id, event).await;
                 }
             }

@@ -450,7 +450,7 @@ Lectura para Java: `matches!(x, A | B)` es un `switch` que devuelve `boolean`; l
 | `TaskAttachmentRepositoryPort` | Metadatos de imágenes adjuntas | `TaskAttachmentRepositoryAdapter` (Diesel) |
 | `AttachmentStoragePort` | Ficheros de imagen en disco | `FsAttachmentStorageAdapter` |
 | `WorktreePort` | `git worktree add`, commit, diff, `pin_range` / `diff_range` (diff de tareas integradas), merge, remove | `GitCliWorktreeAdapter` (ejecuta `git`) |
-| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea, sin presuponer el transporte; declara `AgentCapabilities` y rechaza con `TaskError::Unsupported` lo que no soporta | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) |
+| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea, sin presuponer el transporte; declara `AgentCapabilities` y rechaza con `TaskError::Unsupported` lo que no soporta; `subagents(task_id)` devuelve la actividad (`SubagentTask`) de los subagentes, vacía si el runtime no la ofrece (el adaptador pi decodifica `gentle-agents.activity/v1` y guarda en memoria la última instantánea; la UI la abre desde las acciones de la tarea) | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) |
 | `TaskEventPublisherPort` | Difundir eventos en vivo | `BroadcastTaskEventBus` (tokio broadcast) |
 | `WorkspaceLookupPort` | Consultar workspaces | `WorkspaceLookupBridge` (en `app_state.rs`) |
 | `LaunchSettingsPort` | Modelo/thinking a usar al lanzar | `LaunchSettingsBridge` |
