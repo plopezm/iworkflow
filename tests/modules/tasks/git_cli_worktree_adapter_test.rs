@@ -554,3 +554,25 @@ async fn remove_refuses_symlinks_that_escape_the_managed_root() {
     assert!(matches!(result, Err(TaskError::UnsafeWorktreePath(_))));
     assert!(outside.path().join("x.txt").exists());
 }
+
+#[tokio::test]
+async fn remove_parks_worktree_and_purges_it_in_background() {
+    let f: Fixture = fixture_with_worktree().await;
+    let heavy: PathBuf = f.worktree.join("target").join("debug");
+    std::fs::create_dir_all(&heavy).expect("mkdir");
+    std::fs::write(heavy.join("big.bin"), "x").expect("write");
+
+    f.adapter
+        .remove(&f.repo, &f.worktree, BRANCH)
+        .await
+        .expect("remove");
+
+    // La carpeta y el registro desaparecen al devolver; el borrado pesado va en segundo plano.
+    assert!(!f.worktree.exists());
+    assert!(!common::git(&f.repo, &["worktree", "list", "--porcelain"]).contains("1234-feature"));
+    assert_eq!(common::git(&f.repo, &["branch", "--list", BRANCH]), "");
+
+    f.adapter.wait_for_cleanup().await;
+    let trash: PathBuf = f._worktrees_dir.path().join(".trash");
+    assert_eq!(std::fs::read_dir(&trash).expect("trash").count(), 0);
+}

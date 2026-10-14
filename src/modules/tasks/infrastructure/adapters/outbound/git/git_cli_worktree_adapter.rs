@@ -13,12 +13,17 @@ const FALLBACK_USER_NAME: &str = "iworkflow";
 const FALLBACK_USER_EMAIL: &str = "iworkflow@localhost";
 /// Subcarpeta (dentro de la raíz de worktrees) para merges temporales.
 const MERGE_DIR: &str = ".merge";
+/// Subcarpeta (dentro de la raíz de worktrees) donde se aparcan los worktrees pendientes de
+/// borrado; evita esperar al borrado de `target/` (decenas de GB) dentro de la petición.
+const TRASH_DIR: &str = ".trash";
 
 /// Worktrees gestionados con la CLI de git bajo una carpeta raíz.
 pub struct GitCliWorktreeAdapter {
     root: PathBuf,
     /// Serializa los merges: todos escriben en la misma rama base y compiten por `index.lock`.
     merge_lock: tokio::sync::Mutex<()>,
+    /// Borrados en segundo plano de la papelera; se conservan para poder esperarlos.
+    trash_tasks: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
 
 impl GitCliWorktreeAdapter {
@@ -26,7 +31,89 @@ impl GitCliWorktreeAdapter {
         Self {
             root,
             merge_lock: tokio::sync::Mutex::new(()),
+            trash_tasks: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// Espera a que terminen los borrados en segundo plano lanzados hasta ahora.
+    pub async fn wait_for_cleanup(&self) {
+        let handles: Vec<tokio::task::JoinHandle<()>> = {
+            let mut guard = self
+                .trash_tasks
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            std::mem::take(&mut *guard)
+        };
+        for handle in handles {
+            if let Err(error) = handle.await {
+                tracing::warn!("el borrado en segundo plano de worktrees falló: {error}");
+            }
+        }
+    }
+
+    /// Aparca el worktree en la papelera (renombrado atómico), lo desregistra en git y lanza su
+    /// borrado en segundo plano. Devuelve `false` si no aplica (no registrado, bloqueado, fuera
+    /// de la raíz, rename imposible...) y hay que usar el borrado síncrono.
+    async fn defer_removal(&self, repo: &Path, path: &Path) -> bool {
+        let Ok(porcelain) = git(repo, &["worktree", "list", "--porcelain"]).await else {
+            return false;
+        };
+        if is_dead_worktree(&porcelain, path) || is_locked_worktree(&porcelain, path) {
+            return false;
+        }
+        if self.ensure_inside_root(path).await.is_err() {
+            return false;
+        }
+        let trash: PathBuf = self.root.join(TRASH_DIR);
+        let parked: PathBuf = trash.join(uuid::Uuid::new_v4().to_string());
+        if tokio::fs::create_dir_all(&trash).await.is_err() {
+            return false;
+        }
+        if let Err(error) = tokio::fs::rename(path, &parked).await {
+            tracing::warn!(
+                "no se pudo aparcar {} en la papelera ({error}); se borra de forma síncrona",
+                path.display()
+            );
+            return false;
+        }
+        // El gitdir apunta ya a una carpeta inexistente: prune elimina el registro.
+        if let Err(error) = git(repo, &["worktree", "prune"]).await {
+            tracing::warn!(
+                "no se pudo ejecutar git worktree prune tras aparcar el worktree: {error}"
+            );
+        }
+        let handle: tokio::task::JoinHandle<()> = tokio::spawn(purge_trash(trash));
+        let mut guard = self
+            .trash_tasks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        guard.retain(|task| !task.is_finished());
+        guard.push(handle);
+        true
+    }
+
+    /// Borrado síncrono: `git worktree remove --force` y, si git ya no lo reconoce, la carpeta.
+    async fn remove_now(&self, repo: &Path, path: &Path) -> Result<(), TaskError> {
+        let path_arg: String = path.to_string_lossy().into_owned();
+        if let Err(error) = git(repo, &["worktree", "remove", "--force", &path_arg]).await {
+            // Solo se descarta por borrado si git ya no considera la carpeta un worktree
+            // utilizable; cualquier otro fallo (bloqueado, permisos...) se propaga.
+            let porcelain: String = git(repo, &["worktree", "list", "--porcelain"])
+                .await
+                .map_err(|_| error.clone())?;
+            if !is_dead_worktree(&porcelain, path) {
+                return Err(error);
+            }
+            tracing::warn!(
+                "{} ya no es un worktree válido ({error}); se borra la carpeta",
+                path.display()
+            );
+            self.ensure_inside_root(path).await?;
+            tokio::fs::remove_dir_all(path).await.map_err(|e| {
+                TaskError::Git(format!("no se pudo borrar {}: {e}", path.display()))
+            })?;
+        }
+        Ok(())
     }
 
     /// Comprueba que `path` queda estrictamente dentro de la raíz de worktrees una vez resueltos
@@ -128,6 +215,39 @@ fn is_dead_worktree(porcelain: &str, path: &Path) -> bool {
                 .is_some_and(|listed| Path::new(listed) == path || Path::new(listed) == canonical)
         })
         .is_none_or(|block| block.lines().any(|line| line.starts_with("prunable")))
+}
+
+/// `true` si `path` figura en `git worktree list --porcelain` como `locked`.
+fn is_locked_worktree(porcelain: &str, path: &Path) -> bool {
+    let canonical: PathBuf = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    porcelain.split("\n\n").any(|block| {
+        let listed_here: bool = block
+            .lines()
+            .next()
+            .and_then(|line| line.strip_prefix("worktree "))
+            .is_some_and(|listed| Path::new(listed) == path || Path::new(listed) == canonical);
+        listed_here && block.lines().any(|line| line.starts_with("locked"))
+    })
+}
+
+/// Borra todo lo que haya en la papelera. Los errores se registran: no hay nadie esperando.
+async fn purge_trash(trash: PathBuf) {
+    let mut entries: tokio::fs::ReadDir = match tokio::fs::read_dir(&trash).await {
+        Ok(entries) => entries,
+        Err(error) => {
+            tracing::warn!("no se pudo leer la papelera {}: {error}", trash.display());
+            return;
+        }
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let entry_path: PathBuf = entry.path();
+        // NotFound: otro borrado en segundo plano se adelantó; no es un error.
+        if let Err(error) = tokio::fs::remove_dir_all(&entry_path).await
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!("no se pudo borrar {}: {error}", entry_path.display());
+        }
+    }
 }
 
 /// Worktree (si lo hay) que tiene `branch` checkouteada, según `git worktree list --porcelain`.
@@ -329,26 +449,8 @@ impl WorktreePort for GitCliWorktreeAdapter {
     }
 
     async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError> {
-        if path.exists() {
-            let path_arg: String = path.to_string_lossy().into_owned();
-            if let Err(error) = git(repo, &["worktree", "remove", "--force", &path_arg]).await {
-                // Solo se descarta por borrado si git ya no considera la carpeta un worktree
-                // utilizable; cualquier otro fallo (bloqueado, permisos...) se propaga.
-                let porcelain: String = git(repo, &["worktree", "list", "--porcelain"])
-                    .await
-                    .map_err(|_| error.clone())?;
-                if !is_dead_worktree(&porcelain, path) {
-                    return Err(error);
-                }
-                tracing::warn!(
-                    "{} ya no es un worktree válido ({error}); se borra la carpeta",
-                    path.display()
-                );
-                self.ensure_inside_root(path).await?;
-                tokio::fs::remove_dir_all(path).await.map_err(|e| {
-                    TaskError::Git(format!("no se pudo borrar {}: {e}", path.display()))
-                })?;
-            }
+        if path.exists() && !self.defer_removal(repo, path).await {
+            self.remove_now(repo, path).await?;
         }
         if let Err(error) = git(repo, &["worktree", "prune"]).await {
             tracing::warn!("no se pudo ejecutar git worktree prune: {error}");
