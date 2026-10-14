@@ -61,6 +61,31 @@ mod follow_js {
     }
 }
 
+/// Lee un valor de `localStorage`. Fuera del navegador (o sin permiso) devuelve `None`.
+pub fn read_local_storage(key: &str) -> Option<String> {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_theme_read(key)
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _key: &str = key;
+        None
+    }
+}
+
+/// Guarda un valor en `localStorage`; ignora errores de almacenamiento.
+pub fn write_local_storage(key: &str, value: &str) {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_theme_write(key, value);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _args: (&str, &str) = (key, value);
+    }
+}
+
 /// Lee el modo de tema guardado. Fuera del navegador devuelve `None`.
 pub fn read_stored_theme() -> Option<String> {
     #[cfg(feature = "hydrate")]

@@ -94,6 +94,7 @@ pub fn DropdownMenu(
     #[prop(into)] label: String,
     #[prop(into)] aria_label: String,
     #[prop(into)] trigger_class: String,
+    #[prop(optional, into)] menu_class: String,
     children: ChildrenFn,
 ) -> impl IntoView {
     let open: RwSignal<bool> = RwSignal::new(false);
@@ -116,7 +117,9 @@ pub fn DropdownMenu(
                     on:click=move |_| open.set(false)
                 ></button>
                 <div
-                    class="absolute top-full right-0 z-40 mt-1 flex min-w-44 flex-col rounded-md border border-border bg-surface p-1 shadow-lg"
+                    class=format!(
+                        "absolute top-full right-0 z-40 mt-1 flex min-w-44 flex-col rounded-md border border-border bg-surface p-1 shadow-lg {menu_class}",
+                    )
                     role="menu"
                     on:click=move |_| open.set(false)
                 >
