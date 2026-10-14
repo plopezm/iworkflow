@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
@@ -45,7 +46,15 @@ impl ResumeTask {
                 task.worktree_path.display().to_string(),
             ));
         }
-        let options: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
+        let prepared: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
+        let capabilities: AgentCapabilities =
+            self.runtime.runtime_capabilities(prepared.runtime.as_ref());
+        if !capabilities.resume {
+            return Err(TaskError::Unsupported(
+                "el agente no permite reanudar la sesión anterior".to_string(),
+            ));
+        }
+        let options: LaunchOptions = prepared.restricted_to(&capabilities);
         self.runtime
             .start(id, &task.worktree_path, true, &options, self.sink.clone())
             .await?;
@@ -59,6 +68,8 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded, WORKTREE};
+    use crate::modules::tasks::domain::models::launch_options::LaunchModel;
+    use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
     use crate::modules::tasks::mocks::{
         MockAgentEventSink, MockAgentRuntime, MockLaunchSettings, MockWorktree,
     };
@@ -97,7 +108,7 @@ mod tests {
             .times(1)
             .returning(move |_| {
                 Ok(LaunchOptions {
-                    runtime: runtime.map(str::to_string),
+                    runtime: runtime.map(|r: &str| RuntimeId::parse(r).expect("runtime válido")),
                     ..LaunchOptions::default()
                 })
             });
@@ -136,9 +147,12 @@ mod tests {
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        runtime
             .expect_start()
             .withf(|_, _, resume: &bool, options: &LaunchOptions, _| {
-                *resume && options.runtime.as_deref() == Some("pi")
+                *resume && options.runtime.as_ref().map(RuntimeId::as_str) == Some("pi")
             })
             .times(1)
             .returning(|_, _, _, _, _| Ok(()));
@@ -162,6 +176,9 @@ mod tests {
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        runtime
             .expect_start()
             .withf(|_, cwd: &Path, resume: &bool, _, _| cwd == Path::new(WORKTREE) && *resume)
             .times(1)
@@ -179,6 +196,75 @@ mod tests {
         .expect("reanudada");
 
         assert_eq!(recorded.statuses(), vec![TaskStatus::Idle]);
+    }
+
+    #[tokio::test]
+    async fn rejects_resume_when_runtime_lacks_the_capability() {
+        let task: Task = test_support::task(TaskStatus::Interrupted);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .times(1)
+            .returning(|_| AgentCapabilities::minimal());
+        runtime.expect_start().never();
+
+        let result: Result<(), TaskError> = ResumeTask::new(
+            test_support::lifecycle(Some(task), &recorded),
+            worktrees_existing(true),
+            Arc::new(runtime),
+            launch_settings(None),
+            Arc::new(MockAgentEventSink::new()),
+        )
+        .execute(id)
+        .await;
+
+        assert!(matches!(result, Err(TaskError::Unsupported(_))));
+        assert!(recorded.statuses().is_empty());
+    }
+
+    #[tokio::test]
+    async fn strips_model_and_thinking_the_runtime_does_not_support() {
+        let task: Task = test_support::task(TaskStatus::Interrupted);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities {
+                resume: true,
+                ..AgentCapabilities::minimal()
+            });
+        runtime
+            .expect_start()
+            .withf(|_, _, _, options: &LaunchOptions, _| {
+                options.model.is_none() && options.thinking.is_none()
+            })
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        let mut settings: MockLaunchSettings = MockLaunchSettings::new();
+        settings.expect_prepare().returning(|_| {
+            Ok(LaunchOptions {
+                model: Some(LaunchModel {
+                    provider: "anthropic".to_string(),
+                    model: "claude-5".to_string(),
+                }),
+                thinking: Some("high".to_string()),
+                ..LaunchOptions::default()
+            })
+        });
+
+        ResumeTask::new(
+            test_support::lifecycle(Some(task), &recorded),
+            worktrees_existing(true),
+            Arc::new(runtime),
+            Arc::new(settings),
+            Arc::new(MockAgentEventSink::new()),
+        )
+        .execute(id)
+        .await
+        .expect("reanudada");
     }
 
     #[tokio::test]

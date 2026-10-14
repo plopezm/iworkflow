@@ -159,6 +159,7 @@ mod tests {
 
     use super::*;
     use crate::modules::tasks::application::test_support::{self, REPO, Recorded};
+    use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
     use crate::modules::tasks::domain::models::agent_command::AgentCommand;
     use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
     use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
@@ -499,6 +500,9 @@ mod tests {
         let worktrees: Arc<dyn WorktreePort> = Arc::new(worktrees);
 
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
         runtime
             .expect_start()
             .times(1)

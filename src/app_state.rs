@@ -41,6 +41,7 @@ use crate::modules::terminal::infrastructure::di::terminal_context::TerminalCont
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
+use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
@@ -69,7 +70,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(pool: DbPool, config: &AppConfig) -> Self {
+    pub fn new(pool: DbPool, config: &AppConfig) -> Result<Self, TaskError> {
         let workspace_repository: Arc<dyn WorkspaceRepositoryPort> =
             Arc::new(WorkspaceRepositoryAdapter::new(pool.clone()));
         let get_workspace: Arc<GetWorkspace> =
@@ -122,7 +123,7 @@ impl AppState {
             },
             lookup,
             launch_settings,
-        );
+        )?;
         let workspace_tasks: Arc<dyn WorkspaceTasksPort> = Arc::new(WorkspaceTasksBridge {
             delete_workspace_tasks: tasks.delete_workspace_tasks.clone(),
         });
@@ -136,7 +137,7 @@ impl AppState {
             workspace_tasks,
             workspace_agents_files,
         );
-        Self {
+        Ok(Self {
             workspaces,
             tasks,
             agent_settings,
@@ -144,7 +145,7 @@ impl AppState {
             agents_files,
             terminal,
             project_tree,
-        }
+        })
     }
 
     /// Registra cada contexto de feature para las server functions y el SSR.
@@ -309,10 +310,12 @@ impl LaunchSettingsPort for LaunchSettingsBridge {
             .execute(cwd)
             .await
             .map_err(|error: AgentSettingsError| TaskError::Runtime(error.to_string()))?;
+        let runtime: Option<RuntimeId> = preferences
+            .runtime
+            .map(|r: AgentRuntime| RuntimeId::parse(r.as_str()))
+            .transpose()?;
         Ok(LaunchOptions {
-            runtime: preferences
-                .runtime
-                .map(|r: AgentRuntime| r.as_str().to_string()),
+            runtime,
             model: preferences.model.map(|m: ModelRef| LaunchModel {
                 provider: m.provider,
                 model: m.model,
@@ -395,6 +398,15 @@ fn to_workspace_error(error: AgentsFileError) -> WorkspaceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::tasks::infrastructure::di::tasks_context::{
+        GENTLE_SHELL_RUNTIME, PI_RUNTIME,
+    };
+
+    #[test]
+    fn tasks_runtime_ids_match_agent_settings_runtimes() {
+        assert_eq!(GENTLE_SHELL_RUNTIME, AgentRuntime::GentleShell.as_str());
+        assert_eq!(PI_RUNTIME, AgentRuntime::Pi.as_str());
+    }
 
     #[test]
     fn not_found_and_invalid_id_map_to_agents_file_not_found() {

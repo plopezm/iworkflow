@@ -450,7 +450,7 @@ Lectura para Java: `matches!(x, A | B)` es un `switch` que devuelve `boolean`; l
 | `TaskAttachmentRepositoryPort` | Metadatos de imágenes adjuntas | `TaskAttachmentRepositoryAdapter` (Diesel) |
 | `AttachmentStoragePort` | Ficheros de imagen en disco | `FsAttachmentStorageAdapter` |
 | `WorktreePort` | `git worktree add`, commit, diff, `pin_range` / `diff_range` (diff de tareas integradas), merge, remove | `GitCliWorktreeAdapter` (ejecuta `git`) |
-| `AgentRuntimePort` | Lanzar/parar/hablar con el proceso del agente | `GentleShellRuntimeAdapter` |
+| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea, sin presuponer el transporte; declara `AgentCapabilities` y rechaza con `TaskError::Unsupported` lo que no soporta | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) |
 | `TaskEventPublisherPort` | Difundir eventos en vivo | `BroadcastTaskEventBus` (tokio broadcast) |
 | `WorkspaceLookupPort` | Consultar workspaces | `WorkspaceLookupBridge` (en `app_state.rs`) |
 | `LaunchSettingsPort` | Modelo/thinking a usar al lanzar | `LaunchSettingsBridge` |
@@ -543,7 +543,7 @@ Observa el patrón: **validar con el dominio → transicionar → operar con pue
 |---|---|
 | `persistence/` | `TaskRepositoryAdapter` (Diesel), `TaskAttachmentRepositoryAdapter`, `RetryingTaskRepository` (decorador), `models/*_row.rs` (structs `Queryable`/`Insertable`) |
 | `git/` | `GitCliWorktreeAdapter`: invoca el binario `git` (worktree add, commit, merge `--no-ff`, merge en worktree temporal si la rama base no está checkouteada, …) |
-| `runtime/` | `GentleShellRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`) |
+| `runtime/` | `AgentRuntimeRouter` (delegación por `RuntimeId`); `pi/`: `PiRpcRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`). Añadir un agente = nuevo adaptador de `AgentRuntimePort` registrado en `tasks_context.rs` (y, si procede, su binario en el catálogo de modelos de `agent_settings`) |
 | `events/` | `BroadcastTaskEventBus`: `tokio::sync::broadcast` con capacidad 4096 |
 | `storage/` | `FsAttachmentStorageAdapter`: imágenes en `~/.iworkflow/attachments/` |
 
@@ -659,7 +659,7 @@ flowchart TB
         OUT[stdout JSONL]
         IN[stdin JSONL]
     end
-    subgraph rt["GentleShellRuntimeAdapter (una tarea tokio 'supervise' por agente)"]
+    subgraph rt["PiRpcRuntimeAdapter (una tarea tokio 'supervise' por agente)"]
         RE["read_events()<br/>decode(línea) → AgentEvent"]
         WC["write_commands()<br/>AgentCommand → encode → línea"]
     end

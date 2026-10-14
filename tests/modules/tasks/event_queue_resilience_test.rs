@@ -8,11 +8,13 @@ use std::time::{Duration, Instant};
 use chrono::{DateTime, SubsecRound, Utc};
 use diesel::{Connection, RunQueryDsl, SqliteConnection};
 use iworkflow::modules::tasks::domain::errors::task_error::TaskError;
+use iworkflow::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use iworkflow::modules::tasks::domain::models::agent_command::AgentCommand;
 use iworkflow::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogKind, DialogRequest,
 };
 use iworkflow::modules::tasks::domain::models::launch_options::LaunchOptions;
+use iworkflow::modules::tasks::domain::models::runtime_id::RuntimeId;
 use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
@@ -60,6 +62,14 @@ impl AgentRuntimePort for StubRuntime {
 
     async fn is_running(&self, _task_id: TaskId) -> bool {
         false
+    }
+
+    fn capabilities(&self, _task_id: TaskId) -> AgentCapabilities {
+        AgentCapabilities::minimal()
+    }
+
+    fn runtime_capabilities(&self, _runtime: Option<&RuntimeId>) -> AgentCapabilities {
+        AgentCapabilities::minimal()
     }
 }
 

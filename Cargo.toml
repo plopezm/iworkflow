@@ -129,8 +129,8 @@ path = "tests/modules/tasks/event_queue_resilience_test.rs"
 required-features = ["ssr"]
 
 [[test]]
-name = "gentle_shell_runtime_adapter_test"
-path = "tests/modules/tasks/gentle_shell_runtime_adapter_test.rs"
+name = "pi_rpc_runtime_adapter_test"
+path = "tests/modules/tasks/pi_rpc_runtime_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]

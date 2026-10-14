@@ -9,7 +9,7 @@ use iworkflow::modules::tasks::domain::models::launch_options::{LaunchModel, Lau
 use iworkflow::modules::tasks::domain::models::task::TaskId;
 use iworkflow::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use iworkflow::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
-use iworkflow::modules::tasks::infrastructure::adapters::outbound::runtime::gentle_shell_runtime_adapter::GentleShellRuntimeAdapter;
+use iworkflow::modules::tasks::infrastructure::adapters::outbound::runtime::pi::pi_rpc_runtime_adapter::PiRpcRuntimeAdapter;
 use tokio::sync::Notify;
 
 const WAIT: Duration = Duration::from_secs(10);
@@ -56,8 +56,8 @@ fn fixture(name: &str) -> String {
         .into_owned()
 }
 
-fn runtime(script: &str) -> GentleShellRuntimeAdapter {
-    GentleShellRuntimeAdapter::with_command("python3", vec!["-u".to_string(), fixture(script)])
+fn runtime(script: &str) -> PiRpcRuntimeAdapter {
+    PiRpcRuntimeAdapter::with_command("python3", vec!["-u".to_string(), fixture(script)])
         .with_stop_timeout(Duration::from_millis(500))
 }
 
@@ -69,7 +69,7 @@ fn is_notice_containing(event: &AgentEvent, text: &str) -> bool {
 async fn runs_prompt_round_trip_and_stops_gracefully() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
     let cwd: PathBuf = dir.path().canonicalize().expect("canonical");
-    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let adapter: PiRpcRuntimeAdapter = runtime("fake_agent.py");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
 
@@ -128,7 +128,7 @@ async fn runs_prompt_round_trip_and_stops_gracefully() {
 #[tokio::test(flavor = "multi_thread")]
 async fn appends_provider_and_model_flags_when_set() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let adapter: PiRpcRuntimeAdapter = runtime("fake_agent.py");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
     let options: LaunchOptions = LaunchOptions {
@@ -156,7 +156,7 @@ async fn appends_provider_and_model_flags_when_set() {
 #[tokio::test(flavor = "multi_thread")]
 async fn appends_thinking_flag_when_set_with_model() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let adapter: PiRpcRuntimeAdapter = runtime("fake_agent.py");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
     let options: LaunchOptions = LaunchOptions {
@@ -184,7 +184,7 @@ async fn appends_thinking_flag_when_set_with_model() {
 #[tokio::test(flavor = "multi_thread")]
 async fn appends_thinking_flag_when_set_without_model() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let adapter: PiRpcRuntimeAdapter = runtime("fake_agent.py");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
     let options: LaunchOptions = LaunchOptions {
@@ -207,7 +207,7 @@ async fn appends_thinking_flag_when_set_without_model() {
 #[tokio::test(flavor = "multi_thread")]
 async fn forwards_dialog_answers_and_reports_rejections() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter = runtime("fake_agent.py");
+    let adapter: PiRpcRuntimeAdapter = runtime("fake_agent.py");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
     adapter
@@ -273,7 +273,7 @@ async fn forwards_dialog_answers_and_reports_rejections() {
 #[tokio::test(flavor = "multi_thread")]
 async fn kills_agent_that_ignores_shutdown() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter = runtime("stubborn_agent.py");
+    let adapter: PiRpcRuntimeAdapter = runtime("stubborn_agent.py");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
     adapter
@@ -301,8 +301,8 @@ async fn kills_agent_that_ignores_shutdown() {
 #[tokio::test(flavor = "multi_thread")]
 async fn reports_exit_and_unregisters_when_process_dies() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter =
-        GentleShellRuntimeAdapter::with_command("sh", vec!["-c".into(), "exit 3".into()]);
+    let adapter: PiRpcRuntimeAdapter =
+        PiRpcRuntimeAdapter::with_command("sh", vec!["-c".into(), "exit 3".into()]);
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();
 
@@ -329,48 +329,10 @@ async fn reports_exit_and_unregisters_when_process_dies() {
     );
 }
 
-/// Agente falso ejecutable que anuncia su nombre y se queda leyendo stdin hasta EOF.
-fn named_agent(dir: &tempfile::TempDir, name: &str) -> String {
-    use std::os::unix::fs::PermissionsExt;
-    let path: PathBuf = dir.path().join(name);
-    let script: String = format!(
-        "#!/bin/sh\nprintf '%s\\n' '{{\"type\":\"extension_ui_request\",\"id\":\"n\",\"method\":\"notify\",\"message\":\"agent={name}\"}}'\ncat >/dev/null\n"
-    );
-    std::fs::write(&path, script).expect("write");
-    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
-    path.to_string_lossy().into_owned()
-}
-
-/// Lanza el runtime pedido y devuelve el nombre con el que se anunció el agente.
-async fn launched_agent_for(runtime: Option<&str>) -> String {
-    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter =
-        GentleShellRuntimeAdapter::new(named_agent(&dir, "gentle-shell"), named_agent(&dir, "pi"))
-            .with_stop_timeout(Duration::from_millis(500));
-    let options: LaunchOptions = LaunchOptions {
-        runtime: runtime.map(str::to_string),
-        ..LaunchOptions::default()
-    };
-    let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
-    let task_id: TaskId = TaskId::new();
-
-    adapter
-        .start(task_id, dir.path(), false, &options, sink.clone())
-        .await
-        .expect("start");
-    let notice: AgentEvent = sink.wait_for(|e| is_notice_containing(e, "agent=")).await;
-    adapter.stop(task_id).await.expect("stop");
-    match notice {
-        AgentEvent::Notice { message, .. } => message,
-        other => panic!("se esperaba un aviso, no {other:?}"),
-    }
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn missing_binary_exits_with_the_shell_not_found_code() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
-    let adapter: GentleShellRuntimeAdapter =
-        GentleShellRuntimeAdapter::new("/nonexistent/gentle-shell", "/nonexistent/pi");
+    let adapter: PiRpcRuntimeAdapter = PiRpcRuntimeAdapter::new("/nonexistent/agent");
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
 
     // Con la shell de login el lanzamiento no falla: es `exec` quien no encuentra el binario.
@@ -392,28 +354,12 @@ async fn missing_binary_exits_with_the_shell_not_found_code() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn pi_runtime_launches_the_pi_binary() {
-    assert!(launched_agent_for(Some("pi")).await.contains("agent=pi"));
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn default_and_gentle_shell_runtime_launch_gentle_shell() {
-    for runtime in [None, Some("gentle-shell")] {
-        assert!(
-            launched_agent_for(runtime)
-                .await
-                .contains("agent=gentle-shell")
-        );
-    }
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn agent_does_not_inherit_the_server_environment() {
     let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
     // `cargo test` exporta CARGO_MANIFEST_DIR; el agente no debe verlo pero sí HOME.
     let script: &str = "printf '{\"type\":\"extension_ui_request\",\"id\":\"e\",\"method\":\"notify\",\"message\":\"env cargo=[%s] home=[%s]\"}\\n' \"$CARGO_MANIFEST_DIR\" \"$HOME\"; cat >/dev/null";
-    let adapter: GentleShellRuntimeAdapter =
-        GentleShellRuntimeAdapter::with_command("sh", vec!["-c".into(), script.into()])
+    let adapter: PiRpcRuntimeAdapter =
+        PiRpcRuntimeAdapter::with_command("sh", vec!["-c".into(), script.into()])
             .with_stop_timeout(Duration::from_millis(500));
     let sink: Arc<CollectingSink> = Arc::new(CollectingSink::default());
     let task_id: TaskId = TaskId::new();

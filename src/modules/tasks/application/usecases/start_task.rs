@@ -7,6 +7,7 @@ use chrono::Utc;
 
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
@@ -176,7 +177,10 @@ impl StartTask {
     }
 
     async fn launch(&self, task: &Task) -> Result<(), TaskError> {
-        let options: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
+        let prepared: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
+        let capabilities: AgentCapabilities =
+            self.runtime.runtime_capabilities(prepared.runtime.as_ref());
+        let options: LaunchOptions = prepared.restricted_to(&capabilities);
         let images: Vec<ImageAttachment> = self.load_images(task.id).await?;
         self.runtime
             .start(
@@ -240,6 +244,9 @@ mod tests {
 
     fn runtime_not_running() -> MockAgentRuntime {
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
         runtime.expect_is_running().returning(|_| false);
         runtime.expect_stop().never();
         runtime
@@ -261,6 +268,9 @@ mod tests {
         let id: TaskId = task.id;
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
         runtime
             .expect_start()
             .withf(|_, cwd: &Path, resume: &bool, _, _| cwd.starts_with("/wt/demo-ws-1") && !resume)
@@ -341,6 +351,9 @@ mod tests {
             .times(2)
             .returning(|path: &str| Ok(format!("data-{}", path.trim_start_matches("t/"))));
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
         runtime.expect_start().returning(|_, _, _, _, _| Ok(()));
         runtime
             .expect_send()
@@ -439,6 +452,9 @@ mod tests {
         let id: TaskId = task.id;
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
         runtime.expect_start().returning(|_, _, _, _, _| {
             Err(TaskError::Runtime("no existe gentle-shell".to_string()))
         });
@@ -555,6 +571,9 @@ mod tests {
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        runtime
             .expect_start()
             .times(1)
             .returning(|_, _, _, _, _| Ok(()));
@@ -637,6 +656,9 @@ mod tests {
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        runtime
             .expect_start()
             .withf(|_, _, _, options: &LaunchOptions, _| {
                 options.model
@@ -681,6 +703,9 @@ mod tests {
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
         runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        runtime
             .expect_start()
             .withf(|_, _, _, options: &LaunchOptions, _| {
                 options.thinking == Some("high".to_string())
@@ -709,6 +734,94 @@ mod tests {
         let task: Task = use_case.execute(id).await.expect("iniciada");
 
         assert_eq!(task.status, TaskStatus::Starting);
+    }
+
+    #[tokio::test]
+    async fn strips_model_and_thinking_the_runtime_does_not_support() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .times(1)
+            .returning(|_| AgentCapabilities::minimal());
+        runtime
+            .expect_start()
+            .withf(|_, _, _, options: &LaunchOptions, _| {
+                options.model.is_none() && options.thinking.is_none()
+            })
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        runtime.expect_send().returning(|_, _| Ok(()));
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings.expect_prepare().returning(|_| {
+            Ok(LaunchOptions {
+                model: Some(LaunchModel {
+                    provider: "anthropic".to_string(),
+                    model: "claude-5".to_string(),
+                }),
+                thinking: Some("high".to_string()),
+                ..Default::default()
+            })
+        });
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            Arc::new(launch_settings),
+            Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
+            Arc::new(MockAttachmentStorage::new()),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Starting);
+    }
+
+    #[tokio::test]
+    async fn keeps_only_the_option_the_runtime_supports() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities {
+                model_selection: true,
+                ..AgentCapabilities::minimal()
+            });
+        runtime
+            .expect_start()
+            .withf(|_, _, _, options: &LaunchOptions, _| {
+                options.model.is_some() && options.thinking.is_none()
+            })
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        runtime.expect_send().returning(|_, _| Ok(()));
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings.expect_prepare().returning(|_| {
+            Ok(LaunchOptions {
+                model: Some(LaunchModel {
+                    provider: "anthropic".to_string(),
+                    model: "claude-5".to_string(),
+                }),
+                thinking: Some("high".to_string()),
+                ..Default::default()
+            })
+        });
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            Arc::new(launch_settings),
+            Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
+            Arc::new(MockAttachmentStorage::new()),
+        );
+
+        use_case.execute(id).await.expect("iniciada");
     }
 
     #[tokio::test]

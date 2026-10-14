@@ -40,6 +40,27 @@ impl SendMessage {
             (_, MessageMode::Steer) => AgentCommand::Steer { message, images },
             (_, MessageMode::FollowUp) => AgentCommand::FollowUp { message, images },
         };
+        if matches!(
+            command,
+            AgentCommand::Steer { .. } | AgentCommand::FollowUp { .. }
+        ) && !self.runtime.is_running(id).await
+        {
+            return Err(TaskError::AgentNotRunning);
+        }
+        match &command {
+            AgentCommand::Steer { .. } if !self.runtime.capabilities(id).steer => {
+                return Err(TaskError::Unsupported(
+                    "el agente no permite redirigir (steer) mientras trabaja".to_string(),
+                ));
+            }
+            AgentCommand::FollowUp { .. } if !self.runtime.capabilities(id).follow_up => {
+                return Err(TaskError::Unsupported(
+                    "el agente no permite encolar mensajes (follow-up) mientras trabaja"
+                        .to_string(),
+                ));
+            }
+            _ => {}
+        }
         self.runtime.send(id, command).await
     }
 }
@@ -48,6 +69,7 @@ impl SendMessage {
 mod tests {
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
+    use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
     use crate::modules::tasks::mocks::MockAgentRuntime;
 
     fn runtime_expecting(expected: AgentCommand) -> MockAgentRuntime {
@@ -107,14 +129,22 @@ mod tests {
 
     #[tokio::test]
     async fn running_agent_receives_steer_or_follow_up() {
-        let steer: MockAgentRuntime = runtime_expecting(AgentCommand::Steer {
+        let mut steer: MockAgentRuntime = runtime_expecting(AgentCommand::Steer {
             message: "hola".to_string(),
             images: Vec::new(),
         });
-        let follow: MockAgentRuntime = runtime_expecting(AgentCommand::FollowUp {
+        let mut follow: MockAgentRuntime = runtime_expecting(AgentCommand::FollowUp {
             message: "hola".to_string(),
             images: Vec::new(),
         });
+        steer.expect_is_running().returning(|_| true);
+        follow.expect_is_running().returning(|_| true);
+        steer
+            .expect_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        follow
+            .expect_capabilities()
+            .returning(|_| AgentCapabilities::full());
         assert_eq!(
             send(TaskStatus::Running, MessageMode::Steer, steer).await,
             Ok(())
@@ -181,5 +211,44 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(TaskError::InvalidAttachment(_))));
+    }
+
+    #[tokio::test]
+    async fn rejects_steer_and_follow_up_when_runtime_lacks_capability() {
+        for mode in [MessageMode::Steer, MessageMode::FollowUp] {
+            let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+            runtime.expect_is_running().returning(|_| true);
+            runtime
+                .expect_capabilities()
+                .returning(|_| AgentCapabilities::minimal());
+            runtime.expect_send().never();
+            let result: Result<(), TaskError> = send(TaskStatus::Running, mode, runtime).await;
+            assert!(matches!(result, Err(TaskError::Unsupported(_))));
+        }
+    }
+
+    #[tokio::test]
+    async fn stopped_task_yields_agent_not_running_before_checking_capabilities() {
+        for mode in [MessageMode::Steer, MessageMode::FollowUp] {
+            let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+            runtime.expect_is_running().times(1).returning(|_| false);
+            runtime.expect_capabilities().never();
+            runtime.expect_send().never();
+            let result: Result<(), TaskError> = send(TaskStatus::Running, mode, runtime).await;
+            assert_eq!(result, Err(TaskError::AgentNotRunning));
+        }
+    }
+
+    #[tokio::test]
+    async fn idle_prompt_does_not_require_extra_capabilities() {
+        let mut runtime: MockAgentRuntime = runtime_expecting(AgentCommand::Prompt {
+            message: "hola".to_string(),
+            images: Vec::new(),
+        });
+        runtime.expect_capabilities().never();
+        assert_eq!(
+            send(TaskStatus::Idle, MessageMode::Steer, runtime).await,
+            Ok(())
+        );
     }
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -30,6 +31,8 @@ use crate::modules::tasks::application::usecases::resume_task::ResumeTask;
 use crate::modules::tasks::application::usecases::send_message::SendMessage;
 use crate::modules::tasks::application::usecases::start_task::StartTask;
 use crate::modules::tasks::application::usecases::update_task::UpdateTask;
+use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
@@ -48,7 +51,13 @@ use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retr
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_attachment_repository_adapter::TaskAttachmentRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::storage::fs_attachment_storage_adapter::FsAttachmentStorageAdapter;
-use crate::modules::tasks::infrastructure::adapters::outbound::runtime::gentle_shell_runtime_adapter::GentleShellRuntimeAdapter;
+use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_runtime_router::AgentRuntimeRouter;
+use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::pi_rpc_runtime_adapter::PiRpcRuntimeAdapter;
+
+/// Id de gentle-shell (runtime predeterminado); igual a `AgentRuntime::GentleShell.as_str()`.
+pub(crate) const GENTLE_SHELL_RUNTIME: &str = "gentle-shell";
+/// Id de pi; igual a `AgentRuntime::Pi.as_str()`.
+pub(crate) const PI_RUNTIME: &str = "pi";
 
 /// Configuración propia del feature de tareas.
 #[derive(Debug, Clone)]
@@ -98,19 +107,35 @@ impl TasksContext {
         settings: TasksSettings,
         workspaces: Arc<dyn WorkspaceLookupPort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
-    ) -> Self {
-        let runtime: Arc<dyn AgentRuntimePort> = Arc::new(GentleShellRuntimeAdapter::new(
+    ) -> Result<Self, TaskError> {
+        let runtime: Arc<dyn AgentRuntimePort> = Arc::new(Self::build_router(
             settings.gentle_shell_bin,
             settings.pi_bin,
-        ));
-        Self::with_runtime(
+        )?);
+        Ok(Self::with_runtime(
             pool,
             settings.worktrees_dir,
             settings.attachments_dir,
             workspaces,
             runtime,
             launch_settings,
-        )
+        ))
+    }
+
+    /// Registra gentle-shell (predeterminado) y pi.
+    fn build_router(
+        gentle_shell_bin: String,
+        pi_bin: String,
+    ) -> Result<AgentRuntimeRouter, TaskError> {
+        let gentle_shell_id: RuntimeId = RuntimeId::parse(GENTLE_SHELL_RUNTIME)?;
+        let pi_id: RuntimeId = RuntimeId::parse(PI_RUNTIME)?;
+        let mut runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>> = HashMap::new();
+        runtimes.insert(
+            gentle_shell_id.clone(),
+            Arc::new(PiRpcRuntimeAdapter::new(gentle_shell_bin)),
+        );
+        runtimes.insert(pi_id, Arc::new(PiRpcRuntimeAdapter::new(pi_bin)));
+        AgentRuntimeRouter::new(gentle_shell_id, runtimes)
     }
 
     /// Permite sustituir el runtime de agentes (tests de extremo a extremo).
@@ -232,5 +257,81 @@ impl TasksContext {
     /// Espera a que se persistan todos los eventos de agente ya aceptados.
     pub async fn flush_events(&self) {
         self.event_queue.flush().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+    use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
+    use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+    use crate::modules::tasks::domain::models::task::TaskId;
+    use crate::modules::tasks::mocks::MockAgentEventSink;
+
+    // Binarios inexistentes: estos tests nunca llegan a lanzar un proceso.
+    const SHELL_BIN: &str = "/nonexistent/iwf-test-gentle-shell";
+    const PI_BIN: &str = "/nonexistent/iwf-test-pi";
+
+    fn router() -> AgentRuntimeRouter {
+        TasksContext::build_router(SHELL_BIN.to_string(), PI_BIN.to_string()).expect("router")
+    }
+
+    async fn start_with(
+        router: &AgentRuntimeRouter,
+        runtime: Option<&str>,
+    ) -> Result<(), TaskError> {
+        let options: LaunchOptions = LaunchOptions {
+            runtime: runtime.map(|r: &str| RuntimeId::parse(r).expect("runtime válido")),
+            ..LaunchOptions::default()
+        };
+        let sink: Arc<dyn AgentEventSink> = Arc::new(MockAgentEventSink::new());
+        router
+            .start(TaskId::new(), Path::new("/tmp"), false, &options, sink)
+            .await
+    }
+
+    #[test]
+    fn registers_both_runtimes_with_full_capabilities() {
+        let router: AgentRuntimeRouter = router();
+        for raw in [GENTLE_SHELL_RUNTIME, PI_RUNTIME] {
+            let id: RuntimeId = RuntimeId::parse(raw).expect("runtime válido");
+            assert_eq!(
+                router.runtime_capabilities(Some(&id)),
+                AgentCapabilities::full()
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_runtime_has_minimal_capabilities() {
+        let codex: RuntimeId = RuntimeId::parse("codex").expect("runtime válido");
+        assert_eq!(
+            router().runtime_capabilities(Some(&codex)),
+            AgentCapabilities::minimal()
+        );
+    }
+
+    #[test]
+    fn default_runtime_is_gentle_shell() {
+        let gentle_shell: RuntimeId =
+            RuntimeId::parse(GENTLE_SHELL_RUNTIME).expect("runtime válido");
+
+        assert_eq!(router().default_runtime(), &gentle_shell);
+        assert_eq!(
+            router().runtime_capabilities(None),
+            AgentCapabilities::full()
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_runtime_id_is_rejected_as_unsupported() {
+        let result: Result<(), TaskError> = start_with(&router(), Some("codex")).await;
+
+        assert!(matches!(
+            result,
+            Err(TaskError::Unsupported(message)) if message.contains("codex")
+        ));
     }
 }

@@ -21,6 +21,10 @@ pub enum TaskError {
         operation: &'static str,
         status: String,
     },
+    #[error("runtime de agente inválido: {0}")]
+    InvalidRuntime(String),
+    #[error("el agente no soporta esta operación: {0}")]
+    Unsupported(String),
     #[error("el agente de la tarea no está en ejecución")]
     AgentNotRunning,
     #[error("error del agente: {0}")]

@@ -28,6 +28,14 @@ impl AnswerDialog {
         if !task.status.has_live_agent() {
             return Err(invalid_state("responder diálogo", task.status));
         }
+        if !self.runtime.is_running(id).await {
+            return Err(TaskError::AgentNotRunning);
+        }
+        if !self.runtime.capabilities(id).dialogs {
+            return Err(TaskError::Unsupported(
+                "el agente no soporta diálogos interactivos".to_string(),
+            ));
+        }
         self.runtime
             .send(
                 id,
@@ -47,6 +55,7 @@ impl AnswerDialog {
 mod tests {
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
+    use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
     use crate::modules::tasks::domain::models::task::TaskStatus;
     use crate::modules::tasks::domain::models::task_event::TaskEventKind;
     use crate::modules::tasks::mocks::MockAgentRuntime;
@@ -57,6 +66,10 @@ mod tests {
         let id: TaskId = task.id;
         let recorded: Recorded = Recorded::default();
         let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_is_running().returning(|_| true);
+        runtime
+            .expect_capabilities()
+            .returning(|_| AgentCapabilities::full());
         runtime
             .expect_send()
             .withf(|_, c: &AgentCommand| {
@@ -89,5 +102,53 @@ mod tests {
                 }
             }]
         );
+    }
+
+    #[tokio::test]
+    async fn rejects_answer_when_runtime_lacks_dialogs() {
+        let task: Task = test_support::task(TaskStatus::Running);
+        let id: TaskId = task.id;
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_is_running().returning(|_| true);
+        runtime
+            .expect_capabilities()
+            .returning(|_| AgentCapabilities::minimal());
+        runtime.expect_send().never();
+
+        let result: Result<(), TaskError> = AnswerDialog::new(
+            test_support::lifecycle(Some(task), &Recorded::default()),
+            Arc::new(runtime),
+        )
+        .execute(
+            id,
+            "d1".to_string(),
+            DialogAnswer::Confirmed { confirmed: true },
+        )
+        .await;
+
+        assert!(matches!(result, Err(TaskError::Unsupported(_))));
+    }
+
+    #[tokio::test]
+    async fn stopped_task_yields_agent_not_running_before_checking_capabilities() {
+        let task: Task = test_support::task(TaskStatus::Running);
+        let id: TaskId = task.id;
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime.expect_is_running().times(1).returning(|_| false);
+        runtime.expect_capabilities().never();
+        runtime.expect_send().never();
+
+        let result: Result<(), TaskError> = AnswerDialog::new(
+            test_support::lifecycle(Some(task), &Recorded::default()),
+            Arc::new(runtime),
+        )
+        .execute(
+            id,
+            "d1".to_string(),
+            DialogAnswer::Confirmed { confirmed: true },
+        )
+        .await;
+
+        assert_eq!(result, Err(TaskError::AgentNotRunning));
     }
 }
