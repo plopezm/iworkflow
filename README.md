@@ -62,6 +62,17 @@ Los perfiles se eligen en el desplegable de ajustes del agente, que lee el mismo
 
 En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
 
+### Argumentos del ejecutable
+
+Al arrancar, `iworkflow` abre la web en el navegador (`http://<host>:<puerto>` del servidor; si escucha en `0.0.0.0` se usa `127.0.0.1`).
+
+| Argumento | Efecto |
+|---|---|
+| `--no-open` | Arranca solo el servidor, sin abrir el navegador. |
+| `-h`, `--help` | Muestra la ayuda. |
+
+Ejemplos: `./iworkflow --no-open`, `./scripts/prod.sh run --no-open`, `cargo leptos watch -- --no-open`.
+
 ## Producción
 
 ```bash

@@ -9,12 +9,26 @@ async fn main() {
     use iworkflow::core::config::AppConfig;
     use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
     use iworkflow::core::http::body_limit::with_server_fn_body_limit;
+    use iworkflow::core::launch::{LaunchCommand, LaunchOptions, USAGE, browser_url, open_browser};
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::attachment_http::task_attachments_router;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
     use iworkflow::modules::terminal::infrastructure::adapters::inbound::ws::terminal_ws_router;
     use leptos::prelude::*;
     use leptos_axum::{AxumRouteListing, LeptosRoutes, generate_route_list};
     use tracing_subscriber::EnvFilter;
+
+    let options: LaunchOptions =
+        match LaunchOptions::parse(std::env::args().skip(1).collect::<Vec<String>>()) {
+            Ok(LaunchCommand::Run(options)) => options,
+            Ok(LaunchCommand::Help) => {
+                println!("{USAGE}");
+                return;
+            }
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(2);
+            }
+        };
 
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
@@ -65,6 +79,12 @@ async fn main() {
     tracing::info!("escuchando en http://{addr}");
     let listener: tokio::net::TcpListener =
         tokio::net::TcpListener::bind(&addr).await.expect("bind");
+    if options.open_browser {
+        let url: String = browser_url(addr);
+        if let Err(error) = open_browser(&url) {
+            tracing::warn!(%error, "abre {url} manualmente en el navegador");
+        }
+    }
     let signal_received: std::sync::Arc<tokio::sync::Notify> =
         std::sync::Arc::new(tokio::sync::Notify::new());
     let notifier: std::sync::Arc<tokio::sync::Notify> = signal_received.clone();
