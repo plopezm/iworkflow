@@ -33,6 +33,8 @@ pub enum TaskError {
     WorktreeMissing(String),
     #[error("error de git: {0}")]
     Git(String),
+    #[error("ruta fuera de la raíz de worktrees gestionada: {0}")]
+    UnsafeWorktreePath(String),
     #[error("el repositorio principal no está listo para el merge: {0}")]
     MergeBlocked(String),
     #[error("error de persistencia: {0}")]

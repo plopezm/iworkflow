@@ -37,12 +37,24 @@ function piWatch(el) {
   el.addEventListener('scrollend', cancelSmooth);
 }
 
-export function pi_follow_bottom(id) {
+// Content can grow after the caller's signal fires (streamed text, late layout): while
+// auto-scroll is on, every DOM change inside the container pins it to the bottom.
+function piObserve(el) {
+  if (el.__piObserver) return;
+  el.__piObserver = new MutationObserver(() => {
+    if (el.__piAuto && !el.__piSmooth) el.scrollTop = el.scrollHeight;
+  });
+  el.__piObserver.observe(el, { childList: true, subtree: true, characterData: true });
+}
+
+export function pi_follow_bottom(id, auto) {
   requestAnimationFrame(() => {
     const el = document.getElementById(id);
     if (!el) return;
     piWatch(el);
-    if (el.__piStuck && !el.__piSmooth) el.scrollTop = el.scrollHeight;
+    piObserve(el);
+    el.__piAuto = auto;
+    if (auto && !el.__piSmooth) el.scrollTop = el.scrollHeight;
     if (!el.__piSmooth) piSyncBottom(el);
   });
 }

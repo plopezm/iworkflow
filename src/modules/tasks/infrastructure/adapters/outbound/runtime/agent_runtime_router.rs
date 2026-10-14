@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -13,6 +13,7 @@ use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventS
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 
 const REGISTRY_POISONED: &str = "registro de runtimes corrupto";
+const ALREADY_RUNNING: &str = "el agente ya está en ejecución";
 
 /// Adaptador elegido para una tarea y la generación del registro que lo creó.
 #[derive(Clone)]
@@ -21,12 +22,28 @@ struct Chosen {
     adapter: Arc<dyn AgentRuntimePort>,
 }
 
+/// Reserva exclusiva de arranque de una tarea; se libera al soltarla (también si `start` falla).
+struct StartReservation<'a> {
+    starting: &'a Mutex<HashSet<TaskId>>,
+    task_id: TaskId,
+}
+
+impl Drop for StartReservation<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut starting) = self.starting.lock() {
+            starting.remove(&self.task_id);
+        }
+    }
+}
+
 /// Enruta cada tarea al adaptador del runtime elegido en `LaunchOptions::runtime` (o al
 /// predeterminado) y recuerda la elección por tarea para delegar el resto de operaciones.
 pub struct AgentRuntimeRouter {
     default: RuntimeId,
     runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>>,
     chosen: Mutex<HashMap<TaskId, Chosen>>,
+    /// Tareas con un `start` en curso: hace atómico el "comprobar y registrar" de `start`.
+    starting: Mutex<HashSet<TaskId>>,
     generations: AtomicU64,
 }
 
@@ -45,6 +62,7 @@ impl AgentRuntimeRouter {
             default,
             runtimes,
             chosen: Mutex::new(HashMap::new()),
+            starting: Mutex::new(HashSet::new()),
             generations: AtomicU64::new(0),
         })
     }
@@ -60,6 +78,22 @@ impl AgentRuntimeRouter {
             .get(id)
             .cloned()
             .ok_or_else(|| TaskError::Unsupported(format!("runtime de agente desconocido: {id}")))
+    }
+
+    /// Reserva atómicamente el arranque de `task_id`; falla si otro `start` ya está en curso.
+    fn reserve_start(&self, task_id: TaskId) -> Result<StartReservation<'_>, TaskError> {
+        let inserted: bool = self
+            .starting
+            .lock()
+            .map_err(|_| TaskError::Runtime(REGISTRY_POISONED.to_string()))?
+            .insert(task_id);
+        if !inserted {
+            return Err(TaskError::Runtime(ALREADY_RUNNING.to_string()));
+        }
+        Ok(StartReservation {
+            starting: &self.starting,
+            task_id,
+        })
     }
 
     fn chosen_entry(&self, task_id: TaskId) -> Result<Option<Chosen>, TaskError> {
@@ -88,12 +122,13 @@ impl AgentRuntimePort for AgentRuntimeRouter {
         sink: Arc<dyn AgentEventSink>,
     ) -> Result<(), TaskError> {
         let adapter: Arc<dyn AgentRuntimePort> = self.resolve(options)?;
+        // Mantenida hasta registrar la elección: dos `start` concurrentes de la misma tarea no
+        // pueden pasar ambos la comprobación de "ya en ejecución" y lanzar dos agentes.
+        let _reservation: StartReservation<'_> = self.reserve_start(task_id)?;
         if let Some(recorded) = self.chosen_for(task_id)?
             && recorded.is_running(task_id).await
         {
-            return Err(TaskError::Runtime(
-                "el agente ya está en ejecución".to_string(),
-            ));
+            return Err(TaskError::Runtime(ALREADY_RUNNING.to_string()));
         }
         adapter.start(task_id, cwd, resume, options, sink).await?;
         let generation: u64 = self.generations.fetch_add(1, Ordering::Relaxed);
@@ -446,6 +481,82 @@ mod tests {
         router.stop(task_id).await.expect("stop");
 
         assert_eq!(router.capabilities(task_id), AgentCapabilities::full());
+    }
+
+    /// Runtime cuyo `start` queda bloqueado hasta que se libera, contando los lanzamientos.
+    struct BlockingStart {
+        started: Arc<std::sync::atomic::AtomicUsize>,
+        release: Arc<tokio::sync::Notify>,
+    }
+
+    #[async_trait::async_trait]
+    impl AgentRuntimePort for BlockingStart {
+        async fn start(
+            &self,
+            _: TaskId,
+            _: &Path,
+            _: bool,
+            _: &LaunchOptions,
+            _: Arc<dyn AgentEventSink>,
+        ) -> Result<(), TaskError> {
+            self.started.fetch_add(1, Ordering::SeqCst);
+            self.release.notified().await;
+            Ok(())
+        }
+
+        async fn send(&self, _: TaskId, _: AgentCommand) -> Result<(), TaskError> {
+            Ok(())
+        }
+
+        async fn stop(&self, _: TaskId) -> Result<(), TaskError> {
+            Ok(())
+        }
+
+        async fn is_running(&self, _: TaskId) -> bool {
+            false
+        }
+
+        fn capabilities(&self, _: TaskId) -> AgentCapabilities {
+            AgentCapabilities::minimal()
+        }
+
+        fn runtime_capabilities(&self, _: Option<&RuntimeId>) -> AgentCapabilities {
+            AgentCapabilities::minimal()
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_starts_of_the_same_task_launch_a_single_agent() {
+        let started: Arc<std::sync::atomic::AtomicUsize> =
+            Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let release: Arc<tokio::sync::Notify> = Arc::new(tokio::sync::Notify::new());
+        let mut runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>> = HashMap::new();
+        runtimes.insert(
+            id("gentle-shell"),
+            Arc::new(BlockingStart {
+                started: started.clone(),
+                release: release.clone(),
+            }),
+        );
+        let router: AgentRuntimeRouter =
+            AgentRuntimeRouter::new(id("gentle-shell"), runtimes).expect("router");
+        let task_id: TaskId = TaskId::new();
+
+        let (first, second): (Result<(), TaskError>, Result<(), TaskError>) =
+            tokio::join!(start_with(&router, task_id, None), async {
+                // Cede el turno para que el primer `start` quede esperando dentro del adaptador.
+                tokio::task::yield_now().await;
+                let result: Result<(), TaskError> = start_with(&router, task_id, None).await;
+                release.notify_one();
+                result
+            });
+
+        assert_eq!(first, Ok(()));
+        assert_eq!(second, Err(TaskError::Runtime(ALREADY_RUNNING.to_string())));
+        assert_eq!(started.load(Ordering::SeqCst), 1);
+        // La reserva se libera al terminar: un nuevo `start` vuelve a ser posible.
+        release.notify_one();
+        assert_eq!(start_with(&router, task_id, None).await, Ok(()));
     }
 
     #[test]

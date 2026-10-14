@@ -140,7 +140,8 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         let mut query = tasks::table
             .filter(tasks::status.eq_any(closed_status_names()))
             .select(TaskRow::as_select())
-            // `updated_at` no cambia tras el cierre, así que equivale al instante de finalización.
+            // Invariante: tras el cierre ninguna escritura toca `updated_at` (ver `update_status`;
+            // diff_range, subagentes y eventos no lo modifican), así que es el instante de finalización.
             .order((tasks::updated_at.desc(), tasks::id.desc()))
             .limit(limit)
             .offset(offset)

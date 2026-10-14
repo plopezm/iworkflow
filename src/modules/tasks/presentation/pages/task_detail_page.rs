@@ -236,7 +236,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
     Effect::new(move |_| {
         if shows_workspace.get() {
             state.transcript.track();
-            follow_bottom(TRANSCRIPT_SCROLL_ID);
+            follow_bottom(TRANSCRIPT_SCROLL_ID, state.autoscroll.get());
         }
     });
 
@@ -460,6 +460,15 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                                             {task.worktree_path.clone()}
                                                         </code>
                                                     </div>
+                                                    <label class="flex min-h-9 items-center gap-2 text-xs text-muted">
+                                                        <input
+                                                            type="checkbox"
+                                                            class="h-4 w-4 accent-accent"
+                                                            prop:checked=move || state.autoscroll.get()
+                                                            on:change=move |ev| state.autoscroll.set(event_target_checked(&ev))
+                                                        />
+                                                        "Scroll automático"
+                                                    </label>
                                                 }
                                                     .into_any()
                                             }

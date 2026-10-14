@@ -513,3 +513,44 @@ async fn remove_deletes_folder_that_is_no_longer_a_worktree() {
             .contains(f.worktree.to_string_lossy().as_ref())
     );
 }
+
+#[tokio::test]
+async fn remove_refuses_to_delete_folders_outside_the_managed_root() {
+    let f: Fixture = fixture_with_worktree().await;
+    let outside: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(outside.path().join("x.txt"), "x").expect("write");
+
+    let result: Result<(), TaskError> = f
+        .adapter
+        .remove(&f.repo, outside.path(), "pi/inexistente")
+        .await;
+
+    assert!(matches!(result, Err(TaskError::UnsafeWorktreePath(_))));
+    assert!(outside.path().join("x.txt").exists());
+}
+
+#[tokio::test]
+async fn remove_refuses_to_delete_the_managed_root_itself() {
+    let f: Fixture = fixture_with_worktree().await;
+    let root: PathBuf = f._worktrees_dir.path().to_path_buf();
+
+    let result: Result<(), TaskError> = f.adapter.remove(&f.repo, &root, "pi/inexistente").await;
+
+    assert!(matches!(result, Err(TaskError::UnsafeWorktreePath(_))));
+    assert!(f.worktree.exists());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn remove_refuses_symlinks_that_escape_the_managed_root() {
+    let f: Fixture = fixture_with_worktree().await;
+    let outside: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    std::fs::write(outside.path().join("x.txt"), "x").expect("write");
+    let link: PathBuf = f._worktrees_dir.path().join("escape");
+    std::os::unix::fs::symlink(outside.path(), &link).expect("symlink");
+
+    let result: Result<(), TaskError> = f.adapter.remove(&f.repo, &link, "pi/inexistente").await;
+
+    assert!(matches!(result, Err(TaskError::UnsafeWorktreePath(_))));
+    assert!(outside.path().join("x.txt").exists());
+}
