@@ -16,6 +16,7 @@ use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use crate::modules::tasks::domain::models::task_file_content::TaskFileContent;
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
@@ -25,6 +26,7 @@ use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::Att
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
+use crate::modules::tasks::domain::ports::outbound::task_file_port::TaskFilePort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
@@ -90,6 +92,16 @@ mock! {
         async fn delete_inactive_by_workspace(&self, workspace_id: String) -> Result<Option<Vec<TaskId>>, TaskError>;
         async fn append_event(&self, id: TaskId, kind: TaskEventKind) -> Result<TaskEvent, TaskError>;
         async fn events(&self, id: TaskId, after_seq: Option<i64>) -> Result<Vec<TaskEvent>, TaskError>;
+    }
+}
+
+mock! {
+    pub TaskFile {}
+
+    #[async_trait::async_trait]
+    impl TaskFilePort for TaskFile {
+        async fn read(&self, root: &Path, rel: &str) -> Result<TaskFileContent, TaskError>;
+        async fn write(&self, root: &Path, rel: &str, content: &str) -> Result<(), TaskError>;
     }
 }
 
