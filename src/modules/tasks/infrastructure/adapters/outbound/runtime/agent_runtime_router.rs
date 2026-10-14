@@ -570,6 +570,10 @@ mod tests {
             false
         }
 
+        async fn subagents(&self, _: TaskId) -> Vec<SubagentTask> {
+            Vec::new()
+        }
+
         fn capabilities(&self, _: TaskId) -> AgentCapabilities {
             AgentCapabilities::minimal()
         }
