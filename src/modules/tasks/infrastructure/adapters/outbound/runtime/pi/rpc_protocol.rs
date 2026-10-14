@@ -7,6 +7,9 @@ use crate::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogAnswer, DialogKind, DialogRequest, NoticeLevel,
 };
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
+use crate::modules::tasks::domain::models::subagent_task::{
+    SubagentStatus, SubagentTask, SubagentThreadItem,
+};
 
 /// Límite de caracteres de salidas y argumentos de herramientas que se conservan.
 const MAX_TOOL_TEXT_CHARS: usize = 20_000;
@@ -160,21 +163,28 @@ pub fn decode(line: &str) -> Vec<AgentEvent> {
 /// Clave del widget con el que la extensión de subagentes publica su actividad.
 const SUBAGENTS_WIDGET_KEY: &str = "gentle-agents";
 
-/// Resumen de subagentes vivos a partir del widget `gentle-agents` (primera línea JSON
-/// con `summary: {running, queued, waiting}`). Limpiar el widget equivale a ninguno.
-fn decode_subagents(record: &Value) -> Option<AgentEvent> {
+/// Línea JSON del widget `gentle-agents`: `None` si el registro no es ese widget,
+/// `Some(None)` si se ha limpiado (sin `widgetLines`).
+fn subagents_widget_line(record: &Value) -> Option<Option<&str>> {
     if str_field(record, "type") != Some("extension_ui_request")
         || str_field(record, "method") != Some("setWidget")
         || str_field(record, "widgetKey") != Some(SUBAGENTS_WIDGET_KEY)
     {
         return None;
     }
-    let first_line: Option<&str> = record
-        .get("widgetLines")
-        .and_then(Value::as_array)
-        .and_then(|lines: &Vec<Value>| lines.first())
-        .and_then(Value::as_str);
-    let Some(line) = first_line else {
+    Some(
+        record
+            .get("widgetLines")
+            .and_then(Value::as_array)
+            .and_then(|lines: &Vec<Value>| lines.first())
+            .and_then(Value::as_str),
+    )
+}
+
+/// Resumen de subagentes vivos a partir del widget `gentle-agents` (primera línea JSON
+/// con `summary: {running, queued, waiting}`). Limpiar el widget equivale a ninguno.
+fn decode_subagents(record: &Value) -> Option<AgentEvent> {
+    let Some(line) = subagents_widget_line(record)? else {
         return Some(AgentEvent::SubagentsChanged {
             active: 0,
             waiting: 0,
@@ -193,6 +203,98 @@ fn decode_subagents(record: &Value) -> Option<AgentEvent> {
         active: count("running").saturating_add(count("queued")),
         waiting: count("waiting"),
     })
+}
+
+/// Prefijo del campo `schema` de las cargas que sabemos leer (`gentle-agents.activity/v1`…).
+const SUBAGENTS_SCHEMA_PREFIX: &str = "gentle-agents.activity/";
+
+/// Instantánea completa de los subagentes a partir del widget `gentle-agents`. `None` si la
+/// línea no es ese widget o su carga está malformada (el llamador conserva lo que tenía);
+/// limpiar el widget equivale a ninguno.
+pub fn decode_subagent_tasks(line: &str) -> Option<Vec<SubagentTask>> {
+    let record: Value = serde_json::from_str(line).ok()?;
+    let Some(payload_line) = subagents_widget_line(&record)? else {
+        return Some(Vec::new());
+    };
+    let payload: Value = serde_json::from_str(payload_line).ok()?;
+    if str_field(&payload, "schema")
+        .is_some_and(|schema: &str| !schema.starts_with(SUBAGENTS_SCHEMA_PREFIX))
+    {
+        return None;
+    }
+    let tasks: &Vec<Value> = payload.get("tasks")?.as_array()?;
+    Some(tasks.iter().filter_map(decode_subagent_task).collect())
+}
+
+fn decode_subagent_task(task: &Value) -> Option<SubagentTask> {
+    let summary: &Value = task.get("summary")?;
+    let text = |key: &str| -> Option<String> { str_field(summary, key).map(str::to_string) };
+    let millis = |key: &str| -> Option<i64> { summary.get(key).and_then(Value::as_i64) };
+    let counter = |key: &str| -> u32 {
+        summary
+            .get(key)
+            .and_then(Value::as_u64)
+            .map(|n: u64| u32::try_from(n).unwrap_or(u32::MAX))
+            .unwrap_or(0)
+    };
+    let thread: Vec<SubagentThreadItem> = task
+        .get("thread")
+        .and_then(|thread: &Value| thread.get("items"))
+        .and_then(Value::as_array)
+        .map(|items: &Vec<Value>| items.iter().filter_map(decode_thread_item).collect())
+        .unwrap_or_default();
+    Some(SubagentTask {
+        id: text("id")?,
+        agent: text("agent").unwrap_or_default(),
+        label: text("label"),
+        prompt: text("prompt"),
+        status: decode_subagent_status(str_field(summary, "status")),
+        created_at: millis("createdAt"),
+        started_at: millis("startedAt"),
+        ended_at: millis("endedAt"),
+        last_step: text("lastStep"),
+        last_activity_at: millis("lastActivityAt"),
+        turns: counter("turns"),
+        tool_calls: counter("toolCalls"),
+        error: text("error"),
+        thread,
+    })
+}
+
+fn decode_subagent_status(raw: Option<&str>) -> SubagentStatus {
+    match raw {
+        Some("queued") => SubagentStatus::Queued,
+        Some("running") => SubagentStatus::Running,
+        Some("waiting") => SubagentStatus::Waiting,
+        Some("completed") => SubagentStatus::Completed,
+        Some("failed") => SubagentStatus::Failed,
+        Some("cancelled") => SubagentStatus::Cancelled,
+        Some("timed_out") => SubagentStatus::TimedOut,
+        _ => SubagentStatus::Unknown,
+    }
+}
+
+/// Un tipo de elemento desconocido con `text` se degrada a nota; sin texto se descarta.
+fn decode_thread_item(item: &Value) -> Option<SubagentThreadItem> {
+    let text: Option<String> = str_field(item, "text").map(str::to_string);
+    match str_field(item, "kind")? {
+        "text" => text.map(SubagentThreadItem::Text),
+        "thinking" => text.map(SubagentThreadItem::Thinking),
+        "tool" => Some(SubagentThreadItem::Tool {
+            name: string_of(item, "name"),
+            args: str_field(item, "args").map(str::to_string),
+            running: item
+                .get("running")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            is_error: item
+                .get("isError")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
+            output: str_field(item, "output").map(str::to_string),
+        }),
+        _ => text.map(SubagentThreadItem::Note),
+    }
 }
 
 fn decode_message(message: Option<&Value>) -> Option<AgentEvent> {
@@ -727,5 +829,178 @@ mod tests {
     fn truncates_long_tool_output() {
         let long: String = "x".repeat(MAX_TOOL_TEXT_CHARS + 10);
         assert!(truncate(&long).ends_with("(truncado)"));
+    }
+
+    fn widget(payload: &str) -> String {
+        json!({
+            "type": "extension_ui_request",
+            "id": "u",
+            "method": "setWidget",
+            "widgetKey": "gentle-agents",
+            "widgetLines": [payload],
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn decodes_the_full_subagent_snapshot() {
+        let payload: String = json!({
+            "schema": "gentle-agents.activity/v1",
+            "summary": {"running": 1, "queued": 0, "waiting": 0, "finished": 1},
+            "tasks": [
+                {
+                    "summary": {
+                        "id": "t1", "agent": "explore", "label": "Mapa", "prompt": "Explora",
+                        "status": "running", "createdAt": 10, "startedAt": 11, "endedAt": null,
+                        "lastStep": "leyendo", "lastActivityAt": 12, "turns": 2,
+                        "toolCalls": 3, "error": null
+                    },
+                    "thread": {"version": 1, "dropped": 0, "items": [
+                        {"kind": "text", "text": "hola"},
+                        {"kind": "thinking", "text": "pienso"},
+                        {"kind": "note", "text": "nota"},
+                        {"kind": "tool", "name": "read", "args": "{}", "running": false,
+                         "isError": true, "output": "boom"}
+                    ]}
+                },
+                {"summary": {"id": "t2", "agent": "plan", "status": "timed_out",
+                             "error": "tarde"}}
+            ]
+        })
+        .to_string();
+
+        let tasks: Vec<SubagentTask> =
+            decode_subagent_tasks(&widget(&payload)).expect("instantánea");
+
+        assert_eq!(tasks.len(), 2);
+        assert_eq!(tasks[0].id, "t1");
+        assert_eq!(tasks[0].agent, "explore");
+        assert_eq!(tasks[0].label.as_deref(), Some("Mapa"));
+        assert_eq!(tasks[0].prompt.as_deref(), Some("Explora"));
+        assert_eq!(tasks[0].status, SubagentStatus::Running);
+        assert_eq!(
+            (tasks[0].created_at, tasks[0].started_at, tasks[0].ended_at),
+            (Some(10), Some(11), None)
+        );
+        assert_eq!(tasks[0].last_step.as_deref(), Some("leyendo"));
+        assert_eq!(tasks[0].last_activity_at, Some(12));
+        assert_eq!((tasks[0].turns, tasks[0].tool_calls), (2, 3));
+        assert_eq!(
+            tasks[0].thread,
+            vec![
+                SubagentThreadItem::Text("hola".into()),
+                SubagentThreadItem::Thinking("pienso".into()),
+                SubagentThreadItem::Note("nota".into()),
+                SubagentThreadItem::Tool {
+                    name: "read".into(),
+                    args: Some("{}".into()),
+                    running: false,
+                    is_error: true,
+                    output: Some("boom".into()),
+                },
+            ]
+        );
+        assert_eq!(tasks[1].status, SubagentStatus::TimedOut);
+        assert_eq!(tasks[1].error.as_deref(), Some("tarde"));
+        assert_eq!((tasks[1].turns, tasks[1].tool_calls), (0, 0));
+        assert!(tasks[1].thread.is_empty());
+    }
+
+    #[test]
+    fn maps_every_documented_status_and_falls_back_to_unknown() {
+        for (raw, expected) in [
+            ("queued", SubagentStatus::Queued),
+            ("running", SubagentStatus::Running),
+            ("waiting", SubagentStatus::Waiting),
+            ("completed", SubagentStatus::Completed),
+            ("failed", SubagentStatus::Failed),
+            ("cancelled", SubagentStatus::Cancelled),
+            ("timed_out", SubagentStatus::TimedOut),
+            ("exploded", SubagentStatus::Unknown),
+        ] {
+            let payload: String = json!({"tasks": [{"summary": {"id": "a", "agent": "x",
+                "status": raw}}]})
+            .to_string();
+            let tasks: Vec<SubagentTask> =
+                decode_subagent_tasks(&widget(&payload)).expect("instantánea");
+            assert_eq!(tasks[0].status, expected, "{raw}");
+        }
+        let missing: String =
+            json!({"tasks": [{"summary": {"id": "a", "agent": "x"}}]}).to_string();
+        assert_eq!(
+            decode_subagent_tasks(&widget(&missing)).expect("instantánea")[0].status,
+            SubagentStatus::Unknown
+        );
+    }
+
+    #[test]
+    fn unknown_thread_items_degrade_to_notes_or_are_skipped() {
+        let payload: String = json!({"tasks": [{"summary": {"id": "a", "agent": "x"},
+        "thread": {"items": [
+            {"kind": "hologram", "text": "raro"},
+            {"kind": "hologram"},
+            {"kind": "tool"},
+            "no soy un objeto"
+        ]}}]})
+        .to_string();
+
+        let tasks: Vec<SubagentTask> =
+            decode_subagent_tasks(&widget(&payload)).expect("instantánea");
+
+        assert_eq!(
+            tasks[0].thread,
+            vec![
+                SubagentThreadItem::Note("raro".into()),
+                SubagentThreadItem::Tool {
+                    name: String::new(),
+                    args: None,
+                    running: false,
+                    is_error: false,
+                    output: None,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn tasks_without_an_id_are_skipped() {
+        let payload: String =
+            json!({"tasks": [{"summary": {"agent": "x"}}, {"summary": {"id": "ok", "agent": "x"}}]})
+                .to_string();
+
+        let tasks: Vec<SubagentTask> =
+            decode_subagent_tasks(&widget(&payload)).expect("instantánea");
+
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].id, "ok");
+    }
+
+    #[test]
+    fn cleared_widget_is_an_empty_snapshot() {
+        assert_eq!(
+            decode_subagent_tasks(
+                r#"{"type":"extension_ui_request","id":"u","method":"setWidget","widgetKey":"gentle-agents"}"#
+            ),
+            Some(Vec::new())
+        );
+    }
+
+    #[test]
+    fn malformed_or_foreign_lines_are_not_a_snapshot() {
+        assert_eq!(decode_subagent_tasks(&widget("no json")), None);
+        assert_eq!(decode_subagent_tasks(&widget(r#"{"summary":{}}"#)), None);
+        assert_eq!(decode_subagent_tasks(&widget(r#"{"tasks":"x"}"#)), None);
+        assert_eq!(
+            decode_subagent_tasks(&widget(r#"{"schema":"otra/v1","tasks":[]}"#)),
+            None
+        );
+        assert_eq!(decode_subagent_tasks("basura"), None);
+        assert_eq!(decode_subagent_tasks(r#"{"type":"agent_start"}"#), None);
+        assert_eq!(
+            decode_subagent_tasks(
+                r#"{"type":"extension_ui_request","method":"setWidget","widgetKey":"otro","widgetLines":["{}"]}"#
+            ),
+            None
+        );
     }
 }
