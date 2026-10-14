@@ -33,15 +33,21 @@ use crate::modules::project_tree::infrastructure::adapters::outbound::workspace_
     RootLookupFuture, RootResolver,
 };
 use crate::modules::project_tree::infrastructure::di::project_tree_context::ProjectTreeContext;
+use crate::modules::terminal::domain::models::task_target::TaskTarget;
 use crate::modules::terminal::domain::models::workspace_target::WorkspaceTarget;
+use crate::modules::terminal::infrastructure::adapters::outbound::task_path::resolver_task_path_adapter::{
+    TaskLookupFuture, TaskPathResolver,
+};
 use crate::modules::terminal::infrastructure::adapters::outbound::workspace_path::resolver_workspace_path_adapter::{
     PathLookupFuture, PathResolver,
 };
 use crate::modules::terminal::infrastructure::di::terminal_context::TerminalContext;
+use crate::modules::tasks::application::usecases::get_task::GetTask;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
+use crate::modules::tasks::domain::models::task::{Task, TaskId};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
@@ -85,10 +91,6 @@ impl AppState {
             get_workspace: get_workspace.clone(),
             list_workspaces: list_workspaces.clone(),
         });
-        let terminal: TerminalContext = TerminalContext::new(
-            workspace_path_resolver(get_workspace.clone()),
-            config.home_dir.clone(),
-        );
         let project_tree: ProjectTreeContext =
             ProjectTreeContext::new(workspace_root_resolver(get_workspace.clone()));
         let agents_files: AgentsFilesContext =
@@ -124,6 +126,11 @@ impl AppState {
             lookup,
             launch_settings,
         )?;
+        let terminal: TerminalContext = TerminalContext::new(
+            workspace_path_resolver(get_workspace.clone()),
+            task_path_resolver(tasks.get_task.clone()),
+            config.home_dir.clone(),
+        );
         let workspace_tasks: Arc<dyn WorkspaceTasksPort> = Arc::new(WorkspaceTasksBridge {
             delete_workspace_tasks: tasks.delete_workspace_tasks.clone(),
         });
@@ -174,6 +181,33 @@ fn workspace_path_resolver(get_workspace: Arc<GetWorkspace>) -> PathResolver {
                 Err(error) => Err(error.to_string()),
             }
         })
+    })
+}
+
+/// Expone el worktree de una tarea al feature de terminal como una closure. `Ok(None)` si la
+/// tarea no existe, no tiene worktree en ese estado o su workspace/ruta no son válidos.
+fn task_path_resolver(get_task: Arc<GetTask>) -> TaskPathResolver {
+    Arc::new(move |id: uuid::Uuid| -> TaskLookupFuture {
+        let get_task: Arc<GetTask> = get_task.clone();
+        Box::pin(async move {
+            match get_task.execute(TaskId::from_uuid(id)).await {
+                Ok(task) => Ok(task_target(task)),
+                Err(TaskError::NotFound(_)) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            }
+        })
+    })
+}
+
+fn task_target(task: Task) -> Option<TaskTarget> {
+    if !task.status.has_worktree() || task.worktree_path.as_os_str().is_empty() {
+        return None;
+    }
+    let workspace_id: uuid::Uuid = uuid::Uuid::parse_str(&task.workspace_id).ok()?;
+    Some(TaskTarget {
+        workspace_id,
+        name: task.title,
+        path: task.worktree_path,
     })
 }
 
@@ -398,9 +432,63 @@ fn to_workspace_error(error: AgentsFileError) -> WorkspaceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::tasks::domain::models::task::TaskStatus;
+    use crate::modules::tasks::domain::models::task_priority::TaskPriority;
     use crate::modules::tasks::infrastructure::di::tasks_context::{
         GENTLE_SHELL_RUNTIME, PI_RUNTIME,
     };
+
+    fn task_with(status: TaskStatus, workspace_id: &str, path: &str) -> Task {
+        Task {
+            id: TaskId::new(),
+            workspace_id: workspace_id.to_string(),
+            title: "arreglar".to_string(),
+            prompt: "p".to_string(),
+            branch: "pi/x".to_string(),
+            base_branch: "main".to_string(),
+            worktree_path: std::path::PathBuf::from(path),
+            status,
+            priority: TaskPriority::default(),
+            error: None,
+            pending_dialogs: Vec::new(),
+            subagents: Default::default(),
+            diff_range: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn task_target_maps_running_task() {
+        let ws: uuid::Uuid = uuid::Uuid::new_v4();
+        let target: Option<TaskTarget> =
+            task_target(task_with(TaskStatus::Running, &ws.to_string(), "/wt/x"));
+        assert_eq!(
+            target,
+            Some(TaskTarget {
+                workspace_id: ws,
+                name: "arreglar".to_string(),
+                path: std::path::PathBuf::from("/wt/x"),
+            })
+        );
+    }
+
+    #[test]
+    fn task_target_is_none_without_worktree_or_valid_data() {
+        let ws: String = uuid::Uuid::new_v4().to_string();
+        for status in [
+            TaskStatus::Backlog,
+            TaskStatus::Merged,
+            TaskStatus::Discarded,
+        ] {
+            assert_eq!(task_target(task_with(status, &ws, "/wt/x")), None);
+        }
+        assert_eq!(task_target(task_with(TaskStatus::Idle, &ws, "")), None);
+        assert_eq!(
+            task_target(task_with(TaskStatus::Idle, "no-uuid", "/wt/x")),
+            None
+        );
+    }
 
     #[test]
     fn tasks_runtime_ids_match_agent_settings_runtimes() {

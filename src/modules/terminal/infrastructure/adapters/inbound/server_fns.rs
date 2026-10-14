@@ -24,6 +24,10 @@ mod support {
         Uuid::parse_str(id).map_err(|_| ServerFnError::new("id de workspace inválido"))
     }
 
+    pub fn task_id(id: &str) -> Result<Uuid, ServerFnError> {
+        Uuid::parse_str(id).map_err(|_| ServerFnError::new("id de tarea inválido"))
+    }
+
     pub fn session_id(id: &str) -> Result<TerminalSessionId, ServerFnError> {
         Uuid::parse_str(id)
             .map(TerminalSessionId::from_uuid)
@@ -59,6 +63,26 @@ mod support {
         }
 
         #[test]
+        fn task_id_is_validated() {
+            let id: Uuid = Uuid::from_u128(9);
+            assert_eq!(task_id(&id.to_string()), Ok(id));
+            assert_eq!(
+                task_id("nope"),
+                Err(ServerFnError::ServerError(
+                    "id de tarea inválido".to_string()
+                ))
+            );
+        }
+
+        #[test]
+        fn task_not_found_message_is_preserved() {
+            assert_eq!(
+                to_server_error(TerminalError::TaskNotFound),
+                ServerFnError::ServerError("la tarea no existe o no tiene worktree".to_string())
+            );
+        }
+
+        #[test]
         fn valid_ids_are_parsed() {
             let id: Uuid = Uuid::from_u128(7);
             assert_eq!(workspace_id(&id.to_string()), Ok(id));
@@ -83,6 +107,24 @@ pub async fn open_terminal(
     let session: TerminalSession = support::context()?
         .open
         .execute(support::workspace_id(&workspace_id)?, size)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(TerminalSessionDto::from(session))
+}
+
+#[server]
+pub async fn open_task_terminal(
+    task_id: String,
+    cols: u16,
+    rows: u16,
+) -> Result<TerminalSessionDto, ServerFnError> {
+    use crate::modules::terminal::domain::models::terminal_session::TerminalSession;
+    use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
+
+    let size: TerminalSize = TerminalSize::new(cols, rows).map_err(support::to_server_error)?;
+    let session: TerminalSession = support::context()?
+        .open_task
+        .execute(support::task_id(&task_id)?, size)
         .await
         .map_err(support::to_server_error)?;
     Ok(TerminalSessionDto::from(session))

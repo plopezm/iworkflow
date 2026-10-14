@@ -63,7 +63,9 @@ pub fn is_same_origin(origin: Option<&str>, host: Option<&str>) -> bool {
 /// Mapea un error de dominio al estado HTTP devuelto antes del upgrade.
 pub fn status_for(error: &TerminalError) -> StatusCode {
     match error {
-        TerminalError::WorkspaceNotFound | TerminalError::SessionNotFound => StatusCode::NOT_FOUND,
+        TerminalError::WorkspaceNotFound
+        | TerminalError::TaskNotFound
+        | TerminalError::SessionNotFound => StatusCode::NOT_FOUND,
         TerminalError::InvalidSize => StatusCode::BAD_REQUEST,
         TerminalError::Pty(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }

@@ -1,3 +1,4 @@
+pub mod task_target;
 pub mod terminal_attachment;
 pub mod terminal_session;
 pub mod terminal_session_id;
