@@ -20,7 +20,7 @@ Decisions:
   - `SubagentTaskDto`, `get_task_subagents` server fn, DTO/error mapping tests.
 - [x] 4. UI
   - State resource refetched on `SubagentsChanged`; `SubagentsPanel` component (inside core `Modal`) (list + detail) reusing core modal; button in `TaskActions`.
-- [ ] 5. Full verification
+- [x] 5. Full verification
   - fmt, clippy ssr + hydrate, `cargo test --features ssr`, `cargo leptos build`; codegraph refreshed; ARCHITECTURE.md note.
 
 ## Evidence
@@ -30,3 +30,4 @@ Decisions:
   - `cargo clippy --features hydrate --target wasm32-unknown-unknown -- -D warnings`: ok
   - `cargo test --features ssr --lib modules::tasks`: 446 passed, 0 failed (new tests: transcript version bump, status label/variant, display name, selection fallback)
   - Not verified: visual rendering in a browser (no wasm/e2e test).
+- Task 5: verifier run at `decf748`: fmt, clippy ssr + hydrate, 869 lib tests, 19 integration binaries (154 tests) each run separately, `cargo leptos build`: all ok; no forbidden imports in tasks domain/application. Codegraph refreshed. Not verified: browser rendering, real pi end to end, tasks 1-3 evidence not recorded by the worker (commits 4c7bde0, 21b56aa, 86ef083).
