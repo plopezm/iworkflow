@@ -162,6 +162,8 @@ pub struct TaskActionsDto {
     pub can_discard: bool,
     pub can_reset: bool,
     pub can_view_diff: bool,
+    /// Files in the diff can be edited (the task still has a worktree).
+    pub can_edit_files: bool,
     pub can_start: bool,
     pub can_edit: bool,
     pub can_delete: bool,
@@ -278,6 +280,7 @@ mod mapping {
                 can_discard: status.can_discard(),
                 can_reset: status.can_reset(),
                 can_view_diff: task.can_view_diff(),
+                can_edit_files: status.has_worktree(),
                 can_start: status.can_start(),
                 can_edit: status.can_edit(),
                 can_delete: status.can_delete(),
@@ -521,6 +524,20 @@ mod mapping {
             assert!(TaskDto::from(merged).actions.can_view_diff);
             let review: TaskDto = TaskDto::from(task(TaskStatus::AwaitingReview));
             assert!(review.actions.can_view_diff);
+        }
+
+        #[test]
+        fn can_edit_files_only_while_the_task_has_a_worktree() {
+            for (status, expected) in [
+                (TaskStatus::Backlog, false),
+                (TaskStatus::Running, true),
+                (TaskStatus::AwaitingReview, true),
+                (TaskStatus::Merged, false),
+                (TaskStatus::Discarded, false),
+            ] {
+                let dto: TaskDto = TaskDto::from(task(status));
+                assert_eq!(dto.actions.can_edit_files, expected, "{status:?}");
+            }
         }
 
         #[test]

@@ -20,6 +20,8 @@ use crate::modules::tasks::application::usecases::get_task::GetTask;
 use crate::modules::tasks::application::usecases::get_task_attachment::GetTaskAttachment;
 use crate::modules::tasks::application::usecases::get_task_diff::GetTaskDiff;
 use crate::modules::tasks::application::usecases::get_task_events::GetTaskEvents;
+use crate::modules::tasks::application::usecases::get_task_file::GetTaskFile;
+use crate::modules::tasks::application::usecases::save_task_file::SaveTaskFile;
 use crate::modules::tasks::application::usecases::get_task_subagents::GetTaskSubagents;
 use crate::modules::tasks::application::usecases::handle_agent_event::HandleAgentEvent;
 use crate::modules::tasks::application::usecases::list_done_tasks::ListDoneTasks;
@@ -40,10 +42,12 @@ use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::Att
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
+use crate::modules::tasks::domain::ports::outbound::task_file_port::TaskFilePort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 use crate::modules::tasks::infrastructure::adapters::outbound::events::broadcast_task_event_bus::BroadcastTaskEventBus;
+use crate::modules::tasks::infrastructure::adapters::outbound::files::fs_task_file_adapter::FsTaskFileAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::git::caching_worktree::CachingWorktree;
 use crate::modules::tasks::infrastructure::adapters::outbound::git::git_cli_worktree_adapter::GitCliWorktreeAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retrying_task_repository::{
@@ -88,6 +92,8 @@ pub struct TasksContext {
     pub get_task_attachment: Arc<GetTaskAttachment>,
     pub get_task_diff: Arc<GetTaskDiff>,
     pub get_task_events: Arc<GetTaskEvents>,
+    pub get_task_file: Arc<GetTaskFile>,
+    pub save_task_file: Arc<SaveTaskFile>,
     pub get_task_subagents: Arc<GetTaskSubagents>,
     pub list_tasks: Arc<ListTasks>,
     pub list_done_tasks: Arc<ListDoneTasks>,
@@ -170,6 +176,7 @@ impl TasksContext {
         let worktrees: Arc<dyn WorktreePort> = Arc::new(GitCliWorktreeAdapter::new(worktrees_dir));
         let diff_worktrees: Arc<dyn WorktreePort> =
             Arc::new(CachingWorktree::new(worktrees.clone()));
+        let task_files: Arc<dyn TaskFilePort> = Arc::new(FsTaskFileAdapter::new());
         let lifecycle: Arc<TaskLifecycle> = Arc::new(TaskLifecycle::new(
             repository.clone(),
             publisher.clone(),
@@ -247,6 +254,13 @@ impl TasksContext {
             get_task_attachment: Arc::new(GetTaskAttachment::new(attachments, storage)),
             get_task_diff: Arc::new(GetTaskDiff::new(lifecycle.clone(), diff_worktrees)),
             get_task_events: Arc::new(GetTaskEvents::new(repository.clone())),
+            get_task_file: Arc::new(GetTaskFile::new(lifecycle.clone(), task_files.clone())),
+            // Plain (non-caching) worktree port: the commit must hit git directly.
+            save_task_file: Arc::new(SaveTaskFile::new(
+                lifecycle.clone(),
+                task_files,
+                worktrees.clone(),
+            )),
             list_tasks: Arc::new(ListTasks::new(repository.clone())),
             list_done_tasks: Arc::new(ListDoneTasks::new(repository)),
             list_workspace_options: Arc::new(ListWorkspaceOptions::new(workspaces)),

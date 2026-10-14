@@ -43,6 +43,10 @@ pub enum TaskError {
     Busy(String),
     #[error("error de almacenamiento de adjuntos: {0}")]
     Storage(String),
+    #[error("ruta de fichero inválida: {0}")]
+    InvalidFilePath(String),
+    #[error("el fichero no se puede editar: {0}")]
+    FileNotEditable(String),
     #[error("el workspace tiene tareas activas")]
     WorkspaceHasActiveTasks,
 }

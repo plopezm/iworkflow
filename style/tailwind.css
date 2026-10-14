@@ -611,6 +611,119 @@ article.card:hover {
   @apply text-muted/60;
 }
 
+/* ── Diff view: toolbar, file tree, per-file cards ── */
+.diff-toolbar {
+  @apply flex flex-wrap items-center gap-2;
+}
+.diff-segmented {
+  @apply inline-flex overflow-hidden rounded-md border border-border;
+}
+.diff-segment {
+  @apply min-h-9 cursor-pointer bg-surface px-3 py-1.5 text-[11px] font-medium tracking-wider text-muted uppercase transition-colors duration-150 hover:text-fg;
+}
+.diff-segment + .diff-segment {
+  @apply border-l border-border;
+}
+.diff-segment-active {
+  @apply bg-accent/15 text-accent;
+}
+.diff-summary {
+  @apply rounded-md border border-border bg-surface;
+}
+.diff-summary-toggle {
+  @apply flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs font-medium text-fg hover:bg-surface-2/60;
+}
+.diff-layout {
+  @apply flex flex-col gap-3 @2xl:flex-row @2xl:items-start;
+}
+.diff-sidebar {
+  @apply max-h-64 overflow-y-auto rounded-md border border-border bg-surface @2xl:sticky @2xl:top-0 @2xl:max-h-[calc(100vh-10rem)] @2xl:w-64 @2xl:shrink-0;
+}
+.diff-cards {
+  @apply flex min-w-0 flex-1 flex-col gap-3;
+}
+.diff-tree {
+  @apply py-1 text-xs;
+}
+.diff-tree-row {
+  @apply flex w-full min-w-0 cursor-pointer items-center gap-1.5 py-1 pr-2 text-left text-fg transition-colors duration-100 hover:bg-surface-2;
+}
+.diff-tree-row-selected {
+  @apply bg-accent/10 text-accent;
+}
+.diff-counts {
+  @apply inline-flex shrink-0 gap-1 font-mono text-[11px];
+}
+.diff-status {
+  @apply inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border text-[10px] font-bold;
+}
+.diff-status-added {
+  @apply border-ok/40 bg-ok/10 text-ok;
+}
+.diff-status-modified {
+  @apply border-warn/40 bg-warn/10 text-warn;
+}
+.diff-status-deleted {
+  @apply border-error/40 bg-error/10 text-error;
+}
+.diff-status-renamed {
+  color: var(--color-purple);
+  border-color: color-mix(in srgb, var(--color-purple) 40%, transparent);
+  background: color-mix(in srgb, var(--color-purple) 10%, transparent);
+}
+.diff-card {
+  @apply scroll-mt-2 overflow-hidden rounded-md border border-border bg-surface;
+}
+.diff-card-selected {
+  @apply border-accent;
+}
+.diff-card-header {
+  @apply flex items-center gap-2 border-b border-border bg-surface-2/60 pr-2;
+}
+.diff-card-toggle {
+  @apply flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-3 py-2 text-left;
+}
+.diff-scroll {
+  @apply overflow-x-auto;
+}
+.diff-table {
+  @apply w-full border-collapse font-mono text-xs;
+}
+.diff-col-head {
+  @apply w-1/2 border-b border-border px-2 py-1 text-left text-[10px] font-bold tracking-widest text-muted uppercase;
+}
+.diff-num {
+  @apply w-10 min-w-10 select-none px-2 text-right align-top text-[11px] text-muted/70;
+}
+.diff-table td.diff-num:nth-child(3) {
+  @apply border-l border-border;
+}
+.diff-sign {
+  @apply w-4 select-none text-center align-top text-muted;
+}
+.diff-cell {
+  @apply px-2 align-top break-all whitespace-pre-wrap text-fg/90;
+}
+.diff-cell-add {
+  @apply bg-ok/10;
+}
+.diff-cell-del {
+  @apply bg-error/10;
+}
+.diff-cell-empty {
+  @apply bg-surface-2/40;
+}
+.diff-hunk-row td {
+  @apply bg-surface-2/60 px-2 py-0.5 text-[11px];
+  color: var(--color-purple);
+}
+.diff-editor-input {
+  @apply w-full resize-y rounded-md border border-border bg-bg px-3 py-2 font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none disabled:opacity-60;
+  tab-size: 4;
+  white-space: pre;
+  overflow-x: auto;
+}
+
 /* ── Scrollbar styling ──────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;

@@ -11,6 +11,7 @@ pub mod subagent_task;
 pub mod task;
 pub mod task_attachment_content;
 pub mod task_event;
+pub mod task_file_content;
 pub mod task_priority;
 pub mod workspace_ref;
 pub mod worktree;

@@ -11,6 +11,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_file_dto::{
+    SaveTaskFileDto, TaskFileDto,
+};
 
 #[cfg(feature = "ssr")]
 mod support {
@@ -58,6 +61,17 @@ mod support {
                 ServerFnError::ServerError(expected.clone())
             );
             assert!(expected.contains("a.png: la imagen está vacía"));
+        }
+
+        #[test]
+        fn file_errors_keep_their_messages() {
+            for error in [
+                TaskError::InvalidFilePath("../x".to_string()),
+                TaskError::FileNotEditable("a.bin: es binario".to_string()),
+            ] {
+                let expected: String = error.to_string();
+                assert_eq!(to_server_error(error), ServerFnError::ServerError(expected));
+            }
         }
 
         #[test]
@@ -283,6 +297,30 @@ pub async fn get_task_diff(id: String) -> Result<TaskDiffDto, ServerFnError> {
         .execute(support::task_id(&id)?)
         .await
         .map(TaskDiffDto::from)
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn get_task_file(id: String, path: String) -> Result<TaskFileDto, ServerFnError> {
+    support::context()?
+        .get_task_file
+        .execute(support::task_id(&id)?, &path)
+        .await
+        .map(TaskFileDto::from)
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn save_task_file(
+    id: String,
+    path: String,
+    content: String,
+) -> Result<SaveTaskFileDto, ServerFnError> {
+    support::context()?
+        .save_task_file
+        .execute(support::task_id(&id)?, &path, &content)
+        .await
+        .map(SaveTaskFileDto::from)
         .map_err(support::to_server_error)
 }
 
