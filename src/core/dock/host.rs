@@ -276,6 +276,8 @@ fn DockGroup(
     let focused: Memo<bool> =
         Memo::new(move |_| dock.layout.with(|l: &DockLayout| l.focused == group_id));
     let is_empty: Memo<bool> = Memo::new(move |_| tabs.with(Vec::is_empty));
+    let is_only_group: Memo<bool> =
+        Memo::new(move |_| dock.layout.with(|l: &DockLayout| l.groups.len() <= 1));
     let dragging: Memo<bool> = Memo::new(move |_| dock.dragging.with(Option::is_some));
     let with_active = move |f: fn(&DockContext, TabId)| {
         if let Some(tab) = active.get_untracked() {
@@ -367,6 +369,13 @@ fn DockGroup(
                     >
                         "Cerrar las demás"
                     </button>
+                    <button
+                        class="menu-item"
+                        disabled=move || is_only_group.get()
+                        on:click=move |_| dock.close_group(group_id)
+                    >
+                        "Cerrar división"
+                    </button>
                 </DropdownMenu>
             </div>
             <div class="relative min-h-0 flex-1 bg-bg">
@@ -385,7 +394,17 @@ fn DockGroup(
                         }
                     }
                 />
-                <Show when=move || is_empty.get()>{empty.run()}</Show>
+                <Show when=move || is_empty.get()>
+                    {empty.run()}
+                    <Show when=move || !is_only_group.get()>
+                        <button
+                            class="btn-secondary absolute right-3 bottom-3 min-h-8 px-3 py-1 text-xs"
+                            on:click=move |_| dock.close_group(group_id)
+                        >
+                            "Cerrar división"
+                        </button>
+                    </Show>
+                </Show>
                 <Show when=move || dragging.get()>
                     <DropOverlay group_id=group_id />
                 </Show>

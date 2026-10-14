@@ -63,6 +63,11 @@ impl DockContext {
         });
     }
 
+    pub fn close_group(&self, group: GroupId) {
+        self.layout
+            .update(|l: &mut DockLayout| l.close_group(group));
+    }
+
     pub fn activate(&self, tab: TabId) {
         self.layout.update(|l: &mut DockLayout| l.activate(tab));
     }

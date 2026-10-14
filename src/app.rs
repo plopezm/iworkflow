@@ -263,7 +263,11 @@ fn empty_group() -> impl IntoView {
                     .into_iter()
                     .map(|(path, icon, label)| {
                         view! {
-                            <TabLink href=path class="btn-secondary min-h-8 px-3 py-1 text-xs">
+                            <TabLink
+                                href=path
+
+                                class="btn-secondary min-h-8 px-3 py-1 text-xs"
+                            >
                                 <span class="mr-1.5" aria-hidden="true">{icon}</span>
                                 {label}
                             </TabLink>

@@ -78,6 +78,16 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     'las pestañas se restauran tras recargar');
   step('el layout persiste tras recargar');
 
+  // Una división vacía se puede cerrar.
+  const countBefore = await groups().count();
+  await page.getByRole('button', { name: 'Opciones del grupo' }).first().click();
+  await page.getByRole('button', { name: 'Dividir a la derecha' }).click();
+  await page.waitForFunction((n) => document.querySelectorAll('.dock-group').length === n + 1, countBefore);
+  const empty = page.locator('.dock-group-focused');
+  await empty.getByRole('button', { name: 'Cerrar división' }).click();
+  await page.waitForFunction((n) => document.querySelectorAll('.dock-group').length === n, countBefore);
+  step('una división vacía se puede cerrar');
+
   const aside = page.locator('aside[aria-label="Barra lateral"]');
   const widthBefore = (await page.locator('main').boundingBox()).width;
   await page.getByRole('button', { name: 'Ocultar barra lateral' }).click();

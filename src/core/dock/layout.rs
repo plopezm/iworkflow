@@ -337,6 +337,37 @@ impl DockLayout {
         id
     }
 
+    /// Cierra la división `gid` sin perder pestañas: pasan al grupo vecino (el anterior en
+    /// el árbol, o el siguiente si era el primero). No hace nada si es el único grupo.
+    pub fn close_group(&mut self, gid: GroupId) {
+        if self.groups.len() <= 1 {
+            return;
+        }
+        let order: Vec<GroupId> = self.leaf_order();
+        let Some(position) = order.iter().position(|g: &GroupId| *g == gid) else {
+            return;
+        };
+        let neighbour: Option<GroupId> = if position > 0 {
+            order.get(position - 1).copied()
+        } else {
+            order.get(1).copied()
+        };
+        let moved: Option<(Vec<TabEntry>, Option<TabId>)> = self
+            .group_mut(gid)
+            .map(|g: &mut TabGroup| (std::mem::take(&mut g.tabs), g.active));
+        if let (Some((tabs, active)), Some(target)) = (moved, neighbour)
+            && let Some(dest) = self.group_mut(target)
+            && !tabs.is_empty()
+        {
+            dest.tabs.extend(tabs);
+            dest.active = active.or(dest.active);
+        }
+        self.remove_group(gid);
+        if let Some(target) = neighbour {
+            self.focus(target);
+        }
+    }
+
     /// Cambia la ruta y el título de una pestaña existente (navegación dentro de la pestaña).
     pub fn replace_path(&mut self, tab: TabId, path: &str, title: &str) {
         if let Some((_, existing)) = self.find_path(path)
@@ -684,6 +715,46 @@ mod tests {
         layout.replace_path(b, "/a", "A");
         assert_eq!(layout.groups[0].tabs.len(), 1);
         assert_eq!(layout.groups[0].active, Some(a));
+    }
+
+    #[test]
+    fn close_group_removes_an_empty_split() {
+        let (mut layout, _, _) = two_tabs();
+        let g: GroupId = layout.split_group(1, SplitDir::Row);
+        layout.close_group(g);
+        assert_eq!(layout.groups.len(), 1);
+        assert_eq!(layout.root, LayoutNode::Group(1));
+        assert_eq!(layout.focused, 1);
+    }
+
+    #[test]
+    fn close_group_merges_tabs_into_the_neighbour() {
+        let (mut layout, _, _) = two_tabs();
+        let g: GroupId = layout.split_group(1, SplitDir::Row);
+        let c: TabId = layout.open("/c", "C", Some(g));
+        layout.close_group(g);
+        assert_eq!(layout.groups.len(), 1);
+        assert_eq!(layout.group_of_tab(c), Some(1));
+        assert_eq!(layout.groups[0].tabs.len(), 3);
+        assert_eq!(layout.groups[0].active, Some(c));
+    }
+
+    #[test]
+    fn close_group_on_the_first_group_merges_into_the_next() {
+        let (mut layout, a, _) = two_tabs();
+        let g: GroupId = layout.split_group(1, SplitDir::Row);
+        layout.close_group(1);
+        assert_eq!(layout.leaf_order(), vec![g]);
+        assert_eq!(layout.group_of_tab(a), Some(g));
+        assert_eq!(layout.focused, g);
+    }
+
+    #[test]
+    fn close_group_keeps_the_only_group() {
+        let (mut layout, _, _) = two_tabs();
+        layout.close_group(1);
+        assert_eq!(layout.groups.len(), 1);
+        assert_eq!(layout.groups[0].tabs.len(), 2);
     }
 
     #[test]
