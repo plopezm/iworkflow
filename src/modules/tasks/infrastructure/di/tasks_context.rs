@@ -20,6 +20,7 @@ use crate::modules::tasks::application::usecases::get_task::GetTask;
 use crate::modules::tasks::application::usecases::get_task_attachment::GetTaskAttachment;
 use crate::modules::tasks::application::usecases::get_task_diff::GetTaskDiff;
 use crate::modules::tasks::application::usecases::get_task_events::GetTaskEvents;
+use crate::modules::tasks::application::usecases::get_task_subagents::GetTaskSubagents;
 use crate::modules::tasks::application::usecases::handle_agent_event::HandleAgentEvent;
 use crate::modules::tasks::application::usecases::list_done_tasks::ListDoneTasks;
 use crate::modules::tasks::application::usecases::list_tasks::ListTasks;
@@ -87,6 +88,7 @@ pub struct TasksContext {
     pub get_task_attachment: Arc<GetTaskAttachment>,
     pub get_task_diff: Arc<GetTaskDiff>,
     pub get_task_events: Arc<GetTaskEvents>,
+    pub get_task_subagents: Arc<GetTaskSubagents>,
     pub list_tasks: Arc<ListTasks>,
     pub list_done_tasks: Arc<ListDoneTasks>,
     pub list_workspace_options: Arc<ListWorkspaceOptions>,
@@ -237,8 +239,9 @@ impl TasksContext {
             reset_task: Arc::new(ResetTask::new(
                 lifecycle.clone(),
                 worktrees.clone(),
-                runtime,
+                runtime.clone(),
             )),
+            get_task_subagents: Arc::new(GetTaskSubagents::new(lifecycle.clone(), runtime)),
             get_task: Arc::new(GetTask::new(lifecycle.clone())),
             list_task_attachments: Arc::new(ListTaskAttachments::new(attachments.clone())),
             get_task_attachment: Arc::new(GetTaskAttachment::new(attachments, storage)),

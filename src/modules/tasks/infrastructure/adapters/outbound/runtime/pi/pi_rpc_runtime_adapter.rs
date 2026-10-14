@@ -19,6 +19,7 @@ use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
+use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -247,6 +248,10 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
         self.registry()
             .map(|registry| registry.contains_key(&task_id))
             .unwrap_or(false)
+    }
+
+    async fn subagents(&self, _task_id: TaskId) -> Vec<SubagentTask> {
+        Vec::new()
     }
 
     fn capabilities(&self, _task_id: TaskId) -> AgentCapabilities {

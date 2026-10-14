@@ -12,7 +12,7 @@ Decisions:
 
 ## Tasks
 
-- [ ] 1. Domain + port + use case
+- [x] 1. Domain + port + use case
   - `SubagentTask`/`SubagentStatus`/`SubagentThreadItem` models, `AgentCapabilities.subagents`, `AgentRuntimePort::subagents`, mocks, router delegation, `GetTaskSubagents` use case + DI. Tests RED first.
 - [ ] 2. Pi adapter
   - Decode full `gentle-agents.activity/v1` snapshot in `rpc_protocol.rs`; adapter stores latest per task, reset on `start`, kept after exit; declares `subagents`.

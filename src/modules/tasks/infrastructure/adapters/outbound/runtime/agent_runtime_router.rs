@@ -8,6 +8,7 @@ use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
+use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
@@ -148,6 +149,13 @@ impl AgentRuntimePort for AgentRuntimeRouter {
         }
     }
 
+    async fn subagents(&self, task_id: TaskId) -> Vec<SubagentTask> {
+        match self.chosen_for(task_id) {
+            Ok(Some(adapter)) => adapter.subagents(task_id).await,
+            _ => Vec::new(),
+        }
+    }
+
     fn capabilities(&self, task_id: TaskId) -> AgentCapabilities {
         match self.chosen_for(task_id) {
             Ok(Some(adapter)) => adapter.capabilities(task_id),
@@ -167,6 +175,7 @@ impl AgentRuntimePort for AgentRuntimeRouter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::tasks::domain::models::subagent_task::SubagentStatus;
     use crate::modules::tasks::mocks::{MockAgentEventSink, MockAgentRuntime};
 
     fn id(raw: &str) -> RuntimeId {
@@ -286,6 +295,47 @@ mod tests {
         assert_eq!(router.send(task_id, AgentCommand::Abort).await, Ok(()));
         assert!(router.is_running(task_id).await);
         assert_eq!(router.capabilities(task_id), AgentCapabilities::full());
+    }
+
+    #[tokio::test]
+    async fn subagents_delegate_to_the_recorded_adapter() {
+        let mut pi: MockAgentRuntime = started_mock();
+        pi.expect_subagents().times(1).returning(|_| {
+            vec![SubagentTask {
+                id: "t1".to_string(),
+                agent: "explore".to_string(),
+                label: None,
+                prompt: None,
+                status: SubagentStatus::Running,
+                created_at: None,
+                started_at: None,
+                ended_at: None,
+                last_step: None,
+                last_activity_at: None,
+                turns: 0,
+                tool_calls: 0,
+                error: None,
+                thread: Vec::new(),
+            }]
+        });
+        let router: AgentRuntimeRouter = router(untouched_mock(), pi).expect("router");
+        let task_id: TaskId = TaskId::new();
+        start_with(&router, task_id, Some("pi"))
+            .await
+            .expect("start");
+
+        let subagents: Vec<SubagentTask> = router.subagents(task_id).await;
+
+        assert_eq!(subagents.len(), 1);
+        assert_eq!(subagents[0].id, "t1");
+    }
+
+    #[tokio::test]
+    async fn subagents_of_an_unknown_task_are_empty() {
+        let router: AgentRuntimeRouter =
+            router(untouched_mock(), untouched_mock()).expect("router");
+
+        assert!(router.subagents(TaskId::new()).await.is_empty());
     }
 
     #[tokio::test]
@@ -410,6 +460,10 @@ mod tests {
 
         async fn is_running(&self, _: TaskId) -> bool {
             false
+        }
+
+        async fn subagents(&self, _: TaskId) -> Vec<SubagentTask> {
+            Vec::new()
         }
 
         fn capabilities(&self, _: TaskId) -> AgentCapabilities {

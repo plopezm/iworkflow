@@ -13,6 +13,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
+use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
@@ -126,6 +127,7 @@ mock! {
         async fn send(&self, task_id: TaskId, command: AgentCommand) -> Result<(), TaskError>;
         async fn stop(&self, task_id: TaskId) -> Result<(), TaskError>;
         async fn is_running(&self, task_id: TaskId) -> bool;
+        async fn subagents(&self, task_id: TaskId) -> Vec<SubagentTask>;
         fn capabilities(&self, task_id: TaskId) -> AgentCapabilities;
         fn runtime_capabilities<'a>(&self, runtime: Option<&'a RuntimeId>) -> AgentCapabilities;
     }
