@@ -153,6 +153,35 @@ async fn merges_into_checked_out_base_and_removes_worktree() {
 }
 
 #[tokio::test]
+async fn remove_deletes_unregistered_folder() {
+    let f: Fixture = fixture_with_worktree().await;
+    let stray: PathBuf = f._worktrees_dir.path().join("stray");
+    std::fs::create_dir_all(&stray).expect("mkdir");
+    std::fs::write(stray.join("x.txt"), "x").expect("write");
+
+    f.adapter
+        .remove(&f.repo, &stray, "pi/inexistente")
+        .await
+        .expect("remove");
+
+    assert!(!stray.exists());
+}
+
+#[tokio::test]
+async fn remove_propagates_failure_for_locked_worktree() {
+    let f: Fixture = fixture_with_worktree().await;
+    common::git(
+        &f.repo,
+        &["worktree", "lock", f.worktree.to_str().expect("utf8")],
+    );
+
+    let result: Result<(), TaskError> = f.adapter.remove(&f.repo, &f.worktree, BRANCH).await;
+
+    assert!(result.is_err());
+    assert!(f.worktree.exists());
+}
+
+#[tokio::test]
 async fn merges_through_temporary_worktree_when_base_not_checked_out() {
     let f: Fixture = fixture_with_worktree().await;
     common::git(&f.repo, &["checkout", "-q", "-b", "otra"]);
@@ -464,4 +493,23 @@ async fn diff_range_truncates_long_patches_like_diff() {
     assert!(ranged.truncated);
     assert_eq!(ranged.patch.len(), plain.patch.len());
     assert_eq!(ranged.patch, plain.patch);
+}
+
+#[tokio::test]
+async fn remove_deletes_folder_that_is_no_longer_a_worktree() {
+    let f: Fixture = fixture_with_worktree().await;
+    // Simula un worktree corrupto: la carpeta existe pero git ya no la reconoce.
+    std::fs::remove_file(f.worktree.join(".git")).expect("remove .git file");
+
+    f.adapter
+        .remove(&f.repo, &f.worktree, BRANCH)
+        .await
+        .expect("remove");
+
+    assert!(!f.worktree.exists());
+    assert_eq!(common::git(&f.repo, &["branch", "--list", BRANCH]), "");
+    assert!(
+        !common::git(&f.repo, &["worktree", "list", "--porcelain"])
+            .contains(f.worktree.to_string_lossy().as_ref())
+    );
 }

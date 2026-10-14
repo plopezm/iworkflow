@@ -95,6 +95,22 @@ async fn git_with_identity(dir: &Path, args: &[&str]) -> Result<GitOutput, TaskE
     git_raw(dir, &full).await
 }
 
+/// `true` si `path` no figura en `git worktree list --porcelain` o figura como `prunable`
+/// (su gitdir ya no existe), es decir, git no puede eliminarlo como worktree.
+fn is_dead_worktree(porcelain: &str, path: &Path) -> bool {
+    let canonical: PathBuf = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    porcelain
+        .split("\n\n")
+        .find(|block| {
+            block
+                .lines()
+                .next()
+                .and_then(|line| line.strip_prefix("worktree "))
+                .is_some_and(|listed| Path::new(listed) == path || Path::new(listed) == canonical)
+        })
+        .is_none_or(|block| block.lines().any(|line| line.starts_with("prunable")))
+}
+
 /// Worktree (si lo hay) que tiene `branch` checkouteada, según `git worktree list --porcelain`.
 fn worktree_with_branch(porcelain: &str, branch: &str) -> Option<PathBuf> {
     let target: String = format!("branch refs/heads/{branch}");
@@ -296,9 +312,26 @@ impl WorktreePort for GitCliWorktreeAdapter {
     async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError> {
         if path.exists() {
             let path_arg: String = path.to_string_lossy().into_owned();
-            git(repo, &["worktree", "remove", "--force", &path_arg]).await?;
-        } else {
-            git(repo, &["worktree", "prune"]).await?;
+            if let Err(error) = git(repo, &["worktree", "remove", "--force", &path_arg]).await {
+                // Solo se descarta por borrado si git ya no considera la carpeta un worktree
+                // utilizable; cualquier otro fallo (bloqueado, permisos...) se propaga.
+                let porcelain: String = git(repo, &["worktree", "list", "--porcelain"])
+                    .await
+                    .map_err(|_| error.clone())?;
+                if !is_dead_worktree(&porcelain, path) {
+                    return Err(error);
+                }
+                tracing::warn!(
+                    "{} ya no es un worktree válido ({error}); se borra la carpeta",
+                    path.display()
+                );
+                tokio::fs::remove_dir_all(path).await.map_err(|e| {
+                    TaskError::Git(format!("no se pudo borrar {}: {e}", path.display()))
+                })?;
+            }
+        }
+        if let Err(error) = git(repo, &["worktree", "prune"]).await {
+            tracing::warn!("no se pudo ejecutar git worktree prune: {error}");
         }
         let reference: String = format!("refs/heads/{branch}");
         let exists: bool = git_raw(repo, &["rev-parse", "--verify", "--quiet", &reference])
@@ -314,6 +347,15 @@ impl WorktreePort for GitCliWorktreeAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dead_worktree_is_unregistered_or_prunable_only() {
+        let porcelain: &str = "worktree /repo\nHEAD a\nbranch refs/heads/main\n\nworktree /wt/ok\nHEAD b\nbranch refs/heads/x\n\nworktree /wt/gone\nHEAD c\nbranch refs/heads/y\nprunable gitdir file points to non-existent location\n\nworktree /wt/locked\nHEAD d\nbranch refs/heads/z\nlocked\n";
+        assert!(is_dead_worktree(porcelain, Path::new("/wt/unknown")));
+        assert!(is_dead_worktree(porcelain, Path::new("/wt/gone")));
+        assert!(!is_dead_worktree(porcelain, Path::new("/wt/ok")));
+        assert!(!is_dead_worktree(porcelain, Path::new("/wt/locked")));
+    }
 
     #[test]
     fn finds_worktree_holding_branch() {
