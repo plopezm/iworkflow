@@ -23,7 +23,7 @@ Guía para leer el código de iworkflow, pensada para alguien con experiencia s�
 
 ## 1. Qué hace la aplicación
 
-iworkflow es un dashboard web para lanzar y supervisar agentes de código (`gentle-shell`, o `pi`) en modo RPC. Cada **tarea** se ejecuta en su propio **git worktree**; al terminar, el usuario revisa el diff y decide si integrar (`merge --no-ff`) o descartar.
+iworkflow es un dashboard web para lanzar y supervisar agentes de código (`gentle-shell` o `pi`) mediante un protocolo RPC. El agente concreto queda detrás de un puerto (`AgentRuntimePort`), de modo que el dominio no sabe qué agente ni qué transporte hay debajo ([§6.7](#67-abstracción-del-runtime-de-agentes)). Cada **tarea** se ejecuta en su propio **git worktree**; al terminar, el usuario revisa el diff y decide si integrar (`merge --no-ff`) o descartar.
 
 ```mermaid
 flowchart LR
@@ -32,7 +32,7 @@ flowchart LR
     U -- "WebSocket: terminal" --> S
     S --> DB[(SQLite<br/>Diesel)]
     S -- "git worktree / merge" --> G[Repos git del usuario]
-    S -- "JSONL por stdin/stdout" --> A[Proceso agente<br/>gentle-shell --mode rpc]
+    S -- "JSONL por stdin/stdout" --> A[Proceso agente<br/>pi / gentle-shell, modo RPC]
     S -- "PTY" --> T[Shell interactiva]
 ```
 
@@ -199,6 +199,8 @@ src/
     ├── workspaces/    # repositorios git registrados
     ├── terminal/      # terminales PTY por WebSocket
     ├── agent_settings/# modelo/perfil/runtime/thinking globales
+    ├── agent_profiles/# perfiles y enrutado de roles/modelos de los agentes
+    ├── project_tree/  # árbol de directorios de un workspace
     └── agents_files/  # ficheros AGENTS.md reutilizables
 ```
 
@@ -405,7 +407,11 @@ Rust puro. Sin Leptos, Diesel ni axum.
 |---|---|
 | `task.rs` | `Task`, `TaskId` (newtype de `Uuid`), `TaskStatus` (11 estados + reglas de transición, `can_view_diff`), `diff_range: Option<DiffRange>`, `TaskStage` (vista agregada para el tablero), `NewTask`, helpers `branch_name(...)` |
 | `agent_event.rs` | `AgentEvent`: eventos normalizados que emite el agente (`RunStarted`, `TextDelta`, `ToolFinished`, `DialogRequested`, `ProcessExited`, …) |
-| `agent_command.rs` | `AgentCommand`: órdenes hacia el agente (`Prompt`, `Steer`, `FollowUp`, `Abort`, `AnswerDialog`) |
+| `agent_command.rs` | `AgentCommand`: órdenes hacia el agente (`Prompt`, `Steer`, `FollowUp`, `Abort`, `AnswerDialog`) y `MessageMode` (`Steer`/`FollowUp`) |
+| `agent_capabilities.rs` | `AgentCapabilities`: qué soporta cada runtime (`steer`, `follow_up`, `dialogs`, `model_selection`, `thinking_levels`, `resume`, `subagents`); `full()` y `minimal()` |
+| `runtime_id.rs` | `RuntimeId`: slug validado del runtime (`pi`, `gentle-shell`) |
+| `launch_options.rs` | `LaunchOptions` (`runtime`, `model`, `thinking`) y `restricted_to(&caps)`, que descarta lo que el runtime no soporta |
+| `subagent_task.rs` / `subagent_activity.rs` | `SubagentTask`, `SubagentStatus`, `SubagentThreadItem`: actividad de subagentes neutra respecto al runtime |
 | `task_event.rs` | `TaskEvent` / `TaskEventKind`: lo que se persiste y se difunde (estado, agente, efímeros) |
 | `worktree.rs` | `MergeOutcome` (`Merged` / `Conflict { files }`), `TaskDiff`, `DiffRange` (`base_sha..head_sha`: commits de la tarea, para regenerar su diff tras integrar) |
 | `workspace_ref.rs` | Vista mínima de un workspace desde el punto de vista de tareas |
@@ -450,7 +456,7 @@ Lectura para Java: `matches!(x, A | B)` es un `switch` que devuelve `boolean`; l
 | `TaskAttachmentRepositoryPort` | Metadatos de imágenes adjuntas | `TaskAttachmentRepositoryAdapter` (Diesel) |
 | `AttachmentStoragePort` | Ficheros de imagen en disco | `FsAttachmentStorageAdapter` |
 | `WorktreePort` | `git worktree add`, commit, diff, `pin_range` / `diff_range` (diff de tareas integradas), merge, remove | `GitCliWorktreeAdapter` (ejecuta `git`) |
-| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea, sin presuponer el transporte; declara `AgentCapabilities` y rechaza con `TaskError::Unsupported` lo que no soporta; `subagents(task_id)` devuelve la actividad (`SubagentTask`) de los subagentes, vacía si el runtime no la ofrece (el adaptador pi decodifica `gentle-agents.activity/v1` y guarda en memoria la última instantánea; la UI la abre desde las acciones de la tarea) | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) |
+| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea sin presuponer el transporte; ver [§6.7](#67-abstracción-del-runtime-de-agentes) | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) |
 | `TaskEventPublisherPort` | Difundir eventos en vivo | `BroadcastTaskEventBus` (tokio broadcast) |
 | `WorkspaceLookupPort` | Consultar workspaces | `WorkspaceLookupBridge` (en `app_state.rs`) |
 | `LaunchSettingsPort` | Modelo/thinking a usar al lanzar | `LaunchSettingsBridge` |
@@ -485,7 +491,7 @@ Fíjate en que `start` recibe un `sink`: el runtime no conoce la BD, solo "algui
 
 Un caso de uso = un `struct` con sus puertos como campos `Arc<dyn …>`, un `new(...)` y un `execute(...)`. Es el equivalente a un `@Service` con un único método público.
 
-Hay 20 en `application/usecases/`: `create_task`, `start_task`, `update_task`, `delete_task`, `send_message`, `abort_task`, `answer_dialog`, `finish_task`, `resume_task`, `merge_task`, `discard_task`, `reset_task`, `get_task`, `get_task_diff`, `get_task_events`, `list_tasks`, `list_task_attachments`, `list_workspace_options`, `reconcile_tasks`, `delete_workspace_tasks`, más `handle_agent_event` (implementa `AgentEventSink`).
+Hay 24 en `application/usecases/` (incluido `handle_agent_event`, que implementa `AgentEventSink`): `create_task`, `start_task`, `update_task`, `delete_task`, `send_message`, `abort_task`, `answer_dialog`, `finish_task`, `resume_task`, `merge_task`, `discard_task`, `reset_task`, `get_task`, `get_task_diff`, `get_task_events`, `get_task_subagents`, `get_task_attachment`, `list_tasks`, `list_done_tasks`, `list_task_attachments`, `list_workspace_options`, `reconcile_tasks`, `delete_workspace_tasks`, `handle_agent_event`.
 
 **`TaskLifecycle`** (`application/services/task_lifecycle.rs`) es el colaborador compartido por casi todos: carga tareas, cambia estado, registra eventos y los difunde.
 
@@ -543,7 +549,7 @@ Observa el patrón: **validar con el dominio → transicionar → operar con pue
 |---|---|
 | `persistence/` | `TaskRepositoryAdapter` (Diesel), `TaskAttachmentRepositoryAdapter`, `RetryingTaskRepository` (decorador), `models/*_row.rs` (structs `Queryable`/`Insertable`) |
 | `git/` | `GitCliWorktreeAdapter`: invoca el binario `git` (worktree add, commit, merge `--no-ff`, merge en worktree temporal si la rama base no está checkouteada, …) |
-| `runtime/` | `AgentRuntimeRouter` (delegación por `RuntimeId`); `pi/`: `PiRpcRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`). Añadir un agente = nuevo adaptador de `AgentRuntimePort` registrado en `tasks_context.rs` (y, si procede, su binario en el catálogo de modelos de `agent_settings`) |
+| `runtime/` | `AgentRuntimeRouter` (delegación por `RuntimeId`); `pi/`: `PiRpcRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`). Añadir un agente = nuevo adaptador de `AgentRuntimePort` registrado en `tasks_context.rs` (ver [§6.7](#67-abstracción-del-runtime-de-agentes)) |
 | `events/` | `BroadcastTaskEventBus`: `tokio::sync::broadcast` con capacidad 4096 |
 | `storage/` | `FsAttachmentStorageAdapter`: imágenes en `~/.iworkflow/attachments/` |
 
@@ -607,6 +613,73 @@ La página crea su estado, y los componentes pintan. Detalle completo en [§9](#
 
 `state/diff_report_state.rs` gestiona el informe imprimible (PDF) del diff, simple o con explicaciones del agente (`ReportPhase`: `Preparing` → `Plain`/`Waiting` → `Ready`). Mientras está ocupado muestra el `ProgressDialog` cancelable de `core/components/`; el render pesado se retrasa un instante (`PREPARE_DELAY`) para que el navegador pinte antes el diálogo.
 
+### 6.7 Abstracción del runtime de agentes
+
+Hasta ahora `tasks` hablaba directamente con un único proceso `gentle-shell`. Hoy el agente es un detalle de infraestructura detrás de `AgentRuntimePort`, y el dominio solo conoce tres conceptos neutros: **órdenes** (`AgentCommand`), **eventos** (`AgentEvent`) y **capacidades** (`AgentCapabilities`).
+
+```mermaid
+flowchart LR
+    UC["Casos de uso<br/>start · resume · send · answer · abort · subagents"]
+    R["AgentRuntimeRouter<br/>(implementa AgentRuntimePort)"]
+    P1["PiRpcRuntimeAdapter<br/>id 'gentle-shell'"]
+    P2["PiRpcRuntimeAdapter<br/>id 'pi'"]
+    UC -- "AgentRuntimePort" --> R
+    R -- "RuntimeId elegido" --> P1
+    R --> P2
+    P1 & P2 -- "AgentEventSink" --> UC
+```
+
+**El puerto** (`domain/ports/outbound/agent_runtime_port.rs`):
+
+| Método | Contrato |
+|---|---|
+| `start(task_id, cwd, resume, &LaunchOptions, sink)` | Lanza el agente en el worktree y empieza a entregar eventos al `AgentEventSink`. `resume` = continuar la sesión previa si el agente lo soporta |
+| `send(task_id, AgentCommand)` | Entrega una orden; puede fallar con `TaskError::Unsupported` |
+| `stop(task_id)` | Parada ordenada (forzada tras un timeout); al volver, `ProcessExited` ya se ha entregado |
+| `is_running(task_id)` | ¿Hay un agente vivo para la tarea? |
+| `subagents(task_id)` | Última actividad conocida de los subagentes (se conserva tras terminar el agente); vacía si no los soporta |
+| `capabilities(task_id)` | Capacidades del agente **de esa tarea** (`minimal()` si es desconocida) |
+| `runtime_capabilities(Option<&RuntimeId>)` | Capacidades del runtime que se usaría en un arranque, consultables **antes** de `start` |
+
+**Órdenes** (`AgentCommand`): `Prompt`, `Steer` (mensaje que se entrega tras las tool calls en curso), `FollowUp` (se entrega cuando el agente termina), `Abort` y `AnswerDialog { dialog_id, answer }`. Los tres mensajes pueden llevar imágenes (`ImageAttachment`). `prompt` y `abort` son el mínimo que todo agente debe ofrecer; el resto se declara como capacidad.
+
+**Capacidades** (`AgentCapabilities`) y quién las aplica:
+
+| Capacidad | Aplica | Efecto si falta |
+|---|---|---|
+| `steer` / `follow_up` | `SendMessage` (según `MessageMode`) | `TaskError::Unsupported` |
+| `dialogs` | `AnswerDialog` | `TaskError::Unsupported` |
+| `resume` | `ResumeTask` | `TaskError::Unsupported` |
+| `model_selection` | `StartTask` / `ResumeTask` vía `LaunchOptions::restricted_to` | se descarta `LaunchOptions::model` |
+| `thinking_levels` | ídem | se descarta `LaunchOptions::thinking` |
+| `subagents` | `GetTaskSubagents` | la lista llega vacía |
+
+Los casos de uso consultan las capacidades antes de actuar; los adaptadores, por tanto, no necesitan duplicar esa validación.
+
+**Eventos** (`AgentEvent`, normalizados): ciclo de ejecución (`RunStarted`, `RunSettled`, `ProcessExited { code }`), mensajes (`UserMessage`, `AssistantMessage`, `TextDelta`, `ThinkingDelta`), herramientas (`ToolStarted`, `ToolUpdated`, `ToolFinished`), diálogos (`DialogRequested`, `DialogResolved`), y auxiliares (`QueueChanged`, `Notice`, `StatusChanged`, `WidgetChanged`, `SubagentsChanged { active, waiting }`). `is_persistent()` separa el historial del tráfico efímero (deltas, `ToolUpdated`, cola, estado, widgets y subagentes solo se difunden en vivo).
+
+**El router** (`AgentRuntimeRouter`). Recibe el `RuntimeId` predeterminado y un `HashMap<RuntimeId, Arc<dyn AgentRuntimePort>>` (falla al construirse si el predeterminado no está registrado). En `start` resuelve el adaptador con `LaunchOptions::runtime` (o el predeterminado; un id desconocido da `Unsupported`), recuerda la elección **por tarea** (con una *generación* para no borrar un registro más nuevo) y delega en él `send`, `stop`, `is_running`, `subagents` y `capabilities`. Una reserva atómica (`StartReservation`) impide que dos `start` concurrentes de la misma tarea lancen dos agentes. `runtime_capabilities` se resuelve sin tarea, solo con el id.
+
+**Selección del runtime.** `agent_settings` guarda el runtime elegido; `PrepareLaunch` lo entrega como `LaunchPreferences` y `LaunchSettingsBridge` lo traduce a `LaunchOptions { runtime: Some(RuntimeId), model, thinking }`. Las tareas no cambian de runtime a mitad de vida: la elección queda registrada al arrancar.
+
+**El adaptador pi** (`runtime/pi/`). Un único `PiRpcRuntimeAdapter` sirve a ambos ids; solo cambia el binario (`PiRpcRuntimeAdapter::new(bin)` en `TasksContext::build_router`). Declara `AgentCapabilities::full()`. Detalles de lanzamiento (`build_command`):
+
+- Se ejecuta con `exec` a través de la shell de login, con el entorno limpio salvo variables de sesión y `GENTLE_SHELL_INTERACTIVE_HOST=1` (activa diálogos `ask_user_*` y widgets de actividad).
+- Argumentos: los base del runtime, `--continue` si `resume`, `--provider <p> --model <m>` si hay modelo y `--thinking <nivel>` si hay thinking.
+- `rpc_protocol::encode` traduce cada `AgentCommand` a un registro JSONL: `prompt` (con `streamingBehavior: followUp`), `steer`, `follow_up`, `abort` y `extension_ui_response` para los diálogos (`value` / `confirmed` / `cancelled`). `decode` hace el camino inverso y descarta lo irrelevante; `strip_ansi` limpia la salida de herramientas.
+- **Subagentes:** la extensión `gentle-agents` publica su actividad como *widget* (`widgetKey = "gentle-agents"`). `decode` extrae un resumen (`SubagentsChanged`) y `decode_subagent_tasks` la instantánea completa (`gentle-agents.activity/v1`, tolerante a esquemas desconocidos). El adaptador guarda en memoria la última instantánea por tarea (sobrevive a la salida del proceso) y la expone con `subagents()`.
+
+**Subagentes en la UI.** `GetTaskSubagents` → server function `get_task_subagents` → `SubagentTaskDto`. `task_actions.rs` abre `components/subagents_panel.rs` desde las acciones de la tarea; la actividad de subagentes (`SubagentActivity` en `Task`) también cuenta para considerar la tarea en trabajo (`TaskStage`).
+
+**Añadir un agente nuevo:**
+
+1. Implementar `AgentRuntimePort` en `adapters/outbound/runtime/<agente>/` (traducción propia órdenes/eventos y `capabilities()` honestas).
+2. Registrarlo en `TasksContext::build_router` con su `RuntimeId`.
+3. Añadir la variante a `AgentRuntime` en `agent_settings` (su `as_str()` debe coincidir con el `RuntimeId`) y, si aplica, su binario/catálogo de modelos.
+4. Test de integración en `tests/modules/tasks/` con un proceso falso (`tests/fixtures/`) y tests de mapeo del protocolo.
+
+El dominio, los casos de uso y la UI no cambian.
+
 ---
 
 ## 7. Flujos de extremo a extremo
@@ -651,11 +724,11 @@ Puntos de diseño a notar en `src/modules/tasks/application/usecases/start_task.
 
 ### 7.2 Eventos del agente: el pipeline más importante
 
-El agente es un proceso hijo que habla **JSONL por stdin/stdout** (`gentle-shell --mode rpc`). Cada línea de stdout se convierte en un `AgentEvent`, se persiste (si procede), provoca transiciones de estado y se difunde al navegador.
+El agente es un proceso hijo que habla **JSONL por stdin/stdout** (`pi` o `gentle-shell`, que hablan el mismo protocolo RPC). Cada línea de stdout se convierte en un `AgentEvent`, se persiste (si procede), provoca transiciones de estado y se difunde al navegador.
 
 ```mermaid
 flowchart TB
-    subgraph proc["Proceso hijo: gentle-shell --mode rpc"]
+    subgraph proc["Proceso hijo: agente en modo RPC"]
         OUT[stdout JSONL]
         IN[stdin JSONL]
     end
@@ -678,7 +751,7 @@ flowchart TB
     SSE --> UI[Navegador: transcript / tablero]
 ```
 
-**Paso 1 — el runtime** (`runtime/gentle_shell_runtime_adapter.rs`). `start()` lanza el proceso (vía la shell de login con `exec`, entorno limpio salvo variables de sesión, `kill_on_drop`) y crea una tarea tokio `supervise` por agente. Mantiene un registro `HashMap<TaskId, AgentProcess>` protegido por `Mutex`. `supervise` usa `tokio::select!` para esperar a la vez: lectura de stdout, escritura a stdin y señal de kill. Al terminar el proceso emite `AgentEvent::ProcessExited { code }`.
+**Paso 1 — el runtime** (`runtime/pi/pi_rpc_runtime_adapter.rs`; el `AgentRuntimeRouter` ya ha delegado en él). `start()` lanza el proceso (vía la shell de login con `exec`, entorno limpio salvo variables de sesión, `kill_on_drop`) y crea una tarea tokio `supervise` por agente. Mantiene un registro `HashMap<TaskId, AgentProcess>` protegido por `Mutex`. `supervise` usa `tokio::select!` para esperar a la vez: lectura de stdout, escritura a stdin y señal de kill. Al terminar el proceso emite `AgentEvent::ProcessExited { code }`.
 
 ```rust
 loop {
@@ -887,9 +960,19 @@ Un *workspace* es una carpeta con un repo git donde se lanzan tareas.
 
 ### `agent_settings` — cómo se lanza el agente
 
-- Guarda en SQLite (una fila) el **runtime** (`gentle-shell` o `pi`), **modelo**, **perfil** y **nivel de thinking**.
+- Guarda en SQLite (una fila) el **runtime** (`AgentRuntime::GentleShell` = `gentle-shell`, predeterminado, o `AgentRuntime::Pi` = `pi`; su `as_str()` coincide con el `RuntimeId` registrado en el router de `tasks`), **modelo**, **perfil** y **nivel de thinking**.
 - `PrepareLaunch` lee los ajustes, aplica el *pin* de perfil de la tarea (`ProfilePinPort`; `GitProfilePinAdapter` escribe `<git-common-dir>/gentle-ai/profile-pin.json`) y devuelve las `LaunchPreferences` que `tasks` usa al lanzar (a través de `LaunchSettingsBridge`).
 - Adaptadores: `AgentSettingsRepositoryAdapter`, `AgentCliModelCatalogAdapter` (lista modelos ejecutando el CLI), `ProfilesFileCatalogAdapter` (lee `profiles.json`), `GitProfilePinAdapter`.
+
+### `agent_profiles` — perfiles y enrutado de agentes
+
+- Gestiona los **perfiles** de `gentle-ai` (crear, duplicar, renombrar, borrar, importar/exportar JSON), los **roles de agente** (`create_agent_role`) y el **enrutado** rol → modelo/thinking, tanto global (`get_global_routing` / `set_global_routing`) como por perfil (`set_profile_routing`).
+- Puertos outbound: `ProfileStorePort`, `AgentRolePort`, `GlobalRoutingPort`, `ProfileExchangePort`, `ModelOptionsPort`; los adaptadores leen y escriben los ficheros de configuración del agente (`WriteGuard`, un `Mutex` compartido, serializa el ciclo cargar → mutar → guardar de `profiles.json`).
+- Páginas: `/profiles` y `/models`. Es independiente de `agent_settings`, que solo *selecciona* el perfil activo al lanzar.
+
+### `project_tree` — árbol de un workspace
+
+- `ListProjectDirectory` lista un directorio del workspace (resuelto con `WorkspaceRootPort`) mediante un adaptador de sistema de ficheros; sirve la vista de árbol del proyecto.
 
 ### `agents_files` — biblioteca de AGENTS.md
 
@@ -907,7 +990,7 @@ Un *workspace* es una carpeta con un repo git donde se lanzan tareas.
 | Casos de uso | `#[cfg(test)] mod tests` en cada `usecases/*.rs` | `#[tokio::test]` + mocks `mockall` de los puertos; `application/test_support.rs` ofrece una `Recorded` para inspeccionar estados y eventos emitidos |
 | Mocks | `src/modules/<feature>/mocks.rs` | `mock! { pub TaskRepository {} #[async_trait] impl TaskRepositoryPort for TaskRepository { ... } }` — el equivalente a `@Mock` de Mockito generado a partir del trait |
 | Adaptadores Diesel / FS / git / runtime | `tests/modules/<feature>/*_test.rs` | Integración contra SQLite temporal (`tempfile`) con migraciones reales aplicadas; `tests/common/mod.rs` provee `test_db()` y `git_repo()` |
-| Runtime de agente | `tests/modules/tasks/gentle_shell_runtime_adapter_test.rs` | Procesos falsos en `tests/fixtures/` (`fake_agent.py`, `stubborn_agent.py`) |
+| Runtime de agente | `tests/modules/tasks/pi_rpc_runtime_adapter_test.rs` | Procesos falsos en `tests/fixtures/` (`fake_agent.py`, `stubborn_agent.py`) |
 | Resiliencia de la cola | `tests/modules/tasks/event_queue_resilience_test.rs` | Simula bloqueos de SQLite |
 | UI | `end2end/` | Playwright (`run_smoke.sh`) con agente falso |
 
@@ -961,7 +1044,7 @@ Orden sugerido para entender el código con el mínimo de saltos:
 8. **`modules/tasks/infrastructure/di/tasks_context.rs`** — ve cómo se enchufa todo.
 9. **`modules/tasks/infrastructure/adapters/inbound/server_fns.rs`** + `dto/task_dto.rs`.
 10. **`modules/tasks/infrastructure/adapters/outbound/persistence/task_repository_adapter.rs`** (y `retrying_task_repository.rs`).
-11. **El pipeline de eventos**: `runtime/gentle_shell_runtime_adapter.rs` → `rpc_protocol.rs` → `queued_agent_event_sink.rs` → `handle_agent_event.rs` → `sse.rs`.
+11. **El pipeline de eventos**: `runtime/agent_runtime_router.rs` → `runtime/pi/pi_rpc_runtime_adapter.rs` → `pi/rpc_protocol.rs` → `queued_agent_event_sink.rs` → `handle_agent_event.rs` → `sse.rs`.
 12. **`modules/tasks/presentation/state/board_state.rs`**, `pages/board_page.rs` y `state/task_events.rs`.
 13. Después, `workspaces` y `terminal` como segundas lecturas: ya reconocerás el patrón y solo cambiarán los detalles.
 
