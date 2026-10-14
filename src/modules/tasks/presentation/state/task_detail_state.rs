@@ -28,6 +28,8 @@ pub struct TaskDetailState {
     pub transcript: RwSignal<Transcript>,
     pub connected: RwSignal<bool>,
     pub show_diff: RwSignal<bool>,
+    /// Si la conversación baja sola al llegar contenido nuevo. Activo por defecto.
+    pub autoscroll: RwSignal<bool>,
     pub diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>>,
     pub message: RwSignal<String>,
     /// Imágenes adjuntas al próximo mensaje.
@@ -127,6 +129,7 @@ impl TaskDetailState {
             transcript: RwSignal::new(Transcript::default()),
             connected: RwSignal::new(false),
             show_diff,
+            autoscroll: RwSignal::new(true),
             diff,
             message: RwSignal::new(String::new()),
             images: ImageAttachments::new(),

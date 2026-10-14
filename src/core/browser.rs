@@ -56,7 +56,7 @@ mod follow_js {
 
     #[wasm_bindgen(module = "/src/core/follow_bottom.js")]
     extern "C" {
-        pub fn pi_follow_bottom(id: &str);
+        pub fn pi_follow_bottom(id: &str, auto: bool);
         pub fn pi_scroll_to_bottom(id: &str);
     }
 }
@@ -109,16 +109,17 @@ pub fn set_document_theme(theme: &str) {
     }
 }
 
-/// Mantiene el scroll del contenedor `id` en su final mientras la persona no haya subido
-/// manualmente. La primera llamada sobre un contenedor nuevo salta al final.
-pub fn follow_bottom(id: &str) {
+/// Con `auto` activo, mantiene el scroll del contenedor `id` en su final ante cualquier
+/// cambio de contenido; con `auto` inactivo no lo mueve.
+pub fn follow_bottom(id: &str, auto: bool) {
     #[cfg(feature = "hydrate")]
     {
-        follow_js::pi_follow_bottom(id);
+        follow_js::pi_follow_bottom(id, auto);
     }
     #[cfg(not(feature = "hydrate"))]
     {
         let _id: &str = id;
+        let _auto: bool = auto;
     }
 }
 
