@@ -3,6 +3,7 @@ pub mod board_state;
 pub mod diff_files;
 pub mod diff_report;
 pub mod diff_report_state;
+pub mod diff_view_state;
 pub mod image_attachments;
 pub mod task_detail_state;
 pub mod task_edit_state;

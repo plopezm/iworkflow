@@ -30,6 +30,8 @@ pub struct TaskDetailState {
     pub transcript: RwSignal<Transcript>,
     pub connected: RwSignal<bool>,
     pub show_diff: RwSignal<bool>,
+    /// Bumped after saving a file so the diff reloads.
+    pub diff_refresh: RwSignal<u32>,
     /// Si la conversación baja sola al llegar contenido nuevo. Activo por defecto.
     pub autoscroll: RwSignal<bool>,
     pub diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>>,
@@ -90,6 +92,7 @@ impl TaskDetailState {
         let start: ServerAction<StartTask> = ServerAction::new();
         let delete: ServerAction<DeleteTask> = ServerAction::new();
         let show_diff: RwSignal<bool> = RwSignal::new(false);
+        let diff_refresh: RwSignal<u32> = RwSignal::new(0);
         let id: StoredValue<String> = StoredValue::new(task_id);
 
         let task: Resource<Result<TaskDto, ServerFnError>> = Resource::new(
@@ -120,9 +123,10 @@ impl TaskDetailState {
                 (
                     show_diff.get() && allowed,
                     current.map(|(_, status)| status),
+                    diff_refresh.get(),
                 )
             },
-            move |(visible, _)| async move {
+            move |(visible, _, _)| async move {
                 if visible {
                     Some(get_task_diff(id.get_value()).await)
                 } else {
@@ -171,6 +175,7 @@ impl TaskDetailState {
             subagents,
             connected: RwSignal::new(false),
             show_diff,
+            diff_refresh,
             autoscroll: RwSignal::new(true),
             diff,
             message: RwSignal::new(String::new()),

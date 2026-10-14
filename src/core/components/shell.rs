@@ -48,20 +48,21 @@ fn handle_glyph(side: PanelSide, open: bool) -> &'static str {
 }
 
 /// Panel lateral colapsable: columna con tirador en escritorio, overlay con fondo en móvil.
-/// `width` es la clase de ancho de escritorio (p. ej. `md:w-72`).
+/// `width` es la clase de ancho de escritorio (p. ej. `md:w-72`) y puede cambiar en caliente.
 #[component]
 pub fn CollapsePanel(
     side: PanelSide,
     open: RwSignal<bool>,
     overlay_open: RwSignal<bool>,
-    #[prop(into)] width: String,
+    #[prop(into)] width: Signal<String>,
     #[prop(into)] label: String,
     children: Children,
 ) -> impl IntoView {
     let aside_class: Memo<String> = Memo::new(move |_| {
         format!(
-            "{} {width}",
-            panel_class(side, open.get(), overlay_open.get())
+            "{} {}",
+            panel_class(side, open.get(), overlay_open.get()),
+            width.get()
         )
     });
     view! {
