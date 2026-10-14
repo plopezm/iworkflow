@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::core::components::form::SelectOption;
+use crate::core::refresh::bump_when_changes;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
     AgentsFileOptionDto, UpdateWorkspaceDto, WorkspaceDto,
 };
@@ -63,11 +64,13 @@ pub fn split_agents_options(
 impl WorkspaceEditState {
     pub fn new(workspace_id: String) -> Self {
         let id: StoredValue<String> = StoredValue::new(workspace_id);
+        let update: ServerAction<UpdateWorkspace> = ServerAction::new();
+        bump_when_changes(update.version());
         Self {
             workspace_id: id,
             workspace: Resource::new(|| (), move |_| get_workspace(id.get_value())),
             agents_file_options: Resource::new(|| (), |_| list_agents_file_options()),
-            update: ServerAction::new(),
+            update,
             form_name: RwSignal::new(String::new()),
             form_base_branch: RwSignal::new(String::new()),
             form_agents_file_id: RwSignal::new(String::new()),

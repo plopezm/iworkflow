@@ -1,5 +1,6 @@
 use crate::core::dock::context::use_dock;
 use crate::core::dock::layout::DockLayout;
+use crate::core::refresh::current_epoch;
 use leptos::prelude::*;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -92,6 +93,7 @@ impl TaskStore {
             move || {
                 (
                     reload.get(),
+                    current_epoch(),
                     layout.with(|l: &DockLayout| workspaces_area_key_for(&l.visible_paths())),
                 )
             },

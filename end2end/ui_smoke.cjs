@@ -89,6 +89,16 @@ let page;
   await page.screenshot({ path: process.env.SMOKE_SCREENSHOT || 'ui-review.png', fullPage: true });
 
   await page.getByText('Acciones', { exact: true }).click();
+  if (process.env.SMOKE_ACTIONS_SCREENSHOT) await page.screenshot({ path: process.env.SMOKE_ACTIONS_SCREENSHOT });
+  const pagesBefore = page.context().pages().length;
+  await page.getByRole('link', { name: 'Abrir terminal' }).click();
+  await page.waitForURL(/\/terminals\/[^/]+$/);
+  if (page.context().pages().length !== pagesBefore) throw new Error('abrir terminal no debe abrir otra ventana');
+  await page.locator('.dock-tab', { hasText: /Terminal/ }).waitFor();
+  await page.locator('.dock-tab', { hasText: 'Tarea desde el navegador' }).click();
+  step('abrir terminal de la tarea abre una pestaña (sin ventana nueva)');
+
+  await page.getByText('Acciones', { exact: true }).click();
   await page.getByRole('button', { name: 'Merge' }).click();
   await page.getByText('Integrada en la rama base.').waitFor();
   step('merge desde la UI');

@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::refresh::bump_when_changes;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
     AgentsFileOptionDto, InitializationReasonDto, RegisterWorkspaceDto,
     RegisterWorkspaceOutcomeDto, WorkspaceDto,
@@ -39,6 +40,8 @@ impl WorkspacesState {
             move || (register.version().get(), delete.version().get()),
             |_| list_workspaces(),
         );
+        bump_when_changes(register.version());
+        bump_when_changes(delete.version());
         let agents_file_options: Resource<Result<Vec<AgentsFileOptionDto>, ServerFnError>> =
             Resource::new(|| (), |_| list_agents_file_options());
         let dismissed: RwSignal<bool> = RwSignal::new(false);

@@ -8,3 +8,4 @@ pub mod select;
 pub mod shell;
 pub mod theme_toggle;
 pub mod toast;
+pub mod tree;

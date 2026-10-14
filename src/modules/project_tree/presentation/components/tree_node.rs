@@ -1,15 +1,16 @@
 use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
+use crate::core::components::tree::{TreeChevron, TreeIcon};
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::TreeEntryDto;
 use crate::modules::project_tree::presentation::state::project_tree_state::{
     ChildrenState, ProjectTreeState,
 };
 
 /// Horizontal indentation per depth level, in rem.
-const INDENT_REM: f32 = 1.0;
+const INDENT_REM: f32 = 0.875;
 /// Base left padding of every row, in rem.
-const BASE_PADDING_REM: f32 = 0.25;
+const BASE_PADDING_REM: f32 = 0.75;
 
 /// Left padding style for a row at `depth` (pure).
 pub fn indent_style(depth: usize) -> String {
@@ -17,15 +18,6 @@ pub fn indent_style(depth: usize) -> String {
         "padding-left: {}rem",
         BASE_PADDING_REM + INDENT_REM * depth as f32
     )
-}
-
-/// Glyph shown before the entry name (pure).
-pub fn glyph(is_dir: bool, expanded: bool) -> &'static str {
-    match (is_dir, expanded) {
-        (true, true) => "▾",
-        (true, false) => "▸",
-        (false, _) => "·",
-    }
 }
 
 /// Recursive tree row: directories toggle and lazily render their children.
@@ -38,10 +30,9 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
     if !is_dir {
         return view! {
             <li>
-                <div class="row min-w-0 gap-1.5 py-0.5 text-muted" style=style>
-                    <span aria-hidden="true" class="w-3 shrink-0 text-center">
-                        {glyph(false, false)}
-                    </span>
+                <div class="tree-row cursor-default" style=style>
+                    <span class="tree-chevron-spacer" aria-hidden="true"></span>
+                    <TreeIcon />
                     <span class="truncate" title=title>
                         {name}
                     </span>
@@ -63,15 +54,14 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
         <li>
             <button
                 type="button"
-                class="row w-full min-w-0 gap-1.5 py-0.5 text-left text-fg hover:bg-surface-2"
+                class="tree-row"
                 style=style
                 aria-expanded=move || expanded.get().to_string()
                 on:click=move |_| state.toggle(&toggle_path)
             >
-                <span aria-hidden="true" class="w-3 shrink-0 text-center text-muted">
-                    {move || glyph(true, expanded.get())}
-                </span>
-                <span class="truncate font-medium" title=title>
+                <TreeChevron open=expanded />
+                <TreeIcon is_dir=true open=expanded />
+                <span class="truncate" title=title>
                     {name}
                 </span>
             </button>
@@ -81,7 +71,7 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
                     move || match state.children(&children_path) {
                         None | Some(ChildrenState::Loading) => {
                             view! {
-                                <p class="muted py-0.5" style=indent_style(depth + 1)>
+                                <p class="py-1 pr-2 text-xs text-muted" style=indent_style(depth + 2)>
                                     "Cargando…"
                                 </p>
                             }
@@ -89,7 +79,7 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
                         }
                         Some(ChildrenState::Failed(message)) => {
                             view! {
-                                <div style=indent_style(depth + 1)>
+                                <div style=indent_style(depth + 2)>
                                     <ErrorText message />
                                 </div>
                             }
@@ -97,7 +87,7 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
                         }
                         Some(ChildrenState::Loaded(entries)) if entries.is_empty() => {
                             view! {
-                                <p class="muted py-0.5" style=indent_style(depth + 1)>
+                                <p class="py-1 pr-2 text-xs text-muted" style=indent_style(depth + 2)>
                                     "Carpeta vacía."
                                 </p>
                             }
@@ -131,14 +121,7 @@ mod tests {
 
     #[test]
     fn indent_grows_with_depth() {
-        assert_eq!(indent_style(0), "padding-left: 0.25rem");
-        assert_eq!(indent_style(2), "padding-left: 2.25rem");
-    }
-
-    #[test]
-    fn glyph_reflects_kind_and_expansion() {
-        assert_eq!(glyph(true, false), "▸");
-        assert_eq!(glyph(true, true), "▾");
-        assert_eq!(glyph(false, true), "·");
+        assert_eq!(indent_style(0), "padding-left: 0.75rem");
+        assert_eq!(indent_style(2), "padding-left: 2.5rem");
     }
 }

@@ -11,6 +11,7 @@ use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, prov
 use crate::core::dock::context::{DockContext, use_dock};
 use crate::core::dock::host::{DockHooks, DockHost};
 use crate::core::dock::link::TabLink;
+use crate::core::refresh::DataRefresh;
 use crate::modules::agent_profiles::presentation::pages::models_page::ModelsPage;
 use crate::modules::agent_profiles::presentation::pages::profiles_page::ProfilesPage;
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
@@ -304,6 +305,7 @@ pub fn App() -> impl IntoView {
     provide_meta_context();
     provide_theme_mode();
     DockContext::provide(tab_title);
+    DataRefresh::provide();
     let hooks: DockHooks = DockHooks {
         render: Callback::new(|path: String| TabRoute::parse(&path).view()),
         params_for: tab_params,
