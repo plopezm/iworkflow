@@ -2,7 +2,9 @@ use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_file_dto::TaskFileDto;
-use crate::modules::tasks::presentation::state::diff_view_state::{DiffViewState, is_dirty};
+use crate::modules::tasks::presentation::state::diff_view_state::{
+    DiffViewState, effective_content, is_dirty,
+};
 
 /// Fewest rows the textarea shows.
 const MIN_ROWS: usize = 8;
@@ -59,8 +61,11 @@ fn editor_body(
     pending: Memo<bool>,
 ) -> impl IntoView {
     let loaded: StoredValue<String> = StoredValue::new(file.content);
-    let rows: usize = loaded.with_value(|c: &String| editor_rows(c));
-    let initial: String = loaded.get_value();
+    // Remounting must show what Save would write: keep a draft typed before the remount.
+    let initial: String = state.draft.with_untracked(|d: &Option<String>| {
+        loaded.with_value(|l: &String| effective_content(d.as_deref(), l))
+    });
+    let rows: usize = editor_rows(&initial);
     let dirty: Signal<bool> = Signal::derive(move || {
         state
             .draft
