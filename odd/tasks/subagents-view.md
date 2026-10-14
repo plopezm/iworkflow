@@ -18,9 +18,15 @@ Decisions:
   - Decode full `gentle-agents.activity/v1` snapshot in `rpc_protocol.rs`; adapter stores latest per task, reset on `start`, kept after exit; declares `subagents`.
 - [x] 3. Inbound adapter
   - `SubagentTaskDto`, `get_task_subagents` server fn, DTO/error mapping tests.
-- [ ] 4. UI
-  - State resource refetched on `SubagentsChanged`; `SubagentsModal` component (list + detail) reusing core modal; button in `TaskActions`.
+- [x] 4. UI
+  - State resource refetched on `SubagentsChanged`; `SubagentsPanel` component (inside core `Modal`) (list + detail) reusing core modal; button in `TaskActions`.
 - [ ] 5. Full verification
   - fmt, clippy ssr + hydrate, `cargo test --features ssr`, `cargo leptos build`; codegraph refreshed; ARCHITECTURE.md note.
 
 ## Evidence
+- Task 4 (UI): `Transcript.subagents_version/subagents_active` bumped on `SubagentsChanged`; `TaskDetailState.subagents` resource (fetched only with the modal open, refetched on version/status change) + `selected_subagent` with `resolve_selection` fallback; `SubagentsPanel` (plain props) in core `Modal`; "Subagentes" button + active badge in `TaskActions`.
+  - `cargo fmt --all -- --check`: ok
+  - `cargo clippy --features ssr --all-targets -- -D warnings`: ok
+  - `cargo clippy --features hydrate --target wasm32-unknown-unknown -- -D warnings`: ok
+  - `cargo test --features ssr --lib modules::tasks`: 446 passed, 0 failed (new tests: transcript version bump, status label/variant, display name, selection fallback)
+  - Not verified: visual rendering in a browser (no wasm/e2e test).

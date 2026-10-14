@@ -66,6 +66,10 @@ pub struct Transcript {
     pub widgets: BTreeMap<String, Vec<String>>,
     pub queued_steering: Vec<String>,
     pub queued_follow_up: Vec<String>,
+    /// Se incrementa con cada `SubagentsChanged`: invalida la lista de subagentes.
+    pub subagents_version: u32,
+    /// Subagentes en cola, ejecutándose o esperando (último contador recibido).
+    pub subagents_active: u32,
 }
 
 impl Transcript {
@@ -182,7 +186,10 @@ impl Transcript {
                     self.widgets.remove(&key);
                 }
             },
-            AgentEventDto::SubagentsChanged { .. } => {}
+            AgentEventDto::SubagentsChanged { active, waiting } => {
+                self.subagents_version = self.subagents_version.wrapping_add(1);
+                self.subagents_active = active.saturating_add(waiting);
+            }
             AgentEventDto::ProcessExited { code } => {
                 self.clear_streaming();
                 self.resolve_dialogs(None);
@@ -261,6 +268,34 @@ mod tests {
                 images: 2
             }]
         );
+    }
+
+    #[test]
+    fn subagents_changed_bumps_version_and_counts_active_and_waiting() {
+        let mut transcript: Transcript = Transcript::default();
+        transcript.apply(agent(AgentEventDto::SubagentsChanged {
+            active: 2,
+            waiting: 1,
+        }));
+        assert_eq!(
+            (transcript.subagents_version, transcript.subagents_active),
+            (1, 3)
+        );
+        transcript.apply(agent(AgentEventDto::SubagentsChanged {
+            active: 0,
+            waiting: 0,
+        }));
+        assert_eq!(
+            (transcript.subagents_version, transcript.subagents_active),
+            (2, 0)
+        );
+    }
+
+    #[test]
+    fn other_agent_events_leave_subagents_untouched() {
+        let mut transcript: Transcript = Transcript::default();
+        transcript.apply(agent(AgentEventDto::RunStarted));
+        assert_eq!(transcript.subagents_version, 0);
     }
 
     fn agent(event: AgentEventDto) -> TaskEventDto {

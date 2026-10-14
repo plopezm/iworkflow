@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MessageModeDto, TaskDto, TaskStatusDto,
@@ -8,8 +9,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResetTask,
-    ResumeTask, SendTaskMessage, StartTask, get_task, get_task_diff,
+    ResumeTask, SendTaskMessage, StartTask, get_task, get_task_diff, get_task_subagents,
 };
+use crate::modules::tasks::presentation::components::subagents_panel::resolve_selection;
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
@@ -29,6 +31,12 @@ pub struct TaskDetailState {
     pub connected: RwSignal<bool>,
     pub show_diff: RwSignal<bool>,
     pub diff: Resource<Option<Result<TaskDiffDto, ServerFnError>>>,
+    /// Modal de subagentes abierto.
+    pub show_subagents: RwSignal<bool>,
+    /// Subagente elegido en el modal (`None` si no hay o desapareció).
+    pub selected_subagent: RwSignal<Option<String>>,
+    /// Lista de subagentes; solo se pide con el modal abierto.
+    pub subagents: Resource<Result<Vec<SubagentTaskDto>, ServerFnError>>,
     pub message: RwSignal<String>,
     /// Imágenes adjuntas al próximo mensaje.
     pub images: ImageAttachments,
@@ -121,10 +129,44 @@ impl TaskDetailState {
             },
         );
 
+        let show_subagents: RwSignal<bool> = RwSignal::new(false);
+        let selected_subagent: RwSignal<Option<String>> = RwSignal::new(None);
+        let transcript: RwSignal<Transcript> = RwSignal::new(Transcript::default());
+        // Se recarga con cada `SubagentsChanged` y cambio de estado, solo con el modal abierto.
+        let subagents: Resource<Result<Vec<SubagentTaskDto>, ServerFnError>> = Resource::new(
+            move || {
+                (
+                    show_subagents.get(),
+                    transcript.with(|t: &Transcript| t.subagents_version),
+                    status_version.get(),
+                )
+            },
+            move |(open, _, _)| async move {
+                if open {
+                    get_task_subagents(id.get_value()).await
+                } else {
+                    Ok(Vec::new())
+                }
+            },
+        );
+        // Si el subagente elegido desaparece de la lista, la selección vuelve a ninguno.
+        Effect::new(move |_| {
+            if let Some(Ok(list)) = subagents.get() {
+                let current: Option<String> = selected_subagent.get_untracked();
+                let kept: Option<String> = resolve_selection(current.clone(), &list);
+                if kept != current {
+                    selected_subagent.set(kept);
+                }
+            }
+        });
+
         let state: Self = Self {
             task_id: id,
             task,
-            transcript: RwSignal::new(Transcript::default()),
+            transcript,
+            show_subagents,
+            selected_subagent,
+            subagents,
             connected: RwSignal::new(false),
             show_diff,
             diff,

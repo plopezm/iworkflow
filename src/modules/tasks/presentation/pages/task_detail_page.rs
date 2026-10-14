@@ -5,7 +5,9 @@ use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
+use crate::core::components::modal::Modal;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MergeOutcomeDto, TaskDto, TaskStageDto,
 };
@@ -16,6 +18,7 @@ use crate::modules::tasks::presentation::components::agent_sidebar::AgentSidebar
 use crate::modules::tasks::presentation::components::composer::Composer;
 use crate::modules::tasks::presentation::components::dialog_panel::DialogPanel;
 use crate::modules::tasks::presentation::components::diff_view::DiffView;
+use crate::modules::tasks::presentation::components::subagents_panel::SubagentsPanel;
 use crate::modules::tasks::presentation::components::task_actions::{
     TaskActionHandlers, TaskActions,
 };
@@ -196,6 +199,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
             };
             on_select_tab.run(next.to_string());
         }),
+        show_subagents: Callback::new(move |_| state.show_subagents.set(true)),
     };
     let busy: Signal<bool> = Signal::derive(move || {
         state.finish.pending().get()
@@ -205,6 +209,25 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
             || state.resume.pending().get()
             || state.abort.pending().get()
     });
+    let subagents_active: Signal<u32> =
+        Signal::derive(move || state.transcript.with(|t: &Transcript| t.subagents_active));
+    let subagents_list: Signal<Vec<SubagentTaskDto>> = Signal::derive(move || {
+        state
+            .subagents
+            .get()
+            .and_then(|r: Result<Vec<SubagentTaskDto>, ServerFnError>| r.ok())
+            .unwrap_or_default()
+    });
+    let subagents_error: Signal<Option<String>> = Signal::derive(move || {
+        state
+            .subagents
+            .get()
+            .and_then(|r: Result<Vec<SubagentTaskDto>, ServerFnError>| r.err())
+            .map(|e: ServerFnError| e.to_string())
+    });
+    let on_select_subagent: Callback<String> =
+        Callback::new(move |id: String| state.selected_subagent.set(Some(id)));
+    let on_close_subagents: Callback<()> = Callback::new(move |_| state.show_subagents.set(false));
     let pending_dialog: Memo<Option<DialogRequestDto>> =
         Memo::new(move |_| state.transcript.with(Transcript::pending_dialog));
     let on_answer: Callback<(String, DialogAnswerDto)> =
@@ -241,6 +264,14 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
     });
 
     view! {
+        <Modal title="Subagentes" open=state.show_subagents on_close=on_close_subagents>
+            {move || subagents_error.get().map(|e: String| view! { <ErrorText message=e /> })}
+            <SubagentsPanel
+                subagents=subagents_list
+                selected=state.selected_subagent
+                on_select=on_select_subagent
+            />
+        </Modal>
         <Show
             when=move || !state.removed.get()
             fallback=|| {
@@ -428,6 +459,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                                         handlers
                                                         diff_visible=state.show_diff
                                                         busy
+                                                        subagents_active
                                                     />
                                                     {move || state.action_error().map(|e: String| view! { <ErrorText message=e /> })}
                                                     {move || {
