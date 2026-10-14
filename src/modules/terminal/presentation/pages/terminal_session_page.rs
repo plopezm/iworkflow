@@ -1,6 +1,5 @@
 use crate::core::dock::link::{TabLink, TabRedirect};
 use leptos::prelude::*;
-use leptos_meta::Title;
 
 use crate::core::components::form::ActionError;
 use crate::modules::terminal::presentation::components::terminal_view::TerminalView;
@@ -26,7 +25,6 @@ pub fn TerminalSessionPage() -> impl IntoView {
                 Suspend::new(async move { title_for(&state.sessions.await, &id) })
             };
             view! {
-                <Title text="Terminal" />
                 <Show when=move || state.closed.get()>
                     <TabRedirect path=terminals_path() />
                 </Show>

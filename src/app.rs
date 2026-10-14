@@ -22,7 +22,7 @@ use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
 use crate::modules::tasks::presentation::pages::task_diff_page::TaskDiffPage;
 use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
-use crate::modules::tasks::presentation::state::task_store::TaskStore;
+use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
 use crate::modules::terminal::presentation::pages::new_task_terminal_page::NewTaskTerminalPage;
 use crate::modules::terminal::presentation::pages::new_terminal_page::NewTerminalPage;
 use crate::modules::terminal::presentation::pages::terminal_session_page::TerminalSessionPage;
@@ -283,6 +283,24 @@ fn TaskStoreProvider(children: Children) -> impl IntoView {
     children()
 }
 
+/// Único título del documento: el contador de tareas que requieren atención. Las pestañas
+/// ponen su propio título en la barra del dock, no en `<title>`.
+#[component]
+fn DocumentTitle() -> impl IntoView {
+    let store: TaskStore = use_task_store();
+    let text: Memo<String> = Memo::new(move |_| {
+        let count: usize = store
+            .active
+            .with(|tasks| tasks.iter().filter(|t| t.needs_attention).count());
+        if count > 0 {
+            format!("({count}) iworkflow")
+        } else {
+            "iworkflow".to_string()
+        }
+    });
+    view! { <Title text=move || text.get() /> }
+}
+
 /// Tras restaurar el layout guardado abre (o activa) la pestaña de la ruta del navegador:
 /// enlace directo, recarga o visita a `/` (tablero).
 #[component]
@@ -322,7 +340,6 @@ pub fn App() -> impl IntoView {
 
     view! {
         <Stylesheet id="leptos" href="/pkg/iworkflow.css" />
-        <Title text="iworkflow" />
         <Router>
             // Sin pantallas enrutadas: las pestañas del dock las sustituyen. Estas rutas solo
             // hacen que el servidor entregue el shell en los enlaces directos conocidos (un comodín
@@ -339,6 +356,7 @@ pub fn App() -> impl IntoView {
                 <Route path=(StaticSegment("terminals"), WildcardSegment("rest")) view=|| () />
             </Routes>
             <TaskStoreProvider>
+                <DocumentTitle />
                 <DockBootstrap />
                 <AppShell brand="iworkflow" sidebar=app_sidebar>
                     <DockHost hooks=hooks launcher=tab_launcher empty=empty_group />

@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use leptos_meta::Title;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::components::toast::ToastStack;
@@ -93,15 +92,6 @@ pub fn BoardPage() -> impl IntoView {
         }
     });
 
-    // Derivado del almacén compartido (señal, no `Resource`: no afecta a la hidratación).
-    let attention_count: Memo<usize> = Memo::new(move |_| {
-        state.store.active.with(|tasks: &Vec<TaskDto>| {
-            tasks
-                .iter()
-                .filter(|t: &&TaskDto| t.needs_attention)
-                .count()
-        })
-    });
     // Carriles ya calculados; viven fuera del `Suspend` y conservan el valor anterior
     // mientras se recarga, así el tablero no se reconstruye en cada refresco.
     let lanes: RwSignal<Vec<LaneView>> = RwSignal::new(Vec::new());
@@ -143,17 +133,7 @@ pub fn BoardPage() -> impl IntoView {
     });
     let filters_active: Memo<bool> =
         Memo::new(move |_| state.stage_filter.get().is_some() || state.show_done.get());
-    let document_title: Memo<String> = Memo::new(move |_| {
-        let count: usize = attention_count.get();
-        if count > 0 {
-            format!("({count}) iworkflow")
-        } else {
-            "iworkflow".to_string()
-        }
-    });
-
     view! {
-        <Title text=move || document_title.get() />
         <div class="flex h-full min-h-0 flex-col">
         <BoardToolbar
             stage_filter=state.stage_filter

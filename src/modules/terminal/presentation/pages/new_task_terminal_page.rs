@@ -1,6 +1,5 @@
 use crate::core::dock::link::{TabLink, TabRedirect};
 use leptos::prelude::*;
-use leptos_meta::Title;
 
 use crate::core::components::layout::{Card, ErrorText};
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::TerminalSessionDto;
@@ -13,7 +12,6 @@ pub fn NewTaskTerminalPage() -> impl IntoView {
     let state: NewTaskTerminalState = NewTaskTerminalState::new();
 
     view! {
-        <Title text="Terminal" />
         <section class="stack p-4 animate-slide-up">
             <Card title="Abriendo terminal">
                 <Suspense fallback=|| view! { <p class="muted">"Abriendo terminal…"</p> }>

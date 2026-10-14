@@ -2,7 +2,6 @@ use crate::core::components::shell::DropdownMenu;
 use crate::core::dock::context::use_tab_params;
 use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
-use leptos_meta::Title;
 
 use crate::core::components::layout::ErrorText;
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::{
@@ -28,7 +27,6 @@ fn ProjectTreeContent(workspace_id: String) -> impl IntoView {
     let terminal_href: String = format!("/workspaces/{workspace_id}/terminal");
 
     view! {
-        <Title text="Proyecto · iworkflow" />
         <div class="flex h-full min-h-0 flex-col bg-surface">
             <div class="tree-panel-header">
                 <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">

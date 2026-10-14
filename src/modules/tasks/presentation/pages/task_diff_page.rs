@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use leptos_meta::Title;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::dock::context::{DockContext, use_dock, use_tab_params};
@@ -60,7 +59,6 @@ fn TaskDiffContent(task_id: String) -> impl IntoView {
     });
 
     view! {
-        <Title text="Diff · iworkflow" />
         <div class="h-full min-h-0 overflow-y-auto p-3">
             <Transition fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
                 {move || Suspend::new(async move {

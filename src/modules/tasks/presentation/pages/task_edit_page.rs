@@ -1,6 +1,5 @@
 use crate::core::dock::context::{use_tab_nav, use_tab_params};
 use leptos::prelude::*;
-use leptos_meta::Title;
 
 use crate::core::components::form::{ActionError, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
@@ -42,7 +41,6 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
     });
 
     view! {
-        <Title text="Editar tarea · iworkflow" />
         <div class="h-full min-h-0 overflow-y-auto">
             <div class="mx-auto w-full max-w-5xl p-4 pb-10 md:p-6 md:pb-12">
             <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>

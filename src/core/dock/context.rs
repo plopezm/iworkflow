@@ -1,5 +1,6 @@
 //! Estado reactivo del dock y hooks para las pestañas (sin dominio de ningún feature).
 
+use leptos::leptos_dom::helpers::set_timeout;
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 use leptos_router::params::ParamsMap;
@@ -132,6 +133,11 @@ pub struct TabContext {
 #[derive(Clone, Copy, Debug)]
 pub struct GroupContext(pub GroupId);
 
+/// Ejecuta `action` en el siguiente tick del navegador (inmediatamente fuera de él).
+fn defer(action: impl FnOnce() + 'static) {
+    set_timeout(action, std::time::Duration::ZERO);
+}
+
 pub fn use_dock() -> DockContext {
     expect_context::<DockContext>()
 }
@@ -163,29 +169,44 @@ impl TabNav {
     }
 
     /// Sustituye la pestaña actual por `path` (p. ej. al volver de una pantalla de edición).
+    ///
+    /// Se aplica en el siguiente tick: estas operaciones desmontan la página que las llama
+    /// y se invocan desde `Effect`s, así que hacerlo en el mismo ciclo reentra en el
+    /// ejecutor de futuros del navegador (`RefCell already borrowed`).
     pub fn replace(&self, path: &str) {
-        match self.tab {
+        let nav: Self = *self;
+        let path: String = path.to_string();
+        defer(move || match nav.tab {
             Some(tab) => {
-                let title: String = self.dock.title_for(path);
-                self.dock
+                let title: String = nav.dock.title_for(&path);
+                nav.dock
                     .layout
-                    .update(|l: &mut DockLayout| l.replace_path(tab, path, &title));
+                    .update(|l: &mut DockLayout| l.replace_path(tab, &path, &title));
             }
-            None => self.open(path),
-        }
+            None => nav.open(&path),
+        });
     }
 
-    /// Cierra la pestaña actual.
+    /// Cierra la pestaña actual (diferido, ver [`Self::replace`]).
     pub fn close(&self) {
-        if let Some(tab) = self.tab {
-            self.dock.close_tab(tab);
-        }
+        let nav: Self = *self;
+        defer(move || {
+            if let Some(tab) = nav.tab {
+                nav.dock.close_tab(tab);
+            }
+        });
     }
 
     /// Abre `path` y cierra la pestaña actual (p. ej. tras borrar la tarea que mostraba).
     pub fn close_and_open(&self, path: &str) {
-        self.open(path);
-        self.close();
+        let nav: Self = *self;
+        let path: String = path.to_string();
+        defer(move || {
+            nav.open(&path);
+            if let Some(tab) = nav.tab {
+                nav.dock.close_tab(tab);
+            }
+        });
     }
 }
 
