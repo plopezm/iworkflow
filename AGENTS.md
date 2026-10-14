@@ -241,11 +241,23 @@ cargo test --features ssr --test order_repository_adapter_test
 # E2E (si existen)
 cargo leptos end-to-end
 
+# Límite de recursos: cada binario de tests enlaza con rust-lld (~3 GB de RAM).
+# Usa siempre -j 2 y, en iteración, solo tests de librería (--lib); nunca `cargo test`
+# sin filtro ni todos los tests de integración a la vez.
+cargo test --features ssr --lib -j 2 modules::[feature_name]
+
 # Formato y análisis estático (deben terminar sin errores ni warnings)
 cargo fmt --all -- --check
 cargo clippy --features ssr -- -D warnings
 cargo clippy --features hydrate --target wasm32-unknown-unknown -- -D warnings
 ```
+
+### 7.1 Límites de memoria y comandos largos
+
+- Todo comando `cargo` (build, clippy, test) se ejecuta con `-j 2` (o `CARGO_BUILD_JOBS=2`).
+- Los tests de integración se lanzan de uno en uno (`--test <nombre>`), nunca todos en paralelo: cada enlazado con `rust-lld` ronda 3 GB.
+- Comandos largos (compilación inicial, clippy, tests): en segundo plano con `nohup ... > /tmp/<nombre>.log 2>&1 &` y consultar el log con `tail`; nunca en primer plano sin timeout, para evitar bloqueos.
+- Esto aplica también a los subagentes: inclúyelo en sus instrucciones.
 
 ## 8. Finalización (Definition of Done)
 
