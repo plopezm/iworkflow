@@ -491,6 +491,21 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                                         <code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">
                                                             {task.worktree_path.clone()}
                                                         </code>
+                                                        {task
+                                                            .actions
+                                                            .can_open_terminal
+                                                            .then(|| {
+                                                                view! {
+                                                                    <a
+                                                                        class="btn-secondary w-fit"
+                                                                        href=format!("/tasks/{}/terminal", task.id)
+                                                                        target="_blank"
+                                                                        rel="noopener"
+                                                                    >
+                                                                        "Abrir terminal"
+                                                                    </a>
+                                                                }
+                                                            })}
                                                     </div>
                                                     <label class="flex min-h-9 items-center gap-2 text-xs text-muted">
                                                         <input
