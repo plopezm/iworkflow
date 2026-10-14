@@ -28,6 +28,25 @@ impl GitCliWorktreeAdapter {
             merge_lock: tokio::sync::Mutex::new(()),
         }
     }
+
+    /// Comprueba que `path` queda estrictamente dentro de la raíz de worktrees una vez resueltos
+    /// los enlaces simbólicos (ni vacía, ni la propia raíz, ni un escape por symlink).
+    async fn ensure_inside_root(&self, path: &Path) -> Result<(), TaskError> {
+        let unsafe_path = || TaskError::UnsafeWorktreePath(path.display().to_string());
+        if path.as_os_str().is_empty() {
+            return Err(unsafe_path());
+        }
+        let canonical_root: PathBuf = tokio::fs::canonicalize(&self.root)
+            .await
+            .map_err(|_| unsafe_path())?;
+        let canonical_path: PathBuf = tokio::fs::canonicalize(path)
+            .await
+            .map_err(|_| unsafe_path())?;
+        if canonical_path == canonical_root || !canonical_path.starts_with(&canonical_root) {
+            return Err(unsafe_path());
+        }
+        Ok(())
+    }
 }
 
 fn git_error(error: GitCommandError) -> TaskError {
@@ -325,6 +344,7 @@ impl WorktreePort for GitCliWorktreeAdapter {
                     "{} ya no es un worktree válido ({error}); se borra la carpeta",
                     path.display()
                 );
+                self.ensure_inside_root(path).await?;
                 tokio::fs::remove_dir_all(path).await.map_err(|e| {
                     TaskError::Git(format!("no se pudo borrar {}: {e}", path.display()))
                 })?;

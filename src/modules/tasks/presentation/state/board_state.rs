@@ -16,7 +16,7 @@ use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task
 
 /// Compara dos instantes RFC 3339 por su valor temporal; si alguno no se puede interpretar
 /// se recurre a la comparación textual, que es cronológica para el formato que emite el servidor.
-fn compare_created_at(a: &str, b: &str) -> std::cmp::Ordering {
+fn compare_instants(a: &str, b: &str) -> std::cmp::Ordering {
     let parse = |value: &str| -> Option<chrono::DateTime<chrono::FixedOffset>> {
         chrono::DateTime::parse_from_rfc3339(value).ok()
     };
@@ -24,6 +24,24 @@ fn compare_created_at(a: &str, b: &str) -> std::cmp::Ordering {
         (Some(left), Some(right)) => left.cmp(&right),
         _ => a.cmp(b),
     }
+}
+
+/// Orden de las tarjetas dentro de una columna: primero las abiertas (atención, prioridad y
+/// antigüedad) y al final las finalizadas, la última cerrada primero.
+fn compare_lane_tasks(a: &TaskDto, b: &TaskDto) -> std::cmp::Ordering {
+    let a_done: bool = a.stage == TaskStageDto::Done;
+    let b_done: bool = b.stage == TaskStageDto::Done;
+    a_done.cmp(&b_done).then_with(|| {
+        if a_done {
+            return compare_instants(&b.updated_at, &a.updated_at);
+        }
+        b.needs_attention.cmp(&a.needs_attention).then_with(|| {
+            b.priority
+                .rank()
+                .cmp(&a.priority.rank())
+                .then_with(|| compare_instants(&a.created_at, &b.created_at))
+        })
+    })
 }
 
 /// Tamaño de página de las tareas finalizadas.
@@ -172,22 +190,7 @@ pub fn build_lanes(
 
     for lane in &mut lanes {
         // `sort_by` is stable: attention-first keeps the priority/age order within each group.
-        lane.tasks.sort_by(|a: &TaskDto, b: &TaskDto| {
-            let a_done: bool = a.stage == TaskStageDto::Done;
-            let b_done: bool = b.stage == TaskStageDto::Done;
-            // Las finalizadas van al final y por finalización descendente (la última cerrada primero).
-            a_done.cmp(&b_done).then_with(|| {
-                if a_done {
-                    return compare_created_at(&b.updated_at, &a.updated_at);
-                }
-                b.needs_attention.cmp(&a.needs_attention).then_with(|| {
-                    b.priority
-                        .rank()
-                        .cmp(&a.priority.rank())
-                        .then_with(|| compare_created_at(&a.created_at, &b.created_at))
-                })
-            })
-        });
+        lane.tasks.sort_by(compare_lane_tasks);
         lane.total = lane.tasks.len();
         lane.attention_count = lane
             .tasks

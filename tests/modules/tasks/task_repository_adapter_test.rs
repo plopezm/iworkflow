@@ -998,3 +998,44 @@ async fn list_done_page_orders_by_completion_instead_of_creation() {
 
     assert_eq!(page, vec!["created-first", "created-last"]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn updated_at_is_frozen_after_closing_so_done_order_is_stable() {
+    let db: common::TestDb = common::test_db().await;
+    let a: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let ws: String = a.id.to_string();
+    let open: Task = with_status(
+        &ws,
+        "open",
+        TaskStatus::Running,
+        Utc::now().trunc_subsecs(6),
+    );
+    adapter.insert(&open).await.expect("insert");
+    adapter
+        .update_status(open.id, TaskStatus::Merged, None)
+        .await
+        .expect("cierre");
+    let closed_at: DateTime<Utc> = found(&adapter, open.id).await.updated_at;
+
+    adapter
+        .record_diff_range(
+            open.id,
+            DiffRange {
+                base_sha: "aaa111".to_string(),
+                head_sha: "bbb222".to_string(),
+            },
+        )
+        .await
+        .expect("rango");
+    adapter
+        .set_subagent_activity(open.id, SubagentActivity::new(1, 0))
+        .await
+        .expect("subagentes");
+    adapter
+        .append_event(open.id, TaskEventKind::status(TaskStatus::Merged, None))
+        .await
+        .expect("evento");
+
+    assert_eq!(found(&adapter, open.id).await.updated_at, closed_at);
+}

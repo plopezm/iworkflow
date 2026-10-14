@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use crate::modules::tasks::application::services::task_lifecycle::{TaskLifecycle, invalid_state};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::{AgentCommand, MessageMode};
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
@@ -40,28 +41,31 @@ impl SendMessage {
             (_, MessageMode::Steer) => AgentCommand::Steer { message, images },
             (_, MessageMode::FollowUp) => AgentCommand::FollowUp { message, images },
         };
-        if matches!(
-            command,
-            AgentCommand::Steer { .. } | AgentCommand::FollowUp { .. }
-        ) && !self.runtime.is_running(id).await
-        {
+        self.ensure_can_queue(id, &command).await?;
+        self.runtime.send(id, command).await
+    }
+
+    /// Steer y follow-up solo tienen sentido con el agente trabajando y si el runtime los admite.
+    async fn ensure_can_queue(&self, id: TaskId, command: &AgentCommand) -> Result<(), TaskError> {
+        let (is_supported, unsupported_message): (fn(&AgentCapabilities) -> bool, &str) =
+            match command {
+                AgentCommand::Steer { .. } => (
+                    |capabilities: &AgentCapabilities| capabilities.steer,
+                    "el agente no permite redirigir (steer) mientras trabaja",
+                ),
+                AgentCommand::FollowUp { .. } => (
+                    |capabilities: &AgentCapabilities| capabilities.follow_up,
+                    "el agente no permite encolar mensajes (follow-up) mientras trabaja",
+                ),
+                _ => return Ok(()),
+            };
+        if !self.runtime.is_running(id).await {
             return Err(TaskError::AgentNotRunning);
         }
-        match &command {
-            AgentCommand::Steer { .. } if !self.runtime.capabilities(id).steer => {
-                return Err(TaskError::Unsupported(
-                    "el agente no permite redirigir (steer) mientras trabaja".to_string(),
-                ));
-            }
-            AgentCommand::FollowUp { .. } if !self.runtime.capabilities(id).follow_up => {
-                return Err(TaskError::Unsupported(
-                    "el agente no permite encolar mensajes (follow-up) mientras trabaja"
-                        .to_string(),
-                ));
-            }
-            _ => {}
+        if !is_supported(&self.runtime.capabilities(id)) {
+            return Err(TaskError::Unsupported(unsupported_message.to_string()));
         }
-        self.runtime.send(id, command).await
+        Ok(())
     }
 }
 

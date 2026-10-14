@@ -265,10 +265,14 @@ mod tests {
     use std::path::Path;
 
     use super::*;
+    use crate::core::db::pool::{build_pool, run_migrations};
     use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
+    use crate::modules::tasks::domain::models::agent_command::MessageMode;
     use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
     use crate::modules::tasks::domain::models::task::TaskId;
-    use crate::modules::tasks::mocks::MockAgentEventSink;
+    use crate::modules::tasks::mocks::{
+        MockAgentEventSink, MockLaunchSettings, MockWorkspaceLookup,
+    };
 
     // Binarios inexistentes: estos tests nunca llegan a lanzar un proceso.
     const SHELL_BIN: &str = "/nonexistent/iwf-test-gentle-shell";
@@ -333,5 +337,37 @@ mod tests {
             result,
             Err(TaskError::Unsupported(message)) if message.contains("codex")
         ));
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn new_wires_the_binary_path_against_a_migrated_sqlite() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let url: String = dir.path().join("test.db").to_string_lossy().into_owned();
+        let pool: DbPool = build_pool(&url).expect("pool");
+        run_migrations(&pool).await.expect("migraciones");
+        let settings: TasksSettings = TasksSettings {
+            gentle_shell_bin: SHELL_BIN.to_string(),
+            pi_bin: PI_BIN.to_string(),
+            worktrees_dir: dir.path().join("worktrees"),
+            attachments_dir: dir.path().join("attachments"),
+        };
+        let workspaces: Arc<dyn WorkspaceLookupPort> = Arc::new(MockWorkspaceLookup::new());
+        let launch_settings: Arc<dyn LaunchSettingsPort> = Arc::new(MockLaunchSettings::new());
+
+        let context: TasksContext =
+            TasksContext::new(pool, settings, workspaces, launch_settings).expect("contexto");
+
+        let active: Vec<_> = context.list_tasks.execute(None).await.expect("lista");
+        assert!(active.is_empty());
+        let missing: Result<(), TaskError> = context
+            .send_message
+            .execute(
+                TaskId::new(),
+                "hola".to_string(),
+                Vec::new(),
+                MessageMode::Steer,
+            )
+            .await;
+        assert!(matches!(missing, Err(TaskError::NotFound(_))));
     }
 }
