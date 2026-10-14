@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::components::tree::{TreeChevron, TreeIcon};
 use crate::modules::tasks::presentation::components::diff_badges::{DiffCounts, DiffStatusBadge};
 use crate::modules::tasks::presentation::state::diff_files::{FileDiff, TreeNode, TreeNodeKind};
 use crate::modules::tasks::presentation::state::diff_view_state::{DiffViewState, anchor_id};
@@ -7,7 +8,7 @@ use crate::modules::tasks::presentation::state::diff_view_state::{DiffViewState,
 /// Horizontal indentation per depth level, in rem.
 const INDENT_REM: f32 = 0.875;
 /// Base left padding of every row, in rem.
-const BASE_PADDING_REM: f32 = 0.25;
+const BASE_PADDING_REM: f32 = 0.75;
 
 /// Left padding style for a row at `depth` (pure).
 pub fn indent_style(depth: usize) -> String {
@@ -15,11 +16,6 @@ pub fn indent_style(depth: usize) -> String {
         "padding-left: {}rem",
         BASE_PADDING_REM + INDENT_REM * depth as f32
     )
-}
-
-/// Glyph shown before a folder name (pure).
-pub fn folder_glyph(collapsed: bool) -> &'static str {
-    if collapsed { "▸" } else { "▾" }
 }
 
 /// Tree of the changed files; clicking a file selects it and jumps to its card.
@@ -77,8 +73,10 @@ pub fn DiffTreeNode(node: TreeNode, depth: usize, state: DiffViewState) -> impl 
                         title=file.path.clone()
                         on:click=move |_| state.select(&select_path)
                     >
-                        <DiffStatusBadge status=file.status />
+                        <span class="tree-chevron-spacer" aria-hidden="true"></span>
+                        <TreeIcon />
                         <span class="min-w-0 flex-1 truncate">{name}</span>
+                        <DiffStatusBadge status=file.status />
                         <DiffCounts additions deletions />
                     </a>
                 </li>
@@ -100,10 +98,9 @@ pub fn DiffTreeNode(node: TreeNode, depth: usize, state: DiffViewState) -> impl 
                         aria-expanded=move || (!collapsed.get()).to_string()
                         on:click=move |_| state.toggle_dir(&toggle_path)
                     >
-                        <span aria-hidden="true" class="w-3 shrink-0 text-center text-muted">
-                            {move || folder_glyph(collapsed.get())}
-                        </span>
-                        <span class="min-w-0 flex-1 truncate font-medium" title=show_path>
+                        <TreeChevron open=Signal::derive(move || !collapsed.get()) />
+                        <TreeIcon is_dir=true open=Signal::derive(move || !collapsed.get()) />
+                        <span class="min-w-0 flex-1 truncate" title=show_path>
                             {name}
                         </span>
                         <DiffCounts additions deletions />
@@ -132,13 +129,7 @@ mod tests {
 
     #[test]
     fn indent_grows_with_depth() {
-        assert_eq!(indent_style(0), "padding-left: 0.25rem");
-        assert_eq!(indent_style(2), "padding-left: 2rem");
-    }
-
-    #[test]
-    fn folder_glyph_points_to_state() {
-        assert_eq!(folder_glyph(true), "▸");
-        assert_eq!(folder_glyph(false), "▾");
+        assert_eq!(indent_style(0), "padding-left: 0.75rem");
+        assert_eq!(indent_style(2), "padding-left: 2.5rem");
     }
 }

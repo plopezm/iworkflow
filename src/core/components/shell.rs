@@ -1,6 +1,7 @@
+use crate::core::browser;
+use crate::core::dock::context::use_dock;
+use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
-use leptos_router::components::A;
-use leptos_router::hooks::use_location;
 
 /// Borde del layout en el que se ancla un panel colapsable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +27,7 @@ fn panel_class(side: PanelSide, open: bool, overlay_open: bool) -> String {
 fn handle_class(side: PanelSide, open: bool) -> &'static str {
     match (side, open) {
         (PanelSide::Left, true) => {
-            "absolute top-1/2 right-0 z-20 hidden h-12 w-4 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-border bg-surface text-xs text-muted hover:text-fg md:flex"
+            "absolute top-1/2 right-0 z-20 hidden h-12 w-4 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-border bg-surface text-xs text-muted opacity-60 transition-opacity hover:opacity-100 hover:text-fg md:flex"
         }
         (PanelSide::Left, false) => {
             "absolute top-1/2 left-0 z-20 hidden h-12 w-4 -translate-y-1/2 cursor-pointer items-center justify-center rounded-r-md border border-border bg-surface text-xs text-muted hover:text-fg md:flex"
@@ -94,6 +95,7 @@ pub fn DropdownMenu(
     #[prop(into)] label: String,
     #[prop(into)] aria_label: String,
     #[prop(into)] trigger_class: String,
+    #[prop(optional, into)] menu_class: String,
     children: ChildrenFn,
 ) -> impl IntoView {
     let open: RwSignal<bool> = RwSignal::new(false);
@@ -116,7 +118,9 @@ pub fn DropdownMenu(
                     on:click=move |_| open.set(false)
                 ></button>
                 <div
-                    class="absolute top-full right-0 z-40 mt-1 flex min-w-44 flex-col rounded-md border border-border bg-surface p-1 shadow-lg"
+                    class=format!(
+                        "absolute top-full right-0 z-40 mt-1 flex min-w-44 flex-col rounded-md border border-border bg-surface p-1 shadow-lg {menu_class}",
+                    )
                     role="menu"
                     on:click=move |_| open.set(false)
                 >
@@ -137,10 +141,10 @@ pub fn SidebarSection(
 ) -> impl IntoView {
     let open: RwSignal<bool> = RwSignal::new(true);
     view! {
-        <section class="border-b border-border">
-            <div class="flex items-center gap-2 px-3 py-2">
+        <section class="px-1 pb-1">
+            <div class="flex items-center gap-2 px-2.5 py-1.5">
                 <button
-                    class="flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[10px] font-bold tracking-widest text-muted uppercase"
+                    class="flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[11px] font-medium text-muted hover:text-fg"
                     aria-expanded=move || open.get().to_string()
                     on:click=move |_| open.update(|v: &mut bool| *v = !*v)
                 >
@@ -151,7 +155,7 @@ pub fn SidebarSection(
                 <span class="text-[10px] text-muted">{move || count.get()}</span>
             </div>
             <div class=move || {
-                if open.get() { "flex flex-col gap-2 px-2.5 pb-3" } else { "hidden" }
+                if open.get() { "flex flex-col gap-0.5 px-1.5 pb-2" } else { "hidden" }
             }>{children()}</div>
         </section>
     }
@@ -169,14 +173,14 @@ pub fn SidebarItem(
 ) -> impl IntoView {
     let row_class = move || {
         if selected.get() {
-            "flex items-stretch rounded-md border border-accent bg-accent/10"
+            "flex items-stretch rounded-md bg-surface-3"
         } else {
-            "flex items-stretch rounded-md border border-border bg-surface hover:border-accent/50"
+            "flex items-stretch rounded-md hover:bg-surface-2"
         }
     };
     view! {
         <div class=row_class>
-            <A href=href attr:class="min-w-0 flex-1 px-2.5 py-1.5">
+            <TabLink href=href title=title.clone() class="min-w-0 flex-1 px-2.5 py-1.5">
                 <div class="flex items-center gap-1.5">
                     {highlight
                         .then(|| {
@@ -191,11 +195,11 @@ pub fn SidebarItem(
                 </div>
                 {(!subtitle.is_empty())
                     .then(|| view! { <div class="truncate text-[11px] text-muted">{subtitle}</div> })}
-            </A>
+            </TabLink>
             {menu
                 .map(|menu: ViewFn| {
                     view! {
-                        <div class="flex border-l border-border">
+                        <div class="flex">
                             <DropdownMenu
                                 label="…"
                                 aria_label="Más acciones"
@@ -246,6 +250,51 @@ pub fn TabBar(
     }
 }
 
+/// Clave de `localStorage` del estado de la barra lateral en escritorio.
+const SIDEBAR_STORAGE_KEY: &str = "iwf-sidebar-open";
+
+/// Interpreta el valor guardado: solo `"0"` significa oculta; todo lo demás, abierta (pure).
+pub fn parse_sidebar_open(stored: Option<&str>) -> bool {
+    stored != Some("0")
+}
+
+/// Estado de la barra lateral, provisto por contexto para que su contenido pueda ocultarla.
+#[derive(Clone, Copy)]
+pub struct SidebarState {
+    pub open: RwSignal<bool>,
+}
+
+impl SidebarState {
+    pub fn toggle(&self) {
+        self.open.update(|v: &mut bool| *v = !*v);
+    }
+}
+
+/// Botón que oculta/muestra la barra lateral en escritorio (no hace nada fuera del `AppShell`).
+#[component]
+pub fn SidebarToggle(#[prop(optional, into)] class: String) -> impl IntoView {
+    let state: Option<SidebarState> = use_context::<SidebarState>();
+    let open: Signal<bool> =
+        Signal::derive(move || state.is_some_and(|s: SidebarState| s.open.get()));
+    view! {
+        <button
+            class=format!("icon-btn {class}")
+            aria-label=move || if open.get() { "Ocultar barra lateral" } else { "Mostrar barra lateral" }
+            title=move || if open.get() { "Ocultar barra lateral" } else { "Mostrar barra lateral" }
+            on:click=move |_| {
+                if let Some(s) = state {
+                    s.toggle();
+                }
+            }
+        >
+            <svg viewBox="0 0 16 16" fill="none" class="h-4 w-4" aria-hidden="true">
+                <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3" />
+                <path d="M6 3v10" stroke="currentColor" stroke-width="1.3" />
+            </svg>
+        </button>
+    }
+}
+
 /// Estructura de tres columnas a pantalla completa: barra lateral colapsable (`sidebar`),
 /// y a su derecha la columna central con el contenido enrutado (`children`). Cada columna
 /// hace scroll de forma independiente; en móvil la barra es un overlay abierto desde la
@@ -258,11 +307,25 @@ pub fn AppShell(
 ) -> impl IntoView {
     let sidebar_open: RwSignal<bool> = RwSignal::new(true);
     let mobile_open: RwSignal<bool> = RwSignal::new(false);
-    let pathname: Memo<String> = use_location().pathname;
-
-    // Cierra el overlay móvil al navegar.
+    let layout = use_dock().layout;
+    provide_context(SidebarState { open: sidebar_open });
+    // Solo cliente, tras hidratar: restaura la preferencia y la guarda en cada cambio.
+    let restored: RwSignal<bool> = RwSignal::new(false);
     Effect::new(move |_| {
-        pathname.track();
+        let stored: Option<String> = browser::read_local_storage(SIDEBAR_STORAGE_KEY);
+        sidebar_open.set(parse_sidebar_open(stored.as_deref()));
+        restored.set(true);
+    });
+    Effect::new(move |_| {
+        let open: bool = sidebar_open.get();
+        if restored.get() {
+            browser::write_local_storage(SIDEBAR_STORAGE_KEY, if open { "1" } else { "0" });
+        }
+    });
+
+    // Cierra el overlay móvil al abrir o mover pestañas.
+    Effect::new(move |_| {
+        layout.track();
         mobile_open.set(false);
     });
 
@@ -277,6 +340,11 @@ pub fn AppShell(
             >
                 {sidebar.run()}
             </CollapsePanel>
+            <Show when=move || !sidebar_open.get()>
+                <div class="hidden w-10 shrink-0 flex-col items-center border-r border-border bg-surface pt-2 md:flex">
+                    <SidebarToggle />
+                </div>
+            </Show>
             <div class="flex min-w-0 flex-1 flex-col">
                 <header class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden">
                     <button
@@ -286,11 +354,11 @@ pub fn AppShell(
                     >
                         "☰"
                     </button>
-                    <A href="/" attr:class="font-display text-xl leading-none">
+                    <TabLink href="/" class="text-sm font-semibold tracking-tight">
                         {brand}
-                    </A>
+                    </TabLink>
                 </header>
-                <main class="grid-bg min-h-0 flex-1 overflow-hidden">{children()}</main>
+                <main class="min-h-0 min-w-0 flex-1 overflow-hidden bg-bg">{children()}</main>
             </div>
         </div>
     }
@@ -299,6 +367,14 @@ pub fn AppShell(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sidebar_is_open_unless_explicitly_stored_closed() {
+        assert!(parse_sidebar_open(None));
+        assert!(parse_sidebar_open(Some("1")));
+        assert!(parse_sidebar_open(Some("garbage")));
+        assert!(!parse_sidebar_open(Some("0")));
+    }
 
     #[test]
     fn panel_class_combines_mobile_overlay_and_desktop_visibility() {

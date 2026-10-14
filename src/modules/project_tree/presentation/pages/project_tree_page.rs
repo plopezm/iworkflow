@@ -1,7 +1,7 @@
+use crate::core::components::shell::DropdownMenu;
+use crate::core::dock::context::use_tab_params;
+use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
-use leptos_meta::Title;
-use leptos_router::components::A;
-use leptos_router::hooks::use_params_map;
 
 use crate::core::components::layout::ErrorText;
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::{
@@ -13,7 +13,7 @@ use crate::modules::project_tree::presentation::state::project_tree_state::Proje
 /// Árbol de directorios de un workspace. Se reconstruye por cada id (el router reutiliza el componente).
 #[component]
 pub fn ProjectTreePage() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_tab_params();
     let workspace_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
@@ -27,67 +27,75 @@ fn ProjectTreeContent(workspace_id: String) -> impl IntoView {
     let terminal_href: String = format!("/workspaces/{workspace_id}/terminal");
 
     view! {
-        <Title text="Proyecto · iworkflow" />
-        <div class="h-full min-h-0 overflow-y-auto">
-            <div class="mx-auto w-full max-w-4xl p-4 pb-10 md:p-6 md:pb-12">
-                <div class="stack gap-4">
-                    <div class="row flex-wrap items-center justify-between gap-2">
-                        <h1 class="page-title">
-                            <Transition fallback=|| "Proyecto">
-                                {move || Suspend::new(async move {
-                                    match state.root.await {
-                                        Ok(directory) => directory.workspace_name,
-                                        Err(_) => "Proyecto".to_string(),
-                                    }
-                                })}
-                            </Transition>
-                        </h1>
-                        <div class="row gap-2">
-                            <A href=edit_href attr:class="btn-secondary min-h-9 px-3 py-1.5 text-xs">
-                                "Editar"
-                            </A>
-                            <A
-                                href=terminal_href
-                                attr:class="btn-secondary min-h-9 px-3 py-1.5 text-xs"
-                            >
-                                "Terminal"
-                            </A>
-                        </div>
-                    </div>
-                    <section class="card p-2">
-                        <div class="max-h-[60vh] overflow-y-auto font-mono text-xs md:text-sm">
-                            <Transition fallback=|| {
-                                view! { <p class="muted p-2">"Cargando proyecto…"</p> }
-                            }>
-                                {move || Suspend::new(async move {
-                                    match state.root.await {
-                                        Err(e) => {
-                                            view! { <ErrorText message=e.to_string() /> }.into_any()
-                                        }
-                                        Ok(ProjectDirectoryDto { entries, .. }) if entries.is_empty() => {
-                                            view! { <p class="muted p-2">"Carpeta vacía."</p> }
-                                                .into_any()
-                                        }
-                                        Ok(ProjectDirectoryDto { entries, .. }) => {
-                                            view! {
-                                                <ul>
-                                                    <For
-                                                        each=move || entries.clone()
-                                                        key=|e: &TreeEntryDto| e.path.clone()
-                                                        children=move |e: TreeEntryDto| {
-                                                            view! { <TreeNode entry=e depth=0 state /> }
-                                                        }
-                                                    />
-                                                </ul>
+        <div class="flex h-full min-h-0 flex-col bg-surface">
+            <div class="tree-panel-header">
+                <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">
+                    <Transition fallback=|| "Proyecto">
+                        {move || Suspend::new(async move {
+                            match state.root.await {
+                                Ok(directory) => directory.workspace_name,
+                                Err(_) => "Proyecto".to_string(),
+                            }
+                        })}
+                    </Transition>
+                </h1>
+                <button
+                    class="icon-btn"
+                    title="Recargar"
+                    aria-label="Recargar"
+                    on:click=move |_| state.refresh()
+                >
+                    "↻"
+                </button>
+                <DropdownMenu
+                    label="⋯"
+                    aria_label="Acciones del proyecto"
+                    trigger_class="icon-btn"
+                    menu_class="min-w-44"
+                >
+                    <TabLink href=terminal_href.clone() class="menu-item">
+                        "Abrir terminal"
+                    </TabLink>
+                    <TabLink href=edit_href.clone() class="menu-item">
+                        "Editar workspace"
+                    </TabLink>
+                </DropdownMenu>
+            </div>
+            <div class="min-h-0 flex-1 overflow-y-auto py-1">
+                <Transition fallback=|| {
+                    view! { <p class="px-3 py-2 text-xs text-muted">"Cargando proyecto…"</p> }
+                }>
+                    {move || Suspend::new(async move {
+                        match state.root.await {
+                            Err(e) => {
+                                view! {
+                                    <div class="px-3 py-2">
+                                        <ErrorText message=e.to_string() />
+                                    </div>
+                                }
+                                    .into_any()
+                            }
+                            Ok(ProjectDirectoryDto { entries, .. }) if entries.is_empty() => {
+                                view! { <p class="px-3 py-2 text-xs text-muted">"Carpeta vacía."</p> }
+                                    .into_any()
+                            }
+                            Ok(ProjectDirectoryDto { entries, .. }) => {
+                                view! {
+                                    <ul>
+                                        <For
+                                            each=move || entries.clone()
+                                            key=|e: &TreeEntryDto| e.path.clone()
+                                            children=move |e: TreeEntryDto| {
+                                                view! { <TreeNode entry=e depth=0 state /> }
                                             }
-                                                .into_any()
-                                        }
-                                    }
-                                })}
-                            </Transition>
-                        </div>
-                    </section>
-                </div>
+                                        />
+                                    </ul>
+                                }
+                                    .into_any()
+                            }
+                        }
+                    })}
+                </Transition>
             </div>
         </div>
     }

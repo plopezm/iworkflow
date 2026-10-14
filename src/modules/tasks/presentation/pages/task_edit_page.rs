@@ -1,9 +1,6 @@
+use crate::core::dock::context::{use_tab_nav, use_tab_params};
 use leptos::prelude::*;
-use leptos_meta::Title;
-use leptos_router::NavigateOptions;
-use leptos_router::hooks::{use_navigate, use_params_map};
 
-use crate::core::browser::history_back;
 use crate::core::components::form::{ActionError, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
 use crate::modules::tasks::presentation::components::existing_attachments::ExistingAttachments;
@@ -14,7 +11,7 @@ use crate::modules::tasks::presentation::state::task_edit_state::TaskEditState;
 /// Página de edición. Se reconstruye por cada id (el router reutiliza el componente).
 #[component]
 pub fn TaskEditPage() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_tab_params();
     let task_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
@@ -24,12 +21,8 @@ pub fn TaskEditPage() -> impl IntoView {
 #[component]
 fn TaskEditContent(task_id: String) -> impl IntoView {
     let state: TaskEditState = TaskEditState::new(task_id);
-    let navigate = use_navigate();
-    let leave: Callback<()> = Callback::new(move |_| {
-        if !history_back() {
-            navigate("/", NavigateOptions::default());
-        }
-    });
+    let nav = use_tab_nav();
+    let leave: Callback<()> = Callback::new(move |_| nav.close_and_open("/"));
 
     // Precarga una sola vez, cuando llega la tarea.
     let prefilled: RwSignal<bool> = RwSignal::new(false);
@@ -48,7 +41,6 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
     });
 
     view! {
-        <Title text="Editar tarea · iworkflow" />
         <div class="h-full min-h-0 overflow-y-auto">
             <div class="mx-auto w-full max-w-5xl p-4 pb-10 md:p-6 md:pb-12">
             <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>

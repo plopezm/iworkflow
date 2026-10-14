@@ -3,6 +3,7 @@ use leptos::prelude::*;
 
 use crate::core::components::form::{ActionError, SelectField, SelectOption, TextArea, TextField};
 use crate::core::components::modal::Modal;
+use crate::core::dock::link::TabLink;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskPriorityDto, WorkspaceOptionDto,
 };
@@ -62,9 +63,9 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                         view! {
                             <p class="muted">
                                 "Registra primero un workspace en "
-                                <a href="/workspaces" class="text-accent">
+                                <TabLink href="/workspaces" class="text-accent">
                                     "Workspaces"
-                                </a>
+                                </TabLink>
                                 "."
                             </p>
                         }

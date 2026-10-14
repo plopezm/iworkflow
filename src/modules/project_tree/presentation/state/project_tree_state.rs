@@ -25,6 +25,7 @@ pub struct ProjectTreeState {
     pub root: Resource<Result<ProjectDirectoryDto, ServerFnError>>,
     pub expanded: RwSignal<HashSet<String>>,
     pub children: RwSignal<HashMap<String, ChildrenState>>,
+    reload: RwSignal<u32>,
     load_children: Action<String, ()>,
 }
 
@@ -36,6 +37,13 @@ pub fn toggle_path(expanded: &mut HashSet<String>, path: &str) -> bool {
         expanded.insert(path.to_string());
         true
     }
+}
+
+/// Expanded directories in a stable order, to refetch them after a refresh (pure).
+pub fn paths_to_reload(expanded: &HashSet<String>) -> Vec<String> {
+    let mut paths: Vec<String> = expanded.iter().cloned().collect();
+    paths.sort();
+    paths
 }
 
 /// A directory needs fetching unless it is already loading or loaded (pure).
@@ -68,15 +76,30 @@ impl ProjectTreeState {
                 });
             }
         });
+        let reload: RwSignal<u32> = RwSignal::new(0);
         Self {
             workspace_id: id,
             root: Resource::new(
-                || (),
+                move || reload.get(),
                 move |_| list_project_directory(id.get_value(), ROOT_PATH.to_string()),
             ),
             expanded: RwSignal::new(HashSet::new()),
             children,
+            reload,
             load_children,
+        }
+    }
+
+    /// Refetches the root and every expanded directory, keeping the expansion state.
+    pub fn refresh(&self) {
+        let expanded: Vec<String> = self
+            .expanded
+            .with_untracked(|set: &HashSet<String>| paths_to_reload(set));
+        self.children
+            .update(|map: &mut HashMap<String, ChildrenState>| map.clear());
+        self.reload.update(|n: &mut u32| *n = n.wrapping_add(1));
+        for path in expanded {
+            self.load_children.dispatch(path);
         }
     }
 
@@ -122,6 +145,15 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn paths_to_reload_is_sorted() {
+        let set: HashSet<String> = ["src/b", "src", "src/a"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(paths_to_reload(&set), vec!["src", "src/a", "src/b"]);
     }
 
     #[test]

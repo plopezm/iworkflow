@@ -32,7 +32,7 @@ pub fn BoardLane(
         >
             <header class="flex shrink-0 items-start justify-between gap-2">
                 <div class="stack gap-0.5">
-                    <h2 class="font-display text-xl leading-none text-fg">
+                    <h2 class="text-sm font-semibold leading-none text-fg">
                         {move || lane.with(|l: &Option<LaneView>| l.as_ref().map(|l: &LaneView| l.workspace_name.clone()))}
                     </h2>
                     <code class="eyebrow normal-case tracking-wider">

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use crate::core::dock::context::{DockContext, use_dock};
 use leptos::prelude::*;
-use leptos_router::hooks::use_location;
 
 use crate::core::components::browser_notification::{
     request_permission_on_first_interaction, show_notification,
@@ -92,13 +92,13 @@ pub fn build_task_rows(
 pub struct AppSidebarState {
     pub workspace_rows: RwSignal<Vec<SidebarWorkspaceRow>>,
     pub task_rows: RwSignal<Vec<SidebarTaskRow>>,
-    pub pathname: Memo<String>,
+    dock: DockContext,
 }
 
 impl AppSidebarState {
     pub fn new() -> Self {
         let store: TaskStore = use_task_store();
-        let pathname: Memo<String> = use_location().pathname;
+        let dock: DockContext = use_dock();
         let workspace_rows: RwSignal<Vec<SidebarWorkspaceRow>> = RwSignal::new(Vec::new());
         let task_rows: RwSignal<Vec<SidebarTaskRow>> = RwSignal::new(Vec::new());
         // Client-only, after hydration: the browser shows its native prompt on first click.
@@ -133,13 +133,18 @@ impl AppSidebarState {
         Self {
             workspace_rows,
             task_rows,
-            pathname,
+            dock,
         }
     }
 
-    /// Indica si `task_id` es la tarea abierta en la ruta actual.
+    /// Indica si `task_id` es la tarea visible en alguna pestaña activa.
     pub fn is_task_selected(&self, task_id: &str) -> bool {
-        self.pathname.with(|p: &String| *p == task_path(task_id))
+        self.dock.is_path_visible(&task_path(task_id))
+    }
+
+    /// Indica si el árbol de `workspace_id` es visible en alguna pestaña activa.
+    pub fn is_path_visible(&self, path: &str) -> bool {
+        self.dock.is_path_visible(path)
     }
 }
 

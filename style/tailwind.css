@@ -17,16 +17,16 @@
   --color-purple: var(--c-purple);
   --color-pink: var(--c-pink);
 
-  --font-ui: "Martian Mono", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --font-mono: "Martian Mono", "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-display: var(--font-ui);
 
-  /* Instrument-panel geometry: near-square corners; pills stay round. */
-  --radius-sm: 1px;
-  --radius: 2px;
-  --radius-md: 3px;
-  --radius-lg: 4px;
-  --radius-xl: 6px;
+  /* Flat, softly rounded panels. */
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 
   --color-stage-backlog: var(--c-stage-backlog);
   --color-stage-working: var(--c-stage-working);
@@ -46,91 +46,56 @@
   --animate-bounce-soft: bounce-soft 0.6s ease-in-out;
 }
 
-/* Mission-control palette.
-   Light = bone logbook paper, ink text, vermilion signal.
-   Dark  = warm graphite console, amber phosphor signal. */
+/* Orca-style palette: flat neutral surfaces, hairline borders, a restrained accent.
+   Dark is the primary look; light mirrors it with cool greys. */
 :root {
   color-scheme: light;
-  --c-bg: #ece6d6;
-  --c-surface: #f5f0e2;
-  --c-surface-2: #e3dcc8;
-  --c-surface-3: #d6cdb4;
-  --c-border: #c9bfa4;
-  --c-fg: #1d1a14;
-  --c-muted: #6e6552;
-  --c-accent: #d9400b;
-  --c-on-accent: #fff6e8;
-  --c-ok: #2d7a4f;
-  --c-warn: #a86a05;
-  --c-error: #b4233f;
-  --c-purple: #6a4fb8;
-  --c-pink: #b8447c;
-  --c-stage-backlog: #7d745f;
-  --c-stage-working: #d9400b;
-  --c-stage-attention: #b4233f;
-  --c-stage-review: #a86a05;
-  --c-stage-done: #2d7a4f;
-  --c-grid: rgba(29, 26, 20, 0.07);
-  --c-grain-opacity: 0.5;
+  --c-bg: #ffffff;
+  --c-surface: #f6f6f7;
+  --c-surface-2: #ececee;
+  --c-surface-3: #e1e1e5;
+  --c-border: #dcdce1;
+  --c-fg: #18181b;
+  --c-muted: #6b6b76;
+  --c-accent: #18181b;
+  --c-on-accent: #fafafa;
+  --c-ok: #1f8f55;
+  --c-warn: #b7791f;
+  --c-error: #d1384f;
+  --c-purple: #6d4fc2;
+  --c-pink: #be3f80;
+  --c-stage-backlog: #8b8b96;
+  --c-stage-working: #b7791f;
+  --c-stage-attention: #d1384f;
+  --c-stage-review: #2b78c8;
+  --c-stage-done: #1f8f55;
+  --c-grid: transparent;
+  --c-grain-opacity: 0;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --c-bg: #0c0b09;
-  --c-surface: #14120f;
-  --c-surface-2: #1d1a15;
-  --c-surface-3: #2a261e;
-  --c-border: #3a352a;
-  --c-fg: #efe7d4;
-  --c-muted: #9a917c;
-  --c-accent: #ffb020;
-  --c-on-accent: #161000;
-  --c-ok: #9fd18b;
-  --c-warn: #f0c26a;
-  --c-error: #ff7a85;
-  --c-purple: #c4a8ff;
-  --c-pink: #ee9ac8;
-  --c-stage-backlog: #9a917c;
-  --c-stage-working: #ffb020;
-  --c-stage-attention: #ff7a85;
-  --c-stage-review: #6fc3df;
-  --c-stage-done: #9fd18b;
-  --c-grid: rgba(255, 176, 32, 0.055);
-  --c-grain-opacity: 0.35;
-}
-
-/* ── Fonts (self-hosted) ───────────────────────── */
-@font-face {
-  font-family: "Martian Mono";
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/martian-mono-400.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Martian Mono";
-  font-weight: 500;
-  font-display: swap;
-  src: url("/fonts/martian-mono-500.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Martian Mono";
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/martian-mono-700.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/instrument-serif.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Instrument Serif";
-  font-style: italic;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/instrument-serif-italic.ttf") format("truetype");
+  --c-bg: #09090b;
+  --c-surface: #111113;
+  --c-surface-2: #19191c;
+  --c-surface-3: #242428;
+  --c-border: #26262b;
+  --c-fg: #e8e8ea;
+  --c-muted: #8b8b94;
+  --c-accent: #e8e8ea;
+  --c-on-accent: #09090b;
+  --c-ok: #5fd38d;
+  --c-warn: #f0b429;
+  --c-error: #ff6b78;
+  --c-purple: #b9a0ff;
+  --c-pink: #f28dbd;
+  --c-stage-backlog: #8b8b94;
+  --c-stage-working: #f0b429;
+  --c-stage-attention: #ff6b78;
+  --c-stage-review: #6cb6ff;
+  --c-stage-done: #5fd38d;
+  --c-grid: transparent;
+  --c-grain-opacity: 0;
 }
 
 html,
@@ -166,8 +131,7 @@ body {
   background-color: var(--color-bg);
   color: var(--color-fg);
   font-family: var(--font-ui);
-  font-size: 12.5px;
-  letter-spacing: -0.01em;
+  font-size: 13px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -182,32 +146,16 @@ body {
   outline-offset: 2px;
 }
 
-/* Film grain over everything: gives the flat surfaces a printed/phosphor texture. */
-body::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  pointer-events: none;
-  opacity: var(--c-grain-opacity);
-  mix-blend-mode: soft-light;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
-}
-
-/* Blueprint dot grid behind the working area. */
 .grid-bg {
-  background-image: radial-gradient(var(--c-grid) 1px, transparent 1px);
-  background-size: 22px 22px;
-  background-position: -1px -1px;
+  background: var(--color-bg);
 }
 
 /* ── Typography helpers ────────────────────────── */
 .page-title {
-  font-family: var(--font-display);
-  font-size: 1.75rem;
-  line-height: 1;
+  font-size: 1.25rem;
+  line-height: 1.2;
   letter-spacing: -0.01em;
-  font-weight: 400;
+  font-weight: 600;
   color: var(--color-fg);
 }
 .page-title em {
@@ -215,7 +163,7 @@ body::after {
   color: var(--color-accent);
 }
 .eyebrow {
-  @apply text-[10px] font-medium tracking-[0.22em] text-muted uppercase;
+  @apply text-[11px] font-medium text-muted;
 }
 
 /* ── Keyframes ─────────────────────────────────── */
@@ -272,25 +220,16 @@ body::after {
 /* In the components layer so utilities (e.g. `md:hidden`, `rounded-full`) can override them. */
 @layer components {
 .btn-primary {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-[11px] font-bold tracking-wider text-on-accent uppercase transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50;
-  box-shadow: 2px 2px 0 0 color-mix(in srgb, var(--color-accent) 35%, transparent);
-}
-.btn-primary:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent);
-}
-.btn-primary:active:not(:disabled) {
-  transform: translate(1px, 1px);
-  box-shadow: 0 0 0 0 transparent;
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-on-accent transition-colors duration-150 hover:opacity-90 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-secondary {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-[11px] font-medium tracking-wider text-fg uppercase transition-colors duration-150 hover:border-accent hover:bg-accent/10 hover:text-accent active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-fg transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-danger {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-error bg-error px-3 py-1.5 text-[11px] font-bold tracking-wider text-bg uppercase transition-colors duration-150 hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-error bg-error px-3 py-1.5 text-xs font-medium text-bg transition-colors duration-150 hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 .btn-ghost {
-  @apply inline-flex min-h-9 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-[11px] font-medium tracking-wider text-muted uppercase transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-xs font-medium text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
 }
 }
 
@@ -298,27 +237,17 @@ body::after {
 /* In the components layer so utilities (e.g. stage rails) can override the border. */
 @layer components {
 .card {
-  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3 transition-[border-color,transform,box-shadow] duration-200;
-  /* Registration ticks in the top-right corner, like a printed form. */
-  background-image:
-    linear-gradient(var(--color-border), var(--color-border)),
-    linear-gradient(var(--color-border), var(--color-border));
-  background-repeat: no-repeat;
-  background-size: 9px 1px, 1px 9px;
-  background-position: right 5px top 5px, right 5px top 5px;
+  @apply relative shrink-0 overflow-hidden rounded-lg border border-border bg-surface p-3 transition-colors duration-150;
 }
 }
 article.card:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 70%, var(--color-border));
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px -10px color-mix(in srgb, var(--color-accent) 55%, transparent);
+  border-color: color-mix(in srgb, var(--color-fg) 28%, var(--color-border));
 }
 .card-title {
-  @apply text-[10px] font-bold tracking-[0.2em] text-muted uppercase;
+  @apply text-xs font-semibold text-muted;
 }
 .task-title {
-  font-family: var(--font-display);
-  @apply text-2xl leading-tight font-normal text-fg;
+  @apply text-xl leading-tight font-semibold text-fg;
 }
 
 .section-header {
@@ -327,19 +256,153 @@ article.card:hover {
 
 /* ── Sidebar menus & right-panel tabs ───────────── */
 .menu-item {
-  @apply block cursor-pointer rounded px-2.5 py-1.5 text-left text-[11px] tracking-wider whitespace-nowrap text-fg uppercase hover:bg-accent/10 hover:text-accent;
+  @apply block w-full cursor-pointer rounded px-2.5 py-1.5 text-left text-xs whitespace-nowrap text-fg hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
 }
 .menu-item[aria-current="page"] {
   @apply text-accent;
 }
-.menu-item[aria-current="page"]::before {
-  content: "▸ ";
-}
 .tab {
-  @apply flex min-h-8 shrink-0 cursor-pointer items-center rounded-md border border-transparent bg-transparent px-3 py-1 text-[11px] tracking-wider text-muted uppercase transition-colors duration-150 hover:text-fg;
+  @apply flex min-h-8 shrink-0 cursor-pointer items-center rounded-md border border-transparent bg-transparent px-3 py-1 text-xs text-muted transition-colors duration-150 hover:text-fg;
 }
 .tab-selected {
-  @apply border-accent bg-accent/10 text-accent;
+  @apply bg-surface-3 text-fg;
+}
+
+/* ── Sidebar navigation rows ─────────────────────── */
+.sidebar-nav {
+  @apply flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] text-muted transition-colors duration-100 hover:bg-surface-2 hover:text-fg;
+}
+.sidebar-nav-active {
+  @apply bg-surface-2 text-fg;
+}
+.sidebar-nav-icon {
+  @apply inline-block w-4 text-center text-sm;
+}
+
+/* ── Explorer-style tree rows ────────────────────── */
+.tree-row {
+  @apply flex h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 pr-2 text-left text-[13px] text-fg transition-colors duration-100 hover:bg-surface-2;
+}
+.tree-row-muted {
+  @apply text-muted;
+}
+.tree-chevron {
+  @apply h-3.5 w-3.5 shrink-0 text-muted transition-transform duration-100;
+}
+.tree-chevron-open {
+  transform: rotate(90deg);
+}
+.tree-chevron-spacer {
+  @apply inline-block h-3.5 w-3.5 shrink-0;
+}
+.tree-icon {
+  @apply h-4 w-4 shrink-0 text-muted;
+}
+.tree-panel-header {
+  @apply flex h-10 shrink-0 items-center gap-2 border-b border-border px-3;
+}
+.icon-btn {
+  @apply flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+/* ── Action list (task actions) ──────────────────── */
+.action-list {
+  @apply flex flex-col py-1;
+}
+.action-section {
+  @apply px-3 pt-3 pb-1 text-[11px] font-medium text-muted;
+}
+.action-row {
+  @apply flex min-h-9 w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[13px] text-fg transition-colors duration-100 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
+}
+.action-row-primary {
+  @apply font-medium;
+}
+.action-row-danger {
+  @apply text-error hover:bg-error/10;
+}
+.action-icon {
+  @apply inline-flex w-4 shrink-0 items-center justify-center text-sm text-muted;
+}
+.action-row-danger .action-icon {
+  @apply text-error;
+}
+.action-hint {
+  @apply ml-auto truncate text-[11px] text-muted;
+}
+
+/* ── Dock: tab groups and splits ─────────────────── */
+.dock-group {
+  @apply relative flex min-h-0 min-w-0 flex-1 flex-col bg-bg;
+}
+.dock-tabbar {
+  @apply relative z-20 flex h-9 shrink-0 items-stretch border-b border-border bg-surface;
+}
+.dock-tabs {
+  @apply flex min-w-0 flex-1 overflow-x-auto;
+  scrollbar-width: none;
+}
+.dock-tabs::-webkit-scrollbar {
+  display: none;
+}
+.dock-tab {
+  @apply relative flex h-full max-w-56 min-w-28 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 text-xs text-muted transition-colors duration-100 select-none hover:bg-surface-2 hover:text-fg;
+}
+.dock-tab-active {
+  @apply bg-bg text-fg hover:bg-bg;
+}
+.dock-tab-active::after {
+  content: "";
+  @apply absolute inset-x-0 bottom-0 h-0.5 bg-muted;
+}
+.dock-group-focused .dock-tab-active::after {
+  @apply bg-accent;
+}
+.dock-tab-icon {
+  @apply inline-block w-3.5 shrink-0 text-center text-[11px] opacity-80;
+}
+.dock-tab-close {
+  @apply flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-sm leading-none text-muted opacity-0 transition-opacity hover:bg-surface-3 hover:text-fg group-hover:opacity-100;
+}
+.dock-tab-active .dock-tab-close {
+  @apply opacity-100;
+}
+.dock-icon-btn {
+  @apply flex h-full w-9 shrink-0 cursor-pointer items-center justify-center text-base text-muted transition-colors hover:bg-surface-2 hover:text-fg;
+}
+.dock-divider {
+  @apply relative z-10 shrink-0 bg-border transition-colors hover:bg-accent/60;
+  touch-action: none;
+}
+.dock-divider::after {
+  content: "";
+  position: absolute;
+}
+.dock-divider-row {
+  @apply w-px cursor-col-resize;
+}
+.dock-divider-row::after {
+  inset: 0 -3px;
+}
+.dock-divider-col {
+  @apply h-px cursor-row-resize;
+}
+.dock-divider-col::after {
+  inset: -3px 0;
+}
+.dock-drop-zone {
+  @apply pointer-events-auto rounded-md border-2 border-transparent;
+}
+.dock-drop-zone-hot {
+  @apply border-accent bg-accent/15;
+}
+body.dock-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+body.dock-resizing iframe,
+body.dock-resizing .xterm {
+  pointer-events: none;
 }
 
 /* ── Form controls ──────────────────────────────── */
@@ -356,7 +419,7 @@ article.card:hover {
 
 /* ── Filter chips ───────────────────────────────── */
 .chip {
-  @apply flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] tracking-wide text-muted transition-colors duration-150 hover:border-accent/50 hover:text-fg;
+  @apply flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] text-muted transition-colors duration-150 hover:border-accent/50 hover:text-fg;
 }
 .chip-selected {
   @apply border-accent bg-accent/10 text-accent;
@@ -392,7 +455,7 @@ article.card:hover {
 
 /* ── Badges (status + stage) ────────────────────── */
 .badge {
-  @apply inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[10px] font-bold tracking-[0.12em] uppercase;
+  @apply inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[11px] font-semibold;
 }
 .badge-ok {
   @apply border-ok/40 bg-ok/10 text-ok;
@@ -430,7 +493,7 @@ article.card:hover {
   @apply w-full border-collapse text-sm;
 }
 .data-table th {
-  @apply border-b-2 border-border px-3 py-2.5 text-left text-[10px] font-medium tracking-[0.2em] text-muted uppercase;
+  @apply border-b-2 border-border px-3 py-2.5 text-left text-[11px] font-medium text-muted;
 }
 .data-table td {
   @apply border-b border-border px-3 py-2.5 align-top;
@@ -447,7 +510,7 @@ article.card:hover {
   @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3 animate-fade-in;
 }
 .msg-role {
-  @apply mb-1.5 text-[10px] font-bold tracking-[0.2em] text-muted uppercase;
+  @apply mb-1.5 text-[11px] font-semibold text-muted;
 }
 .msg-user {
   @apply border-l-[3px] border-l-accent bg-surface-2/60;
@@ -524,7 +587,7 @@ article.card:hover {
   @apply flex flex-col gap-0.5;
 }
 .tool-arg dt {
-  @apply text-[10px] tracking-wider text-muted uppercase;
+  @apply text-[11px] text-muted;
 }
 .tool-arg code,
 .tool-arg pre {
@@ -593,7 +656,7 @@ article.card:hover {
   @apply bg-surface-2/40;
 }
 .diff-file {
-  @apply mt-3 border-b border-border/40 pb-1 font-bold text-accent;
+  @apply mt-3 border-b border-border/40 pb-1 font-semibold text-accent;
 }
 .diff-meta {
   @apply text-muted;
@@ -619,7 +682,7 @@ article.card:hover {
   @apply inline-flex overflow-hidden rounded-md border border-border;
 }
 .diff-segment {
-  @apply min-h-9 cursor-pointer bg-surface px-3 py-1.5 text-[11px] font-medium tracking-wider text-muted uppercase transition-colors duration-150 hover:text-fg;
+  @apply min-h-9 cursor-pointer bg-surface px-3 py-1.5 text-[11px] font-medium text-muted transition-colors duration-150 hover:text-fg;
 }
 .diff-segment + .diff-segment {
   @apply border-l border-border;
@@ -646,16 +709,16 @@ article.card:hover {
   @apply py-1 text-xs;
 }
 .diff-tree-row {
-  @apply flex w-full min-w-0 cursor-pointer items-center gap-1.5 py-1 pr-2 text-left text-fg transition-colors duration-100 hover:bg-surface-2;
+  @apply flex h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 pr-2 text-left text-[13px] text-fg transition-colors duration-100 hover:bg-surface-2;
 }
 .diff-tree-row-selected {
-  @apply bg-accent/10 text-accent;
+  @apply bg-surface-3;
 }
 .diff-counts {
   @apply inline-flex shrink-0 gap-1 font-mono text-[11px];
 }
 .diff-status {
-  @apply inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border text-[10px] font-bold;
+  @apply inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border text-[11px] font-semibold;
 }
 .diff-status-added {
   @apply border-ok/40 bg-ok/10 text-ok;
@@ -690,7 +753,7 @@ article.card:hover {
   @apply w-full border-collapse font-mono text-xs;
 }
 .diff-col-head {
-  @apply w-1/2 border-b border-border px-2 py-1 text-left text-[10px] font-bold tracking-widest text-muted uppercase;
+  @apply w-1/2 border-b border-border px-2 py-1 text-left text-[11px] font-semibold text-muted;
 }
 .diff-num {
   @apply w-10 min-w-10 select-none px-2 text-right align-top text-[11px] text-muted/70;
@@ -844,7 +907,7 @@ article.card:hover {
   @apply mx-auto w-full max-w-4xl flex-1 overflow-y-auto p-6;
 }
 .print-report-page h1 {
-  @apply mb-3 text-2xl font-bold;
+  @apply mb-3 text-2xl font-semibold;
 }
 .print-report-page h2 {
   @apply mb-2 mt-5 text-lg font-semibold;

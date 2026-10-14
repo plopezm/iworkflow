@@ -1,7 +1,5 @@
+use crate::core::dock::context::{use_tab_nav, use_tab_params};
 use leptos::prelude::*;
-use leptos_meta::Title;
-use leptos_router::NavigateOptions;
-use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::core::components::form::{ActionError, SelectField, SelectOption, TextField};
 use crate::core::components::layout::ErrorText;
@@ -14,7 +12,7 @@ const WORKSPACES_HREF: &str = "/workspaces";
 /// Página de edición. Se reconstruye por cada id (el router reutiliza el componente).
 #[component]
 pub fn WorkspaceEditPage() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_tab_params();
     let workspace_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
@@ -24,9 +22,9 @@ pub fn WorkspaceEditPage() -> impl IntoView {
 #[component]
 fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
     let state: WorkspaceEditState = WorkspaceEditState::new(workspace_id);
-    let navigate = use_navigate();
+    let nav = use_tab_nav();
     let leave: Callback<()> = Callback::new(move |_| {
-        navigate(WORKSPACES_HREF, NavigateOptions::default());
+        nav.close_and_open(WORKSPACES_HREF);
     });
 
     // Precarga una sola vez, cuando llega el workspace.
@@ -46,7 +44,6 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
     });
 
     view! {
-        <Title text="Editar workspace · iworkflow" />
         <div class="h-full min-h-0 overflow-y-auto">
             <div class="mx-auto w-full max-w-3xl p-4 pb-10 md:p-6 md:pb-12">
                 <Transition fallback=|| view! { <p class="muted">"Cargando workspace…"</p> }>

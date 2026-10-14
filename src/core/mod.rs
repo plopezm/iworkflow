@@ -4,6 +4,7 @@ pub mod components;
 pub mod config;
 #[cfg(feature = "ssr")]
 pub mod db;
+pub mod dock;
 #[cfg(feature = "ssr")]
 pub mod env;
 #[cfg(feature = "ssr")]
@@ -13,3 +14,4 @@ pub mod http;
 #[cfg(feature = "ssr")]
 pub mod launch;
 pub mod markdown;
+pub mod refresh;

@@ -1,5 +1,5 @@
+use crate::core::dock::context::use_tab_params;
 use leptos::prelude::*;
-use leptos_router::hooks::use_params_map;
 
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::TerminalSessionDto;
 use crate::modules::terminal::infrastructure::adapters::inbound::server_fns::{
@@ -40,7 +40,7 @@ pub struct TerminalSessionState {
 
 impl TerminalSessionState {
     pub fn new() -> Self {
-        let params = use_params_map();
+        let params = use_tab_params();
         let session_id: Memo<String> =
             Memo::new(move |_| params.with(|p| p.get("session_id").unwrap_or_default()));
         let sessions: Resource<Result<Vec<TerminalSessionDto>, ServerFnError>> =

@@ -35,6 +35,9 @@ export function pi_prefers_dark() {
 export function pi_set_document_theme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
 }
+export function pi_replace_url(path) {
+  try { window.history.replaceState(null, '', path); } catch (_) {}
+}
 export function pi_history_back() {
   if (window.history.length <= 1) return false;
   window.history.back();
@@ -46,6 +49,7 @@ export function pi_history_back() {
         pub fn pi_theme_write(key: &str, value: &str);
         pub fn pi_prefers_dark() -> bool;
         pub fn pi_set_document_theme(theme: &str);
+        pub fn pi_replace_url(path: &str);
         pub fn pi_history_back() -> bool;
     }
 }
@@ -58,6 +62,43 @@ mod follow_js {
     extern "C" {
         pub fn pi_follow_bottom(id: &str, auto: bool);
         pub fn pi_scroll_to_bottom(id: &str);
+    }
+}
+
+/// Lee un valor de `localStorage`. Fuera del navegador (o sin permiso) devuelve `None`.
+pub fn read_local_storage(key: &str) -> Option<String> {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_theme_read(key)
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _key: &str = key;
+        None
+    }
+}
+
+/// Guarda un valor en `localStorage`; ignora errores de almacenamiento.
+pub fn write_local_storage(key: &str, value: &str) {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_theme_write(key, value);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _args: (&str, &str) = (key, value);
+    }
+}
+
+/// Sustituye la URL de la barra de direcciones sin recargar ni añadir historial.
+pub fn replace_url(path: &str) {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_replace_url(path);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _path: &str = path;
     }
 }
 

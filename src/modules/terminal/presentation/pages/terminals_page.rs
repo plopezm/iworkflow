@@ -1,6 +1,5 @@
+use crate::core::dock::link::TabRedirect;
 use leptos::prelude::*;
-use leptos_meta::Title;
-use leptos_router::components::Redirect;
 
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
@@ -16,7 +15,6 @@ pub fn TerminalsPage() -> impl IntoView {
     let on_close: Callback<String> = Callback::new(move |id: String| state.close_session(id));
 
     view! {
-        <Title text="Terminales" />
         <div class="flex h-full min-h-0 flex-col">
             <div class="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2.5">
                 <h1 class="page-title">"Terminales"</h1>
@@ -45,7 +43,7 @@ pub fn TerminalsPage() -> impl IntoView {
                         .get()
                         .and_then(|r: Result<TerminalSessionDto, ServerFnError>| r.ok())
                         .map(|s: TerminalSessionDto| {
-                            view! { <Redirect path=terminal_session_path(&s.id) /> }
+                            view! { <TabRedirect path=terminal_session_path(&s.id) /> }
                         })
                 }}
                 <Card title="Sesiones">

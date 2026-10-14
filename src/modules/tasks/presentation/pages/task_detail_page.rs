@@ -1,14 +1,12 @@
+use crate::core::dock::context::{DockContext, use_dock, use_tab_nav, use_tab_params};
+use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
-use leptos_router::components::A;
-use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MergeOutcomeDto, TaskDto, TaskStageDto,
 };
@@ -18,25 +16,25 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dt
 use crate::modules::tasks::presentation::components::agent_sidebar::AgentSidebar;
 use crate::modules::tasks::presentation::components::composer::Composer;
 use crate::modules::tasks::presentation::components::dialog_panel::DialogPanel;
-use crate::modules::tasks::presentation::components::diff_view::DiffView;
 use crate::modules::tasks::presentation::components::subagents_panel::SubagentsPanel;
 use crate::modules::tasks::presentation::components::task_actions::{
     TaskActionHandlers, TaskActions,
 };
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
 use crate::modules::tasks::presentation::components::transcript_view::TranscriptView;
-use crate::modules::tasks::presentation::state::diff_report_state::DiffReportState;
-use crate::modules::tasks::presentation::state::diff_view_state::DiffViewState;
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
-const TAB_DIFF: &str = "diff";
 const PANEL_WIDTH_DEFAULT: &str = "md:w-[26rem]";
-const PANEL_WIDTH_DIFF: &str = "md:w-[min(62vw,64rem)]";
 const TAB_ACTIONS: &str = "acciones";
 const TAB_STATE: &str = "estado";
 /// Id del contenedor con scroll de la conversación.
 const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
+
+/// Route of the dock tab that shows the diff of a task (pure).
+pub fn diff_path(task_id: &str) -> String {
+    format!("/tasks/{task_id}/diff")
+}
 
 /// Longitud máxima (en caracteres) de la rama mostrada en la cabecera.
 const BRANCH_MAX_CHARS: usize = 36;
@@ -85,7 +83,7 @@ pub fn short_branch(branch: &str) -> String {
 /// Tarjeta simplificada de una tarea en Backlog: prompt y acciones de iniciar/editar/borrar.
 #[component]
 fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
-    let navigate = use_navigate();
+    let nav = use_tab_nav();
     let edit_href: String = format!("/tasks/{}/edit", task.id);
     let busy: Signal<bool> =
         Signal::derive(move || state.start.pending().get() || state.delete.pending().get());
@@ -96,7 +94,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
             .value()
             .with(|r: &Option<Result<(), ServerFnError>>| matches!(r, Some(Ok(()))));
         if deleted {
-            navigate("/", NavigateOptions::default());
+            nav.close_and_open("/");
         }
     });
     view! {
@@ -126,9 +124,9 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                     .can_edit
                     .then(|| {
                         view! {
-                            <A href=edit_href attr:class="btn-secondary">
+                            <TabLink href=edit_href class="btn-secondary">
                                 "Editar"
-                            </A>
+                            </TabLink>
                         }
                     })}
                 {task
@@ -158,7 +156,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
 /// (solo cambia el signal de parámetros), así que el contenido se reconstruye por cada id.
 #[component]
 pub fn TaskDetailPage() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_tab_params();
     let task_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
@@ -168,7 +166,12 @@ pub fn TaskDetailPage() -> impl IntoView {
 #[component]
 fn TaskDetailContent(task_id: String) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
-    let navigate = use_navigate();
+    // Several task tabs can be mounted at once, so the scroll container id is per task.
+    let scroll_id: StoredValue<String> = StoredValue::new(format!(
+        "{TRANSCRIPT_SCROLL_ID}-{}",
+        state.task_id.get_value()
+    ));
+    let nav = use_tab_nav();
     // Restablecer deja la tarea en Backlog, que no tiene pantalla propia: vuelta al tablero.
     Effect::new(move |_| {
         let reset_done: bool = state
@@ -176,42 +179,15 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
             .value()
             .with(|r: &Option<Result<(), ServerFnError>>| matches!(r, Some(Ok(()))));
         if reset_done {
-            navigate("/", NavigateOptions::default());
+            nav.close_and_open("/");
         }
-    });
-    let report: DiffReportState = DiffReportState::new(state.task_id, state.transcript, state.send);
-    let patch: Signal<String> = Signal::derive(move || {
-        state
-            .diff
-            .get()
-            .flatten()
-            .and_then(|r: Result<TaskDiffDto, ServerFnError>| r.ok())
-            .map(|d: TaskDiffDto| d.patch)
-            .unwrap_or_default()
-    });
-    let diff_state: DiffViewState = DiffViewState::new(state.task_id, patch, state.diff_refresh);
-    let can_edit_files: Signal<bool> = Signal::derive(move || {
-        state
-            .task
-            .get()
-            .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
-            .is_some_and(|t: TaskDto| t.actions.can_edit_files)
     });
     let right_open: RwSignal<bool> = RwSignal::new(true);
     let right_overlay: RwSignal<bool> = RwSignal::new(false);
     let active_tab: RwSignal<String> = RwSignal::new(TAB_ACTIONS.to_string());
-    // The diff needs room for the file tree and two columns, so its tab widens the panel.
-    let panel_width: Signal<String> = Signal::derive(move || {
-        if active_tab.get() == TAB_DIFF {
-            PANEL_WIDTH_DIFF.to_string()
-        } else {
-            PANEL_WIDTH_DEFAULT.to_string()
-        }
-    });
-    let on_select_tab: Callback<String> = Callback::new(move |id: String| {
-        state.show_diff.set(id == TAB_DIFF);
-        active_tab.set(id);
-    });
+    let panel_width: Signal<String> = Signal::derive(|| PANEL_WIDTH_DEFAULT.to_string());
+    let on_select_tab: Callback<String> = Callback::new(move |id: String| active_tab.set(id));
+    let diff_path: String = diff_path(&state.task_id.get_value());
 
     let handlers: TaskActionHandlers = TaskActionHandlers {
         abort: Callback::new(move |_| state.abort()),
@@ -220,14 +196,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         merge: Callback::new(move |_| state.merge()),
         discard: Callback::new(move |_| state.discard()),
         reset: Callback::new(move |_| state.reset()),
-        toggle_diff: Callback::new(move |_| {
-            let next: &str = if state.show_diff.get_untracked() {
-                TAB_ACTIONS
-            } else {
-                TAB_DIFF
-            };
-            on_select_tab.run(next.to_string());
-        }),
+        open_diff: Callback::new(move |_| nav.open(&diff_path)),
         show_subagents: Callback::new(move |_| state.show_subagents.set(true)),
     };
     let busy: Signal<bool> = Signal::derive(move || {
@@ -285,10 +254,19 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         })
     });
 
+    // The tab shows the task title once it is known.
+    let dock: DockContext = use_dock();
+    let tab_path: String = format!("/tasks/{}", state.task_id.get_value());
+    Effect::new(move |_| {
+        if let Some(task) = loaded_task.get() {
+            dock.set_title(&tab_path, &task.title);
+        }
+    });
+
     Effect::new(move |_| {
         if shows_workspace.get() {
             state.transcript.track();
-            follow_bottom(TRANSCRIPT_SCROLL_ID, state.autoscroll.get());
+            follow_bottom(&scroll_id.get_value(), state.autoscroll.get());
         }
     });
 
@@ -308,9 +286,9 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                     <section class="card stack m-4">
                         <h1 class="task-title">"Tarea eliminada"</h1>
                         <p class="muted">"Esta tarea ya no existe."</p>
-                        <A href="/" attr:class="btn-secondary">
+                        <TabLink href="/" class="btn-secondary">
                             "Volver al tablero"
-                        </A>
+                        </TabLink>
                     </section>
                 }
             }
@@ -376,7 +354,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                     <Show when=move || shows_workspace.get()>
                         <div class="group/scroll relative flex min-h-0 flex-1 flex-col" data-at-bottom="true">
                             <div
-                                id=TRANSCRIPT_SCROLL_ID
+                                id=scroll_id.get_value()
                                 class="stack min-h-0 flex-1 overflow-y-auto p-4"
                             >
                                 <TranscriptView transcript=state.transcript />
@@ -384,7 +362,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                             <button
                                 class="btn-secondary absolute right-4 bottom-3 rounded-full shadow-md group-data-[at-bottom=true]/scroll:hidden!"
                                 aria-label="Ir al último mensaje"
-                                on:click=move |_| scroll_to_bottom(TRANSCRIPT_SCROLL_ID)
+                                on:click=move |_| scroll_to_bottom(&scroll_id.get_value())
                             >
                                 "↓ Último mensaje"
                             </button>
@@ -445,7 +423,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                         </div>
                         <TabBar
                             tabs=vec![
-                                TabItem { id: TAB_DIFF, label: "Diff" },
                                 TabItem { id: TAB_ACTIONS, label: "Acciones" },
                                 TabItem { id: TAB_STATE, label: "Estado" },
                             ]
@@ -453,28 +430,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                             on_select=on_select_tab
                         />
                         <div class="stack min-h-0 flex-1 overflow-y-auto p-3">
-                            <Show when=move || active_tab.get() == TAB_DIFF>
-                                <Transition fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
-                                    {move || Suspend::new(async move {
-                                        match state.diff.await {
-                                            Some(Ok(diff)) => {
-                                                let title: String = state
-                                                    .task
-                                                    .get()
-                                                    .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
-                                                    .map(|t: TaskDto| t.title)
-                                                    .unwrap_or_else(|| "Informe de cambios".to_string());
-                                                view! { <DiffView diff title report state=diff_state can_edit_files /> }.into_any()
-                                            }
-                                            Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                                            None => {
-                                                view! { <p class="muted">"Sin diff disponible para esta tarea."</p> }
-                                                    .into_any()
-                                            }
-                                        }
-                                    })}
-                                </Transition>
-                            </Show>
                             <Show when=move || active_tab.get() == TAB_ACTIONS>
                                 <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
                                     {move || Suspend::new(async move {
@@ -486,9 +441,9 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                                     <TaskActions
                                                         actions=task.actions
                                                         handlers
-                                                        diff_visible=state.show_diff
                                                         busy
                                                         subagents_active
+                                                        terminal_href=format!("/tasks/{}/terminal", task.id)
                                                     />
                                                     {move || state.action_error().map(|e: String| view! { <ErrorText message=e /> })}
                                                     {move || {
@@ -520,21 +475,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                                         <code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">
                                                             {task.worktree_path.clone()}
                                                         </code>
-                                                        {task
-                                                            .actions
-                                                            .can_open_terminal
-                                                            .then(|| {
-                                                                view! {
-                                                                    <a
-                                                                        class="btn-secondary w-fit"
-                                                                        href=format!("/tasks/{}/terminal", task.id)
-                                                                        target="_blank"
-                                                                        rel="noopener"
-                                                                    >
-                                                                        "Abrir terminal"
-                                                                    </a>
-                                                                }
-                                                            })}
                                                     </div>
                                                     <label class="flex min-h-9 items-center gap-2 text-xs text-muted">
                                                         <input

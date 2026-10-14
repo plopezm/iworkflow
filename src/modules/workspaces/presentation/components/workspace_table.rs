@@ -1,5 +1,5 @@
+use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
-use leptos_router::components::A;
 
 use crate::core::browser::confirm;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::WorkspaceDto;
@@ -35,18 +35,18 @@ pub fn WorkspaceTable(workspaces: Vec<WorkspaceDto>, on_delete: Callback<String>
                                     {w.name}
                                 </span>
                                 <div class="row gap-1.5">
-                                <A
+                                <TabLink
                                     href=edit_href
-                                    attr:class="btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"
+                                    class="btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"
                                 >
                                     "Editar"
-                                </A>
-                                <A
+                                </TabLink>
+                                <TabLink
                                     href=terminal_href
-                                    attr:class="btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"
+                                    class="btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"
                                 >
                                     "Abrir terminal"
-                                </A>
+                                </TabLink>
                                 <button
                                     class="btn-danger min-h-9 rounded-lg px-2.5 py-1 text-xs"
                                     on:click=move |_| confirm_delete(&name, &id, on_delete)

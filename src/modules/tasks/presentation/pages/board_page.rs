@@ -1,10 +1,8 @@
 use leptos::prelude::*;
-use leptos_meta::Title;
-use leptos_router::NavigateOptions;
-use leptos_router::hooks::use_navigate;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::components::toast::ToastStack;
+use crate::core::dock::context::use_tab_nav;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreatedTaskDto, TaskDto, TaskStageDto, WorkspaceOptionDto,
 };
@@ -22,7 +20,7 @@ use crate::modules::tasks::presentation::state::board_state::{
 pub fn BoardPage() -> impl IntoView {
     let state: BoardState = BoardState::new();
 
-    let navigate = use_navigate();
+    let nav = use_tab_nav();
 
     // Cierra el modal tras crear con éxito (estado de UI, sin lógica de negocio).
     Effect::new(move |_| {
@@ -38,10 +36,7 @@ pub fn BoardPage() -> impl IntoView {
     let handlers: TaskCardHandlers = TaskCardHandlers {
         start: Callback::new(move |id: String| state.start_task(id)),
         edit: Callback::new(move |task: TaskDto| {
-            navigate(
-                &format!("/tasks/{}/edit", task.id),
-                NavigateOptions::default(),
-            );
+            nav.open(&format!("/tasks/{}/edit", task.id));
         }),
         delete: Callback::new(move |id: String| state.delete_task(id)),
         finish: Callback::new(move |id: String| state.finish_task(id)),
@@ -97,15 +92,6 @@ pub fn BoardPage() -> impl IntoView {
         }
     });
 
-    // Derivado del almacén compartido (señal, no `Resource`: no afecta a la hidratación).
-    let attention_count: Memo<usize> = Memo::new(move |_| {
-        state.store.active.with(|tasks: &Vec<TaskDto>| {
-            tasks
-                .iter()
-                .filter(|t: &&TaskDto| t.needs_attention)
-                .count()
-        })
-    });
     // Carriles ya calculados; viven fuera del `Suspend` y conservan el valor anterior
     // mientras se recarga, así el tablero no se reconstruye en cada refresco.
     let lanes: RwSignal<Vec<LaneView>> = RwSignal::new(Vec::new());
@@ -147,17 +133,7 @@ pub fn BoardPage() -> impl IntoView {
     });
     let filters_active: Memo<bool> =
         Memo::new(move |_| state.stage_filter.get().is_some() || state.show_done.get());
-    let document_title: Memo<String> = Memo::new(move |_| {
-        let count: usize = attention_count.get();
-        if count > 0 {
-            format!("({count}) iworkflow")
-        } else {
-            "iworkflow".to_string()
-        }
-    });
-
     view! {
-        <Title text=move || document_title.get() />
         <div class="flex h-full min-h-0 flex-col">
         <BoardToolbar
             stage_filter=state.stage_filter

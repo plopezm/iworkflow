@@ -1,5 +1,5 @@
+use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
-use leptos_router::components::A;
 
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::TerminalSessionDto;
 use crate::modules::terminal::presentation::state::terminal_page_state::terminal_session_path;
@@ -47,12 +47,12 @@ pub fn TerminalList(
                                     </td>
                                     <td>
                                         <div class="row justify-end gap-1.5">
-                                            <A
+                                            <TabLink
                                                 href=terminal_session_path(&s.id)
-                                                attr:class="btn-secondary min-h-8 px-2.5 py-1 text-xs"
+                                                class="btn-secondary min-h-8 px-2.5 py-1 text-xs"
                                             >
                                                 "Abrir"
-                                            </A>
+                                            </TabLink>
                                             <button
                                                 class="btn-danger min-h-8 px-2.5 py-1 text-xs"
                                                 disabled=move || closing.get()

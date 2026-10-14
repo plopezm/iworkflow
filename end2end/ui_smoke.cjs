@@ -83,10 +83,24 @@ let page;
   await page.getByText('Pendiente de revisión').first().waitFor();
   step('finalizada: pendiente de revisión');
 
+  await page.getByText('Acciones', { exact: true }).click();
   await page.getByRole('button', { name: 'Ver diff' }).click();
-  await page.getByText('+cambio del agente pi').waitFor();
+  await page.locator('.dock-tab', { hasText: /^.*Diff/ }).waitFor();
+  if (new URL(page.url()).pathname.endsWith('/diff') === false) throw new Error('el diff debe abrirse en su propia pestaña');
+  await page.getByText('cambio del agente pi').waitFor();
   step('diff visible (lo escribió el binario pi)');
   await page.screenshot({ path: process.env.SMOKE_SCREENSHOT || 'ui-review.png', fullPage: true });
+  await page.locator('.dock-tab[title="Tarea desde el navegador"]').click();
+
+  await page.getByText('Acciones', { exact: true }).click();
+  if (process.env.SMOKE_ACTIONS_SCREENSHOT) await page.screenshot({ path: process.env.SMOKE_ACTIONS_SCREENSHOT });
+  const pagesBefore = page.context().pages().length;
+  await page.getByRole('link', { name: 'Abrir terminal' }).click();
+  await page.waitForURL(/\/terminals\/[^/]+$/);
+  if (page.context().pages().length !== pagesBefore) throw new Error('abrir terminal no debe abrir otra ventana');
+  await page.locator('.dock-tab', { hasText: /Terminal/ }).waitFor();
+  await page.locator('.dock-tab[title="Tarea desde el navegador"]').click();
+  step('abrir terminal de la tarea abre una pestaña (sin ventana nueva)');
 
   await page.getByText('Acciones', { exact: true }).click();
   await page.getByRole('button', { name: 'Merge' }).click();
