@@ -20,6 +20,7 @@ use crate::modules::project_tree::presentation::pages::project_tree_page::Projec
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
+use crate::modules::tasks::presentation::pages::task_diff_page::TaskDiffPage;
 use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
 use crate::modules::tasks::presentation::state::task_store::TaskStore;
 use crate::modules::terminal::presentation::pages::new_task_terminal_page::NewTaskTerminalPage;
@@ -64,6 +65,7 @@ enum TabRoute {
     Task(String),
     TaskEdit(String),
     TaskTerminal(String),
+    TaskDiff(String),
     NotFound,
 }
 
@@ -84,6 +86,7 @@ impl TabRoute {
             ["tasks", id] => Self::Task((*id).to_string()),
             ["tasks", id, "edit"] => Self::TaskEdit((*id).to_string()),
             ["tasks", id, "terminal"] => Self::TaskTerminal((*id).to_string()),
+            ["tasks", id, "diff"] => Self::TaskDiff((*id).to_string()),
             _ => Self::NotFound,
         }
     }
@@ -104,6 +107,7 @@ impl TabRoute {
             Self::Models => "Modelos".to_string(),
             Self::Task(_) => "Tarea".to_string(),
             Self::TaskEdit(_) => "Editar tarea".to_string(),
+            Self::TaskDiff(_) => "Diff".to_string(),
             Self::NotFound => "No encontrada".to_string(),
         }
     }
@@ -113,6 +117,7 @@ impl TabRoute {
             Self::Board => "▦",
             Self::Workspaces | Self::WorkspaceTree(_) => "▤",
             Self::WorkspaceEdit(_) | Self::TaskEdit(_) => "✎",
+            Self::TaskDiff(_) => "±",
             Self::WorkspaceTerminal(_)
             | Self::Terminals
             | Self::TerminalSession(_)
@@ -134,7 +139,8 @@ impl TabRoute {
             | Self::WorkspaceTerminal(id)
             | Self::Task(id)
             | Self::TaskEdit(id)
-            | Self::TaskTerminal(id) => params.insert("id", id.clone()),
+            | Self::TaskTerminal(id)
+            | Self::TaskDiff(id) => params.insert("id", id.clone()),
             Self::TerminalSession(id) => params.insert("session_id", id.clone()),
             _ => {}
         }
@@ -155,6 +161,7 @@ impl TabRoute {
             Self::Models => view! { <ModelsPage /> }.into_any(),
             Self::Task(_) => view! { <TaskDetailPage /> }.into_any(),
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
+            Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
             Self::TaskTerminal(_) => view! { <NewTaskTerminalPage /> }.into_any(),
             Self::NotFound => view! { <p class="muted p-4">"Página no encontrada."</p> }.into_any(),
         }
@@ -351,6 +358,10 @@ mod tests {
         assert_eq!(
             TabRoute::parse("/tasks/a1/edit"),
             TabRoute::TaskEdit("a1".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/tasks/a1/diff"),
+            TabRoute::TaskDiff("a1".into())
         );
         assert_eq!(
             TabRoute::parse("/tasks/a1/terminal"),

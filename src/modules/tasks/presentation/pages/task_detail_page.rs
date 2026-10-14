@@ -7,7 +7,6 @@ use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MergeOutcomeDto, TaskDto, TaskStageDto,
 };
@@ -17,25 +16,25 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dt
 use crate::modules::tasks::presentation::components::agent_sidebar::AgentSidebar;
 use crate::modules::tasks::presentation::components::composer::Composer;
 use crate::modules::tasks::presentation::components::dialog_panel::DialogPanel;
-use crate::modules::tasks::presentation::components::diff_view::DiffView;
 use crate::modules::tasks::presentation::components::subagents_panel::SubagentsPanel;
 use crate::modules::tasks::presentation::components::task_actions::{
     TaskActionHandlers, TaskActions,
 };
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
 use crate::modules::tasks::presentation::components::transcript_view::TranscriptView;
-use crate::modules::tasks::presentation::state::diff_report_state::DiffReportState;
-use crate::modules::tasks::presentation::state::diff_view_state::DiffViewState;
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
-const TAB_DIFF: &str = "diff";
 const PANEL_WIDTH_DEFAULT: &str = "md:w-[26rem]";
-const PANEL_WIDTH_DIFF: &str = "md:w-[min(62vw,64rem)]";
 const TAB_ACTIONS: &str = "acciones";
 const TAB_STATE: &str = "estado";
 /// Id del contenedor con scroll de la conversación.
 const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
+
+/// Route of the dock tab that shows the diff of a task (pure).
+pub fn diff_path(task_id: &str) -> String {
+    format!("/tasks/{task_id}/diff")
+}
 
 /// Longitud máxima (en caracteres) de la rama mostrada en la cabecera.
 const BRANCH_MAX_CHARS: usize = 36;
@@ -183,39 +182,12 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
             nav.close_and_open("/");
         }
     });
-    let report: DiffReportState = DiffReportState::new(state.task_id, state.transcript, state.send);
-    let patch: Signal<String> = Signal::derive(move || {
-        state
-            .diff
-            .get()
-            .flatten()
-            .and_then(|r: Result<TaskDiffDto, ServerFnError>| r.ok())
-            .map(|d: TaskDiffDto| d.patch)
-            .unwrap_or_default()
-    });
-    let diff_state: DiffViewState = DiffViewState::new(state.task_id, patch, state.diff_refresh);
-    let can_edit_files: Signal<bool> = Signal::derive(move || {
-        state
-            .task
-            .get()
-            .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
-            .is_some_and(|t: TaskDto| t.actions.can_edit_files)
-    });
     let right_open: RwSignal<bool> = RwSignal::new(true);
     let right_overlay: RwSignal<bool> = RwSignal::new(false);
     let active_tab: RwSignal<String> = RwSignal::new(TAB_ACTIONS.to_string());
-    // The diff needs room for the file tree and two columns, so its tab widens the panel.
-    let panel_width: Signal<String> = Signal::derive(move || {
-        if active_tab.get() == TAB_DIFF {
-            PANEL_WIDTH_DIFF.to_string()
-        } else {
-            PANEL_WIDTH_DEFAULT.to_string()
-        }
-    });
-    let on_select_tab: Callback<String> = Callback::new(move |id: String| {
-        state.show_diff.set(id == TAB_DIFF);
-        active_tab.set(id);
-    });
+    let panel_width: Signal<String> = Signal::derive(|| PANEL_WIDTH_DEFAULT.to_string());
+    let on_select_tab: Callback<String> = Callback::new(move |id: String| active_tab.set(id));
+    let diff_path: String = diff_path(&state.task_id.get_value());
 
     let handlers: TaskActionHandlers = TaskActionHandlers {
         abort: Callback::new(move |_| state.abort()),
@@ -224,14 +196,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         merge: Callback::new(move |_| state.merge()),
         discard: Callback::new(move |_| state.discard()),
         reset: Callback::new(move |_| state.reset()),
-        toggle_diff: Callback::new(move |_| {
-            let next: &str = if state.show_diff.get_untracked() {
-                TAB_ACTIONS
-            } else {
-                TAB_DIFF
-            };
-            on_select_tab.run(next.to_string());
-        }),
+        open_diff: Callback::new(move |_| nav.open(&diff_path)),
         show_subagents: Callback::new(move |_| state.show_subagents.set(true)),
     };
     let busy: Signal<bool> = Signal::derive(move || {
@@ -458,7 +423,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                         </div>
                         <TabBar
                             tabs=vec![
-                                TabItem { id: TAB_DIFF, label: "Diff" },
                                 TabItem { id: TAB_ACTIONS, label: "Acciones" },
                                 TabItem { id: TAB_STATE, label: "Estado" },
                             ]
@@ -466,28 +430,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                             on_select=on_select_tab
                         />
                         <div class="stack min-h-0 flex-1 overflow-y-auto p-3">
-                            <Show when=move || active_tab.get() == TAB_DIFF>
-                                <Transition fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
-                                    {move || Suspend::new(async move {
-                                        match state.diff.await {
-                                            Some(Ok(diff)) => {
-                                                let title: String = state
-                                                    .task
-                                                    .get()
-                                                    .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
-                                                    .map(|t: TaskDto| t.title)
-                                                    .unwrap_or_else(|| "Informe de cambios".to_string());
-                                                view! { <DiffView diff title report state=diff_state can_edit_files /> }.into_any()
-                                            }
-                                            Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                                            None => {
-                                                view! { <p class="muted">"Sin diff disponible para esta tarea."</p> }
-                                                    .into_any()
-                                            }
-                                        }
-                                    })}
-                                </Transition>
-                            </Show>
                             <Show when=move || active_tab.get() == TAB_ACTIONS>
                                 <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
                                     {move || Suspend::new(async move {
@@ -499,7 +441,6 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                                     <TaskActions
                                                         actions=task.actions
                                                         handlers
-                                                        diff_visible=state.show_diff
                                                         busy
                                                         subagents_active
                                                         terminal_href=format!("/tasks/{}/terminal", task.id)

@@ -14,7 +14,7 @@ pub struct TaskActionHandlers {
     pub merge: Callback<()>,
     pub discard: Callback<()>,
     pub reset: Callback<()>,
-    pub toggle_diff: Callback<()>,
+    pub open_diff: Callback<()>,
     pub show_subagents: Callback<()>,
 }
 
@@ -74,7 +74,6 @@ fn ActionRow(
 pub fn TaskActions(
     actions: TaskActionsDto,
     handlers: TaskActionHandlers,
-    #[prop(into)] diff_visible: Signal<bool>,
     #[prop(into)] busy: Signal<bool>,
     #[prop(into)] subagents_active: Signal<u32>,
     /// Ruta que abre una terminal en el worktree de la tarea.
@@ -145,8 +144,8 @@ pub fn TaskActions(
                             .can_view_diff
                             .then(|| {
                                 view! {
-                                    <ActionRow icon="±" on_click=plain(handlers.toggle_diff)>
-                                        {move || if diff_visible.get() { "Ocultar diff" } else { "Ver diff" }}
+                                    <ActionRow icon="±" on_click=plain(handlers.open_diff)>
+                                        "Ver diff"
                                     </ActionRow>
                                 }
                             })}
