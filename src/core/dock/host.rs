@@ -6,7 +6,9 @@ use leptos_router::params::ParamsMap;
 use crate::core::components::shell::DropdownMenu;
 use crate::core::dock::context::{DockContext, GroupContext, TabContext, use_dock};
 use crate::core::dock::js;
-use crate::core::dock::layout::{DockLayout, DropZone, GroupId, LayoutNode, SplitDir, TabEntry, TabId};
+use crate::core::dock::layout::{
+    DockLayout, DropZone, GroupId, LayoutNode, SplitDir, TabEntry, TabId,
+};
 
 /// Funciones que la aplicación aporta al dock: contenido, parámetros e icono de cada ruta.
 #[derive(Clone, Copy)]
@@ -25,7 +27,8 @@ pub fn DockHost(
     #[prop(into)] empty: ViewFn,
 ) -> impl IntoView {
     let dock: DockContext = use_dock();
-    let shape: Memo<LayoutNode> = Memo::new(move |_| dock.layout.with(|l: &DockLayout| l.root.shape()));
+    let shape: Memo<LayoutNode> =
+        Memo::new(move |_| dock.layout.with(|l: &DockLayout| l.root.shape()));
     view! {
         <div class="flex h-full min-h-0 w-full min-w-0">
             {move || {
@@ -186,7 +189,7 @@ fn TabButton(
             role="tab"
             draggable="true"
             class=move || {
-                if active.get() == Some(tab_id) { "dock-tab dock-tab-active" } else { "dock-tab" }
+                if active.get() == Some(tab_id) { "group dock-tab dock-tab-active" } else { "group dock-tab" }
             }
             aria-selected=move || (active.get() == Some(tab_id)).to_string()
             title=move || title.get()
@@ -251,7 +254,12 @@ fn TabPane(
 
 /// Grupo de pestañas: barra (pestañas, `+` y `⋯`) y cuerpo con las pestañas montadas.
 #[component]
-fn DockGroup(group_id: GroupId, hooks: DockHooks, launcher: ViewFn, empty: ViewFn) -> impl IntoView {
+fn DockGroup(
+    group_id: GroupId,
+    hooks: DockHooks,
+    launcher: ViewFn,
+    empty: ViewFn,
+) -> impl IntoView {
     let dock: DockContext = use_dock();
     provide_context(GroupContext(group_id));
     let tabs: Memo<Vec<TabEntry>> = Memo::new(move |_| {

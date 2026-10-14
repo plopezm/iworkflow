@@ -1,5 +1,5 @@
-use leptos::prelude::*;
 use crate::core::dock::link::TabLink;
+use leptos::prelude::*;
 
 use crate::core::browser::confirm;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::WorkspaceDto;

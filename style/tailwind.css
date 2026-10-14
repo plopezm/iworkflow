@@ -294,7 +294,7 @@ article.card:hover {
   display: none;
 }
 .dock-tab {
-  @apply group relative flex h-full max-w-56 min-w-28 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 text-xs text-muted transition-colors duration-100 select-none hover:bg-surface-2 hover:text-fg;
+  @apply relative flex h-full max-w-56 min-w-28 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 text-xs text-muted transition-colors duration-100 select-none hover:bg-surface-2 hover:text-fg;
 }
 .dock-tab-active {
   @apply bg-bg text-fg hover:bg-bg;
@@ -701,7 +701,7 @@ body.dock-resizing .xterm {
   @apply w-full border-collapse font-mono text-xs;
 }
 .diff-col-head {
-  @apply w-1/2 border-b border-border px-2 py-1 text-left text-[11px] font-semiboldst text-muted;
+  @apply w-1/2 border-b border-border px-2 py-1 text-left text-[11px] font-semibold text-muted;
 }
 .diff-num {
   @apply w-10 min-w-10 select-none px-2 text-right align-top text-[11px] text-muted/70;

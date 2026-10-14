@@ -1,6 +1,6 @@
+use crate::core::dock::context::{use_tab_nav, use_tab_params};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use crate::core::dock::context::{use_tab_nav, use_tab_params};
 
 use crate::core::components::form::{ActionError, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
@@ -21,10 +21,9 @@ pub fn TaskEditPage() -> impl IntoView {
 
 #[component]
 fn TaskEditContent(task_id: String) -> impl IntoView {
-    let task_path: String = format!("/tasks/{task_id}");
     let state: TaskEditState = TaskEditState::new(task_id);
     let nav = use_tab_nav();
-    let leave: Callback<()> = Callback::new(move |_| nav.replace(&task_path));
+    let leave: Callback<()> = Callback::new(move |_| nav.close_and_open("/"));
 
     // Precarga una sola vez, cuando llega la tarea.
     let prefilled: RwSignal<bool> = RwSignal::new(false);

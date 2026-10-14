@@ -35,6 +35,9 @@ export function pi_prefers_dark() {
 export function pi_set_document_theme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
 }
+export function pi_replace_url(path) {
+  try { window.history.replaceState(null, '', path); } catch (_) {}
+}
 export function pi_history_back() {
   if (window.history.length <= 1) return false;
   window.history.back();
@@ -46,6 +49,7 @@ export function pi_history_back() {
         pub fn pi_theme_write(key: &str, value: &str);
         pub fn pi_prefers_dark() -> bool;
         pub fn pi_set_document_theme(theme: &str);
+        pub fn pi_replace_url(path: &str);
         pub fn pi_history_back() -> bool;
     }
 }
@@ -83,6 +87,18 @@ pub fn write_local_storage(key: &str, value: &str) {
     #[cfg(not(feature = "hydrate"))]
     {
         let _args: (&str, &str) = (key, value);
+    }
+}
+
+/// Sustituye la URL de la barra de direcciones sin recargar ni añadir historial.
+pub fn replace_url(path: &str) {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_replace_url(path);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _path: &str = path;
     }
 }
 

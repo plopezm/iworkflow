@@ -1,5 +1,5 @@
-use leptos::prelude::*;
 use crate::core::dock::link::TabLink;
+use leptos::prelude::*;
 
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::TerminalSessionDto;
 use crate::modules::terminal::presentation::state::terminal_page_state::terminal_session_path;

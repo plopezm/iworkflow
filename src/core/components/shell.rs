@@ -1,6 +1,6 @@
-use leptos::prelude::*;
 use crate::core::dock::context::use_dock;
 use crate::core::dock::link::TabLink;
+use leptos::prelude::*;
 
 /// Borde del layout en el que se ancla un panel colapsable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,7 +154,7 @@ pub fn SidebarSection(
                 <span class="text-[10px] text-muted">{move || count.get()}</span>
             </div>
             <div class=move || {
-                if open.get() { "flex flex-col gap-0.5 pb-2" } else { "hidden" }
+                if open.get() { "flex flex-col gap-0.5 px-1.5 pb-2" } else { "hidden" }
             }>{children()}</div>
         </section>
     }

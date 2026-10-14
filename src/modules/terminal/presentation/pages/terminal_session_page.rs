@@ -1,6 +1,6 @@
+use crate::core::dock::link::{TabLink, TabRedirect};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use crate::core::dock::link::{TabLink, TabRedirect};
 
 use crate::core::components::form::ActionError;
 use crate::modules::terminal::presentation::components::terminal_view::TerminalView;

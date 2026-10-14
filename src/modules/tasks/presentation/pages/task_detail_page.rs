@@ -1,6 +1,6 @@
-use leptos::prelude::*;
-use crate::core::dock::link::TabLink;
 use crate::core::dock::context::{DockContext, use_dock, use_tab_nav, use_tab_params};
+use crate::core::dock::link::TabLink;
+use leptos::prelude::*;
 
 use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
@@ -168,8 +168,10 @@ pub fn TaskDetailPage() -> impl IntoView {
 fn TaskDetailContent(task_id: String) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
     // Several task tabs can be mounted at once, so the scroll container id is per task.
-    let scroll_id: StoredValue<String> =
-        StoredValue::new(format!("{TRANSCRIPT_SCROLL_ID}-{}", state.task_id.get_value()));
+    let scroll_id: StoredValue<String> = StoredValue::new(format!(
+        "{TRANSCRIPT_SCROLL_ID}-{}",
+        state.task_id.get_value()
+    ));
     let nav = use_tab_nav();
     // Restablecer deja la tarea en Backlog, que no tiene pantalla propia: vuelta al tablero.
     Effect::new(move |_| {

@@ -1,10 +1,10 @@
 pub mod browser;
 pub mod components;
-pub mod dock;
 #[cfg(feature = "ssr")]
 pub mod config;
 #[cfg(feature = "ssr")]
 pub mod db;
+pub mod dock;
 #[cfg(feature = "ssr")]
 pub mod env;
 #[cfg(feature = "ssr")]

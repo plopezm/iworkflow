@@ -1,6 +1,6 @@
+use crate::core::dock::link::TabRedirect;
 use leptos::prelude::*;
 use leptos_meta::Title;
-use crate::core::dock::link::TabRedirect;
 
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};

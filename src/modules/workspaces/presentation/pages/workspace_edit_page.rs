@@ -1,6 +1,6 @@
+use crate::core::dock::context::{use_tab_nav, use_tab_params};
 use leptos::prelude::*;
 use leptos_meta::Title;
-use crate::core::dock::context::{use_tab_nav, use_tab_params};
 
 use crate::core::components::form::{ActionError, SelectField, SelectOption, TextField};
 use crate::core::components::layout::ErrorText;
@@ -25,7 +25,7 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
     let state: WorkspaceEditState = WorkspaceEditState::new(workspace_id);
     let nav = use_tab_nav();
     let leave: Callback<()> = Callback::new(move |_| {
-        nav.replace(WORKSPACES_HREF);
+        nav.close_and_open(WORKSPACES_HREF);
     });
 
     // Precarga una sola vez, cuando llega el workspace.

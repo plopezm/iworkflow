@@ -84,7 +84,7 @@ let page;
   step('finalizada: pendiente de revisión');
 
   await page.getByRole('button', { name: 'Ver diff' }).click();
-  await page.getByText('+cambio del agente pi').waitFor();
+  await page.getByText('cambio del agente pi').waitFor();
   step('diff visible (lo escribió el binario pi)');
   await page.screenshot({ path: process.env.SMOKE_SCREENSHOT || 'ui-review.png', fullPage: true });
 

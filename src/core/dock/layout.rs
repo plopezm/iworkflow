@@ -109,7 +109,11 @@ fn split_leaf(
         LayoutNode::Group(id) if id == target => {
             let old: Box<LayoutNode> = Box::new(LayoutNode::Group(id));
             let fresh: Box<LayoutNode> = Box::new(LayoutNode::Group(new_group));
-            let (first, second) = if new_first { (fresh, old) } else { (old, fresh) };
+            let (first, second) = if new_first {
+                (fresh, old)
+            } else {
+                (old, fresh)
+            };
             LayoutNode::Split {
                 id: split_id,
                 dir,
@@ -129,8 +133,12 @@ fn split_leaf(
             id,
             dir: d,
             ratio,
-            first: Box::new(split_leaf(*first, target, new_group, split_id, dir, new_first)),
-            second: Box::new(split_leaf(*second, target, new_group, split_id, dir, new_first)),
+            first: Box::new(split_leaf(
+                *first, target, new_group, split_id, dir, new_first,
+            )),
+            second: Box::new(split_leaf(
+                *second, target, new_group, split_id, dir, new_first,
+            )),
         },
     }
 }
@@ -274,6 +282,17 @@ impl DockLayout {
                     .map(|t: &TabEntry| t.path.clone())
             })
             .collect()
+    }
+
+    /// Ruta de la pestaña activa del grupo con foco.
+    pub fn focused_path(&self) -> Option<String> {
+        let group: &TabGroup = self.group(self.focused)?;
+        let active: TabId = group.active?;
+        group
+            .tabs
+            .iter()
+            .find(|t: &&TabEntry| t.id == active)
+            .map(|t: &TabEntry| t.path.clone())
     }
 
     pub fn is_path_visible(&self, path: &str) -> bool {
@@ -490,7 +509,10 @@ impl DockLayout {
             g.tabs.push(entry);
         }
         self.focused = destination;
-        if self.group(source).is_some_and(|g: &TabGroup| g.tabs.is_empty()) {
+        if self
+            .group(source)
+            .is_some_and(|g: &TabGroup| g.tabs.is_empty())
+        {
             self.remove_group(source);
         }
     }
@@ -674,6 +696,18 @@ mod tests {
         broken.groups.pop();
         assert_eq!(DockLayout::from_json(&broken.to_json()), None);
         assert_eq!(DockLayout::from_json("not json"), None);
+    }
+
+    #[test]
+    fn focused_path_follows_the_focused_group() {
+        let (mut layout, _, _) = two_tabs();
+        assert_eq!(layout.focused_path().as_deref(), Some("/b"));
+        let g: GroupId = layout.split_group(1, SplitDir::Row);
+        assert_eq!(layout.focused_path(), None, "new group is empty");
+        layout.open("/c", "C", Some(g));
+        assert_eq!(layout.focused_path().as_deref(), Some("/c"));
+        layout.focus(1);
+        assert_eq!(layout.focused_path().as_deref(), Some("/b"));
     }
 
     #[test]

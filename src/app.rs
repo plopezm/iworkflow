@@ -5,6 +5,7 @@ use leptos_router::hooks::use_location;
 use leptos_router::params::ParamsMap;
 use leptos_router::{StaticSegment, WildcardSegment};
 
+use crate::core::browser;
 use crate::core::components::shell::AppShell;
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::core::dock::context::{DockContext, use_dock};
@@ -94,7 +95,9 @@ impl TabRoute {
             Self::WorkspaceEdit(_) => "Editar workspace".to_string(),
             Self::WorkspaceTerminal(_) | Self::TaskTerminal(_) => "Terminal".to_string(),
             Self::Terminals => "Terminales".to_string(),
-            Self::TerminalSession(id) => format!("Terminal {}", id.chars().take(8).collect::<String>()),
+            Self::TerminalSession(id) => {
+                format!("Terminal {}", id.chars().take(8).collect::<String>())
+            }
             Self::AgentsFiles => "AGENTS.md".to_string(),
             Self::Profiles => "Perfiles".to_string(),
             Self::Models => "Modelos".to_string(),
@@ -183,7 +186,7 @@ const TOP_LEVEL_DESTINATIONS: [(&str, &str, &str); 6] = [
 fn sidebar_nav() -> impl IntoView {
     let dock: DockContext = use_dock();
     view! {
-        <nav class="stack gap-0.5 px-2 py-2" aria-label="Navegación">
+        <nav class="flex flex-col gap-0.5 px-2 py-2" aria-label="Navegación">
             {TOP_LEVEL_DESTINATIONS
                 .into_iter()
                 .map(|(path, icon, label)| {
@@ -271,8 +274,8 @@ fn TaskStoreProvider(children: Children) -> impl IntoView {
     children()
 }
 
-/// Tras restaurar el layout guardado abre la ruta del navegador (enlace directo o
-/// notificación) y, si no hay ninguna pestaña, el tablero.
+/// Tras restaurar el layout guardado abre (o activa) la pestaña de la ruta del navegador:
+/// enlace directo, recarga o visita a `/` (tablero).
 #[component]
 fn DockBootstrap() -> impl IntoView {
     let dock: DockContext = use_dock();
@@ -282,9 +285,16 @@ fn DockBootstrap() -> impl IntoView {
             return;
         }
         let path: String = pathname.get_untracked();
-        let has_tabs: bool = dock.layout.with_untracked(|l| l.groups.iter().any(|g| !g.tabs.is_empty()));
-        if path != "/" || !has_tabs {
-            dock.open(&path, None, None);
+        // Abrir una ruta ya abierta solo activa su pestaña.
+        dock.open(&path, None, None);
+    });
+    // La barra de direcciones refleja la pestaña con foco (enlaces directos y recarga).
+    Effect::new(move |_| {
+        let focused: Option<String> = dock.layout.with(|l| l.focused_path());
+        if dock.restored.get()
+            && let Some(path) = focused
+        {
+            browser::replace_url(&path);
         }
     });
 }
@@ -305,10 +315,18 @@ pub fn App() -> impl IntoView {
         <Title text="iworkflow" />
         <Router>
             // Sin pantallas enrutadas: las pestañas del dock las sustituyen. Estas rutas solo
-            // hacen que el servidor entregue el shell para cualquier enlace directo.
+            // hacen que el servidor entregue el shell en los enlaces directos conocidos (un comodín
+            // global taparía los ficheros estáticos de `/pkg`).
             <Routes fallback=|| ()>
                 <Route path=StaticSegment("") view=|| () />
-                <Route path=WildcardSegment("any") view=|| () />
+                <Route path=StaticSegment("workspaces") view=|| () />
+                <Route path=StaticSegment("terminals") view=|| () />
+                <Route path=StaticSegment("agents-files") view=|| () />
+                <Route path=StaticSegment("profiles") view=|| () />
+                <Route path=StaticSegment("models") view=|| () />
+                <Route path=(StaticSegment("tasks"), WildcardSegment("rest")) view=|| () />
+                <Route path=(StaticSegment("workspaces"), WildcardSegment("rest")) view=|| () />
+                <Route path=(StaticSegment("terminals"), WildcardSegment("rest")) view=|| () />
             </Routes>
             <TaskStoreProvider>
                 <DockBootstrap />
@@ -328,21 +346,45 @@ mod tests {
     fn parse_maps_every_known_path_to_its_screen() {
         assert_eq!(TabRoute::parse("/"), TabRoute::Board);
         assert_eq!(TabRoute::parse("/tasks/a1"), TabRoute::Task("a1".into()));
-        assert_eq!(TabRoute::parse("/tasks/a1/edit"), TabRoute::TaskEdit("a1".into()));
-        assert_eq!(TabRoute::parse("/tasks/a1/terminal"), TabRoute::TaskTerminal("a1".into()));
-        assert_eq!(TabRoute::parse("/workspaces/w"), TabRoute::WorkspaceTree("w".into()));
-        assert_eq!(TabRoute::parse("/workspaces/w/edit"), TabRoute::WorkspaceEdit("w".into()));
-        assert_eq!(TabRoute::parse("/workspaces/w/terminal"), TabRoute::WorkspaceTerminal("w".into()));
-        assert_eq!(TabRoute::parse("/terminals/s1"), TabRoute::TerminalSession("s1".into()));
+        assert_eq!(
+            TabRoute::parse("/tasks/a1/edit"),
+            TabRoute::TaskEdit("a1".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/tasks/a1/terminal"),
+            TabRoute::TaskTerminal("a1".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/workspaces/w"),
+            TabRoute::WorkspaceTree("w".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/workspaces/w/edit"),
+            TabRoute::WorkspaceEdit("w".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/workspaces/w/terminal"),
+            TabRoute::WorkspaceTerminal("w".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/terminals/s1"),
+            TabRoute::TerminalSession("s1".into())
+        );
         assert_eq!(TabRoute::parse("/models"), TabRoute::Models);
         assert_eq!(TabRoute::parse("/nope/x/y/z"), TabRoute::NotFound);
     }
 
     #[test]
     fn params_expose_the_ids_pages_read() {
-        assert_eq!(TabRoute::parse("/tasks/a1").params().get("id").as_deref(), Some("a1"));
         assert_eq!(
-            TabRoute::parse("/terminals/s1").params().get("session_id").as_deref(),
+            TabRoute::parse("/tasks/a1").params().get("id").as_deref(),
+            Some("a1")
+        );
+        assert_eq!(
+            TabRoute::parse("/terminals/s1")
+                .params()
+                .get("session_id")
+                .as_deref(),
             Some("s1")
         );
         assert_eq!(TabRoute::Board.params().get("id"), None);

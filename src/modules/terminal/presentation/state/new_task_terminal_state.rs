@@ -1,5 +1,5 @@
-use leptos::prelude::*;
 use crate::core::dock::context::use_tab_params;
+use leptos::prelude::*;
 
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::TerminalSessionDto;
 use crate::modules::terminal::infrastructure::adapters::inbound::server_fns::open_task_terminal;

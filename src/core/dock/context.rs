@@ -57,8 +57,7 @@ impl DockContext {
     /// Abre `path` (activa la pestaña si ya existe). `group` fija el grupo destino.
     pub fn open(&self, path: &str, title: Option<&str>, group: Option<GroupId>) {
         let title: String = title.map_or_else(|| self.title_for(path), str::to_string);
-        self.layout
-            .update(|l: &mut DockLayout| {
+        self.layout.update(|l: &mut DockLayout| {
             let _tab: TabId = l.open(path, &title, group);
         });
     }
@@ -82,8 +81,7 @@ impl DockContext {
     }
 
     pub fn split_group(&self, group: GroupId, dir: SplitDir) {
-        self.layout
-            .update(|l: &mut DockLayout| {
+        self.layout.update(|l: &mut DockLayout| {
             let _group: GroupId = l.split_group(group, dir);
         });
     }
@@ -117,8 +115,7 @@ impl DockContext {
     }
 
     pub fn is_path_visible(&self, path: &str) -> bool {
-        self.layout
-            .with(|l: &DockLayout| l.is_path_visible(path))
+        self.layout.with(|l: &DockLayout| l.is_path_visible(path))
     }
 }
 

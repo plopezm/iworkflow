@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use leptos::prelude::*;
 use crate::core::dock::context::{DockContext, use_dock};
+use leptos::prelude::*;
 
 use crate::core::components::browser_notification::{
     request_permission_on_first_interaction, show_notification,
