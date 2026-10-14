@@ -4,6 +4,7 @@ use leptos::server_fn::codec::Json;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::{
     ImageAttachmentDto, TaskAttachmentDto,
 };
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, UpdateTaskDto,
@@ -57,6 +58,18 @@ mod support {
                 ServerFnError::ServerError(expected.clone())
             );
             assert!(expected.contains("a.png: la imagen está vacía"));
+        }
+
+        #[test]
+        fn missing_task_message_is_preserved() {
+            let error: TaskError = TaskError::NotFound("abc".to_string());
+            let expected: String = error.to_string();
+
+            assert_eq!(
+                to_server_error(error),
+                ServerFnError::ServerError(expected.clone())
+            );
+            assert!(expected.contains("abc"));
         }
 
         #[test]
@@ -271,6 +284,18 @@ pub async fn get_task_diff(id: String) -> Result<TaskDiffDto, ServerFnError> {
         .await
         .map(TaskDiffDto::from)
         .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn get_task_subagents(id: String) -> Result<Vec<SubagentTaskDto>, ServerFnError> {
+    use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
+
+    let subagents: Vec<SubagentTask> = support::context()?
+        .get_task_subagents
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(subagents.into_iter().map(SubagentTaskDto::from).collect())
 }
 
 #[server]

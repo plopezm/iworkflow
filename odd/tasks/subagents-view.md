@@ -16,7 +16,7 @@ Decisions:
   - `SubagentTask`/`SubagentStatus`/`SubagentThreadItem` models, `AgentCapabilities.subagents`, `AgentRuntimePort::subagents`, mocks, router delegation, `GetTaskSubagents` use case + DI. Tests RED first.
 - [x] 2. Pi adapter
   - Decode full `gentle-agents.activity/v1` snapshot in `rpc_protocol.rs`; adapter stores latest per task, reset on `start`, kept after exit; declares `subagents`.
-- [ ] 3. Inbound adapter
+- [x] 3. Inbound adapter
   - `SubagentTaskDto`, `get_task_subagents` server fn, DTO/error mapping tests.
 - [ ] 4. UI
   - State resource refetched on `SubagentsChanged`; `SubagentsModal` component (list + detail) reusing core modal; button in `TaskActions`.
