@@ -1,10 +1,9 @@
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::NavigateOptions;
-use leptos_router::hooks::use_navigate;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::components::toast::ToastStack;
+use crate::core::dock::context::use_tab_nav;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     CreatedTaskDto, TaskDto, TaskStageDto, WorkspaceOptionDto,
 };
@@ -22,7 +21,7 @@ use crate::modules::tasks::presentation::state::board_state::{
 pub fn BoardPage() -> impl IntoView {
     let state: BoardState = BoardState::new();
 
-    let navigate = use_navigate();
+    let nav = use_tab_nav();
 
     // Cierra el modal tras crear con éxito (estado de UI, sin lógica de negocio).
     Effect::new(move |_| {
@@ -38,10 +37,7 @@ pub fn BoardPage() -> impl IntoView {
     let handlers: TaskCardHandlers = TaskCardHandlers {
         start: Callback::new(move |id: String| state.start_task(id)),
         edit: Callback::new(move |task: TaskDto| {
-            navigate(
-                &format!("/tasks/{}/edit", task.id),
-                NavigateOptions::default(),
-            );
+            nav.open(&format!("/tasks/{}/edit", task.id));
         }),
         delete: Callback::new(move |id: String| state.delete_task(id)),
         finish: Callback::new(move |id: String| state.finish_task(id)),

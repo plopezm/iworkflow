@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_router::components::A;
+use crate::core::dock::link::TabLink;
 
 use crate::core::browser::confirm;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -65,12 +65,12 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
     view! {
         <article class=article_class>
             <div class="row justify-between gap-2">
-                <A
+                <TabLink
                     href=format!("/tasks/{id}")
-                    attr:class="line-clamp-2 font-medium text-fg hover:text-accent transition-colors"
+                    class="line-clamp-2 font-medium text-fg hover:text-accent transition-colors"
                 >
                     {title}
-                </A>
+                </TabLink>
                 <div class="row shrink-0 gap-1.5">
                     <StageBadge stage=task.stage />
                     {(task.pending_dialogs > 0)
@@ -177,12 +177,12 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                 Signal::derive(move || busy.merge.is_busy(&id))
                             };
                             view! {
-                                <A
+                                <TabLink
                                     href=format!("/tasks/{id}")
-                                    attr:class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
+                                    class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
                                 >
                                     "Abrir"
-                                </A>
+                                </TabLink>
                                 {task
                                     .actions
                                     .can_finish

@@ -1,5 +1,6 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_location;
+use crate::core::dock::context::use_dock;
+use crate::core::dock::layout::DockLayout;
 
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, WorkspaceOptionDto,
@@ -24,6 +25,18 @@ pub fn workspaces_area_key(pathname: &str) -> String {
     } else {
         String::new()
     }
+}
+
+/// Igual que `workspaces_area_key`, para el conjunto de rutas visibles en el dock: la
+/// primera (en orden) que pertenezca al área de workspaces, o vacío si no hay ninguna.
+pub fn workspaces_area_key_for(visible_paths: &[String]) -> String {
+    let mut keys: Vec<String> = visible_paths
+        .iter()
+        .map(|p: &String| workspaces_area_key(p))
+        .filter(|k: &String| !k.is_empty())
+        .collect();
+    keys.sort();
+    keys.into_iter().next().unwrap_or_default()
 }
 
 /// Una carga completa quedó obsoleta si, tras empezar, llegó un parche (`changed`/`removed`)
@@ -64,7 +77,7 @@ impl TaskStore {
     /// Crea el almacén y abre la suscripción SSE. Debe llamarse una vez, dentro del
     /// `<Router>` y por encima de la barra lateral y las páginas, y proveerse por contexto.
     pub fn new() -> Self {
-        let pathname: Memo<String> = use_location().pathname;
+        let layout: RwSignal<DockLayout> = use_dock().layout;
         let reload: RwSignal<u32> = RwSignal::new(0);
         let patch_gen: RwSignal<u32> = RwSignal::new(0);
         let load_started_gen: RwSignal<u32> = RwSignal::new(0);
@@ -79,7 +92,7 @@ impl TaskStore {
             move || {
                 (
                     reload.get(),
-                    pathname.with(|p: &String| workspaces_area_key(p)),
+                    layout.with(|l: &DockLayout| workspaces_area_key_for(&l.visible_paths())),
                 )
             },
             |_| list_workspace_options(),
@@ -217,6 +230,14 @@ mod tests {
 
     #[test]
     fn workspaces_key_is_stable_outside_the_workspaces_area() {
+        assert_eq!(
+            workspaces_area_key_for(&["/".to_string(), "/tasks/a".to_string()]),
+            ""
+        );
+        assert_eq!(
+            workspaces_area_key_for(&["/workspaces/w1".to_string(), "/workspaces".to_string()]),
+            "/workspaces"
+        );
         assert_eq!(workspaces_area_key("/"), "");
         assert_eq!(workspaces_area_key("/tasks/abc"), "");
         assert_eq!(workspaces_area_key("/workspaces"), "/workspaces");

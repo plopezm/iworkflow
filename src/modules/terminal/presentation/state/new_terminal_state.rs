@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_router::hooks::use_params_map;
+use crate::core::dock::context::use_tab_params;
 
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::TerminalSessionDto;
 use crate::modules::terminal::infrastructure::adapters::inbound::server_fns::open_terminal;
@@ -15,7 +15,7 @@ pub struct NewTerminalState {
 
 impl NewTerminalState {
     pub fn new() -> Self {
-        let params = use_params_map();
+        let params = use_tab_params();
         // Solo en el cliente: evita abrir (y dejar huérfana) una sesión durante el SSR.
         let opened: LocalResource<Result<TerminalSessionDto, ServerFnError>> =
             LocalResource::new(move || {

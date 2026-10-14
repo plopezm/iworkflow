@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::components::{A, Redirect};
+use crate::core::dock::link::{TabLink, TabRedirect};
 
 use crate::core::components::form::ActionError;
 use crate::modules::terminal::presentation::components::terminal_view::TerminalView;
@@ -28,7 +28,7 @@ pub fn TerminalSessionPage() -> impl IntoView {
             view! {
                 <Title text="Terminal" />
                 <Show when=move || state.closed.get()>
-                    <Redirect path=terminals_path() />
+                    <TabRedirect path=terminals_path() />
                 </Show>
                 <section class="stack h-full min-h-0 gap-3 px-4 pt-4 pb-6 animate-slide-up">
                     <header class="row justify-between">
@@ -38,9 +38,9 @@ pub fn TerminalSessionPage() -> impl IntoView {
                             </Suspense>
                         </h1>
                         <div class="row gap-1.5">
-                            <A href=terminals_path() attr:class="btn-secondary min-h-8 px-2.5 py-1 text-xs">
+                            <TabLink href=terminals_path() class="btn-secondary min-h-8 px-2.5 py-1 text-xs">
                                 "Todas las terminales"
-                            </A>
+                            </TabLink>
                             <button
                                 class="btn-danger min-h-8 px-2.5 py-1 text-xs"
                                 disabled=move || state.close.pending().get()

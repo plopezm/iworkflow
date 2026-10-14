@@ -10,7 +10,7 @@
 
   function theme() {
     return {
-      background: cssVar("--c-surface", "#0d0f14"),
+      background: cssVar("--c-bg", "#09090b"),
       foreground: cssVar("--c-fg", "#f3f6f9"),
       cursor: cssVar("--c-accent", "#7fb4ca"),
       selectionBackground: cssVar("--c-surface-3", "#232a40"),

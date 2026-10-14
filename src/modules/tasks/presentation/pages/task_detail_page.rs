@@ -1,7 +1,6 @@
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
-use leptos_router::components::A;
-use leptos_router::hooks::{use_navigate, use_params_map};
+use crate::core::dock::link::TabLink;
+use crate::core::dock::context::{DockContext, use_dock, use_tab_nav, use_tab_params};
 
 use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
@@ -85,7 +84,7 @@ pub fn short_branch(branch: &str) -> String {
 /// Tarjeta simplificada de una tarea en Backlog: prompt y acciones de iniciar/editar/borrar.
 #[component]
 fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
-    let navigate = use_navigate();
+    let nav = use_tab_nav();
     let edit_href: String = format!("/tasks/{}/edit", task.id);
     let busy: Signal<bool> =
         Signal::derive(move || state.start.pending().get() || state.delete.pending().get());
@@ -96,7 +95,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
             .value()
             .with(|r: &Option<Result<(), ServerFnError>>| matches!(r, Some(Ok(()))));
         if deleted {
-            navigate("/", NavigateOptions::default());
+            nav.close_and_open("/");
         }
     });
     view! {
@@ -126,9 +125,9 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                     .can_edit
                     .then(|| {
                         view! {
-                            <A href=edit_href attr:class="btn-secondary">
+                            <TabLink href=edit_href class="btn-secondary">
                                 "Editar"
-                            </A>
+                            </TabLink>
                         }
                     })}
                 {task
@@ -158,7 +157,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
 /// (solo cambia el signal de parámetros), así que el contenido se reconstruye por cada id.
 #[component]
 pub fn TaskDetailPage() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_tab_params();
     let task_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
@@ -168,7 +167,10 @@ pub fn TaskDetailPage() -> impl IntoView {
 #[component]
 fn TaskDetailContent(task_id: String) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
-    let navigate = use_navigate();
+    // Several task tabs can be mounted at once, so the scroll container id is per task.
+    let scroll_id: StoredValue<String> =
+        StoredValue::new(format!("{TRANSCRIPT_SCROLL_ID}-{}", state.task_id.get_value()));
+    let nav = use_tab_nav();
     // Restablecer deja la tarea en Backlog, que no tiene pantalla propia: vuelta al tablero.
     Effect::new(move |_| {
         let reset_done: bool = state
@@ -176,7 +178,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
             .value()
             .with(|r: &Option<Result<(), ServerFnError>>| matches!(r, Some(Ok(()))));
         if reset_done {
-            navigate("/", NavigateOptions::default());
+            nav.close_and_open("/");
         }
     });
     let report: DiffReportState = DiffReportState::new(state.task_id, state.transcript, state.send);
@@ -285,10 +287,19 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
         })
     });
 
+    // The tab shows the task title once it is known.
+    let dock: DockContext = use_dock();
+    let tab_path: String = format!("/tasks/{}", state.task_id.get_value());
+    Effect::new(move |_| {
+        if let Some(task) = loaded_task.get() {
+            dock.set_title(&tab_path, &task.title);
+        }
+    });
+
     Effect::new(move |_| {
         if shows_workspace.get() {
             state.transcript.track();
-            follow_bottom(TRANSCRIPT_SCROLL_ID, state.autoscroll.get());
+            follow_bottom(&scroll_id.get_value(), state.autoscroll.get());
         }
     });
 
@@ -308,9 +319,9 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                     <section class="card stack m-4">
                         <h1 class="task-title">"Tarea eliminada"</h1>
                         <p class="muted">"Esta tarea ya no existe."</p>
-                        <A href="/" attr:class="btn-secondary">
+                        <TabLink href="/" class="btn-secondary">
                             "Volver al tablero"
-                        </A>
+                        </TabLink>
                     </section>
                 }
             }
@@ -376,7 +387,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                     <Show when=move || shows_workspace.get()>
                         <div class="group/scroll relative flex min-h-0 flex-1 flex-col" data-at-bottom="true">
                             <div
-                                id=TRANSCRIPT_SCROLL_ID
+                                id=scroll_id.get_value()
                                 class="stack min-h-0 flex-1 overflow-y-auto p-4"
                             >
                                 <TranscriptView transcript=state.transcript />
@@ -384,7 +395,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                             <button
                                 class="btn-secondary absolute right-4 bottom-3 rounded-full shadow-md group-data-[at-bottom=true]/scroll:hidden!"
                                 aria-label="Ir al último mensaje"
-                                on:click=move |_| scroll_to_bottom(TRANSCRIPT_SCROLL_ID)
+                                on:click=move |_| scroll_to_bottom(&scroll_id.get_value())
                             >
                                 "↓ Último mensaje"
                             </button>

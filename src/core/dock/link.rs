@@ -15,7 +15,7 @@ pub fn path_without_fragment(href: &str) -> &str {
 pub fn TabLink(
     #[prop(into)] href: String,
     #[prop(optional, into)] title: Option<String>,
-    #[prop(optional, into)] class: String,
+    #[prop(optional, into)] class: Signal<String>,
     children: Children,
 ) -> impl IntoView {
     let nav: TabNav = use_tab_nav();
@@ -23,7 +23,7 @@ pub fn TabLink(
     view! {
         <a
             href=href
-            class=class
+            class=move || class.get()
             on:click=move |ev: leptos::ev::MouseEvent| {
                 if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() {
                     return;
@@ -38,6 +38,13 @@ pub fn TabLink(
             {children()}
         </a>
     }
+}
+
+/// Sustituye la pestaña actual por `path` en cuanto se monta (equivale a una redirección).
+#[component]
+pub fn TabRedirect(#[prop(into)] path: String) -> impl IntoView {
+    let nav: TabNav = use_tab_nav();
+    Effect::new(move |_| nav.replace(&path));
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::components::A;
-use leptos_router::hooks::use_params_map;
+use crate::core::dock::link::TabLink;
+use crate::core::dock::context::use_tab_params;
 
 use crate::core::components::layout::ErrorText;
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::{
@@ -13,7 +13,7 @@ use crate::modules::project_tree::presentation::state::project_tree_state::Proje
 /// Árbol de directorios de un workspace. Se reconstruye por cada id (el router reutiliza el componente).
 #[component]
 pub fn ProjectTreePage() -> impl IntoView {
-    let params = use_params_map();
+    let params = use_tab_params();
     let workspace_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
@@ -43,15 +43,15 @@ fn ProjectTreeContent(workspace_id: String) -> impl IntoView {
                             </Transition>
                         </h1>
                         <div class="row gap-2">
-                            <A href=edit_href attr:class="btn-secondary min-h-9 px-3 py-1.5 text-xs">
+                            <TabLink href=edit_href class="btn-secondary min-h-9 px-3 py-1.5 text-xs">
                                 "Editar"
-                            </A>
-                            <A
+                            </TabLink>
+                            <TabLink
                                 href=terminal_href
-                                attr:class="btn-secondary min-h-9 px-3 py-1.5 text-xs"
+                                class="btn-secondary min-h-9 px-3 py-1.5 text-xs"
                             >
                                 "Terminal"
-                            </A>
+                            </TabLink>
                         </div>
                     </div>
                     <section class="card p-2">

@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos_meta::Title;
-use leptos_router::components::Redirect;
+use crate::core::dock::link::TabRedirect;
 
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
@@ -45,7 +45,7 @@ pub fn TerminalsPage() -> impl IntoView {
                         .get()
                         .and_then(|r: Result<TerminalSessionDto, ServerFnError>| r.ok())
                         .map(|s: TerminalSessionDto| {
-                            view! { <Redirect path=terminal_session_path(&s.id) /> }
+                            view! { <TabRedirect path=terminal_session_path(&s.id) /> }
                         })
                 }}
                 <Card title="Sesiones">

@@ -1,6 +1,6 @@
 use leptos::prelude::*;
-use leptos_router::components::A;
-use leptos_router::hooks::use_location;
+use crate::core::dock::context::use_dock;
+use crate::core::dock::link::TabLink;
 
 /// Borde del layout en el que se ancla un panel colapsable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +26,7 @@ fn panel_class(side: PanelSide, open: bool, overlay_open: bool) -> String {
 fn handle_class(side: PanelSide, open: bool) -> &'static str {
     match (side, open) {
         (PanelSide::Left, true) => {
-            "absolute top-1/2 right-0 z-20 hidden h-12 w-4 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-border bg-surface text-xs text-muted hover:text-fg md:flex"
+            "absolute top-1/2 right-0 z-20 hidden h-12 w-4 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-border bg-surface text-xs text-muted opacity-0 transition-opacity hover:opacity-100 hover:text-fg md:flex"
         }
         (PanelSide::Left, false) => {
             "absolute top-1/2 left-0 z-20 hidden h-12 w-4 -translate-y-1/2 cursor-pointer items-center justify-center rounded-r-md border border-border bg-surface text-xs text-muted hover:text-fg md:flex"
@@ -140,10 +140,10 @@ pub fn SidebarSection(
 ) -> impl IntoView {
     let open: RwSignal<bool> = RwSignal::new(true);
     view! {
-        <section class="border-b border-border">
-            <div class="flex items-center gap-2 px-3 py-2">
+        <section class="px-1 pb-1">
+            <div class="flex items-center gap-2 px-2.5 py-1.5">
                 <button
-                    class="flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[10px] font-bold tracking-widest text-muted uppercase"
+                    class="flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[11px] font-medium text-muted hover:text-fg"
                     aria-expanded=move || open.get().to_string()
                     on:click=move |_| open.update(|v: &mut bool| *v = !*v)
                 >
@@ -154,7 +154,7 @@ pub fn SidebarSection(
                 <span class="text-[10px] text-muted">{move || count.get()}</span>
             </div>
             <div class=move || {
-                if open.get() { "flex flex-col gap-2 px-2.5 pb-3" } else { "hidden" }
+                if open.get() { "flex flex-col gap-0.5 pb-2" } else { "hidden" }
             }>{children()}</div>
         </section>
     }
@@ -172,14 +172,14 @@ pub fn SidebarItem(
 ) -> impl IntoView {
     let row_class = move || {
         if selected.get() {
-            "flex items-stretch rounded-md border border-accent bg-accent/10"
+            "flex items-stretch rounded-md bg-surface-3"
         } else {
-            "flex items-stretch rounded-md border border-border bg-surface hover:border-accent/50"
+            "flex items-stretch rounded-md hover:bg-surface-2"
         }
     };
     view! {
         <div class=row_class>
-            <A href=href attr:class="min-w-0 flex-1 px-2.5 py-1.5">
+            <TabLink href=href title=title.clone() class="min-w-0 flex-1 px-2.5 py-1.5">
                 <div class="flex items-center gap-1.5">
                     {highlight
                         .then(|| {
@@ -194,11 +194,11 @@ pub fn SidebarItem(
                 </div>
                 {(!subtitle.is_empty())
                     .then(|| view! { <div class="truncate text-[11px] text-muted">{subtitle}</div> })}
-            </A>
+            </TabLink>
             {menu
                 .map(|menu: ViewFn| {
                     view! {
-                        <div class="flex border-l border-border">
+                        <div class="flex">
                             <DropdownMenu
                                 label="…"
                                 aria_label="Más acciones"
@@ -261,11 +261,11 @@ pub fn AppShell(
 ) -> impl IntoView {
     let sidebar_open: RwSignal<bool> = RwSignal::new(true);
     let mobile_open: RwSignal<bool> = RwSignal::new(false);
-    let pathname: Memo<String> = use_location().pathname;
+    let layout = use_dock().layout;
 
-    // Cierra el overlay móvil al navegar.
+    // Cierra el overlay móvil al abrir o mover pestañas.
     Effect::new(move |_| {
-        pathname.track();
+        layout.track();
         mobile_open.set(false);
     });
 
@@ -289,11 +289,11 @@ pub fn AppShell(
                     >
                         "☰"
                     </button>
-                    <A href="/" attr:class="font-display text-xl leading-none">
+                    <TabLink href="/" class="text-sm font-semibold tracking-tight">
                         {brand}
-                    </A>
+                    </TabLink>
                 </header>
-                <main class="grid-bg min-h-0 flex-1 overflow-hidden">{children()}</main>
+                <main class="min-h-0 min-w-0 flex-1 overflow-hidden bg-bg">{children()}</main>
             </div>
         </div>
     }
