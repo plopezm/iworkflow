@@ -6,7 +6,7 @@ use leptos_router::params::ParamsMap;
 use leptos_router::{StaticSegment, WildcardSegment};
 
 use crate::core::browser;
-use crate::core::components::shell::AppShell;
+use crate::core::components::shell::{AppShell, SidebarToggle};
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::core::dock::context::{DockContext, use_dock};
 use crate::core::dock::host::{DockHooks, DockHost};
@@ -224,7 +224,8 @@ fn app_sidebar() -> impl IntoView {
     view! {
         <div class="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
             <span class="live-dot text-accent" aria-hidden="true"></span>
-            <span class="text-sm font-semibold tracking-tight">"iworkflow"</span>
+            <span class="flex-1 text-sm font-semibold tracking-tight">"iworkflow"</span>
+            <SidebarToggle class="hidden md:flex" />
         </div>
         {sidebar_nav()}
         <div class="min-h-0 flex-1 overflow-y-auto">

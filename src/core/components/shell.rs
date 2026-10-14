@@ -1,3 +1,4 @@
+use crate::core::browser;
 use crate::core::dock::context::use_dock;
 use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
@@ -26,7 +27,7 @@ fn panel_class(side: PanelSide, open: bool, overlay_open: bool) -> String {
 fn handle_class(side: PanelSide, open: bool) -> &'static str {
     match (side, open) {
         (PanelSide::Left, true) => {
-            "absolute top-1/2 right-0 z-20 hidden h-12 w-4 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-border bg-surface text-xs text-muted opacity-0 transition-opacity hover:opacity-100 hover:text-fg md:flex"
+            "absolute top-1/2 right-0 z-20 hidden h-12 w-4 translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md border border-border bg-surface text-xs text-muted opacity-60 transition-opacity hover:opacity-100 hover:text-fg md:flex"
         }
         (PanelSide::Left, false) => {
             "absolute top-1/2 left-0 z-20 hidden h-12 w-4 -translate-y-1/2 cursor-pointer items-center justify-center rounded-r-md border border-border bg-surface text-xs text-muted hover:text-fg md:flex"
@@ -249,6 +250,51 @@ pub fn TabBar(
     }
 }
 
+/// Clave de `localStorage` del estado de la barra lateral en escritorio.
+const SIDEBAR_STORAGE_KEY: &str = "iwf-sidebar-open";
+
+/// Interpreta el valor guardado: solo `"0"` significa oculta; todo lo demás, abierta (pure).
+pub fn parse_sidebar_open(stored: Option<&str>) -> bool {
+    stored != Some("0")
+}
+
+/// Estado de la barra lateral, provisto por contexto para que su contenido pueda ocultarla.
+#[derive(Clone, Copy)]
+pub struct SidebarState {
+    pub open: RwSignal<bool>,
+}
+
+impl SidebarState {
+    pub fn toggle(&self) {
+        self.open.update(|v: &mut bool| *v = !*v);
+    }
+}
+
+/// Botón que oculta/muestra la barra lateral en escritorio (no hace nada fuera del `AppShell`).
+#[component]
+pub fn SidebarToggle(#[prop(optional, into)] class: String) -> impl IntoView {
+    let state: Option<SidebarState> = use_context::<SidebarState>();
+    let open: Signal<bool> =
+        Signal::derive(move || state.is_some_and(|s: SidebarState| s.open.get()));
+    view! {
+        <button
+            class=format!("icon-btn {class}")
+            aria-label=move || if open.get() { "Ocultar barra lateral" } else { "Mostrar barra lateral" }
+            title=move || if open.get() { "Ocultar barra lateral" } else { "Mostrar barra lateral" }
+            on:click=move |_| {
+                if let Some(s) = state {
+                    s.toggle();
+                }
+            }
+        >
+            <svg viewBox="0 0 16 16" fill="none" class="h-4 w-4" aria-hidden="true">
+                <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3" />
+                <path d="M6 3v10" stroke="currentColor" stroke-width="1.3" />
+            </svg>
+        </button>
+    }
+}
+
 /// Estructura de tres columnas a pantalla completa: barra lateral colapsable (`sidebar`),
 /// y a su derecha la columna central con el contenido enrutado (`children`). Cada columna
 /// hace scroll de forma independiente; en móvil la barra es un overlay abierto desde la
@@ -262,6 +308,20 @@ pub fn AppShell(
     let sidebar_open: RwSignal<bool> = RwSignal::new(true);
     let mobile_open: RwSignal<bool> = RwSignal::new(false);
     let layout = use_dock().layout;
+    provide_context(SidebarState { open: sidebar_open });
+    // Solo cliente, tras hidratar: restaura la preferencia y la guarda en cada cambio.
+    let restored: RwSignal<bool> = RwSignal::new(false);
+    Effect::new(move |_| {
+        let stored: Option<String> = browser::read_local_storage(SIDEBAR_STORAGE_KEY);
+        sidebar_open.set(parse_sidebar_open(stored.as_deref()));
+        restored.set(true);
+    });
+    Effect::new(move |_| {
+        let open: bool = sidebar_open.get();
+        if restored.get() {
+            browser::write_local_storage(SIDEBAR_STORAGE_KEY, if open { "1" } else { "0" });
+        }
+    });
 
     // Cierra el overlay móvil al abrir o mover pestañas.
     Effect::new(move |_| {
@@ -280,6 +340,11 @@ pub fn AppShell(
             >
                 {sidebar.run()}
             </CollapsePanel>
+            <Show when=move || !sidebar_open.get()>
+                <div class="hidden w-10 shrink-0 flex-col items-center border-r border-border bg-surface pt-2 md:flex">
+                    <SidebarToggle />
+                </div>
+            </Show>
             <div class="flex min-w-0 flex-1 flex-col">
                 <header class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden">
                     <button
@@ -302,6 +367,14 @@ pub fn AppShell(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sidebar_is_open_unless_explicitly_stored_closed() {
+        assert!(parse_sidebar_open(None));
+        assert!(parse_sidebar_open(Some("1")));
+        assert!(parse_sidebar_open(Some("garbage")));
+        assert!(!parse_sidebar_open(Some("0")));
+    }
 
     #[test]
     fn panel_class_combines_mobile_overlay_and_desktop_visibility() {

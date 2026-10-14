@@ -78,6 +78,22 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
     'las pestañas se restauran tras recargar');
   step('el layout persiste tras recargar');
 
+  const aside = page.locator('aside[aria-label="Barra lateral"]');
+  const widthBefore = (await page.locator('main').boundingBox()).width;
+  await page.getByRole('button', { name: 'Ocultar barra lateral' }).click();
+  await aside.waitFor({ state: 'hidden' });
+  const widthAfter = (await page.locator('main').boundingBox()).width;
+  assert(widthAfter > widthBefore + 150, `ocultar la barra debe dar espacio (${widthBefore} -> ${widthAfter})`);
+  step('ocultar la barra lateral en escritorio libera ancho');
+
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  await page.locator('.dock-tab').first().waitFor();
+  assert(await aside.isHidden(), 'la barra sigue oculta tras recargar');
+  await page.getByRole('button', { name: 'Mostrar barra lateral' }).click();
+  await aside.waitFor({ state: 'visible' });
+  step('la preferencia persiste y se puede volver a mostrar');
+
   await page.screenshot({ path: process.env.SMOKE_SCREENSHOT || 'dock-review.png' });
   if (problems.length) { console.error('PROBLEMAS:\n' + problems.join('\n')); process.exit(1); }
   console.log('sin errores de consola');
