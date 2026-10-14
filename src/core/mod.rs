@@ -10,4 +10,6 @@ pub mod env;
 pub mod git;
 #[cfg(feature = "ssr")]
 pub mod http;
+#[cfg(feature = "ssr")]
+pub mod launch;
 pub mod markdown;

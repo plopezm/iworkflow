@@ -40,12 +40,12 @@ run() {
   export LEPTOS_SITE_ADDR="${LEPTOS_SITE_ADDR:-0.0.0.0:9000}"
   export LEPTOS_ENV="PROD"
   echo "Serving on http://$LEPTOS_SITE_ADDR"
-  exec "$DIST_DIR/$BIN_NAME"
+  exec "$DIST_DIR/$BIN_NAME" "$@"
 }
 
 case "${1:-all}" in
   build) build ;;
-  run) run ;;
+  run) shift; run "$@" ;;
   all) build && run ;;
   *)
     echo "Usage: $0 [build|run|all]" >&2
