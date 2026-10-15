@@ -23,6 +23,8 @@ const INTERRUPTED_MESSAGE: &str = "ejecución interrumpida";
 #[derive(Debug, Default)]
 pub struct ClaudeProtocol {
     running: bool,
+    /// Razonamiento recibido por deltas: el bloque `thinking` final llega vacío (solo firma).
+    thinking: String,
     tool_names: HashMap<String, String>,
     pending_permissions: HashMap<String, Value>,
 }
@@ -102,9 +104,11 @@ impl ClaudeProtocol {
             Some("text_delta") => Some(AgentEvent::TextDelta {
                 delta: string_of(delta, "text"),
             }),
-            Some("thinking_delta") => Some(AgentEvent::ThinkingDelta {
-                delta: string_of(delta, "thinking"),
-            }),
+            Some("thinking_delta") => {
+                let text: String = string_of(delta, "thinking");
+                self.thinking.push_str(&text);
+                Some(AgentEvent::ThinkingDelta { delta: text })
+            }
             _ => None,
         };
         let mut events: Vec<AgentEvent> = Vec::new();
@@ -118,7 +122,21 @@ impl ClaudeProtocol {
     fn decode_assistant(&mut self, record: &Value) -> Vec<AgentEvent> {
         let blocks: &[Value] = content_blocks(record);
         let text: String = join_blocks(blocks, "text", "text");
-        let thinking: String = join_blocks(blocks, "thinking", "thinking");
+        let has_content: bool = !text.is_empty()
+            || blocks
+                .iter()
+                .any(|b: &Value| str_field(b, "type") == Some("tool_use"));
+        let block_thinking: String = join_blocks(blocks, "thinking", "thinking");
+        // Las líneas solo-thinking (vacías) no consumen lo acumulado: se adjunta al mensaje
+        // de texto o a la herramienta que las siguen.
+        let thinking: String = if !block_thinking.is_empty() {
+            self.thinking.clear();
+            block_thinking
+        } else if has_content {
+            std::mem::take(&mut self.thinking)
+        } else {
+            String::new()
+        };
         let mut events: Vec<AgentEvent> = Vec::new();
         self.start_run(&mut events);
         if !text.is_empty() || !thinking.is_empty() {
@@ -215,6 +233,9 @@ impl ClaudeProtocol {
 
     fn decode_result(&mut self, record: &Value) -> Vec<AgentEvent> {
         self.running = false;
+        self.thinking.clear();
+        self.tool_names.clear();
+        self.pending_permissions.clear();
         let failed: bool = record
             .get("is_error")
             .and_then(Value::as_bool)
@@ -394,6 +415,104 @@ mod tests {
                 {"type": "thinking", "thinking": "", "signature": "abc"}]}})],
         );
         assert_eq!(events, vec![AgentEvent::RunStarted]);
+    }
+
+    fn thinking_delta(text: &str) -> Value {
+        stream_delta(json!({"type": "thinking_delta", "thinking": text}))
+    }
+
+    #[test]
+    fn streamed_thinking_is_attached_to_the_next_text_message() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                thinking_delta("pien"),
+                thinking_delta("so"),
+                json!({"type": "assistant", "message": {"content": [
+                    {"type": "thinking", "thinking": "", "signature": "abc"}]}}),
+                json!({"type": "assistant", "message": {"content": [
+                    {"type": "text", "text": "hola"}]}}),
+                json!({"type": "assistant", "message": {"content": [
+                    {"type": "text", "text": "otra"}]}}),
+            ],
+        );
+        let messages: Vec<&AgentEvent> = events
+            .iter()
+            .filter(|e: &&AgentEvent| matches!(e, AgentEvent::AssistantMessage { .. }))
+            .collect();
+        assert_eq!(
+            messages,
+            vec![
+                &AgentEvent::AssistantMessage {
+                    text: "hola".into(),
+                    thinking: Some("pienso".into()),
+                    error: None
+                },
+                &AgentEvent::AssistantMessage {
+                    text: "otra".into(),
+                    thinking: None,
+                    error: None
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn streamed_thinking_before_a_tool_call_is_emitted_before_the_tool() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                thinking_delta("voy a listar"),
+                json!({"type": "assistant", "message": {"content": [
+                    {"type": "tool_use", "id": "t1", "name": "Bash", "input": {}}]}}),
+            ],
+        );
+        assert_eq!(
+            &events[2..],
+            &[
+                AgentEvent::AssistantMessage {
+                    text: String::new(),
+                    thinking: Some("voy a listar".into()),
+                    error: None
+                },
+                AgentEvent::ToolStarted {
+                    call_id: "t1".into(),
+                    tool_name: "Bash".into(),
+                    args: "{}".into()
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn a_finished_run_forgets_its_pending_permissions_and_thinking() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        request_permission(&mut protocol);
+        decode_all(
+            &mut protocol,
+            &[thinking_delta("sin usar"), result_line("success", false)],
+        );
+
+        let answer: AgentCommand = AgentCommand::AnswerDialog {
+            dialog_id: "r1".into(),
+            answer: DialogAnswer::Confirmed { confirmed: true },
+        };
+        assert!(protocol.encode(&answer, "x").is_err());
+        let next: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[json!({"type": "assistant", "message": {"content": [
+                {"type": "text", "text": "nuevo"}]}})],
+        );
+        assert_eq!(
+            next[1],
+            AgentEvent::AssistantMessage {
+                text: "nuevo".into(),
+                thinking: None,
+                error: None
+            }
+        );
     }
 
     #[test]

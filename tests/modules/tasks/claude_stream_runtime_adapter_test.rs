@@ -270,3 +270,72 @@ fn declares_dialogs_resume_model_and_thinking_but_not_steering_or_subagents() {
     assert!(!caps.steer && !caps.follow_up && !caps.subagents);
     assert_eq!(adapter.runtime_capabilities(None), caps);
 }
+
+/// E2E contra el `claude` real (consume API, por eso `#[ignore]`):
+/// `cargo test --features ssr --test claude_stream_runtime_adapter_test -- --ignored`.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "usa el binario claude real y consume API"]
+async fn real_claude_asks_permission_and_runs_the_tool_once_confirmed() {
+    let adapter: ClaudeStreamRuntimeAdapter = ClaudeStreamRuntimeAdapter::new("claude");
+    let options: LaunchOptions = LaunchOptions {
+        model: Some(LaunchModel {
+            provider: "anthropic".into(),
+            model: "haiku".into(),
+        }),
+        ..LaunchOptions::default()
+    };
+    let (task_id, sink, cwd) = started(&adapter, false, &options).await;
+
+    adapter
+        .send(
+            task_id,
+            prompt("Ejecuta con Bash exactamente: echo hola > a.txt y responde solo ok"),
+        )
+        .await
+        .expect("send");
+    let AgentEvent::DialogRequested(request) = tokio::time::timeout(
+        Duration::from_secs(90),
+        sink.wait_for(|e| matches!(e, AgentEvent::DialogRequested(_))),
+    )
+    .await
+    .expect("diálogo de permiso") else {
+        panic!("se esperaba un diálogo");
+    };
+    adapter
+        .send(
+            task_id,
+            AgentCommand::AnswerDialog {
+                dialog_id: request.id,
+                answer: DialogAnswer::Confirmed { confirmed: true },
+            },
+        )
+        .await
+        .expect("answer");
+    tokio::time::timeout(
+        Duration::from_secs(90),
+        sink.wait_for(|e| *e == AgentEvent::RunSettled),
+    )
+    .await
+    .expect("fin de la ejecución");
+    adapter.stop(task_id).await.expect("stop");
+
+    let events: Vec<AgentEvent> = sink.snapshot();
+    let started_runs: usize = events
+        .iter()
+        .filter(|e| **e == AgentEvent::RunStarted)
+        .count();
+    assert_eq!(started_runs, 1, "{events:#?}");
+    assert!(
+        events.iter().any(|e| matches!(
+            e,
+            AgentEvent::ToolFinished { tool_name, is_error: false, .. } if tool_name == "Bash"
+        )),
+        "{events:#?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(cwd.join("a.txt"))
+            .expect("a.txt")
+            .trim(),
+        "hola"
+    );
+}

@@ -101,13 +101,19 @@ fn launch_args(base_args: &[String], resume: bool, options: &LaunchOptions) -> V
                 .iter()
                 .flat_map(|m| [MODEL_FLAG.to_string(), m.model.clone()]),
         )
-        .chain(
-            options
-                .thinking
-                .iter()
-                .flat_map(|level: &String| [EFFORT_FLAG.to_string(), level.clone()]),
-        )
+        .chain(effort_args(options))
         .collect()
+}
+
+/// `--effort` de Claude admite `low|medium|high|xhigh|max`: `off` no lleva flag y `minimal`
+/// (que solo existe en pi) se queda en el nivel más bajo.
+fn effort_args(options: &LaunchOptions) -> Vec<String> {
+    let level: &str = match options.thinking.as_deref() {
+        None | Some("off") => return Vec::new(),
+        Some("minimal") => "low",
+        Some(other) => other,
+    };
+    vec![EFFORT_FLAG.to_string(), level.to_string()]
 }
 
 #[async_trait::async_trait]
@@ -172,6 +178,23 @@ mod tests {
             launch_args(&adapter.base_args, false, &LaunchOptions::default()),
             STREAM_JSON_ARGS
         );
+    }
+
+    #[test]
+    fn thinking_levels_claude_does_not_support_are_mapped() {
+        let args = |level: &str| -> Vec<String> {
+            let options: LaunchOptions = LaunchOptions {
+                thinking: Some(level.to_string()),
+                ..LaunchOptions::default()
+            };
+            launch_args(&[], false, &options)
+        };
+
+        assert!(args("off").is_empty());
+        assert_eq!(args("minimal"), vec!["--effort", "low"]);
+        for level in ["low", "medium", "high", "xhigh", "max"] {
+            assert_eq!(args(level), vec!["--effort", level]);
+        }
     }
 
     #[test]

@@ -21,7 +21,7 @@ X — route: inline — commit
 - [x] T3 (S4) Encoder de comandos y respuestas de control con tests. — route: inline — commit
 - [x] T4a (S6) Extraer núcleo común `agent_process` (`ProcessRuntime` + `LineCodec`) y migrar pi; test de integración de pi como red de seguridad.
 - [x] T4b (S2, S5, S6, S8) `ClaudeStreamRuntimeAdapter` (proceso, capacidades, resume, stop) + test de integración con script falso. — route: inline — commit
-- [ ] T5 (S5, S8) Catálogo de modelos de claude + docs/ayuda; verificación e2e real mínima. — route: inline — commit
+- [x] T5 (S5, S8) Catálogo de modelos de claude + docs/ayuda; verificación e2e real mínima. — route: inline — commit
 
 ## Log
 
@@ -37,3 +37,6 @@ X — route: inline — commit
 - T2+T3: RED observado (16/18 fallaban con implementación vacía); 18 tests `claude::stream_protocol` ok; clippy ssr y fmt ok. Decoder y encoder comparten `ClaudeProtocol` (estado de permisos), por eso un solo commit. Steer/follow-up se codifican como mensaje de usuario pero no se declaran capacidades hasta validar en T5.
 - T4a: línea base previa 12/12 en `pi_rpc_runtime_adapter_test`; tras el refactor 12/12, 546 tests lib `modules::tasks`, clippy ssr y `--all-targets` ok. Corregidos 2 `cmp_owned` preexistentes en tests de project_tree (commit aparte).
 - T4b: RED observado (el test de integración no compilaba sin el adaptador); 8/8 `claude_stream_runtime_adapter_test` (agente falso `fake_claude.py`: eco, args, permiso allow/deny, abort, diálogo desconocido, capacidades), 549 tests lib tasks, clippy ssr `--all-targets` + hydrate, fmt ok. Un test inicial comprobaba flags que `with_command` sustituye; se movió al unitario `default_args_run_claude_in_stream_json_mode`.
+- T5: RED observado (efecto `--effort off|minimal` no soportado por claude y catálogo vacío); mapeo off→sin flag, minimal→low; catálogo estático `fable/opus/sonnet/haiku`; README y ARCHITECTURE actualizados. E2E real con `claude` (haiku): pide permiso `can_use_tool`, se confirma, Bash escribe `a.txt`="hola", un único `RunStarted`.
+- Verificación independiente (`gentle-ai-verify`, solo lectura): S2-S8 cubiertos, sin bloqueantes. Hallazgo importante corregido con TDD: el texto de `thinking` se perdía (el bloque final llega vacío; ahora se acumula de los deltas y se adjunta al siguiente mensaje o herramienta). Corregido también: `result` limpia permisos pendientes/estado. Aceptados sin cambio: `RunStarted` sale con el primer delta (no al enviar), `stop` con permiso pendiente espera el timeout, pi borra la instantánea de subagentes antes del spawn.
+- Cierre final: fmt ok; clippy ssr `--all-targets` y hydrate ok; 958 tests lib `modules::` ok; `claude_stream_runtime_adapter_test` 8/8 (+1 e2e real ignorado, ejecutado aparte ok); `pi_rpc_runtime_adapter_test` 12/12. Sin verificar: UI del selector en navegador (solo código), `--continue` con `--replay-user-messages` (reemisión de historial), steer/follow-up/subagentes de claude (no declarados).

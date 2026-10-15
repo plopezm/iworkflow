@@ -46,6 +46,8 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 | `IWF_DATABASE_URL` | `~/.iworkflow/workspaces.db` (SQLite, migraciones automáticas) |
 | `IWF_WORKTREES_DIR` | `~/.iworkflow/worktrees` |
 | `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
+| `IWF_PI_BIN` | `pi` (runtime `pi`, se lanza como `--mode rpc`) |
+| `IWF_CLAUDE_BIN` | `claude` (runtime `claude`: Claude Code con `-p` y protocolo stream-json; se elige en el selector de runtime del menú lateral) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
 | `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
 

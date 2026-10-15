@@ -456,7 +456,7 @@ Lectura para Java: `matches!(x, A | B)` es un `switch` que devuelve `boolean`; l
 | `TaskAttachmentRepositoryPort` | Metadatos de imágenes adjuntas | `TaskAttachmentRepositoryAdapter` (Diesel) |
 | `AttachmentStoragePort` | Ficheros de imagen en disco | `FsAttachmentStorageAdapter` |
 | `WorktreePort` | `git worktree add`, commit, diff, `pin_range` / `diff_range` (diff de tareas integradas), merge, remove | `GitCliWorktreeAdapter` (ejecuta `git`) |
-| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea sin presuponer el transporte; ver [§6.7](#67-abstracción-del-runtime-de-agentes) | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) |
+| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea sin presuponer el transporte; ver [§6.7](#67-abstracción-del-runtime-de-agentes) | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) o `ClaudeStreamRuntimeAdapter` (`claude`) |
 | `TaskEventPublisherPort` | Difundir eventos en vivo | `BroadcastTaskEventBus` (tokio broadcast) |
 | `WorkspaceLookupPort` | Consultar workspaces | `WorkspaceLookupBridge` (en `app_state.rs`) |
 | `LaunchSettingsPort` | Modelo/thinking a usar al lanzar | `LaunchSettingsBridge` |
@@ -549,7 +549,7 @@ Observa el patrón: **validar con el dominio → transicionar → operar con pue
 |---|---|
 | `persistence/` | `TaskRepositoryAdapter` (Diesel), `TaskAttachmentRepositoryAdapter`, `RetryingTaskRepository` (decorador), `models/*_row.rs` (structs `Queryable`/`Insertable`) |
 | `git/` | `GitCliWorktreeAdapter`: invoca el binario `git` (worktree add, commit, merge `--no-ff`, merge en worktree temporal si la rama base no está checkouteada, …) |
-| `runtime/` | `AgentRuntimeRouter` (delegación por `RuntimeId`); `pi/`: `PiRpcRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`). Añadir un agente = nuevo adaptador de `AgentRuntimePort` registrado en `tasks_context.rs` (ver [§6.7](#67-abstracción-del-runtime-de-agentes)) |
+| `runtime/` | `AgentRuntimeRouter` (delegación por `RuntimeId`); `agent_process.rs`: núcleo común de procesos (`ProcessRuntime`, `LineCodec`, `LaunchSpec`); `pi/`: `PiRpcRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`); `claude/`: `ClaudeStreamRuntimeAdapter` + `stream_protocol.rs` (stream-json de `claude -p`). Añadir un agente = nuevo adaptador de `AgentRuntimePort` registrado en `tasks_context.rs` (ver [§6.7](#67-abstracción-del-runtime-de-agentes)) |
 | `events/` | `BroadcastTaskEventBus`: `tokio::sync::broadcast` con capacidad 4096 |
 | `storage/` | `FsAttachmentStorageAdapter`: imágenes en `~/.iworkflow/attachments/` |
 
@@ -668,6 +668,16 @@ Los casos de uso consultan las capacidades antes de actuar; los adaptadores, por
 - Argumentos: los base del runtime, `--continue` si `resume`, `--provider <p> --model <m>` si hay modelo y `--thinking <nivel>` si hay thinking.
 - `rpc_protocol::encode` traduce cada `AgentCommand` a un registro JSONL: `prompt` (con `streamingBehavior: followUp`), `steer`, `follow_up`, `abort` y `extension_ui_response` para los diálogos (`value` / `confirmed` / `cancelled`). `decode` hace el camino inverso y descarta lo irrelevante; `strip_ansi` limpia la salida de herramientas.
 - **Subagentes:** la extensión `gentle-agents` publica su actividad como *widget* (`widgetKey = "gentle-agents"`). `decode` extrae un resumen (`SubagentsChanged`) y `decode_subagent_tasks` la instantánea completa (`gentle-agents.activity/v1`, tolerante a esquemas desconocidos). El adaptador guarda en memoria la última instantánea por tarea (sobrevive a la salida del proceso) y la expone con `subagents()`.
+
+**El núcleo de procesos** (`runtime/agent_process.rs`). `ProcessRuntime` concentra lo común a los agentes que son un proceso hijo con JSON por líneas: lanzamiento (shell de login con `exec`, entorno limpio más `LaunchSpec::extra_env`, `systemd-run` con límites), supervisor `supervise`, registro por tarea, `send`, `stop` ordenado (cierra stdin; fuerza el cierre pasado el timeout) y `ProcessExited`. Cada protocolo aporta solo un `LineCodec` (`decode` de líneas de stdout a `AgentEvent`, `encode` de `AgentCommand` a una línea de stdin); el códec es por proceso y puede guardar estado.
+
+**El adaptador Claude** (`runtime/claude/`). `ClaudeStreamRuntimeAdapter` lanza `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --replay-user-messages --permission-prompt-tool stdio` (binario `IWF_CLAUDE_BIN`). Claude Code no tiene servidor RPC; este es su protocolo bidireccional por stdio. `ClaudeProtocol` (`stream_protocol.rs`) es el códec:
+
+- Salida: `stream_event` → `TextDelta`/`ThinkingDelta`; `assistant` → `AssistantMessage` y `ToolStarted` (`tool_use`); `user` con `tool_result` → `ToolFinished` (el nombre de la herramienta se recuerda por id); `user` con `isReplay` → `UserMessage`; `result` → `RunSettled` (más un aviso si fue error o interrupción). `RunStarted` se emite una vez por ejecución. Las líneas con `parent_tool_use_id` (subagentes) se ignoran.
+- Permisos: `control_request`/`can_use_tool` → `DialogRequested(Confirm)` (se guarda la entrada original); la respuesta del usuario se codifica como `control_response` `allow` (con `updatedInput`) o `deny`.
+- `Abort` → `control_request` `interrupt`. Prompt, steer y follow-up se codifican como mensaje de usuario (con imágenes como bloques `base64`).
+- Argumentos: `--continue` si `resume`, `--model <alias>` (el proveedor no aplica) y `--effort <nivel>`; `off` no lleva flag y `minimal` se traduce a `low`.
+- Capacidades: `dialogs`, `resume`, `model_selection` y `thinking_levels`; no declara `steer`, `follow_up` ni `subagents`. Los modelos son alias estáticos (`fable`, `opus`, `sonnet`, `haiku`) en `AgentCliModelCatalogAdapter`, porque `claude` no tiene `--list-models`.
 
 **Subagentes en la UI.** `GetTaskSubagents` → server function `get_task_subagents` → `SubagentTaskDto`. `task_actions.rs` abre `components/subagents_panel.rs` desde las acciones de la tarea; la actividad de subagentes (`SubagentActivity` en `Task`) también cuenta para considerar la tarea en trabajo (`TaskStage`).
 
@@ -960,7 +970,7 @@ Un *workspace* es una carpeta con un repo git donde se lanzan tareas.
 
 ### `agent_settings` — cómo se lanza el agente
 
-- Guarda en SQLite (una fila) el **runtime** (`AgentRuntime::GentleShell` = `gentle-shell`, predeterminado, o `AgentRuntime::Pi` = `pi`; su `as_str()` coincide con el `RuntimeId` registrado en el router de `tasks`), **modelo**, **perfil** y **nivel de thinking**.
+- Guarda en SQLite (una fila) el **runtime** (`AgentRuntime::GentleShell` = `gentle-shell`, predeterminado, `AgentRuntime::Pi` = `pi` o `AgentRuntime::Claude` = `claude`; su `as_str()` coincide con el `RuntimeId` registrado en el router de `tasks`), **modelo**, **perfil** y **nivel de thinking**.
 - `PrepareLaunch` lee los ajustes, aplica el *pin* de perfil de la tarea (`ProfilePinPort`; `GitProfilePinAdapter` escribe `<git-common-dir>/gentle-ai/profile-pin.json`) y devuelve las `LaunchPreferences` que `tasks` usa al lanzar (a través de `LaunchSettingsBridge`).
 - Adaptadores: `AgentSettingsRepositoryAdapter`, `AgentCliModelCatalogAdapter` (lista modelos ejecutando el CLI), `ProfilesFileCatalogAdapter` (lee `profiles.json`), `GitProfilePinAdapter`.
 
@@ -990,7 +1000,7 @@ Un *workspace* es una carpeta con un repo git donde se lanzan tareas.
 | Casos de uso | `#[cfg(test)] mod tests` en cada `usecases/*.rs` | `#[tokio::test]` + mocks `mockall` de los puertos; `application/test_support.rs` ofrece una `Recorded` para inspeccionar estados y eventos emitidos |
 | Mocks | `src/modules/<feature>/mocks.rs` | `mock! { pub TaskRepository {} #[async_trait] impl TaskRepositoryPort for TaskRepository { ... } }` — el equivalente a `@Mock` de Mockito generado a partir del trait |
 | Adaptadores Diesel / FS / git / runtime | `tests/modules/<feature>/*_test.rs` | Integración contra SQLite temporal (`tempfile`) con migraciones reales aplicadas; `tests/common/mod.rs` provee `test_db()` y `git_repo()` |
-| Runtime de agente | `tests/modules/tasks/pi_rpc_runtime_adapter_test.rs` | Procesos falsos en `tests/fixtures/` (`fake_agent.py`, `stubborn_agent.py`) |
+| Runtime de agente | `tests/modules/tasks/pi_rpc_runtime_adapter_test.rs`, `tests/modules/tasks/claude_stream_runtime_adapter_test.rs` | Procesos falsos en `tests/fixtures/` (`fake_agent.py`, `stubborn_agent.py`, `fake_claude.py`) |
 | Resiliencia de la cola | `tests/modules/tasks/event_queue_resilience_test.rs` | Simula bloqueos de SQLite |
 | UI | `end2end/` | Playwright (`run_smoke.sh`) con agente falso |
 
