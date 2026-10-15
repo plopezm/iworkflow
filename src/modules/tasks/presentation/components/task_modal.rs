@@ -205,10 +205,12 @@ mod tests {
         let remote: BranchOptionDto = BranchOptionDto {
             name: "origin/develop".to_string(),
             remote: true,
+            current: false,
         };
         let local: BranchOptionDto = BranchOptionDto {
             name: "main".to_string(),
             remote: false,
+            current: true,
         };
 
         assert_eq!(branch_option_label(&remote), "origin/develop (remota)");

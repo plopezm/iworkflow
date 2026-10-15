@@ -5,4 +5,6 @@ pub struct BranchOption {
     pub name: String,
     /// `true` si es una rama de seguimiento remoto (`refs/remotes/...`).
     pub remote: bool,
+    /// `true` si es la rama que tiene checkouteada el repositorio principal (HEAD).
+    pub current: bool,
 }

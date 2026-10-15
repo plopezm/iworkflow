@@ -709,6 +709,8 @@ pub struct BranchOptionDto {
     /// Nombre tal y como lo resuelve git: `main` o `origin/develop`.
     pub name: String,
     pub remote: bool,
+    /// Rama actual (HEAD) del repositorio: valor por defecto del desplegable.
+    pub current: bool,
 }
 
 #[cfg(feature = "ssr")]
@@ -717,6 +719,7 @@ impl From<crate::modules::tasks::domain::models::branch_option::BranchOption> fo
         Self {
             name: branch.name,
             remote: branch.remote,
+            current: branch.current,
         }
     }
 }
@@ -731,6 +734,7 @@ mod branch_option_tests {
         let dto: BranchOptionDto = BranchOption {
             name: "origin/develop".to_string(),
             remote: true,
+            current: false,
         }
         .into();
 
@@ -739,6 +743,7 @@ mod branch_option_tests {
             BranchOptionDto {
                 name: "origin/develop".to_string(),
                 remote: true,
+                current: false,
             }
         );
     }

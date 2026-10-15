@@ -278,7 +278,7 @@ const REMOTE_REFS_PREFIX: &str = "refs/remotes/";
 
 /// Ramas de un `git for-each-ref --format=%(refname)`: locales primero, luego remotas, cada
 /// grupo ordenado; sin las ramas de tareas ni los `<remoto>/HEAD`.
-fn parse_branches(refs: &str) -> Vec<BranchOption> {
+fn parse_branches(refs: &str, current: &str) -> Vec<BranchOption> {
     let mut local: Vec<BranchOption> = Vec::new();
     let mut remote: Vec<BranchOption> = Vec::new();
     for reference in refs.lines().map(str::trim) {
@@ -287,6 +287,7 @@ fn parse_branches(refs: &str) -> Vec<BranchOption> {
                 local.push(BranchOption {
                     name: name.to_string(),
                     remote: false,
+                    current: name == current,
                 });
             }
         } else if let Some(name) = reference.strip_prefix(REMOTE_REFS_PREFIX)
@@ -295,6 +296,7 @@ fn parse_branches(refs: &str) -> Vec<BranchOption> {
             remote.push(BranchOption {
                 name: name.to_string(),
                 remote: true,
+                current: false,
             });
         }
     }
@@ -400,7 +402,9 @@ impl WorktreePort for GitCliWorktreeAdapter {
             ],
         )
         .await?;
-        Ok(parse_branches(&refs))
+        // Vacío con HEAD desacoplado: entonces ninguna rama es la actual.
+        let current: String = git(repo, &["branch", "--show-current"]).await?;
+        Ok(parse_branches(&refs, current.trim()))
     }
 
     async fn create(
@@ -571,10 +575,16 @@ mod tests {
     #[test]
     fn lists_local_then_remote_branches_without_task_branches_or_remote_head() {
         let refs: &str = "refs/heads/main\nrefs/heads/pi/fix-1\nrefs/heads/develop\nrefs/remotes/origin/HEAD\nrefs/remotes/origin/main\nrefs/remotes/origin/develop\nrefs/remotes/up/pi/x\n";
-        let names: Vec<(String, bool)> = parse_branches(refs)
+        let names: Vec<(String, bool)> = parse_branches(refs, "main")
             .into_iter()
             .map(|b: BranchOption| (b.name, b.remote))
             .collect();
+        let current: Vec<String> = parse_branches(refs, "main")
+            .into_iter()
+            .filter(|b: &BranchOption| b.current)
+            .map(|b: BranchOption| b.name)
+            .collect();
+        assert_eq!(current, vec!["main".to_string()]);
         assert_eq!(
             names,
             vec![

@@ -336,6 +336,14 @@ pub fn build_create_task_dto(
     }
 }
 
+/// Nombre de la rama actual (HEAD) entre las ramas listadas, si hay alguna.
+pub fn current_branch(branches: &[BranchOptionDto]) -> Option<String> {
+    branches
+        .iter()
+        .find(|b: &&BranchOptionDto| b.current)
+        .map(|b: &BranchOptionDto| b.name.clone())
+}
+
 impl BoardState {
     pub fn new() -> Self {
         let create: ServerAction<CreateTask> = ServerAction::new();
@@ -396,6 +404,12 @@ impl BoardState {
         Effect::new(move |_| {
             form_workspace_id.track();
             form_base_branch.set(String::new());
+        });
+        // Por defecto, la rama actual del repositorio del workspace elegido.
+        Effect::new(move |_| {
+            if let Some(Ok(loaded)) = branches.get() {
+                form_base_branch.set(current_branch(&loaded).unwrap_or_default());
+            }
         });
 
         Self {
@@ -565,6 +579,19 @@ mod tests {
             Vec::new(),
         );
         assert_eq!(dto.base_branch, None);
+    }
+
+    #[test]
+    fn current_branch_is_the_one_flagged_as_head() {
+        let branch = |name: &str, current: bool| BranchOptionDto {
+            name: name.to_string(),
+            remote: false,
+            current,
+        };
+        let listed: Vec<BranchOptionDto> = vec![branch("main", false), branch("feat", true)];
+
+        assert_eq!(current_branch(&listed), Some("feat".to_string()));
+        assert_eq!(current_branch(&[branch("main", false)]), None);
     }
 
     #[test]

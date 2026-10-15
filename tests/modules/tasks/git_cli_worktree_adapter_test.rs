@@ -626,7 +626,17 @@ async fn lists_local_and_remote_branches_without_task_or_head_refs() {
         .into_iter()
         .map(|b| (b.name, b.remote))
         .collect();
+    let current: Vec<String> = f
+        .adapter
+        .list_branches(&f.repo)
+        .await
+        .expect("branches")
+        .into_iter()
+        .filter(|b| b.current)
+        .map(|b| b.name)
+        .collect();
 
+    assert_eq!(current, vec!["main".to_string()]);
     assert_eq!(
         names,
         vec![

@@ -48,6 +48,7 @@ mod tests {
                 Ok(vec![BranchOption {
                     name: "origin/develop".to_string(),
                     remote: true,
+                    current: false,
                 }])
             });
         let use_case: ListWorkspaceBranches = ListWorkspaceBranches::new(
