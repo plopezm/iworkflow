@@ -228,7 +228,7 @@ mod mapping {
         #[test]
         fn invalid_runtime_is_rejected() {
             let dto: AgentSettingsDto = AgentSettingsDto {
-                runtime: Some("claude".to_string()),
+                runtime: Some("codex".to_string()),
                 ..AgentSettingsDto::default()
             };
 

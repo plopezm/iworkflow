@@ -70,6 +70,7 @@ pub(crate) const PI_RUNTIME: &str = "pi";
 pub struct TasksSettings {
     pub gentle_shell_bin: String,
     pub pi_bin: String,
+    pub claude_bin: String,
     pub worktrees_dir: PathBuf,
     pub attachments_dir: PathBuf,
 }
@@ -371,6 +372,7 @@ mod tests {
         let settings: TasksSettings = TasksSettings {
             gentle_shell_bin: SHELL_BIN.to_string(),
             pi_bin: PI_BIN.to_string(),
+            claude_bin: "claude".to_string(),
             worktrees_dir: dir.path().join("worktrees"),
             attachments_dir: dir.path().join("attachments"),
         };
