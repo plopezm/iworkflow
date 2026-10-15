@@ -110,6 +110,8 @@ pub struct DiffViewState {
     pub collapsed_files: RwSignal<BTreeSet<String>>,
     pub collapsed_dirs: RwSignal<BTreeSet<String>>,
     pub tree_open: RwSignal<bool>,
+    /// Fraction (0..1) of the layout taken by the tree sidebar; `None` keeps the default width.
+    pub sidebar_ratio: RwSignal<Option<f64>>,
     pub summary_open: RwSignal<bool>,
     /// Path of the file being edited, if any.
     pub editing: RwSignal<Option<String>>,
@@ -166,6 +168,7 @@ impl DiffViewState {
             collapsed_files: RwSignal::new(BTreeSet::new()),
             collapsed_dirs: RwSignal::new(BTreeSet::new()),
             tree_open: RwSignal::new(true),
+            sidebar_ratio: RwSignal::new(None),
             summary_open: RwSignal::new(false),
             editing,
             draft,
