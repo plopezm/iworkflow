@@ -145,9 +145,12 @@ Linux usa glibc dinámica; compilar en Ubuntu 22.04 mantiene bajo el requisito m
 
 - No es un único fichero: los assets web se sirven desde `site/` en disco. Un
   ejecutable único requeriría incrustarlos en el binario (p. ej. con `rust-embed`).
-- El soporte en Windows no está verificado: parte del código asume Unix (shell de
-  respaldo `/bin/sh` para agentes y terminal), por lo que puede haber funciones que no
-  operen igual que en Linux.
+- Windows (nativo): la terminal y los agentes se lanzan con `powershell.exe` (sin shell de
+  login ni `exec`; el `PATH` del sistema se hereda) y al cerrarlos se mata el árbol de
+  procesos con `taskkill /T`. El home se toma de `USERPROFILE` si falta `HOME`. Los límites
+  de RAM/CPU por tarea (systemd) solo existen en Linux. El soporte se ha escrito y probado
+  con tests de lógica en Linux, pero **no se ha ejecutado aún sobre un Windows real**: los
+  agentes (`gentle-shell`, `pi`, `claude`) deben estar en el `PATH` de PowerShell.
 
 ## Desarrollo
 
