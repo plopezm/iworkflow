@@ -76,8 +76,12 @@ impl LineCodec for PiCodec {
         decode(line)
     }
 
-    fn encode(&mut self, command: &AgentCommand, request_id: &str) -> Result<String, TaskError> {
-        Ok(encode(command, request_id))
+    fn encode(
+        &mut self,
+        command: &AgentCommand,
+        request_id: &str,
+    ) -> Result<Option<String>, TaskError> {
+        Ok(Some(encode(command, request_id)))
     }
 }
 

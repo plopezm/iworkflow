@@ -212,6 +212,63 @@ async fn confirmed_permission_lets_the_tool_run_with_its_input() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn questions_become_select_dialogs_and_are_answered_together() {
+    let adapter: ClaudeStreamRuntimeAdapter = runtime();
+    let (task_id, sink, _cwd) = started(&adapter, false, &LaunchOptions::default()).await;
+
+    adapter.send(task_id, prompt("ask")).await.expect("send");
+    sink.wait_for(|e| matches!(e, AgentEvent::DialogRequested(d) if d.id == "q1#1"))
+        .await;
+    let dialogs: Vec<(String, String)> = sink
+        .snapshot()
+        .into_iter()
+        .filter_map(|e: AgentEvent| match e {
+            AgentEvent::DialogRequested(d) => Some((d.id, d.title)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        dialogs,
+        vec![
+            ("q1#0".to_string(), "Color: ¿Color?".to_string()),
+            ("q1#1".to_string(), "¿Cuántos?".to_string())
+        ]
+    );
+
+    for (dialog_id, value) in [("q1#1", "Dos"), ("q1#0", "Rojo — cálido")] {
+        adapter
+            .send(
+                task_id,
+                AgentCommand::AnswerDialog {
+                    dialog_id: dialog_id.into(),
+                    answer: DialogAnswer::Value {
+                        value: value.into(),
+                    },
+                },
+            )
+            .await
+            .expect("answer");
+    }
+    sink.wait_for(|e| *e == AgentEvent::RunSettled).await;
+    adapter.stop(task_id).await.expect("stop");
+
+    let finished: Vec<String> = sink
+        .snapshot()
+        .into_iter()
+        .filter_map(|e: AgentEvent| match e {
+            AgentEvent::ToolFinished { output, .. } => Some(output),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(finished.len(), 1, "{finished:?}");
+    assert!(finished[0].starts_with("allow "), "{finished:?}");
+    assert!(
+        finished[0].contains(r#""answers": {"¿Color?": "Rojo", "¿Cuántos?": "Dos"}"#),
+        "{finished:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn declined_permission_denies_the_tool() {
     let events: Vec<AgentEvent> = answer_permission(DialogAnswer::Cancelled).await;
 
@@ -271,7 +328,8 @@ fn declares_dialogs_resume_model_and_thinking_but_not_steering_or_subagents() {
     assert_eq!(adapter.runtime_capabilities(None), caps);
 }
 
-/// E2E contra el `claude` real (consume API, por eso `#[ignore]`):
+/// E2E contra el `claude` real (consume API, por eso `#[ignore]`). Con `acceptEdits` un `echo > f`
+/// se acepta solo, por eso el comando es código arbitrario, que sí pide permiso:
 /// `cargo test --features ssr --test claude_stream_runtime_adapter_test -- --ignored`.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "usa el binario claude real y consume API"]
@@ -289,7 +347,10 @@ async fn real_claude_asks_permission_and_runs_the_tool_once_confirmed() {
     adapter
         .send(
             task_id,
-            prompt("Ejecuta con Bash exactamente: echo hola > a.txt y responde solo ok"),
+            prompt(
+                "Ejecuta con Bash exactamente este comando y responde solo ok: \
+                 python3 -c \"open('a.txt','w').write('hola')\"",
+            ),
         )
         .await
         .expect("send");
@@ -337,5 +398,67 @@ async fn real_claude_asks_permission_and_runs_the_tool_once_confirmed() {
             .expect("a.txt")
             .trim(),
         "hola"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "usa el binario claude real y consume API"]
+async fn real_claude_asks_a_question_and_receives_the_answer() {
+    let adapter: ClaudeStreamRuntimeAdapter = ClaudeStreamRuntimeAdapter::new("claude");
+    let options: LaunchOptions = LaunchOptions {
+        model: Some(LaunchModel {
+            provider: "anthropic".into(),
+            model: "haiku".into(),
+        }),
+        ..LaunchOptions::default()
+    };
+    let (task_id, sink, _cwd) = started(&adapter, false, &options).await;
+
+    adapter
+        .send(
+            task_id,
+            prompt("Usa obligatoriamente AskUserQuestion para preguntarme si prefiero rojo o azul. Luego di el color elegido."),
+        )
+        .await
+        .expect("send");
+    let AgentEvent::DialogRequested(request) = tokio::time::timeout(
+        Duration::from_secs(90),
+        sink.wait_for(|e| matches!(e, AgentEvent::DialogRequested(_))),
+    )
+    .await
+    .expect("pregunta") else {
+        panic!("se esperaba un diálogo");
+    };
+    let DialogKind::Select { options } = &request.kind else {
+        panic!("se esperaba un Select: {request:?}");
+    };
+    adapter
+        .send(
+            task_id,
+            AgentCommand::AnswerDialog {
+                dialog_id: request.id.clone(),
+                answer: DialogAnswer::Value {
+                    value: options[0].clone(),
+                },
+            },
+        )
+        .await
+        .expect("answer");
+    tokio::time::timeout(
+        Duration::from_secs(90),
+        sink.wait_for(|e| *e == AgentEvent::RunSettled),
+    )
+    .await
+    .expect("fin de la ejecución");
+    adapter.stop(task_id).await.expect("stop");
+
+    assert!(
+        sink.snapshot().iter().any(|e| matches!(
+            e,
+            AgentEvent::ToolFinished { tool_name, is_error: false, .. }
+                if tool_name == "AskUserQuestion"
+        )),
+        "{:#?}",
+        sink.snapshot()
     );
 }

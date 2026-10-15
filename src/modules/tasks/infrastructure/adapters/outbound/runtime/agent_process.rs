@@ -35,8 +35,13 @@ pub trait LineCodec: Send + 'static {
     fn decode(&mut self, task_id: TaskId, line: &str) -> Vec<AgentEvent>;
 
     /// Línea (sin salto final) a escribir en stdin para una orden. `request_id` es único por
-    /// orden y sirve a los protocolos que correlacionan peticiones y respuestas.
-    fn encode(&mut self, command: &AgentCommand, request_id: &str) -> Result<String, TaskError>;
+    /// orden y sirve a los protocolos que correlacionan peticiones y respuestas. `None` es una
+    /// orden aceptada que aún no genera mensaje (p. ej. falta responder otras preguntas).
+    fn encode(
+        &mut self,
+        command: &AgentCommand,
+        request_id: &str,
+    ) -> Result<Option<String>, TaskError>;
 }
 
 type SharedCodec = Arc<Mutex<Box<dyn LineCodec>>>;
@@ -163,11 +168,14 @@ impl ProcessRuntime {
     pub fn send(&self, task_id: TaskId, command: &AgentCommand) -> Result<(), TaskError> {
         let registry: MutexGuard<'_, HashMap<TaskId, AgentProcess>> = self.registry()?;
         let process: &AgentProcess = registry.get(&task_id).ok_or(TaskError::AgentNotRunning)?;
-        let line: String = process
+        let encoded: Option<String> = process
             .codec
             .lock()
             .map_err(|_| TaskError::Runtime("códec del agente corrupto".to_string()))?
             .encode(command, &Uuid::new_v4().to_string())?;
+        let Some(line) = encoded else {
+            return Ok(());
+        };
         process
             .commands
             .send(line)

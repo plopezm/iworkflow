@@ -4,7 +4,7 @@
 //! herramienta (el resultado solo trae el id) y las entradas de los permisos pendientes (la
 //! respuesta `allow` debe devolverlas en `updatedInput`).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 
@@ -17,8 +17,39 @@ use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 
 /// Límite de caracteres de salidas y argumentos de herramientas que se conservan.
 const MAX_TOOL_TEXT_CHARS: usize = 20_000;
+/// Límite del resumen de la entrada de una herramienta en el diálogo de permiso.
+const MAX_SUMMARY_CHARS: usize = 500;
+const DENY_PLAN_MESSAGE: &str = "El usuario rechazó el plan; ajústalo y vuelve a proponerlo.";
 const DENY_MESSAGE: &str = "El usuario rechazó el uso de la herramienta.";
+const DENY_QUESTIONS_MESSAGE: &str = "El usuario canceló las preguntas.";
+const PLAN_TOOL: &str = "ExitPlanMode";
+const QUESTIONS_TOOL: &str = "AskUserQuestion";
+/// Separa el id de la petición del índice de pregunta en los diálogos de `AskUserQuestion`.
+const QUESTION_ID_SEPARATOR: char = '#';
 const INTERRUPTED_MESSAGE: &str = "ejecución interrumpida";
+
+/// Petición de permiso a la espera de la respuesta del usuario.
+#[derive(Debug)]
+enum Pending {
+    /// Herramienta que pide confirmación; `input` se devuelve tal cual si se permite.
+    Tool {
+        input: Value,
+        deny_message: &'static str,
+    },
+    /// `AskUserQuestion`: un diálogo por pregunta; se responde cuando están todas.
+    Questions {
+        input: Value,
+        questions: Vec<Question>,
+        answers: Vec<Option<String>>,
+    },
+}
+
+#[derive(Debug)]
+struct Question {
+    text: String,
+    /// `(texto mostrado, etiqueta que entiende claude)` de cada opción.
+    options: Vec<(String, String)>,
+}
 
 #[derive(Debug, Default)]
 pub struct ClaudeProtocol {
@@ -26,7 +57,9 @@ pub struct ClaudeProtocol {
     /// Razonamiento recibido por deltas: el bloque `thinking` final llega vacío (solo firma).
     thinking: String,
     tool_names: HashMap<String, String>,
-    pending_permissions: HashMap<String, Value>,
+    pending: HashMap<String, Pending>,
+    /// Peticiones ya resueltas (canceladas) cuyos diálogos hermanos aún pueden llegar.
+    settled: HashSet<String>,
 }
 
 impl ClaudeProtocol {
@@ -62,7 +95,7 @@ impl ClaudeProtocol {
         &mut self,
         command: &AgentCommand,
         request_id: &str,
-    ) -> Result<String, TaskError> {
+    ) -> Result<Option<String>, TaskError> {
         let record: Value = match command {
             AgentCommand::Prompt { message, images }
             | AgentCommand::Steer { message, images }
@@ -73,13 +106,10 @@ impl ClaudeProtocol {
                 "request": { "subtype": "interrupt" },
             }),
             AgentCommand::AnswerDialog { dialog_id, answer } => {
-                let input: Value = self.pending_permissions.remove(dialog_id).ok_or_else(|| {
-                    TaskError::Runtime(format!("no hay un permiso pendiente con id {dialog_id}"))
-                })?;
-                permission_response(dialog_id, answer, input)
+                return self.answer_dialog(dialog_id, answer);
             }
         };
-        Ok(record.to_string())
+        Ok(Some(record.to_string()))
     }
 
     /// Marca el inicio de una ejecución; solo emite `RunStarted` la primera vez.
@@ -209,33 +239,170 @@ impl ClaudeProtocol {
             return Vec::new();
         }
         let id: String = string_of(record, "request_id");
-        let tool: &str = str_field(request, "display_name")
-            .or_else(|| str_field(request, "tool_name"))
-            .unwrap_or("herramienta");
-        let message: Option<String> = str_field(request, "description")
-            .map(str::to_string)
-            .or_else(|| {
-                request
-                    .get("input")
-                    .map(|input: &Value| truncate(input.to_string()))
-            });
-        self.pending_permissions.insert(
+        let tool_name: &str = str_field(request, "tool_name").unwrap_or_default();
+        let input: Value = request.get("input").cloned().unwrap_or_else(|| json!({}));
+        if tool_name == QUESTIONS_TOOL
+            && let Some(questions) = parse_questions(&input)
+        {
+            return self.request_questions(id, input, questions);
+        }
+        let display: &str = str_field(request, "display_name").unwrap_or(tool_name);
+        let (title, message, deny_message): (String, Option<String>, &'static str) =
+            if tool_name == PLAN_TOOL {
+                (
+                    "Aprobar plan".to_string(),
+                    str_field(&input, "plan").map(str::to_string),
+                    DENY_PLAN_MESSAGE,
+                )
+            } else {
+                (
+                    format!(
+                        "Permitir {}",
+                        if display.is_empty() {
+                            "herramienta"
+                        } else {
+                            display
+                        }
+                    ),
+                    permission_message(tool_name, str_field(request, "description"), &input),
+                    DENY_MESSAGE,
+                )
+            };
+        self.pending.insert(
             id.clone(),
-            request.get("input").cloned().unwrap_or_else(|| json!({})),
+            Pending::Tool {
+                input,
+                deny_message,
+            },
         );
         vec![AgentEvent::DialogRequested(DialogRequest {
             id,
-            title: format!("Permitir {tool}"),
+            title,
             kind: DialogKind::Confirm { message },
             timeout_ms: None,
         })]
+    }
+
+    /// Un diálogo `Select` por pregunta, con id `<petición>#<índice>`.
+    fn request_questions(
+        &mut self,
+        request_id: String,
+        input: Value,
+        questions: Vec<(String, Question)>,
+    ) -> Vec<AgentEvent> {
+        let events: Vec<AgentEvent> = questions
+            .iter()
+            .enumerate()
+            .map(|(index, (title, question)): (usize, &(String, Question))| {
+                AgentEvent::DialogRequested(DialogRequest {
+                    id: format!("{request_id}{QUESTION_ID_SEPARATOR}{index}"),
+                    title: title.clone(),
+                    kind: DialogKind::Select {
+                        options: question
+                            .options
+                            .iter()
+                            .map(|(shown, _): &(String, String)| shown.clone())
+                            .collect(),
+                    },
+                    timeout_ms: None,
+                })
+            })
+            .collect();
+        let questions: Vec<Question> = questions
+            .into_iter()
+            .map(|(_, question): (String, Question)| question)
+            .collect();
+        let answers: Vec<Option<String>> = vec![None; questions.len()];
+        self.pending.insert(
+            request_id,
+            Pending::Questions {
+                input,
+                questions,
+                answers,
+            },
+        );
+        events
+    }
+
+    fn answer_dialog(
+        &mut self,
+        dialog_id: &str,
+        answer: &DialogAnswer,
+    ) -> Result<Option<String>, TaskError> {
+        let (request_id, index): (&str, Option<usize>) =
+            match dialog_id.rsplit_once(QUESTION_ID_SEPARATOR) {
+                Some((request_id, index)) => (request_id, index.parse::<usize>().ok()),
+                None => (dialog_id, None),
+            };
+        let unknown =
+            || TaskError::Runtime(format!("no hay un permiso pendiente con id {dialog_id}"));
+        let direct: Option<Pending> = if self.pending.contains_key(dialog_id) {
+            self.pending.remove(dialog_id)
+        } else {
+            self.pending.remove(request_id)
+        };
+        let Some(pending) = direct else {
+            return if self.settled.contains(request_id) {
+                Ok(None)
+            } else {
+                Err(unknown())
+            };
+        };
+        match pending {
+            Pending::Tool {
+                input,
+                deny_message,
+            } => Ok(Some(
+                permission_response(dialog_id, answer, input, deny_message).to_string(),
+            )),
+            Pending::Questions {
+                input,
+                questions,
+                mut answers,
+            } => {
+                let Some(index) = index.filter(|i: &usize| *i < answers.len()) else {
+                    self.pending.insert(
+                        request_id.to_string(),
+                        Pending::Questions {
+                            input,
+                            questions,
+                            answers,
+                        },
+                    );
+                    return Err(unknown());
+                };
+                let DialogAnswer::Value { value } = answer else {
+                    self.settled.insert(request_id.to_string());
+                    return Ok(Some(
+                        deny_response(request_id, DENY_QUESTIONS_MESSAGE).to_string(),
+                    ));
+                };
+                answers[index] = Some(label_for(&questions[index], value));
+                if answers.iter().any(Option::is_none) {
+                    self.pending.insert(
+                        request_id.to_string(),
+                        Pending::Questions {
+                            input,
+                            questions,
+                            answers,
+                        },
+                    );
+                    return Ok(None);
+                }
+                Ok(Some(
+                    allow_response(request_id, with_answers(input, &questions, &answers))
+                        .to_string(),
+                ))
+            }
+        }
     }
 
     fn decode_result(&mut self, record: &Value) -> Vec<AgentEvent> {
         self.running = false;
         self.thinking.clear();
         self.tool_names.clear();
-        self.pending_permissions.clear();
+        self.pending.clear();
+        self.settled.clear();
         let failed: bool = record
             .get("is_error")
             .and_then(Value::as_bool)
@@ -280,17 +447,137 @@ fn user_message(message: &str, images: &[ImageAttachment]) -> Value {
 }
 
 /// Respuesta a `can_use_tool`: solo `Confirmed { true }` permite la herramienta.
-fn permission_response(request_id: &str, answer: &DialogAnswer, input: Value) -> Value {
-    let decision: Value = match answer {
-        DialogAnswer::Confirmed { confirmed: true } => {
-            json!({ "behavior": "allow", "updatedInput": input })
-        }
-        _ => json!({ "behavior": "deny", "message": DENY_MESSAGE }),
-    };
+fn permission_response(
+    request_id: &str,
+    answer: &DialogAnswer,
+    input: Value,
+    deny_message: &str,
+) -> Value {
+    match answer {
+        DialogAnswer::Confirmed { confirmed: true } => allow_response(request_id, input),
+        _ => deny_response(request_id, deny_message),
+    }
+}
+
+fn allow_response(request_id: &str, updated_input: Value) -> Value {
+    control_success(
+        request_id,
+        json!({ "behavior": "allow", "updatedInput": updated_input }),
+    )
+}
+
+fn deny_response(request_id: &str, message: &str) -> Value {
+    control_success(
+        request_id,
+        json!({ "behavior": "deny", "message": message }),
+    )
+}
+
+fn control_success(request_id: &str, decision: Value) -> Value {
     json!({
         "type": "control_response",
         "response": { "subtype": "success", "request_id": request_id, "response": decision },
     })
+}
+
+/// Preguntas de `AskUserQuestion` con su título; `None` si faltan preguntas u opciones.
+fn parse_questions(input: &Value) -> Option<Vec<(String, Question)>> {
+    let questions: &Vec<Value> = input.get("questions")?.as_array()?;
+    if questions.is_empty() {
+        return None;
+    }
+    questions
+        .iter()
+        .map(|raw: &Value| {
+            let text: String = str_field(raw, "question")
+                .filter(|t: &&str| !t.is_empty())?
+                .to_string();
+            let options: Vec<(String, String)> = raw
+                .get("options")?
+                .as_array()?
+                .iter()
+                .map(|option: &Value| {
+                    let label: &str =
+                        str_field(option, "label").filter(|l: &&str| !l.is_empty())?;
+                    let shown: String = match str_field(option, "description") {
+                        Some(description) if !description.is_empty() => {
+                            format!("{label} — {description}")
+                        }
+                        _ => label.to_string(),
+                    };
+                    Some((shown, label.to_string()))
+                })
+                .collect::<Option<Vec<(String, String)>>>()?;
+            if options.is_empty() {
+                return None;
+            }
+            let title: String = match str_field(raw, "header").filter(|h: &&str| !h.is_empty()) {
+                Some(header) => format!("{header}: {text}"),
+                None => text.clone(),
+            };
+            Some((title, Question { text, options }))
+        })
+        .collect()
+}
+
+/// Etiqueta de la opción elegida; un texto libre que no es una opción se pasa tal cual.
+fn label_for(question: &Question, value: &str) -> String {
+    question
+        .options
+        .iter()
+        .find(|(shown, label): &&(String, String)| shown == value || label == value)
+        .map(|(_, label): &(String, String)| label.clone())
+        .unwrap_or_else(|| value.to_string())
+}
+
+/// `input` con el campo `answers` (pregunta → etiqueta) que espera `AskUserQuestion`.
+fn with_answers(mut input: Value, questions: &[Question], answers: &[Option<String>]) -> Value {
+    let map: serde_json::Map<String, Value> = questions
+        .iter()
+        .zip(answers)
+        .map(|(question, answer): (&Question, &Option<String>)| {
+            (
+                question.text.clone(),
+                Value::String(answer.clone().unwrap_or_default()),
+            )
+        })
+        .collect();
+    input["answers"] = Value::Object(map);
+    input
+}
+
+/// Texto del diálogo de permiso: lo que describe el modelo más lo que realmente se va a
+/// ejecutar o tocar (comando, fichero, URL...), para que el usuario decida con datos reales.
+fn permission_message(tool: &str, description: Option<&str>, input: &Value) -> Option<String> {
+    let key: Option<&str> = match tool {
+        "Bash" => Some("command"),
+        "Write" | "Edit" | "MultiEdit" | "Read" => Some("file_path"),
+        "NotebookEdit" => Some("notebook_path"),
+        "WebFetch" => Some("url"),
+        "WebSearch" => Some("query"),
+        _ => None,
+    };
+    let summary: Option<String> = key
+        .and_then(|k: &str| str_field(input, k))
+        .map(str::to_string)
+        .or_else(|| {
+            input
+                .as_object()
+                .filter(|o: &&serde_json::Map<String, Value>| !o.is_empty())
+                .map(|_| truncate_chars(input.to_string(), MAX_SUMMARY_CHARS))
+        });
+    let parts: Vec<String> = [description.map(str::to_string), summary]
+        .into_iter()
+        .flatten()
+        .filter(|p: &String| !p.is_empty())
+        .collect();
+    let mut unique: Vec<String> = Vec::new();
+    for part in parts {
+        if !unique.contains(&part) {
+            unique.push(part);
+        }
+    }
+    (!unique.is_empty()).then(|| unique.join("\n"))
 }
 
 fn notice(level: NoticeLevel, message: String) -> AgentEvent {
@@ -335,10 +622,14 @@ fn tool_result_text(content: Option<&Value>) -> String {
 }
 
 fn truncate(text: String) -> String {
-    if text.chars().count() <= MAX_TOOL_TEXT_CHARS {
+    truncate_chars(text, MAX_TOOL_TEXT_CHARS)
+}
+
+fn truncate_chars(text: String, limit: usize) -> String {
+    if text.chars().count() <= limit {
         return text;
     }
-    text.chars().take(MAX_TOOL_TEXT_CHARS).collect()
+    text.chars().take(limit).collect()
 }
 
 #[cfg(test)]
@@ -613,11 +904,212 @@ mod tests {
                 id: "r1".into(),
                 title: "Permitir Bash".into(),
                 kind: DialogKind::Confirm {
-                    message: Some("Escribe a.txt".into())
+                    message: Some("Escribe a.txt\necho hola > a.txt".into())
                 },
                 timeout_ms: None
             })]
         );
+    }
+
+    fn control_request(request_id: &str, tool: &str, input: Value) -> Value {
+        json!({"type": "control_request", "request_id": request_id, "request": {
+            "subtype": "can_use_tool", "tool_name": tool, "display_name": tool, "input": input}})
+    }
+
+    fn two_questions() -> Value {
+        json!({"questions": [
+            {"question": "¿Rojo o azul?", "header": "Color", "multiSelect": false, "options": [
+                {"label": "Rojo", "description": "Elegir rojo"}, {"label": "Azul", "description": ""}]},
+            {"question": "¿Cuántos?", "header": "", "multiSelect": false, "options": [
+                {"label": "Uno", "description": ""}, {"label": "Dos", "description": ""}]}]})
+    }
+
+    fn answer(dialog_id: &str, answer: DialogAnswer) -> AgentCommand {
+        AgentCommand::AnswerDialog {
+            dialog_id: dialog_id.into(),
+            answer,
+        }
+    }
+
+    fn value(text: &str) -> DialogAnswer {
+        DialogAnswer::Value { value: text.into() }
+    }
+
+    #[test]
+    fn permission_dialog_shows_the_file_a_tool_will_touch() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[control_request(
+                "r1",
+                "Write",
+                json!({"file_path": "/w/a.txt", "content": "hola"}),
+            )],
+        );
+        assert_eq!(
+            events,
+            vec![AgentEvent::DialogRequested(DialogRequest {
+                id: "r1".into(),
+                title: "Permitir Write".into(),
+                kind: DialogKind::Confirm {
+                    message: Some("/w/a.txt".into())
+                },
+                timeout_ms: None
+            })]
+        );
+    }
+
+    #[test]
+    fn ask_user_question_becomes_one_select_dialog_per_question() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[control_request("r1", "AskUserQuestion", two_questions())],
+        );
+        assert_eq!(
+            events,
+            vec![
+                AgentEvent::DialogRequested(DialogRequest {
+                    id: "r1#0".into(),
+                    title: "Color: ¿Rojo o azul?".into(),
+                    kind: DialogKind::Select {
+                        options: vec!["Rojo — Elegir rojo".into(), "Azul".into()]
+                    },
+                    timeout_ms: None
+                }),
+                AgentEvent::DialogRequested(DialogRequest {
+                    id: "r1#1".into(),
+                    title: "¿Cuántos?".into(),
+                    kind: DialogKind::Select {
+                        options: vec!["Uno".into(), "Dos".into()]
+                    },
+                    timeout_ms: None
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn answers_are_sent_once_every_question_has_one() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        decode_all(
+            &mut protocol,
+            &[control_request("r1", "AskUserQuestion", two_questions())],
+        );
+
+        let partial: Option<String> = protocol
+            .encode(&answer("r1#1", value("Dos")), "x")
+            .expect("respuesta parcial");
+        assert_eq!(partial, None);
+        let line: String = protocol
+            .encode(&answer("r1#0", value("Rojo — Elegir rojo")), "x")
+            .expect("respuesta final")
+            .expect("línea");
+
+        assert_eq!(
+            parse(&line),
+            json!({"type": "control_response", "response": {
+                "subtype": "success", "request_id": "r1",
+                "response": {"behavior": "allow", "updatedInput": {
+                    "questions": two_questions()["questions"],
+                    "answers": {"¿Rojo o azul?": "Rojo", "¿Cuántos?": "Dos"}}}}})
+        );
+    }
+
+    #[test]
+    fn a_free_text_answer_is_passed_through_unchanged() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        decode_all(
+            &mut protocol,
+            &[control_request(
+                "r1",
+                "AskUserQuestion",
+                json!({"questions": [
+                {"question": "¿Qué?", "options": [{"label": "A", "description": ""}]}]}),
+            )],
+        );
+        let line: String = protocol
+            .encode(&answer("r1#0", value("otra cosa")), "x")
+            .expect("respuesta")
+            .expect("línea");
+        assert_eq!(
+            parse(&line)["response"]["response"]["updatedInput"]["answers"],
+            json!({"¿Qué?": "otra cosa"})
+        );
+    }
+
+    #[test]
+    fn cancelling_a_question_denies_the_request_and_ignores_its_siblings() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        decode_all(
+            &mut protocol,
+            &[control_request("r1", "AskUserQuestion", two_questions())],
+        );
+
+        let line: String = protocol
+            .encode(&answer("r1#0", DialogAnswer::Cancelled), "x")
+            .expect("cancelar")
+            .expect("línea");
+        assert_eq!(parse(&line)["response"]["response"]["behavior"], "deny");
+        assert_eq!(
+            protocol
+                .encode(&answer("r1#1", value("Uno")), "x")
+                .expect("hermana ignorada"),
+            None
+        );
+    }
+
+    #[test]
+    fn exit_plan_mode_asks_to_approve_the_plan() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[control_request(
+                "r1",
+                "ExitPlanMode",
+                json!({"plan": "# Plan\n1. Crear a.txt"}),
+            )],
+        );
+        assert_eq!(
+            events,
+            vec![AgentEvent::DialogRequested(DialogRequest {
+                id: "r1".into(),
+                title: "Aprobar plan".into(),
+                kind: DialogKind::Confirm {
+                    message: Some("# Plan\n1. Crear a.txt".into())
+                },
+                timeout_ms: None
+            })]
+        );
+        let line: String = protocol
+            .encode(
+                &answer("r1", DialogAnswer::Confirmed { confirmed: false }),
+                "x",
+            )
+            .expect("rechazo")
+            .expect("línea");
+        assert_eq!(
+            parse(&line)["response"]["response"],
+            json!({"behavior": "deny", "message": DENY_PLAN_MESSAGE})
+        );
+    }
+
+    #[test]
+    fn a_malformed_question_request_falls_back_to_a_plain_confirmation() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[control_request(
+                "r1",
+                "AskUserQuestion",
+                json!({"questions": []}),
+            )],
+        );
+        assert!(matches!(
+            &events[0],
+            AgentEvent::DialogRequested(DialogRequest { id, kind: DialogKind::Confirm { .. }, .. })
+                if id == "r1"
+        ));
     }
 
     #[test]
@@ -723,7 +1215,8 @@ mod tests {
                 },
                 "id",
             )
-            .expect("prompt");
+            .expect("prompt")
+            .expect("línea");
         assert_eq!(
             parse(&line),
             json!({"type": "user", "message": {"role": "user", "content": "hola"}})
@@ -746,7 +1239,8 @@ mod tests {
                 },
                 "id",
             )
-            .expect("prompt");
+            .expect("prompt")
+            .expect("línea");
         assert_eq!(
             parse(&line)["message"]["content"],
             json!([
@@ -761,7 +1255,8 @@ mod tests {
         let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
         let line: String = protocol
             .encode(&AgentCommand::Abort, "req-9")
-            .expect("abort");
+            .expect("abort")
+            .expect("línea");
         assert_eq!(
             parse(&line),
             json!({"type": "control_request", "request_id": "req-9",
@@ -790,7 +1285,8 @@ mod tests {
                 },
                 "x",
             )
-            .expect("answer");
+            .expect("answer")
+            .expect("línea");
         assert_eq!(
             parse(&line),
             json!({"type": "control_response", "response": {
@@ -815,7 +1311,8 @@ mod tests {
                     },
                     "x",
                 )
-                .expect("answer");
+                .expect("answer")
+                .expect("línea");
             assert_eq!(
                 parse(&line)["response"]["response"],
                 json!({"behavior": "deny", "message": DENY_MESSAGE})

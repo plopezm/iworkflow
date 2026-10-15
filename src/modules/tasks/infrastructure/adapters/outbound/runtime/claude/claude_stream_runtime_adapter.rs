@@ -86,7 +86,11 @@ impl LineCodec for ClaudeProtocol {
         ClaudeProtocol::decode(self, line)
     }
 
-    fn encode(&mut self, command: &AgentCommand, request_id: &str) -> Result<String, TaskError> {
+    fn encode(
+        &mut self,
+        command: &AgentCommand,
+        request_id: &str,
+    ) -> Result<Option<String>, TaskError> {
         ClaudeProtocol::encode(self, command, request_id)
     }
 }
