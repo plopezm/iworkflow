@@ -7,6 +7,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
+use crate::modules::tasks::domain::models::branch_option::BranchOption;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
@@ -111,6 +112,7 @@ mock! {
     #[async_trait::async_trait]
     impl WorktreePort for Worktree {
         fn worktree_path(&self, workspace_name: &str, dir_name: &str) -> PathBuf;
+        async fn list_branches(&self, repo: &Path) -> Result<Vec<BranchOption>, TaskError>;
         async fn create(&self, repo: &Path, base_branch: &str, branch: &str, path: &Path) -> Result<(), TaskError>;
         async fn commit_all(&self, path: &Path, message: &str) -> Result<bool, TaskError>;
         async fn diff(&self, repo: &Path, base_branch: &str, branch: &str) -> Result<TaskDiff, TaskError>;

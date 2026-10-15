@@ -26,6 +26,7 @@ use crate::modules::tasks::application::usecases::get_task_subagents::GetTaskSub
 use crate::modules::tasks::application::usecases::handle_agent_event::HandleAgentEvent;
 use crate::modules::tasks::application::usecases::list_done_tasks::ListDoneTasks;
 use crate::modules::tasks::application::usecases::list_tasks::ListTasks;
+use crate::modules::tasks::application::usecases::list_workspace_branches::ListWorkspaceBranches;
 use crate::modules::tasks::application::usecases::list_workspace_options::ListWorkspaceOptions;
 use crate::modules::tasks::application::usecases::merge_task::MergeTask;
 use crate::modules::tasks::application::usecases::reconcile_tasks::ReconcileTasks;
@@ -98,6 +99,7 @@ pub struct TasksContext {
     pub list_tasks: Arc<ListTasks>,
     pub list_done_tasks: Arc<ListDoneTasks>,
     pub list_workspace_options: Arc<ListWorkspaceOptions>,
+    pub list_workspace_branches: Arc<ListWorkspaceBranches>,
     pub reconcile_tasks: Arc<ReconcileTasks>,
     pub reset_task: Arc<ResetTask>,
     /// Bus en vivo consumido por el endpoint SSE.
@@ -264,6 +266,10 @@ impl TasksContext {
             list_tasks: Arc::new(ListTasks::new(repository.clone())),
             list_done_tasks: Arc::new(ListDoneTasks::new(repository)),
             list_workspace_options: Arc::new(ListWorkspaceOptions::new(workspaces)),
+            list_workspace_branches: Arc::new(ListWorkspaceBranches::new(
+                lifecycle.clone(),
+                worktrees.clone(),
+            )),
             reconcile_tasks: Arc::new(ReconcileTasks::new(lifecycle, worktrees)),
             event_bus,
             event_sink: sink,

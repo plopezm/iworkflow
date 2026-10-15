@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::branch_option::BranchOption;
 use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 
 /// Operaciones git sobre los worktrees de las tareas.
@@ -9,7 +10,12 @@ pub trait WorktreePort: Send + Sync {
     /// Carpeta donde crear el worktree de una tarea de ese workspace.
     fn worktree_path(&self, workspace_name: &str, dir_name: &str) -> PathBuf;
 
-    /// Crea `branch` desde `base_branch` y la saca en `path`.
+    /// Ramas locales y remotas del repositorio (sin las de las tareas ni `origin/HEAD`), las
+    /// locales primero y cada grupo ordenado por nombre.
+    async fn list_branches(&self, repo: &Path) -> Result<Vec<BranchOption>, TaskError>;
+
+    /// Crea `branch` desde `base_branch` (local o remota, p. ej. `origin/develop`) y
+    /// la saca en `path`.
     async fn create(
         &self,
         repo: &Path,
@@ -52,6 +58,8 @@ pub trait WorktreePort: Send + Sync {
     async fn diff_range(&self, repo: &Path, range: &DiffRange) -> Result<TaskDiff, TaskError>;
 
     /// Integra `branch` en `base_branch` con `--no-ff`. Ante conflicto deja todo como estaba.
+    /// Si `base_branch` es remota (`origin/develop`) se integra en la rama local homónima
+    /// (`develop`), que se crea siguiendo a la remota si aún no existe; nunca se hace push.
     async fn merge(
         &self,
         repo: &Path,

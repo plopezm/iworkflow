@@ -352,7 +352,10 @@ async fn reset_to_backlog_deletes_events_and_clears_fields() {
     let after: Task = found(&adapter, running.id).await;
     assert_eq!(after.status, TaskStatus::Backlog);
     assert_eq!(after.branch, "");
-    assert_eq!(after.base_branch, "");
+    assert_eq!(
+        after.base_branch, running.base_branch,
+        "reset keeps the base branch chosen for the task"
+    );
     assert_eq!(after.worktree_path, PathBuf::new());
     assert_eq!(after.error, None);
     assert!(after.pending_dialogs.is_empty());

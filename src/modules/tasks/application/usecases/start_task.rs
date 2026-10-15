@@ -72,7 +72,12 @@ impl StartTask {
             &workspace_dir_name(&workspace.name, &workspace.id),
             &worktree_dir_name(&task.title, &unique),
         );
-        let base_branch: String = workspace.base_branch.clone();
+        // La rama elegida al crear la tarea manda; sin ella, la base del workspace.
+        let base_branch: String = if task.base_branch.trim().is_empty() {
+            workspace.base_branch.clone()
+        } else {
+            task.base_branch.clone()
+        };
 
         let claimed: bool = self
             .lifecycle
@@ -260,6 +265,39 @@ mod tests {
             .times(1)
             .returning(|_, _, _, _| Ok(true));
         test_support::lifecycle_with(repository, recorded)
+    }
+
+    #[tokio::test]
+    async fn creates_the_worktree_from_the_base_branch_chosen_for_the_task() {
+        let mut task: Task = test_support::task(TaskStatus::Backlog);
+        task.base_branch = "origin/develop".to_string();
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees
+            .expect_worktree_path()
+            .returning(|ws, dir| PathBuf::from(format!("/wt/{ws}/{dir}")));
+        worktrees
+            .expect_create()
+            .withf(|_, base: &str, _, _| base == "origin/develop")
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+        let mut runtime: MockAgentRuntime = runtime_not_running();
+        runtime.expect_start().returning(|_, _, _, _, _| Ok(()));
+        runtime.expect_send().returning(|_, _| Ok(()));
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees),
+            Arc::new(runtime),
+            default_launch_settings(),
+            Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
+            Arc::new(MockAttachmentStorage::new()),
+        );
+
+        let started: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(started.base_branch, "origin/develop");
     }
 
     #[tokio::test]

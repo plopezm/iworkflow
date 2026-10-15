@@ -7,8 +7,8 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachm
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto, UpdateTaskDto,
-    WorkspaceOptionDto,
+    BranchOptionDto, CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto,
+    UpdateTaskDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_file_dto::{
@@ -334,6 +334,19 @@ pub async fn get_task_subagents(id: String) -> Result<Vec<SubagentTaskDto>, Serv
         .await
         .map_err(support::to_server_error)?;
     Ok(subagents.into_iter().map(SubagentTaskDto::from).collect())
+}
+
+#[server]
+pub async fn list_workspace_branches(
+    workspace_id: String,
+) -> Result<Vec<BranchOptionDto>, ServerFnError> {
+    let branches: Vec<crate::modules::tasks::domain::models::branch_option::BranchOption> =
+        support::context()?
+            .list_workspace_branches
+            .execute(&workspace_id)
+            .await
+            .map_err(support::to_server_error)?;
+    Ok(branches.into_iter().map(BranchOptionDto::from).collect())
 }
 
 #[server]
