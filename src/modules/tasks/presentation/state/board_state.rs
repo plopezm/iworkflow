@@ -3,6 +3,8 @@ use std::future::Future;
 
 use leptos::prelude::*;
 
+use crate::core::components::form::parse_positive_number;
+
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -294,6 +296,8 @@ pub struct BoardState {
     pub form_prompt: RwSignal<String>,
     /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
     pub form_priority: RwSignal<String>,
+    pub form_memory_limit: RwSignal<String>,
+    pub form_cpu_limit: RwSignal<String>,
     pub form_start_now: RwSignal<bool>,
     /// Imágenes adjuntas al prompt inicial.
     pub images: ImageAttachments,
@@ -316,6 +320,8 @@ pub fn build_create_task_dto(
     title: String,
     prompt: String,
     priority: &str,
+    memory_limit: &str,
+    cpu_limit: &str,
     start_now: bool,
     images: Vec<ImageAttachmentDto>,
 ) -> CreateTaskDto {
@@ -324,6 +330,8 @@ pub fn build_create_task_dto(
         title,
         prompt,
         priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
+        memory_limit_mb: parse_positive_number(memory_limit),
+        cpu_limit_percent: parse_positive_number(cpu_limit),
         start_now,
         images,
     }
@@ -392,6 +400,8 @@ impl BoardState {
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
+            form_memory_limit: RwSignal::new(String::new()),
+            form_cpu_limit: RwSignal::new(String::new()),
             form_start_now: RwSignal::new(false),
             images: ImageAttachments::new(),
             toasts: RwSignal::new(Vec::new()),
@@ -411,6 +421,8 @@ impl BoardState {
         self.form_prompt.set(String::new());
         self.form_priority
             .set(TaskPriorityDto::default().as_str().to_string());
+        self.form_memory_limit.set(String::new());
+        self.form_cpu_limit.set(String::new());
         self.form_start_now.set(false);
         self.images.clear();
         self.modal_open.set(true);
@@ -429,6 +441,8 @@ impl BoardState {
                 self.form_title.get_untracked(),
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
+                &self.form_memory_limit.get_untracked(),
+                &self.form_cpu_limit.get_untracked(),
                 self.form_start_now.get_untracked(),
                 self.images.images.get_untracked(),
             ),
@@ -515,9 +529,13 @@ mod tests {
             String::new(),
             "haz algo".to_string(),
             "high",
+            "2048",
+            "0",
             true,
             vec![image.clone()],
         );
+        assert_eq!(dto.memory_limit_mb, Some(2048));
+        assert_eq!(dto.cpu_limit_percent, None);
         assert_eq!(dto.images, vec![image]);
         assert_eq!(dto.priority, TaskPriorityDto::High);
         assert!(dto.start_now);
@@ -692,6 +710,8 @@ mod tests {
             worktree_path: "/wt".to_string(),
             status: crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStatusDto::Idle,
             priority: Default::default(),
+            memory_limit_mb: None,
+            cpu_limit_percent: None,
             error: None,
             actions: Default::default(),
             stage,

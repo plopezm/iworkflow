@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
@@ -38,6 +39,7 @@ pub trait TaskRepositoryPort: Send + Sync {
         title: String,
         prompt: String,
         priority: TaskPriority,
+        limits: ResourceLimits,
     ) -> Result<bool, TaskError>;
     /// Reclama atómicamente una tarea en `Backlog` para arrancarla: fija el plan
     /// (rama, ruta de worktree y rama base) y pasa a `Starting` en una única

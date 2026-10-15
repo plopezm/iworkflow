@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::core::db::schema::tasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
@@ -35,6 +36,8 @@ pub struct TaskRow {
     pub priority: String,
     pub base_sha: Option<String>,
     pub head_sha: Option<String>,
+    pub memory_limit_mb: Option<i32>,
+    pub cpu_limit_percent: Option<i32>,
 }
 
 /// JSON por defecto cuando la serialización (imposible en la práctica) fallara.
@@ -108,6 +111,14 @@ impl From<&Task> for TaskRow {
             subagents_active: clamp_count(task.subagents.active),
             subagents_waiting: clamp_count(task.subagents.waiting),
             priority: task.priority.as_str().to_string(),
+            memory_limit_mb: task
+                .limits
+                .memory_mb
+                .and_then(|v: u32| i32::try_from(v).ok()),
+            cpu_limit_percent: task
+                .limits
+                .cpu_percent
+                .and_then(|v: u32| i32::try_from(v).ok()),
             base_sha: task
                 .diff_range
                 .as_ref()
@@ -136,6 +147,12 @@ impl TryFrom<TaskRow> for Task {
             worktree_path: PathBuf::from(row.worktree_path),
             status: TaskStatus::parse(&row.status)?,
             priority: TaskPriority::parse(&row.priority)?,
+            limits: ResourceLimits {
+                memory_mb: row.memory_limit_mb.and_then(|v: i32| u32::try_from(v).ok()),
+                cpu_percent: row
+                    .cpu_limit_percent
+                    .and_then(|v: i32| u32::try_from(v).ok()),
+            },
             error: row.error,
             pending_dialogs: decode_pending_dialogs(&row.pending_dialogs)?,
             subagents: SubagentActivity::new(
@@ -180,6 +197,7 @@ mod tests {
             worktree_path: PathBuf::from("/tmp/wt"),
             status: TaskStatus::Merged,
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             error: None,
             pending_dialogs: Vec::new(),
             subagents: SubagentActivity::default(),

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::modules::tasks::domain::errors::task_error::TaskError;
+
 /// Límites de recursos de la ejecución de un agente. `None` deja el recurso sin límite.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceLimits {
@@ -21,6 +23,14 @@ impl ResourceLimits {
             memory_mb: self.memory_mb.or(fallback.memory_mb),
             cpu_percent: self.cpu_percent.or(fallback.cpu_percent),
         }
+    }
+
+    /// Rechaza límites definidos a cero (no tienen sentido para cgroups).
+    pub fn validated(self) -> Result<Self, TaskError> {
+        if self.memory_mb == Some(0) || self.cpu_percent == Some(0) {
+            return Err(TaskError::InvalidLimits);
+        }
+        Ok(self)
     }
 
     /// Propiedades de `systemd-run -p` equivalentes a los límites definidos.
@@ -57,6 +67,23 @@ mod tests {
             both.systemd_properties(),
             vec!["MemoryMax=512M", "CPUQuota=150%"]
         );
+    }
+
+    #[test]
+    fn zero_limits_are_invalid() {
+        for limits in [
+            ResourceLimits {
+                memory_mb: Some(0),
+                cpu_percent: None,
+            },
+            ResourceLimits {
+                memory_mb: None,
+                cpu_percent: Some(0),
+            },
+        ] {
+            assert_eq!(limits.validated(), Err(TaskError::InvalidLimits));
+        }
+        assert!(ResourceLimits::default().validated().is_ok());
     }
 
     #[test]

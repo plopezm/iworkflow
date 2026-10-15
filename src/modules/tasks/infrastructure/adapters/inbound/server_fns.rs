@@ -191,6 +191,7 @@ pub async fn start_task(id: String) -> Result<TaskDto, ServerFnError> {
 
 #[server(input = Json)]
 pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, ServerFnError> {
+    use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
     use crate::modules::tasks::domain::models::task::Task;
 
     let task: Task = support::context()?
@@ -200,6 +201,10 @@ pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, Se
             input.title,
             input.prompt,
             input.priority.into(),
+            ResourceLimits {
+                memory_mb: input.memory_limit_mb,
+                cpu_percent: input.cpu_limit_percent,
+            },
             input.images.into_iter().map(Into::into).collect(),
             input.remove_attachment_ids,
         )

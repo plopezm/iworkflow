@@ -11,6 +11,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::worktree::DiffRange;
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
@@ -243,6 +244,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         title: String,
         prompt: String,
         priority: TaskPriority,
+        limits: ResourceLimits,
     ) -> Result<bool, TaskError> {
         let mut connection: DbConnection = self.connection().await?;
         let now: NaiveDateTime = Utc::now().naive_utc();
@@ -255,6 +257,9 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
             tasks::title.eq(title),
             tasks::prompt.eq(prompt),
             tasks::priority.eq(priority.as_str()),
+            tasks::memory_limit_mb.eq(limits.memory_mb.and_then(|v: u32| i32::try_from(v).ok())),
+            tasks::cpu_limit_percent
+                .eq(limits.cpu_percent.and_then(|v: u32| i32::try_from(v).ok())),
             tasks::updated_at.eq(now),
         ))
         .execute(&mut connection)

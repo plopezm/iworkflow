@@ -180,7 +180,9 @@ impl StartTask {
         let prepared: LaunchOptions = self.launch_settings.prepare(&task.worktree_path).await?;
         let capabilities: AgentCapabilities =
             self.runtime.runtime_capabilities(prepared.runtime.as_ref());
-        let options: LaunchOptions = prepared.restricted_to(&capabilities);
+        let options: LaunchOptions = prepared
+            .with_task_limits(task.limits)
+            .restricted_to(&capabilities);
         let images: Vec<ImageAttachment> = self.load_images(task.id).await?;
         self.runtime
             .start(
@@ -211,6 +213,7 @@ mod tests {
     use crate::modules::tasks::application::test_support::{self, Recorded};
     use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
     use crate::modules::tasks::domain::models::launch_options::LaunchModel;
+    use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
     use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
     use crate::modules::tasks::mocks::{
         MockAgentEventSink, MockAgentRuntime, MockAttachmentStorage, MockLaunchSettings,
@@ -718,6 +721,56 @@ mod tests {
             Ok(LaunchOptions {
                 model: None,
                 thinking: Some("high".to_string()),
+                ..Default::default()
+            })
+        });
+        let use_case: StartTask = StartTask::new(
+            lifecycle_accepting_plan(task, &recorded),
+            Arc::new(worktrees()),
+            Arc::new(runtime),
+            Arc::new(launch_settings),
+            Arc::new(MockAgentEventSink::new()),
+            no_attachments(),
+            Arc::new(MockAttachmentStorage::new()),
+        );
+
+        let task: Task = use_case.execute(id).await.expect("iniciada");
+
+        assert_eq!(task.status, TaskStatus::Starting);
+    }
+
+    #[tokio::test]
+    async fn task_limits_override_global_limits_per_resource_on_start() {
+        let mut task: Task = test_support::task(TaskStatus::Backlog);
+        task.limits = ResourceLimits {
+            memory_mb: Some(1024),
+            cpu_percent: None,
+        };
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut runtime: MockAgentRuntime = MockAgentRuntime::new();
+        runtime
+            .expect_runtime_capabilities()
+            .returning(|_| AgentCapabilities::full());
+        runtime
+            .expect_start()
+            .withf(|_, _, _, options: &LaunchOptions, _| {
+                options.limits
+                    == ResourceLimits {
+                        memory_mb: Some(1024),
+                        cpu_percent: Some(200),
+                    }
+            })
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        runtime.expect_send().returning(|_, _| Ok(()));
+        let mut launch_settings: MockLaunchSettings = MockLaunchSettings::new();
+        launch_settings.expect_prepare().returning(|_| {
+            Ok(LaunchOptions {
+                limits: ResourceLimits {
+                    memory_mb: Some(4096),
+                    cpu_percent: Some(200),
+                },
                 ..Default::default()
             })
         });

@@ -8,6 +8,7 @@ use iworkflow::modules::tasks::domain::models::agent_event::AgentEvent;
 use iworkflow::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use iworkflow::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
 use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use iworkflow::modules::tasks::domain::models::worktree::DiffRange;
@@ -45,6 +46,7 @@ fn task(workspace_id: &str, title: &str) -> Task {
         worktree_path: PathBuf::from(format!("/wt/{title}")),
         status: TaskStatus::Starting,
         priority: TaskPriority::default(),
+        limits: ResourceLimits::default(),
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
@@ -176,6 +178,10 @@ async fn updates_details_only_while_in_backlog() {
             "Nuevo título".to_string(),
             "Nuevo prompt".to_string(),
             TaskPriority::High,
+            ResourceLimits {
+                memory_mb: Some(1024),
+                cpu_percent: Some(150),
+            },
         )
         .await
         .expect("update");
@@ -185,6 +191,7 @@ async fn updates_details_only_while_in_backlog() {
             "X".to_string(),
             "Y".to_string(),
             TaskPriority::Urgent,
+            ResourceLimits::default(),
         )
         .await
         .expect("update");
@@ -194,6 +201,7 @@ async fn updates_details_only_while_in_backlog() {
             "X".to_string(),
             "Y".to_string(),
             TaskPriority::Urgent,
+            ResourceLimits::default(),
         )
         .await
         .expect("update");
@@ -1038,4 +1046,36 @@ async fn updated_at_is_frozen_after_closing_so_done_order_is_stable() {
         .expect("evento");
 
     assert_eq!(found(&adapter, open.id).await.updated_at, closed_at);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn limits_persist_on_insert_and_update() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/a").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let limited: Task = Task {
+        limits: ResourceLimits {
+            memory_mb: Some(2048),
+            cpu_percent: None,
+        },
+        ..backlog_task(&ws.id.to_string(), "uno")
+    };
+    adapter.insert(&limited).await.expect("insert");
+    assert_eq!(found(&adapter, limited.id).await.limits, limited.limits);
+
+    let cleared: ResourceLimits = ResourceLimits {
+        memory_mb: None,
+        cpu_percent: Some(50),
+    };
+    adapter
+        .update_details_if_backlog(
+            limited.id,
+            "t".to_string(),
+            "p".to_string(),
+            TaskPriority::Normal,
+            cleared,
+        )
+        .await
+        .expect("update");
+    assert_eq!(found(&adapter, limited.id).await.limits, cleared);
 }

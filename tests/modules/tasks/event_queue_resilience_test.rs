@@ -19,6 +19,7 @@ use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivi
 use iworkflow::modules::tasks::domain::models::subagent_task::SubagentTask;
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+use iworkflow::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
 use iworkflow::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use iworkflow::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
@@ -163,6 +164,7 @@ async fn no_agent_event_is_lost_while_sqlite_stays_locked_past_busy_timeout() {
         worktree_path: PathBuf::from("/wt/viva"),
         status: TaskStatus::Running,
         priority: TaskPriority::default(),
+        limits: ResourceLimits::default(),
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
@@ -270,6 +272,7 @@ async fn flush_events_persists_everything_accepted_before_returning() {
         worktree_path: PathBuf::from("/wt/viva"),
         status: TaskStatus::Running,
         priority: TaskPriority::default(),
+        limits: ResourceLimits::default(),
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),

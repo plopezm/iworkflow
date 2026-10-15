@@ -63,6 +63,8 @@ diesel::table! {
         priority -> Text,
         base_sha -> Nullable<Text>,
         head_sha -> Nullable<Text>,
+        memory_limit_mb -> Nullable<Integer>,
+        cpu_limit_percent -> Nullable<Integer>,
     }
 }
 

@@ -454,6 +454,7 @@ mod tests {
             worktree_path: std::path::PathBuf::from(path),
             status,
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             error: None,
             pending_dialogs: Vec::new(),
             subagents: Default::default(),

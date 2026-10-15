@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::components::form::parse_positive_number;
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::agent_settings::infrastructure::adapters::inbound::dto::agent_settings_dto::{
     AgentSettingsDto, ModelOptionDto, ProfileCatalogDto,
@@ -24,11 +25,6 @@ fn decode_model_value(value: &str) -> Option<(String, String)> {
         return None;
     }
     Some((provider.to_string(), model.to_string()))
-}
-
-/// Interpreta el texto de un campo de límite: número positivo, o `None` (sin límite).
-pub fn parse_limit(value: &str) -> Option<u32> {
-    value.trim().parse::<u32>().ok().filter(|v: &u32| *v > 0)
 }
 
 /// Estado de la barra de ajustes del agente: carga del modelo/perfil actuales y del
@@ -147,7 +143,7 @@ impl AgentSettingsState {
     pub fn set_memory_limit(&self, current: &AgentSettingsDto, value: String) {
         self.update.dispatch(UpdateAgentSettings {
             input: AgentSettingsDto {
-                memory_limit_mb: parse_limit(&value),
+                memory_limit_mb: parse_positive_number(&value),
                 ..current.clone()
             },
         });
@@ -157,7 +153,7 @@ impl AgentSettingsState {
     pub fn set_cpu_limit(&self, current: &AgentSettingsDto, value: String) {
         self.update.dispatch(UpdateAgentSettings {
             input: AgentSettingsDto {
-                cpu_limit_percent: parse_limit(&value),
+                cpu_limit_percent: parse_positive_number(&value),
                 ..current.clone()
             },
         });
@@ -190,15 +186,6 @@ mod tests {
     #[test]
     fn decode_rejects_value_without_separator() {
         assert_eq!(decode_model_value("anthropic-claude-5"), None);
-    }
-
-    #[test]
-    fn parse_limit_accepts_positive_numbers_only() {
-        assert_eq!(parse_limit(" 2048 "), Some(2048));
-        assert_eq!(parse_limit("0"), None);
-        assert_eq!(parse_limit(""), None);
-        assert_eq!(parse_limit("-5"), None);
-        assert_eq!(parse_limit("abc"), None);
     }
 
     #[test]

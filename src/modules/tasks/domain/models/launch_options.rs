@@ -24,6 +24,14 @@ pub struct LaunchOptions {
 }
 
 impl LaunchOptions {
+    /// Aplica los límites propios de la tarea sobre los globales (por recurso).
+    pub fn with_task_limits(self, task: ResourceLimits) -> Self {
+        Self {
+            limits: task.or(self.limits),
+            ..self
+        }
+    }
+
     /// Descarta el modelo y el nivel de razonamiento que el runtime no soporta.
     pub fn restricted_to(self, capabilities: &AgentCapabilities) -> Self {
         Self {
@@ -49,6 +57,28 @@ mod tests {
             thinking: Some("high".to_string()),
             limits: ResourceLimits::default(),
         }
+    }
+
+    #[test]
+    fn task_limits_override_global_limits_per_resource() {
+        let global: LaunchOptions = LaunchOptions {
+            limits: ResourceLimits {
+                memory_mb: Some(4096),
+                cpu_percent: Some(200),
+            },
+            ..LaunchOptions::default()
+        };
+        let task: ResourceLimits = ResourceLimits {
+            memory_mb: Some(1024),
+            cpu_percent: None,
+        };
+        assert_eq!(
+            global.with_task_limits(task).limits,
+            ResourceLimits {
+                memory_mb: Some(1024),
+                cpu_percent: Some(200)
+            }
+        );
     }
 
     #[test]

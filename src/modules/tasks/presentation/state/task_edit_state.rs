@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::form::parse_positive_number;
+
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::{
     ImageAttachmentDto, TaskAttachmentDto,
 };
@@ -21,6 +23,8 @@ pub struct TaskEditState {
     pub form_prompt: RwSignal<String>,
     /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
     pub form_priority: RwSignal<String>,
+    pub form_memory_limit: RwSignal<String>,
+    pub form_cpu_limit: RwSignal<String>,
     /// Imágenes nuevas a añadir a las ya adjuntas.
     pub images: ImageAttachments,
     /// Imágenes ya guardadas en la tarea.
@@ -61,6 +65,8 @@ pub fn build_update_task_dto(
     title: String,
     prompt: String,
     priority: &str,
+    memory_limit: &str,
+    cpu_limit: &str,
     images: Vec<ImageAttachmentDto>,
     remove_attachment_ids: Vec<String>,
 ) -> UpdateTaskDto {
@@ -68,6 +74,8 @@ pub fn build_update_task_dto(
         title,
         prompt,
         priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
+        memory_limit_mb: parse_positive_number(memory_limit),
+        cpu_limit_percent: parse_positive_number(cpu_limit),
         images,
         remove_attachment_ids,
     }
@@ -97,6 +105,8 @@ impl TaskEditState {
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
+            form_memory_limit: RwSignal::new(String::new()),
+            form_cpu_limit: RwSignal::new(String::new()),
             images,
             attachments,
             removed_ids,
@@ -125,6 +135,16 @@ impl TaskEditState {
         self.form_title.set(task.title.clone());
         self.form_prompt.set(task.prompt.clone());
         self.form_priority.set(task.priority.as_str().to_string());
+        self.form_memory_limit.set(
+            task.memory_limit_mb
+                .map(|v: u32| v.to_string())
+                .unwrap_or_default(),
+        );
+        self.form_cpu_limit.set(
+            task.cpu_limit_percent
+                .map(|v: u32| v.to_string())
+                .unwrap_or_default(),
+        );
     }
 
     pub fn submit(&self) {
@@ -134,6 +154,8 @@ impl TaskEditState {
                 self.form_title.get_untracked(),
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
+                &self.form_memory_limit.get_untracked(),
+                &self.form_cpu_limit.get_untracked(),
                 self.images.images.get_untracked(),
                 self.removed_ids.get_untracked(),
             ),
@@ -167,6 +189,8 @@ mod tests {
             worktree_path: "/wt".to_string(),
             status: TaskStatusDto::Idle,
             priority: Default::default(),
+            memory_limit_mb: None,
+            cpu_limit_percent: None,
             error: None,
             actions: Default::default(),
             stage: TaskStageDto::Backlog,
@@ -188,12 +212,16 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             "urgent",
+            "512",
+            "150",
             vec![image.clone()],
             vec!["a1".to_string()],
         );
         assert_eq!(dto.images, vec![image]);
         assert_eq!(dto.remove_attachment_ids, vec!["a1".to_string()]);
         assert_eq!(dto.priority, TaskPriorityDto::Urgent);
+        assert_eq!(dto.memory_limit_mb, Some(512));
+        assert_eq!(dto.cpu_limit_percent, Some(150));
     }
 
     fn stored(id: &str) -> TaskAttachmentDto {
