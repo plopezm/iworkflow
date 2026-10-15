@@ -22,8 +22,9 @@ const MODEL_FLAG: &str = "--model";
 const EFFORT_FLAG: &str = "--effort";
 
 /// Argumentos que ponen a `claude` en modo no interactivo con entrada y salida stream-json y
-/// los permisos resueltos por el anfitrión (`control_request`/`can_use_tool`).
-const STREAM_JSON_ARGS: [&str; 10] = [
+/// los permisos resueltos por el anfitrión (`control_request`/`can_use_tool`). Las ediciones de
+/// ficheros se aceptan (`acceptEdits`); el resto de herramientas pide confirmación.
+const STREAM_JSON_ARGS: [&str; 12] = [
     "-p",
     "--input-format",
     "stream-json",
@@ -34,6 +35,8 @@ const STREAM_JSON_ARGS: [&str; 10] = [
     "--replay-user-messages",
     "--permission-prompt-tool",
     "stdio",
+    "--permission-mode",
+    "acceptEdits",
 ];
 
 /// Lanza y controla procesos de Claude Code (`claude -p` con stream-json), uno por tarea.
@@ -177,6 +180,20 @@ mod tests {
         assert_eq!(
             launch_args(&adapter.base_args, false, &LaunchOptions::default()),
             STREAM_JSON_ARGS
+        );
+    }
+
+    #[test]
+    fn default_args_accept_edits_and_leave_the_rest_to_the_user() {
+        let adapter: ClaudeStreamRuntimeAdapter = ClaudeStreamRuntimeAdapter::new("claude");
+        let args: Vec<String> = launch_args(&adapter.base_args, false, &LaunchOptions::default());
+
+        let position: Option<usize> = args.iter().position(|a: &String| a == "--permission-mode");
+        assert_eq!(
+            position
+                .and_then(|i: usize| args.get(i + 1))
+                .map(String::as_str),
+            Some("acceptEdits")
         );
     }
 
