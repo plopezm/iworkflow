@@ -1,6 +1,5 @@
 use leptos::prelude::*;
 
-use crate::core::components::form::NumberInput;
 use crate::core::components::layout::ErrorText;
 use crate::core::components::select::{OptionSelect, SelectOption};
 use crate::core::components::toast::ToastStack;
@@ -119,7 +118,7 @@ fn profile_option_label(name: &str, active: Option<&str>) -> String {
 /// `gentle-shell --list-models`) no bloquee el resto de la barra ni de la página.
 #[component]
 pub fn AgentSettingsBar() -> impl IntoView {
-    let state: AgentSettingsState = AgentSettingsState::new();
+    let state: AgentSettingsState = AgentSettingsState::shared();
     let pending: Signal<bool> = state.update.pending().into();
 
     Effect::new(move |_| {
@@ -277,64 +276,6 @@ pub fn AgentSettingsBar() -> impl IntoView {
                             })
                             disabled=pending
                             icon=profile_icon
-                        />
-                    }
-                        .into_any()
-                })}
-            </Transition>
-            <Transition fallback=|| view! {
-                <span class="select-pill-skeleton" aria-hidden="true"></span>
-            }>
-                {move || Suspend::new(async move {
-                    let settings: AgentSettingsDto = match state.settings.await {
-                        Ok(settings) => settings,
-                        Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
-                    };
-                    let memory: String = settings
-                        .memory_limit_mb
-                        .map(|v: u32| v.to_string())
-                        .unwrap_or_default();
-                    let cpu: String = settings
-                        .cpu_limit_percent
-                        .map(|v: u32| v.to_string())
-                        .unwrap_or_default();
-                    let for_memory: AgentSettingsDto = settings.clone();
-                    let for_toggle: AgentSettingsDto = settings.clone();
-                    let enabled: bool = !settings.limits_disabled;
-                    let inputs_disabled: Signal<bool> =
-                        Signal::derive(move || pending.get() || !enabled);
-                    view! {
-                        <label class="row items-center gap-2 text-sm text-fg">
-                            <input
-                                type="checkbox"
-                                class="h-4 w-4"
-                                prop:checked=enabled
-                                disabled=move || pending.get()
-                                on:change=move |ev| {
-                                    state.set_limits_enabled(&for_toggle, event_target_checked(&ev))
-                                }
-                            />
-                            "Limitar recursos del agente"
-                        </label>
-                        <NumberInput
-                            label="RAM"
-                            value=memory
-                            unit="MiB"
-                            placeholder="sin límite"
-                            on_change=Callback::new(move |value: String| {
-                                state.set_memory_limit(&for_memory, value)
-                            })
-                            disabled=inputs_disabled
-                        />
-                        <NumberInput
-                            label="CPU"
-                            value=cpu
-                            unit="%"
-                            placeholder="sin límite"
-                            on_change=Callback::new(move |value: String| {
-                                state.set_cpu_limit(&settings, value)
-                            })
-                            disabled=inputs_disabled
                         />
                     }
                         .into_any()

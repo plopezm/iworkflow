@@ -42,6 +42,12 @@ pub struct AgentSettingsState {
 }
 
 impl AgentSettingsState {
+    /// Estado compartido de la aplicación (provisto por `App`), para que la barra y la pantalla
+    /// de configuración vean siempre los mismos ajustes; crea uno propio si no hay contexto.
+    pub fn shared() -> Self {
+        use_context::<Self>().unwrap_or_default()
+    }
+
     pub fn new() -> Self {
         let update: ServerAction<UpdateAgentSettings> = ServerAction::new();
         let settings: Resource<Result<AgentSettingsDto, ServerFnError>> =

@@ -23,3 +23,4 @@ settings plus per-task override (task value wins).
 - T2 commit: a6d4722
 - T3 commit: dcaa22d
 - L3: user: "En configuración quiero poder deshabilitarlo, es decir, que la limitación sea opcional" -> master switch limits_disabled in agent settings (ignores global and per-task limits)
+- L4: user: "no, quiero un nuevo menú que se llame configuración. Ponlo en esa nueva pantalla" -> /settings screen "Configuración" holds the limits switch + RAM/CPU; removed from sidebar bar; AgentSettingsState shared via context
