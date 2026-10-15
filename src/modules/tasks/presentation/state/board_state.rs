@@ -8,10 +8,11 @@ use crate::core::components::form::parse_positive_number;
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
+    BranchOptionDto, CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_done_tasks,
+    list_workspace_branches,
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
@@ -299,6 +300,10 @@ pub struct BoardState {
     pub form_memory_limit: RwSignal<String>,
     pub form_cpu_limit: RwSignal<String>,
     pub form_start_now: RwSignal<bool>,
+    /// Rama de la que parte el worktree; vacío = base del workspace.
+    pub form_base_branch: RwSignal<String>,
+    /// Ramas del workspace elegido en el formulario (vacías mientras no haya ninguno).
+    pub branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>>,
     /// Imágenes adjuntas al prompt inicial.
     pub images: ImageAttachments,
     pub toasts: RwSignal<Vec<ToastMessage>>,
@@ -316,6 +321,8 @@ pub fn start_failed_after_create_text(error: &str) -> String {
 
 /// Construye el DTO de alta con las imágenes adjuntas (función pura). `limits` es el texto de
 /// los campos (RAM MiB, CPU %).
+// Un argumento por campo del formulario de alta; agruparlos solo movería el problema.
+#[allow(clippy::too_many_arguments)]
 pub fn build_create_task_dto(
     workspace_id: String,
     title: String,
@@ -323,6 +330,7 @@ pub fn build_create_task_dto(
     priority: &str,
     (memory_limit, cpu_limit): (&str, &str),
     start_now: bool,
+    base_branch: &str,
     images: Vec<ImageAttachmentDto>,
 ) -> CreateTaskDto {
     CreateTaskDto {
@@ -333,8 +341,17 @@ pub fn build_create_task_dto(
         memory_limit_mb: parse_positive_number(memory_limit),
         cpu_limit_percent: parse_positive_number(cpu_limit),
         start_now,
+        base_branch: Some(base_branch.trim().to_string()).filter(|b: &String| !b.is_empty()),
         images,
     }
+}
+
+/// Nombre de la rama actual (HEAD) entre las ramas listadas, si hay alguna.
+pub fn current_branch(branches: &[BranchOptionDto]) -> Option<String> {
+    branches
+        .iter()
+        .find(|b: &&BranchOptionDto| b.current)
+        .map(|b: &BranchOptionDto| b.name.clone())
 }
 
 impl BoardState {
@@ -381,6 +398,29 @@ impl BoardState {
             }
         });
         let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = store.workspaces;
+        let form_workspace_id: RwSignal<String> = RwSignal::new(String::new());
+        let form_base_branch: RwSignal<String> = RwSignal::new(String::new());
+        let branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>> = Resource::new(
+            move || form_workspace_id.get(),
+            |workspace_id: String| async move {
+                if workspace_id.is_empty() {
+                    Ok(Vec::new())
+                } else {
+                    list_workspace_branches(workspace_id).await
+                }
+            },
+        );
+        // Una rama elegida para otro workspace ya no vale.
+        Effect::new(move |_| {
+            form_workspace_id.track();
+            form_base_branch.set(String::new());
+        });
+        // Por defecto, la rama actual del repositorio del workspace elegido.
+        Effect::new(move |_| {
+            if let Some(Ok(loaded)) = branches.get() {
+                form_base_branch.set(current_branch(&loaded).unwrap_or_default());
+            }
+        });
 
         Self {
             store,
@@ -396,13 +436,15 @@ impl BoardState {
             finish,
             merge,
             modal_open: RwSignal::new(false),
-            form_workspace_id: RwSignal::new(String::new()),
+            form_workspace_id,
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
             form_memory_limit: RwSignal::new(String::new()),
             form_cpu_limit: RwSignal::new(String::new()),
             form_start_now: RwSignal::new(false),
+            form_base_branch,
+            branches,
             images: ImageAttachments::new(),
             toasts: RwSignal::new(Vec::new()),
             toast_seq: RwSignal::new(0),
@@ -424,6 +466,7 @@ impl BoardState {
         self.form_memory_limit.set(String::new());
         self.form_cpu_limit.set(String::new());
         self.form_start_now.set(false);
+        self.form_base_branch.set(String::new());
         self.images.clear();
         self.modal_open.set(true);
     }
@@ -446,6 +489,7 @@ impl BoardState {
                     &self.form_cpu_limit.get_untracked(),
                 ),
                 self.form_start_now.get_untracked(),
+                &self.form_base_branch.get_untracked(),
                 self.images.images.get_untracked(),
             ),
         });
@@ -533,13 +577,43 @@ mod tests {
             "high",
             ("2048", "0"),
             true,
+            "origin/develop",
             vec![image.clone()],
         );
         assert_eq!(dto.memory_limit_mb, Some(2048));
         assert_eq!(dto.cpu_limit_percent, None);
         assert_eq!(dto.images, vec![image]);
+        assert_eq!(dto.base_branch.as_deref(), Some("origin/develop"));
         assert_eq!(dto.priority, TaskPriorityDto::High);
         assert!(dto.start_now);
+    }
+
+    #[test]
+    fn create_dto_leaves_the_base_branch_unset_when_blank() {
+        let dto: CreateTaskDto = build_create_task_dto(
+            "ws".to_string(),
+            String::new(),
+            "haz algo".to_string(),
+            "normal",
+            ("", ""),
+            false,
+            "  ",
+            Vec::new(),
+        );
+        assert_eq!(dto.base_branch, None);
+    }
+
+    #[test]
+    fn current_branch_is_the_one_flagged_as_head() {
+        let branch = |name: &str, current: bool| BranchOptionDto {
+            name: name.to_string(),
+            remote: false,
+            current,
+        };
+        let listed: Vec<BranchOptionDto> = vec![branch("main", false), branch("feat", true)];
+
+        assert_eq!(current_branch(&listed), Some("feat".to_string()));
+        assert_eq!(current_branch(&[branch("main", false)]), None);
     }
 
     #[test]

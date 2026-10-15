@@ -120,6 +120,7 @@ impl UpdateTask {
             prompt,
             priority,
             limits,
+            base_branch: None,
             images: Vec::new(),
             start_now: false,
         }

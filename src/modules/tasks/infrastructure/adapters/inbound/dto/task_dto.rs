@@ -214,6 +214,9 @@ pub struct CreateTaskDto {
     pub cpu_limit_percent: Option<u32>,
     #[serde(default)]
     pub start_now: bool,
+    /// Rama (local o remota) de la que parte el worktree; vacío = base del workspace.
+    #[serde(default)]
+    pub base_branch: Option<String>,
     #[serde(default)]
     pub images: Vec<ImageAttachmentDto>,
 }
@@ -383,6 +386,7 @@ mod mapping {
                     memory_mb: dto.memory_limit_mb,
                     cpu_percent: dto.cpu_limit_percent,
                 },
+                base_branch: dto.base_branch,
                 images: dto.images.into_iter().map(Into::into).collect(),
                 start_now: dto.start_now,
             }
@@ -631,6 +635,28 @@ mod mapping {
         }
 
         #[test]
+        fn create_task_dto_maps_base_branch_to_new_task() {
+            let dto: CreateTaskDto = CreateTaskDto {
+                base_branch: Some("origin/develop".to_string()),
+                ..Default::default()
+            };
+
+            assert_eq!(
+                NewTask::from(dto).base_branch.as_deref(),
+                Some("origin/develop")
+            );
+        }
+
+        #[test]
+        fn missing_base_branch_in_payload_defaults_to_none() {
+            let create: CreateTaskDto =
+                serde_json::from_str(r#"{"workspace_id":"w","title":"t","prompt":"p"}"#)
+                    .expect("create");
+
+            assert_eq!(create.base_branch, None);
+        }
+
+        #[test]
         fn missing_priority_in_payload_defaults_to_normal() {
             let create: CreateTaskDto =
                 serde_json::from_str(r#"{"workspace_id":"w","title":"t","prompt":"p"}"#)
@@ -692,5 +718,51 @@ impl From<crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef>
             name: workspace.name,
             base_branch: workspace.base_branch,
         }
+    }
+}
+
+/// Rama (local o remota) sobre la que se puede basar una tarea.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BranchOptionDto {
+    /// Nombre tal y como lo resuelve git: `main` o `origin/develop`.
+    pub name: String,
+    pub remote: bool,
+    /// Rama actual (HEAD) del repositorio: valor por defecto del desplegable.
+    pub current: bool,
+}
+
+#[cfg(feature = "ssr")]
+impl From<crate::modules::tasks::domain::models::branch_option::BranchOption> for BranchOptionDto {
+    fn from(branch: crate::modules::tasks::domain::models::branch_option::BranchOption) -> Self {
+        Self {
+            name: branch.name,
+            remote: branch.remote,
+            current: branch.current,
+        }
+    }
+}
+
+#[cfg(all(test, feature = "ssr"))]
+mod branch_option_tests {
+    use super::*;
+    use crate::modules::tasks::domain::models::branch_option::BranchOption;
+
+    #[test]
+    fn branch_option_maps_to_dto() {
+        let dto: BranchOptionDto = BranchOption {
+            name: "origin/develop".to_string(),
+            remote: true,
+            current: false,
+        }
+        .into();
+
+        assert_eq!(
+            dto,
+            BranchOptionDto {
+                name: "origin/develop".to_string(),
+                remote: true,
+                current: false,
+            }
+        );
     }
 }

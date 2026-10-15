@@ -332,7 +332,6 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
                 .set((
                     tasks::branch.eq(""),
                     tasks::worktree_path.eq(""),
-                    tasks::base_branch.eq(""),
                     tasks::status.eq(TaskStatus::Backlog.as_str()),
                     tasks::error.eq(None::<String>),
                     tasks::pending_dialogs.eq(encode_pending_dialogs(&[])),

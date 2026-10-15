@@ -7,7 +7,7 @@ use crate::core::components::form::{
 use crate::core::components::modal::Modal;
 use crate::core::dock::link::TabLink;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    TaskPriorityDto, WorkspaceOptionDto,
+    BranchOptionDto, TaskPriorityDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
 use crate::modules::tasks::presentation::state::board_state::BoardState;
@@ -23,11 +23,72 @@ pub fn priority_select_options() -> Vec<SelectOption> {
         .collect()
 }
 
+/// Etiqueta de una rama en el desplegable de rama base.
+pub fn branch_option_label(branch: &BranchOptionDto) -> String {
+    if branch.remote {
+        format!("{} (remota)", branch.name)
+    } else {
+        branch.name.clone()
+    }
+}
+
+/// Desplegable con las ramas locales y remotas del workspace elegido; vacío = rama base del
+/// workspace.
+#[component]
+fn BaseBranchSelect(
+    state: BoardState,
+    workspaces: StoredValue<Vec<WorkspaceOptionDto>>,
+) -> impl IntoView {
+    view! {
+        <Suspense fallback=|| {
+            view! { <p class="muted text-sm">"Cargando ramas…"</p> }
+        }>
+            {move || {
+                let branches: Vec<BranchOptionDto> = state
+                    .branches
+                    .get()
+                    .and_then(Result::ok)
+                    .unwrap_or_default();
+                let workspace_id: String = state.form_workspace_id.get();
+                if workspace_id.is_empty() {
+                    return ().into_any();
+                }
+                let default_branch: String = workspaces
+                    .with_value(|all: &Vec<WorkspaceOptionDto>| {
+                        all.iter()
+                            .find(|w: &&WorkspaceOptionDto| w.id == workspace_id)
+                            .map(|w: &WorkspaceOptionDto| w.base_branch.clone())
+                            .unwrap_or_default()
+                    });
+                let options: Vec<SelectOption> = branches
+                    .iter()
+                    .map(|b: &BranchOptionDto| SelectOption {
+                        value: b.name.clone(),
+                        label: branch_option_label(b),
+                    })
+                    .collect();
+                view! {
+                    <SelectField
+                        label="Rama base"
+                        value=state.form_base_branch
+                        options=options
+                        placeholder=format!("Rama del workspace ({default_branch})")
+                    />
+                }
+                    .into_any()
+            }}
+        </Suspense>
+    }
+}
+
 /// Modal de alta de tarea (Backlog o iniciada). La edición vive en su propia pantalla.
 #[component]
 pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl IntoView {
     let pending: Signal<bool> = Signal::derive(move || state.create.pending().get());
     let has_workspaces: bool = !workspaces.is_empty();
+    let branch_workspaces: StoredValue<Vec<WorkspaceOptionDto>> =
+        StoredValue::new(workspaces.clone());
+
     let options: StoredValue<Vec<SelectOption>> = StoredValue::new(
         workspaces
             .iter()
@@ -73,6 +134,7 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                         }
                             .into_any()
                 }}
+                <BaseBranchSelect state=state workspaces=branch_workspaces />
                 <TextField
                     label="Título (opcional)"
                     value=state.form_title
@@ -150,5 +212,22 @@ mod tests {
 
         assert_eq!(labels, vec!["Baja", "Normal", "Alta", "Urgente"]);
         assert_eq!(values, vec!["low", "normal", "high", "urgent"]);
+    }
+
+    #[test]
+    fn remote_branches_are_labelled() {
+        let remote: BranchOptionDto = BranchOptionDto {
+            name: "origin/develop".to_string(),
+            remote: true,
+            current: false,
+        };
+        let local: BranchOptionDto = BranchOptionDto {
+            name: "main".to_string(),
+            remote: false,
+            current: true,
+        };
+
+        assert_eq!(branch_option_label(&remote), "origin/develop (remota)");
+        assert_eq!(branch_option_label(&local), "main");
     }
 }
