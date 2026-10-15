@@ -14,5 +14,7 @@ pub mod http;
 #[cfg(feature = "ssr")]
 pub mod launch;
 pub mod markdown;
+#[cfg(feature = "ssr")]
+pub mod process;
 pub mod refresh;
 pub mod url_path;
