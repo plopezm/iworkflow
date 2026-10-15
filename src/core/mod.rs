@@ -15,3 +15,4 @@ pub mod http;
 pub mod launch;
 pub mod markdown;
 pub mod refresh;
+pub mod url_path;

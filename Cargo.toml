@@ -169,6 +169,11 @@ path = "tests/modules/project_tree/fs_directory_reader_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]
+name = "fs_file_store_adapter_test"
+path = "tests/modules/project_tree/fs_file_store_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "profile_store_file_adapter_test"
 path = "tests/modules/agent_profiles/profile_store_file_adapter_test.rs"
 required-features = ["ssr"]

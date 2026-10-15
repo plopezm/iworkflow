@@ -471,6 +471,24 @@ impl DockLayout {
         }
     }
 
+    /// Abre `path` en el grupo situado a la derecha de `from` (el siguiente en el árbol), o en
+    /// una división nueva a su derecha si no existe. Si `path` ya está abierto solo lo activa.
+    pub fn open_beside(&mut self, path: &str, title: &str, from: GroupId) -> TabId {
+        if self.find_path(path).is_some() || self.group(from).is_none() {
+            return self.open(path, title, Some(from));
+        }
+        let order: Vec<GroupId> = self.leaf_order();
+        let next: Option<GroupId> = order
+            .iter()
+            .position(|g: &GroupId| *g == from)
+            .and_then(|i: usize| order.get(i + 1).copied());
+        let target: GroupId = match next {
+            Some(group) => group,
+            None => self.split_group(from, SplitDir::Row),
+        };
+        self.open(path, title, Some(target))
+    }
+
     /// Divide `group` creando uno nuevo y vacío a su derecha (`Row`) o debajo (`Column`).
     pub fn split_group(&mut self, group: GroupId, dir: SplitDir) -> GroupId {
         let new_group: GroupId = self.fresh_id();
@@ -607,6 +625,34 @@ mod tests {
         let group: &TabGroup = layout.group(layout.focused).expect("focused group");
         assert_eq!(group.tabs.len(), 2);
         assert_eq!(group.active, Some(b));
+    }
+
+    #[test]
+    fn open_beside_splits_once_then_reuses_the_right_group() {
+        let mut layout: DockLayout = DockLayout::new();
+        let tree: GroupId = layout.focused;
+        layout.open("/tree", "T", None);
+
+        layout.open_beside("/f1", "F1", tree);
+        assert_eq!(layout.groups.len(), 2);
+        let right: GroupId = layout.focused;
+        assert_ne!(right, tree);
+
+        layout.open_beside("/f2", "F2", tree);
+        assert_eq!(layout.groups.len(), 2);
+        assert_eq!(layout.group(right).expect("right").tabs.len(), 2);
+        assert_eq!(layout.group(tree).expect("tree").tabs.len(), 1);
+        assert!(layout.is_consistent());
+    }
+
+    #[test]
+    fn open_beside_existing_path_only_activates() {
+        let mut layout: DockLayout = DockLayout::new();
+        let tree: GroupId = layout.focused;
+        let first: TabId = layout.open_beside("/f1", "F1", tree);
+        let again: TabId = layout.open_beside("/f1", "F1", tree);
+        assert_eq!(first, again);
+        assert_eq!(layout.groups.len(), 2);
     }
 
     #[test]

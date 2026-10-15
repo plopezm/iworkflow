@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "ssr")]
 use crate::modules::project_tree::domain::models::project_directory::ProjectDirectory;
 #[cfg(feature = "ssr")]
+use crate::modules::project_tree::domain::models::project_file::ProjectFile;
+#[cfg(feature = "ssr")]
 use crate::modules::project_tree::domain::models::tree_entry::{TreeEntry, TreeEntryKind};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -19,6 +21,25 @@ pub struct ProjectDirectoryDto {
     /// Path relative to the project root; empty means the root itself.
     pub path: String,
     pub entries: Vec<TreeEntryDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProjectFileDto {
+    pub name: String,
+    /// Path relative to the project root, `/`-separated.
+    pub path: String,
+    pub content: String,
+}
+
+#[cfg(feature = "ssr")]
+impl From<ProjectFile> for ProjectFileDto {
+    fn from(file: ProjectFile) -> Self {
+        Self {
+            name: file.name,
+            path: file.path,
+            content: file.content,
+        }
+    }
 }
 
 #[cfg(feature = "ssr")]
@@ -52,6 +73,24 @@ impl From<ProjectDirectory> for ProjectDirectoryDto {
 mod tests {
     use super::*;
     use crate::modules::project_tree::domain::models::directory_contents::DirectoryContents;
+
+    #[test]
+    fn maps_file_to_dto() {
+        let dto: ProjectFileDto = ProjectFileDto::from(ProjectFile {
+            name: "a.rs".to_string(),
+            path: "src/a.rs".to_string(),
+            content: "x".to_string(),
+        });
+
+        assert_eq!(
+            dto,
+            ProjectFileDto {
+                name: "a.rs".to_string(),
+                path: "src/a.rs".to_string(),
+                content: "x".to_string(),
+            }
+        );
+    }
 
     #[test]
     fn maps_directory_to_dto() {

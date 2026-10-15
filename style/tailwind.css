@@ -787,6 +787,168 @@ body.dock-resizing .xterm {
   overflow-x: auto;
 }
 
+/* ── Code viewer / editor (VS Code Dark+ / Light+ token colors) ───────── */
+:root {
+  --tok-keyword: #0000ff;
+  --tok-control: #af00db;
+  --tok-string: #a31515;
+  --tok-number: #098658;
+  --tok-comment: #008000;
+  --tok-function: #795e26;
+  --tok-type: #267f99;
+  --tok-variable: #001080;
+  --tok-tag: #800000;
+  --tok-attr: #e50000;
+  --tok-regexp: #811f3f;
+  --tok-add: #098658;
+  --tok-del: #a31515;
+}
+:root[data-theme="dark"] {
+  --tok-keyword: #569cd6;
+  --tok-control: #c586c0;
+  --tok-string: #ce9178;
+  --tok-number: #b5cea8;
+  --tok-comment: #6a9955;
+  --tok-function: #dcdcaa;
+  --tok-type: #4ec9b0;
+  --tok-variable: #9cdcfe;
+  --tok-tag: #569cd6;
+  --tok-attr: #9cdcfe;
+  --tok-regexp: #d16969;
+  --tok-add: #b5cea8;
+  --tok-del: #ce9178;
+}
+.code-box {
+  @apply flex min-h-0 flex-1 bg-bg font-mono text-xs;
+  line-height: 1.25rem;
+  tab-size: 4;
+}
+.code-box-view {
+  @apply overflow-auto;
+}
+.code-box-edit {
+  @apply overflow-hidden;
+}
+.code-gutter,
+.code-text,
+.code-input {
+  @apply m-0 font-mono text-xs;
+  line-height: 1.25rem;
+  tab-size: 4;
+  white-space: pre;
+}
+.code-gutter {
+  @apply select-none border-r border-border bg-bg px-3 py-3 text-right text-muted;
+  min-width: 3.25rem;
+  position: sticky;
+  left: 0;
+}
+.code-gutter-edit {
+  @apply shrink-0 overflow-hidden;
+  position: static;
+  /* Same extra tail as the editor layers so both scroll the same distance. */
+  padding-bottom: 3rem;
+}
+.code-text {
+  @apply px-3 py-3 text-fg;
+  min-width: max-content;
+}
+.code-stack {
+  @apply relative min-w-0 flex-1;
+}
+.code-layer {
+  @apply absolute inset-0 overflow-hidden;
+  padding-bottom: 3rem;
+  padding-right: 3rem;
+  min-width: 0;
+  pointer-events: none;
+}
+.code-input {
+  @apply absolute inset-0 h-full w-full resize-none overflow-auto border-0 bg-transparent px-3 py-3 outline-none;
+  padding-bottom: 3rem;
+  padding-right: 3rem;
+  color: transparent;
+  caret-color: var(--c-fg);
+  -webkit-text-fill-color: transparent;
+}
+.code-input::selection {
+  background: color-mix(in srgb, var(--c-accent) 28%, transparent);
+  -webkit-text-fill-color: transparent;
+}
+.code-input:disabled {
+  @apply opacity-60;
+}
+.code-text .hljs-comment,
+.code-text .hljs-quote {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.code-text .hljs-keyword,
+.code-text .hljs-literal,
+.code-text .hljs-selector-tag,
+.code-text .hljs-doctag {
+  color: var(--tok-keyword);
+}
+.code-text .hljs-meta,
+.code-text .hljs-meta .hljs-keyword {
+  color: var(--tok-control);
+}
+.code-text .hljs-string,
+.code-text .hljs-meta .hljs-string,
+.code-text .hljs-template-tag {
+  color: var(--tok-string);
+}
+.code-text .hljs-number,
+.code-text .hljs-symbol,
+.code-text .hljs-bullet {
+  color: var(--tok-number);
+}
+.code-text .hljs-title,
+.code-text .hljs-title.function_,
+.code-text .hljs-section {
+  color: var(--tok-function);
+}
+.code-text .hljs-title.class_,
+.code-text .hljs-type,
+.code-text .hljs-built_in,
+.code-text .hljs-title.class_.inherited__ {
+  color: var(--tok-type);
+}
+.code-text .hljs-variable,
+.code-text .hljs-params,
+.code-text .hljs-property,
+.code-text .hljs-template-variable,
+.code-text .hljs-selector-id,
+.code-text .hljs-selector-class {
+  color: var(--tok-variable);
+}
+.code-text .hljs-tag,
+.code-text .hljs-name {
+  color: var(--tok-tag);
+}
+.code-text .hljs-attr,
+.code-text .hljs-attribute,
+.code-text .hljs-selector-attr,
+.code-text .hljs-selector-pseudo {
+  color: var(--tok-attr);
+}
+.code-text .hljs-regexp,
+.code-text .hljs-link {
+  color: var(--tok-regexp);
+}
+.code-text .hljs-addition {
+  color: var(--tok-add);
+}
+.code-text .hljs-deletion {
+  color: var(--tok-del);
+}
+.code-text .hljs-emphasis {
+  font-style: italic;
+}
+.code-text .hljs-strong {
+  font-weight: 700;
+}
+
 /* ── Scrollbar styling ──────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;

@@ -16,6 +16,10 @@ pub fn TabLink(
     #[prop(into)] href: String,
     #[prop(optional, into)] title: Option<String>,
     #[prop(optional, into)] class: Signal<String>,
+    #[prop(optional, into)] style: Option<String>,
+    /// Abre la pestaña en el grupo de la derecha en lugar de en el actual.
+    #[prop(optional)]
+    beside: bool,
     children: Children,
 ) -> impl IntoView {
     let nav: TabNav = use_tab_nav();
@@ -24,11 +28,16 @@ pub fn TabLink(
         <a
             href=href
             class=move || class.get()
+            style=style
             on:click=move |ev: leptos::ev::MouseEvent| {
                 if ev.button() != 0 || ev.ctrl_key() || ev.meta_key() || ev.shift_key() {
                     return;
                 }
                 ev.prevent_default();
+                if beside {
+                    nav.open_beside(&target);
+                    return;
+                }
                 match &title {
                     Some(t) => nav.open_titled(&target, t),
                     None => nav.open(&target),
