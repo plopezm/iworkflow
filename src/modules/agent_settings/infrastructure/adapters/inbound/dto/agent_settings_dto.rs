@@ -7,6 +7,8 @@ pub struct AgentSettingsDto {
     pub model_id: Option<String>,
     pub profile: Option<String>,
     pub thinking: Option<String>,
+    pub memory_limit_mb: Option<u32>,
+    pub cpu_limit_percent: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -32,6 +34,16 @@ mod mapping {
     use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
     use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
 
+    /// Un límite definido debe ser mayor que cero (0 no tiene sentido para cgroups).
+    fn positive_limit(value: Option<u32>, name: &str) -> Result<Option<u32>, AgentSettingsError> {
+        match value {
+            Some(0) => Err(AgentSettingsError::InvalidLimit(format!(
+                "el límite de {name} debe ser mayor que 0"
+            ))),
+            other => Ok(other),
+        }
+    }
+
     impl From<AgentSettings> for AgentSettingsDto {
         fn from(settings: AgentSettings) -> Self {
             Self {
@@ -52,6 +64,8 @@ mod mapping {
                     .thinking
                     .as_ref()
                     .map(|t: &ThinkingLevel| t.as_str().to_string()),
+                memory_limit_mb: settings.memory_limit_mb,
+                cpu_limit_percent: settings.cpu_limit_percent,
             }
         }
     }
@@ -86,6 +100,8 @@ mod mapping {
                 model,
                 profile,
                 thinking,
+                memory_limit_mb: positive_limit(dto.memory_limit_mb, "memoria")?,
+                cpu_limit_percent: positive_limit(dto.cpu_limit_percent, "CPU")?,
             })
         }
     }
@@ -215,6 +231,37 @@ mod mapping {
             let result: Result<AgentSettings, AgentSettingsError> = AgentSettings::try_from(dto);
 
             assert!(matches!(result, Err(AgentSettingsError::InvalidRuntime(_))));
+        }
+
+        #[test]
+        fn limits_roundtrip_through_dto() {
+            let settings: AgentSettings = AgentSettings {
+                memory_limit_mb: Some(2048),
+                cpu_limit_percent: Some(150),
+                ..AgentSettings::default()
+            };
+            let back: AgentSettings =
+                AgentSettings::try_from(AgentSettingsDto::from(settings.clone())).expect("dto");
+            assert_eq!(back, settings);
+        }
+
+        #[test]
+        fn zero_limits_are_rejected() {
+            for dto in [
+                AgentSettingsDto {
+                    memory_limit_mb: Some(0),
+                    ..AgentSettingsDto::default()
+                },
+                AgentSettingsDto {
+                    cpu_limit_percent: Some(0),
+                    ..AgentSettingsDto::default()
+                },
+            ] {
+                assert!(matches!(
+                    AgentSettings::try_from(dto),
+                    Err(AgentSettingsError::InvalidLimit(_))
+                ));
+            }
         }
 
         #[test]

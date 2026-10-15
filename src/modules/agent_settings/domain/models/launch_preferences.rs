@@ -11,4 +11,6 @@ pub struct LaunchPreferences {
     pub runtime: Option<AgentRuntime>,
     pub model: Option<ModelRef>,
     pub thinking: Option<ThinkingLevel>,
+    pub memory_limit_mb: Option<u32>,
+    pub cpu_limit_percent: Option<u32>,
 }

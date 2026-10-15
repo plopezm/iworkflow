@@ -358,7 +358,10 @@ impl LaunchSettingsPort for LaunchSettingsBridge {
             thinking: preferences
                 .thinking
                 .map(|t: ThinkingLevel| t.as_str().to_string()),
-            limits: ResourceLimits::default(),
+            limits: ResourceLimits {
+                memory_mb: preferences.memory_limit_mb,
+                cpu_percent: preferences.cpu_limit_percent,
+            },
         })
     }
 }

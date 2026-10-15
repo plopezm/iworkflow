@@ -8,6 +8,8 @@ diesel::table! {
         profile -> Nullable<Text>,
         thinking -> Nullable<Text>,
         runtime -> Nullable<Text>,
+        memory_limit_mb -> Nullable<Integer>,
+        cpu_limit_percent -> Nullable<Integer>,
     }
 }
 

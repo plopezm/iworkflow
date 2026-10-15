@@ -118,3 +118,32 @@ where
         })
     }
 }
+
+/// Campo numérico opcional con unidad (p. ej. "MiB"), controlado por un valor externo:
+/// notifica el texto al confirmar el cambio y deja que el llamador decida qué hacer con él.
+/// Vacío significa "sin valor".
+#[component]
+pub fn NumberInput(
+    #[prop(into)] label: String,
+    #[prop(into)] value: String,
+    #[prop(into)] unit: String,
+    #[prop(into, optional)] placeholder: String,
+    on_change: Callback<String>,
+    #[prop(into, default = Signal::stored(false))] disabled: Signal<bool>,
+) -> impl IntoView {
+    view! {
+        <label class="select-pill">
+            <span class="text-[11px] text-muted">{label}</span>
+            <input
+                type="number"
+                min="1"
+                class="select-pill-input w-20"
+                placeholder=placeholder
+                prop:value=value
+                disabled=move || disabled.get()
+                on:change=move |ev| on_change.run(event_target_value(&ev))
+            />
+            <span class="text-[11px] text-muted">{unit}</span>
+        </label>
+    }
+}

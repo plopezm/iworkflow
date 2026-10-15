@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::components::form::NumberInput;
 use crate::core::components::layout::ErrorText;
 use crate::core::components::select::{OptionSelect, SelectOption};
 use crate::core::components::toast::ToastStack;
@@ -276,6 +277,48 @@ pub fn AgentSettingsBar() -> impl IntoView {
                             })
                             disabled=pending
                             icon=profile_icon
+                        />
+                    }
+                        .into_any()
+                })}
+            </Transition>
+            <Transition fallback=|| view! {
+                <span class="select-pill-skeleton" aria-hidden="true"></span>
+            }>
+                {move || Suspend::new(async move {
+                    let settings: AgentSettingsDto = match state.settings.await {
+                        Ok(settings) => settings,
+                        Err(e) => return view! { <ErrorText message=e.to_string() /> }.into_any(),
+                    };
+                    let memory: String = settings
+                        .memory_limit_mb
+                        .map(|v: u32| v.to_string())
+                        .unwrap_or_default();
+                    let cpu: String = settings
+                        .cpu_limit_percent
+                        .map(|v: u32| v.to_string())
+                        .unwrap_or_default();
+                    let for_memory: AgentSettingsDto = settings.clone();
+                    view! {
+                        <NumberInput
+                            label="RAM"
+                            value=memory
+                            unit="MiB"
+                            placeholder="sin límite"
+                            on_change=Callback::new(move |value: String| {
+                                state.set_memory_limit(&for_memory, value)
+                            })
+                            disabled=pending
+                        />
+                        <NumberInput
+                            label="CPU"
+                            value=cpu
+                            unit="%"
+                            placeholder="sin límite"
+                            on_change=Callback::new(move |value: String| {
+                                state.set_cpu_limit(&settings, value)
+                            })
+                            disabled=pending
                         />
                     }
                         .into_any()

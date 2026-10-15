@@ -33,6 +33,8 @@ impl PrepareLaunch {
             runtime: settings.runtime,
             model: settings.model,
             thinking: settings.thinking,
+            memory_limit_mb: settings.memory_limit_mb,
+            cpu_limit_percent: settings.cpu_limit_percent,
         })
     }
 }

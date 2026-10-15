@@ -26,6 +26,11 @@ fn decode_model_value(value: &str) -> Option<(String, String)> {
     Some((provider.to_string(), model.to_string()))
 }
 
+/// Interpreta el texto de un campo de límite: número positivo, o `None` (sin límite).
+pub fn parse_limit(value: &str) -> Option<u32> {
+    value.trim().parse::<u32>().ok().filter(|v: &u32| *v > 0)
+}
+
 /// Estado de la barra de ajustes del agente: carga del modelo/perfil actuales y del
 /// catálogo, y despacho de la actualización (se persiste al cambiar cada selector).
 #[derive(Clone, Copy)]
@@ -77,6 +82,8 @@ impl AgentSettingsState {
                 model_id: None,
                 profile: current.profile.clone(),
                 thinking: current.thinking.clone(),
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
             },
         });
     }
@@ -96,6 +103,8 @@ impl AgentSettingsState {
                 model_id,
                 profile: current.profile.clone(),
                 thinking: current.thinking.clone(),
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
             },
         });
     }
@@ -111,6 +120,8 @@ impl AgentSettingsState {
                 model_id: current.model_id.clone(),
                 profile,
                 thinking: current.thinking.clone(),
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
             },
         });
     }
@@ -126,6 +137,28 @@ impl AgentSettingsState {
                 model_id: current.model_id.clone(),
                 profile: current.profile.clone(),
                 thinking,
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
+            },
+        });
+    }
+
+    /// Cambia el tope de RAM (MiB) manteniendo el resto; `value` vacío o `0` lo quita.
+    pub fn set_memory_limit(&self, current: &AgentSettingsDto, value: String) {
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                memory_limit_mb: parse_limit(&value),
+                ..current.clone()
+            },
+        });
+    }
+
+    /// Cambia el tope de CPU (% de un núcleo) manteniendo el resto; vacío o `0` lo quita.
+    pub fn set_cpu_limit(&self, current: &AgentSettingsDto, value: String) {
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                cpu_limit_percent: parse_limit(&value),
+                ..current.clone()
             },
         });
     }
@@ -157,6 +190,15 @@ mod tests {
     #[test]
     fn decode_rejects_value_without_separator() {
         assert_eq!(decode_model_value("anthropic-claude-5"), None);
+    }
+
+    #[test]
+    fn parse_limit_accepts_positive_numbers_only() {
+        assert_eq!(parse_limit(" 2048 "), Some(2048));
+        assert_eq!(parse_limit("0"), None);
+        assert_eq!(parse_limit(""), None);
+        assert_eq!(parse_limit("-5"), None);
+        assert_eq!(parse_limit("abc"), None);
     }
 
     #[test]

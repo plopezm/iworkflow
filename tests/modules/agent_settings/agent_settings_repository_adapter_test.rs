@@ -97,3 +97,19 @@ async fn save_and_get_roundtrip_runtime() {
 
     assert_eq!(loaded, settings);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn save_and_get_roundtrip_resource_limits() {
+    let db: common::TestDb = common::test_db().await;
+    let adapter: AgentSettingsRepositoryAdapter = AgentSettingsRepositoryAdapter::new(db.pool);
+    let settings: AgentSettings = AgentSettings {
+        memory_limit_mb: Some(4096),
+        cpu_limit_percent: Some(200),
+        ..AgentSettings::default()
+    };
+
+    adapter.save(&settings).await.expect("save");
+    let loaded: AgentSettings = adapter.get().await.expect("get");
+
+    assert_eq!(loaded, settings);
+}
