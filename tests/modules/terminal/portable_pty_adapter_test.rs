@@ -320,3 +320,76 @@ async fn scrollback_is_bounded() {
     assert!(scrollback_len <= CAP, "len={scrollback_len}");
     adapter.close(id).await.expect("close");
 }
+
+/// Espera a que aparezca `tag` seguido de dígitos terminados en salto de línea (el eco del
+/// comando contiene `tag$!`, sin dígitos, y no cuenta).
+async fn read_pid(receiver: &mut Receiver<Vec<u8>>, tag: &str) -> u32 {
+    let mut collected: String = String::new();
+    let result = tokio::time::timeout(WAIT, async {
+        while let Ok(chunk) = receiver.recv().await {
+            collected.push_str(&String::from_utf8_lossy(&chunk));
+            for (index, _) in collected.match_indices(tag) {
+                let rest: &str = &collected[index + tag.len()..];
+                let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+                if !digits.is_empty() && rest.len() > digits.len() {
+                    return digits.parse::<u32>().ok();
+                }
+            }
+        }
+        None
+    })
+    .await;
+    result
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| panic!("sin pid para {tag:?}; salida: {collected:?}"))
+}
+
+fn is_alive(pid: u32) -> bool {
+    match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(stat) => !stat.contains(") Z"),
+        Err(_) => false,
+    }
+}
+
+async fn assert_dies(pid: u32) {
+    let result = tokio::time::timeout(WAIT, async {
+        while is_alive(pid) {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await;
+    assert!(result.is_ok(), "el proceso {pid} sigue vivo");
+}
+
+#[tokio::test]
+async fn close_kills_foreground_and_background_processes() {
+    let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: PortablePtyAdapter = PortablePtyAdapter::with_shell("sh");
+    let id: TerminalSessionId = adapter
+        .spawn(Uuid::new_v4(), "demo", dir.path(), SIZE)
+        .await
+        .expect("spawn")
+        .id;
+    let mut output: Receiver<Vec<u8>> = adapter.attach(id).await.expect("attach").output;
+
+    adapter
+        .write(
+            id,
+            b"nohup sleep 300 >/dev/null 2>&1 & echo bgpid=$!\n".to_vec(),
+        )
+        .await
+        .expect("write");
+    let background: u32 = read_pid(&mut output, "bgpid=").await;
+    adapter
+        .write(id, b"sh -c 'echo fgpid=$$; exec sleep 300'\n".to_vec())
+        .await
+        .expect("write");
+    let foreground: u32 = read_pid(&mut output, "fgpid=").await;
+    assert!(is_alive(background) && is_alive(foreground));
+
+    adapter.close(id).await.expect("close");
+
+    assert_dies(background).await;
+    assert_dies(foreground).await;
+}

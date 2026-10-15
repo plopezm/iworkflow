@@ -18,6 +18,7 @@ use crate::modules::terminal::domain::models::terminal_session::{TerminalSession
 use crate::modules::terminal::domain::models::terminal_session_id::TerminalSessionId;
 use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
 use crate::modules::terminal::domain::ports::outbound::pty_port::PtyPort;
+use crate::modules::terminal::infrastructure::adapters::outbound::pty::process_tree::kill_descendants;
 
 const FALLBACK_SHELL: &str = "/bin/sh";
 const TERM_VALUE: &str = "xterm-256color";
@@ -92,8 +93,12 @@ impl SessionEntry {
         }
     }
 
-    /// Mata el proceso hijo y lo recoge sin bloquear.
+    /// Mata todo lo que lanzó la terminal (primer y segundo plano) y después la shell, que se
+    /// recoge sin bloquear. Los descendientes se matan antes: sin la shell pasarían a colgar de init.
     fn terminate(&mut self) {
+        if let Some(pid) = self.child.process_id() {
+            kill_descendants(pid);
+        }
         let _ = self.child.kill();
         let _ = self.child.try_wait();
     }

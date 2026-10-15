@@ -33,6 +33,7 @@ dotenvy = { version = "0.15", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 portable-pty = { version = "0.9", optional = true }
+nix = { version = "0.28", default-features = false, features = ["signal", "process"], optional = true }
 
 # hydrate
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -66,6 +67,7 @@ ssr = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:portable-pty",
+    "dep:nix",
     "leptos/ssr",
     "leptos_meta/ssr",
     "leptos_router/ssr",
