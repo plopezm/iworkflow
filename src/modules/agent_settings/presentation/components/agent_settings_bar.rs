@@ -118,7 +118,7 @@ fn profile_option_label(name: &str, active: Option<&str>) -> String {
 /// `gentle-shell --list-models`) no bloquee el resto de la barra ni de la página.
 #[component]
 pub fn AgentSettingsBar() -> impl IntoView {
-    let state: AgentSettingsState = AgentSettingsState::new();
+    let state: AgentSettingsState = AgentSettingsState::shared();
     let pending: Signal<bool> = state.update.pending().into();
 
     Effect::new(move |_| {

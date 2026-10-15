@@ -1,4 +1,5 @@
 use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 
 /// Modelo del orquestador a usar para un arranque concreto (`--provider`/`--model`).
@@ -18,15 +19,31 @@ pub struct LaunchOptions {
     pub runtime: Option<RuntimeId>,
     pub model: Option<LaunchModel>,
     pub thinking: Option<String>,
+    /// Límites de RAM/CPU del proceso del agente (solo Linux con systemd).
+    pub limits: ResourceLimits,
+    /// Interruptor general de ajustes: con `true` no se aplica ningún límite.
+    pub limits_disabled: bool,
 }
 
 impl LaunchOptions {
+    /// Aplica los límites propios de la tarea sobre los globales (por recurso).
+    pub fn with_task_limits(self, task: ResourceLimits) -> Self {
+        let limits: ResourceLimits = if self.limits_disabled {
+            ResourceLimits::default()
+        } else {
+            task.or(self.limits)
+        };
+        Self { limits, ..self }
+    }
+
     /// Descarta el modelo y el nivel de razonamiento que el runtime no soporta.
     pub fn restricted_to(self, capabilities: &AgentCapabilities) -> Self {
         Self {
             runtime: self.runtime,
             model: self.model.filter(|_| capabilities.model_selection),
             thinking: self.thinking.filter(|_| capabilities.thinking_levels),
+            limits: self.limits,
+            limits_disabled: self.limits_disabled,
         }
     }
 }
@@ -43,7 +60,48 @@ mod tests {
                 model: "claude-5".to_string(),
             }),
             thinking: Some("high".to_string()),
+            limits: ResourceLimits::default(),
+            limits_disabled: false,
         }
+    }
+
+    #[test]
+    fn task_limits_override_global_limits_per_resource() {
+        let global: LaunchOptions = LaunchOptions {
+            limits: ResourceLimits {
+                memory_mb: Some(4096),
+                cpu_percent: Some(200),
+            },
+            ..LaunchOptions::default()
+        };
+        let task: ResourceLimits = ResourceLimits {
+            memory_mb: Some(1024),
+            cpu_percent: None,
+        };
+        assert_eq!(
+            global.with_task_limits(task).limits,
+            ResourceLimits {
+                memory_mb: Some(1024),
+                cpu_percent: Some(200)
+            }
+        );
+    }
+
+    #[test]
+    fn disabled_switch_drops_global_and_task_limits() {
+        let options: LaunchOptions = LaunchOptions {
+            limits: ResourceLimits {
+                memory_mb: Some(4096),
+                cpu_percent: Some(200),
+            },
+            limits_disabled: true,
+            ..LaunchOptions::default()
+        };
+        let task: ResourceLimits = ResourceLimits {
+            memory_mb: Some(1024),
+            cpu_percent: Some(50),
+        };
+        assert!(options.with_task_limits(task).limits.is_unlimited());
     }
 
     #[test]

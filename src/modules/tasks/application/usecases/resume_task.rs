@@ -54,7 +54,9 @@ impl ResumeTask {
                 "el agente no permite reanudar la sesión anterior".to_string(),
             ));
         }
-        let options: LaunchOptions = prepared.restricted_to(&capabilities);
+        let options: LaunchOptions = prepared
+            .with_task_limits(task.limits)
+            .restricted_to(&capabilities);
         self.runtime
             .start(id, &task.worktree_path, true, &options, self.sink.clone())
             .await?;

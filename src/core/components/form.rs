@@ -118,3 +118,75 @@ where
         })
     }
 }
+
+/// Interpreta el texto de un campo numérico opcional: entero positivo, o `None` si está
+/// vacío, es cero o no es válido.
+pub fn parse_positive_number(value: &str) -> Option<u32> {
+    value.trim().parse::<u32>().ok().filter(|v: &u32| *v > 0)
+}
+
+/// Campo numérico opcional enlazado a una señal de texto (vacío = sin valor), con su unidad.
+#[component]
+pub fn NumberField(
+    #[prop(into)] label: String,
+    value: RwSignal<String>,
+    #[prop(into)] unit: String,
+    #[prop(into, optional)] placeholder: String,
+) -> impl IntoView {
+    view! {
+        <label class="stack gap-1.5">
+            <span class="text-sm font-medium text-fg">{label} " (" {unit} ")"</span>
+            <input
+                type="number"
+                min="1"
+                class="input"
+                placeholder=placeholder
+                prop:value=move || value.get()
+                on:input=move |ev| value.set(event_target_value(&ev))
+            />
+        </label>
+    }
+}
+
+/// Campo numérico opcional con unidad (p. ej. "MiB"), controlado por un valor externo:
+/// notifica el texto al confirmar el cambio y deja que el llamador decida qué hacer con él.
+/// Vacío significa "sin valor".
+#[component]
+pub fn NumberInput(
+    #[prop(into)] label: String,
+    #[prop(into)] value: String,
+    #[prop(into)] unit: String,
+    #[prop(into, optional)] placeholder: String,
+    on_change: Callback<String>,
+    #[prop(into, default = Signal::stored(false))] disabled: Signal<bool>,
+) -> impl IntoView {
+    view! {
+        <label class="select-pill">
+            <span class="text-[11px] text-muted">{label}</span>
+            <input
+                type="number"
+                min="1"
+                class="select-pill-input w-20"
+                placeholder=placeholder
+                prop:value=value
+                disabled=move || disabled.get()
+                on:change=move |ev| on_change.run(event_target_value(&ev))
+            />
+            <span class="text-[11px] text-muted">{unit}</span>
+        </label>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_positive_number_accepts_positive_integers_only() {
+        assert_eq!(parse_positive_number(" 2048 "), Some(2048));
+        assert_eq!(parse_positive_number("0"), None);
+        assert_eq!(parse_positive_number(""), None);
+        assert_eq!(parse_positive_number("-5"), None);
+        assert_eq!(parse_positive_number("abc"), None);
+    }
+}

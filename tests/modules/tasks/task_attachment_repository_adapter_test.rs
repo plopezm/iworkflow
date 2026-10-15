@@ -8,6 +8,7 @@ use iworkflow::modules::tasks::domain::errors::task_error::TaskError;
 use iworkflow::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
+use iworkflow::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
 use iworkflow::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use iworkflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
@@ -40,6 +41,7 @@ async fn backlog_task(db: &common::TestDb, title: &str) -> Task {
         worktree_path: PathBuf::from(format!("/wt/{title}")),
         status: TaskStatus::Backlog,
         priority: TaskPriority::default(),
+        limits: ResourceLimits::default(),
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),

@@ -18,6 +18,7 @@ use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::TaskId;
@@ -29,6 +30,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::rpc_
 
 /// Activa diálogos (`ask_user_*`) y widgets de actividad en gentle-shell.
 const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
+const SYSTEMD_RUN: &str = "systemd-run";
 const RESUME_FLAG: &str = "--continue";
 const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
 const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -99,6 +101,7 @@ fn build_command(
     options: &LaunchOptions,
     cwd: &Path,
     vars: impl Iterator<Item = (OsString, OsString)>,
+    systemd_scope: bool,
 ) -> Command {
     let agent_args: Vec<String> = base_args
         .iter()
@@ -108,11 +111,17 @@ fn build_command(
         .chain(thinking_args(options))
         .collect();
     let invocation: LoginShellInvocation = login_shell_invocation(program, &agent_args, vars);
-    let mut command: Command = Command::new(invocation.shell);
+    let (program, args): (String, Vec<String>) = scoped_launch(
+        &options.limits,
+        systemd_scope,
+        invocation.shell,
+        invocation.args,
+    );
+    let mut command: Command = Command::new(program);
     command
         .env_clear()
         .envs(invocation.env)
-        .args(invocation.args)
+        .args(args)
         .current_dir(cwd)
         .env(INTERACTIVE_HOST_ENV, "1")
         .stdin(Stdio::piped())
@@ -120,6 +129,42 @@ fn build_command(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     command
+}
+
+/// Programa y argumentos finales: con límites y `systemd_scope` se envuelve la shell en
+/// `systemd-run --user --scope` (cgroup propio con `MemoryMax`/`CPUQuota`); sin ellos, intacta.
+fn scoped_launch(
+    limits: &ResourceLimits,
+    systemd_scope: bool,
+    shell: String,
+    shell_args: Vec<String>,
+) -> (String, Vec<String>) {
+    if !systemd_scope || limits.is_unlimited() {
+        return (shell, shell_args);
+    }
+    let args: Vec<String> = ["--user", "--scope", "--quiet"]
+        .into_iter()
+        .map(str::to_string)
+        .chain(
+            limits
+                .systemd_properties()
+                .into_iter()
+                .flat_map(|property: String| ["-p".to_string(), property]),
+        )
+        .chain(std::iter::once("--".to_string()))
+        .chain(std::iter::once(shell))
+        .chain(shell_args)
+        .collect();
+    (SYSTEMD_RUN.to_string(), args)
+}
+
+/// `true` si hay `systemd-run` en el `PATH` de un Linux (los cgroups solo existen allí).
+fn systemd_run_available() -> bool {
+    cfg!(target_os = "linux")
+        && std::env::var_os("PATH").is_some_and(|path: OsString| {
+            std::env::split_paths(&path)
+                .any(|dir: std::path::PathBuf| dir.join(SYSTEMD_RUN).is_file())
+        })
 }
 
 fn pipe_error(name: &str) -> TaskError {
@@ -168,6 +213,7 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
             options,
             cwd,
             std::env::vars_os(),
+            systemd_run_available(),
         );
         let mut child: Child = command
             .spawn()
@@ -444,6 +490,60 @@ mod tests {
     }
 
     #[test]
+    fn scoped_launch_wraps_the_shell_in_systemd_run_when_limited() {
+        let limits: ResourceLimits = ResourceLimits {
+            memory_mb: Some(1024),
+            cpu_percent: Some(200),
+        };
+        let (program, args): (String, Vec<String>) = scoped_launch(
+            &limits,
+            true,
+            "/bin/sh".to_string(),
+            vec![
+                "-l".to_string(),
+                "-c".to_string(),
+                "exec 'agent'".to_string(),
+            ],
+        );
+        assert_eq!(program, "systemd-run");
+        assert_eq!(
+            args,
+            vec![
+                "--user",
+                "--scope",
+                "--quiet",
+                "-p",
+                "MemoryMax=1024M",
+                "-p",
+                "CPUQuota=200%",
+                "--",
+                "/bin/sh",
+                "-l",
+                "-c",
+                "exec 'agent'"
+            ]
+        );
+    }
+
+    #[test]
+    fn scoped_launch_leaves_the_shell_untouched_without_limits_or_systemd() {
+        let limited: ResourceLimits = ResourceLimits {
+            memory_mb: Some(1024),
+            cpu_percent: None,
+        };
+        for (limits, scope) in [(limited, false), (ResourceLimits::default(), true)] {
+            let (program, args): (String, Vec<String>) = scoped_launch(
+                &limits,
+                scope,
+                "/bin/sh".to_string(),
+                vec!["-l".to_string()],
+            );
+            assert_eq!(program, "/bin/sh");
+            assert_eq!(args, vec!["-l"]);
+        }
+    }
+
+    #[test]
     fn build_command_clears_the_environment_down_to_session_variables() {
         let command: Command = build_command(
             "agent",
@@ -452,6 +552,7 @@ mod tests {
             &LaunchOptions::default(),
             Path::new("."),
             parent_env().into_iter(),
+            false,
         );
 
         let mut keys: Vec<String> = command
@@ -489,6 +590,7 @@ mod tests {
             &LaunchOptions::default(),
             Path::new("."),
             parent_env().into_iter(),
+            false,
         );
 
         assert!(
@@ -509,6 +611,7 @@ mod tests {
             &LaunchOptions::default(),
             Path::new("."),
             parent_env().into_iter(),
+            false,
         );
 
         assert_eq!(command.as_std().get_program(), OsStr::new("/bin/zsh"));
@@ -536,6 +639,7 @@ mod tests {
             &options,
             Path::new("."),
             parent_env().into_iter(),
+            false,
         );
 
         assert_eq!(

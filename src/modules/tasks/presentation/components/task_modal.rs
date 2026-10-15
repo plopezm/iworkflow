@@ -1,7 +1,9 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 
-use crate::core::components::form::{ActionError, SelectField, SelectOption, TextArea, TextField};
+use crate::core::components::form::{
+    ActionError, NumberField, SelectField, SelectOption, TextArea, TextField,
+};
 use crate::core::components::modal::Modal;
 use crate::core::dock::link::TabLink;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -150,6 +152,18 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                     label="Prioridad"
                     value=state.form_priority
                     options=priority_select_options()
+                />
+                <NumberField
+                    label="Memoria RAM máx."
+                    unit="MiB"
+                    placeholder="Por defecto (ajustes)"
+                    value=state.form_memory_limit
+                />
+                <NumberField
+                    label="CPU máx."
+                    unit="% de un núcleo"
+                    placeholder="Por defecto (ajustes)"
+                    value=state.form_cpu_limit
                 />
                 <label class="row min-h-10 items-center gap-2 text-sm text-fg">
                     <input

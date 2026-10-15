@@ -3,6 +3,8 @@ use std::future::Future;
 
 use leptos::prelude::*;
 
+use crate::core::components::form::parse_positive_number;
+
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -295,6 +297,8 @@ pub struct BoardState {
     pub form_prompt: RwSignal<String>,
     /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
     pub form_priority: RwSignal<String>,
+    pub form_memory_limit: RwSignal<String>,
+    pub form_cpu_limit: RwSignal<String>,
     pub form_start_now: RwSignal<bool>,
     /// Rama de la que parte el worktree; vacío = base del workspace.
     pub form_base_branch: RwSignal<String>,
@@ -315,12 +319,16 @@ pub fn start_failed_after_create_text(error: &str) -> String {
     format!("Tarea creada en Por hacer, pero no se pudo iniciar: {error}")
 }
 
-/// Construye el DTO de alta con las imágenes adjuntas (función pura).
+/// Construye el DTO de alta con las imágenes adjuntas (función pura). `limits` es el texto de
+/// los campos (RAM MiB, CPU %).
+// Un argumento por campo del formulario de alta; agruparlos solo movería el problema.
+#[allow(clippy::too_many_arguments)]
 pub fn build_create_task_dto(
     workspace_id: String,
     title: String,
     prompt: String,
     priority: &str,
+    (memory_limit, cpu_limit): (&str, &str),
     start_now: bool,
     base_branch: &str,
     images: Vec<ImageAttachmentDto>,
@@ -330,6 +338,8 @@ pub fn build_create_task_dto(
         title,
         prompt,
         priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
+        memory_limit_mb: parse_positive_number(memory_limit),
+        cpu_limit_percent: parse_positive_number(cpu_limit),
         start_now,
         base_branch: Some(base_branch.trim().to_string()).filter(|b: &String| !b.is_empty()),
         images,
@@ -430,6 +440,8 @@ impl BoardState {
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
+            form_memory_limit: RwSignal::new(String::new()),
+            form_cpu_limit: RwSignal::new(String::new()),
             form_start_now: RwSignal::new(false),
             form_base_branch,
             branches,
@@ -451,6 +463,8 @@ impl BoardState {
         self.form_prompt.set(String::new());
         self.form_priority
             .set(TaskPriorityDto::default().as_str().to_string());
+        self.form_memory_limit.set(String::new());
+        self.form_cpu_limit.set(String::new());
         self.form_start_now.set(false);
         self.form_base_branch.set(String::new());
         self.images.clear();
@@ -470,6 +484,10 @@ impl BoardState {
                 self.form_title.get_untracked(),
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
+                (
+                    &self.form_memory_limit.get_untracked(),
+                    &self.form_cpu_limit.get_untracked(),
+                ),
                 self.form_start_now.get_untracked(),
                 &self.form_base_branch.get_untracked(),
                 self.images.images.get_untracked(),
@@ -557,10 +575,13 @@ mod tests {
             String::new(),
             "haz algo".to_string(),
             "high",
+            ("2048", "0"),
             true,
             "origin/develop",
             vec![image.clone()],
         );
+        assert_eq!(dto.memory_limit_mb, Some(2048));
+        assert_eq!(dto.cpu_limit_percent, None);
         assert_eq!(dto.images, vec![image]);
         assert_eq!(dto.base_branch.as_deref(), Some("origin/develop"));
         assert_eq!(dto.priority, TaskPriorityDto::High);
@@ -574,6 +595,7 @@ mod tests {
             String::new(),
             "haz algo".to_string(),
             "normal",
+            ("", ""),
             false,
             "  ",
             Vec::new(),
@@ -763,6 +785,8 @@ mod tests {
             worktree_path: "/wt".to_string(),
             status: crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStatusDto::Idle,
             priority: Default::default(),
+            memory_limit_mb: None,
+            cpu_limit_percent: None,
             error: None,
             actions: Default::default(),
             stage,

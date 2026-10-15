@@ -20,6 +20,9 @@ pub struct AgentSettingsRow {
     pub profile: Option<String>,
     pub thinking: Option<String>,
     pub runtime: Option<String>,
+    pub memory_limit_mb: Option<i32>,
+    pub cpu_limit_percent: Option<i32>,
+    pub limits_disabled: i32,
 }
 
 impl From<&AgentSettings> for AgentSettingsRow {
@@ -43,6 +46,13 @@ impl From<&AgentSettings> for AgentSettingsRow {
                 .runtime
                 .as_ref()
                 .map(|r: &AgentRuntime| r.as_str().to_string()),
+            memory_limit_mb: settings
+                .memory_limit_mb
+                .and_then(|v: u32| i32::try_from(v).ok()),
+            cpu_limit_percent: settings
+                .cpu_limit_percent
+                .and_then(|v: u32| i32::try_from(v).ok()),
+            limits_disabled: i32::from(settings.limits_disabled),
         }
     }
 }
@@ -72,6 +82,11 @@ impl TryFrom<AgentSettingsRow> for AgentSettings {
             model,
             profile,
             thinking,
+            memory_limit_mb: row.memory_limit_mb.and_then(|v: i32| u32::try_from(v).ok()),
+            cpu_limit_percent: row
+                .cpu_limit_percent
+                .and_then(|v: i32| u32::try_from(v).ok()),
+            limits_disabled: row.limits_disabled != 0,
         })
     }
 }

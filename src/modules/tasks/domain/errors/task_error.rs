@@ -8,6 +8,8 @@ pub enum TaskError {
     InvalidTitle,
     #[error("prioridad de tarea desconocida: {0}")]
     InvalidPriority(String),
+    #[error("los límites de RAM y CPU deben ser mayores que 0")]
+    InvalidLimits,
     #[error("el mensaje está vacío")]
     EmptyMessage,
     #[error("adjunto inválido: {0}")]

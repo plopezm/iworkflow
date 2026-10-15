@@ -181,6 +181,8 @@ pub struct TaskDto {
     pub worktree_path: String,
     pub status: TaskStatusDto,
     pub priority: TaskPriorityDto,
+    pub memory_limit_mb: Option<u32>,
+    pub cpu_limit_percent: Option<u32>,
     pub error: Option<String>,
     pub actions: TaskActionsDto,
     pub stage: TaskStageDto,
@@ -207,6 +209,10 @@ pub struct CreateTaskDto {
     #[serde(default)]
     pub priority: TaskPriorityDto,
     #[serde(default)]
+    pub memory_limit_mb: Option<u32>,
+    #[serde(default)]
+    pub cpu_limit_percent: Option<u32>,
+    #[serde(default)]
     pub start_now: bool,
     /// Rama (local o remota) de la que parte el worktree; vacío = base del workspace.
     #[serde(default)]
@@ -221,6 +227,10 @@ pub struct UpdateTaskDto {
     pub prompt: String,
     #[serde(default)]
     pub priority: TaskPriorityDto,
+    #[serde(default)]
+    pub memory_limit_mb: Option<u32>,
+    #[serde(default)]
+    pub cpu_limit_percent: Option<u32>,
     #[serde(default)]
     pub images: Vec<ImageAttachmentDto>,
     /// Ids de adjuntos ya guardados que se quitan de la tarea.
@@ -247,6 +257,7 @@ mod mapping {
     use super::*;
     use crate::modules::tasks::domain::errors::task_error::TaskError;
     use crate::modules::tasks::domain::models::agent_command::MessageMode;
+    use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
     use crate::modules::tasks::domain::models::task::{
         CreatedTask, NewTask, Task, TaskStage, TaskStatus,
     };
@@ -342,6 +353,8 @@ mod mapping {
                 worktree_path: task.worktree_path.to_string_lossy().into_owned(),
                 status: task.status.into(),
                 priority: task.priority.into(),
+                memory_limit_mb: task.limits.memory_mb,
+                cpu_limit_percent: task.limits.cpu_percent,
                 error: task.error,
                 actions,
                 stage: stage.into(),
@@ -369,6 +382,10 @@ mod mapping {
                 title: dto.title,
                 prompt: dto.prompt,
                 priority: dto.priority.into(),
+                limits: ResourceLimits {
+                    memory_mb: dto.memory_limit_mb,
+                    cpu_percent: dto.cpu_limit_percent,
+                },
                 base_branch: dto.base_branch,
                 images: dto.images.into_iter().map(Into::into).collect(),
                 start_now: dto.start_now,
@@ -415,6 +432,7 @@ mod mapping {
                 worktree_path: PathBuf::from("/wt/t"),
                 status,
                 priority: TaskPriority::default(),
+                limits: ResourceLimits::default(),
                 error: None,
                 pending_dialogs: Vec::new(),
                 subagents: Default::default(),

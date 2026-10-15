@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::components::form::parse_positive_number;
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::agent_settings::infrastructure::adapters::inbound::dto::agent_settings_dto::{
     AgentSettingsDto, ModelOptionDto, ProfileCatalogDto,
@@ -41,6 +42,12 @@ pub struct AgentSettingsState {
 }
 
 impl AgentSettingsState {
+    /// Estado compartido de la aplicación (provisto por `App`), para que la barra y la pantalla
+    /// de configuración vean siempre los mismos ajustes; crea uno propio si no hay contexto.
+    pub fn shared() -> Self {
+        use_context::<Self>().unwrap_or_default()
+    }
+
     pub fn new() -> Self {
         let update: ServerAction<UpdateAgentSettings> = ServerAction::new();
         let settings: Resource<Result<AgentSettingsDto, ServerFnError>> =
@@ -77,6 +84,9 @@ impl AgentSettingsState {
                 model_id: None,
                 profile: current.profile.clone(),
                 thinking: current.thinking.clone(),
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
             },
         });
     }
@@ -96,6 +106,9 @@ impl AgentSettingsState {
                 model_id,
                 profile: current.profile.clone(),
                 thinking: current.thinking.clone(),
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
             },
         });
     }
@@ -111,6 +124,9 @@ impl AgentSettingsState {
                 model_id: current.model_id.clone(),
                 profile,
                 thinking: current.thinking.clone(),
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
             },
         });
     }
@@ -126,6 +142,39 @@ impl AgentSettingsState {
                 model_id: current.model_id.clone(),
                 profile: current.profile.clone(),
                 thinking,
+                memory_limit_mb: current.memory_limit_mb,
+                cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
+            },
+        });
+    }
+
+    /// Cambia el tope de RAM (MiB) manteniendo el resto; `value` vacío o `0` lo quita.
+    pub fn set_memory_limit(&self, current: &AgentSettingsDto, value: String) {
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                memory_limit_mb: parse_positive_number(&value),
+                ..current.clone()
+            },
+        });
+    }
+
+    /// Cambia el tope de CPU (% de un núcleo) manteniendo el resto; vacío o `0` lo quita.
+    pub fn set_cpu_limit(&self, current: &AgentSettingsDto, value: String) {
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                cpu_limit_percent: parse_positive_number(&value),
+                ..current.clone()
+            },
+        });
+    }
+
+    /// Activa o desactiva por completo la limitación de recursos, conservando los valores.
+    pub fn set_limits_enabled(&self, current: &AgentSettingsDto, enabled: bool) {
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                limits_disabled: !enabled,
+                ..current.clone()
             },
         });
     }

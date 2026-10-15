@@ -11,6 +11,7 @@ use crate::modules::tasks::domain::models::branch_option::BranchOption;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
@@ -74,7 +75,7 @@ mock! {
             status: TaskStatus,
             error: Option<String>,
         ) -> Result<(), TaskError>;
-        async fn update_details_if_backlog(&self, id: TaskId, title: String, prompt: String, priority: TaskPriority) -> Result<bool, TaskError>;
+        async fn update_details_if_backlog(&self, id: TaskId, title: String, prompt: String, priority: TaskPriority, limits: ResourceLimits) -> Result<bool, TaskError>;
         async fn claim_for_start(
             &self,
             id: TaskId,

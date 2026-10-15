@@ -6,7 +6,7 @@ use leptos_router::params::ParamsMap;
 use leptos_router::{StaticSegment, WildcardSegment};
 
 use crate::core::browser;
-use crate::core::components::shell::{AppShell, SidebarToggle};
+use crate::core::components::shell::{AppShell, SidebarSection, SidebarToggle};
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::core::dock::context::{DockContext, use_dock};
 use crate::core::dock::host::{DockHooks, DockHost};
@@ -15,6 +15,8 @@ use crate::core::refresh::DataRefresh;
 use crate::modules::agent_profiles::presentation::pages::models_page::ModelsPage;
 use crate::modules::agent_profiles::presentation::pages::profiles_page::ProfilesPage;
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
+use crate::modules::agent_settings::presentation::pages::settings_page::SettingsPage;
+use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
 use crate::modules::project_tree::presentation::pages::project_tree_page::ProjectTreePage;
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
@@ -62,6 +64,7 @@ enum TabRoute {
     AgentsFiles,
     Profiles,
     Models,
+    Settings,
     Task(String),
     TaskEdit(String),
     TaskTerminal(String),
@@ -83,6 +86,7 @@ impl TabRoute {
             ["agents-files"] => Self::AgentsFiles,
             ["profiles"] => Self::Profiles,
             ["models"] => Self::Models,
+            ["settings"] => Self::Settings,
             ["tasks", id] => Self::Task((*id).to_string()),
             ["tasks", id, "edit"] => Self::TaskEdit((*id).to_string()),
             ["tasks", id, "terminal"] => Self::TaskTerminal((*id).to_string()),
@@ -105,6 +109,7 @@ impl TabRoute {
             Self::AgentsFiles => "AGENTS.md".to_string(),
             Self::Profiles => "Perfiles".to_string(),
             Self::Models => "Modelos".to_string(),
+            Self::Settings => "Configuración".to_string(),
             Self::Task(_) => "Tarea".to_string(),
             Self::TaskEdit(_) => "Editar tarea".to_string(),
             Self::TaskDiff(_) => "Diff".to_string(),
@@ -125,6 +130,7 @@ impl TabRoute {
             Self::AgentsFiles => "§",
             Self::Profiles => "☰",
             Self::Models => "◇",
+            Self::Settings => "⚙",
             Self::Task(_) => "●",
             Self::NotFound => "?",
         }
@@ -159,6 +165,7 @@ impl TabRoute {
             Self::AgentsFiles => view! { <AgentsFilesPage /> }.into_any(),
             Self::Profiles => view! { <ProfilesPage /> }.into_any(),
             Self::Models => view! { <ModelsPage /> }.into_any(),
+            Self::Settings => view! { <SettingsPage /> }.into_any(),
             Self::Task(_) => view! { <TaskDetailPage /> }.into_any(),
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
             Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
@@ -181,41 +188,44 @@ fn tab_params(path: &str) -> ParamsMap {
 }
 
 /// Destinos de nivel superior que ofrecen la barra lateral, el menú `+` y los grupos vacíos.
-const TOP_LEVEL_DESTINATIONS: [(&str, &str, &str); 6] = [
+const TOP_LEVEL_DESTINATIONS: [(&str, &str, &str); 7] = [
     ("/", "▦", "Tablero"),
     ("/terminals", "❯", "Terminales"),
     ("/workspaces", "▤", "Workspaces"),
     ("/agents-files", "§", "AGENTS.md"),
     ("/profiles", "☰", "Perfiles"),
     ("/models", "◇", "Modelos"),
+    ("/settings", "⚙", "Configuración"),
 ];
 
-/// Filas de navegación de la barra lateral.
+/// Navegación de la barra lateral, en una sección colapsable "Menú".
 fn sidebar_nav() -> impl IntoView {
     let dock: DockContext = use_dock();
     view! {
-        <nav class="flex flex-col gap-0.5 px-2 py-2" aria-label="Navegación">
-            {TOP_LEVEL_DESTINATIONS
-                .into_iter()
-                .map(|(path, icon, label)| {
-                    view! {
-                        <TabLink
-                            href=path
-                            class=move || {
-                                if dock.is_path_visible(path) {
-                                    "sidebar-nav sidebar-nav-active".to_string()
-                                } else {
-                                    "sidebar-nav".to_string()
+        <SidebarSection title="Menú" count=Signal::stored(TOP_LEVEL_DESTINATIONS.len())>
+            <nav class="flex flex-col gap-0.5" aria-label="Navegación">
+                {TOP_LEVEL_DESTINATIONS
+                    .into_iter()
+                    .map(|(path, icon, label)| {
+                        view! {
+                            <TabLink
+                                href=path
+                                class=move || {
+                                    if dock.is_path_visible(path) {
+                                        "sidebar-nav sidebar-nav-active".to_string()
+                                    } else {
+                                        "sidebar-nav".to_string()
+                                    }
                                 }
-                            }
-                        >
-                            <span class="sidebar-nav-icon" aria-hidden="true">{icon}</span>
-                            {label}
-                        </TabLink>
-                    }
-                })
-                .collect_view()}
-        </nav>
+                            >
+                                <span class="sidebar-nav-icon" aria-hidden="true">{icon}</span>
+                                {label}
+                            </TabLink>
+                        }
+                    })
+                    .collect_view()}
+            </nav>
+        </SidebarSection>
     }
 }
 
@@ -336,6 +346,7 @@ pub fn App() -> impl IntoView {
     provide_theme_mode();
     DockContext::provide(tab_title);
     DataRefresh::provide();
+    provide_context(AgentSettingsState::new());
     let hooks: DockHooks = DockHooks {
         render: Callback::new(|path: String| TabRoute::parse(&path).view()),
         params_for: tab_params,
@@ -355,6 +366,7 @@ pub fn App() -> impl IntoView {
                 <Route path=StaticSegment("agents-files") view=|| () />
                 <Route path=StaticSegment("profiles") view=|| () />
                 <Route path=StaticSegment("models") view=|| () />
+                <Route path=StaticSegment("settings") view=|| () />
                 <Route path=(StaticSegment("tasks"), WildcardSegment("rest")) view=|| () />
                 <Route path=(StaticSegment("workspaces"), WildcardSegment("rest")) view=|| () />
                 <Route path=(StaticSegment("terminals"), WildcardSegment("rest")) view=|| () />
@@ -377,6 +389,8 @@ mod tests {
     #[test]
     fn parse_maps_every_known_path_to_its_screen() {
         assert_eq!(TabRoute::parse("/"), TabRoute::Board);
+        assert_eq!(TabRoute::parse("/settings"), TabRoute::Settings);
+        assert_eq!(TabRoute::Settings.title(), "Configuración");
         assert_eq!(TabRoute::parse("/tasks/a1"), TabRoute::Task("a1".into()));
         assert_eq!(
             TabRoute::parse("/tasks/a1/edit"),

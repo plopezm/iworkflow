@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 
 use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
@@ -42,6 +43,7 @@ pub fn task_with_pending_dialogs(status: TaskStatus, ids: Vec<String>) -> Task {
         worktree_path: PathBuf::from(WORKTREE),
         status,
         priority: TaskPriority::default(),
+        limits: ResourceLimits::default(),
         error: None,
         pending_dialogs,
         subagents: Default::default(),

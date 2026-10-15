@@ -7,6 +7,7 @@ use tokio::time::Instant;
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
@@ -162,10 +163,16 @@ impl TaskRepositoryPort for RetryingTaskRepository {
         title: String,
         prompt: String,
         priority: TaskPriority,
+        limits: ResourceLimits,
     ) -> Result<bool, TaskError> {
         self.retry("update_details_if_backlog", || {
-            self.inner
-                .update_details_if_backlog(id, title.clone(), prompt.clone(), priority)
+            self.inner.update_details_if_backlog(
+                id,
+                title.clone(),
+                prompt.clone(),
+                priority,
+                limits,
+            )
         })
         .await
     }

@@ -109,6 +109,7 @@ impl CreateTask {
             worktree_path,
             status: TaskStatus::Backlog,
             priority: input.priority,
+            limits: input.limits,
             error: None,
             pending_dialogs: Vec::new(),
             subagents: Default::default(),
@@ -163,6 +164,7 @@ mod tests {
     use crate::modules::tasks::domain::models::agent_command::AgentCommand;
     use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
     use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
+    use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
     use crate::modules::tasks::domain::models::task_priority::TaskPriority;
     use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
     use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
@@ -186,6 +188,7 @@ mod tests {
             title: "Arregla login".to_string(),
             prompt: "Arregla el login roto".to_string(),
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             base_branch: None,
             images: Vec::new(),
             start_now,

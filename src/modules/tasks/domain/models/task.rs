@@ -8,6 +8,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::worktree::DiffRange;
@@ -258,6 +259,8 @@ pub struct Task {
     pub worktree_path: PathBuf,
     pub status: TaskStatus,
     pub priority: TaskPriority,
+    /// Límites de RAM/CPU propios de la tarea; cada recurso definido prevalece sobre el global.
+    pub limits: ResourceLimits,
     pub error: Option<String>,
     /// Diálogos abiertos por el agente y aún sin responder.
     pub pending_dialogs: Vec<PendingDialog>,
@@ -352,6 +355,7 @@ pub struct NewTask {
     pub title: String,
     pub prompt: String,
     pub priority: TaskPriority,
+    pub limits: ResourceLimits,
     /// Rama (local o remota, p. ej. `origin/develop`) de la que parte el worktree. `None`
     /// usa la rama base del workspace.
     pub base_branch: Option<String>,
@@ -379,6 +383,7 @@ impl NewTask {
             title,
             prompt,
             priority: self.priority,
+            limits: self.limits.validated()?,
             base_branch: self
                 .base_branch
                 .map(|branch: String| branch.trim().to_string())
@@ -495,6 +500,7 @@ mod tests {
             title: "  ".to_string(),
             prompt: "  Arregla el test\nmás detalles".to_string(),
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             base_branch: None,
             images: Vec::new(),
             start_now: false,
@@ -506,12 +512,32 @@ mod tests {
     }
 
     #[test]
+    fn new_task_rejects_zero_limits() {
+        let result: Result<NewTask, TaskError> = NewTask {
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            priority: TaskPriority::default(),
+            limits: ResourceLimits {
+                memory_mb: Some(0),
+                cpu_percent: None,
+            },
+            base_branch: None,
+            images: Vec::new(),
+            start_now: false,
+        }
+        .validated();
+        assert_eq!(result, Err(TaskError::InvalidLimits));
+    }
+
+    #[test]
     fn new_task_keeps_priority_when_validated() {
         let task: NewTask = NewTask {
             workspace_id: "ws".to_string(),
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::Urgent,
+            limits: ResourceLimits::default(),
             base_branch: None,
             images: Vec::new(),
             start_now: false,
@@ -528,6 +554,7 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             base_branch: None,
             images: vec![ImageAttachment {
                 name: "a.bmp".to_string(),
@@ -552,6 +579,7 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             base_branch: None,
             images: vec![image.clone()],
             start_now: false,
@@ -568,6 +596,7 @@ mod tests {
             title: "t".to_string(),
             prompt: " \n ".to_string(),
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             base_branch: None,
             images: Vec::new(),
             start_now: false,
@@ -703,6 +732,7 @@ mod tests {
             worktree_path: PathBuf::from("/wt/t"),
             status,
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             error: None,
             pending_dialogs,
             subagents: SubagentActivity::default(),
@@ -829,6 +859,7 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             base_branch: Some("  origin/develop ".to_string()),
             images: Vec::new(),
             start_now: false,
@@ -845,6 +876,7 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::default(),
+            limits: ResourceLimits::default(),
             base_branch: Some("   ".to_string()),
             images: Vec::new(),
             start_now: false,

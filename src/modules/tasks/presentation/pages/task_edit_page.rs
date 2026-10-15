@@ -1,7 +1,7 @@
 use crate::core::dock::context::{use_tab_nav, use_tab_params};
 use leptos::prelude::*;
 
-use crate::core::components::form::{ActionError, SelectField, TextArea, TextField};
+use crate::core::components::form::{ActionError, NumberField, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
 use crate::modules::tasks::presentation::components::existing_attachments::ExistingAttachments;
 use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
@@ -70,6 +70,18 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                         label="Prioridad"
                                         value=state.form_priority
                                         options=priority_select_options()
+                                    />
+                                    <NumberField
+                                        label="Memoria RAM máx."
+                                        unit="MiB"
+                                        placeholder="Por defecto (ajustes)"
+                                        value=state.form_memory_limit
+                                    />
+                                    <NumberField
+                                        label="CPU máx."
+                                        unit="% de un núcleo"
+                                        placeholder="Por defecto (ajustes)"
+                                        value=state.form_cpu_limit
                                     />
                                     <TextArea
                                         label="Prompt"

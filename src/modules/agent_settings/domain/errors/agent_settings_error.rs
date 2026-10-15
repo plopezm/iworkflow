@@ -6,6 +6,8 @@ pub enum AgentSettingsError {
     InvalidThinkingLevel(String),
     #[error("runtime de agente inválido: {0}")]
     InvalidRuntime(String),
+    #[error("límite de recursos inválido: {0}")]
+    InvalidLimit(String),
     #[error("modelo no disponible: {provider}/{model}")]
     ModelNotFound { provider: String, model: String },
     #[error("perfil no encontrado: {0}")]

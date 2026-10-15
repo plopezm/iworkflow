@@ -7,6 +7,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::image_attachment::{
     ImageAttachment, MAX_IMAGES_PER_MESSAGE,
 };
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::stored_attachment::StoredAttachment;
 use crate::modules::tasks::domain::models::task::{NewTask, Task, TaskId};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
@@ -97,12 +98,15 @@ impl UpdateTask {
         Ok(())
     }
 
+    // Un argumento por campo editable del formulario; agruparlos solo movería el problema.
+    #[allow(clippy::too_many_arguments)]
     pub async fn execute(
         &self,
         id: TaskId,
         title: String,
         prompt: String,
         priority: TaskPriority,
+        limits: ResourceLimits,
         images: Vec<ImageAttachment>,
         remove_attachment_ids: Vec<String>,
     ) -> Result<Task, TaskError> {
@@ -115,6 +119,7 @@ impl UpdateTask {
             title,
             prompt,
             priority,
+            limits,
             base_branch: None,
             images: Vec::new(),
             start_now: false,
@@ -147,6 +152,7 @@ impl UpdateTask {
                 validated.title.clone(),
                 validated.prompt.clone(),
                 validated.priority,
+                validated.limits,
             )
             .await?;
         if !updated {
@@ -164,6 +170,7 @@ impl UpdateTask {
             title: validated.title,
             prompt: validated.prompt,
             priority: validated.priority,
+            limits: validated.limits,
             ..task
         })
     }
@@ -219,7 +226,7 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .returning(|_, _, _, _| Ok(true));
+            .returning(|_, _, _, _, _| Ok(true));
         test_support::lifecycle_with(repository, recorded)
     }
 
@@ -235,6 +242,7 @@ mod tests {
                 "Nuevo titulo".to_string(),
                 "Nuevo prompt".to_string(),
                 TaskPriority::default(),
+                ResourceLimits::default(),
                 Vec::new(),
                 Vec::new(),
             )
@@ -255,8 +263,8 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .withf(|_, _, _, priority: &TaskPriority| *priority == TaskPriority::Urgent)
-            .returning(|_, _, _, _| Ok(true));
+            .withf(|_, _, _, priority: &TaskPriority, _| *priority == TaskPriority::Urgent)
+            .returning(|_, _, _, _, _| Ok(true));
 
         let updated: Task = use_case(test_support::lifecycle_with(repository, &recorded))
             .execute(
@@ -264,6 +272,7 @@ mod tests {
                 "t".to_string(),
                 "p".to_string(),
                 TaskPriority::Urgent,
+                ResourceLimits::default(),
                 Vec::new(),
                 Vec::new(),
             )
@@ -285,6 +294,7 @@ mod tests {
                 "  ".to_string(),
                 "Arregla el test\nmas".to_string(),
                 TaskPriority::default(),
+                ResourceLimits::default(),
                 Vec::new(),
                 Vec::new(),
             )
@@ -305,6 +315,7 @@ mod tests {
                     "t".to_string(),
                     "p".to_string(),
                     TaskPriority::default(),
+                    ResourceLimits::default(),
                     Vec::new(),
                     Vec::new(),
                 )
@@ -323,7 +334,7 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .returning(|_, _, _, _| Ok(false));
+            .returning(|_, _, _, _, _| Ok(false));
 
         let result: Result<Task, TaskError> =
             use_case(test_support::lifecycle_with(repository, &recorded))
@@ -332,6 +343,7 @@ mod tests {
                     "t".to_string(),
                     "p".to_string(),
                     TaskPriority::default(),
+                    ResourceLimits::default(),
                     Vec::new(),
                     Vec::new(),
                 )
@@ -351,6 +363,7 @@ mod tests {
                     "t".to_string(),
                     "   ".to_string(),
                     TaskPriority::default(),
+                    ResourceLimits::default(),
                     Vec::new(),
                     Vec::new(),
                 )
@@ -390,6 +403,7 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             TaskPriority::default(),
+            ResourceLimits::default(),
             vec![image("a.png"), image("b.png")],
             Vec::new(),
         )
@@ -417,6 +431,7 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             TaskPriority::default(),
+            ResourceLimits::default(),
             vec![image("a.png"), image("b.png")],
             Vec::new(),
         )
@@ -439,6 +454,7 @@ mod tests {
                     "t".to_string(),
                     "p".to_string(),
                     TaskPriority::default(),
+                    ResourceLimits::default(),
                     vec![bad],
                     Vec::new(),
                 )
@@ -481,6 +497,7 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             TaskPriority::default(),
+            ResourceLimits::default(),
             vec![image("a.png"), image("b.png")],
             Vec::new(),
         )
@@ -521,6 +538,7 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             TaskPriority::default(),
+            ResourceLimits::default(),
             Vec::new(),
             vec!["a.png".to_string(), "unknown".to_string()],
         )
@@ -557,6 +575,7 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             TaskPriority::default(),
+            ResourceLimits::default(),
             Vec::new(),
             vec!["a.png".to_string()],
         )
@@ -605,6 +624,7 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             TaskPriority::default(),
+            ResourceLimits::default(),
             vec![image("a.png"), image("b.png")],
             vec!["1".to_string(), "2".to_string()],
         )
@@ -638,6 +658,7 @@ mod tests {
             "t".to_string(),
             "p".to_string(),
             TaskPriority::default(),
+            ResourceLimits::default(),
             vec![image("a.png"), image("b.png")],
             vec!["1".to_string()],
         )
@@ -658,6 +679,7 @@ mod tests {
                     "t".to_string(),
                     "p".to_string(),
                     TaskPriority::default(),
+                    ResourceLimits::default(),
                     Vec::new(),
                     vec!["a.png".to_string()],
                 )

@@ -200,6 +200,8 @@ mod tests {
             worktree_path: "/wt".to_string(),
             status: TaskStatusDto::Idle,
             priority: Default::default(),
+            memory_limit_mb: None,
+            cpu_limit_percent: None,
             error: None,
             actions: Default::default(),
             stage: TaskStageDto::Working,
