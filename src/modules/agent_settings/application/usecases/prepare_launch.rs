@@ -35,6 +35,7 @@ impl PrepareLaunch {
             thinking: settings.thinking,
             memory_limit_mb: settings.memory_limit_mb,
             cpu_limit_percent: settings.cpu_limit_percent,
+            limits_disabled: settings.limits_disabled,
         })
     }
 }
@@ -84,6 +85,31 @@ mod tests {
                 ..Default::default()
             }
         );
+    }
+
+    #[tokio::test]
+    async fn returns_limits_and_the_disabled_switch() {
+        let mut repository: MockAgentSettingsRepository = MockAgentSettingsRepository::new();
+        repository.expect_get().returning(|| {
+            Ok(AgentSettings {
+                memory_limit_mb: Some(2048),
+                cpu_limit_percent: Some(100),
+                limits_disabled: true,
+                ..AgentSettings::default()
+            })
+        });
+        let mut pin: MockProfilePin = MockProfilePin::new();
+        pin.expect_apply().returning(|_, _| Ok(()));
+        let use_case: PrepareLaunch = PrepareLaunch::new(Arc::new(repository), Arc::new(pin));
+
+        let result: LaunchPreferences = use_case
+            .execute(&PathBuf::from("/worktree"))
+            .await
+            .expect("prepare");
+
+        assert_eq!(result.memory_limit_mb, Some(2048));
+        assert_eq!(result.cpu_limit_percent, Some(100));
+        assert!(result.limits_disabled);
     }
 
     #[tokio::test]

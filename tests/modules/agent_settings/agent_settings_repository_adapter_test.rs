@@ -105,6 +105,7 @@ async fn save_and_get_roundtrip_resource_limits() {
     let settings: AgentSettings = AgentSettings {
         memory_limit_mb: Some(4096),
         cpu_limit_percent: Some(200),
+        limits_disabled: true,
         ..AgentSettings::default()
     };
 

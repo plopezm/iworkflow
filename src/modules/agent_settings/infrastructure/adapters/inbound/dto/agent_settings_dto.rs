@@ -9,6 +9,8 @@ pub struct AgentSettingsDto {
     pub thinking: Option<String>,
     pub memory_limit_mb: Option<u32>,
     pub cpu_limit_percent: Option<u32>,
+    #[serde(default)]
+    pub limits_disabled: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +68,7 @@ mod mapping {
                     .map(|t: &ThinkingLevel| t.as_str().to_string()),
                 memory_limit_mb: settings.memory_limit_mb,
                 cpu_limit_percent: settings.cpu_limit_percent,
+                limits_disabled: settings.limits_disabled,
             }
         }
     }
@@ -102,6 +105,7 @@ mod mapping {
                 thinking,
                 memory_limit_mb: positive_limit(dto.memory_limit_mb, "memoria")?,
                 cpu_limit_percent: positive_limit(dto.cpu_limit_percent, "CPU")?,
+                limits_disabled: dto.limits_disabled,
             })
         }
     }
@@ -238,6 +242,7 @@ mod mapping {
             let settings: AgentSettings = AgentSettings {
                 memory_limit_mb: Some(2048),
                 cpu_limit_percent: Some(150),
+                limits_disabled: true,
                 ..AgentSettings::default()
             };
             let back: AgentSettings =

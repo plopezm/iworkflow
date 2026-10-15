@@ -80,6 +80,7 @@ impl AgentSettingsState {
                 thinking: current.thinking.clone(),
                 memory_limit_mb: current.memory_limit_mb,
                 cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
             },
         });
     }
@@ -101,6 +102,7 @@ impl AgentSettingsState {
                 thinking: current.thinking.clone(),
                 memory_limit_mb: current.memory_limit_mb,
                 cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
             },
         });
     }
@@ -118,6 +120,7 @@ impl AgentSettingsState {
                 thinking: current.thinking.clone(),
                 memory_limit_mb: current.memory_limit_mb,
                 cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
             },
         });
     }
@@ -135,6 +138,7 @@ impl AgentSettingsState {
                 thinking,
                 memory_limit_mb: current.memory_limit_mb,
                 cpu_limit_percent: current.cpu_limit_percent,
+                limits_disabled: current.limits_disabled,
             },
         });
     }
@@ -154,6 +158,16 @@ impl AgentSettingsState {
         self.update.dispatch(UpdateAgentSettings {
             input: AgentSettingsDto {
                 cpu_limit_percent: parse_positive_number(&value),
+                ..current.clone()
+            },
+        });
+    }
+
+    /// Activa o desactiva por completo la limitación de recursos, conservando los valores.
+    pub fn set_limits_enabled(&self, current: &AgentSettingsDto, enabled: bool) {
+        self.update.dispatch(UpdateAgentSettings {
+            input: AgentSettingsDto {
+                limits_disabled: !enabled,
                 ..current.clone()
             },
         });

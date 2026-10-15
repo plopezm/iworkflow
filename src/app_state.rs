@@ -362,6 +362,7 @@ impl LaunchSettingsPort for LaunchSettingsBridge {
                 memory_mb: preferences.memory_limit_mb,
                 cpu_percent: preferences.cpu_limit_percent,
             },
+            limits_disabled: preferences.limits_disabled,
         })
     }
 }

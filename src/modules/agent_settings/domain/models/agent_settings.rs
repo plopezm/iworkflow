@@ -15,4 +15,6 @@ pub struct AgentSettings {
     pub memory_limit_mb: Option<u32>,
     /// Tope de CPU por tarea en % de un núcleo; `None` = sin límite.
     pub cpu_limit_percent: Option<u32>,
+    /// Interruptor general: con `true` no se aplica ningún límite (ni global ni por tarea).
+    pub limits_disabled: bool,
 }

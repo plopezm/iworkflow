@@ -10,6 +10,7 @@ diesel::table! {
         runtime -> Nullable<Text>,
         memory_limit_mb -> Nullable<Integer>,
         cpu_limit_percent -> Nullable<Integer>,
+        limits_disabled -> Integer,
     }
 }
 

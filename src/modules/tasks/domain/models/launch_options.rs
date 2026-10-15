@@ -21,15 +21,19 @@ pub struct LaunchOptions {
     pub thinking: Option<String>,
     /// Límites de RAM/CPU del proceso del agente (solo Linux con systemd).
     pub limits: ResourceLimits,
+    /// Interruptor general de ajustes: con `true` no se aplica ningún límite.
+    pub limits_disabled: bool,
 }
 
 impl LaunchOptions {
     /// Aplica los límites propios de la tarea sobre los globales (por recurso).
     pub fn with_task_limits(self, task: ResourceLimits) -> Self {
-        Self {
-            limits: task.or(self.limits),
-            ..self
-        }
+        let limits: ResourceLimits = if self.limits_disabled {
+            ResourceLimits::default()
+        } else {
+            task.or(self.limits)
+        };
+        Self { limits, ..self }
     }
 
     /// Descarta el modelo y el nivel de razonamiento que el runtime no soporta.
@@ -39,6 +43,7 @@ impl LaunchOptions {
             model: self.model.filter(|_| capabilities.model_selection),
             thinking: self.thinking.filter(|_| capabilities.thinking_levels),
             limits: self.limits,
+            limits_disabled: self.limits_disabled,
         }
     }
 }
@@ -56,6 +61,7 @@ mod tests {
             }),
             thinking: Some("high".to_string()),
             limits: ResourceLimits::default(),
+            limits_disabled: false,
         }
     }
 
@@ -79,6 +85,23 @@ mod tests {
                 cpu_percent: Some(200)
             }
         );
+    }
+
+    #[test]
+    fn disabled_switch_drops_global_and_task_limits() {
+        let options: LaunchOptions = LaunchOptions {
+            limits: ResourceLimits {
+                memory_mb: Some(4096),
+                cpu_percent: Some(200),
+            },
+            limits_disabled: true,
+            ..LaunchOptions::default()
+        };
+        let task: ResourceLimits = ResourceLimits {
+            memory_mb: Some(1024),
+            cpu_percent: Some(50),
+        };
+        assert!(options.with_task_limits(task).limits.is_unlimited());
     }
 
     #[test]

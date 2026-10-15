@@ -299,7 +299,23 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .map(|v: u32| v.to_string())
                         .unwrap_or_default();
                     let for_memory: AgentSettingsDto = settings.clone();
+                    let for_toggle: AgentSettingsDto = settings.clone();
+                    let enabled: bool = !settings.limits_disabled;
+                    let inputs_disabled: Signal<bool> =
+                        Signal::derive(move || pending.get() || !enabled);
                     view! {
+                        <label class="row items-center gap-2 text-sm text-fg">
+                            <input
+                                type="checkbox"
+                                class="h-4 w-4"
+                                prop:checked=enabled
+                                disabled=move || pending.get()
+                                on:change=move |ev| {
+                                    state.set_limits_enabled(&for_toggle, event_target_checked(&ev))
+                                }
+                            />
+                            "Limitar recursos del agente"
+                        </label>
                         <NumberInput
                             label="RAM"
                             value=memory
@@ -308,7 +324,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
                             on_change=Callback::new(move |value: String| {
                                 state.set_memory_limit(&for_memory, value)
                             })
-                            disabled=pending
+                            disabled=inputs_disabled
                         />
                         <NumberInput
                             label="CPU"
@@ -318,7 +334,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
                             on_change=Callback::new(move |value: String| {
                                 state.set_cpu_limit(&settings, value)
                             })
-                            disabled=pending
+                            disabled=inputs_disabled
                         />
                     }
                         .into_any()
