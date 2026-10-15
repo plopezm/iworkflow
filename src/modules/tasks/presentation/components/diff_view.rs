@@ -2,6 +2,7 @@ use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::components::progress_dialog::ProgressDialog;
+use crate::core::dock::js as dock_js;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::presentation::components::diff_file_card::DiffFileCard;
 use crate::modules::tasks::presentation::components::diff_file_tree::DiffFileTree;
@@ -179,9 +180,30 @@ pub fn DiffView(
                 .then(|| view! { <p class="notice notice-warn animate-fade-in">"Parche truncado: revisa el resto con git."</p> })}
             <div class="diff-layout">
                 <Show when=move || state.tree_open.get() && !state.files.with(Vec::is_empty)>
-                    <aside class="diff-sidebar">
+                    <aside
+                        class="diff-sidebar"
+                        style=move || {
+                            state
+                                .sidebar_ratio
+                                .get()
+                                .map(|ratio: f64| format!("flex: 0 0 {}%", ratio * 100.0))
+                        }
+                    >
                         <DiffFileTree state />
                     </aside>
+                    <div
+                        class="diff-resizer"
+                        data-dock-divider=""
+                        role="separator"
+                        aria-orientation="vertical"
+                        on:pointerdown=move |ev: leptos::ev::PointerEvent| {
+                            dock_js::start_resize(
+                                ev,
+                                false,
+                                move |ratio: f64| state.sidebar_ratio.set(Some(ratio)),
+                            );
+                        }
+                    ></div>
                 </Show>
                 <div class="diff-cards">
                     {move || {
