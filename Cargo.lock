@@ -1185,6 +1185,7 @@ dependencies = [
  "libsqlite3-sys",
  "mockall",
  "multer",
+ "nix",
  "portable-pty",
  "pulldown-cmark",
  "serde",
