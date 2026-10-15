@@ -37,3 +37,11 @@ export function pi_dock_drag_start(event, payload) {
   transfer.setData('text/plain', payload);
   transfer.effectAllowed = 'move';
 }
+
+// Scrolls the tab strip horizontally just enough to reveal `element` (no-op if visible).
+export function pi_dock_reveal_tab(element) {
+  if (!element || !element.scrollIntoView) return;
+  requestAnimationFrame(() => {
+    element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  });
+}
