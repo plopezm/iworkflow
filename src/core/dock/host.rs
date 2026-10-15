@@ -184,8 +184,17 @@ fn TabButton(
                 .map_or("", |t: &TabEntry| (hooks.icon_for)(&t.path))
         })
     });
+    let node: NodeRef<leptos::html::Div> = NodeRef::new();
+    Effect::new(move |_| {
+        if active.get() == Some(tab_id)
+            && let Some(element) = node.get()
+        {
+            js::reveal_tab(element);
+        }
+    });
     view! {
         <div
+            node_ref=node
             role="tab"
             draggable="true"
             class=move || {

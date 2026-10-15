@@ -9,6 +9,7 @@ mod bindings {
     extern "C" {
         pub fn pi_dock_resize(event: &JsValue, vertical: bool, on_done: &JsValue);
         pub fn pi_dock_drag_start(event: &JsValue, payload: &str);
+        pub fn pi_dock_reveal_tab(element: &JsValue);
     }
 }
 
@@ -38,5 +39,17 @@ pub fn start_drag(event: leptos::ev::DragEvent, payload: &str) {
     #[cfg(not(feature = "hydrate"))]
     {
         drop((event, payload));
+    }
+}
+
+/// Desplaza la barra de pestañas horizontalmente lo justo para que `element` quede visible.
+pub fn reveal_tab(element: leptos::web_sys::HtmlDivElement) {
+    #[cfg(feature = "hydrate")]
+    {
+        bindings::pi_dock_reveal_tab(&wasm_bindgen::JsValue::from(element));
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        drop(element);
     }
 }
