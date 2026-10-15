@@ -105,7 +105,7 @@ impl CreateTask {
             title: input.title,
             prompt: input.prompt,
             branch,
-            base_branch: workspace.base_branch,
+            base_branch: input.base_branch.unwrap_or(workspace.base_branch),
             worktree_path,
             status: TaskStatus::Backlog,
             priority: input.priority,
@@ -186,6 +186,7 @@ mod tests {
             title: "Arregla login".to_string(),
             prompt: "Arregla el login roto".to_string(),
             priority: TaskPriority::default(),
+            base_branch: None,
             images: Vec::new(),
             start_now,
         }
@@ -439,6 +440,42 @@ mod tests {
         let created: CreatedTask = use_case.execute(urgent).await.expect("creada");
 
         assert_eq!(created.task.priority, TaskPriority::Urgent);
+    }
+
+    #[tokio::test]
+    async fn uses_the_requested_base_branch_instead_of_the_workspace_one() {
+        let recorded: Recorded = Recorded::default();
+        let use_case: CreateTask = CreateTask::new(
+            lifecycle_accepting_insert(&recorded),
+            Arc::new(worktrees_computing_path_only()),
+            no_op_start_task(&recorded),
+            Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
+        );
+        let remote: NewTask = NewTask {
+            base_branch: Some("origin/develop".to_string()),
+            ..input(false)
+        };
+
+        let created: CreatedTask = use_case.execute(remote).await.expect("creada");
+
+        assert_eq!(created.task.base_branch, "origin/develop");
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_the_workspace_base_branch_without_a_request() {
+        let recorded: Recorded = Recorded::default();
+        let use_case: CreateTask = CreateTask::new(
+            lifecycle_accepting_insert(&recorded),
+            Arc::new(worktrees_computing_path_only()),
+            no_op_start_task(&recorded),
+            Arc::new(MockTaskAttachmentRepository::new()),
+            Arc::new(MockAttachmentStorage::new()),
+        );
+
+        let created: CreatedTask = use_case.execute(input(false)).await.expect("creada");
+
+        assert_eq!(created.task.base_branch, "main");
     }
 
     #[tokio::test]

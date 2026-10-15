@@ -576,3 +576,115 @@ async fn remove_parks_worktree_and_purges_it_in_background() {
     let trash: PathBuf = f._worktrees_dir.path().join(".trash");
     assert_eq!(std::fs::read_dir(&trash).expect("trash").count(), 0);
 }
+
+/// Repositorio con un remoto `origin` (bare) que tiene `main` y `develop`; `develop` añade
+/// `develop.txt`. En el clon solo existe la local `main`; `origin/develop` está sin checkout.
+struct RemoteFixture {
+    _remote_dir: tempfile::TempDir,
+    _repo_dir: tempfile::TempDir,
+    _worktrees_dir: tempfile::TempDir,
+    repo: PathBuf,
+    adapter: GitCliWorktreeAdapter,
+}
+
+fn fixture_with_remote_develop() -> RemoteFixture {
+    let (repo_dir, repo) = common::git_repo();
+    let remote_dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let remote: String = remote_dir.path().to_string_lossy().into_owned();
+    common::git(&repo, &["init", "-q", "--bare", &remote]);
+    common::git(&repo, &["remote", "add", "origin", &remote]);
+    common::git(&repo, &["checkout", "-q", "-b", "develop"]);
+    std::fs::write(repo.join("develop.txt"), "dev\n").expect("write");
+    common::git(&repo, &["add", "."]);
+    common::git(&repo, &["commit", "-q", "-m", "develop"]);
+    common::git(&repo, &["push", "-q", "origin", "main", "develop"]);
+    common::git(&repo, &["checkout", "-q", "main"]);
+    common::git(&repo, &["branch", "-q", "-D", "develop"]);
+    let worktrees_dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: GitCliWorktreeAdapter =
+        GitCliWorktreeAdapter::new(worktrees_dir.path().to_path_buf());
+    RemoteFixture {
+        _remote_dir: remote_dir,
+        _repo_dir: repo_dir,
+        _worktrees_dir: worktrees_dir,
+        repo,
+        adapter,
+    }
+}
+
+#[tokio::test]
+async fn lists_local_and_remote_branches_without_task_or_head_refs() {
+    let f: RemoteFixture = fixture_with_remote_develop();
+    common::git(&f.repo, &["branch", "pi/otra-tarea-1"]);
+    common::git(&f.repo, &["remote", "set-head", "origin", "main"]);
+
+    let names: Vec<(String, bool)> = f
+        .adapter
+        .list_branches(&f.repo)
+        .await
+        .expect("branches")
+        .into_iter()
+        .map(|b| (b.name, b.remote))
+        .collect();
+
+    assert_eq!(
+        names,
+        vec![
+            ("main".to_string(), false),
+            ("origin/develop".to_string(), true),
+            ("origin/main".to_string(), true),
+        ]
+    );
+}
+
+#[tokio::test]
+async fn creates_worktree_from_a_remote_branch() {
+    let f: RemoteFixture = fixture_with_remote_develop();
+    let worktree: PathBuf = f.adapter.worktree_path("demo", "1234-remote");
+
+    f.adapter
+        .create(&f.repo, "origin/develop", BRANCH, &worktree)
+        .await
+        .expect("create");
+
+    assert!(worktree.join("develop.txt").exists());
+    assert_eq!(
+        common::git(&worktree, &["branch", "--show-current"]),
+        BRANCH
+    );
+}
+
+#[tokio::test]
+async fn merges_a_task_based_on_a_remote_branch_into_a_local_tracking_branch() {
+    let f: RemoteFixture = fixture_with_remote_develop();
+    let worktree: PathBuf = f.adapter.worktree_path("demo", "1234-remote");
+    f.adapter
+        .create(&f.repo, "origin/develop", BRANCH, &worktree)
+        .await
+        .expect("create");
+    std::fs::write(worktree.join("nuevo.txt"), "hola\n").expect("write");
+    f.adapter
+        .commit_all(&worktree, "pi: nuevo")
+        .await
+        .expect("commit");
+    let remote_tip: String = common::git(&f.repo, &["rev-parse", "origin/develop"]);
+
+    let outcome: MergeOutcome = f
+        .adapter
+        .merge(&f.repo, "origin/develop", BRANCH, "Merge tarea")
+        .await
+        .expect("merge");
+
+    assert!(matches!(outcome, MergeOutcome::Merged));
+    assert_eq!(common::git(&f.repo, &["show", "develop:nuevo.txt"]), "hola");
+    assert_eq!(
+        common::git(&f.repo, &["rev-parse", "origin/develop"]),
+        remote_tip,
+        "el merge nunca toca la rama remota"
+    );
+    assert_eq!(
+        common::git(&f.repo, &["config", "branch.develop.remote"]),
+        "origin"
+    );
+    assert_eq!(common::git(&f.repo, &["branch", "--show-current"]), "main");
+}

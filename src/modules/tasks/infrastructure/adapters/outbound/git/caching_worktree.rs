@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use crate::modules::tasks::domain::errors::task_error::TaskError;
+use crate::modules::tasks::domain::models::branch_option::BranchOption;
 use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
@@ -161,6 +162,10 @@ impl WorktreePort for CachingWorktree {
 
     async fn exists(&self, path: &Path) -> bool {
         self.inner.exists(path).await
+    }
+
+    async fn list_branches(&self, repo: &Path) -> Result<Vec<BranchOption>, TaskError> {
+        self.inner.list_branches(repo).await
     }
 
     async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError> {

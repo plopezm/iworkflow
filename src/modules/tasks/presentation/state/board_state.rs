@@ -6,10 +6,11 @@ use leptos::prelude::*;
 use crate::core::components::toast::{ToastMessage, push_toast};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
+    BranchOptionDto, CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_done_tasks,
+    list_workspace_branches,
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
@@ -295,6 +296,10 @@ pub struct BoardState {
     /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
     pub form_priority: RwSignal<String>,
     pub form_start_now: RwSignal<bool>,
+    /// Rama de la que parte el worktree; vacío = base del workspace.
+    pub form_base_branch: RwSignal<String>,
+    /// Ramas del workspace elegido en el formulario (vacías mientras no haya ninguno).
+    pub branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>>,
     /// Imágenes adjuntas al prompt inicial.
     pub images: ImageAttachments,
     pub toasts: RwSignal<Vec<ToastMessage>>,
@@ -317,6 +322,7 @@ pub fn build_create_task_dto(
     prompt: String,
     priority: &str,
     start_now: bool,
+    base_branch: &str,
     images: Vec<ImageAttachmentDto>,
 ) -> CreateTaskDto {
     CreateTaskDto {
@@ -325,6 +331,7 @@ pub fn build_create_task_dto(
         prompt,
         priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
         start_now,
+        base_branch: Some(base_branch.trim().to_string()).filter(|b: &String| !b.is_empty()),
         images,
     }
 }
@@ -373,6 +380,23 @@ impl BoardState {
             }
         });
         let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = store.workspaces;
+        let form_workspace_id: RwSignal<String> = RwSignal::new(String::new());
+        let form_base_branch: RwSignal<String> = RwSignal::new(String::new());
+        let branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>> = Resource::new(
+            move || form_workspace_id.get(),
+            |workspace_id: String| async move {
+                if workspace_id.is_empty() {
+                    Ok(Vec::new())
+                } else {
+                    list_workspace_branches(workspace_id).await
+                }
+            },
+        );
+        // Una rama elegida para otro workspace ya no vale.
+        Effect::new(move |_| {
+            form_workspace_id.track();
+            form_base_branch.set(String::new());
+        });
 
         Self {
             store,
@@ -388,11 +412,13 @@ impl BoardState {
             finish,
             merge,
             modal_open: RwSignal::new(false),
-            form_workspace_id: RwSignal::new(String::new()),
+            form_workspace_id,
             form_title: RwSignal::new(String::new()),
             form_prompt: RwSignal::new(String::new()),
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
             form_start_now: RwSignal::new(false),
+            form_base_branch,
+            branches,
             images: ImageAttachments::new(),
             toasts: RwSignal::new(Vec::new()),
             toast_seq: RwSignal::new(0),
@@ -412,6 +438,7 @@ impl BoardState {
         self.form_priority
             .set(TaskPriorityDto::default().as_str().to_string());
         self.form_start_now.set(false);
+        self.form_base_branch.set(String::new());
         self.images.clear();
         self.modal_open.set(true);
     }
@@ -430,6 +457,7 @@ impl BoardState {
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
                 self.form_start_now.get_untracked(),
+                &self.form_base_branch.get_untracked(),
                 self.images.images.get_untracked(),
             ),
         });
@@ -516,11 +544,27 @@ mod tests {
             "haz algo".to_string(),
             "high",
             true,
+            "origin/develop",
             vec![image.clone()],
         );
         assert_eq!(dto.images, vec![image]);
+        assert_eq!(dto.base_branch.as_deref(), Some("origin/develop"));
         assert_eq!(dto.priority, TaskPriorityDto::High);
         assert!(dto.start_now);
+    }
+
+    #[test]
+    fn create_dto_leaves_the_base_branch_unset_when_blank() {
+        let dto: CreateTaskDto = build_create_task_dto(
+            "ws".to_string(),
+            String::new(),
+            "haz algo".to_string(),
+            "normal",
+            false,
+            "  ",
+            Vec::new(),
+        );
+        assert_eq!(dto.base_branch, None);
     }
 
     #[test]

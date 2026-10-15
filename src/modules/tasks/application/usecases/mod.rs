@@ -15,6 +15,7 @@ pub mod handle_agent_event;
 pub mod list_done_tasks;
 pub mod list_task_attachments;
 pub mod list_tasks;
+pub mod list_workspace_branches;
 pub mod list_workspace_options;
 pub mod merge_task;
 pub mod reconcile_tasks;

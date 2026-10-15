@@ -115,6 +115,7 @@ impl UpdateTask {
             title,
             prompt,
             priority,
+            base_branch: None,
             images: Vec::new(),
             start_now: false,
         }

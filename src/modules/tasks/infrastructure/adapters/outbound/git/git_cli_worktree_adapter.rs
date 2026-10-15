@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 
 use crate::core::git::{GitCommandError, GitOutput, run_git, run_git_raw};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
-use crate::modules::tasks::domain::models::task::slugify;
+use crate::modules::tasks::domain::models::branch_option::BranchOption;
+use crate::modules::tasks::domain::models::task::{is_task_branch, slugify};
 use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
@@ -144,6 +145,14 @@ async fn git(dir: &Path, args: &[&str]) -> Result<String, TaskError> {
     run_git(dir, args).await.map_err(git_error)
 }
 
+async fn ref_exists(repo: &Path, reference: &str) -> Result<bool, TaskError> {
+    Ok(
+        git_raw(repo, &["rev-parse", "--verify", "--quiet", reference])
+            .await?
+            .success,
+    )
+}
+
 async fn git_raw(dir: &Path, args: &[&str]) -> Result<GitOutput, TaskError> {
     run_git_raw(dir, args).await.map_err(git_error)
 }
@@ -264,7 +273,71 @@ fn worktree_with_branch(porcelain: &str, branch: &str) -> Option<PathBuf> {
     None
 }
 
+const LOCAL_REFS_PREFIX: &str = "refs/heads/";
+const REMOTE_REFS_PREFIX: &str = "refs/remotes/";
+
+/// Ramas de un `git for-each-ref --format=%(refname)`: locales primero, luego remotas, cada
+/// grupo ordenado; sin las ramas de tareas ni los `<remoto>/HEAD`.
+fn parse_branches(refs: &str) -> Vec<BranchOption> {
+    let mut local: Vec<BranchOption> = Vec::new();
+    let mut remote: Vec<BranchOption> = Vec::new();
+    for reference in refs.lines().map(str::trim) {
+        if let Some(name) = reference.strip_prefix(LOCAL_REFS_PREFIX) {
+            if !is_task_branch(name) {
+                local.push(BranchOption {
+                    name: name.to_string(),
+                    remote: false,
+                });
+            }
+        } else if let Some(name) = reference.strip_prefix(REMOTE_REFS_PREFIX)
+            && !name.ends_with("/HEAD")
+        {
+            remote.push(BranchOption {
+                name: name.to_string(),
+                remote: true,
+            });
+        }
+    }
+    local.sort_by(|a: &BranchOption, b: &BranchOption| a.name.cmp(&b.name));
+    remote.sort_by(|a: &BranchOption, b: &BranchOption| a.name.cmp(&b.name));
+    local.extend(remote);
+    local
+}
+
+/// Nombre local de una rama remota (`origin/develop` -> `develop`) dado el listado de remotos.
+fn local_name_of_remote<'a>(base_branch: &'a str, remotes: &str) -> Option<&'a str> {
+    remotes
+        .lines()
+        .map(str::trim)
+        .filter(|remote: &&str| !remote.is_empty())
+        .find_map(|remote: &str| {
+            base_branch
+                .strip_prefix(remote)
+                .and_then(|rest: &str| rest.strip_prefix('/'))
+        })
+        .filter(|local: &&str| !local.is_empty())
+}
+
 impl GitCliWorktreeAdapter {
+    /// Rama local donde integrar una tarea cuya base es `base_branch`. Si la base es una rama de
+    /// seguimiento remoto sin homónima local, se crea la local siguiendo a la remota.
+    async fn merge_target(&self, repo: &Path, base_branch: &str) -> Result<String, TaskError> {
+        if ref_exists(repo, &format!("{LOCAL_REFS_PREFIX}{base_branch}")).await? {
+            return Ok(base_branch.to_string());
+        }
+        if !ref_exists(repo, &format!("{REMOTE_REFS_PREFIX}{base_branch}")).await? {
+            return Ok(base_branch.to_string());
+        }
+        let remotes: String = git(repo, &["remote"]).await?;
+        let Some(local) = local_name_of_remote(base_branch, &remotes) else {
+            return Ok(base_branch.to_string());
+        };
+        if !ref_exists(repo, &format!("{LOCAL_REFS_PREFIX}{local}")).await? {
+            git(repo, &["branch", "--track", local, base_branch]).await?;
+        }
+        Ok(local.to_string())
+    }
+
     /// Ejecuta el merge en `target` (con `base_branch` ya checkouteada).
     async fn merge_in(
         &self,
@@ -314,6 +387,20 @@ impl WorktreePort for GitCliWorktreeAdapter {
 
     async fn exists(&self, path: &Path) -> bool {
         matches!(tokio::fs::try_exists(path).await, Ok(true))
+    }
+
+    async fn list_branches(&self, repo: &Path) -> Result<Vec<BranchOption>, TaskError> {
+        let refs: String = git(
+            repo,
+            &[
+                "for-each-ref",
+                "--format=%(refname)",
+                LOCAL_REFS_PREFIX,
+                REMOTE_REFS_PREFIX,
+            ],
+        )
+        .await?;
+        Ok(parse_branches(&refs))
     }
 
     async fn create(
@@ -401,6 +488,8 @@ impl WorktreePort for GitCliWorktreeAdapter {
         message: &str,
     ) -> Result<MergeOutcome, TaskError> {
         let _guard: tokio::sync::MutexGuard<'_, ()> = self.merge_lock.lock().await;
+        let target_branch: String = self.merge_target(repo, base_branch).await?;
+        let base_branch: &str = &target_branch;
         let porcelain: String = git(repo, &["worktree", "list", "--porcelain"]).await?;
         if let Some(checkout) = worktree_with_branch(&porcelain, base_branch) {
             let dirty: String = git(
@@ -477,6 +566,35 @@ mod tests {
         assert!(is_dead_worktree(porcelain, Path::new("/wt/gone")));
         assert!(!is_dead_worktree(porcelain, Path::new("/wt/ok")));
         assert!(!is_dead_worktree(porcelain, Path::new("/wt/locked")));
+    }
+
+    #[test]
+    fn lists_local_then_remote_branches_without_task_branches_or_remote_head() {
+        let refs: &str = "refs/heads/main\nrefs/heads/pi/fix-1\nrefs/heads/develop\nrefs/remotes/origin/HEAD\nrefs/remotes/origin/main\nrefs/remotes/origin/develop\nrefs/remotes/up/pi/x\n";
+        let names: Vec<(String, bool)> = parse_branches(refs)
+            .into_iter()
+            .map(|b: BranchOption| (b.name, b.remote))
+            .collect();
+        assert_eq!(
+            names,
+            vec![
+                ("develop".to_string(), false),
+                ("main".to_string(), false),
+                ("origin/develop".to_string(), true),
+                ("origin/main".to_string(), true),
+                ("up/pi/x".to_string(), true),
+            ]
+        );
+    }
+
+    #[test]
+    fn strips_the_remote_name_from_a_remote_branch() {
+        assert_eq!(
+            local_name_of_remote("origin/feature/x", "upstream\norigin\n"),
+            Some("feature/x")
+        );
+        assert_eq!(local_name_of_remote("origin", "origin\n"), None);
+        assert_eq!(local_name_of_remote("develop", "origin\n"), None);
     }
 
     #[test]

@@ -352,6 +352,9 @@ pub struct NewTask {
     pub title: String,
     pub prompt: String,
     pub priority: TaskPriority,
+    /// Rama (local o remota, p. ej. `origin/develop`) de la que parte el worktree. `None`
+    /// usa la rama base del workspace.
+    pub base_branch: Option<String>,
     /// Imágenes adjuntas al prompt inicial.
     pub images: Vec<ImageAttachment>,
     /// Si es `true`, la tarea arranca (worktree + agente) inmediatamente tras crearse.
@@ -376,6 +379,10 @@ impl NewTask {
             title,
             prompt,
             priority: self.priority,
+            base_branch: self
+                .base_branch
+                .map(|branch: String| branch.trim().to_string())
+                .filter(|branch: &String| !branch.is_empty()),
             images: ImageAttachment::validate_all(self.images)?,
             start_now: self.start_now,
         })
@@ -432,6 +439,12 @@ pub fn branch_name(title: &str, unique: &Uuid) -> String {
     format!("{BRANCH_PREFIX}/{}-{unique}", slugify(title))
 }
 
+/// `true` si `name` es una rama creada por iworkflow para una tarea (`pi/...`).
+pub fn is_task_branch(name: &str) -> bool {
+    name.strip_prefix(BRANCH_PREFIX)
+        .is_some_and(|rest: &str| rest.starts_with('/'))
+}
+
 /// Nombre de carpeta del worktree: `<slug>-<uuid aleatorio>`.
 pub fn worktree_dir_name(title: &str, unique: &Uuid) -> String {
     format!("{}-{unique}", slugify(title))
@@ -482,6 +495,7 @@ mod tests {
             title: "  ".to_string(),
             prompt: "  Arregla el test\nmás detalles".to_string(),
             priority: TaskPriority::default(),
+            base_branch: None,
             images: Vec::new(),
             start_now: false,
         }
@@ -498,6 +512,7 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::Urgent,
+            base_branch: None,
             images: Vec::new(),
             start_now: false,
         }
@@ -513,6 +528,7 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::default(),
+            base_branch: None,
             images: vec![ImageAttachment {
                 name: "a.bmp".to_string(),
                 mime_type: "image/bmp".to_string(),
@@ -536,6 +552,7 @@ mod tests {
             title: "t".to_string(),
             prompt: "p".to_string(),
             priority: TaskPriority::default(),
+            base_branch: None,
             images: vec![image.clone()],
             start_now: false,
         }
@@ -551,6 +568,7 @@ mod tests {
             title: "t".to_string(),
             prompt: " \n ".to_string(),
             priority: TaskPriority::default(),
+            base_branch: None,
             images: Vec::new(),
             start_now: false,
         }
@@ -803,5 +821,36 @@ mod tests {
         assert_eq!(task.pending_dialog_count_at(before), 1);
         assert_eq!(task.stage_at(before), TaskStage::Attention);
         assert!(task.needs_attention_at(before));
+    }
+    #[test]
+    fn validated_trims_the_requested_base_branch() {
+        let task: NewTask = NewTask {
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            priority: TaskPriority::default(),
+            base_branch: Some("  origin/develop ".to_string()),
+            images: Vec::new(),
+            start_now: false,
+        }
+        .validated()
+        .expect("válida");
+        assert_eq!(task.base_branch.as_deref(), Some("origin/develop"));
+    }
+
+    #[test]
+    fn validated_drops_a_blank_base_branch() {
+        let task: NewTask = NewTask {
+            workspace_id: "ws".to_string(),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            priority: TaskPriority::default(),
+            base_branch: Some("   ".to_string()),
+            images: Vec::new(),
+            start_now: false,
+        }
+        .validated()
+        .expect("válida");
+        assert_eq!(task.base_branch, None);
     }
 }
