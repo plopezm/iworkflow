@@ -8,6 +8,12 @@ pub enum ProjectTreeError {
     PathNotFound(String),
     #[error("la ruta no es un directorio: {0}")]
     NotADirectory(String),
+    #[error("la ruta no es un fichero: {0}")]
+    NotAFile(String),
+    #[error("el fichero supera el tamaño máximo editable: {0}")]
+    FileTooLarge(String),
+    #[error("el fichero no es texto UTF-8: {0}")]
+    NotText(String),
     #[error("la ruta queda fuera del proyecto: {0}")]
     PathOutsideRoot(String),
     #[error("error de lectura del directorio: {0}")]

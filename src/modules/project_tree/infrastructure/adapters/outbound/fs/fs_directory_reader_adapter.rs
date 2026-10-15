@@ -18,12 +18,12 @@ impl FsDirectoryReaderAdapter {
     }
 }
 
-fn io_error(error: std::io::Error) -> ProjectTreeError {
+pub(super) fn io_error(error: std::io::Error) -> ProjectTreeError {
     ProjectTreeError::Io(error.to_string())
 }
 
 /// Accepts only plain `/`-separated names: no absolute paths, `.`, `..` or prefixes.
-fn validate_relative(relative: &str) -> Result<(), ProjectTreeError> {
+pub(super) fn validate_relative(relative: &str) -> Result<(), ProjectTreeError> {
     if relative.is_empty() {
         return Ok(());
     }
@@ -36,7 +36,7 @@ fn validate_relative(relative: &str) -> Result<(), ProjectTreeError> {
     Ok(())
 }
 
-async fn canonicalize(path: &Path, label: &str) -> Result<PathBuf, ProjectTreeError> {
+pub(super) async fn canonicalize(path: &Path, label: &str) -> Result<PathBuf, ProjectTreeError> {
     tokio::fs::canonicalize(path)
         .await
         .map_err(|error: std::io::Error| match error.kind() {

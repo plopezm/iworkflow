@@ -2,7 +2,9 @@ use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::components::tree::{TreeChevron, TreeIcon};
+use crate::core::dock::link::TabLink;
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::TreeEntryDto;
+use crate::modules::project_tree::presentation::state::project_file_state::file_href;
 use crate::modules::project_tree::presentation::state::project_tree_state::{
     ChildrenState, ProjectTreeState,
 };
@@ -30,13 +32,13 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
     if !is_dir {
         return view! {
             <li>
-                <div class="tree-row cursor-default" style=style>
+                <TabLink href=file_href(&state.workspace_id.get_value(), &path) class="tree-row">
                     <span class="tree-chevron-spacer" aria-hidden="true"></span>
                     <TreeIcon />
                     <span class="truncate" title=title>
                         {name}
                     </span>
-                </div>
+                </TabLink>
             </li>
         }
         .into_any();

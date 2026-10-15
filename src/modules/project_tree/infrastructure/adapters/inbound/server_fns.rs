@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 
-use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::ProjectDirectoryDto;
+use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::{
+    ProjectDirectoryDto, ProjectFileDto,
+};
 
 #[cfg(feature = "ssr")]
 mod support {
@@ -40,6 +42,18 @@ mod support {
         }
 
         #[test]
+        fn file_errors_have_readable_messages() {
+            assert_eq!(
+                to_server_error(ProjectTreeError::NotText("a.bin".to_string())),
+                ServerFnError::ServerError("el fichero no es texto UTF-8: a.bin".to_string())
+            );
+            assert_eq!(
+                to_server_error(ProjectTreeError::NotAFile("src".to_string())),
+                ServerFnError::ServerError("la ruta no es un fichero: src".to_string())
+            );
+        }
+
+        #[test]
         fn invalid_workspace_id_is_rejected() {
             assert_eq!(
                 workspace_id("nope"),
@@ -70,4 +84,32 @@ pub async fn list_project_directory(
         .await
         .map_err(support::to_server_error)?;
     Ok(ProjectDirectoryDto::from(directory))
+}
+
+#[server]
+pub async fn read_project_file(
+    workspace_id: String,
+    path: String,
+) -> Result<ProjectFileDto, ServerFnError> {
+    use crate::modules::project_tree::domain::models::project_file::ProjectFile;
+
+    let file: ProjectFile = support::context()?
+        .read_file
+        .execute(support::workspace_id(&workspace_id)?, &path)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(ProjectFileDto::from(file))
+}
+
+#[server]
+pub async fn write_project_file(
+    workspace_id: String,
+    path: String,
+    content: String,
+) -> Result<(), ServerFnError> {
+    support::context()?
+        .write_file
+        .execute(support::workspace_id(&workspace_id)?, &path, &content)
+        .await
+        .map_err(support::to_server_error)
 }

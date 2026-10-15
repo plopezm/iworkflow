@@ -12,10 +12,12 @@ use crate::core::dock::context::{DockContext, use_dock};
 use crate::core::dock::host::{DockHooks, DockHost};
 use crate::core::dock::link::TabLink;
 use crate::core::refresh::DataRefresh;
+use crate::core::url_path::decode_path;
 use crate::modules::agent_profiles::presentation::pages::models_page::ModelsPage;
 use crate::modules::agent_profiles::presentation::pages::profiles_page::ProfilesPage;
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
+use crate::modules::project_tree::presentation::pages::project_file_page::ProjectFilePage;
 use crate::modules::project_tree::presentation::pages::project_tree_page::ProjectTreePage;
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
@@ -55,6 +57,8 @@ enum TabRoute {
     Board,
     Workspaces,
     WorkspaceTree(String),
+    /// Fichero del proyecto: id del workspace y ruta relativa (ya decodificada).
+    WorkspaceFile(String, String),
     WorkspaceEdit(String),
     WorkspaceTerminal(String),
     Terminals,
@@ -76,6 +80,9 @@ impl TabRoute {
             [] => Self::Board,
             ["workspaces"] => Self::Workspaces,
             ["workspaces", id] => Self::WorkspaceTree((*id).to_string()),
+            ["workspaces", id, "files", rest @ ..] if !rest.is_empty() => {
+                Self::WorkspaceFile((*id).to_string(), decode_path(&rest.join("/")))
+            }
             ["workspaces", id, "edit"] => Self::WorkspaceEdit((*id).to_string()),
             ["workspaces", id, "terminal"] => Self::WorkspaceTerminal((*id).to_string()),
             ["terminals"] => Self::Terminals,
@@ -96,6 +103,7 @@ impl TabRoute {
             Self::Board => "Tablero".to_string(),
             Self::Workspaces => "Workspaces".to_string(),
             Self::WorkspaceTree(_) => "Proyecto".to_string(),
+            Self::WorkspaceFile(_, path) => path.rsplit('/').next().unwrap_or(path).to_string(),
             Self::WorkspaceEdit(_) => "Editar workspace".to_string(),
             Self::WorkspaceTerminal(_) | Self::TaskTerminal(_) => "Terminal".to_string(),
             Self::Terminals => "Terminales".to_string(),
@@ -116,6 +124,7 @@ impl TabRoute {
         match self {
             Self::Board => "▦",
             Self::Workspaces | Self::WorkspaceTree(_) => "▤",
+            Self::WorkspaceFile(..) => "◫",
             Self::WorkspaceEdit(_) | Self::TaskEdit(_) => "✎",
             Self::TaskDiff(_) => "±",
             Self::WorkspaceTerminal(_)
@@ -133,6 +142,10 @@ impl TabRoute {
     /// Parámetros de ruta que esperan las páginas (`id` o `session_id`).
     fn params(&self) -> ParamsMap {
         let mut params: ParamsMap = ParamsMap::new();
+        if let Self::WorkspaceFile(id, path) = self {
+            params.insert("id", id.clone());
+            params.insert("path", path.clone());
+        }
         match self {
             Self::WorkspaceTree(id)
             | Self::WorkspaceEdit(id)
@@ -152,6 +165,7 @@ impl TabRoute {
             Self::Board => view! { <BoardPage /> }.into_any(),
             Self::Workspaces => view! { <WorkspacesPage /> }.into_any(),
             Self::WorkspaceTree(_) => view! { <ProjectTreePage /> }.into_any(),
+            Self::WorkspaceFile(..) => view! { <ProjectFilePage /> }.into_any(),
             Self::WorkspaceEdit(_) => view! { <WorkspaceEditPage /> }.into_any(),
             Self::WorkspaceTerminal(_) => view! { <NewTerminalPage /> }.into_any(),
             Self::Terminals => view! { <TerminalsPage /> }.into_any(),
@@ -393,6 +407,15 @@ mod tests {
         assert_eq!(
             TabRoute::parse("/workspaces/w"),
             TabRoute::WorkspaceTree("w".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/workspaces/w/files/src/a%20b/main.rs"),
+            TabRoute::WorkspaceFile("w".into(), "src/a b/main.rs".into())
+        );
+        assert_eq!(TabRoute::parse("/workspaces/w/files"), TabRoute::NotFound);
+        assert_eq!(
+            TabRoute::WorkspaceFile("w".into(), "src/main.rs".into()).title(),
+            "main.rs"
         );
         assert_eq!(
             TabRoute::parse("/workspaces/w/edit"),
