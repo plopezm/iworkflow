@@ -57,7 +57,7 @@ mod tests {
         let mut files: MockFileStore = MockFileStore::new();
         files
             .expect_read()
-            .withf(|r, p| r == PathBuf::from("/tmp/demo") && p == "src/main.rs")
+            .withf(|r, p| r == "/tmp/demo" && p == "src/main.rs")
             .returning(move |_, _| Ok(expected.clone()));
 
         let result: ProjectFile = ReadProjectFile::new(Arc::new(roots), Arc::new(files))

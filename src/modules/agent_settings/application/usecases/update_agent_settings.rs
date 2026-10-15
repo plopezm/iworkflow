@@ -1,9 +1,11 @@
 use std::sync::Arc;
 
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::agent_settings::AgentSettings;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::profile_catalog::ProfileCatalog;
+use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
 use crate::modules::agent_settings::domain::ports::outbound::agent_settings_repository_port::AgentSettingsRepositoryPort;
 use crate::modules::agent_settings::domain::ports::outbound::model_catalog_port::ModelCatalogPort;
 use crate::modules::agent_settings::domain::ports::outbound::profile_catalog_port::ProfileCatalogPort;
@@ -32,11 +34,15 @@ impl UpdateAgentSettings {
         &self,
         settings: AgentSettings,
     ) -> Result<AgentSettings, AgentSettingsError> {
+        let runtime: AgentRuntime = settings.runtime.unwrap_or_default();
+        let settings: AgentSettings = AgentSettings {
+            thinking: settings
+                .thinking
+                .filter(|level: &ThinkingLevel| level.is_supported_by(runtime)),
+            ..settings
+        };
         if let Some(model) = &settings.model {
-            let available: Vec<ModelRef> = self
-                .model_catalog
-                .list(settings.runtime.unwrap_or_default())
-                .await?;
+            let available: Vec<ModelRef> = self.model_catalog.list(runtime).await?;
             if !available.contains(model) {
                 return Err(AgentSettingsError::ModelNotFound {
                     provider: model.provider.clone(),
@@ -64,9 +70,7 @@ impl UpdateAgentSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
     use crate::modules::agent_settings::domain::models::profile_name::ProfileName;
-    use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
     use crate::modules::agent_settings::mocks::{
         MockAgentSettingsRepository, MockModelCatalog, MockProfileCatalogAdapter,
     };
@@ -239,5 +243,82 @@ mod tests {
             result,
             Err(AgentSettingsError::ModelNotFound { .. })
         ));
+    }
+
+    fn use_case_saving(
+        saved: std::sync::Arc<std::sync::Mutex<Option<AgentSettings>>>,
+    ) -> UpdateAgentSettings {
+        let mut repository: MockAgentSettingsRepository = MockAgentSettingsRepository::new();
+        repository
+            .expect_save()
+            .returning(move |settings: &AgentSettings| {
+                *saved.lock().expect("lock") = Some(settings.clone());
+                Ok(())
+            });
+        UpdateAgentSettings::new(
+            Arc::new(repository),
+            Arc::new(MockModelCatalog::new()),
+            Arc::new(MockProfileCatalogAdapter::new()),
+        )
+    }
+
+    #[tokio::test]
+    async fn drops_thinking_unsupported_by_the_claude_runtime() {
+        let saved: std::sync::Arc<std::sync::Mutex<Option<AgentSettings>>> = Default::default();
+        let use_case: UpdateAgentSettings = use_case_saving(saved.clone());
+        let settings: AgentSettings = AgentSettings {
+            runtime: Some(AgentRuntime::Claude),
+            thinking: Some(ThinkingLevel::Minimal),
+            ..Default::default()
+        };
+
+        let result: AgentSettings = use_case.execute(settings).await.expect("update");
+
+        assert_eq!(result.thinking, None);
+        assert_eq!(
+            saved
+                .lock()
+                .expect("lock")
+                .as_ref()
+                .expect("saved")
+                .thinking,
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn keeps_thinking_compatible_with_the_claude_runtime() {
+        let saved: std::sync::Arc<std::sync::Mutex<Option<AgentSettings>>> = Default::default();
+        let use_case: UpdateAgentSettings = use_case_saving(saved);
+        let settings: AgentSettings = AgentSettings {
+            runtime: Some(AgentRuntime::Claude),
+            thinking: Some(ThinkingLevel::XHigh),
+            ..Default::default()
+        };
+
+        let result: AgentSettings = use_case.execute(settings).await.expect("update");
+
+        assert_eq!(result.thinking, Some(ThinkingLevel::XHigh));
+    }
+
+    #[tokio::test]
+    async fn keeps_every_level_for_pi_and_the_default_runtime() {
+        for runtime in [
+            None,
+            Some(AgentRuntime::Pi),
+            Some(AgentRuntime::GentleShell),
+        ] {
+            let saved: std::sync::Arc<std::sync::Mutex<Option<AgentSettings>>> = Default::default();
+            let use_case: UpdateAgentSettings = use_case_saving(saved);
+            let settings: AgentSettings = AgentSettings {
+                runtime,
+                thinking: Some(ThinkingLevel::Off),
+                ..Default::default()
+            };
+
+            let result: AgentSettings = use_case.execute(settings).await.expect("update");
+
+            assert_eq!(result.thinking, Some(ThinkingLevel::Off));
+        }
     }
 }

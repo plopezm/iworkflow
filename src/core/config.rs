@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 const DEFAULT_GENTLE_SHELL_BIN: &str = "gentle-shell";
 const DEFAULT_PI_BIN: &str = "pi";
+const DEFAULT_CLAUDE_BIN: &str = "claude";
 const DEFAULT_DATA_DIR: &str = ".iworkflow";
 const DEFAULT_DATABASE_FILE: &str = "workspaces.db";
 const DEFAULT_WORKTREES_DIR: &str = "worktrees";
@@ -25,6 +26,8 @@ pub struct AppConfig {
     pub gentle_shell_bin: String,
     /// Ejecutable de pi (sin gentle-ai) que se lanza en modo RPC cuando se elige ese runtime.
     pub pi_bin: String,
+    /// Ejecutable de Claude Code que se lanza en modo stream-json cuando se elige ese runtime.
+    pub claude_bin: String,
     /// Carpeta raíz donde se crean los worktrees de las tareas.
     pub worktrees_dir: PathBuf,
     /// Carpeta home del usuario que ejecuta el proceso (punto de partida del explorador de directorios).
@@ -55,6 +58,8 @@ impl AppConfig {
             .unwrap_or_else(|_| DEFAULT_GENTLE_SHELL_BIN.to_string());
         let pi_bin: String =
             std::env::var("IWF_PI_BIN").unwrap_or_else(|_| DEFAULT_PI_BIN.to_string());
+        let claude_bin: String =
+            std::env::var("IWF_CLAUDE_BIN").unwrap_or_else(|_| DEFAULT_CLAUDE_BIN.to_string());
         let worktrees_dir: PathBuf = std::env::var("IWF_WORKTREES_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| data_dir.join(DEFAULT_WORKTREES_DIR));
@@ -77,6 +82,7 @@ impl AppConfig {
             database_url,
             gentle_shell_bin,
             pi_bin,
+            claude_bin,
             worktrees_dir,
             home_dir: home,
             gentle_pi_config_home,

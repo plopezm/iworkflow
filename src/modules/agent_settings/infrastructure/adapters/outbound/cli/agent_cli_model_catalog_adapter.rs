@@ -14,6 +14,10 @@ use crate::modules::agent_settings::domain::ports::outbound::model_catalog_port:
 const LIST_MODELS_TIMEOUT: Duration = Duration::from_secs(10);
 const LIST_MODELS_FLAG: &str = "--list-models";
 
+/// Claude Code no tiene `--list-models`: sus modelos se eligen por alias (`claude --model`).
+const CLAUDE_PROVIDER: &str = "anthropic";
+const CLAUDE_MODEL_ALIASES: [&str; 4] = ["fable", "opus", "sonnet", "haiku"];
+
 /// Lista los modelos disponibles ejecutando `<bin> --list-models`, donde `<bin>` es el binario
 /// registrado para el runtime elegido. Un runtime sin binario registrado no tiene modelos.
 pub struct AgentCliModelCatalogAdapter {
@@ -37,6 +41,9 @@ impl AgentCliModelCatalogAdapter {
 #[async_trait::async_trait]
 impl ModelCatalogPort for AgentCliModelCatalogAdapter {
     async fn list(&self, runtime: AgentRuntime) -> Result<Vec<ModelRef>, AgentSettingsError> {
+        if runtime == AgentRuntime::Claude {
+            return Ok(claude_models());
+        }
         let Some(bin) = self.bin_for(runtime) else {
             return Ok(Vec::new());
         };
@@ -58,6 +65,16 @@ impl ModelCatalogPort for AgentCliModelCatalogAdapter {
         }
         Ok(parse_model_table(&String::from_utf8_lossy(&output.stdout)))
     }
+}
+
+fn claude_models() -> Vec<ModelRef> {
+    CLAUDE_MODEL_ALIASES
+        .iter()
+        .map(|alias: &&str| ModelRef {
+            provider: CLAUDE_PROVIDER.to_string(),
+            model: alias.to_string(),
+        })
+        .collect()
 }
 
 /// Comando `<bin> --list-models` lanzado por la shell de login con el entorno vacío salvo las
@@ -110,6 +127,29 @@ mod tests {
             (AgentRuntime::GentleShell, gentle_shell.to_string()),
             (AgentRuntime::Pi, pi.to_string()),
         ]))
+    }
+
+    #[tokio::test]
+    async fn claude_lists_its_static_aliases_without_running_a_binary() {
+        let adapter: AgentCliModelCatalogAdapter = AgentCliModelCatalogAdapter::new(HashMap::new());
+
+        let models: Vec<String> = adapter
+            .list(AgentRuntime::Claude)
+            .await
+            .expect("catálogo de claude")
+            .into_iter()
+            .map(|m: ModelRef| format!("{}/{}", m.provider, m.model))
+            .collect();
+
+        assert_eq!(
+            models,
+            vec![
+                "anthropic/fable",
+                "anthropic/opus",
+                "anthropic/sonnet",
+                "anthropic/haiku"
+            ]
+        );
     }
 
     #[tokio::test]

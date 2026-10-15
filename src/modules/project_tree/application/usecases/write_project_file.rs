@@ -48,7 +48,7 @@ mod tests {
         let mut files: MockFileStore = MockFileStore::new();
         files
             .expect_write()
-            .withf(|r, p, c| r == PathBuf::from("/tmp/demo") && p == "a.txt" && c == "hola")
+            .withf(|r, p, c| r == "/tmp/demo" && p == "a.txt" && c == "hola")
             .times(1)
             .returning(|_, _, _| Ok(()));
 

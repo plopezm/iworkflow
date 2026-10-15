@@ -121,6 +121,7 @@ impl AppState {
             TasksSettings {
                 gentle_shell_bin: config.gentle_shell_bin.clone(),
                 pi_bin: config.pi_bin.clone(),
+                claude_bin: config.claude_bin.clone(),
                 worktrees_dir: config.worktrees_dir.clone(),
                 attachments_dir: config.attachments_dir.clone(),
             },
@@ -441,7 +442,7 @@ mod tests {
     use crate::modules::tasks::domain::models::task::TaskStatus;
     use crate::modules::tasks::domain::models::task_priority::TaskPriority;
     use crate::modules::tasks::infrastructure::di::tasks_context::{
-        GENTLE_SHELL_RUNTIME, PI_RUNTIME,
+        CLAUDE_RUNTIME, GENTLE_SHELL_RUNTIME, PI_RUNTIME,
     };
 
     fn task_with(status: TaskStatus, workspace_id: &str, path: &str) -> Task {
@@ -501,6 +502,7 @@ mod tests {
     fn tasks_runtime_ids_match_agent_settings_runtimes() {
         assert_eq!(GENTLE_SHELL_RUNTIME, AgentRuntime::GentleShell.as_str());
         assert_eq!(PI_RUNTIME, AgentRuntime::Pi.as_str());
+        assert_eq!(CLAUDE_RUNTIME, AgentRuntime::Claude.as_str());
     }
 
     #[test]

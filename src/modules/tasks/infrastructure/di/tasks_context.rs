@@ -58,18 +58,22 @@ use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::storage::fs_attachment_storage_adapter::FsAttachmentStorageAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_runtime_router::AgentRuntimeRouter;
+use crate::modules::tasks::infrastructure::adapters::outbound::runtime::claude::claude_stream_runtime_adapter::ClaudeStreamRuntimeAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::pi_rpc_runtime_adapter::PiRpcRuntimeAdapter;
 
 /// Id de gentle-shell (runtime predeterminado); igual a `AgentRuntime::GentleShell.as_str()`.
 pub(crate) const GENTLE_SHELL_RUNTIME: &str = "gentle-shell";
 /// Id de pi; igual a `AgentRuntime::Pi.as_str()`.
 pub(crate) const PI_RUNTIME: &str = "pi";
+/// Id de Claude Code; igual a `AgentRuntime::Claude.as_str()`.
+pub(crate) const CLAUDE_RUNTIME: &str = "claude";
 
 /// Configuración propia del feature de tareas.
 #[derive(Debug, Clone)]
 pub struct TasksSettings {
     pub gentle_shell_bin: String,
     pub pi_bin: String,
+    pub claude_bin: String,
     pub worktrees_dir: PathBuf,
     pub attachments_dir: PathBuf,
 }
@@ -121,6 +125,7 @@ impl TasksContext {
         let runtime: Arc<dyn AgentRuntimePort> = Arc::new(Self::build_router(
             settings.gentle_shell_bin,
             settings.pi_bin,
+            settings.claude_bin,
         )?);
         Ok(Self::with_runtime(
             pool,
@@ -132,19 +137,25 @@ impl TasksContext {
         ))
     }
 
-    /// Registra gentle-shell (predeterminado) y pi.
+    /// Registra gentle-shell (predeterminado), pi y Claude Code.
     fn build_router(
         gentle_shell_bin: String,
         pi_bin: String,
+        claude_bin: String,
     ) -> Result<AgentRuntimeRouter, TaskError> {
         let gentle_shell_id: RuntimeId = RuntimeId::parse(GENTLE_SHELL_RUNTIME)?;
         let pi_id: RuntimeId = RuntimeId::parse(PI_RUNTIME)?;
+        let claude_id: RuntimeId = RuntimeId::parse(CLAUDE_RUNTIME)?;
         let mut runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>> = HashMap::new();
         runtimes.insert(
             gentle_shell_id.clone(),
             Arc::new(PiRpcRuntimeAdapter::new(gentle_shell_bin)),
         );
         runtimes.insert(pi_id, Arc::new(PiRpcRuntimeAdapter::new(pi_bin)));
+        runtimes.insert(
+            claude_id,
+            Arc::new(ClaudeStreamRuntimeAdapter::new(claude_bin)),
+        );
         AgentRuntimeRouter::new(gentle_shell_id, runtimes)
     }
 
@@ -300,9 +311,15 @@ mod tests {
     // Binarios inexistentes: estos tests nunca llegan a lanzar un proceso.
     const SHELL_BIN: &str = "/nonexistent/iwf-test-gentle-shell";
     const PI_BIN: &str = "/nonexistent/iwf-test-pi";
+    const CLAUDE_BIN: &str = "/nonexistent/iwf-test-claude";
 
     fn router() -> AgentRuntimeRouter {
-        TasksContext::build_router(SHELL_BIN.to_string(), PI_BIN.to_string()).expect("router")
+        TasksContext::build_router(
+            SHELL_BIN.to_string(),
+            PI_BIN.to_string(),
+            CLAUDE_BIN.to_string(),
+        )
+        .expect("router")
     }
 
     async fn start_with(
@@ -329,6 +346,15 @@ mod tests {
                 AgentCapabilities::full()
             );
         }
+    }
+
+    #[test]
+    fn claude_is_registered_with_its_own_capabilities() {
+        let claude: RuntimeId = RuntimeId::parse(CLAUDE_RUNTIME).expect("runtime válido");
+        let caps: AgentCapabilities = router().runtime_capabilities(Some(&claude));
+
+        assert!(caps.dialogs && caps.resume && caps.model_selection && caps.thinking_levels);
+        assert!(!caps.steer && !caps.follow_up && !caps.subagents);
     }
 
     #[test]
@@ -371,6 +397,7 @@ mod tests {
         let settings: TasksSettings = TasksSettings {
             gentle_shell_bin: SHELL_BIN.to_string(),
             pi_bin: PI_BIN.to_string(),
+            claude_bin: "claude".to_string(),
             worktrees_dir: dir.path().join("worktrees"),
             attachments_dir: dir.path().join("attachments"),
         };

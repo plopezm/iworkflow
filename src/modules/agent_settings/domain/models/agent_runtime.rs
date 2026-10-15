@@ -8,16 +8,22 @@ pub enum AgentRuntime {
     #[default]
     GentleShell,
     Pi,
+    Claude,
 }
 
 impl AgentRuntime {
-    pub const ALL: [AgentRuntime; 2] = [AgentRuntime::GentleShell, AgentRuntime::Pi];
+    pub const ALL: [AgentRuntime; 3] = [
+        AgentRuntime::GentleShell,
+        AgentRuntime::Pi,
+        AgentRuntime::Claude,
+    ];
 
     /// Identificador persistido y mostrado en el selector.
     pub fn as_str(&self) -> &'static str {
         match self {
             AgentRuntime::GentleShell => "gentle-shell",
             AgentRuntime::Pi => "pi",
+            AgentRuntime::Claude => "claude",
         }
     }
 
@@ -25,6 +31,7 @@ impl AgentRuntime {
         match raw {
             "gentle-shell" => Ok(AgentRuntime::GentleShell),
             "pi" => Ok(AgentRuntime::Pi),
+            "claude" => Ok(AgentRuntime::Claude),
             other => Err(AgentSettingsError::InvalidRuntime(other.to_string())),
         }
     }
@@ -50,8 +57,15 @@ mod tests {
     #[test]
     fn rejects_unknown_runtime() {
         assert_eq!(
-            AgentRuntime::parse("claude"),
-            Err(AgentSettingsError::InvalidRuntime("claude".to_string()))
+            AgentRuntime::parse("codex"),
+            Err(AgentSettingsError::InvalidRuntime("codex".to_string()))
         );
+    }
+
+    #[test]
+    fn claude_is_a_selectable_runtime() {
+        assert_eq!(AgentRuntime::parse("claude"), Ok(AgentRuntime::Claude));
+        assert_eq!(AgentRuntime::Claude.as_str(), "claude");
+        assert!(AgentRuntime::ALL.contains(&AgentRuntime::Claude));
     }
 }
