@@ -6,7 +6,7 @@ use leptos_router::params::ParamsMap;
 use leptos_router::{StaticSegment, WildcardSegment};
 
 use crate::core::browser;
-use crate::core::components::shell::{AppShell, SidebarToggle};
+use crate::core::components::shell::{AppShell, SidebarSection, SidebarToggle};
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::core::dock::context::{DockContext, use_dock};
 use crate::core::dock::host::{DockHooks, DockHost};
@@ -198,32 +198,34 @@ const TOP_LEVEL_DESTINATIONS: [(&str, &str, &str); 7] = [
     ("/settings", "⚙", "Configuración"),
 ];
 
-/// Filas de navegación de la barra lateral.
+/// Navegación de la barra lateral, en una sección colapsable "Menú".
 fn sidebar_nav() -> impl IntoView {
     let dock: DockContext = use_dock();
     view! {
-        <nav class="flex flex-col gap-0.5 px-2 py-2" aria-label="Navegación">
-            {TOP_LEVEL_DESTINATIONS
-                .into_iter()
-                .map(|(path, icon, label)| {
-                    view! {
-                        <TabLink
-                            href=path
-                            class=move || {
-                                if dock.is_path_visible(path) {
-                                    "sidebar-nav sidebar-nav-active".to_string()
-                                } else {
-                                    "sidebar-nav".to_string()
+        <SidebarSection title="Menú" count=Signal::stored(TOP_LEVEL_DESTINATIONS.len())>
+            <nav class="flex flex-col gap-0.5" aria-label="Navegación">
+                {TOP_LEVEL_DESTINATIONS
+                    .into_iter()
+                    .map(|(path, icon, label)| {
+                        view! {
+                            <TabLink
+                                href=path
+                                class=move || {
+                                    if dock.is_path_visible(path) {
+                                        "sidebar-nav sidebar-nav-active".to_string()
+                                    } else {
+                                        "sidebar-nav".to_string()
+                                    }
                                 }
-                            }
-                        >
-                            <span class="sidebar-nav-icon" aria-hidden="true">{icon}</span>
-                            {label}
-                        </TabLink>
-                    }
-                })
-                .collect_view()}
-        </nav>
+                            >
+                                <span class="sidebar-nav-icon" aria-hidden="true">{icon}</span>
+                                {label}
+                            </TabLink>
+                        }
+                    })
+                    .collect_view()}
+            </nav>
+        </SidebarSection>
     }
 }
 
