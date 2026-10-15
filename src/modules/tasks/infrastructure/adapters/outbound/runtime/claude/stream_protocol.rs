@@ -246,7 +246,9 @@ impl ClaudeProtocol {
         {
             return self.request_questions(id, input, questions);
         }
-        let display: &str = str_field(request, "display_name").unwrap_or(tool_name);
+        let display: &str = str_field(request, "display_name")
+            .filter(|d: &&str| !d.is_empty())
+            .unwrap_or(tool_name);
         let (title, message, deny_message): (String, Option<String>, &'static str) =
             if tool_name == PLAN_TOOL {
                 (
@@ -336,10 +338,17 @@ impl ClaudeProtocol {
             };
         let unknown =
             || TaskError::Runtime(format!("no hay un permiso pendiente con id {dialog_id}"));
+        // Un id exacto es una petición de herramienta (o de plan); `<petición>#<n>` solo puede
+        // referirse a una petición de preguntas, nunca a una herramienta ajena.
         let direct: Option<Pending> = if self.pending.contains_key(dialog_id) {
             self.pending.remove(dialog_id)
-        } else {
+        } else if matches!(
+            self.pending.get(request_id),
+            Some(Pending::Questions { .. })
+        ) {
             self.pending.remove(request_id)
+        } else {
+            None
         };
         let Some(pending) = direct else {
             return if self.settled.contains(request_id) {
@@ -566,7 +575,7 @@ fn permission_message(tool: &str, description: Option<&str>, input: &Value) -> O
                 .filter(|o: &&serde_json::Map<String, Value>| !o.is_empty())
                 .map(|_| truncate_chars(input.to_string(), MAX_SUMMARY_CHARS))
         });
-    let parts: Vec<String> = [description.map(str::to_string), summary]
+    let parts: Vec<String> = [summary, description.map(str::to_string)]
         .into_iter()
         .flatten()
         .filter(|p: &String| !p.is_empty())
@@ -904,7 +913,7 @@ mod tests {
                 id: "r1".into(),
                 title: "Permitir Bash".into(),
                 kind: DialogKind::Confirm {
-                    message: Some("Escribe a.txt\necho hola > a.txt".into())
+                    message: Some("echo hola > a.txt\nEscribe a.txt".into())
                 },
                 timeout_ms: None
             })]
@@ -957,6 +966,75 @@ mod tests {
                 timeout_ms: None
             })]
         );
+    }
+
+    #[test]
+    fn an_invented_question_id_does_not_consume_a_tool_permission() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        request_permission(&mut protocol);
+
+        for invented in ["r1#0", "r1#5", "r1#x"] {
+            assert!(
+                protocol
+                    .encode(
+                        &answer(invented, DialogAnswer::Confirmed { confirmed: true }),
+                        "x"
+                    )
+                    .is_err(),
+                "{invented}"
+            );
+        }
+        let line: Option<String> = protocol
+            .encode(
+                &answer("r1", DialogAnswer::Confirmed { confirmed: true }),
+                "x",
+            )
+            .expect("el permiso real sigue pendiente");
+        assert_eq!(
+            parse(&line.expect("línea"))["response"]["response"]["behavior"],
+            "allow"
+        );
+    }
+
+    #[test]
+    fn an_empty_display_name_falls_back_to_the_tool_name() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                json!({"type": "control_request", "request_id": "r1", "request": {
+                "subtype": "can_use_tool", "tool_name": "Bash", "display_name": "",
+                "input": {"command": "ls"}}}),
+            ],
+        );
+        assert!(matches!(
+            &events[0],
+            AgentEvent::DialogRequested(DialogRequest { title, .. }) if title == "Permitir Bash"
+        ));
+    }
+
+    #[test]
+    fn a_long_command_is_shown_whole_before_the_models_description() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let command: String = format!("echo {}\nrm -rf ./build", "x".repeat(MAX_SUMMARY_CHARS * 2));
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                json!({"type": "control_request", "request_id": "r1", "request": {
+                "subtype": "can_use_tool", "tool_name": "Bash", "display_name": "Bash",
+                "description": "Inofensivo", "input": {"command": command}}}),
+            ],
+        );
+        let AgentEvent::DialogRequested(DialogRequest {
+            kind: DialogKind::Confirm {
+                message: Some(message),
+            },
+            ..
+        }) = &events[0]
+        else {
+            panic!("se esperaba una confirmación");
+        };
+        assert_eq!(message, &format!("{command}\nInofensivo"));
     }
 
     #[test]
