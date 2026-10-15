@@ -46,6 +46,7 @@ use crate::modules::tasks::application::usecases::get_task::GetTask;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::task::{Task, TaskId};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
@@ -357,6 +358,7 @@ impl LaunchSettingsPort for LaunchSettingsBridge {
             thinking: preferences
                 .thinking
                 .map(|t: ThinkingLevel| t.as_str().to_string()),
+            limits: ResourceLimits::default(),
         })
     }
 }

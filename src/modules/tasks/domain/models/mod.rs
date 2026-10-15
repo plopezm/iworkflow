@@ -4,6 +4,7 @@ pub mod agent_event;
 pub mod image_attachment;
 pub mod launch_options;
 pub mod pending_dialog;
+pub mod resource_limits;
 pub mod runtime_id;
 pub mod stored_attachment;
 pub mod subagent_activity;

@@ -1,4 +1,5 @@
 use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
+use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 
 /// Modelo del orquestador a usar para un arranque concreto (`--provider`/`--model`).
@@ -18,6 +19,8 @@ pub struct LaunchOptions {
     pub runtime: Option<RuntimeId>,
     pub model: Option<LaunchModel>,
     pub thinking: Option<String>,
+    /// Límites de RAM/CPU del proceso del agente (solo Linux con systemd).
+    pub limits: ResourceLimits,
 }
 
 impl LaunchOptions {
@@ -27,6 +30,7 @@ impl LaunchOptions {
             runtime: self.runtime,
             model: self.model.filter(|_| capabilities.model_selection),
             thinking: self.thinking.filter(|_| capabilities.thinking_levels),
+            limits: self.limits,
         }
     }
 }
@@ -43,6 +47,7 @@ mod tests {
                 model: "claude-5".to_string(),
             }),
             thinking: Some("high".to_string()),
+            limits: ResourceLimits::default(),
         }
     }
 
