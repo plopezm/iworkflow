@@ -37,7 +37,7 @@ pub fn branch_option_label(branch: &BranchOptionDto) -> String {
 #[component]
 fn BaseBranchSelect(
     state: BoardState,
-    workspaces: StoredValue<Vec<WorkspaceOptionDto>>,
+    workspaces: Signal<Vec<WorkspaceOptionDto>>,
 ) -> impl IntoView {
     view! {
         <Suspense fallback=|| {
@@ -54,7 +54,7 @@ fn BaseBranchSelect(
                     return ().into_any();
                 }
                 let default_branch: String = workspaces
-                    .with_value(|all: &Vec<WorkspaceOptionDto>| {
+                    .with(|all: &Vec<WorkspaceOptionDto>| {
                         all.iter()
                             .find(|w: &&WorkspaceOptionDto| w.id == workspace_id)
                             .map(|w: &WorkspaceOptionDto| w.base_branch.clone())
@@ -83,21 +83,20 @@ fn BaseBranchSelect(
 
 /// Modal de alta de tarea (Backlog o iniciada). La edición vive en su propia pantalla.
 #[component]
-pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl IntoView {
+pub fn TaskModal(state: BoardState, workspaces: Signal<Vec<WorkspaceOptionDto>>) -> impl IntoView {
     let pending: Signal<bool> = Signal::derive(move || state.create.pending().get());
-    let has_workspaces: bool = !workspaces.is_empty();
-    let branch_workspaces: StoredValue<Vec<WorkspaceOptionDto>> =
-        StoredValue::new(workspaces.clone());
-
-    let options: StoredValue<Vec<SelectOption>> = StoredValue::new(
-        workspaces
-            .iter()
-            .map(|w: &WorkspaceOptionDto| SelectOption {
-                value: w.id.clone(),
-                label: format!("{} ({})", w.name, w.base_branch),
-            })
-            .collect(),
-    );
+    let has_workspaces: Memo<bool> =
+        Memo::new(move |_| workspaces.with(|w: &Vec<WorkspaceOptionDto>| !w.is_empty()));
+    let options: Memo<Vec<SelectOption>> = Memo::new(move |_| {
+        workspaces.with(|all: &Vec<WorkspaceOptionDto>| {
+            all.iter()
+                .map(|w: &WorkspaceOptionDto| SelectOption {
+                    value: w.id.clone(),
+                    label: format!("{} ({})", w.name, w.base_branch),
+                })
+                .collect()
+        })
+    });
 
     let submit = move |ev: SubmitEvent| {
         ev.prevent_default();
@@ -111,12 +110,12 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
             on_close=Callback::new(move |_| state.close_modal())
         >
             <form class="stack" on:submit=submit>
-                {if has_workspaces {
+                {move || if has_workspaces.get() {
                         view! {
                             <SelectField
                                 label="Workspace"
                                 value=state.form_workspace_id
-                                options=options.get_value()
+                                options=options.get()
                                 placeholder="Selecciona un workspace…"
                                 required=true
                             />
@@ -134,7 +133,7 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                         }
                             .into_any()
                 }}
-                <BaseBranchSelect state=state workspaces=branch_workspaces />
+                <BaseBranchSelect state=state workspaces=workspaces />
                 <TextField
                     label="Título (opcional)"
                     value=state.form_title
@@ -182,7 +181,7 @@ pub fn TaskModal(state: BoardState, workspaces: Vec<WorkspaceOptionDto>) -> impl
                     <button
                         type="submit"
                         class="btn-primary"
-                        disabled=move || pending.get() || !has_workspaces
+                        disabled=move || pending.get() || !has_workspaces.get()
                     >
                         {move || {
                             if pending.get() { "Guardando…" } else { "Crear tarea" }

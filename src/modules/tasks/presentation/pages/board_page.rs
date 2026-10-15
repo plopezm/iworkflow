@@ -131,6 +131,16 @@ pub fn BoardPage() -> impl IntoView {
             _ => {}
         }
     });
+    // Última lista de workspaces cargada con éxito; solo se escribe si cambia de verdad.
+    let modal_workspaces: RwSignal<Vec<WorkspaceOptionDto>> = RwSignal::new(Vec::new());
+    Effect::new(move |_| {
+        if let Some(Ok(loaded)) = state.workspaces.get()
+            && modal_workspaces
+                .with_untracked(|current: &Vec<WorkspaceOptionDto>| *current != loaded)
+        {
+            modal_workspaces.set(loaded);
+        }
+    });
     let filters_active: Memo<bool> =
         Memo::new(move |_| state.stage_filter.get().is_some() || state.show_done.get());
     view! {
@@ -188,15 +198,9 @@ pub fn BoardPage() -> impl IntoView {
                 </button>
             </div>
         </Show>
-        <Transition fallback=|| ()>
-            {move || Suspend::new(async move {
-                // El error de carga ya se muestra en el tablero; sin workspaces no hay modal.
-                match state.workspaces.await {
-                    Ok(workspaces) => view! { <TaskModal state workspaces /> }.into_any(),
-                    Err(_) => ().into_any(),
-                }
-            })}
-        </Transition>
+        // Fuera de cualquier `Suspend`: una recarga de workspaces no debe reconstruir el modal
+        // (perdería el foco y lo escrito en el formulario).
+        <TaskModal state workspaces=modal_workspaces.into() />
         <ToastStack toasts=state.toasts />
         </div>
     }
