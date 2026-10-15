@@ -20,7 +20,7 @@ X — route: inline — commit
 - [x] T2 (S3) `claude/stream_protocol.rs`: decode con tests de cada tipo de línea. — route: inline — commit
 - [x] T3 (S4) Encoder de comandos y respuestas de control con tests. — route: inline — commit
 - [x] T4a (S6) Extraer núcleo común `agent_process` (`ProcessRuntime` + `LineCodec`) y migrar pi; test de integración de pi como red de seguridad.
-- [ ] T4b (S2, S5, S6, S8) `ClaudeStreamRuntimeAdapter` (proceso, capacidades, resume, stop) + test de integración con script falso. — route: inline — commit
+- [x] T4b (S2, S5, S6, S8) `ClaudeStreamRuntimeAdapter` (proceso, capacidades, resume, stop) + test de integración con script falso. — route: inline — commit
 - [ ] T5 (S5, S8) Catálogo de modelos de claude + docs/ayuda; verificación e2e real mínima. — route: inline — commit
 
 ## Log
@@ -36,3 +36,4 @@ X — route: inline — commit
 - T1: RED observado (no compilaba `AgentRuntime::Claude`); 60 tests agent_settings ok; clippy ssr + hydrate ok; fmt ok.
 - T2+T3: RED observado (16/18 fallaban con implementación vacía); 18 tests `claude::stream_protocol` ok; clippy ssr y fmt ok. Decoder y encoder comparten `ClaudeProtocol` (estado de permisos), por eso un solo commit. Steer/follow-up se codifican como mensaje de usuario pero no se declaran capacidades hasta validar en T5.
 - T4a: línea base previa 12/12 en `pi_rpc_runtime_adapter_test`; tras el refactor 12/12, 546 tests lib `modules::tasks`, clippy ssr y `--all-targets` ok. Corregidos 2 `cmp_owned` preexistentes en tests de project_tree (commit aparte).
+- T4b: RED observado (el test de integración no compilaba sin el adaptador); 8/8 `claude_stream_runtime_adapter_test` (agente falso `fake_claude.py`: eco, args, permiso allow/deny, abort, diálogo desconocido, capacidades), 549 tests lib tasks, clippy ssr `--all-targets` + hydrate, fmt ok. Un test inicial comprobaba flags que `with_command` sustituye; se movió al unitario `default_args_run_claude_in_stream_json_mode`.

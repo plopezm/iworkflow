@@ -136,6 +136,11 @@ path = "tests/modules/tasks/pi_rpc_runtime_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]
+name = "claude_stream_runtime_adapter_test"
+path = "tests/modules/tasks/claude_stream_runtime_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "agent_settings_repository_adapter_test"
 path = "tests/modules/agent_settings/agent_settings_repository_adapter_test.rs"
 required-features = ["ssr"]
