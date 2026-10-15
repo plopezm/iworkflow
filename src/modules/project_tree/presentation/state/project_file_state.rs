@@ -16,11 +16,10 @@ pub fn is_dirty(draft: &str, loaded: &str) -> bool {
     draft != loaded
 }
 
-/// Screen state of one project file: read-only view, edit mode with a draft, and saving.
+/// Screen state of one project file: always editable, with a draft and saving.
 #[derive(Clone, Copy)]
 pub struct ProjectFileState {
     pub file: Resource<Result<ProjectFileDto, ServerFnError>>,
-    pub editing: RwSignal<bool>,
     pub draft: RwSignal<String>,
     reload: RwSignal<u32>,
     save: Action<String, Result<(), ServerFnError>>,
@@ -29,7 +28,6 @@ pub struct ProjectFileState {
 impl ProjectFileState {
     pub fn new(workspace_id: String, path: String) -> Self {
         let reload: RwSignal<u32> = RwSignal::new(0);
-        let editing: RwSignal<bool> = RwSignal::new(false);
         let draft: RwSignal<String> = RwSignal::new(String::new());
         let file: Resource<Result<ProjectFileDto, ServerFnError>> = {
             let (workspace_id, path): (String, String) = (workspace_id.clone(), path.clone());
@@ -44,32 +42,22 @@ impl ProjectFileState {
             });
         Effect::new(move |_| {
             if matches!(save.value().get(), Some(Ok(()))) {
-                editing.set(false);
                 reload.update(|n: &mut u32| *n += 1);
             }
         });
         Self {
             file,
-            editing,
             draft,
             reload,
             save,
         }
     }
 
-    pub fn start_edit(&self, loaded: &str) {
-        self.draft.set(loaded.to_string());
-        self.editing.set(true);
-    }
-
-    pub fn discard(&self) {
-        self.editing.set(false);
-    }
-
     pub fn submit(&self) {
         self.save.dispatch(self.draft.get_untracked());
     }
 
+    /// Reloads the file from disk, discarding the draft.
     pub fn refresh(&self) {
         self.reload.update(|n: &mut u32| *n += 1);
     }

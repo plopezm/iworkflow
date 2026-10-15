@@ -10,7 +10,7 @@ use crate::modules::project_tree::presentation::state::project_tree_state::{
 };
 
 /// Horizontal indentation per depth level, in rem.
-const INDENT_REM: f32 = 0.875;
+const INDENT_REM: f32 = 1.125;
 /// Base left padding of every row, in rem.
 const BASE_PADDING_REM: f32 = 0.75;
 
@@ -32,7 +32,7 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
     if !is_dir {
         return view! {
             <li>
-                <TabLink href=file_href(&state.workspace_id.get_value(), &path) class="tree-row">
+                <TabLink href=file_href(&state.workspace_id.get_value(), &path) class="tree-row" style=style beside=true>
                     <span class="tree-chevron-spacer" aria-hidden="true"></span>
                     <TreeIcon />
                     <span class="truncate" title=title>
@@ -124,6 +124,6 @@ mod tests {
     #[test]
     fn indent_grows_with_depth() {
         assert_eq!(indent_style(0), "padding-left: 0.75rem");
-        assert_eq!(indent_style(2), "padding-left: 2.5rem");
+        assert_eq!(indent_style(2), "padding-left: 3rem");
     }
 }

@@ -63,6 +63,14 @@ impl DockContext {
         });
     }
 
+    /// Abre `path` a la derecha del grupo `from` (ver [`DockLayout::open_beside`]).
+    pub fn open_beside(&self, path: &str, title: Option<&str>, from: GroupId) {
+        let title: String = title.map_or_else(|| self.title_for(path), str::to_string);
+        self.layout.update(|l: &mut DockLayout| {
+            let _tab: TabId = l.open_beside(path, &title, from);
+        });
+    }
+
     pub fn close_group(&self, group: GroupId) {
         self.layout
             .update(|l: &mut DockLayout| l.close_group(group));
@@ -167,6 +175,14 @@ impl TabNav {
     /// Abre `path` en una pestaña del grupo actual.
     pub fn open(&self, path: &str) {
         self.dock.open(path, None, self.group);
+    }
+
+    /// Abre `path` a la derecha del grupo actual (reutiliza el grupo vecino si lo hay).
+    pub fn open_beside(&self, path: &str) {
+        match self.group {
+            Some(group) => self.dock.open_beside(path, None, group),
+            None => self.dock.open(path, None, None),
+        }
     }
 
     pub fn open_titled(&self, path: &str, title: &str) {

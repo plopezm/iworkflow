@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-use crate::core::components::code::{CodeEditor, CodeView};
+use crate::core::components::code::CodeEditor;
 use crate::core::components::layout::ErrorText;
 use crate::core::dock::context::use_tab_params;
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::ProjectFileDto;
@@ -69,6 +69,7 @@ fn ProjectFileContent(workspace_id: String, path: String) -> impl IntoView {
 
 fn file_body(file: ProjectFileDto, state: ProjectFileState) -> impl IntoView {
     let ProjectFileDto { name, content, .. } = file;
+    state.draft.set(content.clone());
     let loaded: StoredValue<String> = StoredValue::new(content);
     let saving: Memo<bool> = state.saving();
     let dirty: Signal<bool> = Signal::derive(move || {
@@ -76,65 +77,38 @@ fn file_body(file: ProjectFileDto, state: ProjectFileState) -> impl IntoView {
             .draft
             .with(|d: &String| loaded.with_value(|l: &String| is_dirty(d, l)))
     });
-    let save: Callback<()> = Callback::new(move |_| state.submit());
-    let view_name: String = name.clone();
+    let save: Callback<()> = Callback::new(move |_| {
+        if dirty.get_untracked() {
+            state.submit();
+        }
+    });
 
     view! {
         <div class="flex items-center gap-2 border-b border-border px-3 py-1.5">
-            <Show
-                when=move || state.editing.get()
-                fallback=move || {
-                    view! {
-                        <button
-                            type="button"
-                            class="btn-ghost"
-                            on:click=move |_| loaded.with_value(|l: &String| state.start_edit(l))
-                        >
-                            "Editar"
-                        </button>
-                        <button type="button" class="icon-btn" title="Recargar" on:click=move |_| state.refresh()>
-                            "↻"
-                        </button>
-                    }
-                }
+            <button
+                type="button"
+                class="btn-primary"
+                disabled=move || saving.get() || !dirty.get()
+                on:click=move |_| save.run(())
             >
-                <button
-                    type="button"
-                    class="btn-primary"
-                    disabled=move || saving.get() || !dirty.get()
-                    on:click=move |_| state.submit()
-                >
-                    {move || if saving.get() { "Guardando…" } else { "Guardar" }}
-                </button>
-                <button
-                    type="button"
-                    class="btn-ghost"
-                    disabled=move || saving.get()
-                    on:click=move |_| state.discard()
-                >
-                    "Descartar"
-                </button>
-                <Show when=move || dirty.get()>
-                    <span class="text-xs text-muted">"Cambios sin guardar"</span>
-                </Show>
+                {move || if saving.get() { "Guardando…" } else { "Guardar" }}
+            </button>
+            <button
+                type="button"
+                class="btn-ghost"
+                disabled=move || saving.get() || !dirty.get()
+                on:click=move |_| state.draft.set(loaded.get_value())
+            >
+                "Descartar"
+            </button>
+            <button type="button" class="icon-btn" title="Recargar desde disco" on:click=move |_| state.refresh()>
+                "↻"
+            </button>
+            <Show when=move || dirty.get()>
+                <span class="text-xs text-muted">"Cambios sin guardar"</span>
             </Show>
         </div>
         {move || state.save_error().map(|message: String| view! { <div class="px-3 py-1"><ErrorText message /></div> })}
-        <Show
-            when=move || state.editing.get()
-            fallback={
-                let name: String = view_name.clone();
-                move || {
-                    view! { <CodeView text=loaded.get_value() filename=name.clone() /> }
-                }
-            }
-        >
-            <CodeEditor
-                value=state.draft
-                filename=name.clone()
-                disabled=saving
-                on_save=save
-            />
-        </Show>
+        <CodeEditor value=state.draft filename=name.clone() disabled=saving on_save=save />
     }
 }
