@@ -1,48 +1,28 @@
 use std::collections::HashMap;
-use std::ffi::OsString;
 use std::path::Path;
-use std::process::{ExitStatus, Stdio};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command};
-use tokio::sync::{mpsc, oneshot};
-use tokio::task::JoinHandle;
-use uuid::Uuid;
-
-use crate::core::env::{LoginShellInvocation, login_shell_invocation};
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::agent_capabilities::AgentCapabilities;
 use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::AgentEvent;
 use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
-use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::TaskId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
+use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_process::{
+    LaunchSpec, LineCodec, ProcessRuntime,
+};
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::rpc_protocol::{
     decode, decode_subagent_tasks, encode,
 };
 
 /// Activa diálogos (`ask_user_*`) y widgets de actividad en gentle-shell.
 const INTERACTIVE_HOST_ENV: &str = "GENTLE_SHELL_INTERACTIVE_HOST";
-const SYSTEMD_RUN: &str = "systemd-run";
 const RESUME_FLAG: &str = "--continue";
-const DEFAULT_STOP_TIMEOUT: Duration = Duration::from_secs(15);
-const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
-
-struct AgentProcess {
-    generation: u64,
-    commands: mpsc::UnboundedSender<String>,
-    kill: oneshot::Sender<()>,
-    supervisor: JoinHandle<()>,
-}
-
-type Registry = Arc<Mutex<HashMap<TaskId, AgentProcess>>>;
 
 /// Última instantánea de subagentes por tarea; sobrevive a la salida del proceso.
 type SubagentStore = Arc<Mutex<HashMap<TaskId, Vec<SubagentTask>>>>;
@@ -50,12 +30,9 @@ type SubagentStore = Arc<Mutex<HashMap<TaskId, Vec<SubagentTask>>>>;
 /// Lanza y controla procesos de un agente que habla el protocolo RPC de pi
 /// (`<programa> --mode rpc`), uno por tarea.
 pub struct PiRpcRuntimeAdapter {
-    program: String,
+    runtime: ProcessRuntime,
     base_args: Vec<String>,
-    stop_timeout: Duration,
-    processes: Registry,
     subagent_tasks: SubagentStore,
-    generations: AtomicU64,
 }
 
 impl PiRpcRuntimeAdapter {
@@ -67,108 +44,52 @@ impl PiRpcRuntimeAdapter {
     /// Runtime con un comando arbitrario que hable el protocolo RPC (útil en tests).
     pub fn with_command(program: impl Into<String>, base_args: Vec<String>) -> Self {
         Self {
-            program: program.into(),
+            runtime: ProcessRuntime::new(program),
             base_args,
-            stop_timeout: DEFAULT_STOP_TIMEOUT,
-            processes: Arc::new(Mutex::new(HashMap::new())),
             subagent_tasks: Arc::new(Mutex::new(HashMap::new())),
-            generations: AtomicU64::new(0),
         }
     }
 
     pub fn with_stop_timeout(mut self, timeout: Duration) -> Self {
-        self.stop_timeout = timeout;
+        self.runtime = self.runtime.with_stop_timeout(timeout);
         self
     }
+}
 
-    fn registry(&self) -> Result<MutexGuard<'_, HashMap<TaskId, AgentProcess>>, TaskError> {
-        lock(&self.processes)
+/// Códec del protocolo RPC de pi; además de los eventos, conserva la última instantánea de
+/// subagentes de la tarea.
+struct PiCodec {
+    subagent_tasks: SubagentStore,
+}
+
+impl LineCodec for PiCodec {
+    fn decode(&mut self, task_id: TaskId, line: &str) -> Vec<AgentEvent> {
+        // Antes de despachar: al llegar `SubagentsChanged` la instantánea ya está.
+        if let Some(snapshot) = decode_subagent_tasks(line) {
+            match self.subagent_tasks.lock() {
+                Ok(mut store) => {
+                    store.insert(task_id, snapshot);
+                }
+                Err(_) => tracing::warn!(%task_id, "subagentes corruptos; se descarta"),
+            }
+        }
+        decode(line)
+    }
+
+    fn encode(&mut self, command: &AgentCommand, request_id: &str) -> Result<String, TaskError> {
+        Ok(encode(command, request_id))
     }
 }
 
-fn lock(registry: &Registry) -> Result<MutexGuard<'_, HashMap<TaskId, AgentProcess>>, TaskError> {
-    registry
-        .lock()
-        .map_err(|_| TaskError::Runtime("registro de procesos corrupto".to_string()))
-}
-
-/// Construye el comando del agente: lanzado con `exec` desde la shell de login, directorio,
-/// entorno vacío con solo las variables de sesión (`vars` filtradas) y pipes.
-fn build_command(
-    program: &str,
-    base_args: &[String],
-    resume: bool,
-    options: &LaunchOptions,
-    cwd: &Path,
-    vars: impl Iterator<Item = (OsString, OsString)>,
-    systemd_scope: bool,
-) -> Command {
-    let agent_args: Vec<String> = base_args
+/// Argumentos del agente: base, reanudación, modelo y nivel de thinking.
+fn launch_args(base_args: &[String], resume: bool, options: &LaunchOptions) -> Vec<String> {
+    base_args
         .iter()
         .cloned()
         .chain(resume.then(|| RESUME_FLAG.to_string()))
         .chain(model_args(options))
         .chain(thinking_args(options))
-        .collect();
-    let invocation: LoginShellInvocation = login_shell_invocation(program, &agent_args, vars);
-    let (program, args): (String, Vec<String>) = scoped_launch(
-        &options.limits,
-        systemd_scope,
-        invocation.shell,
-        invocation.args,
-    );
-    let mut command: Command = Command::new(program);
-    command
-        .env_clear()
-        .envs(invocation.env)
-        .args(args)
-        .current_dir(cwd)
-        .env(INTERACTIVE_HOST_ENV, "1")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-    command
-}
-
-/// Programa y argumentos finales: con límites y `systemd_scope` se envuelve la shell en
-/// `systemd-run --user --scope` (cgroup propio con `MemoryMax`/`CPUQuota`); sin ellos, intacta.
-fn scoped_launch(
-    limits: &ResourceLimits,
-    systemd_scope: bool,
-    shell: String,
-    shell_args: Vec<String>,
-) -> (String, Vec<String>) {
-    if !systemd_scope || limits.is_unlimited() {
-        return (shell, shell_args);
-    }
-    let args: Vec<String> = ["--user", "--scope", "--quiet"]
-        .into_iter()
-        .map(str::to_string)
-        .chain(
-            limits
-                .systemd_properties()
-                .into_iter()
-                .flat_map(|property: String| ["-p".to_string(), property]),
-        )
-        .chain(std::iter::once("--".to_string()))
-        .chain(std::iter::once(shell))
-        .chain(shell_args)
-        .collect();
-    (SYSTEMD_RUN.to_string(), args)
-}
-
-/// `true` si hay `systemd-run` en el `PATH` de un Linux (los cgroups solo existen allí).
-fn systemd_run_available() -> bool {
-    cfg!(target_os = "linux")
-        && std::env::var_os("PATH").is_some_and(|path: OsString| {
-            std::env::split_paths(&path)
-                .any(|dir: std::path::PathBuf| dir.join(SYSTEMD_RUN).is_file())
-        })
-}
-
-fn pipe_error(name: &str) -> TaskError {
-    TaskError::Runtime(format!("no se pudo abrir {name} del agente"))
+        .collect()
 }
 
 fn model_args(options: &LaunchOptions) -> Vec<String> {
@@ -200,111 +121,37 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
         options: &LaunchOptions,
         sink: Arc<dyn AgentEventSink>,
     ) -> Result<(), TaskError> {
-        if self.registry()?.contains_key(&task_id) {
+        if self.runtime.is_running(task_id) {
             return Err(TaskError::Runtime(
                 "el agente ya está en ejecución".to_string(),
             ));
         }
-        let program: &str = &self.program;
-        let mut command: Command = build_command(
-            program,
-            &self.base_args,
-            resume,
-            options,
-            cwd,
-            std::env::vars_os(),
-            systemd_run_available(),
-        );
-        let mut child: Child = command
-            .spawn()
-            .map_err(|e| TaskError::Runtime(format!("no se pudo lanzar {program}: {e}")))?;
-        let stdin: ChildStdin = child.stdin.take().ok_or_else(|| pipe_error("stdin"))?;
-        let stdout: ChildStdout = child.stdout.take().ok_or_else(|| pipe_error("stdout"))?;
-        let stderr: ChildStderr = child.stderr.take().ok_or_else(|| pipe_error("stderr"))?;
-
-        let (commands, command_rx) = mpsc::unbounded_channel::<String>();
-        let (kill, kill_rx) = oneshot::channel::<()>();
-        let generation: u64 = self.generations.fetch_add(1, Ordering::Relaxed);
-        let io: ProcessIo = ProcessIo {
-            child,
-            stdin,
-            stdout,
-            stderr,
-            command_rx,
-            kill_rx,
-        };
-
         // Un arranque nuevo descarta los subagentes de la ejecución anterior.
         self.subagent_tasks
             .lock()
             .map_err(|_| TaskError::Runtime("subagentes corruptos".to_string()))?
             .remove(&task_id);
-        // Se registra antes de que el supervisor pueda intentar desregistrarse.
-        let mut registry: MutexGuard<'_, HashMap<TaskId, AgentProcess>> = self.registry()?;
-        let supervisor: JoinHandle<()> = tokio::spawn(supervise(
-            task_id,
-            generation,
-            io,
-            sink,
-            self.processes.clone(),
-            self.subagent_tasks.clone(),
-        ));
-        registry.insert(
-            task_id,
-            AgentProcess {
-                generation,
-                commands,
-                kill,
-                supervisor,
-            },
-        );
-        Ok(())
+        let spec: LaunchSpec = LaunchSpec {
+            agent_args: launch_args(&self.base_args, resume, options),
+            extra_env: vec![(INTERACTIVE_HOST_ENV.to_string(), "1".to_string())],
+        };
+        let codec: Box<dyn LineCodec> = Box::new(PiCodec {
+            subagent_tasks: self.subagent_tasks.clone(),
+        });
+        self.runtime
+            .start(task_id, cwd, &spec, &options.limits, codec, sink)
     }
 
     async fn send(&self, task_id: TaskId, command: AgentCommand) -> Result<(), TaskError> {
-        let line: String = encode(&command, &Uuid::new_v4().to_string());
-        let registry: MutexGuard<'_, HashMap<TaskId, AgentProcess>> = self.registry()?;
-        let process: &AgentProcess = registry.get(&task_id).ok_or(TaskError::AgentNotRunning)?;
-        process
-            .commands
-            .send(line)
-            .map_err(|_| TaskError::AgentNotRunning)
+        self.runtime.send(task_id, &command)
     }
 
     async fn stop(&self, task_id: TaskId) -> Result<(), TaskError> {
-        let process: Option<AgentProcess> = self.registry()?.remove(&task_id);
-        let Some(AgentProcess {
-            commands,
-            kill,
-            mut supervisor,
-            ..
-        }) = process
-        else {
-            return Ok(());
-        };
-        // Cerrar stdin es la señal de apagado ordenado de pi.
-        drop(commands);
-        let join: Result<(), tokio::task::JoinError> = match tokio::time::timeout(
-            self.stop_timeout,
-            &mut supervisor,
-        )
-        .await
-        {
-            Ok(join) => join,
-            Err(_) => {
-                tracing::warn!(%task_id, "el agente no se detuvo a tiempo; se fuerza su cierre");
-                // Si el supervisor ya terminó, el receptor no existe y no hay nada que matar.
-                let _delivered: Result<(), ()> = kill.send(());
-                supervisor.await
-            }
-        };
-        join.map_err(|e| TaskError::Runtime(format!("supervisor del agente: {e}")))
+        self.runtime.stop(task_id).await
     }
 
     async fn is_running(&self, task_id: TaskId) -> bool {
-        self.registry()
-            .map(|registry| registry.contains_key(&task_id))
-            .unwrap_or(false)
+        self.runtime.is_running(task_id)
     }
 
     async fn subagents(&self, task_id: TaskId) -> Vec<SubagentTask> {
@@ -323,306 +170,25 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
     }
 }
 
-struct ProcessIo {
-    child: Child,
-    stdin: ChildStdin,
-    stdout: ChildStdout,
-    stderr: ChildStderr,
-    command_rx: mpsc::UnboundedReceiver<String>,
-    kill_rx: oneshot::Receiver<()>,
-}
-
-/// Gestiona la vida de un proceso: E/S, eventos, cierre y desregistro.
-async fn supervise(
-    task_id: TaskId,
-    generation: u64,
-    io: ProcessIo,
-    sink: Arc<dyn AgentEventSink>,
-    registry: Registry,
-    subagent_tasks: SubagentStore,
-) {
-    let ProcessIo {
-        mut child,
-        stdin,
-        stdout,
-        stderr,
-        command_rx,
-        mut kill_rx,
-    } = io;
-    let writer = write_commands(stdin, command_rx);
-    let reader = read_events(task_id, stdout, sink.clone(), subagent_tasks);
-    let logger: JoinHandle<()> = tokio::spawn(log_stderr(task_id, stderr));
-    tokio::pin!(writer, reader);
-
-    let mut writer_done: bool = false;
-    let mut kill_armed: bool = true;
-    loop {
-        tokio::select! {
-            _ = &mut reader => break,
-            _ = &mut writer, if !writer_done => writer_done = true,
-            signal = &mut kill_rx, if kill_armed => {
-                kill_armed = false;
-                if signal.is_ok()
-                    && let Err(error) = child.start_kill()
-                {
-                    tracing::warn!(%task_id, %error, "no se pudo matar el agente");
-                }
-            }
-        }
-    }
-
-    let code: Option<i32> = match tokio::time::timeout(EXIT_TIMEOUT, child.wait()).await {
-        Ok(Ok(status)) => status.code(),
-        Ok(Err(error)) => {
-            tracing::warn!(%task_id, %error, "error esperando al agente");
-            None
-        }
-        Err(_) => {
-            if let Err(error) = child.start_kill() {
-                tracing::warn!(%task_id, %error, "no se pudo matar el agente");
-            }
-            child
-                .wait()
-                .await
-                .ok()
-                .and_then(|status: ExitStatus| status.code())
-        }
-    };
-    if let Err(error) = logger.await {
-        tracing::warn!(%task_id, %error, "lector de stderr terminó con error");
-    }
-    sink.handle(task_id, AgentEvent::ProcessExited { code })
-        .await;
-
-    if let Ok(mut processes) = lock(&registry)
-        && processes
-            .get(&task_id)
-            .is_some_and(|p: &AgentProcess| p.generation == generation)
-    {
-        processes.remove(&task_id);
-    }
-}
-
-async fn write_commands(mut stdin: ChildStdin, mut commands: mpsc::UnboundedReceiver<String>) {
-    while let Some(line) = commands.recv().await {
-        let record: String = format!("{line}\n");
-        if stdin.write_all(record.as_bytes()).await.is_err() || stdin.flush().await.is_err() {
-            break;
-        }
-    }
-    // Al soltar stdin, pi recibe EOF y se apaga ordenadamente.
-}
-
-async fn read_events(
-    task_id: TaskId,
-    stdout: ChildStdout,
-    sink: Arc<dyn AgentEventSink>,
-    subagent_tasks: SubagentStore,
-) {
-    let mut reader: BufReader<ChildStdout> = BufReader::new(stdout);
-    let mut buffer: Vec<u8> = Vec::new();
-    loop {
-        buffer.clear();
-        match reader.read_until(b'\n', &mut buffer).await {
-            Ok(0) => break,
-            Ok(_) => {
-                let line: String = String::from_utf8_lossy(&buffer).into_owned();
-                let line: &str = line.trim_end_matches(['\n', '\r']);
-                // Antes de despachar: al llegar `SubagentsChanged` la instantánea ya está.
-                if let Some(snapshot) = decode_subagent_tasks(line) {
-                    match subagent_tasks.lock() {
-                        Ok(mut store) => {
-                            store.insert(task_id, snapshot);
-                        }
-                        Err(_) => tracing::warn!(%task_id, "subagentes corruptos; se descarta"),
-                    }
-                }
-                for event in decode(line) {
-                    sink.handle(task_id, event).await;
-                }
-            }
-            Err(error) => {
-                tracing::warn!(%task_id, %error, "error leyendo stdout del agente");
-                break;
-            }
-        }
-    }
-}
-
-async fn log_stderr(task_id: TaskId, stderr: ChildStderr) {
-    let mut lines: tokio::io::Lines<BufReader<ChildStderr>> = BufReader::new(stderr).lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        tracing::debug!(%task_id, "agente stderr: {line}");
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::ffi::OsStr;
-
     use super::*;
     use crate::modules::tasks::domain::models::launch_options::LaunchModel;
 
-    fn pairs(entries: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
-        entries
-            .iter()
-            .map(|(key, value): &(&str, &str)| (OsString::from(key), OsString::from(value)))
-            .collect()
-    }
-
-    fn parent_env() -> Vec<(OsString, OsString)> {
-        pairs(&[
-            ("LEPTOS_ENV", "dev"),
-            ("CARGO_MANIFEST_DIR", "/src"),
-            ("VIRTUAL_ENV", "/venv"),
-            ("PATH", "/venv/bin"),
-            ("HOME", "/home/u"),
-            ("SHELL", "/bin/zsh"),
-        ])
-    }
-
-    fn std_args(command: &Command) -> Vec<String> {
-        command
-            .as_std()
-            .get_args()
-            .map(|arg: &OsStr| arg.to_string_lossy().into_owned())
-            .collect()
+    fn base() -> Vec<String> {
+        vec!["--mode".to_string(), "rpc".to_string()]
     }
 
     #[test]
-    fn scoped_launch_wraps_the_shell_in_systemd_run_when_limited() {
-        let limits: ResourceLimits = ResourceLimits {
-            memory_mb: Some(1024),
-            cpu_percent: Some(200),
-        };
-        let (program, args): (String, Vec<String>) = scoped_launch(
-            &limits,
-            true,
-            "/bin/sh".to_string(),
-            vec![
-                "-l".to_string(),
-                "-c".to_string(),
-                "exec 'agent'".to_string(),
-            ],
-        );
-        assert_eq!(program, "systemd-run");
+    fn launch_args_are_the_base_args_by_default() {
         assert_eq!(
-            args,
-            vec![
-                "--user",
-                "--scope",
-                "--quiet",
-                "-p",
-                "MemoryMax=1024M",
-                "-p",
-                "CPUQuota=200%",
-                "--",
-                "/bin/sh",
-                "-l",
-                "-c",
-                "exec 'agent'"
-            ]
+            launch_args(&base(), false, &LaunchOptions::default()),
+            vec!["--mode", "rpc"]
         );
     }
 
     #[test]
-    fn scoped_launch_leaves_the_shell_untouched_without_limits_or_systemd() {
-        let limited: ResourceLimits = ResourceLimits {
-            memory_mb: Some(1024),
-            cpu_percent: None,
-        };
-        for (limits, scope) in [(limited, false), (ResourceLimits::default(), true)] {
-            let (program, args): (String, Vec<String>) = scoped_launch(
-                &limits,
-                scope,
-                "/bin/sh".to_string(),
-                vec!["-l".to_string()],
-            );
-            assert_eq!(program, "/bin/sh");
-            assert_eq!(args, vec!["-l"]);
-        }
-    }
-
-    #[test]
-    fn build_command_clears_the_environment_down_to_session_variables() {
-        let command: Command = build_command(
-            "agent",
-            &[],
-            false,
-            &LaunchOptions::default(),
-            Path::new("."),
-            parent_env().into_iter(),
-            false,
-        );
-
-        let mut keys: Vec<String> = command
-            .as_std()
-            .get_envs()
-            .map(|(key, value): (&OsStr, Option<&OsStr>)| {
-                assert!(value.is_some(), "{key:?} no debe marcarse como eliminada");
-                key.to_string_lossy().into_owned()
-            })
-            .collect();
-        keys.sort();
-        assert_eq!(
-            keys,
-            vec![
-                "GENTLE_SHELL_INTERACTIVE_HOST".to_string(),
-                "HOME".to_string(),
-                "PATH".to_string(),
-                "SHELL".to_string(),
-            ]
-        );
-        let path: Option<&OsStr> = command
-            .as_std()
-            .get_envs()
-            .find(|(key, _): &(&OsStr, Option<&OsStr>)| *key == OsStr::new("PATH"))
-            .and_then(|(_, value): (&OsStr, Option<&OsStr>)| value);
-        assert_eq!(path, Some(OsStr::new(crate::core::env::DEFAULT_PATH)));
-    }
-
-    #[test]
-    fn build_command_sets_the_interactive_flag() {
-        let command: Command = build_command(
-            "agent",
-            &[],
-            false,
-            &LaunchOptions::default(),
-            Path::new("."),
-            parent_env().into_iter(),
-            false,
-        );
-
-        assert!(
-            command
-                .as_std()
-                .get_envs()
-                .any(|entry: (&OsStr, Option<&OsStr>)| entry
-                    == (OsStr::new(INTERACTIVE_HOST_ENV), Some(OsStr::new("1"))))
-        );
-    }
-
-    #[test]
-    fn build_command_launches_the_agent_with_exec_through_the_login_shell() {
-        let command: Command = build_command(
-            "agent",
-            &["--mode".to_string(), "rpc".to_string()],
-            false,
-            &LaunchOptions::default(),
-            Path::new("."),
-            parent_env().into_iter(),
-            false,
-        );
-
-        assert_eq!(command.as_std().get_program(), OsStr::new("/bin/zsh"));
-        assert_eq!(
-            std_args(&command),
-            vec!["-l", "-c", "exec 'agent' '--mode' 'rpc'"]
-        );
-    }
-
-    #[test]
-    fn build_command_quotes_resume_model_and_thinking_args() {
+    fn launch_args_append_resume_model_and_thinking() {
         let options: LaunchOptions = LaunchOptions {
             model: Some(LaunchModel {
                 provider: "anthropic".to_string(),
@@ -632,20 +198,19 @@ mod tests {
             ..LaunchOptions::default()
         };
 
-        let command: Command = build_command(
-            "agent",
-            &["--mode".to_string(), "rpc".to_string()],
-            true,
-            &options,
-            Path::new("."),
-            parent_env().into_iter(),
-            false,
-        );
-
         assert_eq!(
-            std_args(&command)[2],
-            "exec 'agent' '--mode' 'rpc' '--continue' '--provider' 'anthropic' \
-             '--model' 'claude 5' '--thinking' 'high'"
+            launch_args(&base(), true, &options),
+            vec![
+                "--mode",
+                "rpc",
+                "--continue",
+                "--provider",
+                "anthropic",
+                "--model",
+                "claude 5",
+                "--thinking",
+                "high"
+            ]
         );
     }
 }
