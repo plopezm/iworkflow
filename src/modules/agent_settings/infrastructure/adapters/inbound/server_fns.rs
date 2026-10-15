@@ -9,6 +9,8 @@ mod support {
     use leptos::prelude::*;
 
     use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+    use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
+    use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
     use crate::modules::agent_settings::infrastructure::di::agent_settings_context::AgentSettingsContext;
 
     pub fn context() -> Result<AgentSettingsContext, ServerFnError> {
@@ -20,9 +22,53 @@ mod support {
         ServerFnError::new(error.to_string())
     }
 
+    /// Ids de los niveles de razonamiento que admite `runtime` (`None`/vacío = por defecto).
+    pub fn thinking_level_ids(runtime: Option<String>) -> Result<Vec<String>, AgentSettingsError> {
+        let runtime: AgentRuntime = match runtime.filter(|raw: &String| !raw.is_empty()) {
+            Some(raw) => AgentRuntime::parse(&raw)?,
+            None => AgentRuntime::default(),
+        };
+        Ok(ThinkingLevel::supported_by(runtime)
+            .iter()
+            .map(|level: &ThinkingLevel| level.as_str().to_string())
+            .collect())
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        fn ids(runtime: Option<&str>) -> Vec<String> {
+            thinking_level_ids(runtime.map(str::to_string)).expect("levels")
+        }
+
+        #[test]
+        fn claude_levels_exclude_off_and_minimal() {
+            assert_eq!(
+                ids(Some("claude")),
+                ["low", "medium", "high", "xhigh", "max"]
+            );
+        }
+
+        #[test]
+        fn pi_gentle_shell_and_default_offer_all_seven() {
+            for runtime in [Some("pi"), Some("gentle-shell"), Some(""), None] {
+                assert_eq!(ids(runtime).len(), 7);
+            }
+        }
+
+        #[test]
+        fn unknown_runtime_maps_to_the_domain_error_message() {
+            let error: ServerFnError = thinking_level_ids(Some("codex".to_string()))
+                .map_err(to_server_error)
+                .expect_err("error");
+            assert_eq!(
+                error,
+                ServerFnError::ServerError(
+                    AgentSettingsError::InvalidRuntime("codex".to_string()).to_string()
+                )
+            );
+        }
 
         #[test]
         fn domain_error_message_is_preserved() {
@@ -68,16 +114,12 @@ pub async fn list_profile_options() -> Result<ProfileCatalogDto, ServerFnError> 
     Ok(ProfileCatalogDto::from(catalog))
 }
 
-/// Lista los identificadores de pi para cada nivel de razonamiento disponible; el
-/// dominio es la única fuente de verdad, la UI solo pone las etiquetas en español.
+/// Lista los identificadores de los niveles de razonamiento que admite `runtime`
+/// (`None` o vacío = runtime por defecto); el dominio es la única fuente de verdad,
+/// la UI solo pone las etiquetas en español.
 #[server]
-pub async fn list_thinking_levels() -> Result<Vec<String>, ServerFnError> {
-    use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
-
-    Ok(ThinkingLevel::ALL
-        .iter()
-        .map(|level: &ThinkingLevel| level.as_str().to_string())
-        .collect())
+pub async fn list_thinking_levels(runtime: Option<String>) -> Result<Vec<String>, ServerFnError> {
+    support::thinking_level_ids(runtime).map_err(support::to_server_error)
 }
 
 /// Lista los identificadores de las implementaciones de agente disponibles.

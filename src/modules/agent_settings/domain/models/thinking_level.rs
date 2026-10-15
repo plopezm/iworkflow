@@ -1,8 +1,9 @@
 use std::fmt;
 
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
+use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 
-/// Nivel de razonamiento del agente (pi `--thinking <level>`). pi clamps el valor a
+/// Nivel de razonamiento del agente (pi `--thinking <level>`, claude `--effort`). pi clamps el valor a
 /// las capacidades del modelo activo, así que no hace falta validación por modelo
 /// en este lado.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -26,6 +27,27 @@ impl ThinkingLevel {
         ThinkingLevel::XHigh,
         ThinkingLevel::Max,
     ];
+
+    const CLAUDE: [ThinkingLevel; 5] = [
+        ThinkingLevel::Low,
+        ThinkingLevel::Medium,
+        ThinkingLevel::High,
+        ThinkingLevel::XHigh,
+        ThinkingLevel::Max,
+    ];
+
+    /// Niveles que admite `runtime`: `claude --effort` no tiene `off` ni `minimal`;
+    /// pi y gentle-shell aceptan todos.
+    pub fn supported_by(runtime: AgentRuntime) -> &'static [ThinkingLevel] {
+        match runtime {
+            AgentRuntime::Claude => &Self::CLAUDE,
+            AgentRuntime::GentleShell | AgentRuntime::Pi => &Self::ALL,
+        }
+    }
+
+    pub fn is_supported_by(&self, runtime: AgentRuntime) -> bool {
+        Self::supported_by(runtime).contains(self)
+    }
 
     /// Identificador de pi (minúsculas).
     pub fn as_str(&self) -> &'static str {
@@ -80,5 +102,32 @@ mod tests {
                 "ultra".to_string()
             ))
         );
+    }
+
+    #[test]
+    fn claude_supports_only_low_to_max() {
+        assert_eq!(
+            ThinkingLevel::supported_by(AgentRuntime::Claude),
+            &[
+                ThinkingLevel::Low,
+                ThinkingLevel::Medium,
+                ThinkingLevel::High,
+                ThinkingLevel::XHigh,
+                ThinkingLevel::Max,
+            ]
+        );
+        assert!(!ThinkingLevel::Off.is_supported_by(AgentRuntime::Claude));
+        assert!(!ThinkingLevel::Minimal.is_supported_by(AgentRuntime::Claude));
+        assert!(ThinkingLevel::XHigh.is_supported_by(AgentRuntime::Claude));
+    }
+
+    #[test]
+    fn pi_and_gentle_shell_keep_all_seven_levels() {
+        for runtime in [AgentRuntime::Pi, AgentRuntime::GentleShell] {
+            assert_eq!(ThinkingLevel::supported_by(runtime), &ThinkingLevel::ALL);
+            for level in ThinkingLevel::ALL {
+                assert!(level.is_supported_by(runtime));
+            }
+        }
     }
 }

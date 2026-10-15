@@ -58,8 +58,15 @@ impl AgentSettingsState {
             Resource::new(move || update.version().get(), |_| list_model_options());
         let profiles: Resource<Result<ProfileCatalogDto, ServerFnError>> =
             Resource::new(move || update.version().get(), |_| list_profile_options());
-        let thinking_levels: Resource<Result<Vec<String>, ServerFnError>> =
-            Resource::new(|| (), |_| list_thinking_levels());
+        let thinking_levels: Resource<Result<Vec<String>, ServerFnError>> = Resource::new(
+            move || {
+                settings
+                    .get()
+                    .and_then(|result: Result<AgentSettingsDto, ServerFnError>| result.ok())
+                    .and_then(|dto: AgentSettingsDto| dto.runtime)
+            },
+            list_thinking_levels,
+        );
         Self {
             settings,
             runtimes,
@@ -72,9 +79,10 @@ impl AgentSettingsState {
         }
     }
 
-    /// Cambia la implementación de agente (gentle-shell / pi). El catálogo de modelos
-    /// es propio de cada runtime, así que se vuelve al modelo por defecto; el resto se
-    /// mantiene. `value` vacío vuelve al runtime por defecto (gentle-shell).
+    /// Cambia la implementación de agente (gentle-shell / pi / claude). El catálogo de
+    /// modelos es propio de cada runtime, así que se vuelve al modelo por defecto; el
+    /// resto se mantiene (el servidor descarta el nivel de razonamiento que el nuevo
+    /// runtime no admite). `value` vacío vuelve al runtime por defecto (gentle-shell).
     pub fn select_runtime(&self, current: &AgentSettingsDto, value: String) {
         let runtime: Option<String> = Some(value).filter(|v: &String| !v.is_empty());
         self.update.dispatch(UpdateAgentSettings {
@@ -132,7 +140,7 @@ impl AgentSettingsState {
     }
 
     /// Cambia el nivel de razonamiento manteniendo el modelo y el perfil actuales;
-    /// `value` vacío vuelve al valor por defecto de pi.
+    /// `value` vacío vuelve al valor por defecto del runtime.
     pub fn select_thinking(&self, current: &AgentSettingsDto, value: String) {
         let thinking: Option<String> = Some(value).filter(|v: &String| !v.is_empty());
         self.update.dispatch(UpdateAgentSettings {
