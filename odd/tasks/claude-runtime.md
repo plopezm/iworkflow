@@ -13,6 +13,10 @@ Branch: `pi/integrar-claude-code-dc7e3f52-dabb-4e91-ad81-5b4bec02ab8c`.
 - S6. Mismo lanzamiento que pi: shell de login, entorno limpio, `systemd-run` con límites, parada ordenada, `kill_on_drop`.
 - S7. Binario configurable (`claude_bin`, por defecto `claude`) como `pi_bin`.
 - S8. "Para usar Claude hay que seleccionarlo en el selector del menú izquierdo principal, que por defecto es pi, al elegirlo pasamos a usar el adapter de Claude en lugar del de pi" — Claude aparece en ese selector de runtime y, al elegirlo, las tareas lanzadas usan `ClaudeStreamRuntimeAdapter` (no el de pi).
+- S9. "Permisos: acceptEdits si." — Claude se lanza con `--permission-mode acceptEdits` (las ediciones de ficheros se aceptan; el resto de herramientas pide confirmación por diálogo).
+- S10. "Coge los AGENTS.md del proyecto?" — `claude` carga el `AGENTS.md` del worktree. Verificado en vivo: con solo `AGENTS.md` en el directorio de trabajo obedeció su regla. No requiere código; el repo no tiene `CLAUDE.md`.
+- S11. "Añade los diálogos." — `AskUserQuestion` (preguntas con opciones, `multiSelect`) se muestra como diálogos `Select` y su respuesta vuelve en `answers`; `ExitPlanMode` se muestra como confirmación con el plan; los permisos muestran el comando/fichero real, no solo la descripción del modelo.
+- S12. "Podemos arreglar los niveles de thinking?" — la UI ofrece solo los niveles que el runtime elegido admite (Claude: low, medium, high, xhigh, max; pi/gentle-shell: todos) y un ajuste guardado incompatible con el runtime no se aplica.
 
 ## Tasks
 
@@ -22,6 +26,10 @@ X — route: inline — commit
 - [x] T4a (S6) Extraer núcleo común `agent_process` (`ProcessRuntime` + `LineCodec`) y migrar pi; test de integración de pi como red de seguridad.
 - [x] T4b (S2, S5, S6, S8) `ClaudeStreamRuntimeAdapter` (proceso, capacidades, resume, stop) + test de integración con script falso. — route: inline — commit
 - [x] T5 (S5, S8) Catálogo de modelos de claude + docs/ayuda; verificación e2e real mínima. — route: inline — commit
+- [ ] T6 (S9) `--permission-mode acceptEdits` en los argumentos base. — route: inline — commit
+- [ ] T7 (S10) Documentar y dejar constancia de que `claude` lee `AGENTS.md` (verificado en vivo). — route: inline — commit
+- [ ] T8 (S11) Diálogos de Claude: `AskUserQuestion` → `Select` (varias preguntas, `multiSelect`), `ExitPlanMode` → confirmación del plan, permisos con el comando/fichero real; `LineCodec::encode` devuelve `Option` para respuestas parciales. — route: inline — commit
+- [ ] T9 (S12) Niveles de thinking por runtime: dominio `ThinkingLevel` por runtime, server fn con runtime, `UpdateAgentSettings`/`PrepareLaunch` descartan niveles incompatibles, el selector se actualiza al cambiar de runtime. — route: gentle-ai-worker (superficie `src/modules/agent_settings/**`) — commit
 
 ## Log
 
@@ -30,6 +38,8 @@ X — route: inline — commit
 - L3. (evidencia) Sondeo real: `can_use_tool` llega como `control_request`; `control_response` allow ejecuta la herramienta; `interrupt` devuelve `control_response` success y el turno termina con `result` `error_during_execution`/`aborted_streaming`.
 
 - L4. Para usar Claude hay que seleccionarlo en el selector del menú izquierdo principal, que por defecto es pi, al elegirlo pasamos a usar el adapter de Claude en lugar del de pi
+- L5. Permisos: acceptEdits si. Coge los AGENTS.md del proyecto? Añade los diálogos. Podemos arreglar los niveles de thinking?
+- L6. (evidencia) Sondeos en vivo: `AskUserQuestion` llega como `control_request` `can_use_tool` con `input.questions[{question,header,options[{label,description}],multiSelect}]` y se responde con `allow` + `updatedInput{...input, answers:{<pregunta>:<etiqueta>}}`; `ExitPlanMode` llega con `input.plan` y `planFilePath`; `AGENTS.md` se obedece sin `CLAUDE.md`.
 
 ## Evidence
 
