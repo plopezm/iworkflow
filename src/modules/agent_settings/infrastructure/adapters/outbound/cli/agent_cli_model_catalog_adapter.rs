@@ -164,6 +164,7 @@ mod tests {
         assert_eq!(models, Ok(Vec::new()));
     }
 
+    #[cfg(unix)]
     #[test]
     fn list_models_command_runs_the_binary_in_a_login_shell_with_a_clean_env() {
         let vars: Vec<(OsString, OsString)> = vec![
@@ -188,6 +189,7 @@ mod tests {
         assert_eq!(keys, vec!["HOME", "PATH", "SHELL"]);
     }
 
+    #[cfg(unix)]
     /// Escribe un agente falso ejecutable con el cuerpo de shell dado.
     fn fake_bin(dir: &tempfile::TempDir, body: &str) -> String {
         use std::os::unix::fs::PermissionsExt;
@@ -197,6 +199,7 @@ mod tests {
         path.to_string_lossy().into_owned()
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn lists_models_through_the_login_shell_without_parent_variables() {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
@@ -220,6 +223,7 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn failing_binary_is_a_catalog_error() {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");

@@ -11,7 +11,7 @@ use uuid::Uuid;
 use portable_pty::{Child, CommandBuilder, MasterPty, PtySize, native_pty_system};
 use tokio::sync::broadcast::{self, Sender};
 
-use crate::core::env::{DEFAULT_PATH, LOGIN_SHELL_FLAG, session_env};
+use crate::core::env::{ShellFlavor, session_env_for};
 use crate::modules::terminal::domain::errors::terminal_error::TerminalError;
 use crate::modules::terminal::domain::models::terminal_attachment::TerminalAttachment;
 use crate::modules::terminal::domain::models::terminal_session::{TerminalSession, TerminalStatus};
@@ -20,7 +20,6 @@ use crate::modules::terminal::domain::models::terminal_size::TerminalSize;
 use crate::modules::terminal::domain::ports::outbound::pty_port::PtyPort;
 use crate::modules::terminal::infrastructure::adapters::outbound::pty::process_tree::kill_descendants;
 
-const FALLBACK_SHELL: &str = "/bin/sh";
 const TERM_VALUE: &str = "xterm-256color";
 const OUTPUT_CHANNEL_CAPACITY: usize = 256;
 const SCROLLBACK_LIMIT: usize = 64 * 1024;
@@ -40,18 +39,21 @@ type SharedOutputHandle = Arc<Mutex<SharedOutput>>;
 /// shell de login, de modo que sea la propia shell (`/etc/profile`, `~/.profile`, `config.fish`...)
 /// quien reconstruya el resto del entorno en lugar de heredarlo del proceso padre.
 fn shell_command(
+    flavor: ShellFlavor,
     shell: String,
     cwd: &Path,
     vars: impl Iterator<Item = (OsString, OsString)>,
 ) -> CommandBuilder {
     let mut command: CommandBuilder = CommandBuilder::new(shell);
-    command.arg(LOGIN_SHELL_FLAG);
+    command.args(flavor.interactive_args());
     command.env_clear();
-    for (key, value) in session_env(vars) {
+    for (key, value) in session_env_for(flavor, vars) {
         command.env(key, value);
     }
     command.cwd(cwd);
-    command.env("PATH", DEFAULT_PATH);
+    if let Some(path) = flavor.base_path() {
+        command.env("PATH", path);
+    }
     command.env("TERM", TERM_VALUE);
     command
 }
@@ -107,7 +109,7 @@ impl SessionEntry {
 /// Adaptador de `PtyPort` sobre `portable-pty` con un registro en memoria de sesiones vivas.
 #[derive(Default)]
 pub struct PortablePtyAdapter {
-    /// Shell fijo; si es `None` se usa `$SHELL` con `/bin/sh` de respaldo.
+    /// Shell fijo; si es `None` se usa `$SHELL` con `/bin/sh` de respaldo (PowerShell en Windows).
     shell: Option<String>,
     sessions: Mutex<HashMap<TerminalSessionId, SessionEntry>>,
 }
@@ -180,16 +182,15 @@ impl PtyPort for PortablePtyAdapter {
         cwd: &Path,
         size: TerminalSize,
     ) -> Result<TerminalSession, TerminalError> {
-        let shell: String = self.shell.clone().unwrap_or_else(|| {
-            std::env::var("SHELL")
-                .ok()
-                .filter(|value: &String| !value.is_empty())
-                .unwrap_or_else(|| FALLBACK_SHELL.to_string())
-        });
+        let flavor: ShellFlavor = ShellFlavor::native();
+        let shell: String = self
+            .shell
+            .clone()
+            .unwrap_or_else(|| flavor.select_shell(std::env::var("SHELL").ok().as_deref()));
         let pair = native_pty_system()
             .openpty(to_pty_size(size))
             .map_err(pty_error)?;
-        let command: CommandBuilder = shell_command(shell, cwd, std::env::vars_os());
+        let command: CommandBuilder = shell_command(flavor, shell, cwd, std::env::vars_os());
         let mut child: Box<dyn Child + Send + Sync> =
             pair.slave.spawn_command(command).map_err(pty_error)?;
         // El lado esclavo debe cerrarse en el padre para que el lector vea EOF.
@@ -335,6 +336,7 @@ impl Drop for PortablePtyAdapter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::env::DEFAULT_PATH;
 
     fn pairs(entries: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
         entries
@@ -353,13 +355,14 @@ mod tests {
             ("HOME", "/home/u"),
             ("TERM", "dumb"),
         ]);
-        let command: CommandBuilder =
-            shell_command("/bin/zsh".to_string(), Path::new("/tmp"), vars.into_iter());
-        let argv: Vec<OsString> = command.get_argv().clone();
-        assert_eq!(
-            argv,
-            vec![OsString::from("/bin/zsh"), OsString::from(LOGIN_SHELL_FLAG)]
+        let command: CommandBuilder = shell_command(
+            ShellFlavor::Posix,
+            "/bin/zsh".to_string(),
+            Path::new("/tmp"),
+            vars.into_iter(),
         );
+        let argv: Vec<OsString> = command.get_argv().clone();
+        assert_eq!(argv, vec![OsString::from("/bin/zsh"), OsString::from("-l")]);
         assert_eq!(command.get_env("LEPTOS_SITE_ADDR"), None);
         assert_eq!(command.get_env("CARGO_MANIFEST_DIR"), None);
         assert_eq!(command.get_env("VIRTUAL_ENV"), None);
