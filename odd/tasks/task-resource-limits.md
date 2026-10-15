@@ -14,10 +14,11 @@ settings plus per-task override (task value wins).
 - [x] T1 (S2,S4) ResourceLimits value object, LaunchOptions.limits, systemd-run wrapping in pi runtime adapter + tests
 - [x] T2 (S3) Global default: migration agent_settings, domain/repo/DTO/UI, mapped into LaunchOptions
 - [x] T3 (S1,S3) Per-task override: migration tasks, Task model, create/edit DTO + form, resolution over global
-- [ ] T4 fmt, clippy ssr/hydrate, tests
+- [x] T4 fmt, clippy ssr/hydrate, tests
 
 ## Log
 - L1: Limitar recursos por tarea
 - L2: user chose RAM + CPU, systemd-run --user (cgroups), config "Ambos"; asked about Windows -> best effort, no limits
 - T1 commit: fea5e76
 - T2 commit: a6d4722
+- T3 commit: dcaa22d

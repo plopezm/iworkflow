@@ -314,14 +314,14 @@ pub fn start_failed_after_create_text(error: &str) -> String {
     format!("Tarea creada en Por hacer, pero no se pudo iniciar: {error}")
 }
 
-/// Construye el DTO de alta con las imágenes adjuntas (función pura).
+/// Construye el DTO de alta con las imágenes adjuntas (función pura). `limits` es el texto de
+/// los campos (RAM MiB, CPU %).
 pub fn build_create_task_dto(
     workspace_id: String,
     title: String,
     prompt: String,
     priority: &str,
-    memory_limit: &str,
-    cpu_limit: &str,
+    (memory_limit, cpu_limit): (&str, &str),
     start_now: bool,
     images: Vec<ImageAttachmentDto>,
 ) -> CreateTaskDto {
@@ -441,8 +441,10 @@ impl BoardState {
                 self.form_title.get_untracked(),
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
-                &self.form_memory_limit.get_untracked(),
-                &self.form_cpu_limit.get_untracked(),
+                (
+                    &self.form_memory_limit.get_untracked(),
+                    &self.form_cpu_limit.get_untracked(),
+                ),
                 self.form_start_now.get_untracked(),
                 self.images.images.get_untracked(),
             ),
@@ -529,8 +531,7 @@ mod tests {
             String::new(),
             "haz algo".to_string(),
             "high",
-            "2048",
-            "0",
+            ("2048", "0"),
             true,
             vec![image.clone()],
         );

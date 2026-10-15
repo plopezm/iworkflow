@@ -98,6 +98,8 @@ impl UpdateTask {
         Ok(())
     }
 
+    // Un argumento por campo editable del formulario; agruparlos solo movería el problema.
+    #[allow(clippy::too_many_arguments)]
     pub async fn execute(
         &self,
         id: TaskId,
