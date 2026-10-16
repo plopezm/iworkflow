@@ -33,6 +33,7 @@ dotenvy = { version = "0.15", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 portable-pty = { version = "0.9", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"], optional = true }
 
 # hydrate
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -69,6 +70,7 @@ ssr = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:portable-pty",
+    "dep:reqwest",
     "dep:nix",
     "leptos/ssr",
     "leptos_meta/ssr",
@@ -145,6 +147,16 @@ required-features = ["ssr"]
 [[test]]
 name = "agent_settings_repository_adapter_test"
 path = "tests/modules/agent_settings/agent_settings_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "gitlab_settings_repository_adapter_test"
+path = "tests/modules/gitlab/gitlab_settings_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "git_cli_remote_adapter_test"
+path = "tests/modules/gitlab/git_cli_remote_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]

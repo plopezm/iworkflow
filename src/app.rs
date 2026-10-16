@@ -19,11 +19,13 @@ use crate::modules::agent_settings::presentation::components::agent_settings_bar
 use crate::modules::agent_settings::presentation::pages::settings_page::SettingsPage;
 use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
+use crate::modules::gitlab::presentation::components::gitlab_settings_card::GitLabSettingsCard;
+use crate::modules::gitlab::presentation::components::task_merge_request_panel::TaskMergeRequestPanel;
 use crate::modules::project_tree::presentation::pages::project_file_page::ProjectFilePage;
 use crate::modules::project_tree::presentation::pages::project_tree_page::ProjectTreePage;
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
-use crate::modules::tasks::presentation::pages::task_detail_page::TaskDetailPage;
+use crate::modules::tasks::presentation::pages::task_detail_page::{TaskDetailPage, TaskExtraTab};
 use crate::modules::tasks::presentation::pages::task_diff_page::TaskDiffPage;
 use crate::modules::tasks::presentation::pages::task_edit_page::TaskEditPage;
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
@@ -179,8 +181,13 @@ impl TabRoute {
             Self::AgentsFiles => view! { <AgentsFilesPage /> }.into_any(),
             Self::Profiles => view! { <ProfilesPage /> }.into_any(),
             Self::Models => view! { <ModelsPage /> }.into_any(),
-            Self::Settings => view! { <SettingsPage /> }.into_any(),
-            Self::Task(_) => view! { <TaskDetailPage /> }.into_any(),
+            Self::Settings => view! {
+                <SettingsPage>
+                    <GitLabSettingsCard />
+                </SettingsPage>
+            }
+            .into_any(),
+            Self::Task(_) => view! { <TaskDetailPage extra_tab=gitlab_task_tab() /> }.into_any(),
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
             Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
             Self::TaskTerminal(_) => view! { <NewTaskTerminalPage /> }.into_any(),
@@ -467,5 +474,16 @@ mod tests {
     fn titles_fall_back_to_a_short_terminal_id() {
         assert_eq!(tab_title("/"), "Tablero");
         assert_eq!(tab_title("/terminals/0123456789"), "Terminal 01234567");
+    }
+}
+
+/// Pestaña de GitLab del panel de tarea: se compone aquí para que `tasks` no importe `gitlab`.
+fn gitlab_task_tab() -> TaskExtraTab {
+    TaskExtraTab {
+        id: "gitlab",
+        label: "GitLab",
+        render: Callback::new(|task_id: String| {
+            view! { <TaskMergeRequestPanel task_id=task_id /> }.into_any()
+        }),
     }
 }

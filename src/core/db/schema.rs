@@ -24,6 +24,15 @@ diesel::table! {
 }
 
 diesel::table! {
+    gitlab_settings (id) {
+        id -> Integer,
+        base_url -> Text,
+        token -> Text,
+        insecure_tls -> Integer,
+    }
+}
+
+diesel::table! {
     task_attachments (id) {
         id -> Text,
         task_id -> Text,
@@ -86,6 +95,7 @@ diesel::joinable!(tasks -> workspaces (workspace_id));
 diesel::allow_tables_to_appear_in_same_query!(
     agent_settings,
     agents_files,
+    gitlab_settings,
     task_attachments,
     task_events,
     tasks,
