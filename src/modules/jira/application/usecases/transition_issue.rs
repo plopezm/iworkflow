@@ -62,7 +62,7 @@ mod tests {
         let mut connections = MockJiraConnectionRepository::new();
         connections.expect_get().returning(|| {
             Ok(Some(
-                JiraConnection::new("https://j", "t", "", false).expect("valid"),
+                JiraConnection::new("https://j", "t", false).expect("valid"),
             ))
         });
         connections

@@ -28,6 +28,16 @@ pub enum JiraError {
     MissingWorkspace,
     #[error("no se pudo crear la tarea de iworkflow: {0}")]
     TaskCreation(String),
+    #[error("el carril necesita un nombre")]
+    EmptyLaneName,
+    #[error("el nombre del carril no puede superar {0} caracteres")]
+    LaneNameTooLong(usize),
+    #[error("el carril necesita una consulta JQL")]
+    EmptyLaneJql,
+    #[error("carril no encontrado: {0}")]
+    LaneNotFound(String),
+    #[error("el carril «Mis tareas» no se puede editar ni eliminar")]
+    DefaultLaneImmutable,
     #[error("error de persistencia: {0}")]
     Repository(String),
 }

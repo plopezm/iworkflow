@@ -10,7 +10,6 @@ pub struct SaveConnectionInput {
     pub base_url: String,
     /// Blank keeps the stored token, so the token never has to travel back to the browser.
     pub token: String,
-    pub jql: String,
     pub accept_invalid_certs: bool,
 }
 
@@ -44,12 +43,8 @@ impl SaveConnection {
                 .unwrap_or_default(),
             provided => provided.to_string(),
         };
-        let connection: JiraConnection = JiraConnection::new(
-            &input.base_url,
-            &token,
-            &input.jql,
-            input.accept_invalid_certs,
-        )?;
+        let connection: JiraConnection =
+            JiraConnection::new(&input.base_url, &token, input.accept_invalid_certs)?;
         // A stored token is never sent to a different server: it has to be typed again.
         if input.token.trim().is_empty()
             && existing
@@ -87,13 +82,12 @@ mod tests {
         SaveConnectionInput {
             base_url: "https://jira.local/".to_string(),
             token: token.to_string(),
-            jql: String::new(),
             accept_invalid_certs: false,
         }
     }
 
     fn stored(url: &str, token: &str) -> JiraConnection {
-        JiraConnection::new(url, token, "", false).expect("valid")
+        JiraConnection::new(url, token, false).expect("valid")
     }
 
     #[tokio::test]

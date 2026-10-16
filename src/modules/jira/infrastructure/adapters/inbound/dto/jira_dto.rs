@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JiraConnectionDto {
     pub base_url: String,
-    pub jql: String,
     pub accept_invalid_certs: bool,
     /// RFC 3339 instant of the last sync attempt, if any.
     pub last_sync_at: Option<String>,
@@ -16,7 +15,6 @@ pub struct SaveConnectionDto {
     pub base_url: String,
     /// Blank keeps the stored token.
     pub token: String,
-    pub jql: String,
     #[serde(default)]
     pub accept_invalid_certs: bool,
 }
@@ -85,17 +83,46 @@ pub struct JiraIssueDto {
     pub task_id: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JiraLaneDto {
+    pub id: String,
+    pub name: String,
+    pub jql: String,
+    /// The built-in «Mis tareas» lane: it cannot be edited or removed.
+    pub is_default: bool,
+    pub collapsed: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JiraLaneListingDto {
+    pub lane: JiraLaneDto,
+    /// Issues of the lane that match the filters.
+    pub issues: Vec<JiraIssueDto>,
+    /// Issues of the lane before filtering.
+    pub total: usize,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JiraIssueListDto {
-    pub issues: Vec<JiraIssueDto>,
+    pub lanes: Vec<JiraLaneListingDto>,
     pub statuses: Vec<String>,
+    /// Distinct imported issues before filtering.
     pub total: usize,
+}
+
+/// A stored lane plus the failure of its first sync, if it had one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SavedLaneDto {
+    pub lane: JiraLaneDto,
+    pub sync_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SyncOutcomeDto {
     pub total: usize,
     pub added: usize,
+    #[serde(default)]
+    pub failed_lanes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,7 +187,8 @@ pub struct ConvertedIssueDto {
 mod mapping {
     use super::*;
     use crate::modules::jira::application::usecases::convert_issue::ConvertedIssue;
-    use crate::modules::jira::application::usecases::list_issues::IssueListing;
+    use crate::modules::jira::application::usecases::create_lane::SavedLane;
+    use crate::modules::jira::application::usecases::list_issues::{IssueListing, LaneListing};
     use crate::modules::jira::application::usecases::prepare_conversion::ConversionPreparation;
     use crate::modules::jira::application::usecases::sync_issues::SyncOutcome;
     use crate::modules::jira::domain::models::conversion::ConversionRequest;
@@ -169,6 +197,7 @@ mod mapping {
     use crate::modules::jira::domain::models::jira_comment::JiraComment;
     use crate::modules::jira::domain::models::jira_connection::JiraConnection;
     use crate::modules::jira::domain::models::jira_issue::JiraIssue;
+    use crate::modules::jira::domain::models::jira_lane::JiraLane;
     use crate::modules::jira::domain::models::jira_transition::JiraTransition;
     use crate::modules::jira::domain::models::priority_hint::PriorityHint;
     use crate::modules::jira::domain::models::workspace_option::{BranchOption, WorkspaceOption};
@@ -177,7 +206,6 @@ mod mapping {
         fn from(connection: JiraConnection) -> Self {
             Self {
                 base_url: connection.base_url,
-                jql: connection.jql,
                 accept_invalid_certs: connection.accept_invalid_certs,
                 last_sync_at: connection.last_sync_at.map(|at| at.to_rfc3339()),
                 last_sync_error: connection.last_sync_error,
@@ -236,10 +264,41 @@ mod mapping {
         }
     }
 
+    impl From<JiraLane> for JiraLaneDto {
+        fn from(lane: JiraLane) -> Self {
+            Self {
+                id: lane.id,
+                name: lane.name,
+                jql: lane.jql,
+                is_default: lane.is_default,
+                collapsed: lane.collapsed,
+            }
+        }
+    }
+
+    impl From<LaneListing> for JiraLaneListingDto {
+        fn from(listing: LaneListing) -> Self {
+            Self {
+                lane: listing.lane.into(),
+                issues: listing.issues.into_iter().map(Into::into).collect(),
+                total: listing.total,
+            }
+        }
+    }
+
+    impl From<SavedLane> for SavedLaneDto {
+        fn from(saved: SavedLane) -> Self {
+            Self {
+                lane: saved.lane.into(),
+                sync_error: saved.sync_error,
+            }
+        }
+    }
+
     impl From<IssueListing> for JiraIssueListDto {
         fn from(listing: IssueListing) -> Self {
             Self {
-                issues: listing.issues.into_iter().map(Into::into).collect(),
+                lanes: listing.lanes.into_iter().map(Into::into).collect(),
                 statuses: listing.statuses,
                 total: listing.total,
             }
@@ -251,6 +310,7 @@ mod mapping {
             Self {
                 total: outcome.total,
                 added: outcome.added,
+                failed_lanes: outcome.failed_lanes,
             }
         }
     }
@@ -340,7 +400,7 @@ mod mapping {
         #[test]
         fn connection_dto_never_carries_the_token() {
             let connection: JiraConnection =
-                JiraConnection::new("https://j", "super-secret", "", true).expect("valid");
+                JiraConnection::new("https://j", "super-secret", true).expect("valid");
             let json: String =
                 serde_json::to_string(&JiraConnectionDto::from(connection)).expect("json");
             assert!(!json.contains("super-secret"));
@@ -350,11 +410,48 @@ mod mapping {
         #[test]
         fn connection_dto_formats_the_last_sync_as_rfc3339() {
             let mut connection: JiraConnection =
-                JiraConnection::new("https://j", "t", "", false).expect("valid");
+                JiraConnection::new("https://j", "t", false).expect("valid");
             let at = Utc::now();
             connection.last_sync_at = Some(at);
             let dto: JiraConnectionDto = connection.into();
             assert_eq!(dto.last_sync_at, Some(at.to_rfc3339()));
+        }
+
+        #[test]
+        fn issue_listing_dto_keeps_lane_structure_and_totals() {
+            use crate::modules::jira::domain::models::jira_lane::sample_lane;
+
+            let dto: JiraIssueListDto = IssueListing {
+                lanes: vec![LaneListing {
+                    lane: JiraLane {
+                        is_default: true,
+                        collapsed: true,
+                        ..sample_lane("mine")
+                    },
+                    issues: vec![sample_issue("A-1")],
+                    total: 4,
+                }],
+                statuses: vec!["To Do".to_string()],
+                total: 4,
+            }
+            .into();
+            assert_eq!(dto.lanes.len(), 1);
+            assert!(dto.lanes[0].lane.is_default && dto.lanes[0].lane.collapsed);
+            assert_eq!(dto.lanes[0].issues[0].key, "A-1");
+            assert_eq!((dto.lanes[0].total, dto.total), (4, 4));
+        }
+
+        #[test]
+        fn saved_lane_dto_carries_the_sync_error() {
+            use crate::modules::jira::domain::models::jira_lane::sample_lane;
+
+            let dto: SavedLaneDto = SavedLane {
+                lane: sample_lane("l1"),
+                sync_error: Some("JQL inválido".to_string()),
+            }
+            .into();
+            assert_eq!(dto.lane.id, "l1");
+            assert_eq!(dto.sync_error.as_deref(), Some("JQL inválido"));
         }
 
         #[test]
@@ -414,7 +511,7 @@ mod tests {
     #[test]
     fn save_payload_defaults_accept_invalid_certs_to_false() {
         let dto: SaveConnectionDto =
-            serde_json::from_str(r#"{"base_url":"u","token":"t","jql":""}"#).expect("json");
+            serde_json::from_str(r#"{"base_url":"u","token":"t"}"#).expect("json");
         assert!(!dto.accept_invalid_certs);
     }
 }

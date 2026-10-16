@@ -1,12 +1,12 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 
-use crate::core::components::form::{ActionError, TextArea, TextField};
+use crate::core::components::form::{ActionError, TextField};
 use crate::modules::jira::presentation::state::jira_connection_state::{
     JiraConnectionState, can_submit,
 };
 
-/// URL + personal access token (+ JQL) of the Jira Server/Data Center. The server validates
+/// URL + personal access token of the Jira Server/Data Center. The server validates
 /// them against Jira before storing; the stored token is never shown.
 #[component]
 pub fn JiraConnectionForm(
@@ -54,11 +54,6 @@ pub fn JiraConnectionForm(
                     on:input=move |ev| state.form_token.set(event_target_value(&ev))
                 />
             </label>
-            <TextArea
-                label="JQL de importación (opcional)"
-                value=state.form_jql
-                placeholder="assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"
-            />
             <label class="row min-h-10 items-center gap-2 text-sm text-fg">
                 <input
                     type="checkbox"

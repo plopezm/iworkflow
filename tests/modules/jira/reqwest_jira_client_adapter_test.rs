@@ -146,7 +146,7 @@ async fn start_server() -> (String, Shared) {
 }
 
 fn connection(url: &str, token: &str) -> JiraConnection {
-    JiraConnection::new(url, token, "", false).expect("valid")
+    JiraConnection::new(url, token, false).expect("valid")
 }
 
 #[tokio::test(flavor = "multi_thread")]

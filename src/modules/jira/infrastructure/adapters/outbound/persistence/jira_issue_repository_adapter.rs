@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
@@ -6,15 +6,17 @@ use diesel::result::Error as DieselError;
 use diesel_async::RunQueryDsl;
 
 use crate::core::db::pool::{DbConnection, DbPool};
-use crate::core::db::schema::jira_issues;
+use crate::core::db::schema::{jira_issues, jira_lane_issues};
 use crate::modules::jira::domain::errors::jira_error::JiraError;
 use crate::modules::jira::domain::models::issue_local_state::IssueLocalState;
 use crate::modules::jira::domain::models::jira_issue::{JiraIssue, RemoteIssue};
+use crate::modules::jira::domain::models::jira_lane::LaneBatch;
 use crate::modules::jira::domain::ports::outbound::jira_issue_repository_port::JiraIssueRepositoryPort;
 use crate::modules::jira::infrastructure::adapters::outbound::persistence::jira_connection_repository_adapter::db_error;
 use crate::modules::jira::infrastructure::adapters::outbound::persistence::models::jira_issue_row::{
     JiraIssueRow, RemoteIssueChangeset,
 };
+use crate::modules::jira::infrastructure::adapters::outbound::persistence::models::jira_lane_row::JiraLaneIssueRow;
 
 /// Error type of the sync transaction: encoding failure or a Diesel failure.
 enum SyncError {
@@ -76,17 +78,46 @@ impl JiraIssueRepositoryPort for JiraIssueRepositoryAdapter {
         row.map(JiraIssue::try_from).transpose()
     }
 
+    async fn lane_memberships(&self) -> Result<HashMap<String, Vec<String>>, JiraError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let rows: Vec<(String, String)> = jira_lane_issues::table
+            .select((jira_lane_issues::lane_id, jira_lane_issues::issue_key))
+            .load(&mut connection)
+            .await
+            .map_err(db_error)?;
+        let mut memberships: HashMap<String, Vec<String>> = HashMap::new();
+        for (lane_id, key) in rows {
+            memberships.entry(lane_id).or_default().push(key);
+        }
+        Ok(memberships)
+    }
+
     async fn replace_synced(
         &self,
-        issues: &[RemoteIssue],
+        batches: &[LaneBatch],
         synced_at: DateTime<Utc>,
     ) -> Result<usize, JiraError> {
-        // A repeated key in one batch would violate the primary key and abort the whole sync.
+        // A repeated key (within a lane or across lanes) would violate the primary key and
+        // abort the whole sync: store each issue once and each membership once.
         let mut seen: HashSet<&str> = HashSet::new();
-        let issues: Vec<RemoteIssue> = issues
+        let issues: Vec<RemoteIssue> = batches
             .iter()
+            .flat_map(|batch: &LaneBatch| batch.issues.iter())
             .filter(|i: &&RemoteIssue| seen.insert(i.key.as_str()))
             .cloned()
+            .collect();
+        let memberships: Vec<(String, Vec<String>)> = batches
+            .iter()
+            .map(|batch: &LaneBatch| {
+                let mut keys: HashSet<&str> = HashSet::new();
+                let ordered: Vec<String> = batch
+                    .issues
+                    .iter()
+                    .filter(|i: &&RemoteIssue| keys.insert(i.key.as_str()))
+                    .map(|i: &RemoteIssue| i.key.clone())
+                    .collect();
+                (batch.lane_id.clone(), ordered)
+            })
             .collect();
         let synced_at: NaiveDateTime = synced_at.naive_utc();
         let mut connection: DbConnection = self.connection().await?;
@@ -113,14 +144,32 @@ impl JiraIssueRepositoryPort for JiraIssueRepositoryAdapter {
                         added += 1;
                     }
                 }
-                let keep: Vec<&str> = issues
-                    .iter()
-                    .map(|i: &RemoteIssue| i.key.as_str())
-                    .collect();
+                for (lane_id, keys) in &memberships {
+                    diesel::delete(
+                        jira_lane_issues::table.filter(jira_lane_issues::lane_id.eq(lane_id)),
+                    )
+                    .execute(conn)
+                    .await?;
+                    for key in keys {
+                        diesel::insert_into(jira_lane_issues::table)
+                            .values(JiraLaneIssueRow {
+                                lane_id: lane_id.clone(),
+                                issue_key: key.clone(),
+                            })
+                            .execute(conn)
+                            .await?;
+                    }
+                }
+                // Untouched, converted or ignored issues are kept; plain `New` ones that no
+                // lane lists any more are retired.
                 diesel::delete(
                     jira_issues::table
                         .filter(jira_issues::local_state.eq(IssueLocalState::New.as_str()))
-                        .filter(jira_issues::key.ne_all(keep)),
+                        .filter(
+                            jira_issues::key.ne_all(
+                                jira_lane_issues::table.select(jira_lane_issues::issue_key),
+                            ),
+                        ),
                 )
                 .execute(conn)
                 .await?;

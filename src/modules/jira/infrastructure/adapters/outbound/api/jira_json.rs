@@ -149,7 +149,7 @@ mod tests {
     use super::*;
 
     fn connection() -> JiraConnection {
-        JiraConnection::new("https://jira.local", "t", "", false).expect("valid")
+        JiraConnection::new("https://jira.local", "t", false).expect("valid")
     }
 
     #[test]

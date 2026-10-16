@@ -12,10 +12,15 @@ pub fn short_timestamp(rfc3339: &str) -> String {
 }
 
 pub fn sync_message(outcome: &SyncOutcomeDto) -> String {
-    match (outcome.total, outcome.added) {
+    let base: String = match (outcome.total, outcome.added) {
         (0, _) => "Sincronizado: Jira no devolvió ninguna tarea.".to_string(),
         (total, 0) => format!("Sincronizado: {total} tareas (sin novedades)."),
         (total, added) => format!("Sincronizado: {total} tareas ({added} nuevas)."),
+    };
+    match outcome.failed_lanes.len() {
+        0 => base,
+        1 => format!("{base} Un carril falló."),
+        n => format!("{base} {n} carriles fallaron."),
     }
 }
 
@@ -43,10 +48,29 @@ mod tests {
 
     #[test]
     fn sync_message_covers_empty_unchanged_and_new() {
-        let msg = |total, added| sync_message(&SyncOutcomeDto { total, added });
+        let msg = |total, added| {
+            sync_message(&SyncOutcomeDto {
+                total,
+                added,
+                failed_lanes: vec![],
+            })
+        };
         assert_eq!(msg(0, 0), "Sincronizado: Jira no devolvió ninguna tarea.");
         assert_eq!(msg(4, 0), "Sincronizado: 4 tareas (sin novedades).");
         assert_eq!(msg(4, 2), "Sincronizado: 4 tareas (2 nuevas).");
+    }
+
+    #[test]
+    fn sync_message_mentions_failed_lanes() {
+        let msg = |failed: usize| {
+            sync_message(&SyncOutcomeDto {
+                total: 2,
+                added: 0,
+                failed_lanes: vec!["x".to_string(); failed],
+            })
+        };
+        assert!(msg(1).ends_with("Un carril falló."));
+        assert!(msg(3).ends_with("3 carriles fallaron."));
     }
 
     #[test]

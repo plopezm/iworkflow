@@ -1,6 +1,8 @@
 pub mod add_issue_comment;
 pub mod convert_issue;
+pub mod create_lane;
 pub mod delete_connection;
+pub mod delete_lane;
 pub mod get_connection;
 pub mod get_issue;
 pub mod list_conversion_branches;
@@ -10,5 +12,7 @@ pub mod list_issues;
 pub mod prepare_conversion;
 pub mod save_connection;
 pub mod set_issue_ignored;
+pub mod set_lane_collapsed;
 pub mod sync_issues;
 pub mod transition_issue;
+pub mod update_lane;

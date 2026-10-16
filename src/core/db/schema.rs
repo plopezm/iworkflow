@@ -37,7 +37,6 @@ diesel::table! {
         id -> Integer,
         base_url -> Text,
         token -> Text,
-        jql -> Text,
         accept_invalid_certs -> Integer,
         last_sync_at -> Nullable<Timestamp>,
         last_sync_error -> Nullable<Text>,
@@ -61,6 +60,25 @@ diesel::table! {
         local_state -> Text,
         task_id -> Nullable<Text>,
         synced_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    jira_lane_issues (lane_id, issue_key) {
+        lane_id -> Text,
+        issue_key -> Text,
+    }
+}
+
+diesel::table! {
+    jira_lanes (id) {
+        id -> Text,
+        name -> Text,
+        jql -> Text,
+        is_default -> Integer,
+        collapsed -> Integer,
+        position -> Integer,
+        created_at -> Timestamp,
     }
 }
 
@@ -120,6 +138,8 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(jira_lane_issues -> jira_issues (issue_key));
+diesel::joinable!(jira_lane_issues -> jira_lanes (lane_id));
 diesel::joinable!(task_attachments -> tasks (task_id));
 diesel::joinable!(task_events -> tasks (task_id));
 diesel::joinable!(tasks -> workspaces (workspace_id));
@@ -130,6 +150,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     gitlab_settings,
     jira_connection,
     jira_issues,
+    jira_lane_issues,
+    jira_lanes,
     task_attachments,
     task_events,
     tasks,

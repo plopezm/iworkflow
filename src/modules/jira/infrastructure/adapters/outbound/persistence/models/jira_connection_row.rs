@@ -14,7 +14,6 @@ pub struct JiraConnectionRow {
     pub id: i32,
     pub base_url: String,
     pub token: String,
-    pub jql: String,
     pub accept_invalid_certs: i32,
     pub last_sync_at: Option<NaiveDateTime>,
     pub last_sync_error: Option<String>,
@@ -27,7 +26,6 @@ impl JiraConnectionRow {
             id: CONNECTION_ROW_ID,
             base_url: connection.base_url.clone(),
             token: connection.token.clone(),
-            jql: connection.jql.clone(),
             accept_invalid_certs: i32::from(connection.accept_invalid_certs),
             last_sync_at: connection.last_sync_at.map(|at| at.naive_utc()),
             last_sync_error: connection.last_sync_error.clone(),
@@ -41,7 +39,6 @@ impl From<JiraConnectionRow> for JiraConnection {
         Self {
             base_url: row.base_url,
             token: row.token,
-            jql: row.jql,
             accept_invalid_certs: row.accept_invalid_certs != 0,
             last_sync_at: row.last_sync_at.map(|at: NaiveDateTime| at.and_utc()),
             last_sync_error: row.last_sync_error,

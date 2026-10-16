@@ -2,16 +2,11 @@ use chrono::{DateTime, Utc};
 
 use crate::modules::jira::domain::errors::jira_error::JiraError;
 
-/// JQL used when the user does not provide one: their own open issues.
-pub const DEFAULT_JQL: &str =
-    "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC";
-
 /// The single Jira Server/Data Center connection: base URL + personal access token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JiraConnection {
     pub base_url: String,
     pub token: String,
-    pub jql: String,
     /// Accept self-signed or internal-CA certificates (common on on-premise servers).
     pub accept_invalid_certs: bool,
     pub last_sync_at: Option<DateTime<Utc>>,
@@ -19,26 +14,16 @@ pub struct JiraConnection {
 }
 
 impl JiraConnection {
-    /// Validates and normalises user input (trimmed URL without trailing `/`, default JQL).
-    pub fn new(
-        base_url: &str,
-        token: &str,
-        jql: &str,
-        accept_invalid_certs: bool,
-    ) -> Result<Self, JiraError> {
+    /// Validates and normalises user input (trimmed URL without trailing `/`).
+    pub fn new(base_url: &str, token: &str, accept_invalid_certs: bool) -> Result<Self, JiraError> {
         let base_url: String = normalize_base_url(base_url)?;
         let token: String = token.trim().to_string();
         if token.is_empty() {
             return Err(JiraError::EmptyToken);
         }
-        let jql: String = match jql.trim() {
-            "" => DEFAULT_JQL.to_string(),
-            value => value.to_string(),
-        };
         Ok(Self {
             base_url,
             token,
-            jql,
             accept_invalid_certs,
             last_sync_at: None,
             last_sync_error: None,
@@ -77,13 +62,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn normalises_url_and_applies_default_jql() {
+    fn normalises_url_and_token() {
         let conn: JiraConnection =
-            JiraConnection::new("  https://jira.corp.local/jira/ ", " tok ", "  ", false)
-                .expect("valid");
+            JiraConnection::new("  https://jira.corp.local/jira/ ", " tok ", false).expect("valid");
         assert_eq!(conn.base_url, "https://jira.corp.local/jira");
         assert_eq!(conn.token, "tok");
-        assert_eq!(conn.jql, DEFAULT_JQL);
         assert_eq!(
             conn.api_url("/myself"),
             "https://jira.corp.local/jira/rest/api/2/myself"
@@ -98,7 +81,7 @@ mod tests {
     fn rejects_invalid_urls() {
         for url in ["", "jira.local", "ftp://jira", "https://", "https:// jira"] {
             assert_eq!(
-                JiraConnection::new(url, "t", "", false),
+                JiraConnection::new(url, "t", false),
                 Err(JiraError::InvalidUrl),
                 "{url:?}"
             );
@@ -108,16 +91,15 @@ mod tests {
     #[test]
     fn rejects_empty_token() {
         assert_eq!(
-            JiraConnection::new("https://jira", "  ", "", false),
+            JiraConnection::new("https://jira", "  ", false),
             Err(JiraError::EmptyToken)
         );
     }
 
     #[test]
-    fn keeps_custom_jql() {
+    fn keeps_the_certificate_flag() {
         let conn: JiraConnection =
-            JiraConnection::new("http://jira:8080", "t", " project = X ", true).expect("valid");
-        assert_eq!(conn.jql, "project = X");
+            JiraConnection::new("http://jira:8080", "t", true).expect("valid");
         assert!(conn.accept_invalid_certs);
     }
 }

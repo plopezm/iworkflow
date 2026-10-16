@@ -30,7 +30,6 @@ pub struct JiraConnectionState {
     pub delete: ServerAction<DeleteJiraConnection>,
     pub form_url: RwSignal<String>,
     pub form_token: RwSignal<String>,
-    pub form_jql: RwSignal<String>,
     pub form_accept_invalid_certs: RwSignal<bool>,
     pub editing: RwSignal<bool>,
     pub confirming_delete: RwSignal<bool>,
@@ -60,7 +59,6 @@ impl JiraConnectionState {
             delete,
             form_url: RwSignal::new(String::new()),
             form_token: RwSignal::new(String::new()),
-            form_jql: RwSignal::new(String::new()),
             form_accept_invalid_certs: RwSignal::new(false),
             editing: RwSignal::new(false),
             confirming_delete: RwSignal::new(false),
@@ -87,11 +85,6 @@ impl JiraConnectionState {
                 .map(|c: &JiraConnectionDto| c.base_url.clone())
                 .unwrap_or_default(),
         );
-        self.form_jql.set(
-            current
-                .map(|c: &JiraConnectionDto| c.jql.clone())
-                .unwrap_or_default(),
-        );
         self.form_accept_invalid_certs
             .set(current.is_some_and(|c: &JiraConnectionDto| c.accept_invalid_certs));
         self.form_token.set(String::new());
@@ -108,7 +101,6 @@ impl JiraConnectionState {
             input: SaveConnectionDto {
                 base_url: self.form_url.get_untracked(),
                 token: self.form_token.get_untracked(),
-                jql: self.form_jql.get_untracked(),
                 accept_invalid_certs: self.form_accept_invalid_certs.get_untracked(),
             },
         });

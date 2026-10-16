@@ -4,7 +4,7 @@ use leptos::server_fn::codec::Json;
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
     ConversionBranchDto, ConversionPreparationDto, ConvertIssueDto, ConvertedIssueDto,
     IssueFilterDto, JiraCommentDto, JiraConnectionDto, JiraIssueDto, JiraIssueListDto,
-    JiraTransitionDto, SaveConnectionDto, SyncOutcomeDto,
+    JiraTransitionDto, SaveConnectionDto, SavedLaneDto, SyncOutcomeDto,
 };
 
 #[cfg(feature = "ssr")]
@@ -65,7 +65,6 @@ pub async fn save_jira_connection(
         .execute(SaveConnectionInput {
             base_url: input.base_url,
             token: input.token,
-            jql: input.jql,
             accept_invalid_certs: input.accept_invalid_certs,
         })
         .await
@@ -100,6 +99,48 @@ pub async fn list_jira_issues(filter: IssueFilterDto) -> Result<JiraIssueListDto
         .await
         .map_err(support::to_server_error)?;
     Ok(JiraIssueListDto::from(listing))
+}
+
+#[server(input = Json)]
+pub async fn create_jira_lane(name: String, jql: String) -> Result<SavedLaneDto, ServerFnError> {
+    let saved = support::context()?
+        .create_lane
+        .execute(&name, &jql)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(SavedLaneDto::from(saved))
+}
+
+#[server(input = Json)]
+pub async fn update_jira_lane(
+    id: String,
+    name: String,
+    jql: String,
+) -> Result<SavedLaneDto, ServerFnError> {
+    let saved = support::context()?
+        .update_lane
+        .execute(&id, &name, &jql)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(SavedLaneDto::from(saved))
+}
+
+#[server]
+pub async fn delete_jira_lane(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .delete_lane
+        .execute(&id)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn set_jira_lane_collapsed(id: String, collapsed: bool) -> Result<(), ServerFnError> {
+    support::context()?
+        .set_lane_collapsed
+        .execute(&id, collapsed)
+        .await
+        .map_err(support::to_server_error)
 }
 
 #[server]

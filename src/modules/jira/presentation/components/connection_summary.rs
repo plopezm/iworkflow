@@ -23,10 +23,6 @@ pub fn JiraConnectionSummary(
                 <span class="muted">"Servidor: "</span>
                 <strong>{connection.base_url}</strong>
             </p>
-            <p class="text-sm break-words">
-                <span class="muted">"JQL: "</span>
-                <code>{connection.jql}</code>
-            </p>
             <p class="text-sm">
                 <span class="muted">"Última sincronización: "</span>
                 {last_sync}

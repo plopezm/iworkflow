@@ -4,6 +4,7 @@ pub mod issue_local_state;
 pub mod jira_comment;
 pub mod jira_connection;
 pub mod jira_issue;
+pub mod jira_lane;
 pub mod jira_transition;
 pub mod priority_hint;
 pub mod workspace_option;
