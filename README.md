@@ -48,8 +48,24 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 | `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
 | `IWF_PI_BIN` | `pi` (runtime `pi`, se lanza como `--mode rpc`) |
 | `IWF_CLAUDE_BIN` | `claude` (runtime `claude`: Claude Code con `-p` y protocolo stream-json; se elige en el selector de runtime del menú lateral; acepta ediciones de ficheros, pide confirmación para el resto y lee el `AGENTS.md` del proyecto) |
+| `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
+| `IWF_CURSOR_SESSIONS_DIR` | `cursor-sessions` junto a la base de datos (guarda el id de sesión ACP de cada tarea para reanudarla) |
+| `IWF_ATTACHMENTS_DIR` | `attachments` junto a la base de datos (imágenes adjuntas a las tareas; se borran al terminar la tarea) |
+| `IWF_AGENTS_FILES_DIR` | `agents-files` junto a la base de datos (biblioteca de `AGENTS.md`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
 | `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
+
+Los directorios por defecto de datos (`attachments`, `agents-files`, `cursor-sessions`) cuelgan de la carpeta de la base de datos: si cambias `IWF_DATABASE_URL`, se mueven con ella. En Windows el home se toma de `USERPROFILE` si falta `HOME`.
+
+### Runtimes de agente
+
+El selector de runtime del menú lateral admite `gentle-shell`, `pi`, `claude` y `cursor`. La elección se fija al arrancar cada tarea.
+
+| Runtime | Binario | Capacidades |
+|---|---|---|
+| `gentle-shell` / `pi` | `IWF_GENTLE_SHELL_BIN` / `IWF_PI_BIN` | todas (steer, follow-up, diálogos, reanudar, modelo, thinking, subagentes) |
+| `claude` | `IWF_CLAUDE_BIN` | diálogos, reanudar, modelo y thinking |
+| `cursor` | `IWF_CURSOR_BIN` | diálogos, reanudar y modelo (la lista de modelos se obtiene del propio agente por ACP). Las ediciones de ficheros se aceptan; el resto pide confirmación |
 
 ## Integración con GitLab (on-premise)
 

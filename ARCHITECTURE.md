@@ -23,7 +23,7 @@ Guía para leer el código de iworkflow, pensada para alguien con experiencia s�
 
 ## 1. Qué hace la aplicación
 
-iworkflow es un dashboard web para lanzar y supervisar agentes de código (`gentle-shell` o `pi`) mediante un protocolo RPC. El agente concreto queda detrás de un puerto (`AgentRuntimePort`), de modo que el dominio no sabe qué agente ni qué transporte hay debajo ([§6.7](#67-abstracción-del-runtime-de-agentes)). Cada **tarea** se ejecuta en su propio **git worktree**; al terminar, el usuario revisa el diff y decide si integrar (`merge --no-ff`) o descartar.
+iworkflow es un dashboard web para lanzar y supervisar agentes de código (`gentle-shell`, `pi`, `claude` o `cursor`) mediante un protocolo RPC. El agente concreto queda detrás de un puerto (`AgentRuntimePort`), de modo que el dominio no sabe qué agente ni qué transporte hay debajo ([§6.7](#67-abstracción-del-runtime-de-agentes)). Cada **tarea** se ejecuta en su propio **git worktree**; al terminar, el usuario revisa el diff y decide si integrar (`merge --no-ff`) o descartar.
 
 ```mermaid
 flowchart LR
@@ -467,7 +467,7 @@ Lectura para Java: `matches!(x, A | B)` es un `switch` que devuelve `boolean`; l
 | `TaskAttachmentRepositoryPort` | Metadatos de imágenes adjuntas | `TaskAttachmentRepositoryAdapter` (Diesel) |
 | `AttachmentStoragePort` | Ficheros de imagen en disco | `FsAttachmentStorageAdapter` |
 | `WorktreePort` | `git worktree add`, commit, diff, `pin_range` / `diff_range` (diff de tareas integradas), merge, remove | `GitCliWorktreeAdapter` (ejecuta `git`) |
-| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea sin presuponer el transporte; ver [§6.7](#67-abstracción-del-runtime-de-agentes) | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) o `ClaudeStreamRuntimeAdapter` (`claude`) |
+| `AgentRuntimePort` | Lanzar/parar/hablar con el agente de una tarea sin presuponer el transporte; ver [§6.7](#67-abstracción-del-runtime-de-agentes) | `AgentRuntimeRouter` → `PiRpcRuntimeAdapter` (registrado como `gentle-shell` y `pi`) `ClaudeStreamRuntimeAdapter` (`claude`) o `CursorAcpRuntimeAdapter` (`cursor`) |
 | `TaskEventPublisherPort` | Difundir eventos en vivo | `BroadcastTaskEventBus` (tokio broadcast) |
 | `WorkspaceLookupPort` | Consultar workspaces | `WorkspaceLookupBridge` (en `app_state.rs`) |
 | `LaunchSettingsPort` | Modelo/thinking a usar al lanzar | `LaunchSettingsBridge` |
@@ -560,7 +560,7 @@ Observa el patrón: **validar con el dominio → transicionar → operar con pue
 |---|---|
 | `persistence/` | `TaskRepositoryAdapter` (Diesel), `TaskAttachmentRepositoryAdapter`, `RetryingTaskRepository` (decorador), `models/*_row.rs` (structs `Queryable`/`Insertable`) |
 | `git/` | `GitCliWorktreeAdapter`: invoca el binario `git` (worktree add, commit, merge `--no-ff`, merge en worktree temporal si la rama base no está checkouteada, …) |
-| `runtime/` | `AgentRuntimeRouter` (delegación por `RuntimeId`); `agent_process.rs`: núcleo común de procesos (`ProcessRuntime`, `LineCodec`, `LaunchSpec`); `pi/`: `PiRpcRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`); `claude/`: `ClaudeStreamRuntimeAdapter` + `stream_protocol.rs` (stream-json de `claude -p`). Añadir un agente = nuevo adaptador de `AgentRuntimePort` registrado en `tasks_context.rs` (ver [§6.7](#67-abstracción-del-runtime-de-agentes)) |
+| `runtime/` | `AgentRuntimeRouter` (delegación por `RuntimeId`); `agent_process.rs`: núcleo común de procesos (`ProcessRuntime`, `LineCodec`, `LaunchSpec`); `pi/`: `PiRpcRuntimeAdapter` + `rpc_protocol.rs` (JSONL ↔ `AgentEvent`/`AgentCommand`); `claude/`: `ClaudeStreamRuntimeAdapter` + `stream_protocol.rs` (stream-json de `claude -p`); `cursor/`: `CursorAcpRuntimeAdapter` + `acp_protocol.rs` (ACP de `agent acp`). Añadir un agente = nuevo adaptador de `AgentRuntimePort` registrado en `tasks_context.rs` (ver [§6.7](#67-abstracción-del-runtime-de-agentes)) |
 | `events/` | `BroadcastTaskEventBus`: `tokio::sync::broadcast` con capacidad 4096 |
 | `storage/` | `FsAttachmentStorageAdapter`: imágenes en `~/.iworkflow/attachments/` |
 
@@ -692,6 +692,13 @@ Los casos de uso consultan las capacidades antes de actuar; los adaptadores, por
 - Contexto del proyecto: `claude` carga el `AGENTS.md` del worktree de la tarea (verificado: sin `CLAUDE.md`, obedece las reglas del `AGENTS.md`); el repo no tiene `CLAUDE.md`.
 - Argumentos: `--continue` si `resume`, `--model <alias>` (el proveedor no aplica) y `--effort <nivel>`; `off` no lleva flag y `minimal` se traduce a `low`.
 - Capacidades: `dialogs`, `resume`, `model_selection` y `thinking_levels`; no declara `steer`, `follow_up` ni `subagents`. Los modelos son alias estáticos (`fable`, `opus`, `sonnet`, `haiku`) en `AgentCliModelCatalogAdapter`, porque `claude` no tiene `--list-models`.
+
+**El adaptador Cursor** (`runtime/cursor/`). `CursorAcpRuntimeAdapter` lanza `agent acp` (binario `IWF_CURSOR_BIN`) sobre el mismo `ProcessRuntime`. `AcpProtocol` (`acp_protocol.rs`) es el códec: ACP (*Agent Client Protocol*) es JSON-RPC 2.0 por líneas y el códec es una máquina de estados por proceso.
+
+- Arranque: envía `initialize → authenticate → session/new` (o `session/load` al reanudar), retiene los prompts hasta tener sesión y modelo aplicado, y luego los envía de uno en uno.
+- Reanudar: ACP no sabe «continuar la última sesión de una carpeta» (`session/list` no responde), así que el id de sesión de cada tarea se guarda en `IWF_CURSOR_SESSIONS_DIR/<tarea>` y se reabre con `session/load`.
+- Permisos: las herramientas de edición se aceptan sin preguntar (política `acceptEdits`); el resto genera un `DialogRequested`, mostrando antes el comando o fichero real que el título. `cursor/ask_question` genera un diálogo por pregunta.
+- Capacidades: `dialogs`, `resume` y `model_selection`; no declara `steer`, `follow_up`, `thinking_levels` ni `subagents`. Los modelos se piden al propio agente por ACP (`cursor_acp_model_catalog.rs`, cacheados; un fallo no se cachea).
 
 **Subagentes en la UI.** `GetTaskSubagents` → server function `get_task_subagents` → `SubagentTaskDto`. `task_actions.rs` abre `components/subagents_panel.rs` desde las acciones de la tarea; la actividad de subagentes (`SubagentActivity` en `Task`) también cuenta para considerar la tarea en trabajo (`TaskStage`).
 
@@ -855,7 +862,7 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 ### Esquema y migraciones
 
-`src/core/db/schema.rs` lo genera `diesel print-schema` (no se edita a mano). Tablas actuales: `workspaces`, `tasks`, `task_events`, `task_attachments`, `agent_settings`, `agents_files`, `gitlab_settings`. Cada migración en `migrations/<fecha>_<nombre>/` tiene `up.sql` y `down.sql`.
+`src/core/db/schema.rs` lo genera `diesel print-schema` (no se edita a mano). Tablas actuales: `workspaces`, `tasks`, `task_events`, `task_attachments`, `agent_settings`, `agents_files`, `gitlab_settings`, `jira_connection`, `jira_issues`. Cada migración en `migrations/<fecha>_<nombre>/` tiene `up.sql` y `down.sql`.
 
 ### Adaptador Diesel: patrón
 
@@ -984,7 +991,7 @@ Un *workspace* es una carpeta con un repo git donde se lanzan tareas.
 
 ### `agent_settings` — cómo se lanza el agente
 
-- Guarda en SQLite (una fila) el **runtime** (`AgentRuntime::GentleShell` = `gentle-shell`, predeterminado, `AgentRuntime::Pi` = `pi` o `AgentRuntime::Claude` = `claude`; su `as_str()` coincide con el `RuntimeId` registrado en el router de `tasks`), **modelo**, **perfil** y **nivel de thinking**.
+- Guarda en SQLite (una fila) el **runtime** (`AgentRuntime::GentleShell` = `gentle-shell`, predeterminado, `AgentRuntime::Pi` = `pi` o `AgentRuntime::Claude` = `claude` o `AgentRuntime::Cursor` = `cursor`; su `as_str()` coincide con el `RuntimeId` registrado en el router de `tasks`), **modelo**, **perfil** y **nivel de thinking**.
 - `PrepareLaunch` lee los ajustes, aplica el *pin* de perfil de la tarea (`ProfilePinPort`; `GitProfilePinAdapter` escribe `<git-common-dir>/gentle-ai/profile-pin.json`) y devuelve las `LaunchPreferences` que `tasks` usa al lanzar (a través de `LaunchSettingsBridge`).
 - Adaptadores: `AgentSettingsRepositoryAdapter`, `AgentCliModelCatalogAdapter` (lista modelos ejecutando el CLI), `ProfilesFileCatalogAdapter` (lee `profiles.json`), `GitProfilePinAdapter`.
 
@@ -1003,6 +1010,18 @@ Un *workspace* es una carpeta con un repo git donde se lanzan tareas.
 - Permite subir ficheros `AGENTS.md`, guardarlos (metadatos en SQLite, contenido en `~/.iworkflow/agents-files/`) e instalarlos en un workspace (`InstallAgentsFile`, con control de "ya existe").
 - Adaptadores: `AgentsFileRepositoryAdapter` (Diesel), `FsAgentsFileStorageAdapter`, `GitAgentsFileInstallerAdapter`.
 - Obtiene los "proyectos" de `workspaces` a través de `ProjectLookupBridge`.
+
+### `jira` — importación desde Jira Server / Data Center
+
+Importa tareas de un Jira on-premise, permite gestionarlas (estado, comentarios) y convertirlas en tareas de iworkflow. Es read-mostly: solo escribe en Jira al transicionar o comentar.
+
+- **Conexión** (`jira_connection`, fila única `id = 1`): URL base, token PAT (`Authorization: Bearer`, API REST v2), JQL (por defecto `assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC`), `accept_invalid_certs` y estado de la última sincronización. `SaveConnection` valida contra Jira antes de guardar; el token **nunca viaja al cliente** (el DTO solo expone si está configurado; vacío al editar conserva el guardado).
+- **Sincronizar** (`SyncIssues`): trae como máximo 500 issues del JQL a `jira_issues`. El estado local (`new` / `converted` / `ignored`) y el `task_id` enlazado se conservan entre sincronizaciones; las issues nuevas que Jira ya no devuelve se retiran.
+- **Gestionar**: `ListIssues` (con filtros y búsqueda), `GetIssue`, `ListIssueComments`/`AddIssueComment`, `ListIssueTransitions`/`TransitionIssue` (workflow de Jira) y `SetIssueIgnored` (solo local).
+- **Convertir**: `PrepareConversion` propone título, prompt y prioridad (`PriorityHint` mapea el nombre de prioridad de Jira); `ListConversionBranches` y `ConvertIssue` crean la tarea y marcan la issue como `converted` con su `task_id`.
+- **Acoplamiento**: `jira` no importa `tasks`. Define `TaskCreationPort` y `WorkspaceCatalogPort`, implementados en `app_state.rs` por `TaskCreationBridge` (`tasks::CreateTask`) y `WorkspaceCatalogBridge` (`tasks::ListWorkspaceOptions`/`ListWorkspaceBranches`).
+- **Cliente HTTP** (`ReqwestJiraClientAdapter`, `jira_json.rs` para el mapeo): `reqwest`, tope de issues por sincronización y opción de certificado no verificado.
+- **Tests**: unitarios con `mockall` (`mocks.rs`) e integración en `tests/modules/jira/` (SQLite temporal).
 
 ### `gitlab` — merge requests, CI y merge contra un GitLab on-premise
 
@@ -1026,6 +1045,15 @@ flowchart LR
 - **Acoplamiento**: `gitlab` no importa `tasks` ni `workspaces`. `GitLabTaskSourceBridge` (en `app_state.rs`) implementa `TaskSourcePort` con `tasks::GetTask` y `workspaces::GetWorkspace` (devuelve `None` para tareas en `Backlog`, sin rama). En la UI, `app.rs` inyecta la tarjeta en `SettingsPage` (`children`) y la pestaña en `TaskDetailPage` (`TaskExtraTab`), así que ni `agent_settings` ni `tasks` importan `gitlab`.
 - **Tests**: unitarios con `mockall` (`mocks.rs`) y un GitLab falso con `axum` para el cliente (incluido el test de no-fuga del token por redirección); integración en `tests/modules/gitlab/` (SQLite temporal y repos git temporales).
 
+### Soporte nativo de Windows
+
+El código específico de plataforma está acotado a infraestructura:
+
+- `core/config.rs`: el home sale de `HOME` o, si falta, de `USERPROFILE`.
+- `agent_process.rs` y el PTY (`portable_pty_adapter.rs`): en Unix los agentes y la terminal se lanzan con la shell de login y `exec`; en Windows con `powershell.exe` (sin `exec`, `PATH` heredado). `core/process.rs` mata el árbol de procesos con `taskkill /T` en Windows.
+- `nix` solo se compila en Unix; los límites de RAM/CPU por tarea (`systemd-run`) solo existen en Linux.
+- El soporte tiene tests de lógica en Linux pero no se ha ejecutado aún sobre un Windows real. Ver «Binarios precompilados» en el README.
+
 ---
 
 ## 11. Estrategia de tests
@@ -1036,7 +1064,7 @@ flowchart LR
 | Casos de uso | `#[cfg(test)] mod tests` en cada `usecases/*.rs` | `#[tokio::test]` + mocks `mockall` de los puertos; `application/test_support.rs` ofrece una `Recorded` para inspeccionar estados y eventos emitidos |
 | Mocks | `src/modules/<feature>/mocks.rs` | `mock! { pub TaskRepository {} #[async_trait] impl TaskRepositoryPort for TaskRepository { ... } }` — el equivalente a `@Mock` de Mockito generado a partir del trait |
 | Adaptadores Diesel / FS / git / runtime | `tests/modules/<feature>/*_test.rs` | Integración contra SQLite temporal (`tempfile`) con migraciones reales aplicadas; `tests/common/mod.rs` provee `test_db()` y `git_repo()` |
-| Runtime de agente | `tests/modules/tasks/pi_rpc_runtime_adapter_test.rs`, `tests/modules/tasks/claude_stream_runtime_adapter_test.rs` | Procesos falsos en `tests/fixtures/` (`fake_agent.py`, `stubborn_agent.py`, `fake_claude.py`) |
+| Runtime de agente | `tests/modules/tasks/pi_rpc_runtime_adapter_test.rs`, `tests/modules/tasks/claude_stream_runtime_adapter_test.rs`, `tests/modules/tasks/cursor_acp_runtime_adapter_test.rs` | Procesos falsos en `tests/fixtures/` (`fake_agent.py`, `stubborn_agent.py`, `fake_claude.py`, `fake_cursor.py` para ACP) |
 | Resiliencia de la cola | `tests/modules/tasks/event_queue_resilience_test.rs` | Simula bloqueos de SQLite |
 | UI | `end2end/` | Playwright (`run_smoke.sh`) con agente falso |
 
