@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 const DEFAULT_GENTLE_SHELL_BIN: &str = "gentle-shell";
 const DEFAULT_PI_BIN: &str = "pi";
 const DEFAULT_CLAUDE_BIN: &str = "claude";
+const DEFAULT_CURSOR_BIN: &str = "agent";
+const DEFAULT_CURSOR_SESSIONS_DIR: &str = "cursor-sessions";
 const DEFAULT_DATA_DIR: &str = ".iworkflow";
 const DEFAULT_DATABASE_FILE: &str = "workspaces.db";
 const DEFAULT_WORKTREES_DIR: &str = "worktrees";
@@ -28,6 +30,10 @@ pub struct AppConfig {
     pub pi_bin: String,
     /// Ejecutable de Claude Code que se lanza en modo stream-json cuando se elige ese runtime.
     pub claude_bin: String,
+    /// Ejecutable del agente de Cursor (`agent`), que se lanza como `agent acp`.
+    pub cursor_bin: String,
+    /// Carpeta donde se guarda el id de sesión de Cursor de cada tarea (para reanudar).
+    pub cursor_sessions_dir: PathBuf,
     /// Carpeta raíz donde se crean los worktrees de las tareas.
     pub worktrees_dir: PathBuf,
     /// Carpeta home del usuario que ejecuta el proceso (punto de partida del explorador de directorios).
@@ -61,6 +67,8 @@ impl AppConfig {
             std::env::var("IWF_PI_BIN").unwrap_or_else(|_| DEFAULT_PI_BIN.to_string());
         let claude_bin: String =
             std::env::var("IWF_CLAUDE_BIN").unwrap_or_else(|_| DEFAULT_CLAUDE_BIN.to_string());
+        let cursor_bin: String =
+            std::env::var("IWF_CURSOR_BIN").unwrap_or_else(|_| DEFAULT_CURSOR_BIN.to_string());
         let worktrees_dir: PathBuf = std::env::var("IWF_WORKTREES_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| data_dir.join(DEFAULT_WORKTREES_DIR));
@@ -77,6 +85,12 @@ impl AppConfig {
             &database_url,
             &data_dir,
         );
+        let cursor_sessions_dir: PathBuf = resolve_data_subdir(
+            std::env::var("IWF_CURSOR_SESSIONS_DIR").ok(),
+            &database_url,
+            &data_dir,
+            DEFAULT_CURSOR_SESSIONS_DIR,
+        );
         let pi_agents_dir: PathBuf =
             resolve_pi_agents_dir(std::env::var("IWF_PI_AGENTS_DIR").ok(), &home);
         Ok(Self {
@@ -84,6 +98,8 @@ impl AppConfig {
             gentle_shell_bin,
             pi_bin,
             claude_bin,
+            cursor_bin,
+            cursor_sessions_dir,
             worktrees_dir,
             home_dir: home,
             gentle_pi_config_home,

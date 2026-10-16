@@ -106,9 +106,12 @@ enum PendingDialog {
     },
 }
 
+/// Aviso con el id de la sesión recién abierta.
+type SessionListener = Box<dyn FnMut(&str) + Send>;
+
 pub struct AcpProtocol {
     config: AcpSessionConfig,
-    on_session: Option<Box<dyn FnMut(&str) + Send>>,
+    on_session: Option<SessionListener>,
     next_id: u64,
     requests: HashMap<u64, Request>,
     phase: Phase,

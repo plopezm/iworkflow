@@ -278,3 +278,33 @@ async fn sending_to_a_task_without_an_agent_fails() {
 
     assert!(adapter.send(TaskId::new(), prompt("x")).await.is_err());
 }
+
+/// Contra el `agent` real (requiere `agent login`): `cargo test ... -- --ignored`.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "requiere el CLI de Cursor con sesión iniciada"]
+async fn real_cursor_agent_answers_a_prompt_through_acp() {
+    let sessions: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    let adapter: CursorAcpRuntimeAdapter =
+        CursorAcpRuntimeAdapter::new("agent", sessions.path().to_path_buf());
+    let task_id: TaskId = TaskId::new();
+    let (sink, _cwd) = started_with(&adapter, task_id, false, &LaunchOptions::default()).await;
+
+    adapter
+        .send(task_id, prompt("Responde solo con la palabra: pong"))
+        .await
+        .expect("send");
+    let deadline = Duration::from_secs(90);
+    tokio::time::timeout(deadline, sink.wait_for(|e| *e == AgentEvent::RunSettled))
+        .await
+        .expect("el turno no terminó");
+    adapter.stop(task_id).await.expect("stop");
+
+    assert!(
+        sink.snapshot()
+            .iter()
+            .any(|e| matches!(e, AgentEvent::AssistantMessage { text, .. } if !text.is_empty())),
+        "{:?}",
+        sink.snapshot()
+    );
+    assert!(sessions.path().join(task_id.to_string()).is_file());
+}
