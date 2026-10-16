@@ -47,15 +47,16 @@ impl AgentCliModelCatalogAdapter {
 
     /// Modelos de Cursor (ids de ACP), cacheados; un fallo no se cachea.
     async fn cursor_models(&self, bin: &str) -> Result<Vec<ModelRef>, AgentSettingsError> {
-        let mut cache = self.cursor_models.lock().await;
-        if let Some((fetched, models)) = cache.as_ref()
+        // The lock is only held to read and to store: holding it while the CLI runs would make
+        // every other caller wait for the whole spawn (up to the catalog timeout).
+        if let Some((fetched, models)) = self.cursor_models.lock().await.as_ref()
             && fetched.elapsed() < CURSOR_CACHE_TTL
         {
             return Ok(models.clone());
         }
         let models: Vec<ModelRef> =
             list_cursor_models(bin, std::env::vars_os().collect(), CURSOR_CATALOG_TIMEOUT).await?;
-        *cache = Some((Instant::now(), models.clone()));
+        *self.cursor_models.lock().await = Some((Instant::now(), models.clone()));
         Ok(models)
     }
 }

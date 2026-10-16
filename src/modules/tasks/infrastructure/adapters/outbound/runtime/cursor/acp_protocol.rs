@@ -644,6 +644,23 @@ impl AcpProtocol {
         if index.is_none() && key != dialog_id {
             return Err(unknown());
         }
+        // Validate before removing: a rejected answer must leave the request pending, otherwise
+        // the agent would wait forever for a reply nobody can send any more.
+        match (self.dialogs.get(key), index) {
+            (Some(PendingDialog::Permission { .. } | PendingDialog::Plan { .. }), None) => {}
+            (Some(PendingDialog::Questions { questions, .. }), Some(index)) => {
+                let question: &Question = questions.get(index).ok_or_else(unknown)?;
+                if let DialogAnswer::Value { value } = answer
+                    && !question
+                        .options
+                        .iter()
+                        .any(|(label, id): &(String, String)| label == value || id == value)
+                {
+                    return Err(unknown());
+                }
+            }
+            _ => return Err(unknown()),
+        }
         let pending: PendingDialog = self.dialogs.remove(key).ok_or_else(unknown)?;
         match (pending, index) {
             (
@@ -1619,6 +1636,37 @@ mod tests {
                 { "questionId": "q2", "selectedOptionIds": ["m"] }
             ] })
         );
+    }
+
+    #[test]
+    fn an_invalid_answer_keeps_the_question_pending_for_a_valid_one() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        feed(
+            &mut protocol,
+            json!({ "jsonrpc": "2.0", "id": 5, "method": "cursor/ask_question", "params": {
+                "questions": [{ "id": "q1", "prompt": "?", "options": [{ "id": "a", "label": "A" }] }] } }),
+        );
+
+        let rejected = protocol.encode(
+            &AgentCommand::AnswerDialog {
+                dialog_id: "ask-5#0".into(),
+                answer: DialogAnswer::Value {
+                    value: "no existe".into(),
+                },
+            },
+            "r",
+        );
+        assert!(rejected.is_err());
+        assert!(sent(&mut protocol).is_empty());
+
+        let out: Vec<Value> = command(
+            &mut protocol,
+            AgentCommand::AnswerDialog {
+                dialog_id: "ask-5#0".into(),
+                answer: DialogAnswer::Value { value: "A".into() },
+            },
+        );
+        assert_eq!(out[0]["result"]["outcome"]["outcome"], "answered");
     }
 
     #[test]
