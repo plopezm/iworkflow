@@ -559,6 +559,44 @@ fn to_workspace_error(error: AgentsFileError) -> WorkspaceError {
     }
 }
 
+/// Expone la rama, la base y el repositorio de una tarea al feature de GitLab a través de su
+/// propio puerto. `Ok(None)` si la tarea no existe o aún no tiene rama (`Backlog`).
+pub struct GitLabTaskSourceBridge {
+    pub get_task: Arc<GetTask>,
+    pub get_workspace: Arc<GetWorkspace>,
+}
+
+#[async_trait::async_trait]
+impl TaskSourcePort for GitLabTaskSourceBridge {
+    async fn find(&self, task_id: &str) -> Result<Option<TaskSource>, GitLabError> {
+        let Ok(uuid) = uuid::Uuid::parse_str(task_id) else {
+            return Ok(None);
+        };
+        let task: Task = match self.get_task.execute(TaskId::from_uuid(uuid)).await {
+            Ok(task) => task,
+            Err(TaskError::NotFound(_)) => return Ok(None),
+            Err(error) => return Err(GitLabError::Repository(error.to_string())),
+        };
+        if task.status == TaskStatus::Backlog {
+            return Ok(None);
+        }
+        let workspace_id: WorkspaceId = WorkspaceId::parse(&task.workspace_id)
+            .map_err(|error: WorkspaceError| GitLabError::Repository(error.to_string()))?;
+        let workspace: Workspace = match self.get_workspace.execute(workspace_id).await {
+            Ok(workspace) => workspace,
+            Err(WorkspaceError::NotFound(_)) => return Ok(None),
+            Err(error) => return Err(GitLabError::Repository(error.to_string())),
+        };
+        Ok(Some(TaskSource {
+            repo_path: workspace.path,
+            branch: task.branch,
+            base_branch: task.base_branch,
+            title: task.title,
+            description: task.prompt,
+        }))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -684,43 +722,5 @@ mod tests {
             to_workspace_error(AgentsFileError::Storage("boom".to_string())),
             WorkspaceError::AgentsFile("error de almacenamiento: boom".to_string())
         );
-    }
-}
-
-/// Expone la rama, la base y el repositorio de una tarea al feature de GitLab a través de su
-/// propio puerto. `Ok(None)` si la tarea no existe o aún no tiene rama (`Backlog`).
-pub struct GitLabTaskSourceBridge {
-    pub get_task: Arc<GetTask>,
-    pub get_workspace: Arc<GetWorkspace>,
-}
-
-#[async_trait::async_trait]
-impl TaskSourcePort for GitLabTaskSourceBridge {
-    async fn find(&self, task_id: &str) -> Result<Option<TaskSource>, GitLabError> {
-        let Ok(uuid) = uuid::Uuid::parse_str(task_id) else {
-            return Ok(None);
-        };
-        let task: Task = match self.get_task.execute(TaskId::from_uuid(uuid)).await {
-            Ok(task) => task,
-            Err(TaskError::NotFound(_)) => return Ok(None),
-            Err(error) => return Err(GitLabError::Repository(error.to_string())),
-        };
-        if task.status == TaskStatus::Backlog {
-            return Ok(None);
-        }
-        let workspace_id: WorkspaceId = WorkspaceId::parse(&task.workspace_id)
-            .map_err(|error: WorkspaceError| GitLabError::Repository(error.to_string()))?;
-        let workspace: Workspace = match self.get_workspace.execute(workspace_id).await {
-            Ok(workspace) => workspace,
-            Err(WorkspaceError::NotFound(_)) => return Ok(None),
-            Err(error) => return Err(GitLabError::Repository(error.to_string())),
-        };
-        Ok(Some(TaskSource {
-            repo_path: workspace.path,
-            branch: task.branch,
-            base_branch: task.base_branch,
-            title: task.title,
-            description: task.prompt,
-        }))
     }
 }

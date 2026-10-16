@@ -426,6 +426,17 @@ pub fn App() -> impl IntoView {
     }
 }
 
+/// Pestaña de GitLab del panel de tarea: se compone aquí para que `tasks` no importe `gitlab`.
+fn gitlab_task_tab() -> TaskExtraTab {
+    TaskExtraTab {
+        id: "gitlab",
+        label: "GitLab",
+        render: Callback::new(|task_id: String| {
+            view! { <TaskMergeRequestPanel task_id=task_id /> }.into_any()
+        }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -518,16 +529,5 @@ mod tests {
     fn titles_fall_back_to_a_short_terminal_id() {
         assert_eq!(tab_title("/"), "Tablero");
         assert_eq!(tab_title("/terminals/0123456789"), "Terminal 01234567");
-    }
-}
-
-/// Pestaña de GitLab del panel de tarea: se compone aquí para que `tasks` no importe `gitlab`.
-fn gitlab_task_tab() -> TaskExtraTab {
-    TaskExtraTab {
-        id: "gitlab",
-        label: "GitLab",
-        render: Callback::new(|task_id: String| {
-            view! { <TaskMergeRequestPanel task_id=task_id /> }.into_any()
-        }),
     }
 }
