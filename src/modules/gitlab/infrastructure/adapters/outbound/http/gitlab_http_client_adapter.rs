@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::sync::Arc;
 
-use reqwest::{Client, Method, RequestBuilder, Response, StatusCode};
+use reqwest::{Method, RequestBuilder, Response, StatusCode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -10,39 +10,37 @@ use crate::modules::gitlab::domain::models::merge_request::{
     MergeRequest, NewMergeRequest, Pipeline, PipelineJob,
 };
 use crate::modules::gitlab::domain::ports::outbound::gitlab_client_port::GitLabClientPort;
+use crate::modules::gitlab::infrastructure::adapters::outbound::http::http_client_manager::HttpClientManager;
 
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const TOKEN_HEADER: &str = "PRIVATE-TOKEN";
 const JOBS_PER_PAGE: &str = "100";
 
 /// Cliente de la API REST v4 de GitLab sobre `reqwest`.
 #[derive(Debug, Default)]
-pub struct GitLabHttpClientAdapter;
+pub struct GitLabHttpClientAdapter {
+    clients: Arc<HttpClientManager>,
+}
 
 impl GitLabHttpClientAdapter {
     pub fn new() -> Self {
-        Self
+        Self::default()
     }
 
-    fn client(settings: &GitLabSettings) -> Result<Client, GitLabError> {
-        Client::builder()
-            .timeout(REQUEST_TIMEOUT)
-            .connect_timeout(CONNECT_TIMEOUT)
-            // El token va en una cabecera propia que reqwest no retira al cambiar de host.
-            .redirect(reqwest::redirect::Policy::none())
-            .danger_accept_invalid_certs(settings.insecure_tls)
-            .build()
-            .map_err(|e: reqwest::Error| GitLabError::Network(e.without_url().to_string()))
+    /// Usa el gestor compartido de clientes (un único pool para toda la aplicación).
+    pub fn with_clients(clients: Arc<HttpClientManager>) -> Self {
+        Self { clients }
     }
 
     fn request(
+        &self,
         settings: &GitLabSettings,
         method: Method,
         path: &str,
     ) -> Result<RequestBuilder, GitLabError> {
         let url: String = format!("{}{}", settings.api_url(), path);
-        Ok(Self::client(settings)?
+        Ok(self
+            .clients
+            .client(settings.insecure_tls)?
             .request(method, url)
             .header(TOKEN_HEADER, settings.token()))
     }
@@ -52,8 +50,12 @@ impl GitLabHttpClientAdapter {
             .send()
             .await
             .map_err(|e: reqwest::Error| GitLabError::Network(e.without_url().to_string()))?;
-        if response.status().is_success() {
+        let status: StatusCode = response.status();
+        if status.is_success() {
             return Ok(response);
+        }
+        if status.is_redirection() {
+            return Err(GitLabError::Redirected(status.as_u16()));
         }
         Err(api_error(response).await)
     }
@@ -162,7 +164,7 @@ struct UserJson {
 #[async_trait::async_trait]
 impl GitLabClientPort for GitLabHttpClientAdapter {
     async fn current_user(&self, settings: &GitLabSettings) -> Result<String, GitLabError> {
-        let response: Response = Self::send(Self::request(settings, Method::GET, "/user")?).await?;
+        let response: Response = Self::send(self.request(settings, Method::GET, "/user")?).await?;
         Ok(Self::json::<UserJson>(response).await?.username)
     }
 
@@ -177,7 +179,7 @@ impl GitLabClientPort for GitLabHttpClientAdapter {
             encode_component(project),
             encode_component(branch)
         );
-        match Self::send(Self::request(settings, Method::GET, &path)?).await {
+        match Self::send(self.request(settings, Method::GET, &path)?).await {
             Ok(_) => Ok(true),
             Err(GitLabError::Api { status: 404, .. }) => Ok(false),
             Err(other) => Err(other),
@@ -191,7 +193,7 @@ impl GitLabClientPort for GitLabHttpClientAdapter {
         source_branch: &str,
     ) -> Result<Option<MergeRequest>, GitLabError> {
         let path: String = format!("/projects/{}/merge_requests", encode_component(project));
-        let request: RequestBuilder = Self::request(settings, Method::GET, &path)?.query(&[
+        let request: RequestBuilder = self.request(settings, Method::GET, &path)?.query(&[
             ("source_branch", source_branch),
             ("order_by", "created_at"),
             ("sort", "desc"),
@@ -213,7 +215,7 @@ impl GitLabClientPort for GitLabHttpClientAdapter {
         new: &NewMergeRequest,
     ) -> Result<MergeRequest, GitLabError> {
         let path: String = format!("/projects/{}/merge_requests", encode_component(project));
-        let request: RequestBuilder = Self::request(settings, Method::POST, &path)?.json(&json!({
+        let request: RequestBuilder = self.request(settings, Method::POST, &path)?.json(&json!({
             "source_branch": new.source_branch,
             "target_branch": new.target_branch,
             "title": new.title,
@@ -233,7 +235,7 @@ impl GitLabClientPort for GitLabHttpClientAdapter {
             "/projects/{}/merge_requests/{iid}",
             encode_component(project)
         );
-        let response: Response = Self::send(Self::request(settings, Method::GET, &path)?).await?;
+        let response: Response = Self::send(self.request(settings, Method::GET, &path)?).await?;
         Ok(Self::json::<MergeRequestJson>(response).await?.into())
     }
 
@@ -246,15 +248,16 @@ impl GitLabClientPort for GitLabHttpClientAdapter {
         let encoded: String = encode_component(project);
         let list_path: String = format!("/projects/{encoded}/merge_requests/{iid}/pipelines");
         let response: Response =
-            Self::send(Self::request(settings, Method::GET, &list_path)?).await?;
+            Self::send(self.request(settings, Method::GET, &list_path)?).await?;
         let pipelines: Vec<PipelineJson> = Self::json(response).await?;
         // GitLab los devuelve del más reciente al más antiguo.
         let Some(latest) = pipelines.into_iter().next() else {
             return Ok(None);
         };
         let jobs_path: String = format!("/projects/{encoded}/pipelines/{}/jobs", latest.id);
-        let jobs_request: RequestBuilder =
-            Self::request(settings, Method::GET, &jobs_path)?.query(&[("per_page", JOBS_PER_PAGE)]);
+        let jobs_request: RequestBuilder = self
+            .request(settings, Method::GET, &jobs_path)?
+            .query(&[("per_page", JOBS_PER_PAGE)]);
         let jobs_response: Response = Self::send(jobs_request).await?;
         let jobs: Vec<JobJson> = Self::json(jobs_response).await?;
         Ok(Some(Pipeline {
@@ -284,7 +287,7 @@ impl GitLabClientPort for GitLabHttpClientAdapter {
             "/projects/{}/merge_requests/{iid}/merge",
             encode_component(project)
         );
-        let response: Response = Self::send(Self::request(settings, Method::PUT, &path)?).await?;
+        let response: Response = Self::send(self.request(settings, Method::PUT, &path)?).await?;
         Ok(Self::json::<MergeRequestJson>(response).await?.into())
     }
 }
@@ -644,7 +647,7 @@ mod redirect_tests {
         let result: Result<String, GitLabError> =
             GitLabHttpClientAdapter::new().current_user(&settings).await;
 
-        assert!(matches!(result, Err(GitLabError::Api { status: 302, .. })));
+        assert_eq!(result, Err(GitLabError::Redirected(302)));
         assert!(leaked.lock().expect("lock").is_empty());
     }
 }

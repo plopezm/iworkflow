@@ -31,7 +31,16 @@ impl MergeTaskMergeRequest {
             .client()
             .merge_merge_request(&resolved.settings, &resolved.project, open.iid)
             .await?;
-        self.resolver.status_of(&resolved, merged).await
+        // El merge ya está hecho: un fallo al leer el pipeline no debe presentarse como fallo del
+        // merge (el usuario volvería a intentarlo). Se devuelve el MR mezclado sin pipeline.
+        match self.resolver.status_of(&resolved, merged.clone()).await {
+            Ok(status) => Ok(status),
+            Err(_) => Ok(MergeRequestStatus {
+                project_path: resolved.project.clone(),
+                merge_request: merged,
+                pipeline: None,
+            }),
+        }
     }
 }
 
@@ -40,6 +49,29 @@ mod tests {
     use super::*;
     use crate::modules::gitlab::application::test_support::{self, TASK_ID};
     use crate::modules::gitlab::mocks::MockGitLabClient;
+
+    #[tokio::test]
+    async fn a_pipeline_lookup_failure_after_merging_still_reports_the_merge() {
+        let mut client: MockGitLabClient = MockGitLabClient::new();
+        client
+            .expect_find_latest_merge_request()
+            .returning(|_, _, _| Ok(Some(test_support::merge_request(7, "opened"))));
+        client
+            .expect_merge_merge_request()
+            .times(1)
+            .returning(|_, _, _| Ok(test_support::merge_request(7, "merged")));
+        client
+            .expect_latest_pipeline()
+            .returning(|_, _, _| Err(GitLabError::Network("caído".to_string())));
+
+        let status: MergeRequestStatus = MergeTaskMergeRequest::new(test_support::resolver(client))
+            .execute(TASK_ID)
+            .await
+            .expect("merged");
+
+        assert_eq!(status.merge_request.state, "merged");
+        assert!(status.pipeline.is_none());
+    }
 
     #[tokio::test]
     async fn merges_the_open_merge_request() {

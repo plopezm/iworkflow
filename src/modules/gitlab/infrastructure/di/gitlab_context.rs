@@ -14,6 +14,7 @@ use crate::modules::gitlab::domain::ports::outbound::gitlab_settings_repository_
 use crate::modules::gitlab::domain::ports::outbound::task_source_port::TaskSourcePort;
 use crate::modules::gitlab::infrastructure::adapters::outbound::git::git_cli_remote_adapter::GitCliRemoteAdapter;
 use crate::modules::gitlab::infrastructure::adapters::outbound::http::gitlab_http_client_adapter::GitLabHttpClientAdapter;
+use crate::modules::gitlab::infrastructure::adapters::outbound::http::http_client_manager::HttpClientManager;
 use crate::modules::gitlab::infrastructure::adapters::outbound::persistence::gitlab_settings_repository_adapter::GitLabSettingsRepositoryAdapter;
 
 #[derive(Clone)]
@@ -31,7 +32,9 @@ impl GitLabContext {
     pub fn new(pool: DbPool, tasks: Arc<dyn TaskSourcePort>) -> Self {
         let repository: Arc<dyn GitLabSettingsRepositoryPort> =
             Arc::new(GitLabSettingsRepositoryAdapter::new(pool));
-        let client: Arc<dyn GitLabClientPort> = Arc::new(GitLabHttpClientAdapter::new());
+        let client: Arc<dyn GitLabClientPort> = Arc::new(GitLabHttpClientAdapter::with_clients(
+            Arc::new(HttpClientManager::new()),
+        ));
         let remote: Arc<dyn GitRemotePort> = Arc::new(GitCliRemoteAdapter::new());
         let resolver: Arc<TaskProjectResolver> = Arc::new(TaskProjectResolver::new(
             repository.clone(),

@@ -29,6 +29,10 @@ pub enum GitLabError {
     MergeRequestNotFound(String),
     #[error("GitLab respondió {status}: {message}")]
     Api { status: u16, message: String },
+    #[error(
+        "GitLab respondió con una redirección (HTTP {0}); revisa la URL configurada (¿http en lugar de https, o falta/sobra un prefijo?). La app no sigue redirecciones para no filtrar el token"
+    )]
+    Redirected(u16),
     #[error("error de red: {0}")]
     Network(String),
     #[error("error de git: {0}")]
