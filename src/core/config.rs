@@ -44,9 +44,10 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn from_env() -> Result<Self, ConfigError> {
-        let home: PathBuf = std::env::var("HOME")
-            .map(PathBuf::from)
-            .map_err(|_| ConfigError::Missing("HOME"))?;
+        let home: PathBuf = resolve_home(
+            std::env::var("HOME").ok(),
+            std::env::var("USERPROFILE").ok(),
+        )?;
         let data_dir: PathBuf = home.join(DEFAULT_DATA_DIR);
         let database_url: String = std::env::var("IWF_DATABASE_URL").unwrap_or_else(|_| {
             data_dir
@@ -134,6 +135,19 @@ fn resolve_data_subdir(
     }
 }
 
+/// Carpeta home: `HOME` y, si falta o está vacía, `USERPROFILE` (el home habitual en Windows).
+fn resolve_home(
+    home: Option<String>,
+    user_profile: Option<String>,
+) -> Result<PathBuf, ConfigError> {
+    [home, user_profile]
+        .into_iter()
+        .flatten()
+        .find(|value: &String| !value.is_empty())
+        .map(PathBuf::from)
+        .ok_or(ConfigError::Missing("HOME"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,13 +162,27 @@ mod tests {
     #[test]
     fn pi_agents_dir_defaults_under_home() {
         let dir: PathBuf = resolve_pi_agents_dir(None, Path::new("/home/u"));
-        assert_eq!(dir, PathBuf::from("/home/u/.pi/agent/agents"));
+        assert_eq!(
+            dir,
+            Path::new("/home/u")
+                .join(".pi")
+                .join("agent")
+                .join("agents")
+                .to_path_buf()
+        );
     }
 
     #[test]
     fn pi_agents_dir_blank_env_falls_back_to_default() {
         let dir: PathBuf = resolve_pi_agents_dir(Some(" ".to_string()), Path::new("/home/u"));
-        assert_eq!(dir, PathBuf::from("/home/u/.pi/agent/agents"));
+        assert_eq!(
+            dir,
+            Path::new("/home/u")
+                .join(".pi")
+                .join("agent")
+                .join("agents")
+                .to_path_buf()
+        );
     }
 
     #[test]
@@ -188,7 +216,13 @@ mod tests {
     fn falls_back_to_data_dir_without_database_parent() {
         let dir: PathBuf =
             resolve_agents_files_dir(None, "workspaces.db", Path::new("/home/u/.iworkflow"));
-        assert_eq!(dir, PathBuf::from("/home/u/.iworkflow/agents-files"));
+        assert_eq!(
+            dir,
+            Path::new("/home/u")
+                .join(".iworkflow")
+                .join("agents-files")
+                .to_path_buf()
+        );
     }
 
     #[test]
@@ -222,6 +256,30 @@ mod tests {
     fn attachments_fall_back_to_data_dir_without_database_parent() {
         let dir: PathBuf =
             resolve_attachments_dir(None, "workspaces.db", Path::new("/home/u/.iworkflow"));
-        assert_eq!(dir, PathBuf::from("/home/u/.iworkflow/attachments"));
+        assert_eq!(
+            dir,
+            Path::new("/home/u")
+                .join(".iworkflow")
+                .join("attachments")
+                .to_path_buf()
+        );
+    }
+
+    #[test]
+    fn resolve_home_prefers_home_then_falls_back_to_user_profile() {
+        let both: Result<PathBuf, ConfigError> =
+            resolve_home(Some("/home/u".into()), Some("C:\\Users\\u".into()));
+        let only_profile: Result<PathBuf, ConfigError> =
+            resolve_home(None, Some("C:\\Users\\u".into()));
+        let empty_home: Result<PathBuf, ConfigError> =
+            resolve_home(Some(String::new()), Some("C:\\Users\\u".into()));
+        assert_eq!(both.ok(), Some(PathBuf::from("/home/u")));
+        assert_eq!(only_profile.ok(), Some(PathBuf::from("C:\\Users\\u")));
+        assert_eq!(empty_home.ok(), Some(PathBuf::from("C:\\Users\\u")));
+    }
+
+    #[test]
+    fn resolve_home_fails_without_any_home_variable() {
+        assert!(resolve_home(None, None).is_err());
     }
 }

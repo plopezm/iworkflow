@@ -282,6 +282,16 @@ fn systemd_run_available() -> bool {
         })
 }
 
+/// Mata el agente. En Windows no hay `exec`: el hijo directo es PowerShell, así que se mata el
+/// árbol entero para no dejar al agente huérfano.
+fn kill_agent(child: &mut Child) -> std::io::Result<()> {
+    #[cfg(windows)]
+    if let Some(pid) = child.id() {
+        crate::core::process::kill_tree(pid);
+    }
+    child.start_kill()
+}
+
 fn pipe_error(name: &str) -> TaskError {
     TaskError::Runtime(format!("no se pudo abrir {name} del agente"))
 }
@@ -326,7 +336,7 @@ async fn supervise(
             signal = &mut kill_rx, if kill_armed => {
                 kill_armed = false;
                 if signal.is_ok()
-                    && let Err(error) = child.start_kill()
+                    && let Err(error) = kill_agent(&mut child)
                 {
                     tracing::warn!(%task_id, %error, "no se pudo matar el agente");
                 }
@@ -341,7 +351,7 @@ async fn supervise(
             None
         }
         Err(_) => {
-            if let Err(error) = child.start_kill() {
+            if let Err(error) = kill_agent(&mut child) {
                 tracing::warn!(%task_id, %error, "no se pudo matar el agente");
             }
             child
@@ -516,6 +526,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn build_command_clears_the_environment_down_to_session_variables_and_extras() {
         let command: Command = command_for(&spec(&[], &[("AGENT_FLAG", "1")]));
@@ -538,6 +549,7 @@ mod tests {
         assert_eq!(path, Some(OsStr::new(crate::core::env::DEFAULT_PATH)));
     }
 
+    #[cfg(unix)]
     #[test]
     fn build_command_launches_the_agent_with_exec_through_the_login_shell() {
         let command: Command = command_for(&spec(&["--mode", "rpc"], &[]));
