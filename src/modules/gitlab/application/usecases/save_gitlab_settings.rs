@@ -40,17 +40,23 @@ impl SaveGitLabSettings {
         let provided: Option<String> = input
             .token
             .filter(|token: &String| !token.trim().is_empty());
-        let token: String = match provided {
-            Some(token) => token,
-            None => self
-                .repository
-                .get()
-                .await?
-                .map(|stored: GitLabSettings| stored.token().to_string())
-                .ok_or(GitLabError::MissingToken)?,
+        let settings: GitLabSettings = match provided {
+            Some(token) => GitLabSettings::new(&input.base_url, &token, input.insecure_tls)?,
+            None => {
+                let stored: GitLabSettings = self
+                    .repository
+                    .get()
+                    .await?
+                    .ok_or(GitLabError::MissingToken)?;
+                let reused: GitLabSettings =
+                    GitLabSettings::new(&input.base_url, stored.token(), input.insecure_tls)?;
+                // El token guardado no se reenvía a otro servidor: hay que volver a introducirlo.
+                if reused.base_url() != stored.base_url() {
+                    return Err(GitLabError::TokenRequiredForNewUrl);
+                }
+                reused
+            }
         };
-        let settings: GitLabSettings =
-            GitLabSettings::new(&input.base_url, &token, input.insecure_tls)?;
         self.repository.save(&settings).await?;
         Ok(settings)
     }
@@ -90,21 +96,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn blank_token_keeps_the_stored_one() {
+    async fn blank_token_keeps_the_stored_one_for_the_same_url() {
         let mut repository: MockGitLabSettingsRepository = MockGitLabSettingsRepository::new();
         repository
             .expect_get()
             .returning(|| Ok(Some(test_support::settings())));
         repository
             .expect_save()
-            .withf(|s: &GitLabSettings| s.token() == "tok" && s.base_url() == "https://otra.corp")
+            .withf(|s: &GitLabSettings| s.token() == "tok" && s.base_url() == "https://git.corp")
             .times(1)
             .returning(|_| Ok(()));
 
         SaveGitLabSettings::new(Arc::new(repository))
-            .execute(input("https://otra.corp", Some("   ")))
+            .execute(input("https://git.corp/", Some("   ")))
             .await
             .expect("save");
+    }
+
+    #[tokio::test]
+    async fn blank_token_with_a_different_url_is_rejected_and_nothing_saved() {
+        let mut repository: MockGitLabSettingsRepository = MockGitLabSettingsRepository::new();
+        repository
+            .expect_get()
+            .returning(|| Ok(Some(test_support::settings())));
+        repository.expect_save().never();
+
+        let result: Result<GitLabSettings, GitLabError> =
+            SaveGitLabSettings::new(Arc::new(repository))
+                .execute(input("https://otra.corp", None))
+                .await;
+
+        assert_eq!(result, Err(GitLabError::TokenRequiredForNewUrl));
     }
 
     #[tokio::test]

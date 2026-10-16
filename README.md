@@ -77,7 +77,7 @@ Desde cada tarea puedes crear un merge request, ver el CI y mezclarlo.
 
 Notas:
 - La app **nunca hace `git push`**: publica tú la rama antes de crear el MR; si no está en `origin`, se te avisa.
-- El token se guarda en claro en la base de datos local (`~/.iworkflow/workspaces.db`) y nunca se envía al navegador.
+- El token se guarda en claro en la base de datos local (`~/.iworkflow/workspaces.db`) y nunca se envía al navegador. Dejarlo vacío al editar conserva el guardado, salvo que cambies la URL: entonces hay que volver a introducirlo, para no enviarlo a otro servidor.
 - Las redirecciones HTTP están desactivadas para no filtrar el token a otro host.
 
 ## Integración con Jira (Server / Data Center)

@@ -28,6 +28,23 @@ pub struct JiraIssue {
     pub synced_at: DateTime<Utc>,
 }
 
+/// Whether `key` looks like a Jira issue key (`PROJ-123`). Keys end up inside request paths, so
+/// anything else (slashes, dots, queries) must never reach the REST client.
+pub fn is_valid_issue_key(key: &str) -> bool {
+    match key.split_once('-') {
+        Some((project, number)) => {
+            let mut chars = project.chars();
+            chars.next().is_some_and(|c: char| c.is_ascii_alphabetic())
+                && project
+                    .chars()
+                    .all(|c: char| c.is_ascii_alphanumeric() || c == '_')
+                && !number.is_empty()
+                && number.chars().all(|c: char| c.is_ascii_digit())
+        }
+        None => false,
+    }
+}
+
 impl JiraIssue {
     pub fn key(&self) -> &str {
         &self.remote.key
@@ -58,5 +75,33 @@ pub fn sample_issue(key: &str) -> JiraIssue {
         local_state: IssueLocalState::New,
         task_id: None,
         synced_at: Utc::now(),
+    }
+}
+
+#[cfg(test)]
+mod key_tests {
+    use super::is_valid_issue_key;
+
+    #[test]
+    fn accepts_regular_issue_keys() {
+        assert!(is_valid_issue_key("PROJ-1"));
+        assert!(is_valid_issue_key("AB_C2-1234"));
+    }
+
+    #[test]
+    fn rejects_keys_that_could_alter_the_request_path() {
+        for key in [
+            "",
+            "PROJ",
+            "PROJ-",
+            "-1",
+            "1A-2",
+            "PROJ-1/comment",
+            "../rest",
+            "A-1?x=1",
+            "A-1 ",
+        ] {
+            assert!(!is_valid_issue_key(key), "{key:?} should be rejected");
+        }
     }
 }

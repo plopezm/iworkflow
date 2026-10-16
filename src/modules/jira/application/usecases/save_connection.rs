@@ -50,6 +50,14 @@ impl SaveConnection {
             &input.jql,
             input.accept_invalid_certs,
         )?;
+        // A stored token is never sent to a different server: it has to be typed again.
+        if input.token.trim().is_empty()
+            && existing
+                .as_ref()
+                .is_some_and(|c: &JiraConnection| c.base_url != connection.base_url)
+        {
+            return Err(JiraError::TokenRequiredForNewUrl);
+        }
         self.client.verify(&connection).await?;
         if existing
             .as_ref()
@@ -178,6 +186,24 @@ mod tests {
         .execute(input(""))
         .await;
         assert_eq!(result, Err(JiraError::EmptyToken));
+    }
+
+    #[tokio::test]
+    async fn blank_token_with_a_different_url_is_rejected_before_contacting_the_server() {
+        let mut connections = MockJiraConnectionRepository::new();
+        connections
+            .expect_get()
+            .returning(|| Ok(Some(stored("https://old.local", "secret"))));
+        connections.expect_save().never();
+        let mut client = MockJiraClient::new();
+        client.expect_verify().never();
+        let mut issues = MockJiraIssueRepository::new();
+        issues.expect_delete_all().never();
+
+        let result = SaveConnection::new(Arc::new(connections), Arc::new(issues), Arc::new(client))
+            .execute(input(""))
+            .await;
+        assert_eq!(result, Err(JiraError::TokenRequiredForNewUrl));
     }
 
     #[tokio::test]

@@ -6,6 +6,8 @@ pub enum GitLabError {
     InvalidUrl(String),
     #[error("el token de GitLab es obligatorio")]
     MissingToken,
+    #[error("has cambiado la URL de GitLab: vuelve a introducir el token")]
+    TokenRequiredForNewUrl,
     #[error("el repositorio no tiene remoto 'origin': {0}")]
     NoOrigin(String),
     #[error("URL de remoto no reconocida: {0}")]

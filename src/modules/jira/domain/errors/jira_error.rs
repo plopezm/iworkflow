@@ -4,6 +4,10 @@ pub enum JiraError {
     InvalidUrl,
     #[error("el token de Jira es obligatorio")]
     EmptyToken,
+    #[error("has cambiado la URL de Jira: vuelve a introducir el token")]
+    TokenRequiredForNewUrl,
+    #[error("clave de tarea de Jira inválida: {0}")]
+    InvalidIssueKey(String),
     #[error("no hay conexión con Jira configurada")]
     NotConfigured,
     #[error("Jira rechazó el token (no autorizado)")]

@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use crate::modules::jira::domain::errors::jira_error::JiraError;
 use crate::modules::jira::domain::models::jira_comment::JiraComment;
 use crate::modules::jira::domain::models::jira_connection::JiraConnection;
-use crate::modules::jira::domain::models::jira_issue::RemoteIssue;
+use crate::modules::jira::domain::models::jira_issue::{RemoteIssue, is_valid_issue_key};
 use crate::modules::jira::domain::models::jira_transition::JiraTransition;
 use crate::modules::jira::domain::ports::outbound::jira_client_port::JiraClientPort;
 use crate::modules::jira::infrastructure::adapters::outbound::api::jira_json::{
@@ -89,6 +89,15 @@ impl ReqwestJiraClientAdapter {
     }
 }
 
+/// REST path of an issue resource. Rejects keys that are not plain `PROJ-123` so a crafted key
+/// cannot redirect the request to another endpoint.
+fn issue_path(key: &str, suffix: &str) -> Result<String, JiraError> {
+    if !is_valid_issue_key(key) {
+        return Err(JiraError::InvalidIssueKey(key.to_string()));
+    }
+    Ok(format!("issue/{key}{suffix}"))
+}
+
 fn build_client(accept_invalid_certs: bool) -> Result<Client, JiraError> {
     Client::builder()
         .timeout(REQUEST_TIMEOUT)
@@ -154,7 +163,7 @@ impl JiraClientPort for ReqwestJiraClientAdapter {
         key: &str,
     ) -> Result<RemoteIssue, JiraError> {
         let builder: RequestBuilder = self
-            .request(connection, Method::GET, &format!("issue/{key}"))
+            .request(connection, Method::GET, &issue_path(key, "")?)
             .query(&[("fields", ISSUE_FIELDS)]);
         let doc: Value = self.json(builder, Some(key)).await?;
         issue_from_json(connection, &doc)
@@ -166,7 +175,7 @@ impl JiraClientPort for ReqwestJiraClientAdapter {
         key: &str,
     ) -> Result<Vec<JiraComment>, JiraError> {
         let builder: RequestBuilder = self
-            .request(connection, Method::GET, &format!("issue/{key}/comment"))
+            .request(connection, Method::GET, &issue_path(key, "/comment")?)
             .query(&[("maxResults", MAX_COMMENTS.to_string())]);
         Ok(comments_from_json(&self.json(builder, Some(key)).await?))
     }
@@ -178,7 +187,7 @@ impl JiraClientPort for ReqwestJiraClientAdapter {
         body: &str,
     ) -> Result<(), JiraError> {
         let builder: RequestBuilder = self
-            .request(connection, Method::POST, &format!("issue/{key}/comment"))
+            .request(connection, Method::POST, &issue_path(key, "/comment")?)
             .json(&json!({ "body": body }));
         self.send(builder, Some(key)).await.map(|_| ())
     }
@@ -189,7 +198,7 @@ impl JiraClientPort for ReqwestJiraClientAdapter {
         key: &str,
     ) -> Result<Vec<JiraTransition>, JiraError> {
         let builder: RequestBuilder =
-            self.request(connection, Method::GET, &format!("issue/{key}/transitions"));
+            self.request(connection, Method::GET, &issue_path(key, "/transitions")?);
         Ok(transitions_from_json(&self.json(builder, Some(key)).await?))
     }
 
@@ -200,11 +209,7 @@ impl JiraClientPort for ReqwestJiraClientAdapter {
         transition_id: &str,
     ) -> Result<(), JiraError> {
         let builder: RequestBuilder = self
-            .request(
-                connection,
-                Method::POST,
-                &format!("issue/{key}/transitions"),
-            )
+            .request(connection, Method::POST, &issue_path(key, "/transitions")?)
             .json(&json!({ "transition": { "id": transition_id } }));
         self.send(builder, Some(key)).await.map(|_| ())
     }
