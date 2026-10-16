@@ -33,6 +33,38 @@ diesel::table! {
 }
 
 diesel::table! {
+    jira_connection (id) {
+        id -> Integer,
+        base_url -> Text,
+        token -> Text,
+        jql -> Text,
+        accept_invalid_certs -> Integer,
+        last_sync_at -> Nullable<Timestamp>,
+        last_sync_error -> Nullable<Text>,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    jira_issues (key) {
+        key -> Text,
+        summary -> Text,
+        description -> Text,
+        status -> Text,
+        issue_type -> Text,
+        priority -> Nullable<Text>,
+        assignee -> Nullable<Text>,
+        reporter -> Nullable<Text>,
+        labels -> Text,
+        url -> Text,
+        jira_updated_at -> Timestamp,
+        local_state -> Text,
+        task_id -> Nullable<Text>,
+        synced_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     task_attachments (id) {
         id -> Text,
         task_id -> Text,
@@ -96,6 +128,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     agent_settings,
     agents_files,
     gitlab_settings,
+    jira_connection,
+    jira_issues,
     task_attachments,
     task_events,
     tasks,

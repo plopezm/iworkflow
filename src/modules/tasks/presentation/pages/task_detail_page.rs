@@ -6,6 +6,7 @@ use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::TaskAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MergeOutcomeDto, TaskDto, TaskStageDto,
@@ -20,6 +21,7 @@ use crate::modules::tasks::presentation::components::subagents_panel::SubagentsP
 use crate::modules::tasks::presentation::components::task_actions::{
     TaskActionHandlers, TaskActions,
 };
+use crate::modules::tasks::presentation::components::task_attachments_list::TaskAttachmentsList;
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
 use crate::modules::tasks::presentation::components::transcript_view::TranscriptView;
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
@@ -530,6 +532,15 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                     connected=state.connected
                                     class="min-w-0"
                                 />
+                                <Suspense fallback=|| ()>
+                                    {move || Suspend::new(async move {
+                                        let items: Vec<TaskAttachmentDto> = state
+                                            .attachments
+                                            .await
+                                            .unwrap_or_default();
+                                        view! { <TaskAttachmentsList items /> }
+                                    })}
+                                </Suspense>
                             </Show>
                             {extra_tab
                                 .map(|tab: TaskExtraTab| {

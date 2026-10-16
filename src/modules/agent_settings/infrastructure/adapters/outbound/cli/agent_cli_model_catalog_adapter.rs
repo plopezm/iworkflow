@@ -1,18 +1,24 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::process::Output;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::process::Command;
+use tokio::sync::Mutex;
 
 use crate::core::env::{LoginShellInvocation, login_shell_invocation};
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
 use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::ports::outbound::model_catalog_port::ModelCatalogPort;
+use crate::modules::agent_settings::infrastructure::adapters::outbound::cli::cursor_acp_model_catalog::{
+    CURSOR_CATALOG_TIMEOUT, list_cursor_models,
+};
 
 const LIST_MODELS_TIMEOUT: Duration = Duration::from_secs(10);
 const LIST_MODELS_FLAG: &str = "--list-models";
+/// Abrir una sesión ACP para listar modelos es lento: el resultado se reutiliza este tiempo.
+const CURSOR_CACHE_TTL: Duration = Duration::from_secs(300);
 
 /// Claude Code no tiene `--list-models`: sus modelos se eligen por alias (`claude --model`).
 const CLAUDE_PROVIDER: &str = "anthropic";
@@ -23,6 +29,7 @@ const CLAUDE_MODEL_ALIASES: [&str; 4] = ["fable", "opus", "sonnet", "haiku"];
 pub struct AgentCliModelCatalogAdapter {
     bins: HashMap<AgentRuntime, String>,
     timeout: Duration,
+    cursor_models: Mutex<Option<(Instant, Vec<ModelRef>)>>,
 }
 
 impl AgentCliModelCatalogAdapter {
@@ -30,11 +37,26 @@ impl AgentCliModelCatalogAdapter {
         Self {
             bins,
             timeout: LIST_MODELS_TIMEOUT,
+            cursor_models: Mutex::new(None),
         }
     }
 
     fn bin_for(&self, runtime: AgentRuntime) -> Option<&str> {
         self.bins.get(&runtime).map(String::as_str)
+    }
+
+    /// Modelos de Cursor (ids de ACP), cacheados; un fallo no se cachea.
+    async fn cursor_models(&self, bin: &str) -> Result<Vec<ModelRef>, AgentSettingsError> {
+        let mut cache = self.cursor_models.lock().await;
+        if let Some((fetched, models)) = cache.as_ref()
+            && fetched.elapsed() < CURSOR_CACHE_TTL
+        {
+            return Ok(models.clone());
+        }
+        let models: Vec<ModelRef> =
+            list_cursor_models(bin, std::env::vars_os().collect(), CURSOR_CATALOG_TIMEOUT).await?;
+        *cache = Some((Instant::now(), models.clone()));
+        Ok(models)
     }
 }
 
@@ -47,6 +69,9 @@ impl ModelCatalogPort for AgentCliModelCatalogAdapter {
         let Some(bin) = self.bin_for(runtime) else {
             return Ok(Vec::new());
         };
+        if runtime == AgentRuntime::Cursor {
+            return self.cursor_models(bin).await;
+        }
         let output: Output = tokio::time::timeout(
             self.timeout,
             list_models_command(bin, std::env::vars_os()).output(),

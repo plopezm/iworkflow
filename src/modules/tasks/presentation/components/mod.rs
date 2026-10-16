@@ -15,6 +15,7 @@ pub mod image_picker;
 pub mod stage_badge;
 pub mod subagents_panel;
 pub mod task_actions;
+pub mod task_attachments_list;
 pub mod task_card;
 pub mod task_modal;
 pub mod task_status_badge;

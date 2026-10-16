@@ -100,6 +100,16 @@ lib-default-features = false
 lib-profile-release = "wasm-release"
 
 [[test]]
+name = "jira_repository_adapters_test"
+path = "tests/modules/jira/jira_repository_adapters_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "reqwest_jira_client_adapter_test"
+path = "tests/modules/jira/reqwest_jira_client_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "workspace_repository_adapter_test"
 path = "tests/modules/workspaces/workspace_repository_adapter_test.rs"
 required-features = ["ssr"]
@@ -137,6 +147,11 @@ required-features = ["ssr"]
 [[test]]
 name = "pi_rpc_runtime_adapter_test"
 path = "tests/modules/tasks/pi_rpc_runtime_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "cursor_acp_runtime_adapter_test"
+path = "tests/modules/tasks/cursor_acp_runtime_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]

@@ -10,7 +10,7 @@ const LIMITS_HELP: &str = "Limita la RAM y la CPU del agente de cada tarea (solo
 /// Pantalla de configuración: límites de recursos del agente.
 #[component]
 pub fn SettingsPage(
-    /// Secciones adicionales (las aporta el composition root para no acoplar features).
+    /// Extra sections supplied by the composition root (e.g. other features' settings).
     #[prop(optional)]
     children: Option<Children>,
 ) -> impl IntoView {

@@ -64,6 +64,15 @@ Notas:
 - El token se guarda en claro en la base de datos local (`~/.iworkflow/workspaces.db`) y nunca se envía al navegador.
 - Las redirecciones HTTP están desactivadas para no filtrar el token a otro host.
 
+## Integración con Jira (Server / Data Center)
+
+La pestaña **Jira** conecta con un Jira on premise usando la URL del servidor y un token de acceso personal (PAT, `Authorization: Bearer`, API REST v2). Al guardar, la conexión se valida contra Jira; el token se guarda en la base de datos local y nunca vuelve al navegador (dejarlo vacío al editar conserva el guardado).
+
+- **Importar**: «Sincronizar» trae las tareas que cumplen el JQL de la conexión (por defecto `assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC`, máximo 500). El estado local (nueva / convertida / ignorada) se conserva entre sincronizaciones; las tareas nuevas que ya no devuelve Jira se retiran.
+- **Gestionar**: lista con búsqueda y filtros, detalle con descripción y comentarios, y escritura hacia Jira: cambiar el estado (transiciones del workflow) y comentar. Ignorar/restaurar es solo local.
+- **Convertir**: el botón «Convertir en tarea» abre un formulario con el título, el prompt y la prioridad propuestos desde la tarea de Jira (la prioridad se mapea del nombre de Jira); eliges workspace y rama base, editas lo que quieras y se crea la tarea (opcionalmente iniciada). La tarea de Jira queda marcada como convertida y enlazada.
+- Si el servidor usa un certificado autofirmado o de una CA interna que el sistema no conoce, marca «Aceptar certificado no verificado» en la conexión.
+
 ## Perfiles y modelos de agentes
 
 Dos pantallas equivalentes a los comandos de gentle-pi, sobre los mismos ficheros:

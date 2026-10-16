@@ -22,6 +22,7 @@ use crate::modules::agent_settings::infrastructure::adapters::outbound::profiles
 pub struct AgentSettingsSettings {
     pub gentle_shell_bin: String,
     pub pi_bin: String,
+    pub cursor_bin: String,
     pub gentle_pi_config_home: PathBuf,
 }
 
@@ -42,6 +43,7 @@ impl AgentSettingsContext {
             Arc::new(AgentCliModelCatalogAdapter::new(HashMap::from([
                 (AgentRuntime::GentleShell, settings.gentle_shell_bin),
                 (AgentRuntime::Pi, settings.pi_bin),
+                (AgentRuntime::Cursor, settings.cursor_bin),
             ])));
         let profile_catalog: Arc<dyn ProfileCatalogPort> = Arc::new(
             ProfilesFileCatalogAdapter::new(settings.gentle_pi_config_home),
