@@ -9,7 +9,11 @@ const LIMITS_HELP: &str = "Limita la RAM y la CPU del agente de cada tarea (solo
 
 /// Pantalla de configuración: límites de recursos del agente.
 #[component]
-pub fn SettingsPage() -> impl IntoView {
+pub fn SettingsPage(
+    /// Extra sections supplied by the composition root (e.g. other features' settings).
+    #[prop(optional)]
+    children: Option<Children>,
+) -> impl IntoView {
     let state: AgentSettingsState = AgentSettingsState::shared();
     let pending: Signal<bool> = state.update.pending().into();
 
@@ -87,6 +91,7 @@ pub fn SettingsPage() -> impl IntoView {
                             .into_any()
                     })}
                 </Transition>
+                {children.map(|extra: Children| extra())}
             </div>
         </div>
     }

@@ -22,6 +22,14 @@ use crate::modules::agents_files::infrastructure::di::agents_files_context::Agen
 use crate::modules::agent_settings::infrastructure::di::agent_settings_context::{
     AgentSettingsContext, AgentSettingsSettings,
 };
+use crate::modules::jira::domain::errors::jira_error::JiraError;
+use crate::modules::jira::domain::models::priority_hint::PriorityHint;
+use crate::modules::jira::domain::models::workspace_option::{BranchOption, WorkspaceOption};
+use crate::modules::jira::domain::ports::outbound::task_creation_port::{
+    CreatedLinkedTask, NewLinkedTask, TaskCreationPort,
+};
+use crate::modules::jira::domain::ports::outbound::workspace_catalog_port::WorkspaceCatalogPort;
+use crate::modules::jira::infrastructure::di::jira_context::JiraContext;
 use crate::modules::agent_settings::application::usecases::prepare_launch::PrepareLaunch;
 use crate::modules::agent_settings::domain::errors::agent_settings_error::AgentSettingsError;
 use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPreferences;
@@ -42,7 +50,14 @@ use crate::modules::terminal::infrastructure::adapters::outbound::workspace_path
     PathLookupFuture, PathResolver,
 };
 use crate::modules::terminal::infrastructure::di::terminal_context::TerminalContext;
+use crate::modules::tasks::application::usecases::create_task::CreateTask;
 use crate::modules::tasks::application::usecases::get_task::GetTask;
+use crate::modules::tasks::application::usecases::list_workspace_branches::ListWorkspaceBranches;
+use crate::modules::tasks::application::usecases::list_workspace_options::ListWorkspaceOptions;
+use crate::modules::tasks::domain::models::branch_option::BranchOption as TaskBranchOption;
+use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
+use crate::modules::tasks::domain::models::task::{CreatedTask, NewTask};
+use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::application::usecases::delete_workspace_tasks::DeleteWorkspaceTasks;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::launch_options::{LaunchModel, LaunchOptions};
@@ -74,6 +89,7 @@ pub struct AppState {
     pub agents_files: AgentsFilesContext,
     pub terminal: TerminalContext,
     pub project_tree: ProjectTreeContext,
+    pub jira: JiraContext,
 }
 
 impl AppState {
@@ -149,6 +165,15 @@ impl AppState {
             workspace_tasks,
             workspace_agents_files,
         );
+        let task_creation: Arc<dyn TaskCreationPort> = Arc::new(TaskCreationBridge {
+            create_task: tasks.create_task.clone(),
+        });
+        let workspace_catalog: Arc<dyn WorkspaceCatalogPort> = Arc::new(WorkspaceCatalogBridge {
+            list_options: tasks.list_workspace_options.clone(),
+            list_branches: tasks.list_workspace_branches.clone(),
+        });
+        let jira: JiraContext = JiraContext::new(pool.clone(), task_creation, workspace_catalog)
+            .map_err(|e: JiraError| TaskError::Runtime(e.to_string()))?;
         Ok(Self {
             workspaces,
             tasks,
@@ -157,6 +182,7 @@ impl AppState {
             agents_files,
             terminal,
             project_tree,
+            jira,
         })
     }
 
@@ -169,6 +195,7 @@ impl AppState {
         provide_context(self.agents_files.clone());
         provide_context(self.terminal.clone());
         provide_context(self.project_tree.clone());
+        provide_context(self.jira.clone());
     }
 }
 
@@ -371,6 +398,88 @@ impl LaunchSettingsPort for LaunchSettingsBridge {
     }
 }
 
+/// Expone la creación de tareas al feature de Jira a través de su propio puerto.
+pub struct TaskCreationBridge {
+    pub create_task: Arc<CreateTask>,
+}
+
+#[async_trait::async_trait]
+impl TaskCreationPort for TaskCreationBridge {
+    async fn create(&self, task: NewLinkedTask) -> Result<CreatedLinkedTask, JiraError> {
+        let created: CreatedTask = self
+            .create_task
+            .execute(to_new_task(task))
+            .await
+            .map_err(|e: TaskError| JiraError::TaskCreation(e.to_string()))?;
+        Ok(CreatedLinkedTask {
+            task_id: created.task.id.to_string(),
+            start_error: created.start_error.map(|e: TaskError| e.to_string()),
+        })
+    }
+}
+
+fn to_new_task(task: NewLinkedTask) -> NewTask {
+    NewTask {
+        workspace_id: task.workspace_id,
+        title: task.title,
+        prompt: task.prompt,
+        priority: to_task_priority(task.priority),
+        limits: ResourceLimits::default(),
+        base_branch: task.base_branch,
+        images: Vec::<ImageAttachment>::new(),
+        start_now: task.start_now,
+    }
+}
+
+fn to_task_priority(priority: PriorityHint) -> TaskPriority {
+    match priority {
+        PriorityHint::Low => TaskPriority::Low,
+        PriorityHint::Normal => TaskPriority::Normal,
+        PriorityHint::High => TaskPriority::High,
+        PriorityHint::Urgent => TaskPriority::Urgent,
+    }
+}
+
+/// Expone los workspaces y sus ramas al feature de Jira a través de su propio puerto.
+pub struct WorkspaceCatalogBridge {
+    pub list_options: Arc<ListWorkspaceOptions>,
+    pub list_branches: Arc<ListWorkspaceBranches>,
+}
+
+#[async_trait::async_trait]
+impl WorkspaceCatalogPort for WorkspaceCatalogBridge {
+    async fn workspaces(&self) -> Result<Vec<WorkspaceOption>, JiraError> {
+        self.list_options
+            .execute()
+            .await
+            .map(|all: Vec<WorkspaceRef>| {
+                all.into_iter()
+                    .map(|w: WorkspaceRef| WorkspaceOption {
+                        id: w.id,
+                        name: w.name,
+                        base_branch: w.base_branch,
+                    })
+                    .collect()
+            })
+            .map_err(|e: TaskError| JiraError::Repository(e.to_string()))
+    }
+
+    async fn branches(&self, workspace_id: &str) -> Result<Vec<BranchOption>, JiraError> {
+        self.list_branches
+            .execute(workspace_id)
+            .await
+            .map(|all: Vec<TaskBranchOption>| {
+                all.into_iter()
+                    .map(|b: TaskBranchOption| BranchOption {
+                        name: b.name,
+                        remote: b.remote,
+                    })
+                    .collect()
+            })
+            .map_err(|e: TaskError| JiraError::Repository(e.to_string()))
+    }
+}
+
 /// Expone el borrado en cascada de tareas al feature de workspaces a través de su
 /// propio puerto.
 pub struct WorkspaceTasksBridge {
@@ -499,6 +608,35 @@ mod tests {
             task_target(task_with(TaskStatus::Idle, "no-uuid", "/wt/x")),
             None
         );
+    }
+
+    #[test]
+    fn jira_priority_hint_maps_to_every_task_priority() {
+        for (hint, expected) in [
+            (PriorityHint::Low, TaskPriority::Low),
+            (PriorityHint::Normal, TaskPriority::Normal),
+            (PriorityHint::High, TaskPriority::High),
+            (PriorityHint::Urgent, TaskPriority::Urgent),
+        ] {
+            assert_eq!(to_task_priority(hint), expected);
+        }
+    }
+
+    #[test]
+    fn linked_task_becomes_a_backlog_or_started_new_task() {
+        let new_task: NewTask = to_new_task(NewLinkedTask {
+            workspace_id: "w".to_string(),
+            base_branch: Some("origin/dev".to_string()),
+            title: "t".to_string(),
+            prompt: "p".to_string(),
+            priority: PriorityHint::High,
+            start_now: true,
+        });
+        assert_eq!(new_task.workspace_id, "w");
+        assert_eq!(new_task.base_branch.as_deref(), Some("origin/dev"));
+        assert_eq!(new_task.priority, TaskPriority::High);
+        assert!(new_task.start_now);
+        assert!(new_task.images.is_empty());
     }
 
     #[test]

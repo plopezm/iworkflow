@@ -1,0 +1,14 @@
+pub mod add_issue_comment;
+pub mod convert_issue;
+pub mod delete_connection;
+pub mod get_connection;
+pub mod get_issue;
+pub mod list_conversion_branches;
+pub mod list_issue_comments;
+pub mod list_issue_transitions;
+pub mod list_issues;
+pub mod prepare_conversion;
+pub mod save_connection;
+pub mod set_issue_ignored;
+pub mod sync_issues;
+pub mod transition_issue;
