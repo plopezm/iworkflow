@@ -138,6 +138,11 @@ path = "tests/modules/tasks/pi_rpc_runtime_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]
+name = "cursor_acp_runtime_adapter_test"
+path = "tests/modules/tasks/cursor_acp_runtime_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "claude_stream_runtime_adapter_test"
 path = "tests/modules/tasks/claude_stream_runtime_adapter_test.rs"
 required-features = ["ssr"]
