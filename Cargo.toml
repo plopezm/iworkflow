@@ -33,6 +33,7 @@ dotenvy = { version = "0.15", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 portable-pty = { version = "0.9", optional = true }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"], optional = true }
 
 # hydrate
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -69,6 +70,7 @@ ssr = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:portable-pty",
+    "dep:reqwest",
     "dep:nix",
     "leptos/ssr",
     "leptos_meta/ssr",
@@ -96,6 +98,16 @@ bin-default-features = false
 lib-features = ["hydrate"]
 lib-default-features = false
 lib-profile-release = "wasm-release"
+
+[[test]]
+name = "jira_repository_adapters_test"
+path = "tests/modules/jira/jira_repository_adapters_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "reqwest_jira_client_adapter_test"
+path = "tests/modules/jira/reqwest_jira_client_adapter_test.rs"
+required-features = ["ssr"]
 
 [[test]]
 name = "workspace_repository_adapter_test"
