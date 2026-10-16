@@ -59,6 +59,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task
 use crate::modules::tasks::infrastructure::adapters::outbound::storage::fs_attachment_storage_adapter::FsAttachmentStorageAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_runtime_router::AgentRuntimeRouter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::claude::claude_stream_runtime_adapter::ClaudeStreamRuntimeAdapter;
+use crate::modules::tasks::infrastructure::adapters::outbound::runtime::cursor::cursor_acp_runtime_adapter::CursorAcpRuntimeAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::pi_rpc_runtime_adapter::PiRpcRuntimeAdapter;
 
 /// Id de gentle-shell (runtime predeterminado); igual a `AgentRuntime::GentleShell.as_str()`.
@@ -67,6 +68,8 @@ pub(crate) const GENTLE_SHELL_RUNTIME: &str = "gentle-shell";
 pub(crate) const PI_RUNTIME: &str = "pi";
 /// Id de Claude Code; igual a `AgentRuntime::Claude.as_str()`.
 pub(crate) const CLAUDE_RUNTIME: &str = "claude";
+/// Id del agente de Cursor; igual a `AgentRuntime::Cursor.as_str()`.
+pub(crate) const CURSOR_RUNTIME: &str = "cursor";
 
 /// Configuración propia del feature de tareas.
 #[derive(Debug, Clone)]
@@ -74,6 +77,8 @@ pub struct TasksSettings {
     pub gentle_shell_bin: String,
     pub pi_bin: String,
     pub claude_bin: String,
+    pub cursor_bin: String,
+    pub cursor_sessions_dir: PathBuf,
     pub worktrees_dir: PathBuf,
     pub attachments_dir: PathBuf,
 }
@@ -126,6 +131,8 @@ impl TasksContext {
             settings.gentle_shell_bin,
             settings.pi_bin,
             settings.claude_bin,
+            settings.cursor_bin,
+            settings.cursor_sessions_dir,
         )?);
         Ok(Self::with_runtime(
             pool,
@@ -137,15 +144,18 @@ impl TasksContext {
         ))
     }
 
-    /// Registra gentle-shell (predeterminado), pi y Claude Code.
+    /// Registra gentle-shell (predeterminado), pi, Claude Code y Cursor.
     fn build_router(
         gentle_shell_bin: String,
         pi_bin: String,
         claude_bin: String,
+        cursor_bin: String,
+        cursor_sessions_dir: PathBuf,
     ) -> Result<AgentRuntimeRouter, TaskError> {
         let gentle_shell_id: RuntimeId = RuntimeId::parse(GENTLE_SHELL_RUNTIME)?;
         let pi_id: RuntimeId = RuntimeId::parse(PI_RUNTIME)?;
         let claude_id: RuntimeId = RuntimeId::parse(CLAUDE_RUNTIME)?;
+        let cursor_id: RuntimeId = RuntimeId::parse(CURSOR_RUNTIME)?;
         let mut runtimes: HashMap<RuntimeId, Arc<dyn AgentRuntimePort>> = HashMap::new();
         runtimes.insert(
             gentle_shell_id.clone(),
@@ -155,6 +165,13 @@ impl TasksContext {
         runtimes.insert(
             claude_id,
             Arc::new(ClaudeStreamRuntimeAdapter::new(claude_bin)),
+        );
+        runtimes.insert(
+            cursor_id,
+            Arc::new(CursorAcpRuntimeAdapter::new(
+                cursor_bin,
+                cursor_sessions_dir,
+            )),
         );
         AgentRuntimeRouter::new(gentle_shell_id, runtimes)
     }
@@ -318,6 +335,8 @@ mod tests {
             SHELL_BIN.to_string(),
             PI_BIN.to_string(),
             CLAUDE_BIN.to_string(),
+            "agent".to_string(),
+            PathBuf::from("/tmp/iwf-test-cursor-sessions"),
         )
         .expect("router")
     }
@@ -355,6 +374,15 @@ mod tests {
 
         assert!(caps.dialogs && caps.resume && caps.model_selection && caps.thinking_levels);
         assert!(!caps.steer && !caps.follow_up && !caps.subagents);
+    }
+
+    #[test]
+    fn cursor_is_registered_with_dialogs_resume_and_model_selection_only() {
+        let cursor: RuntimeId = RuntimeId::parse(CURSOR_RUNTIME).expect("runtime válido");
+        let caps: AgentCapabilities = router().runtime_capabilities(Some(&cursor));
+
+        assert!(caps.dialogs && caps.resume && caps.model_selection);
+        assert!(!caps.steer && !caps.follow_up && !caps.subagents && !caps.thinking_levels);
     }
 
     #[test]
@@ -398,6 +426,8 @@ mod tests {
             gentle_shell_bin: SHELL_BIN.to_string(),
             pi_bin: PI_BIN.to_string(),
             claude_bin: "claude".to_string(),
+            cursor_bin: "agent".to_string(),
+            cursor_sessions_dir: dir.path().join("cursor-sessions"),
             worktrees_dir: dir.path().join("worktrees"),
             attachments_dir: dir.path().join("attachments"),
         };

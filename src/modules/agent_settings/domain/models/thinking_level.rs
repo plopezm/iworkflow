@@ -37,10 +37,12 @@ impl ThinkingLevel {
     ];
 
     /// Niveles que admite `runtime`: `claude --effort` no tiene `off` ni `minimal`;
-    /// pi y gentle-shell aceptan todos.
+    /// pi y gentle-shell aceptan todos; Cursor no tiene niveles (el esfuerzo va dentro del
+    /// id de cada modelo).
     pub fn supported_by(runtime: AgentRuntime) -> &'static [ThinkingLevel] {
         match runtime {
             AgentRuntime::Claude => &Self::CLAUDE,
+            AgentRuntime::Cursor => &[],
             AgentRuntime::GentleShell | AgentRuntime::Pi => &Self::ALL,
         }
     }

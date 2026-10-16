@@ -42,6 +42,19 @@ pub trait LineCodec: Send + 'static {
         command: &AgentCommand,
         request_id: &str,
     ) -> Result<Option<String>, TaskError>;
+
+    /// Líneas que se escriben en stdin nada más lanzar el proceso (p. ej. el inicio de un
+    /// handshake). Se invoca una vez.
+    fn start(&mut self) -> Vec<String> {
+        Vec::new()
+    }
+
+    /// Líneas generadas por el propio códec como reacción a lo decodificado (respuestas a
+    /// peticiones del agente, siguiente paso de un handshake, órdenes retenidas). Se invoca
+    /// tras cada `decode` y se escriben en stdin en orden.
+    fn take_outgoing(&mut self) -> Vec<String> {
+        Vec::new()
+    }
 }
 
 type SharedCodec = Arc<Mutex<Box<dyn LineCodec>>>;
@@ -133,6 +146,15 @@ impl ProcessRuntime {
         let (kill, kill_rx) = oneshot::channel::<()>();
         let generation: u64 = self.generations.fetch_add(1, Ordering::Relaxed);
         let codec: SharedCodec = Arc::new(Mutex::new(codec));
+        let initial_lines: Vec<String> = codec
+            .lock()
+            .map_err(|_| TaskError::Runtime("códec del agente corrupto".to_string()))?
+            .start();
+        for line in initial_lines {
+            commands
+                .send(line)
+                .map_err(|_| TaskError::AgentNotRunning)?;
+        }
         let io: ProcessIo = ProcessIo {
             child,
             stdin,
@@ -149,6 +171,7 @@ impl ProcessRuntime {
             generation,
             io,
             codec.clone(),
+            commands.downgrade(),
             sink,
             self.processes.clone(),
         ));
@@ -168,18 +191,21 @@ impl ProcessRuntime {
     pub fn send(&self, task_id: TaskId, command: &AgentCommand) -> Result<(), TaskError> {
         let registry: MutexGuard<'_, HashMap<TaskId, AgentProcess>> = self.registry()?;
         let process: &AgentProcess = registry.get(&task_id).ok_or(TaskError::AgentNotRunning)?;
-        let encoded: Option<String> = process
-            .codec
-            .lock()
-            .map_err(|_| TaskError::Runtime("códec del agente corrupto".to_string()))?
-            .encode(command, &Uuid::new_v4().to_string())?;
-        let Some(line) = encoded else {
-            return Ok(());
+        let (encoded, extra): (Option<String>, Vec<String>) = {
+            let mut codec = process
+                .codec
+                .lock()
+                .map_err(|_| TaskError::Runtime("códec del agente corrupto".to_string()))?;
+            let encoded: Option<String> = codec.encode(command, &Uuid::new_v4().to_string())?;
+            (encoded, codec.take_outgoing())
         };
-        process
-            .commands
-            .send(line)
-            .map_err(|_| TaskError::AgentNotRunning)
+        for line in encoded.into_iter().chain(extra) {
+            process
+                .commands
+                .send(line)
+                .map_err(|_| TaskError::AgentNotRunning)?;
+        }
+        Ok(())
     }
 
     pub async fn stop(&self, task_id: TaskId) -> Result<(), TaskError> {
@@ -311,6 +337,7 @@ async fn supervise(
     generation: u64,
     io: ProcessIo,
     codec: SharedCodec,
+    outgoing: mpsc::WeakUnboundedSender<String>,
     sink: Arc<dyn AgentEventSink>,
     registry: Registry,
 ) {
@@ -323,7 +350,7 @@ async fn supervise(
         mut kill_rx,
     } = io;
     let writer = write_commands(stdin, command_rx);
-    let reader = read_events(task_id, stdout, codec, sink.clone());
+    let reader = read_events(task_id, stdout, codec, outgoing, sink.clone());
     let logger: JoinHandle<()> = tokio::spawn(log_stderr(task_id, stderr));
     tokio::pin!(writer, reader);
 
@@ -390,6 +417,7 @@ async fn read_events(
     task_id: TaskId,
     stdout: ChildStdout,
     codec: SharedCodec,
+    outgoing: mpsc::WeakUnboundedSender<String>,
     sink: Arc<dyn AgentEventSink>,
 ) {
     let mut reader: BufReader<ChildStdout> = BufReader::new(stdout);
@@ -401,13 +429,24 @@ async fn read_events(
             Ok(_) => {
                 let line: String = String::from_utf8_lossy(&buffer).into_owned();
                 let line: &str = line.trim_end_matches(['\n', '\r']);
-                let events: Vec<AgentEvent> = match codec.lock() {
-                    Ok(mut codec) => codec.decode(task_id, line),
+                let (events, replies): (Vec<AgentEvent>, Vec<String>) = match codec.lock() {
+                    Ok(mut codec) => {
+                        let events: Vec<AgentEvent> = codec.decode(task_id, line);
+                        (events, codec.take_outgoing())
+                    }
                     Err(_) => {
                         tracing::warn!(%task_id, "códec del agente corrupto; se descarta la línea");
-                        Vec::new()
+                        (Vec::new(), Vec::new())
                     }
                 };
+                // Sender débil: si `stop` ya cerró stdin no hay a quién escribir.
+                if let Some(sender) = outgoing.upgrade() {
+                    for reply in replies {
+                        if sender.send(reply).is_err() {
+                            break;
+                        }
+                    }
+                }
                 for event in events {
                     sink.handle(task_id, event).await;
                 }
@@ -561,5 +600,89 @@ mod tests {
             .map(|arg: &OsStr| arg.to_string_lossy().into_owned())
             .collect();
         assert_eq!(args, vec!["-l", "-c", "exec 'agent' '--mode' 'rpc'"]);
+    }
+
+    /// Códec de prueba: escribe `first` al arrancar y `second` tras decodificar la primera línea.
+    struct HandshakeCodec {
+        second_sent: bool,
+    }
+
+    impl LineCodec for HandshakeCodec {
+        fn decode(&mut self, _task_id: TaskId, line: &str) -> Vec<AgentEvent> {
+            vec![AgentEvent::Notice {
+                level: crate::modules::tasks::domain::models::agent_event::NoticeLevel::Info,
+                message: line.to_string(),
+            }]
+        }
+
+        fn encode(&mut self, _: &AgentCommand, _: &str) -> Result<Option<String>, TaskError> {
+            Ok(None)
+        }
+
+        fn start(&mut self) -> Vec<String> {
+            vec!["first".to_string()]
+        }
+
+        fn take_outgoing(&mut self) -> Vec<String> {
+            if self.second_sent {
+                return Vec::new();
+            }
+            self.second_sent = true;
+            vec!["second".to_string()]
+        }
+    }
+
+    #[derive(Default)]
+    struct VecSink {
+        events: Mutex<Vec<AgentEvent>>,
+    }
+
+    #[async_trait::async_trait]
+    impl AgentEventSink for VecSink {
+        async fn handle(&self, _task_id: TaskId, event: AgentEvent) {
+            self.events.lock().expect("lock").push(event);
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn codec_start_lines_and_decode_replies_reach_the_agent_stdin_in_order() {
+        const ECHO: &str = "import sys\nfor l in sys.stdin:\n    print(l.strip(), flush=True)";
+        let runtime: ProcessRuntime = ProcessRuntime::new("python3");
+        let sink: Arc<VecSink> = Arc::new(VecSink::default());
+        let task_id: TaskId = TaskId::new();
+
+        runtime
+            .start(
+                task_id,
+                Path::new("."),
+                &LaunchSpec {
+                    agent_args: vec!["-u".into(), "-c".into(), ECHO.into()],
+                    extra_env: Vec::new(),
+                },
+                &ResourceLimits::default(),
+                Box::new(HandshakeCodec { second_sent: false }),
+                sink.clone(),
+            )
+            .expect("start");
+        for _ in 0..100 {
+            if sink.events.lock().expect("lock").len() >= 2 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        runtime.stop(task_id).await.expect("stop");
+
+        let messages: Vec<String> = sink
+            .events
+            .lock()
+            .expect("lock")
+            .iter()
+            .filter_map(|e: &AgentEvent| match e {
+                AgentEvent::Notice { message, .. } => Some(message.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(messages, vec!["first".to_string(), "second".to_string()]);
     }
 }
