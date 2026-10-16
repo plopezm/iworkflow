@@ -2,7 +2,7 @@
 
 diesel::table! {
     agent_settings (id) {
-        id -> Integer,
+        id -> Nullable<Integer>,
         model_provider -> Nullable<Text>,
         model_id -> Nullable<Text>,
         profile -> Nullable<Text>,

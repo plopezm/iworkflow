@@ -19,6 +19,9 @@ use crate::modules::agent_settings::presentation::components::agent_settings_bar
 use crate::modules::agent_settings::presentation::pages::settings_page::SettingsPage;
 use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
+use crate::modules::jira::presentation::pages::jira_convert_page::JiraConvertPage;
+use crate::modules::jira::presentation::pages::jira_issue_page::JiraIssuePage;
+use crate::modules::jira::presentation::pages::jira_page::JiraPage;
 use crate::modules::project_tree::presentation::pages::project_file_page::ProjectFilePage;
 use crate::modules::project_tree::presentation::pages::project_tree_page::ProjectTreePage;
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
@@ -66,6 +69,9 @@ enum TabRoute {
     Terminals,
     TerminalSession(String),
     AgentsFiles,
+    Jira,
+    JiraIssue(String),
+    JiraConvert(String),
     Profiles,
     Models,
     Settings,
@@ -91,6 +97,9 @@ impl TabRoute {
             ["terminals"] => Self::Terminals,
             ["terminals", id] => Self::TerminalSession((*id).to_string()),
             ["agents-files"] => Self::AgentsFiles,
+            ["jira"] => Self::Jira,
+            ["jira", key] => Self::JiraIssue((*key).to_string()),
+            ["jira", key, "convert"] => Self::JiraConvert((*key).to_string()),
             ["profiles"] => Self::Profiles,
             ["models"] => Self::Models,
             ["settings"] => Self::Settings,
@@ -115,6 +124,9 @@ impl TabRoute {
                 format!("Terminal {}", id.chars().take(8).collect::<String>())
             }
             Self::AgentsFiles => "AGENTS.md".to_string(),
+            Self::Jira => "Jira".to_string(),
+            Self::JiraIssue(key) => key.clone(),
+            Self::JiraConvert(key) => format!("Convertir {key}"),
             Self::Profiles => "Perfiles".to_string(),
             Self::Models => "Modelos".to_string(),
             Self::Settings => "Configuración".to_string(),
@@ -137,6 +149,8 @@ impl TabRoute {
             | Self::TerminalSession(_)
             | Self::TaskTerminal(_) => "❯",
             Self::AgentsFiles => "§",
+            Self::Jira | Self::JiraIssue(_) => "◈",
+            Self::JiraConvert(_) => "⇄",
             Self::Profiles => "☰",
             Self::Models => "◇",
             Self::Settings => "⚙",
@@ -160,6 +174,7 @@ impl TabRoute {
             | Self::TaskEdit(id)
             | Self::TaskTerminal(id)
             | Self::TaskDiff(id) => params.insert("id", id.clone()),
+            Self::JiraIssue(key) | Self::JiraConvert(key) => params.insert("key", key.clone()),
             Self::TerminalSession(id) => params.insert("session_id", id.clone()),
             _ => {}
         }
@@ -177,6 +192,9 @@ impl TabRoute {
             Self::Terminals => view! { <TerminalsPage /> }.into_any(),
             Self::TerminalSession(_) => view! { <TerminalSessionPage /> }.into_any(),
             Self::AgentsFiles => view! { <AgentsFilesPage /> }.into_any(),
+            Self::Jira => view! { <JiraPage /> }.into_any(),
+            Self::JiraIssue(_) => view! { <JiraIssuePage /> }.into_any(),
+            Self::JiraConvert(_) => view! { <JiraConvertPage /> }.into_any(),
             Self::Profiles => view! { <ProfilesPage /> }.into_any(),
             Self::Models => view! { <ModelsPage /> }.into_any(),
             Self::Settings => view! { <SettingsPage /> }.into_any(),
@@ -202,11 +220,12 @@ fn tab_params(path: &str) -> ParamsMap {
 }
 
 /// Destinos de nivel superior que ofrecen la barra lateral, el menú `+` y los grupos vacíos.
-const TOP_LEVEL_DESTINATIONS: [(&str, &str, &str); 7] = [
+const TOP_LEVEL_DESTINATIONS: [(&str, &str, &str); 8] = [
     ("/", "▦", "Tablero"),
     ("/terminals", "❯", "Terminales"),
     ("/workspaces", "▤", "Workspaces"),
     ("/agents-files", "§", "AGENTS.md"),
+    ("/jira", "◈", "Jira"),
     ("/profiles", "☰", "Perfiles"),
     ("/models", "◇", "Modelos"),
     ("/settings", "⚙", "Configuración"),
@@ -378,6 +397,8 @@ pub fn App() -> impl IntoView {
                 <Route path=StaticSegment("workspaces") view=|| () />
                 <Route path=StaticSegment("terminals") view=|| () />
                 <Route path=StaticSegment("agents-files") view=|| () />
+                <Route path=StaticSegment("jira") view=|| () />
+                <Route path=(StaticSegment("jira"), WildcardSegment("rest")) view=|| () />
                 <Route path=StaticSegment("profiles") view=|| () />
                 <Route path=StaticSegment("models") view=|| () />
                 <Route path=StaticSegment("settings") view=|| () />
@@ -444,6 +465,20 @@ mod tests {
             TabRoute::TerminalSession("s1".into())
         );
         assert_eq!(TabRoute::parse("/models"), TabRoute::Models);
+        assert_eq!(TabRoute::parse("/jira"), TabRoute::Jira);
+        assert_eq!(
+            TabRoute::parse("/jira/ABC-12"),
+            TabRoute::JiraIssue("ABC-12".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/jira/ABC-12/convert"),
+            TabRoute::JiraConvert("ABC-12".into())
+        );
+        assert_eq!(TabRoute::JiraIssue("ABC-12".into()).title(), "ABC-12");
+        assert_eq!(
+            TabRoute::JiraConvert("ABC-12".into()).title(),
+            "Convertir ABC-12"
+        );
         assert_eq!(TabRoute::parse("/nope/x/y/z"), TabRoute::NotFound);
     }
 
@@ -459,6 +494,13 @@ mod tests {
                 .get("session_id")
                 .as_deref(),
             Some("s1")
+        );
+        assert_eq!(
+            TabRoute::parse("/jira/ABC-12/convert")
+                .params()
+                .get("key")
+                .as_deref(),
+            Some("ABC-12")
         );
         assert_eq!(TabRoute::Board.params().get("id"), None);
     }

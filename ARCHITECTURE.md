@@ -201,7 +201,8 @@ src/
     ├── agent_settings/# modelo/perfil/runtime/thinking globales
     ├── agent_profiles/# perfiles y enrutado de roles/modelos de los agentes
     ├── project_tree/  # árbol de directorios de un workspace
-    └── agents_files/  # ficheros AGENTS.md reutilizables
+    ├── agents_files/  # ficheros AGENTS.md reutilizables
+    └── jira/          # importación desde Jira Server/DC y conversión en tareas
 ```
 
 ### Corte vertical + capas hexagonales
@@ -387,6 +388,8 @@ flowchart LR
 | `WorkspaceTasksBridge` | `WorkspaceTasksPort` (workspaces) | `tasks::DeleteWorkspaceTasks` |
 | `AgentsFilesBridge` | `AgentsFilesPort` (workspaces) | `agents_files::ListAgentsFiles`/`InstallAgentsFile` |
 | `ProjectLookupBridge` | `ProjectLookupPort` (agents_files) | `workspaces::GetWorkspace`/`ListWorkspaces` |
+| `TaskCreationBridge` | `TaskCreationPort` (jira) | `tasks::CreateTask` |
+| `WorkspaceCatalogBridge` | `WorkspaceCatalogPort` (jira) | `tasks::ListWorkspaceOptions`/`ListWorkspaceBranches` |
 | `workspace_path_resolver` (closure) | `PathResolver` (terminal) | `workspaces::GetWorkspace` |
 
 El orden en `AppState::new` no es arbitrario: `workspaces` necesita a `tasks` y `agents_files` (para borrado en cascada e instalar AGENTS.md), pero estos necesitan antes los casos de uso de lectura de workspaces. Por eso se crean primero `get_workspace` / `list_workspaces` con su repositorio y los demás contextos se construyen sobre ellos.

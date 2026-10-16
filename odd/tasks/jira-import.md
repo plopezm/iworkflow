@@ -29,8 +29,8 @@ editable mapping. Keep Spanish UI copy; code/comments in English.
 - [x] T3 (S1,S3) Jira REST client adapter (reqwest) + integration test against a stub server — commit
 - [x] T4 (S1-S5) use cases with mockall tests — commit
 - [x] T5 (S1-S6) DI context, DTOs, server fns, app_state bridges + mapping tests — commit
-- [ ] T6 (S1-S5) presentation (state, pages, components), dock routes, sidebar entry — commit
-- [ ] T7 (all) fmt, clippy ssr/hydrate, tests, docs, codegraph — commit
+- [x] T6 (S1-S5) presentation (state, pages, components), dock routes, sidebar entry — commit
+- [x] T7 (all) fmt, clippy ssr/hydrate, tests, docs, codegraph — commit
 
 ## Log
 
