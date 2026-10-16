@@ -723,4 +723,33 @@ mod tests {
             WorkspaceError::AgentsFile("error de almacenamiento: boom".to_string())
         );
     }
+
+    #[test]
+    fn jira_priorities_map_one_to_one_onto_task_priorities() {
+        assert_eq!(to_task_priority(PriorityHint::Low), TaskPriority::Low);
+        assert_eq!(to_task_priority(PriorityHint::Normal), TaskPriority::Normal);
+        assert_eq!(to_task_priority(PriorityHint::High), TaskPriority::High);
+        assert_eq!(to_task_priority(PriorityHint::Urgent), TaskPriority::Urgent);
+    }
+
+    #[test]
+    fn a_linked_task_becomes_a_new_task_without_images_or_limits() {
+        let task: NewTask = to_new_task(NewLinkedTask {
+            workspace_id: "w1".to_string(),
+            base_branch: Some("origin/develop".to_string()),
+            title: "Título".to_string(),
+            prompt: "Prompt".to_string(),
+            priority: PriorityHint::High,
+            start_now: true,
+        });
+
+        assert_eq!(task.workspace_id, "w1");
+        assert_eq!(task.base_branch.as_deref(), Some("origin/develop"));
+        assert_eq!(task.title, "Título");
+        assert_eq!(task.prompt, "Prompt");
+        assert_eq!(task.priority, TaskPriority::High);
+        assert!(task.start_now);
+        assert!(task.images.is_empty());
+        assert_eq!(task.limits, ResourceLimits::default());
+    }
 }

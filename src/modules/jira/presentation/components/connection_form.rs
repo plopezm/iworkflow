@@ -11,12 +11,18 @@ use crate::modules::jira::presentation::state::jira_connection_state::{
 #[component]
 pub fn JiraConnectionForm(
     state: JiraConnectionState,
-    /// A token is already stored, so leaving the field blank keeps it.
-    token_stored: bool,
+    /// URL of the stored connection, if any: leaving the token blank keeps the stored token, but
+    /// only while the URL still points at that server.
+    stored_url: Option<String>,
 ) -> impl IntoView {
+    let token_stored: bool = stored_url.is_some();
     let pending: Signal<bool> = state.save.pending().into();
     let submittable: Memo<bool> = Memo::new(move |_| {
-        can_submit(&state.form_url.get(), &state.form_token.get(), token_stored)
+        can_submit(
+            &state.form_url.get(),
+            &state.form_token.get(),
+            stored_url.as_deref(),
+        )
     });
     let token_placeholder: &str = if token_stored {
         "Vacío = conservar el token guardado"

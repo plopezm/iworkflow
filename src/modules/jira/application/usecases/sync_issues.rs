@@ -56,7 +56,8 @@ impl SyncIssues {
             }
         };
         let added: usize = self.issues.replace_synced(&remote, now).await?;
-        self.connections.record_sync(now, None).await?;
+        // The issues are already stored: failing to note the sync time must not fail the sync.
+        let _ = self.connections.record_sync(now, None).await;
         Ok(SyncOutcome {
             total: remote.len(),
             added,
@@ -143,5 +144,26 @@ mod tests {
         .execute()
         .await;
         assert_eq!(result, Err(JiraError::NotConfigured));
+    }
+
+    #[tokio::test]
+    async fn a_bookkeeping_failure_after_storing_the_issues_does_not_fail_the_sync() {
+        let mut connections = connected();
+        connections
+            .expect_record_sync()
+            .returning(|_, _| Err(JiraError::Repository("bloqueada".to_string())));
+        let mut client = MockJiraClient::new();
+        client
+            .expect_search()
+            .returning(|_, _| Ok(vec![sample_remote("A-1")]));
+        let mut issues = MockJiraIssueRepository::new();
+        issues.expect_replace_synced().returning(|_, _| Ok(1));
+
+        let outcome: SyncOutcome =
+            SyncIssues::new(Arc::new(connections), Arc::new(issues), Arc::new(client))
+                .execute()
+                .await
+                .expect("synced");
+        assert_eq!(outcome, SyncOutcome { total: 1, added: 1 });
     }
 }

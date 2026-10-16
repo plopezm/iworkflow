@@ -117,6 +117,27 @@ async fn replace_synced_inserts_lists_newest_first_and_finds() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_repeated_key_in_one_batch_does_not_abort_the_sync() {
+    let db: common::TestDb = common::test_db().await;
+    let repo: JiraIssueRepositoryAdapter = JiraIssueRepositoryAdapter::new(db.pool.clone());
+
+    let added: usize = repo
+        .replace_synced(
+            &[
+                remote("A-1", "To Do", 10),
+                remote("A-1", "Done", 20),
+                remote("A-2", "To Do", 30),
+            ],
+            now(),
+        )
+        .await
+        .expect("sync with a duplicated key");
+
+    assert_eq!(added, 2);
+    assert_eq!(repo.list().await.expect("list").len(), 2);
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn resync_refreshes_jira_data_and_keeps_local_state() {
     let db: common::TestDb = common::test_db().await;
     let repo: JiraIssueRepositoryAdapter = JiraIssueRepositoryAdapter::new(db.pool.clone());

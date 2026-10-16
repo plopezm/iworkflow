@@ -81,7 +81,13 @@ impl JiraIssueRepositoryPort for JiraIssueRepositoryAdapter {
         issues: &[RemoteIssue],
         synced_at: DateTime<Utc>,
     ) -> Result<usize, JiraError> {
-        let issues: Vec<RemoteIssue> = issues.to_vec();
+        // A repeated key in one batch would violate the primary key and abort the whole sync.
+        let mut seen: HashSet<&str> = HashSet::new();
+        let issues: Vec<RemoteIssue> = issues
+            .iter()
+            .filter(|i: &&RemoteIssue| seen.insert(i.key.as_str()))
+            .cloned()
+            .collect();
         let synced_at: NaiveDateTime = synced_at.naive_utc();
         let mut connection: DbConnection = self.connection().await?;
         connection

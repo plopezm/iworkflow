@@ -9,6 +9,9 @@ use crate::modules::jira::domain::ports::outbound::task_creation_port::{
     CreatedLinkedTask, NewLinkedTask, TaskCreationPort,
 };
 
+/// Attempts to record the link between the Jira issue and the task that was just created.
+const LINK_ATTEMPTS: usize = 3;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConvertedIssue {
     pub task_id: String,
@@ -47,16 +50,36 @@ impl ConvertIssue {
                 start_now: request.start_now,
             })
             .await?;
-        self.issues
-            .set_local_state(
-                &request.key,
-                IssueLocalState::Converted,
-                Some(created.task_id.clone()),
-            )
-            .await?;
+        // The task already exists: failing here would invite a retry that creates a duplicate.
+        // Retry the link a few times and, if it still fails, report it next to the task instead.
+        let mut link_error: Option<String> = None;
+        for _ in 0..LINK_ATTEMPTS {
+            link_error = self
+                .issues
+                .set_local_state(
+                    &request.key,
+                    IssueLocalState::Converted,
+                    Some(created.task_id.clone()),
+                )
+                .await
+                .err()
+                .map(|e: JiraError| e.to_string());
+            if link_error.is_none() {
+                break;
+            }
+        }
+        let start_error: Option<String> = match (created.start_error, link_error) {
+            (start, None) => start,
+            (None, Some(link)) => Some(format!(
+                "La tarea se creó, pero no se pudo enlazar con la tarea de Jira: {link}"
+            )),
+            (Some(start), Some(link)) => Some(format!(
+                "{start}. Además no se pudo enlazar con la tarea de Jira: {link}"
+            )),
+        };
         Ok(ConvertedIssue {
             task_id: created.task_id,
-            start_error: created.start_error,
+            start_error,
         })
     }
 }
@@ -131,6 +154,34 @@ mod tests {
                 task_id: "task-1".to_string(),
                 start_error: Some("sin agente".to_string())
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failing_link_never_fails_the_conversion_of_an_existing_task() {
+        let mut issues = repo_with(IssueLocalState::New);
+        issues
+            .expect_set_local_state()
+            .times(LINK_ATTEMPTS)
+            .returning(|_, _, _| Err(JiraError::Repository("disco lleno".to_string())));
+        let mut tasks = MockTaskCreation::new();
+        tasks.expect_create().times(1).returning(|_| {
+            Ok(CreatedLinkedTask {
+                task_id: "task-1".to_string(),
+                start_error: None,
+            })
+        });
+
+        let converted: ConvertedIssue = ConvertIssue::new(Arc::new(issues), Arc::new(tasks))
+            .execute(request())
+            .await
+            .expect("the task exists, so the call succeeds");
+
+        assert_eq!(converted.task_id, "task-1");
+        assert!(
+            converted.start_error.is_some_and(
+                |m: String| m.contains("no se pudo enlazar") && m.contains("disco lleno")
+            )
         );
     }
 

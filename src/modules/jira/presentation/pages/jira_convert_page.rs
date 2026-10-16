@@ -9,6 +9,12 @@ use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
 };
 use crate::modules::jira::presentation::state::jira_convert_state::JiraConvertState;
 
+/// The new task opens on its own unless something needs the user's attention first (the agent
+/// could not start, or the task could not be linked back to the Jira issue).
+fn opens_automatically(converted: &ConvertedIssueDto) -> bool {
+    converted.start_error.is_none()
+}
+
 const PRIORITIES: [(&str, &str); 4] = [
     ("low", "Baja"),
     ("normal", "Normal"),
@@ -48,8 +54,10 @@ fn JiraConvertContent(key: String) -> impl IntoView {
     let nav = use_tab_nav();
     // The new task replaces this tab so the user lands on it.
     Effect::new(move |_| {
-        if let Some(ConvertedIssueDto { task_id, .. }) = state.converted() {
-            nav.replace(&format!("/tasks/{task_id}"));
+        if let Some(converted) = state.converted()
+            && opens_automatically(&converted)
+        {
+            nav.replace(&format!("/tasks/{}", converted.task_id));
         }
     });
 
@@ -156,6 +164,23 @@ fn convert_form(state: JiraConvertState, prepared: ConversionPreparationDto) -> 
                 "Iniciar ahora"
             </label>
             <ActionError result=state.convert.value().into() />
+            {move || {
+                state
+                    .converted()
+                    .and_then(|c: ConvertedIssueDto| {
+                        c.start_error.map(|message: String| (c.task_id, message))
+                    })
+                    .map(|(task_id, message): (String, String)| {
+                        view! {
+                            <div class="stack gap-2">
+                                <ErrorText message=message />
+                                <TabLink href=format!("/tasks/{task_id}") class="text-accent">
+                                    "Abrir la tarea creada"
+                                </TabLink>
+                            </div>
+                        }
+                    })
+            }}
             <div class="row justify-end gap-2">
                 <button
                     type="submit"
@@ -166,5 +191,23 @@ fn convert_form(state: JiraConvertState, prepared: ConversionPreparationDto) -> 
                 </button>
             </div>
         </form>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn converted(start_error: Option<&str>) -> ConvertedIssueDto {
+        ConvertedIssueDto {
+            task_id: "t1".to_string(),
+            start_error: start_error.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn the_task_opens_on_its_own_only_when_nothing_needs_attention() {
+        assert!(opens_automatically(&converted(None)));
+        assert!(!opens_automatically(&converted(Some("sin agente"))));
     }
 }

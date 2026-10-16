@@ -5,7 +5,7 @@ use chrono::Utc;
 use crate::modules::jira::application::usecases::get_connection::require_connection;
 use crate::modules::jira::domain::errors::jira_error::JiraError;
 use crate::modules::jira::domain::models::jira_connection::JiraConnection;
-use crate::modules::jira::domain::models::jira_issue::{JiraIssue, RemoteIssue};
+use crate::modules::jira::domain::models::jira_issue::JiraIssue;
 use crate::modules::jira::domain::ports::outbound::jira_client_port::JiraClientPort;
 use crate::modules::jira::domain::ports::outbound::jira_connection_repository_port::JiraConnectionRepositoryPort;
 use crate::modules::jira::domain::ports::outbound::jira_issue_repository_port::JiraIssueRepositoryPort;
@@ -38,8 +38,11 @@ impl TransitionIssue {
         self.client
             .transition(&connection, key, transition_id)
             .await?;
-        let refreshed: RemoteIssue = self.client.get_issue(&connection, key).await?;
-        self.issues.update_remote(&refreshed, Utc::now()).await?;
+        // The transition is already done in Jira. If refreshing the local copy fails, keep the
+        // stale copy instead of reporting a failed transition (the next sync catches up).
+        if let Ok(refreshed) = self.client.get_issue(&connection, key).await {
+            let _: Result<(), JiraError> = self.issues.update_remote(&refreshed, Utc::now()).await;
+        }
         self.issues
             .find(key)
             .await?
@@ -129,5 +132,29 @@ mod tests {
                 .execute("A-1", "31")
                 .await;
         assert_eq!(result, Err(JiraError::Remote("HTTP 400".to_string())));
+    }
+
+    #[tokio::test]
+    async fn a_failed_refresh_after_the_transition_returns_the_stale_local_copy() {
+        let mut client = MockJiraClient::new();
+        client
+            .expect_transition()
+            .times(1)
+            .returning(|_, _, _| Ok(()));
+        client
+            .expect_get_issue()
+            .returning(|_, _| Err(JiraError::Remote("timeout".to_string())));
+        let mut issues = MockJiraIssueRepository::new();
+        issues
+            .expect_find()
+            .returning(|key: &str| Ok(Some(sample_issue(key))));
+        issues.expect_update_remote().never();
+
+        let issue: JiraIssue =
+            TransitionIssue::new(Arc::new(connected()), Arc::new(issues), Arc::new(client))
+                .execute("A-1", "31")
+                .await
+                .expect("transitioned");
+        assert_eq!(issue.key(), "A-1");
     }
 }

@@ -29,12 +29,14 @@ fn connection_panel(
     state: JiraConnectionState,
     current: Option<JiraConnectionDto>,
 ) -> impl IntoView {
-    let token_stored: bool = current.is_some();
+    let stored_url: Option<String> = current
+        .as_ref()
+        .map(|c: &JiraConnectionDto| c.base_url.clone());
     let initial: Option<JiraConnectionDto> = current.clone();
     view! {
         {move || {
             if state.editing.get() || initial.is_none() {
-                view! { <JiraConnectionForm state token_stored /> }.into_any()
+                view! { <JiraConnectionForm state stored_url=stored_url.clone() /> }.into_any()
             } else if let Some(connection) = current.clone() {
                 view! { <JiraConnectionSummary connection state /> }.into_any()
             } else {

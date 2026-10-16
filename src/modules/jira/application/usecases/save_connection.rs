@@ -59,13 +59,16 @@ impl SaveConnection {
             return Err(JiraError::TokenRequiredForNewUrl);
         }
         self.client.verify(&connection).await?;
-        if existing
+        let server_changed: bool = existing
             .as_ref()
-            .is_some_and(|c: &JiraConnection| c.base_url != connection.base_url)
-        {
-            self.issues.delete_all().await?;
-        }
+            .is_some_and(|c: &JiraConnection| c.base_url != connection.base_url);
+        // Save first: if it fails nothing has been wiped. Issues left over from the previous
+        // server (the wipe is best effort) are retired by the next sync, which only keeps what
+        // the new server returns.
         self.connections.save(&connection).await?;
+        if server_changed {
+            let _ = self.issues.delete_all().await;
+        }
         self.connections
             .get()
             .await?
@@ -204,6 +207,26 @@ mod tests {
             .execute(input(""))
             .await;
         assert_eq!(result, Err(JiraError::TokenRequiredForNewUrl));
+    }
+
+    #[tokio::test]
+    async fn a_failed_save_does_not_wipe_the_imported_issues() {
+        let mut connections = MockJiraConnectionRepository::new();
+        connections
+            .expect_get()
+            .returning(|| Ok(Some(stored("https://old.local", "tok"))));
+        connections
+            .expect_save()
+            .returning(|_| Err(JiraError::Repository("disco lleno".to_string())));
+        let mut client = MockJiraClient::new();
+        client.expect_verify().returning(|_| Ok(String::new()));
+        let mut issues = MockJiraIssueRepository::new();
+        issues.expect_delete_all().never();
+
+        let result = SaveConnection::new(Arc::new(connections), Arc::new(issues), Arc::new(client))
+            .execute(input("tok"))
+            .await;
+        assert!(matches!(result, Err(JiraError::Repository(_))));
     }
 
     #[tokio::test]

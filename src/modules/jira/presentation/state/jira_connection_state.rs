@@ -9,9 +9,17 @@ use crate::modules::jira::infrastructure::adapters::inbound::server_fns::{
     DeleteJiraConnection, SaveJiraConnection, get_jira_connection,
 };
 
-/// The form can be sent with a URL and either a typed token or one already stored.
-pub fn can_submit(url: &str, token: &str, token_stored: bool) -> bool {
-    !url.trim().is_empty() && (!token.trim().is_empty() || token_stored)
+fn same_server(a: &str, b: &str) -> bool {
+    a.trim().trim_end_matches('/') == b.trim().trim_end_matches('/')
+}
+
+/// The form can be sent with a URL and either a typed token or the stored one. The stored token
+/// is only reused for the server it was saved for: pointing at another URL needs a new token.
+pub fn can_submit(url: &str, token: &str, stored_url: Option<&str>) -> bool {
+    if url.trim().is_empty() {
+        return false;
+    }
+    !token.trim().is_empty() || stored_url.is_some_and(|stored: &str| same_server(stored, url))
 }
 
 /// Estado del panel de conexión: lectura, alta/edición y desconexión.
@@ -130,9 +138,16 @@ mod tests {
 
     #[test]
     fn needs_a_url_and_a_token_unless_one_is_stored() {
-        assert!(can_submit("https://j", "tok", false));
-        assert!(!can_submit("https://j", "  ", false));
-        assert!(can_submit("https://j", "", true));
-        assert!(!can_submit("  ", "tok", true));
+        assert!(can_submit("https://j", "tok", None));
+        assert!(!can_submit("https://j", "  ", None));
+        assert!(can_submit("https://j", "", Some("https://j")));
+        assert!(!can_submit("  ", "tok", Some("https://j")));
+    }
+
+    #[test]
+    fn the_stored_token_is_not_reused_for_another_server() {
+        assert!(can_submit("https://j/", "", Some("https://j")));
+        assert!(!can_submit("https://otro", "", Some("https://j")));
+        assert!(can_submit("https://otro", "nuevo", Some("https://j")));
     }
 }
