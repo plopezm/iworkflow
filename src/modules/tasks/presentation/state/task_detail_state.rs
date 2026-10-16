@@ -1,6 +1,8 @@
 use leptos::prelude::*;
 
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::{
+    ImageAttachmentDto, TaskAttachmentDto,
+};
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -10,6 +12,7 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dt
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResetTask,
     ResumeTask, SendTaskMessage, StartTask, get_task, get_task_diff, get_task_subagents,
+    list_task_attachments,
 };
 use crate::modules::tasks::presentation::components::subagents_panel::resolve_selection;
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
@@ -41,6 +44,8 @@ pub struct TaskDetailState {
     pub selected_subagent: RwSignal<Option<String>>,
     /// Lista de subagentes; solo se pide con el modal abierto.
     pub subagents: Resource<Result<Vec<SubagentTaskDto>, ServerFnError>>,
+    /// Adjuntos guardados con la tarea (los del prompt original).
+    pub attachments: Resource<Result<Vec<TaskAttachmentDto>, ServerFnError>>,
     pub message: RwSignal<String>,
     /// Imágenes adjuntas al próximo mensaje.
     pub images: ImageAttachments,
@@ -166,8 +171,14 @@ impl TaskDetailState {
             }
         });
 
+        let attachments: Resource<Result<Vec<TaskAttachmentDto>, ServerFnError>> = Resource::new(
+            move || status_version.get(),
+            move |_| list_task_attachments(id.get_value()),
+        );
+
         let state: Self = Self {
             task_id: id,
+            attachments,
             task,
             transcript,
             show_subagents,
