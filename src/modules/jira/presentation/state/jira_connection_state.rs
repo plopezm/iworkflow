@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::refresh::{bump_when_changes, current_epoch};
+
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
     JiraConnectionDto, SaveConnectionDto,
 };
@@ -32,9 +34,18 @@ impl JiraConnectionState {
         let delete: ServerAction<DeleteJiraConnection> =
             ServerAction::<DeleteJiraConnection>::new();
         let connection: Resource<Result<Option<JiraConnectionDto>, ServerFnError>> = Resource::new(
-            move || (save.version().get(), delete.version().get()),
+            move || {
+                (
+                    save.version().get(),
+                    delete.version().get(),
+                    current_epoch(),
+                )
+            },
             |_| get_jira_connection(),
         );
+        // Other tabs showing Jira data (list, detail) reload when the connection changes.
+        bump_when_changes(save.version());
+        bump_when_changes(delete.version());
         let state: Self = Self {
             connection,
             save,

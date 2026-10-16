@@ -3,10 +3,9 @@ use leptos::prelude::*;
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
-    JiraConnectionDto, JiraIssueDto, JiraIssueListDto,
+    JiraIssueDto, JiraIssueListDto,
 };
-use crate::modules::jira::presentation::components::connection_form::JiraConnectionForm;
-use crate::modules::jira::presentation::components::connection_summary::JiraConnectionSummary;
+use crate::modules::jira::presentation::components::connection_card::JiraConnectionCard;
 use crate::modules::jira::presentation::components::issue_filters::IssueFilters;
 use crate::modules::jira::presentation::components::issue_row::IssueRow;
 use crate::modules::jira::presentation::state::formatting::sync_message;
@@ -27,18 +26,7 @@ pub fn JiraPage() -> impl IntoView {
                 <h1 class="page-title">"Jira"</h1>
             </div>
             <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
-                <Card title="Conexión">
-                    <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
-                        {move || Suspend::new(async move {
-                            match connection.connection.await {
-                                Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                                Ok(current) => {
-                                    connection_panel(connection, current).into_any()
-                                }
-                            }
-                        })}
-                    </Transition>
-                </Card>
+                <JiraConnectionCard state=connection />
                 <Transition fallback=|| ()>
                     {move || Suspend::new(async move {
                         match connection.connection.await {
@@ -49,26 +37,6 @@ pub fn JiraPage() -> impl IntoView {
                 </Transition>
             </div>
         </div>
-    }
-}
-
-fn connection_panel(
-    state: JiraConnectionState,
-    current: Option<JiraConnectionDto>,
-) -> impl IntoView {
-    let token_stored: bool = current.is_some();
-    let initial: Option<JiraConnectionDto> = current.clone();
-    view! {
-        {move || {
-            if state.editing.get() || initial.is_none() {
-                view! { <JiraConnectionForm state token_stored /> }.into_any()
-            } else if let Some(connection) = current.clone() {
-                view! { <JiraConnectionSummary connection state /> }.into_any()
-            } else {
-                ().into_any()
-            }
-        }}
-        <ActionError result=state.delete.value().into() />
     }
 }
 

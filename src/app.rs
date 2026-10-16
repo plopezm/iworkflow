@@ -19,6 +19,7 @@ use crate::modules::agent_settings::presentation::components::agent_settings_bar
 use crate::modules::agent_settings::presentation::pages::settings_page::SettingsPage;
 use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
+use crate::modules::jira::presentation::components::connection_card::JiraSettingsSection;
 use crate::modules::jira::presentation::pages::jira_convert_page::JiraConvertPage;
 use crate::modules::jira::presentation::pages::jira_issue_page::JiraIssuePage;
 use crate::modules::jira::presentation::pages::jira_page::JiraPage;
@@ -197,7 +198,12 @@ impl TabRoute {
             Self::JiraConvert(_) => view! { <JiraConvertPage /> }.into_any(),
             Self::Profiles => view! { <ProfilesPage /> }.into_any(),
             Self::Models => view! { <ModelsPage /> }.into_any(),
-            Self::Settings => view! { <SettingsPage /> }.into_any(),
+            Self::Settings => view! {
+                <SettingsPage>
+                    <JiraSettingsSection />
+                </SettingsPage>
+            }
+            .into_any(),
             Self::Task(_) => view! { <TaskDetailPage /> }.into_any(),
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
             Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
