@@ -51,6 +51,19 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
 | `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
 
+## Integración con GitLab (on-premise)
+
+Desde cada tarea puedes crear un merge request, ver el CI y mezclarlo.
+
+1. En **Configuración → GitLab** indica la URL de tu instancia (p. ej. `https://gitlab.miempresa.local`) y un token de acceso personal con scope `api`. Usa "Probar conexión" para validarlos. Si tu certificado es de una CA interna o autofirmado, marca "Aceptar certificado TLS no confiable".
+2. El proyecto se deduce del remoto `origin` del repositorio (https, ssh o scp); su host debe coincidir con la URL configurada.
+3. En el panel de la tarea, pestaña **GitLab**: crear el MR (rama de la tarea → rama base), ver su estado y el último pipeline con sus jobs, y **Mezclar MR** (pide confirmación).
+
+Notas:
+- La app **nunca hace `git push`**: publica tú la rama antes de crear el MR; si no está en `origin`, se te avisa.
+- El token se guarda en claro en la base de datos local (`~/.iworkflow/workspaces.db`) y nunca se envía al navegador.
+- Las redirecciones HTTP están desactivadas para no filtrar el token a otro host.
+
 ## Integración con Jira (Server / Data Center)
 
 La pestaña **Jira** conecta con un Jira on premise usando la URL del servidor y un token de acceso personal (PAT, `Authorization: Bearer`, API REST v2). Al guardar, la conexión se valida contra Jira; el token se guarda en la base de datos local y nunca vuelve al navegador (dejarlo vacío al editar conserva el guardado).

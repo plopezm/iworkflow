@@ -30,8 +30,39 @@ use crate::modules::tasks::presentation::state::transcript::Transcript;
 const PANEL_WIDTH_DEFAULT: &str = "md:w-[26rem]";
 const TAB_ACTIONS: &str = "acciones";
 const TAB_STATE: &str = "estado";
+
+/// Pestaña adicional del panel de la tarea que aporta el composition root (p. ej. GitLab), para que
+/// `tasks` no dependa de otros features.
+#[derive(Clone, Copy)]
+pub struct TaskExtraTab {
+    pub id: &'static str,
+    pub label: &'static str,
+    /// Recibe el id de la tarea y devuelve el contenido de la pestaña.
+    pub render: Callback<String, AnyView>,
+}
 /// Id del contenedor con scroll de la conversación.
 const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
+
+/// Pestañas del panel de la tarea: las propias más la adicional, si la hay (pura).
+fn tab_items(extra: Option<TaskExtraTab>) -> Vec<TabItem> {
+    let mut tabs: Vec<TabItem> = vec![
+        TabItem {
+            id: TAB_ACTIONS,
+            label: "Acciones",
+        },
+        TabItem {
+            id: TAB_STATE,
+            label: "Estado",
+        },
+    ];
+    if let Some(tab) = extra {
+        tabs.push(TabItem {
+            id: tab.id,
+            label: tab.label,
+        });
+    }
+    tabs
+}
 
 /// Route of the dock tab that shows the diff of a task (pure).
 pub fn diff_path(task_id: &str) -> String {
@@ -157,16 +188,16 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
 /// Página de detalle. El router reutiliza este componente al pasar entre dos `/tasks/:id`
 /// (solo cambia el signal de parámetros), así que el contenido se reconstruye por cada id.
 #[component]
-pub fn TaskDetailPage() -> impl IntoView {
+pub fn TaskDetailPage(#[prop(optional)] extra_tab: Option<TaskExtraTab>) -> impl IntoView {
     let params = use_tab_params();
     let task_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
-    view! { {move || view! { <TaskDetailContent task_id=task_id.get() /> }} }
+    view! { {move || view! { <TaskDetailContent task_id=task_id.get() extra_tab /> }} }
 }
 
 #[component]
-fn TaskDetailContent(task_id: String) -> impl IntoView {
+fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
     // Several task tabs can be mounted at once, so the scroll container id is per task.
     let scroll_id: StoredValue<String> = StoredValue::new(format!(
@@ -424,10 +455,7 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                             </button>
                         </div>
                         <TabBar
-                            tabs=vec![
-                                TabItem { id: TAB_ACTIONS, label: "Acciones" },
-                                TabItem { id: TAB_STATE, label: "Estado" },
-                            ]
+                            tabs=tab_items(extra_tab)
                             active=active_tab
                             on_select=on_select_tab
                         />
@@ -514,6 +542,14 @@ fn TaskDetailContent(task_id: String) -> impl IntoView {
                                     })}
                                 </Suspense>
                             </Show>
+                            {extra_tab
+                                .map(|tab: TaskExtraTab| {
+                                    view! {
+                                        <Show when=move || active_tab.get() == tab.id>
+                                            {move || tab.render.run(state.task_id.get_value())}
+                                        </Show>
+                                    }
+                                })}
                         </div>
                     </CollapsePanel>
                 </Show>

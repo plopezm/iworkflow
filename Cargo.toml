@@ -165,6 +165,16 @@ path = "tests/modules/agent_settings/agent_settings_repository_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]
+name = "gitlab_settings_repository_adapter_test"
+path = "tests/modules/gitlab/gitlab_settings_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "git_cli_remote_adapter_test"
+path = "tests/modules/gitlab/git_cli_remote_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "git_profile_pin_adapter_test"
 path = "tests/modules/agent_settings/git_profile_pin_adapter_test.rs"
 required-features = ["ssr"]
