@@ -198,9 +198,23 @@ pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
-/// Entrecomilla `value` como literal de PowerShell: `'...'` con cada `'` duplicada.
+/// Comillas simples tipográficas que PowerShell trata como delimitadores de cadena (`U+2018`,
+/// `U+2019`, `U+201A`, `U+201B`), además de la comilla recta.
+const POWERSHELL_SINGLE_QUOTES: [char; 5] = ['\'', '\u{2018}', '\u{2019}', '\u{201A}', '\u{201B}'];
+
+/// Entrecomilla `value` como literal de PowerShell: `'...'` con cada comilla simple (recta o
+/// tipográfica) duplicada.
 pub fn powershell_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "''"))
+    let mut quoted: String = String::with_capacity(value.len() + 2);
+    quoted.push('\'');
+    for c in value.chars() {
+        quoted.push(c);
+        if POWERSHELL_SINGLE_QUOTES.contains(&c) {
+            quoted.push(c);
+        }
+    }
+    quoted.push('\'');
+    quoted
 }
 
 /// Lanzamiento de un programa a través de la shell del sistema con entorno limpio.
@@ -397,6 +411,14 @@ mod tests {
     fn powershell_quote_doubles_single_quotes() {
         assert_eq!(powershell_quote("a b"), "'a b'");
         assert_eq!(powershell_quote("it's"), "'it''s'");
+    }
+
+    #[test]
+    fn powershell_quote_doubles_typographic_single_quotes() {
+        assert_eq!(
+            powershell_quote("a\u{2018}b\u{2019}c\u{201A}d\u{201B}e"),
+            "'a\u{2018}\u{2018}b\u{2019}\u{2019}c\u{201A}\u{201A}d\u{201B}\u{201B}e'"
+        );
     }
 
     #[test]
