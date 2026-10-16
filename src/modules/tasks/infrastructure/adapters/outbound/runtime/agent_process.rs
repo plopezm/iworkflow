@@ -308,12 +308,23 @@ fn systemd_run_available() -> bool {
         })
 }
 
+/// Pid del hijo solo si sigue vivo y sin recoger. Un pid de un proceso ya terminado puede haberse
+/// reasignado a otro, y `taskkill /T` lo mataría a él y a su árbol.
+#[cfg(any(windows, test))]
+fn live_pid(child: &mut Child) -> Option<u32> {
+    match child.try_wait() {
+        Ok(None) => child.id(),
+        _ => None,
+    }
+}
+
 /// Mata el agente. En Windows no hay `exec`: el hijo directo es PowerShell, así que se mata el
-/// árbol entero para no dejar al agente huérfano.
-fn kill_agent(child: &mut Child) -> std::io::Result<()> {
+/// árbol entero para no dejar al agente huérfano. `taskkill` es bloqueante, por lo que corre en
+/// un hilo aparte para no frenar el runtime asíncrono.
+async fn kill_agent(child: &mut Child) -> std::io::Result<()> {
     #[cfg(windows)]
-    if let Some(pid) = child.id() {
-        crate::core::process::kill_tree(pid);
+    if let Some(pid) = live_pid(child) {
+        let _ = tokio::task::spawn_blocking(move || crate::core::process::kill_tree(pid)).await;
     }
     child.start_kill()
 }
@@ -363,7 +374,7 @@ async fn supervise(
             signal = &mut kill_rx, if kill_armed => {
                 kill_armed = false;
                 if signal.is_ok()
-                    && let Err(error) = kill_agent(&mut child)
+                    && let Err(error) = kill_agent(&mut child).await
                 {
                     tracing::warn!(%task_id, %error, "no se pudo matar el agente");
                 }
@@ -378,7 +389,7 @@ async fn supervise(
             None
         }
         Err(_) => {
-            if let Err(error) = kill_agent(&mut child) {
+            if let Err(error) = kill_agent(&mut child).await {
                 tracing::warn!(%task_id, %error, "no se pudo matar el agente");
             }
             child
@@ -471,6 +482,20 @@ mod tests {
     use std::ffi::OsStr;
 
     use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn live_pid_is_only_reported_while_the_child_runs() {
+        let mut child: Child = tokio::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .expect("spawn sleep");
+        assert!(live_pid(&mut child).is_some());
+
+        child.start_kill().expect("kill");
+        child.wait().await.expect("wait");
+        assert_eq!(live_pid(&mut child), None);
+    }
 
     fn pairs(entries: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
         entries
