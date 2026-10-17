@@ -19,8 +19,8 @@ use crate::modules::agent_settings::presentation::components::agent_settings_bar
 use crate::modules::agent_settings::presentation::pages::settings_page::SettingsPage;
 use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
-use crate::modules::gitlab::presentation::components::gitlab_settings_card::GitLabSettingsCard;
-use crate::modules::gitlab::presentation::components::task_merge_request_panel::TaskMergeRequestPanel;
+use crate::modules::code_hosting::presentation::components::code_host_settings_card::CodeHostSettingsCard;
+use crate::modules::code_hosting::presentation::components::task_merge_request_panel::TaskMergeRequestPanel;
 use crate::modules::jira::presentation::components::connection_card::JiraSettingsSection;
 use crate::modules::jira::presentation::pages::jira_convert_page::JiraConvertPage;
 use crate::modules::jira::presentation::pages::jira_issue_page::JiraIssuePage;
@@ -203,11 +203,11 @@ impl TabRoute {
             Self::Settings => view! {
                 <SettingsPage>
                     <JiraSettingsSection />
-                    <GitLabSettingsCard />
+                    <CodeHostSettingsCard />
                 </SettingsPage>
             }
             .into_any(),
-            Self::Task(_) => view! { <TaskDetailPage extra_tab=gitlab_task_tab() /> }.into_any(),
+            Self::Task(_) => view! { <TaskDetailPage extra_tab=code_host_task_tab() /> }.into_any(),
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
             Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
             Self::TaskTerminal(_) => view! { <NewTaskTerminalPage /> }.into_any(),
@@ -426,10 +426,10 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// Pestaña de GitLab del panel de tarea: se compone aquí para que `tasks` no importe `gitlab`.
-fn gitlab_task_tab() -> TaskExtraTab {
+/// Pestaña de GitLab del panel de tarea: se compone aquí para que `tasks` no importe `code_hosting`.
+fn code_host_task_tab() -> TaskExtraTab {
     TaskExtraTab {
-        id: "gitlab",
+        id: "code-host",
         label: "GitLab",
         render: Callback::new(|task_id: String| {
             view! { <TaskMergeRequestPanel task_id=task_id /> }.into_any()
