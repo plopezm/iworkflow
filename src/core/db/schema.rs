@@ -24,8 +24,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    gitlab_settings (id) {
-        id -> Integer,
+    code_host_settings (provider) {
+        provider -> Text,
         base_url -> Text,
         token -> Text,
         insecure_tls -> Integer,
@@ -147,7 +147,7 @@ diesel::joinable!(tasks -> workspaces (workspace_id));
 diesel::allow_tables_to_appear_in_same_query!(
     agent_settings,
     agents_files,
-    gitlab_settings,
+    code_host_settings,
     jira_connection,
     jira_issues,
     jira_lane_issues,

@@ -36,9 +36,9 @@ use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPr
 use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
-use crate::modules::gitlab::domain::errors::gitlab_error::GitLabError;
-use crate::modules::gitlab::domain::ports::outbound::task_source_port::{TaskSource, TaskSourcePort};
-use crate::modules::gitlab::infrastructure::di::gitlab_context::GitLabContext;
+use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
+use crate::modules::code_hosting::domain::ports::outbound::task_source_port::{TaskSource, TaskSourcePort};
+use crate::modules::code_hosting::infrastructure::di::code_host_context::CodeHostContext;
 use crate::modules::project_tree::domain::models::workspace_root::WorkspaceRoot;
 use crate::modules::project_tree::infrastructure::adapters::outbound::workspace_root::resolver_workspace_root_adapter::{
     RootLookupFuture, RootResolver,
@@ -92,7 +92,7 @@ pub struct AppState {
     pub agents_files: AgentsFilesContext,
     pub terminal: TerminalContext,
     pub project_tree: ProjectTreeContext,
-    pub gitlab: GitLabContext,
+    pub code_hosting: CodeHostContext,
     pub jira: JiraContext,
 }
 
@@ -163,11 +163,11 @@ impl AppState {
             list: agents_files.list.clone(),
             install: agents_files.install.clone(),
         });
-        let gitlab_tasks: Arc<dyn TaskSourcePort> = Arc::new(GitLabTaskSourceBridge {
+        let code_host_tasks: Arc<dyn TaskSourcePort> = Arc::new(CodeHostTaskSourceBridge {
             get_task: tasks.get_task.clone(),
             get_workspace: get_workspace.clone(),
         });
-        let gitlab: GitLabContext = GitLabContext::new(pool.clone(), gitlab_tasks);
+        let code_hosting: CodeHostContext = CodeHostContext::new(pool.clone(), code_host_tasks);
         let workspaces: WorkspacesContext = WorkspacesContext::new(
             pool.clone(),
             config.home_dir.clone(),
@@ -191,7 +191,7 @@ impl AppState {
             agents_files,
             terminal,
             project_tree,
-            gitlab,
+            code_hosting,
             jira,
         })
     }
@@ -205,7 +205,7 @@ impl AppState {
         provide_context(self.agents_files.clone());
         provide_context(self.terminal.clone());
         provide_context(self.project_tree.clone());
-        provide_context(self.gitlab.clone());
+        provide_context(self.code_hosting.clone());
         provide_context(self.jira.clone());
     }
 }
@@ -561,31 +561,31 @@ fn to_workspace_error(error: AgentsFileError) -> WorkspaceError {
 
 /// Expone la rama, la base y el repositorio de una tarea al feature de GitLab a través de su
 /// propio puerto. `Ok(None)` si la tarea no existe o aún no tiene rama (`Backlog`).
-pub struct GitLabTaskSourceBridge {
+pub struct CodeHostTaskSourceBridge {
     pub get_task: Arc<GetTask>,
     pub get_workspace: Arc<GetWorkspace>,
 }
 
 #[async_trait::async_trait]
-impl TaskSourcePort for GitLabTaskSourceBridge {
-    async fn find(&self, task_id: &str) -> Result<Option<TaskSource>, GitLabError> {
+impl TaskSourcePort for CodeHostTaskSourceBridge {
+    async fn find(&self, task_id: &str) -> Result<Option<TaskSource>, CodeHostError> {
         let Ok(uuid) = uuid::Uuid::parse_str(task_id) else {
             return Ok(None);
         };
         let task: Task = match self.get_task.execute(TaskId::from_uuid(uuid)).await {
             Ok(task) => task,
             Err(TaskError::NotFound(_)) => return Ok(None),
-            Err(error) => return Err(GitLabError::Repository(error.to_string())),
+            Err(error) => return Err(CodeHostError::Repository(error.to_string())),
         };
         if task.status == TaskStatus::Backlog {
             return Ok(None);
         }
         let workspace_id: WorkspaceId = WorkspaceId::parse(&task.workspace_id)
-            .map_err(|error: WorkspaceError| GitLabError::Repository(error.to_string()))?;
+            .map_err(|error: WorkspaceError| CodeHostError::Repository(error.to_string()))?;
         let workspace: Workspace = match self.get_workspace.execute(workspace_id).await {
             Ok(workspace) => workspace,
             Err(WorkspaceError::NotFound(_)) => return Ok(None),
-            Err(error) => return Err(GitLabError::Repository(error.to_string())),
+            Err(error) => return Err(CodeHostError::Repository(error.to_string())),
         };
         Ok(Some(TaskSource {
             repo_path: workspace.path,

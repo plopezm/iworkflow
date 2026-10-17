@@ -67,13 +67,16 @@ El selector de runtime del menú lateral admite `gentle-shell`, `pi`, `claude` y
 | `claude` | `IWF_CLAUDE_BIN` | diálogos, reanudar, modelo y thinking |
 | `cursor` | `IWF_CURSOR_BIN` | diálogos, reanudar y modelo (la lista de modelos se obtiene del propio agente por ACP). Las ediciones de ficheros se aceptan; el resto pide confirmación |
 
-## Integración con GitLab (on-premise)
+## Integración con GitLab y GitHub
 
-Desde cada tarea puedes crear un merge request, ver el CI y mezclarlo.
+Desde cada tarea puedes crear un merge request (GitLab) o pull request (GitHub), ver el CI y mezclarlo. Un workspace puede ser un repositorio de cualquiera de los dos: el proveedor se detecta por el host del remoto `origin` y se aplica la configuración de ese proveedor.
 
-1. En **Configuración → GitLab** indica la URL de tu instancia (p. ej. `https://gitlab.miempresa.local`) y un token de acceso personal con scope `api`. Usa "Probar conexión" para validarlos. Si tu certificado es de una CA interna o autofirmado, marca "Aceptar certificado TLS no confiable".
-2. El proyecto se deduce del remoto `origin` del repositorio (https, ssh o scp); su host debe coincidir con la URL configurada.
-3. En el panel de la tarea, pestaña **GitLab**: crear el MR (rama de la tarea → rama base), ver su estado y el último pipeline con sus jobs, y **Mezclar MR** (pide confirmación).
+1. En **Configuración** hay una tarjeta por proveedor.
+   - **GitLab**: URL de tu instancia (p. ej. `https://gitlab.miempresa.local`) y un token personal con scope `api`.
+   - **GitHub**: `https://github.com` (propuesta por defecto) o la URL de tu GitHub Enterprise, y un token personal (scope `repo`; fine-grained: Pull requests y Contents en lectura/escritura, Actions en lectura).
+   Usa "Probar conexión" para validarlos. Si tu certificado es de una CA interna o autofirmado, marca "Aceptar certificado TLS no confiable".
+2. El proyecto se deduce del remoto `origin` (https, ssh o scp). Su host debe coincidir con la URL de un proveedor configurado; si no coincide con ninguno se te avisa, y si es github.com sin configurar se te pide configurar GitHub. En GitHub el repositorio es `propietario/repositorio`.
+3. En el panel de la tarea, pestaña **PR / MR**: crear el MR/PR (rama de la tarea → rama base), ver su estado y el último pipeline (GitLab) o workflow (GitHub) con sus jobs, y **Mezclar** (pide confirmación).
 
 Notas:
 - La app **nunca hace `git push`**: publica tú la rama antes de crear el MR; si no está en `origin`, se te avisa.
