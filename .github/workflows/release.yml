@@ -39,18 +39,18 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: wasm32-unknown-unknown
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           key: ${{ matrix.name }}
 
       - name: Install cargo-leptos
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
         with:
           tool: cargo-leptos
 
@@ -60,9 +60,12 @@ jobs:
 
       - name: Package
         id: package
+        env:
+          # Passed through the environment, never interpolated into the script.
+          REF_LABEL: ${{ github.ref_type == 'tag' && github.ref_name || github.sha }}
         run: |
           set -euo pipefail
-          NAME="iworkflow-${{ github.ref_type == 'tag' && github.ref_name || github.sha }}-${{ matrix.name }}"
+          NAME="iworkflow-${REF_LABEL}-${{ matrix.name }}"
           mkdir -p "dist/$NAME"
           cp "target/release/${{ matrix.bin }}" "dist/$NAME/"
           cp -r target/site "dist/$NAME/site"
@@ -75,7 +78,7 @@ jobs:
             echo "file=dist/$NAME.tar.gz" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: iworkflow-${{ matrix.name }}
           path: ${{ steps.package.outputs.file }}
@@ -89,12 +92,12 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: artifacts
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           files: artifacts/*
           generate_release_notes: true
