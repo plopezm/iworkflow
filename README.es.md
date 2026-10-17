@@ -263,6 +263,8 @@ PLAYWRIGHT_MODULE=/ruta/node_modules/playwright ./end2end/run_smoke.sh   # UI co
 
 Distribuido bajo la [licencia PolyForm Shield 1.0.0](LICENSE).
 
+Los recursos de terceros incluidos mantienen su propia licencia: xterm.js (MIT) y highlight.js (BSD-3-Clause) en `public/vendor/`, y las fuentes Instrument Serif y Martian Mono (SIL OFL 1.1) en `public/fonts/`. Todas las dependencias de Rust usan licencias permisivas (MIT, Apache-2.0, BSD, Zlib, Unicode…).
+
 ## Apoya el proyecto
 
 Si iworkflow te ahorra tiempo, puedes invitarme a un café en **[buymeacoffee.com/plopezm](https://buymeacoffee.com/plopezm)**. ¡Gracias! ☕
