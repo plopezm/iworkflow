@@ -2,6 +2,7 @@
 name = "iworkflow"
 version = "0.12.0"
 edition = "2024"
+license-file = "LICENSE"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

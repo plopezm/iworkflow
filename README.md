@@ -32,6 +32,7 @@ The app imposes no workflow: each agent uses the configuration and plugins you h
 - [Production](#production)
 - [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale)
 - [Development](#development)
+- [License](#license)
 - [Support the project](#support-the-project)
 
 ## Designed for mobile
@@ -257,6 +258,10 @@ cargo clippy --features hydrate --target wasm32-unknown-unknown --lib -- -D warn
 cargo test --features ssr
 PLAYWRIGHT_MODULE=/path/to/node_modules/playwright ./end2end/run_smoke.sh   # UI with a fake agent
 ```
+
+## License
+
+Licensed under the [PolyForm Shield License 1.0.0](LICENSE).
 
 ## Support the project
 

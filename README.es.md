@@ -32,6 +32,7 @@ La app no impone ningún flujo: cada agente usa la configuración y los plugins 
 - [Producción](#producción)
 - [Desarrollar desde el móvil con Tailscale](#desarrollar-desde-el-móvil-con-tailscale)
 - [Desarrollo](#desarrollo)
+- [Licencia](#licencia)
 - [Apoya el proyecto](#apoya-el-proyecto)
 
 ## Diseñada para el móvil
@@ -257,6 +258,10 @@ cargo clippy --features hydrate --target wasm32-unknown-unknown --lib -- -D warn
 cargo test --features ssr
 PLAYWRIGHT_MODULE=/ruta/node_modules/playwright ./end2end/run_smoke.sh   # UI con agente falso
 ```
+
+## Licencia
+
+Distribuido bajo la [licencia PolyForm Shield 1.0.0](LICENSE).
 
 ## Apoya el proyecto
 
