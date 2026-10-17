@@ -23,15 +23,14 @@ La app no impone ningún flujo: cada agente usa la configuración y los plugins 
 - [Arranque rápido](#arranque-rápido)
 - [Espacio de trabajo con pestañas](#espacio-de-trabajo-con-pestañas)
 - [Ciclo de vida de una tarea](#ciclo-de-vida-de-una-tarea)
-- [Configuración](#configuración)
-  - [Runtimes de agente](#runtimes-de-agente)
 - [Integración con GitLab y GitHub](#integración-con-gitlab-y-github)
 - [Integración con Jira (Server / Data Center)](#integración-con-jira-server--data-center)
 - [Perfiles y modelos de agentes](#perfiles-y-modelos-de-agentes)
+- [Configuración](#configuración)
+  - [Runtimes de agente](#runtimes-de-agente)
   - [Argumentos del ejecutable](#argumentos-del-ejecutable)
 - [Producción](#producción)
 - [Desarrollar desde el móvil con Tailscale](#desarrollar-desde-el-móvil-con-tailscale)
-- [Binarios precompilados (GitHub Actions)](#binarios-precompilados-github-actions)
 - [Desarrollo](#desarrollo)
 - [Apoya el proyecto](#apoya-el-proyecto)
 
@@ -60,6 +59,8 @@ cargo leptos watch          # http://127.0.0.1:3000
 4. **Finalizar y revisar** → cierra el agente, commitea lo pendiente y muestra el diff.
 5. **Merge** (integra con `--no-ff` y borra el worktree) o **Descartar**.
 
+> **Seguridad:** iworkflow no tiene autenticación y lanza agentes que ejecutan comandos con tu usuario. No lo expongas a redes no confiables; consulta [Producción](#producción) y [Tailscale](#desarrollar-desde-el-móvil-con-tailscale). El desarrollo escucha en `127.0.0.1:3000`; el script de producción en `0.0.0.0:9000`.
+
 ## Espacio de trabajo con pestañas
 
 La interfaz es un espacio de trabajo tipo IDE: cada pantalla (tablero, tarea, diff, terminal, ajustes, ficheros…) se abre como **pestaña** dentro de grupos que puedes dividir arrastrando. Las pestañas se pueden reordenar arrastrándolas dentro de su barra, moverlas a otro grupo o a una división nueva.
@@ -84,36 +85,6 @@ starting → running ⇄ idle → finishing → awaiting_review → merged
 | Rama base con cambios sin commitear | Rechaza el merge sin tocar nada. |
 | Rama base no checkouteada | Integra en un worktree temporal. |
 | Reinicio del servidor | Las tareas activas pasan a `interrupted`; se pueden reanudar. |
-
-## Configuración
-
-Variables de entorno (admite `.env`, ver `.env.example`):
-
-| Variable | Por defecto |
-|---|---|
-| `IWF_DATABASE_URL` | `~/.iworkflow/workspaces.db` (SQLite, migraciones automáticas) |
-| `IWF_WORKTREES_DIR` | `~/.iworkflow/worktrees` |
-| `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
-| `IWF_PI_BIN` | `pi` (runtime `pi`, se lanza como `--mode rpc`) |
-| `IWF_CLAUDE_BIN` | `claude` (runtime `claude`: Claude Code con `-p` y protocolo stream-json; se elige en el selector de runtime del menú lateral; acepta ediciones de ficheros, pide confirmación para el resto y lee el `AGENTS.md` del proyecto) |
-| `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
-| `IWF_CURSOR_SESSIONS_DIR` | `cursor-sessions` junto a la base de datos (guarda el id de sesión ACP de cada tarea para reanudarla) |
-| `IWF_ATTACHMENTS_DIR` | `attachments` junto a la base de datos (imágenes adjuntas a las tareas; se borran al terminar la tarea) |
-| `IWF_AGENTS_FILES_DIR` | `agents-files` junto a la base de datos (biblioteca de `AGENTS.md`) |
-| `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
-| `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
-
-Los directorios por defecto de datos (`attachments`, `agents-files`, `cursor-sessions`) cuelgan de la carpeta de la base de datos: si cambias `IWF_DATABASE_URL`, se mueven con ella. En Windows el home se toma de `USERPROFILE` si falta `HOME`.
-
-### Runtimes de agente
-
-El selector de runtime del menú lateral admite `gentle-shell`, `pi`, `claude` y `cursor`. La elección se fija al arrancar cada tarea.
-
-| Runtime | Binario | Capacidades |
-|---|---|---|
-| `gentle-shell` / `pi` | `IWF_GENTLE_SHELL_BIN` / `IWF_PI_BIN` | todas (steer, follow-up, diálogos, reanudar, modelo, thinking, subagentes) |
-| `claude` | `IWF_CLAUDE_BIN` | diálogos, reanudar, modelo y thinking |
-| `cursor` | `IWF_CURSOR_BIN` | diálogos, reanudar y modelo (la lista de modelos se obtiene del propio agente por ACP). Las ediciones de ficheros se aceptan; el resto pide confirmación |
 
 ## Integración con GitLab y GitHub
 
@@ -151,7 +122,35 @@ Dos pantallas equivalentes a los comandos de gentle-pi, sobre los mismos fichero
 
 Los perfiles se eligen en el desplegable de ajustes del agente, que lee el mismo `profiles.json`. Estas pantallas no activan un perfil de forma global; solo lo gestionan. El bloqueo de escritura evita pisadas dentro de un proceso, no frente a otro proceso (p. ej. el TUI de gentle-pi) editando a la vez.
 
-En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
+## Configuración
+
+Variables de entorno (admite `.env`, ver `.env.example`):
+
+| Variable | Por defecto |
+|---|---|
+| `IWF_DATABASE_URL` | `~/.iworkflow/workspaces.db` (SQLite, migraciones automáticas) |
+| `IWF_WORKTREES_DIR` | `~/.iworkflow/worktrees` |
+| `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
+| `IWF_PI_BIN` | `pi` (runtime `pi`, se lanza como `--mode rpc`) |
+| `IWF_CLAUDE_BIN` | `claude` (runtime `claude`: Claude Code con `-p` y protocolo stream-json; se elige en el selector de runtime del menú lateral; acepta ediciones de ficheros, pide confirmación para el resto y lee el `AGENTS.md` del proyecto) |
+| `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
+| `IWF_CURSOR_SESSIONS_DIR` | `cursor-sessions` junto a la base de datos (guarda el id de sesión ACP de cada tarea para reanudarla) |
+| `IWF_ATTACHMENTS_DIR` | `attachments` junto a la base de datos (imágenes adjuntas a las tareas; se borran al terminar la tarea) |
+| `IWF_AGENTS_FILES_DIR` | `agents-files` junto a la base de datos (biblioteca de `AGENTS.md`) |
+| `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
+| `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
+
+Los directorios por defecto de datos (`attachments`, `agents-files`, `cursor-sessions`) cuelgan de la carpeta de la base de datos: si cambias `IWF_DATABASE_URL`, se mueven con ella. En Windows el home se toma de `USERPROFILE` si falta `HOME`.
+
+### Runtimes de agente
+
+El selector de runtime del menú lateral admite `gentle-shell`, `pi`, `claude` y `cursor`. La elección se fija al arrancar cada tarea.
+
+| Runtime | Binario | Capacidades |
+|---|---|---|
+| `gentle-shell` / `pi` | `IWF_GENTLE_SHELL_BIN` / `IWF_PI_BIN` | todas (steer, follow-up, diálogos, reanudar, modelo, thinking, subagentes) |
+| `claude` | `IWF_CLAUDE_BIN` | diálogos, reanudar, modelo y thinking |
+| `cursor` | `IWF_CURSOR_BIN` | diálogos, reanudar y modelo (la lista de modelos se obtiene del propio agente por ACP). Las ediciones de ficheros se aceptan; el resto pide confirmación |
 
 ### Argumentos del ejecutable
 
@@ -164,12 +163,25 @@ Al arrancar, `iworkflow` abre la web en el navegador (`http://<host>:<puerto>` d
 
 Ejemplos: `./iworkflow --no-open`, `./scripts/prod.sh run --no-open`, `cargo leptos watch -- --no-open`.
 
+En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
+
 ## Producción
 
+Requisitos: la toolchain de Rust, `cargo-leptos` (`cargo install cargo-leptos --locked`) y el target `wasm32-unknown-unknown` (`rustup target add wasm32-unknown-unknown`).
+
+`scripts/prod.sh` compila y ejecuta la app en modo release:
+
 ```bash
-./scripts/prod.sh           # compila en release, empaqueta en dist/ y arranca
-./scripts/prod.sh build     # solo compila y empaqueta
-./scripts/prod.sh run       # solo arranca lo ya empaquetado
+./scripts/prod.sh build     # 1. compila en release y empaqueta en dist/
+./scripts/prod.sh run       # 2. arranca lo ya empaquetado
+./scripts/prod.sh           # ambos pasos seguidos (build + run)
+```
+
+Flujo habitual: ejecuta `build` una vez (y de nuevo tras cada actualización) y `run` cada vez que quieras arrancar el servidor. Los argumentos tras `run` se pasan al binario (p. ej. `--no-open`, ver [Argumentos del ejecutable](#argumentos-del-ejecutable)). Por defecto escucha en `http://0.0.0.0:9000`; se cambia con `LEPTOS_SITE_ADDR`:
+
+```bash
+LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run --no-open
+DIST_DIR=/opt/iworkflow ./scripts/prod.sh build     # empaquetar en otra ruta
 ```
 
 `build` ejecuta `cargo leptos build --release` y copia en `dist/` el binario
@@ -183,7 +195,7 @@ también se aplica. Variables propias del script:
 | Variable | Por defecto |
 |---|---|
 | `DIST_DIR` | `dist/` en la raíz del repo |
-| `LEPTOS_SITE_ADDR` | `0.0.0.0:3000` (todas las interfaces) |
+| `LEPTOS_SITE_ADDR` | `0.0.0.0:9000` (todas las interfaces) |
 
 > **Seguridad:** la app no tiene autenticación y lanza agentes que ejecutan comandos
 > con tu usuario. Con el bind a `0.0.0.0`, cualquiera que alcance el puerto puede
@@ -203,7 +215,7 @@ desde dentro de esa carpeta.
 2. Arranca el servidor escuchando en la interfaz de Tailscale (o en todas, que es el valor por defecto de `scripts/prod.sh`):
 
    ```bash
-   ./scripts/prod.sh run                                        # bind a 0.0.0.0:3000
+   ./scripts/prod.sh run                                        # bind a 0.0.0.0:9000
    # o solo accesible en esta máquina y, vía Tailscale Serve, en la tailnet (ver abajo)
    LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run --no-open
    ```
@@ -215,7 +227,7 @@ desde dentro de esa carpeta.
    tailscale status       # muestra el nombre MagicDNS, p. ej. mipc.nombre-tailnet.ts.net
    ```
 
-4. En el móvil abre `http://<ip-tailnet>:3000` o `http://mipc.nombre-tailnet.ts.net:3000`.
+4. En el móvil abre `http://<ip-tailnet>:9000` o `http://mipc.nombre-tailnet.ts.net:9000`.
 
 **Recomendado: HTTPS con Tailscale Serve.** Mantén el bind en `127.0.0.1` y deja que Tailscale lo exponga solo dentro de tu tailnet, con certificado válido:
 
@@ -232,52 +244,6 @@ Consejos:
 - Limita con ACLs de Tailscale quién puede llegar a la máquina si la tailnet es compartida.
 - El ordenador debe seguir encendido y el servidor en marcha; usa `tmux` o un servicio de usuario de systemd para sesiones largas.
 
-## Binarios precompilados (GitHub Actions)
-
-El workflow `.github/workflows/release.yml` compila en Linux (`ubuntu-22.04`) y en
-Windows (`windows-latest`) con los mismos pasos que `scripts/prod.sh build`
-(`cargo leptos build --release` + binario y `site/`).
-
-- **Cuándo corre:** al subir un tag `v*`, manualmente (*Run workflow*) y en PRs que
-  modifiquen el propio workflow.
-- **Dónde salen los binarios:** como artefactos del run
-  (`iworkflow-linux-x86_64`, `iworkflow-windows-x86_64`). Con un tag `v*` se publican
-  además en la GitHub Release (`.tar.gz` en Linux, `.zip` en Windows).
-
-```bash
-git tag v0.5.0 && git push origin v0.5.0
-```
-
-Cada archivo contiene `iworkflow` (o `iworkflow.exe`) y la carpeta `site/`, que deben
-estar juntos. Para arrancarlo, desde la carpeta descomprimida:
-
-```bash
-# Linux
-LEPTOS_OUTPUT_NAME=iworkflow LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD \
-  LEPTOS_SITE_ADDR=127.0.0.1:3000 ./iworkflow
-```
-
-```powershell
-# Windows (PowerShell)
-$env:LEPTOS_OUTPUT_NAME="iworkflow"; $env:LEPTOS_SITE_ROOT="site"; $env:LEPTOS_ENV="PROD"
-$env:LEPTOS_SITE_ADDR="127.0.0.1:3000"; .\iworkflow.exe
-```
-
-**Qué es autocontenido:** SQLite va incluido en ambos binarios y el de Windows enlaza
-el runtime de MSVC de forma estática (no requiere el VC++ Redistributable). El de
-Linux usa glibc dinámica; compilar en Ubuntu 22.04 mantiene bajo el requisito mínimo.
-
-**Limitaciones:**
-
-- No es un único fichero: los assets web se sirven desde `site/` en disco. Un
-  ejecutable único requeriría incrustarlos en el binario (p. ej. con `rust-embed`).
-- Windows (nativo): la terminal y los agentes se lanzan con `powershell.exe` (sin shell de
-  login ni `exec`; el `PATH` del sistema se hereda) y al cerrarlos se mata el árbol de
-  procesos con `taskkill /T`. El home se toma de `USERPROFILE` si falta `HOME`. Los límites
-  de RAM/CPU por tarea (systemd) solo existen en Linux. El soporte se ha escrito y probado
-  con tests de lógica en Linux, pero **no se ha ejecutado aún sobre un Windows real**: los
-  agentes (`gentle-shell`, `pi`, `claude`) deben estar en el `PATH` de PowerShell.
-
 ## Desarrollo
 
 Guía de la arquitectura y del código en [ARCHITECTURE.es.md](ARCHITECTURE.es.md); reglas del proyecto en [AGENTS.md](AGENTS.md). Comprobaciones:
@@ -291,11 +257,5 @@ PLAYWRIGHT_MODULE=/ruta/node_modules/playwright ./end2end/run_smoke.sh   # UI co
 ```
 
 ## Apoya el proyecto
-
-<p align="center">
-  <a href="https://buymeacoffee.com/plopezm" target="_blank" rel="noopener">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=plopezm&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" height="60" />
-  </a>
-</p>
 
 Si iworkflow te ahorra tiempo, puedes invitarme a un café en **[buymeacoffee.com/plopezm](https://buymeacoffee.com/plopezm)**. ¡Gracias! ☕

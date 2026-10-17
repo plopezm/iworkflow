@@ -2,7 +2,7 @@
 
 > 🇬🇧 English version: [ARCHITECTURE.md](ARCHITECTURE.md)
 
-Guía para leer el código de iworkflow, pensada para alguien con experiencia sólida en Java que está aprendiendo Rust. Sigue el orden en que conviene leer el código: primero el mapa general, después el arranque, un *slice* completo (`tasks`) y, por último, el resto de módulos.
+Guía para leer el código de iworkflow, pensada para alguien con experiencia sólida en Java que está aprendiendo Rust. Si llegas nuevo, empieza por el [Glosario rápido](#glosario-rápido) y la [ruta de lectura](#12-ruta-de-lectura-recomendada). Sigue el orden en que conviene leer el código: primero el mapa general, después el arranque, un *slice* completo (`tasks`) y, por último, el resto de módulos.
 
 > Los diagramas usan [Mermaid](https://mermaid.js.org/) (GitHub y la mayoría de editores lo renderizan). Las rutas de fichero son relativas a la raíz del repositorio. Las reglas de estilo y de proceso del proyecto están en [AGENTS.md](AGENTS.md); este documento explica **cómo está construido**, no cómo contribuir.
 
@@ -20,6 +20,25 @@ Guía para leer el código de iworkflow, pensada para alguien con experiencia s�
 10. [Resto de módulos](#10-resto-de-módulos)
 11. [Estrategia de tests](#11-estrategia-de-tests)
 12. [Ruta de lectura recomendada](#12-ruta-de-lectura-recomendada)
+
+También: [Glosario rápido](#glosario-rápido) · [Rust para desarrolladores Java](docs/rust-for-java.es.md)
+
+---
+
+## Glosario rápido
+
+| Término | Significado en este repo |
+|---|---|
+| **Slice / feature** | Directorio bajo `modules/` con sus propias capas |
+| **Puerto** | Trait que define lo que el dominio necesita (outbound) u ofrece (inbound) |
+| **Adaptador** | Implementación concreta de un puerto (Diesel, `git`, proceso, FS) o punto de entrada (server fn, SSE, WS) |
+| **Caso de uso** | `struct` con `execute()`; una acción de usuario o de sistema |
+| **Contexto (`XxxContext`)** | Struct con los casos de uso de un feature, inyectado con `provide_context` |
+| **Bridge** | Adaptador en `app_state.rs` que conecta dos features sin que se importen entre sí |
+| **Worktree** | Copia de trabajo git aislada por tarea, en `~/.iworkflow/worktrees` |
+| **Sink** | Receptor de eventos del agente (`AgentEventSink`) |
+| **SSR / hidratación** | El servidor renderiza HTML; el WASM lo "activa" en el navegador sin volver a pintarlo |
+| **DTO** | Tipo serializable que cruza cliente ↔ servidor; el dominio nunca viaja |
 
 ---
 
@@ -72,49 +91,7 @@ Las transiciones se validan con métodos del propio enum (`can_start`, `can_fini
 
 ## 2. Rust para un desarrollador Java
 
-Tabla de equivalencias que necesitarás constantemente al leer este repo.
-
-| Java | Rust en este proyecto | Notas |
-|---|---|---|
-| `interface Foo` | `trait Foo` | Los puertos outbound son traits (`TaskRepositoryPort`). |
-| Inyectar `Foo` por constructor | `Arc<dyn Foo>` como campo | `Arc` = puntero compartido con conteo de referencias atómico (como una referencia Java que además sabes cuándo se libera). `dyn` = despacho dinámico (vtable), lo que en Java es lo normal y en Rust es explícito. |
-| `class` con campos + métodos | `struct` + `impl` | Los datos y los métodos se declaran por separado. No hay herencia. |
-| `enum` simple | `enum` | Pero los enums de Rust **llevan datos** (son *sum types*): `AgentEvent::ProcessExited { code }`. Equivalen a una jerarquía `sealed` de records. |
-| `switch` / pattern matching | `match` | Exhaustivo: si añades una variante, el compilador te señala todos los `match` que faltan. |
-| `Optional<T>` / `null` | `Option<T>` | No existe `null`. `Some(x)` / `None`. |
-| `throws` / excepciones | `Result<T, E>` | Los errores son valores. `?` propaga el error al llamante (como un `throw` implícito pero visible en la firma). |
-| `try/catch` | `match` sobre `Result`, `if let Err(e)`, `.map_err(...)` | `map_err` convierte un tipo de error en otro (p. ej. de Diesel a `TaskError`). |
-| Lombok `@Data`, `equals` | `#[derive(Debug, Clone, PartialEq, ...)]` | Los `derive` generan implementaciones de traits. |
-| Constructor / factory | `fn new(...) -> Self` | Convención, no sintaxis. |
-| `final` | Inmutable por defecto | `let x` es inmutable, `let mut x` es mutable. AGENTS.md exige `mut` solo si hace falta. |
-| `package` / `import` | `mod` / `use` | La jerarquía de módulos sigue el árbol de carpetas; cada carpeta tiene un `mod.rs`. |
-| `public` / package-private | `pub` / privado por módulo | Por defecto todo es privado al módulo. |
-| Tipos genéricos | Genéricos con *trait bounds* | `fn retry<T, F, Fut>(...) where F: FnMut() -> Fut` |
-| Lambdas | Closures `\|x\| x + 1` | `move \|\| ...` captura por valor (necesario al pasar closures a otro hilo/tarea). |
-| `CompletableFuture` | `async fn` + `.await` | Los futures de Rust son **perezosos**: no hacen nada hasta que se les hace `.await` (o se lanzan con `tokio::spawn`). |
-| Spring `@Transactional` / pool | `deadpool` + Diesel | Ver [persistencia](#8-persistencia). |
-| Mockito | `mockall` | `mock! { ... }` genera dobles para los traits. |
-| `Thread` / `ExecutorService` | `tokio::spawn` | Tareas asíncronas ligeras sobre un pool de hilos. |
-| `BlockingQueue` | `tokio::sync::mpsc` | Canal multi-productor / consumidor único. |
-| `synchronized` / `ReentrantLock` | `Mutex<T>` | El mutex **posee** el dato: solo se accede a él a través del guard. |
-
-### Conceptos que no tienen equivalente directo
-
-**Propiedad y préstamos (*ownership* / *borrowing*).** Cada valor tiene un único dueño; pasar un valor lo *mueve*. Para leer sin tomar posesión se presta: `&T` (lectura, muchos a la vez) o `&mut T` (escritura, uno solo). Verás `&self` (método que solo lee), `&mut self` (muta) y `self` (consume el objeto). Esto sustituye al recolector de basura: no hay GC, el compilador decide cuándo se libera cada cosa.
-
-**`Arc<T>` y `.clone()`.** Clonar un `Arc` **no** copia el dato, solo incrementa un contador. Por eso los contextos (`TasksContext`, etc.) son `#[derive(Clone)]` y se clonan libremente: cada campo es un `Arc<UseCase>`.
-
-**`Send + Sync`.** Marcadores que dicen "este tipo se puede mover/compartir entre hilos". Los traits asíncronos se declaran `trait X: Send + Sync` porque el runtime de tokio puede mover las tareas entre hilos.
-
-**`#[async_trait::async_trait]`.** Rust todavía no permite `async fn` cómodamente en traits usados como `dyn Trait`; esta macro lo resuelve. Aparece en todos los puertos y adaptadores.
-
-**Macros (`!` y `#[...]`).** `view! { ... }`, `mock! { ... }`, `#[server]`, `#[derive(...)]`, `#[component]` generan código en tiempo de compilación. Piensa en ellas como un procesador de anotaciones de Java mucho más potente.
-
-**Atributos `#[cfg(feature = "ssr")]`.** Compilación condicional. El mismo crate se compila dos veces con conjuntos distintos de código (ver siguiente sección). Es el mecanismo central de este proyecto.
-
-**Newtypes.** `pub struct TaskId(Uuid);` es un tipo distinto de `Uuid` aunque contenga uno: evita mezclar identificadores. Equivale a un *value object* Java.
-
-**Enums con estado y `impl` propio.** `TaskStatus` es un enum con métodos (`can_finish()`, `after_agent_event()`): el dominio es **rico**, no anémico.
+La tabla de equivalencias Java ↔ Rust y los conceptos sin equivalente directo (ownership, `Arc`, `Send + Sync`, macros…) están en [docs/rust-for-java.es.md](docs/rust-for-java.es.md). Échale un vistazo primero si vienes de Java.
 
 ---
 
@@ -506,7 +483,7 @@ Fíjate en que `start` recibe un `sink`: el runtime no conoce la BD, solo "algui
 
 Un caso de uso = un `struct` con sus puertos como campos `Arc<dyn …>`, un `new(...)` y un `execute(...)`. Es el equivalente a un `@Service` con un único método público.
 
-Hay 24 en `application/usecases/` (incluido `handle_agent_event`, que implementa `AgentEventSink`): `create_task`, `start_task`, `update_task`, `delete_task`, `send_message`, `abort_task`, `answer_dialog`, `finish_task`, `resume_task`, `merge_task`, `discard_task`, `reset_task`, `get_task`, `get_task_diff`, `get_task_events`, `get_task_subagents`, `get_task_attachment`, `list_tasks`, `list_done_tasks`, `list_task_attachments`, `list_workspace_options`, `reconcile_tasks`, `delete_workspace_tasks`, `handle_agent_event`.
+Hay un fichero por caso de uso en `application/usecases/` (por ejemplo `create_task`, `start_task`, `finish_task`, `merge_task`, `discard_task`; `handle_agent_event` implementa `AgentEventSink`). Consulta el directorio para ver la lista completa.
 
 **`TaskLifecycle`** (`application/services/task_lifecycle.rs`) es el colaborador compartido por casi todos: carga tareas, cambia estado, registra eventos y los difunde.
 
@@ -1145,20 +1122,3 @@ Orden sugerido para entender el código con el mínimo de saltos:
 5. Registrar el caso de uso en `<feature>_context.rs`.
 6. DTO + server function (sin lógica) + test del mapeo y del error.
 7. Estado en `presentation/state`, página/componente (sin lógica de negocio).
-
----
-
-### Glosario rápido
-
-| Término | Significado en este repo |
-|---|---|
-| **Slice / feature** | Directorio bajo `modules/` con sus propias capas |
-| **Puerto** | Trait que define lo que el dominio necesita (outbound) u ofrece (inbound) |
-| **Adaptador** | Implementación concreta de un puerto (Diesel, `git`, proceso, FS) o punto de entrada (server fn, SSE, WS) |
-| **Caso de uso** | `struct` con `execute()`; una acción de usuario o de sistema |
-| **Contexto (`XxxContext`)** | Struct con los casos de uso de un feature, inyectado con `provide_context` |
-| **Bridge** | Adaptador en `app_state.rs` que conecta dos features sin que se importen entre sí |
-| **Worktree** | Copia de trabajo git aislada por tarea, en `~/.iworkflow/worktrees` |
-| **Sink** | Receptor de eventos del agente (`AgentEventSink`) |
-| **SSR / hidratación** | El servidor renderiza HTML; el WASM lo "activa" en el navegador sin volver a pintarlo |
-| **DTO** | Tipo serializable que cruza cliente ↔ servidor; el dominio nunca viaja |
