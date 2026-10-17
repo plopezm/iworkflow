@@ -10,3 +10,6 @@ end2end/test-results
 
 # Release package (scripts/prod.sh)
 /dist
+
+# Internal ODD working notes (kept locally, not published)
+/odd/
