@@ -11,6 +11,7 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     UpdateTask, get_task, list_task_attachments,
 };
+use crate::modules::tasks::presentation::state::board_state::effective_limits;
 use crate::modules::tasks::presentation::state::image_attachments::{ImageAttachments, MAX_IMAGES};
 
 /// Estado de la pantalla de edición de una tarea.
@@ -25,6 +26,8 @@ pub struct TaskEditState {
     pub form_priority: RwSignal<String>,
     pub form_memory_limit: RwSignal<String>,
     pub form_cpu_limit: RwSignal<String>,
+    /// Muestra las opciones avanzadas (límites de RAM y CPU).
+    pub form_show_advanced: RwSignal<bool>,
     /// Imágenes nuevas a añadir a las ya adjuntas.
     pub images: ImageAttachments,
     /// Imágenes ya guardadas en la tarea.
@@ -107,6 +110,7 @@ impl TaskEditState {
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
             form_memory_limit: RwSignal::new(String::new()),
             form_cpu_limit: RwSignal::new(String::new()),
+            form_show_advanced: RwSignal::new(false),
             images,
             attachments,
             removed_ids,
@@ -145,17 +149,26 @@ impl TaskEditState {
                 .map(|v: u32| v.to_string())
                 .unwrap_or_default(),
         );
+        // Si la tarea ya tiene límites propios, la sección se abre para que se vean.
+        self.form_show_advanced
+            .set(task.memory_limit_mb.is_some() || task.cpu_limit_percent.is_some());
     }
 
     pub fn submit(&self) {
+        // Con la sección avanzada oculta los límites no aplican: se usan los de ajustes.
+        let (memory_limit, cpu_limit): (String, String) = effective_limits(
+            self.form_show_advanced.get_untracked(),
+            &self.form_memory_limit.get_untracked(),
+            &self.form_cpu_limit.get_untracked(),
+        );
         self.update.dispatch(UpdateTask {
             id: self.task_id.get_value(),
             input: build_update_task_dto(
                 self.form_title.get_untracked(),
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
-                &self.form_memory_limit.get_untracked(),
-                &self.form_cpu_limit.get_untracked(),
+                &memory_limit,
+                &cpu_limit,
                 self.images.images.get_untracked(),
                 self.removed_ids.get_untracked(),
             ),
@@ -288,6 +301,23 @@ mod tests {
             urgent.priority = TaskPriorityDto::Urgent;
             state.prefill(&urgent);
             assert_eq!(state.form_priority.get_untracked(), "urgent");
+        });
+    }
+
+    #[tokio::test]
+    async fn prefill_opens_advanced_section_only_when_task_has_limits() {
+        let _init: Result<(), _> = Executor::init_tokio();
+        let owner: Owner = Owner::new();
+        owner.with(|| {
+            let state: TaskEditState = TaskEditState::new("t1".to_string());
+            state.prefill(&task());
+            assert!(!state.form_show_advanced.get_untracked());
+
+            let mut limited: TaskDto = task();
+            limited.cpu_limit_percent = Some(150);
+            state.prefill(&limited);
+            assert!(state.form_show_advanced.get_untracked());
+            assert_eq!(state.form_cpu_limit.get_untracked(), "150");
         });
     }
 
