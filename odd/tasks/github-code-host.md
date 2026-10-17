@@ -14,7 +14,7 @@ El slice `gitlab` pasa a `code_hosting` (puerto neutro + factoría de clientes);
 - [x] T2 (S1,S2,S5) `HostingProvider`, ajustes por proveedor (migración `code_host_settings`, riesgo alto), errores con proveedor, detección por host del origin en el resolver — inline — commit: feat(code-hosting) provider-aware settings and origin detection
   Risk: item 1 (migración mueve gitlab_settings→code_host_settings con el token; verificada up/redo/down con dato real)
 - [x] T3 (S3,S4) `GitHubHttpClientAdapter` + soporte HTTP compartido + `CodeHostClientFactoryPort` y su factoría (resolver y test de conexión la usan) + tests con servidor axum falso — worker gentle-ai-worker — commit: feat(code-hosting) add GitHub adapter and client factory
-- [ ] T4 (S1,S3) DTOs/server fns con proveedor + UI (tarjetas GitHub/GitLab, panel PR/MR) + docs — inline — commit:
+- [x] T4 (S1,S3) DTOs/server fns con proveedor + UI (tarjetas GitHub/GitLab, panel PR/MR) + docs — inline — commit: feat(code-hosting) provider-aware settings cards and PR/MR panel
 - [ ] T5 (all) fmt, clippy ssr/hydrate, tests, differential check GitLab, revisión — commit:
 
 ## Log
@@ -24,3 +24,4 @@ El slice `gitlab` pasa a `code_hosting` (puerto neutro + factoría de clientes);
 - L4: Revisión nativa aplazada a T5: el candidato que ofrece `inspect` es toda la rama contra origin/master (renombrado mecánico incluido); se revisará el delta T2→T4 con `baseRef` 236a0a9 + `committedOnly`. `assess` del commit T2: riesgo medio, reviewDue=false; se ejecuta igualmente por la preferencia del usuario (revisión nativa siempre, corregir sin preguntar).
 - L5: Notas de diseño GitHub para T3 — estado de PR normalizado a opened|merged|closed; merge_status normalizado al vocabulario de `status_variant` (mergeable, conflict, blocked_status, ci_still_running, checking); estado CI normalizado (pending, running, success, failed, canceled, skipped, manual).
 - L6: T3 evidencia (verificada por el padre tras el worker): 97 tests lib modules::code_hosting ok; clippy ssr+hydrate -D warnings ok; fmt ok. Sin RED observado (tests junto a la implementación). Solo probado contra servidores axum falsos, nunca contra GitHub real. Riesgo: GitHub hace una GET extra en find_latest_merge_request y latest_pipeline (más consumo de rate limit).
+- L7: T4 evidencia: 102 tests lib modules::code_hosting ok; app::tests 3 ok; clippy ssr+hydrate -D warnings ok; fmt ok. Docs: README y ARCHITECTURE actualizados (sección code_hosting, factoría, migración).

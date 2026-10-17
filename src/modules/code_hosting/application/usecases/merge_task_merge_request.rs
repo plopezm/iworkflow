@@ -36,6 +36,7 @@ impl MergeTaskMergeRequest {
         match self.resolver.status_of(&resolved, merged.clone()).await {
             Ok(status) => Ok(status),
             Err(_) => Ok(MergeRequestStatus {
+                provider: resolved.settings.provider(),
                 project_path: resolved.project.clone(),
                 merge_request: merged,
                 pipeline: None,

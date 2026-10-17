@@ -1,3 +1,5 @@
+use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
+
 /// Datos para abrir un merge request.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewMergeRequest {
@@ -44,9 +46,11 @@ pub struct Pipeline {
     pub jobs: Vec<PipelineJob>,
 }
 
-/// Estado agregado de un MR: el propio MR y el último pipeline con sus jobs.
+/// Estado agregado de un MR/PR: el propio MR y el último pipeline con sus jobs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MergeRequestStatus {
+    /// Proveedor que aloja el repositorio (decide el vocabulario de la UI).
+    pub provider: HostingProvider,
     pub project_path: String,
     pub merge_request: MergeRequest,
     pub pipeline: Option<Pipeline>,

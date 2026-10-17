@@ -203,7 +203,8 @@ impl TabRoute {
             Self::Settings => view! {
                 <SettingsPage>
                     <JiraSettingsSection />
-                    <CodeHostSettingsCard />
+                    <CodeHostSettingsCard provider="gitlab" />
+                    <CodeHostSettingsCard provider="github" />
                 </SettingsPage>
             }
             .into_any(),
@@ -426,11 +427,11 @@ pub fn App() -> impl IntoView {
     }
 }
 
-/// Pestaña de GitLab del panel de tarea: se compone aquí para que `tasks` no importe `code_hosting`.
+/// Pestaña de PR/MR (GitLab o GitHub) del panel de tarea: se compone aquí para que `tasks` no importe `code_hosting`.
 fn code_host_task_tab() -> TaskExtraTab {
     TaskExtraTab {
         id: "code-host",
-        label: "GitLab",
+        label: "PR / MR",
         render: Callback::new(|task_id: String| {
             view! { <TaskMergeRequestPanel task_id=task_id /> }.into_any()
         }),

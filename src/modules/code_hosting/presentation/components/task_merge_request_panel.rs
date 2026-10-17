@@ -9,13 +9,12 @@ use crate::modules::code_hosting::infrastructure::adapters::inbound::dto::code_h
 use crate::modules::code_hosting::infrastructure::adapters::inbound::server_fns::{
     CreateTaskMergeRequest, MergeTaskMergeRequest,
 };
+use crate::modules::code_hosting::presentation::provider_text;
 use crate::modules::code_hosting::presentation::state::task_merge_request_state::TaskMergeRequestState;
 
-const MERGE_CONFIRM: &str =
-    "¿Mezclar el merge request en GitLab? La rama destino se actualizará en el servidor.";
 const NO_PUSH_NOTE: &str = "La rama debe estar publicada en origin: la app no hace push.";
 
-/// Variante de color de un estado de MR, pipeline o job de GitLab (pura).
+/// Variante de color de un estado de MR/PR, pipeline o job (pura).
 pub fn status_variant(status: &str) -> &'static str {
     match status {
         "success" | "passed" | "merged" | "mergeable" | "can_be_merged" => "ok",
@@ -34,7 +33,7 @@ pub fn status_variant(status: &str) -> &'static str {
     }
 }
 
-/// Etiqueta en español de un estado de GitLab; los desconocidos se muestran tal cual (pura).
+/// Etiqueta en español de un estado de MR/PR o CI; los desconocidos se muestran tal cual (pura).
 pub fn status_label(status: &str) -> String {
     match status {
         "success" => "correcto",
@@ -76,14 +75,19 @@ fn ExternalLink(#[prop(into)] href: String, children: Children) -> impl IntoView
 }
 
 #[component]
-fn PipelineView(pipeline: PipelineDto) -> impl IntoView {
-    let title: String = format!("Pipeline #{}", pipeline.id);
+fn PipelineView(pipeline: PipelineDto, provider: String) -> impl IntoView {
+    let title: String = format!(
+        "{} #{}",
+        provider_text::pipeline_noun(&provider),
+        pipeline.id
+    );
+    let open_label: String = format!("Abrir en {}", provider_text::label(&provider));
     view! {
         <div class="stack gap-2">
             <div class="row items-center gap-2">
                 <span class="text-sm font-medium text-fg">{title}</span>
                 <StatusBadge status=pipeline.status />
-                <ExternalLink href=pipeline.web_url>"Abrir en GitLab"</ExternalLink>
+                <ExternalLink href=pipeline.web_url>{open_label}</ExternalLink>
             </div>
             <ul class="stack gap-1">
                 {pipeline
@@ -107,11 +111,25 @@ fn PipelineView(pipeline: PipelineDto) -> impl IntoView {
 
 #[component]
 fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto) -> impl IntoView {
+    let provider: String = status.provider;
     let merge_request: MergeRequestDto = status.merge_request;
     let open: bool = merge_request.is_open();
     let busy: Signal<bool> = state.busy();
     let confirming: RwSignal<bool> = RwSignal::new(false);
-    let heading: String = format!("!{} {}", merge_request.iid, merge_request.title);
+    let heading: String = format!(
+        "{}{} {}",
+        provider_text::request_prefix(&provider),
+        merge_request.iid,
+        merge_request.title
+    );
+    let abbrev: &str = provider_text::request_abbrev(&provider);
+    let open_request_label: String =
+        format!("Abrir {abbrev} en {}", provider_text::label(&provider));
+    let merge_label: String = format!("Mezclar {abbrev}");
+    let merge_confirm: String = format!(
+        "¿Mezclar el {abbrev} en {}? La rama destino se actualizará en el servidor.",
+        provider_text::label(&provider)
+    );
     let branches: String = format!(
         "{} → {} · {}",
         merge_request.source_branch, merge_request.target_branch, status.project_path
@@ -137,11 +155,11 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
                     {merge_request
                         .has_conflicts
                         .then(|| view! { <Badge text="con conflictos" variant="error" /> })}
-                    <ExternalLink href=merge_request.web_url>"Abrir MR en GitLab"</ExternalLink>
+                    <ExternalLink href=merge_request.web_url>{open_request_label}</ExternalLink>
                 </div>
             </div>
             {match status.pipeline {
-                Some(pipeline) => view! { <PipelineView pipeline /> }.into_any(),
+                Some(pipeline) => view! { <PipelineView pipeline provider=provider.clone() /> }.into_any(),
                 None => view! { <p class="muted text-sm">"Sin pipeline de CI."</p> }.into_any(),
             }}
             {open
@@ -157,13 +175,13 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
                                         disabled=move || busy.get()
                                         on:click=move |_| confirming.set(true)
                                     >
-                                        "Mezclar MR"
+                                        {merge_label.clone()}
                                     </button>
                                 }
                             }
                         >
                             <ConfirmPanel
-                                message=MERGE_CONFIRM
+                                message=merge_confirm.clone()
                                 confirm_label="Mezclar"
                                 pending=busy
                                 on_confirm
@@ -192,7 +210,7 @@ fn CreateMergeRequestView(state: TaskMergeRequestState) -> impl IntoView {
     };
     view! {
         <div class="stack gap-3">
-            <p class="muted text-sm">"Esta rama aún no tiene merge request."</p>
+            <p class="muted text-sm">"Esta rama aún no tiene merge/pull request."</p>
             <TextField
                 label="Título (opcional, por defecto el de la tarea)"
                 value=state.title
@@ -205,7 +223,7 @@ fn CreateMergeRequestView(state: TaskMergeRequestState) -> impl IntoView {
                     disabled=move || busy.get()
                     on:click=on_create
                 >
-                    "Crear merge request"
+                    "Crear merge/pull request"
                 </button>
             </div>
             <ActionError result=state.create.value().into() />
@@ -213,14 +231,14 @@ fn CreateMergeRequestView(state: TaskMergeRequestState) -> impl IntoView {
     }
 }
 
-/// Panel de GitLab de una tarea: crear MR, ver su estado y CI, y mezclar.
+/// Panel de MR/PR de una tarea (GitLab o GitHub según su origin): crear, ver estado y CI, y mezclar.
 #[component]
 pub fn TaskMergeRequestPanel(#[prop(into)] task_id: String) -> impl IntoView {
     let state: TaskMergeRequestState = TaskMergeRequestState::new(task_id);
     view! {
         <div class="stack gap-3">
             <div class="row items-center justify-between">
-                <span class="action-section">"GitLab"</span>
+                <span class="action-section">"Merge / Pull request"</span>
                 <button
                     type="button"
                     class="btn-secondary min-h-8 px-3 py-1 text-xs"

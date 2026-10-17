@@ -69,6 +69,8 @@ pub struct PipelineDto {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MergeRequestStatusDto {
+    /// Identificador del proveedor (`gitlab` o `github`).
+    pub provider: String,
     pub project_path: String,
     pub merge_request: MergeRequestDto,
     pub pipeline: Option<PipelineDto>,
@@ -173,6 +175,7 @@ mod mapping {
     impl From<MergeRequestStatus> for MergeRequestStatusDto {
         fn from(status: MergeRequestStatus) -> Self {
             Self {
+                provider: status.provider.as_str().to_string(),
                 project_path: status.project_path,
                 merge_request: status.merge_request.into(),
                 pipeline: status.pipeline.map(PipelineDto::from),
@@ -254,6 +257,7 @@ mod mapping {
         #[test]
         fn status_maps_merge_request_and_jobs() {
             let status: MergeRequestStatus = MergeRequestStatus {
+                provider: HostingProvider::GitHub,
                 project_path: "g/p".to_string(),
                 merge_request: MergeRequest {
                     iid: 7,
@@ -281,6 +285,7 @@ mod mapping {
 
             let dto: MergeRequestStatusDto = status.into();
 
+            assert_eq!(dto.provider, "github");
             assert!(dto.merge_request.is_open());
             assert_eq!(dto.pipeline.expect("pipeline").jobs[0].name, "build");
         }

@@ -8,9 +8,8 @@ use crate::modules::code_hosting::infrastructure::adapters::inbound::dto::code_h
 use crate::modules::code_hosting::infrastructure::adapters::inbound::server_fns::{
     SaveCodeHostSettings, TestCodeHostConnection,
 };
+use crate::modules::code_hosting::presentation::provider_text;
 use crate::modules::code_hosting::presentation::state::code_host_settings_state::CodeHostSettingsState;
-
-const HELP: &str = "URL de tu GitLab on-premise y un token personal (scope api). Se usa para crear merge requests, ver el CI y mezclar desde cada tarea; el proyecto se deduce del remoto origin del repositorio. La app nunca hace push: la rama debe estar ya publicada.";
 
 /// Convierte el token escrito en el campo: vacío = conservar el guardado.
 pub fn token_to_save(raw: &str) -> Option<String> {
@@ -18,17 +17,17 @@ pub fn token_to_save(raw: &str) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_string())
 }
 
-/// Tarjeta de configuración de GitLab (URL, token, TLS) con prueba de conexión.
+/// Tarjeta de configuración de un proveedor (URL, token, TLS) con prueba de conexión.
 #[component]
-pub fn CodeHostSettingsCard() -> impl IntoView {
-    let state: CodeHostSettingsState = CodeHostSettingsState::new();
+pub fn CodeHostSettingsCard(provider: &'static str) -> impl IntoView {
+    let state: CodeHostSettingsState = CodeHostSettingsState::new(provider);
     view! {
-        <Card title="GitLab">
-            <p class="muted text-sm">{HELP}</p>
+        <Card title=provider_text::label(provider)>
+            <p class="muted text-sm">{provider_text::help(provider)}</p>
             <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
                 {move || Suspend::new(async move {
                     match state.settings.await {
-                        Ok(settings) => view! { <CodeHostSettingsForm state settings /> }.into_any(),
+                        Ok(settings) => view! { <CodeHostSettingsForm state provider settings /> }.into_any(),
                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
                     }
                 })}
@@ -40,9 +39,13 @@ pub fn CodeHostSettingsCard() -> impl IntoView {
 #[component]
 fn CodeHostSettingsForm(
     state: CodeHostSettingsState,
+    provider: &'static str,
     settings: CodeHostSettingsDto,
 ) -> impl IntoView {
-    let base_url: RwSignal<String> = RwSignal::new(settings.base_url);
+    let base_url: RwSignal<String> = RwSignal::new(provider_text::initial_base_url(
+        provider,
+        &settings.base_url,
+    ));
     let token: RwSignal<String> = RwSignal::new(String::new());
     let insecure: RwSignal<bool> = RwSignal::new(settings.insecure_tls);
     let token_configured: bool = settings.token_configured;
@@ -53,7 +56,7 @@ fn CodeHostSettingsForm(
     let token_placeholder: &str = if token_configured {
         "•••••• (déjalo vacío para conservarlo)"
     } else {
-        "glpat-…"
+        provider_text::token_placeholder(provider)
     };
 
     let on_save = move |_| {
@@ -73,7 +76,11 @@ fn CodeHostSettingsForm(
     };
 
     view! {
-        <TextField label="URL de GitLab" value=base_url placeholder="https://gitlab.miempresa.local" />
+        <TextField
+            label=format!("URL de {}", provider_text::label(provider))
+            value=base_url
+            placeholder=provider_text::url_placeholder(provider)
+        />
         <label class="stack gap-1.5">
             <span class="text-sm font-medium text-fg">"Token de acceso personal"</span>
             <input

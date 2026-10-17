@@ -91,6 +91,7 @@ impl TaskProjectResolver {
             .latest_pipeline(&resolved.settings, &resolved.project, merge_request.iid)
             .await?;
         Ok(MergeRequestStatus {
+            provider: resolved.settings.provider(),
             project_path: resolved.project.clone(),
             merge_request,
             pipeline,
@@ -238,5 +239,28 @@ mod tests {
 
         assert_eq!(github_user, "github");
         assert_eq!(gitlab_user, "gitlab");
+    }
+
+    #[tokio::test]
+    async fn the_status_reports_the_detected_provider() {
+        let mut client: MockCodeHostClient = MockCodeHostClient::new();
+        client
+            .expect_latest_pipeline()
+            .returning(|_, _, _| Ok(None));
+        let resolver: TaskProjectResolver =
+            resolver_with("git@github.com:acme/app.git", vec![github()]);
+        let resolved: ResolvedTask = ResolvedTask {
+            settings: github(),
+            source: test_support::source(),
+            project: "acme/app".to_string(),
+            client: Arc::new(client),
+        };
+
+        let status: MergeRequestStatus = resolver
+            .status_of(&resolved, test_support::merge_request(3, "opened"))
+            .await
+            .expect("status");
+
+        assert_eq!(status.provider, HostingProvider::GitHub);
     }
 }

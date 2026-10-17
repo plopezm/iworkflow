@@ -202,7 +202,7 @@ src/
     ├── agent_profiles/# perfiles y enrutado de roles/modelos de los agentes
     ├── project_tree/  # árbol de directorios de un workspace
     ├── agents_files/  # ficheros AGENTS.md reutilizables
-    ├── gitlab/        # MR, CI y merge contra un GitLab on-premise
+    ├── code_hosting/  # MR/PR, CI y merge contra GitLab o GitHub (proveedor detectado por origin)
     └── jira/          # importación desde Jira Server/DC y conversión en tareas
 ```
 
@@ -368,7 +368,7 @@ flowchart LR
     subgraph agents_files
         AF[ListAgentsFiles · InstallAgentsFile]
     end
-    subgraph gitlab
+    subgraph code_hosting
         GL["TaskSourcePort"]
     end
     subgraph "app_state.rs (composition root)"
@@ -377,7 +377,7 @@ flowchart LR
         B3[WorkspaceTasksBridge]
         B4[AgentsFilesBridge]
         B5[ProjectLookupBridge]
-        B6[GitLabTaskSourceBridge]
+        B6[CodeHostTaskSourceBridge]
     end
     WLP -.- B1 --> WUC
     WLP -.- B2 --> PL
@@ -395,7 +395,7 @@ flowchart LR
 | `WorkspaceTasksBridge` | `WorkspaceTasksPort` (workspaces) | `tasks::DeleteWorkspaceTasks` |
 | `AgentsFilesBridge` | `AgentsFilesPort` (workspaces) | `agents_files::ListAgentsFiles`/`InstallAgentsFile` |
 | `ProjectLookupBridge` | `ProjectLookupPort` (agents_files) | `workspaces::GetWorkspace`/`ListWorkspaces` |
-| `GitLabTaskSourceBridge` | `TaskSourcePort` (gitlab) | `tasks::GetTask` + `workspaces::GetWorkspace` |
+| `CodeHostTaskSourceBridge` | `TaskSourcePort` (code_hosting) | `tasks::GetTask` + `workspaces::GetWorkspace` |
 | `TaskCreationBridge` | `TaskCreationPort` (jira) | `tasks::CreateTask` |
 | `WorkspaceCatalogBridge` | `WorkspaceCatalogPort` (jira) | `tasks::ListWorkspaceOptions`/`ListWorkspaceBranches` |
 | `workspace_path_resolver` (closure) | `PathResolver` (terminal) | `workspaces::GetWorkspace` |
@@ -862,7 +862,7 @@ pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 ### Esquema y migraciones
 
-`src/core/db/schema.rs` lo genera `diesel print-schema` (no se edita a mano). Tablas actuales: `workspaces`, `tasks`, `task_events`, `task_attachments`, `agent_settings`, `agents_files`, `gitlab_settings`, `jira_connection`, `jira_issues`. Cada migración en `migrations/<fecha>_<nombre>/` tiene `up.sql` y `down.sql`.
+`src/core/db/schema.rs` lo genera `diesel print-schema` (no se edita a mano). Tablas actuales: `workspaces`, `tasks`, `task_events`, `task_attachments`, `agent_settings`, `agents_files`, `code_host_settings`, `jira_connection`, `jira_issues`. Cada migración en `migrations/<fecha>_<nombre>/` tiene `up.sql` y `down.sql`.
 
 ### Adaptador Diesel: patrón
 
@@ -1023,27 +1023,31 @@ Importa tareas de un Jira on-premise, permite gestionarlas (estado, comentarios)
 - **Cliente HTTP** (`ReqwestJiraClientAdapter`, `jira_json.rs` para el mapeo): `reqwest`, tope de issues por sincronización y opción de certificado no verificado.
 - **Tests**: unitarios con `mockall` (`mocks.rs`) e integración en `tests/modules/jira/` (SQLite temporal).
 
-### `gitlab` — merge requests, CI y merge contra un GitLab on-premise
+### `code_hosting` — merge/pull requests, CI y merge contra GitLab o GitHub
 
-Permite, desde cada tarea, abrir un merge request, ver el estado del MR y de su pipeline de CI, y mezclarlo. No usa `git push`: la rama de la tarea debe estar ya publicada en `origin`.
+Permite, desde cada tarea, abrir un MR (GitLab) o PR (GitHub), ver el estado y el último pipeline/workflow de CI, y mezclarlo. Un workspace puede ser de cualquiera de los dos proveedores: se detecta por el host de `origin`. No usa `git push`: la rama de la tarea debe estar ya publicada.
 
 ```mermaid
 flowchart LR
-    UI["Configuración: tarjeta GitLab<br/>Tarea: pestaña GitLab"] --> SF["server fns<br/>(gitlab/…/server_fns.rs)"]
+    UI["Configuración: tarjeta por proveedor<br/>Tarea: pestaña PR / MR"] --> SF["server fns<br/>(code_hosting/…/server_fns.rs)"]
     SF --> UC["GetTaskMergeRequest · CreateTaskMergeRequest<br/>MergeTaskMergeRequest · Save/Get/TestSettings"]
-    UC --> R["TaskProjectResolver"]
-    R --> P1["TaskSourcePort"] -.-> BR["GitLabTaskSourceBridge<br/>(app_state.rs)"]
+    UC --> R["TaskProjectResolver<br/>detecta el proveedor por el host de origin"]
+    R --> P1["TaskSourcePort"] -.-> BR["CodeHostTaskSourceBridge<br/>(app_state.rs)"]
     R --> P2["GitRemotePort"] --> A2["GitCliRemoteAdapter<br/>git remote get-url origin"]
-    R --> P3["GitLabSettingsRepositoryPort"] --> A3["Diesel · tabla gitlab_settings"]
-    UC --> P4["GitLabClientPort"] --> A4["GitLabHttpClientAdapter<br/>reqwest · API v4"]
+    R --> P3["CodeHostSettingsRepositoryPort"] --> A3["Diesel · tabla code_host_settings"]
+    R --> F["CodeHostClientFactoryPort"] --> FA["CodeHostClientFactory<br/>match HostingProvider"]
+    FA --> A4["GitLabHttpClientAdapter<br/>API v4"]
+    FA --> A5["GitHubHttpClientAdapter<br/>REST v3"]
+    A4 & A5 -. implementan .-> P4["CodeHostClientPort"]
 ```
 
-- **Ajustes globales** (`SaveGitLabSettings`, `GetGitLabSettings`, `TestGitLabConnection`): URL base, token personal y opción `insecure_tls` (CA interna o autofirmado), en una fila de SQLite (`gitlab_settings`, `id = 1`). `GitLabSettings` valida la URL (`http(s)`, sin credenciales) y oculta el token en `Debug`. El token **nunca viaja al cliente**: `GitLabSettingsDto` solo expone `token_configured`; al guardar con el token vacío se conserva el existente.
-- **Proyecto según `origin`**: `TaskProjectResolver` obtiene la tarea (rama, base, repo) por `TaskSourcePort`, lee la URL de `origin` por `GitRemotePort` y `RemoteUrl::parse` extrae host y ruta (https, `ssh://`, scp, con o sin `.git`; las credenciales embebidas se redactan en los errores). `GitLabSettings::project_path` exige que el host coincida con la URL configurada (ignora puerto y esquema) y descarta el prefijo de URL relativa (`/gitlab`); si no coincide, `HostMismatch`.
-- **Casos de uso por tarea**: `GetTaskMergeRequest` (MR más reciente de la rama, prefiriendo el abierto, + último pipeline y jobs), `CreateTaskMergeRequest` (reutiliza el MR abierto; si no, comprueba que la rama exista en el servidor —`BranchNotPublished` si no— y crea el MR hacia la rama base con el título/prompt de la tarea), `MergeTaskMergeRequest` (`PUT …/merge`; el mensaje de GitLab se propaga al usuario).
-- **Cliente HTTP** (`GitLabHttpClientAdapter`): `reqwest` con rustls, timeouts, cabecera `PRIVATE-TOKEN`, componentes de ruta codificados (`g/p` → `g%2Fp`). **Las redirecciones están desactivadas** a propósito: `reqwest` no retira cabeceras propias al cambiar de host y el token podría filtrarse; un 30x se devuelve como error. Los errores de red no incluyen la URL.
-- **Acoplamiento**: `gitlab` no importa `tasks` ni `workspaces`. `GitLabTaskSourceBridge` (en `app_state.rs`) implementa `TaskSourcePort` con `tasks::GetTask` y `workspaces::GetWorkspace` (devuelve `None` para tareas en `Backlog`, sin rama). En la UI, `app.rs` inyecta la tarjeta en `SettingsPage` (`children`) y la pestaña en `TaskDetailPage` (`TaskExtraTab`), así que ni `agent_settings` ni `tasks` importan `gitlab`.
-- **Tests**: unitarios con `mockall` (`mocks.rs`) y un GitLab falso con `axum` para el cliente (incluido el test de no-fuga del token por redirección); integración en `tests/modules/gitlab/` (SQLite temporal y repos git temporales).
+- **Patrón factoría**: los casos de uso dependen de `CodeHostClientFactoryPort::client_for(HostingProvider)`; `CodeHostClientFactory` (infraestructura) construye el adaptador con un `match` exhaustivo, sin rama por defecto, así que añadir un proveedor obliga a implementar su adaptador. `GitLabHttpClientAdapter` y `GitHubHttpClientAdapter` implementan el mismo puerto neutro `CodeHostClientPort` y comparten el gestor de clientes HTTP y los helpers de `http_support.rs`. El vocabulario del dominio es neutro (`MergeRequest`, `Pipeline`): cada adaptador normaliza estados (GitHub `open`/`closed`+`merged` → `opened`/`merged`/`closed`; `mergeable_state` → `mergeable`/`conflict`/`blocked_status`/`checking`; runs y jobs de Actions → `pending`/`running`/`success`/`failed`/`canceled`/`skipped`/`manual`).
+- **Ajustes globales por proveedor** (`SaveCodeHostSettings`, `GetCodeHostSettings`, `TestCodeHostConnection`, todos con `HostingProvider`): URL base, token personal y `insecure_tls`, una fila por proveedor en `code_host_settings` (clave `provider`: `gitlab` | `github`). La migración `2026-10-17-100000-0000_create_code_host_settings` copia la fila previa de `gitlab_settings` (token incluido) y `down.sql` la restaura. `CodeHostSettings` valida la URL (`http(s)`, sin credenciales), oculta el token en `Debug` y calcula la raíz de la API: GitLab `/api/v4`; GitHub `https://api.github.com` para github.com o `<base>/api/v3` para GitHub Enterprise. El token **nunca viaja al cliente**: `CodeHostSettingsDto` solo expone `token_configured`; guardar con el token vacío conserva el existente del mismo proveedor, salvo que cambie la URL.
+- **Proveedor y proyecto según `origin`**: `TaskProjectResolver` obtiene la tarea por `TaskSourcePort`, lee `origin` por `GitRemotePort` y `RemoteUrl::parse` extrae host y ruta (https, `ssh://`, scp; credenciales redactadas en errores). `CodeHostSettings::select_for_host` elige los ajustes cuyo host coincide (ignora puerto y esquema; `ssh.github.com` cuenta como github.com). Sin coincidencia: github.com sin configurar → `NotConfigured(GitHub)`; cualquier otro host → `UnknownHost`. `project_path` descarta el prefijo de URL relativa (`/gitlab`) y en GitHub exige `propietario/repositorio`.
+- **Casos de uso por tarea**: `GetTaskMergeRequest` (MR/PR más reciente de la rama, prefiriendo el abierto, + último CI), `CreateTaskMergeRequest` (reutiliza el abierto; si no, comprueba que la rama exista en el servidor —`BranchNotPublished`— y lo crea hacia la rama base), `MergeTaskMergeRequest` (el mensaje del proveedor se propaga al usuario). `MergeRequestStatus` lleva el `provider` para que la UI use el vocabulario correcto (`presentation/provider_text.rs`: MR/PR, `!`/`#`, pipeline/workflow).
+- **Clientes HTTP**: `reqwest` con rustls y timeouts. GitLab: cabecera `PRIVATE-TOKEN`; GitHub: `Authorization: Bearer`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version` y `User-Agent`. Componentes de ruta codificados. **Las redirecciones están desactivadas** a propósito: `reqwest` no retira cabeceras propias al cambiar de host y el token podría filtrarse; un 30x se devuelve como error. Los errores de red no incluyen la URL. En GitHub, buscar el PR de una rama y leer el CI hacen una petición extra cada uno (el listado no trae `mergeable` ni `head.sha`).
+- **Acoplamiento**: `code_hosting` no importa `tasks` ni `workspaces`. `CodeHostTaskSourceBridge` (en `app_state.rs`) implementa `TaskSourcePort` con `tasks::GetTask` y `workspaces::GetWorkspace` (devuelve `None` para tareas en `Backlog`, sin rama). En la UI, `app.rs` inyecta las tarjetas (`CodeHostSettingsCard provider=…`) en `SettingsPage` y la pestaña en `TaskDetailPage` (`TaskExtraTab`).
+- **Tests**: unitarios con `mockall` (`mocks.rs`) y GitLab/GitHub falsos con `axum` para los clientes (incluido el test de no-fuga del token por redirección); integración en `tests/modules/code_hosting/` (SQLite temporal y repos git temporales).
 
 ### Soporte nativo de Windows
 
