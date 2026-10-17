@@ -566,6 +566,49 @@ impl DockLayout {
         }
     }
 
+    /// Coloca `tab` justo antes (`after == false`) o después de `target`, en el grupo de `target`.
+    pub fn reorder_tab(&mut self, tab: TabId, target: TabId, after: bool) {
+        if tab == target {
+            return;
+        }
+        let (Some(source), Some(destination)) = (self.group_of_tab(tab), self.group_of_tab(target))
+        else {
+            return;
+        };
+        let entry: Option<TabEntry> = self.group_mut(source).and_then(|g: &mut TabGroup| {
+            let index: usize = g.tabs.iter().position(|t: &TabEntry| t.id == tab)?;
+            let entry: TabEntry = g.tabs.remove(index);
+            if g.active == Some(tab) {
+                g.active = g
+                    .tabs
+                    .get(index)
+                    .or_else(|| g.tabs.last())
+                    .map(|t: &TabEntry| t.id);
+            }
+            Some(entry)
+        });
+        let Some(entry) = entry else {
+            return;
+        };
+        if let Some(g) = self.group_mut(destination) {
+            let index: usize = g
+                .tabs
+                .iter()
+                .position(|t: &TabEntry| t.id == target)
+                .map_or(g.tabs.len(), |i: usize| i + usize::from(after));
+            g.active = Some(entry.id);
+            g.tabs.insert(index, entry);
+        }
+        self.focused = destination;
+        if source != destination
+            && self
+                .group(source)
+                .is_some_and(|g: &TabGroup| g.tabs.is_empty())
+        {
+            self.remove_group(source);
+        }
+    }
+
     /// Mueve la pestaña a una división nueva junto a su propio grupo.
     pub fn move_to_new_split(&mut self, tab: TabId, dir: SplitDir) {
         if let Some(gid) = self.group_of_tab(tab) {
@@ -694,6 +737,45 @@ mod tests {
         assert_eq!(layout.groups.len(), 1);
         assert_eq!(layout.root, LayoutNode::Group(1));
         assert_eq!(layout.focused, 1);
+    }
+
+    fn tab_paths(layout: &DockLayout, group: GroupId) -> Vec<String> {
+        layout
+            .group(group)
+            .map(|g: &TabGroup| g.tabs.iter().map(|t: &TabEntry| t.path.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn reorder_tab_moves_it_after_the_target_in_the_same_group() {
+        let (mut layout, a, b) = two_tabs();
+        let c: TabId = layout.open("/c", "C", None);
+        layout.reorder_tab(a, c, true);
+        assert_eq!(tab_paths(&layout, 1), vec!["/b", "/c", "/a"]);
+        assert_eq!(layout.groups[0].active, Some(a));
+        layout.reorder_tab(c, b, false);
+        assert_eq!(tab_paths(&layout, 1), vec!["/c", "/b", "/a"]);
+    }
+
+    #[test]
+    fn reorder_tab_onto_itself_or_unknown_tab_changes_nothing() {
+        let (mut layout, a, _) = two_tabs();
+        layout.reorder_tab(a, a, true);
+        layout.reorder_tab(a, 999, true);
+        assert_eq!(tab_paths(&layout, 1), vec!["/a", "/b"]);
+    }
+
+    #[test]
+    fn reorder_tab_across_groups_inserts_next_to_the_target() {
+        let (mut layout, a, b) = two_tabs();
+        layout.move_tab(b, 1, DropZone::Right);
+        let right: GroupId = layout.group_of_tab(b).expect("b group");
+        let c: TabId = layout.open("/c", "C", Some(right));
+        layout.reorder_tab(a, c, false);
+        assert_eq!(tab_paths(&layout, right), vec!["/b", "/a", "/c"]);
+        assert_eq!(layout.focused, right);
+        assert_eq!(layout.groups.len(), 1, "emptied source group is removed");
+        assert!(layout.is_consistent());
     }
 
     #[test]

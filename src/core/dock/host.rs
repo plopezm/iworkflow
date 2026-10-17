@@ -160,7 +160,7 @@ fn DropOverlay(group_id: GroupId) -> impl IntoView {
     }
 }
 
-/// Pestaña de la barra: clic activa, × (o clic central) cierra, arrastrable entre grupos.
+/// Pestaña de la barra: clic activa, × (o clic central) cierra, arrastrable para reordenar y entre grupos.
 #[component]
 fn TabButton(
     tab_id: TabId,
@@ -213,6 +213,15 @@ fn TabButton(
                 dock.dragging.set(Some(tab_id));
             }
             on:dragend=move |_| dock.dragging.set(None)
+            on:dragover=move |ev: leptos::ev::DragEvent| ev.prevent_default()
+            on:drop=move |ev: leptos::ev::DragEvent| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                if let Some(dragged) = dock.dragging.get_untracked() {
+                    dock.reorder_tab(dragged, tab_id, js::drop_after(ev));
+                }
+                dock.dragging.set(None);
+            }
         >
             <span class="dock-tab-icon" aria-hidden="true">
                 {move || icon.get()}
