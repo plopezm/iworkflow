@@ -299,6 +299,8 @@ pub struct BoardState {
     pub form_priority: RwSignal<String>,
     pub form_memory_limit: RwSignal<String>,
     pub form_cpu_limit: RwSignal<String>,
+    /// Muestra las opciones avanzadas (límites de RAM y CPU) en el alta.
+    pub form_show_advanced: RwSignal<bool>,
     pub form_start_now: RwSignal<bool>,
     /// Rama de la que parte el worktree; vacío = base del workspace.
     pub form_base_branch: RwSignal<String>,
@@ -343,6 +345,16 @@ pub fn build_create_task_dto(
         start_now,
         base_branch: Some(base_branch.trim().to_string()).filter(|b: &String| !b.is_empty()),
         images,
+    }
+}
+
+/// Límites (RAM, CPU) que se envían al crear: con la sección avanzada oculta los campos no
+/// aplican y se usan los valores por defecto de ajustes (texto vacío).
+pub fn effective_limits(show_advanced: bool, memory: &str, cpu: &str) -> (String, String) {
+    if show_advanced {
+        (memory.to_string(), cpu.to_string())
+    } else {
+        (String::new(), String::new())
     }
 }
 
@@ -442,6 +454,7 @@ impl BoardState {
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
             form_memory_limit: RwSignal::new(String::new()),
             form_cpu_limit: RwSignal::new(String::new()),
+            form_show_advanced: RwSignal::new(false),
             form_start_now: RwSignal::new(false),
             form_base_branch,
             branches,
@@ -465,6 +478,7 @@ impl BoardState {
             .set(TaskPriorityDto::default().as_str().to_string());
         self.form_memory_limit.set(String::new());
         self.form_cpu_limit.set(String::new());
+        self.form_show_advanced.set(false);
         self.form_start_now.set(false);
         self.form_base_branch.set(String::new());
         self.images.clear();
@@ -478,16 +492,19 @@ impl BoardState {
 
     /// Envía el formulario de alta.
     pub fn submit(&self) {
+        // Con la sección avanzada oculta los límites no aplican: se usan los de ajustes.
+        let (memory_limit, cpu_limit): (String, String) = effective_limits(
+            self.form_show_advanced.get_untracked(),
+            &self.form_memory_limit.get_untracked(),
+            &self.form_cpu_limit.get_untracked(),
+        );
         self.create.dispatch(CreateTask {
             input: build_create_task_dto(
                 self.form_workspace_id.get_untracked(),
                 self.form_title.get_untracked(),
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
-                (
-                    &self.form_memory_limit.get_untracked(),
-                    &self.form_cpu_limit.get_untracked(),
-                ),
+                (&memory_limit, &cpu_limit),
                 self.form_start_now.get_untracked(),
                 &self.form_base_branch.get_untracked(),
                 self.images.images.get_untracked(),
@@ -562,6 +579,18 @@ impl Default for BoardState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn advanced_limits_are_sent_when_section_is_shown() {
+        let limits: (String, String) = effective_limits(true, "2048", "50");
+        assert_eq!(limits, ("2048".to_string(), "50".to_string()));
+    }
+
+    #[test]
+    fn advanced_limits_are_dropped_when_section_is_hidden() {
+        let limits: (String, String) = effective_limits(false, "2048", "50");
+        assert_eq!(limits, (String::new(), String::new()));
+    }
 
     #[test]
     fn create_dto_carries_images_and_priority() {

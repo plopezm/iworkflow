@@ -152,18 +152,29 @@ pub fn TaskModal(state: BoardState, workspaces: Signal<Vec<WorkspaceOptionDto>>)
                     value=state.form_priority
                     options=priority_select_options()
                 />
-                <NumberField
-                    label="Memoria RAM máx."
-                    unit="MiB"
-                    placeholder="Por defecto (ajustes)"
-                    value=state.form_memory_limit
-                />
-                <NumberField
-                    label="CPU máx."
-                    unit="% de un núcleo"
-                    placeholder="Por defecto (ajustes)"
-                    value=state.form_cpu_limit
-                />
+                <label class="row min-h-10 items-center gap-2 text-sm text-fg">
+                    <input
+                        type="checkbox"
+                        class="h-5 w-5"
+                        prop:checked=move || state.form_show_advanced.get()
+                        on:change=move |ev| state.form_show_advanced.set(event_target_checked(&ev))
+                    />
+                    "Opciones avanzadas"
+                </label>
+                <Show when=move || state.form_show_advanced.get()>
+                    <NumberField
+                        label="Memoria RAM máx."
+                        unit="MiB"
+                        placeholder="Por defecto (ajustes)"
+                        value=state.form_memory_limit
+                    />
+                    <NumberField
+                        label="CPU máx."
+                        unit="% de un núcleo"
+                        placeholder="Por defecto (ajustes)"
+                        value=state.form_cpu_limit
+                    />
+                </Show>
                 <label class="row min-h-10 items-center gap-2 text-sm text-fg">
                     <input
                         type="checkbox"
