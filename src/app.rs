@@ -82,6 +82,10 @@ enum TabRoute {
     TaskEdit(String),
     TaskTerminal(String),
     TaskDiff(String),
+    /// Explorador de ficheros del worktree de una tarea.
+    TaskTree(String),
+    /// Fichero del worktree de una tarea: id de la tarea y ruta relativa (ya decodificada).
+    TaskFile(String, String),
     NotFound,
 }
 
@@ -110,6 +114,10 @@ impl TabRoute {
             ["tasks", id, "edit"] => Self::TaskEdit((*id).to_string()),
             ["tasks", id, "terminal"] => Self::TaskTerminal((*id).to_string()),
             ["tasks", id, "diff"] => Self::TaskDiff((*id).to_string()),
+            ["tasks", id, "files"] => Self::TaskTree((*id).to_string()),
+            ["tasks", id, "files", rest @ ..] => {
+                Self::TaskFile((*id).to_string(), decode_path(&rest.join("/")))
+            }
             _ => Self::NotFound,
         }
     }
@@ -119,7 +127,10 @@ impl TabRoute {
             Self::Board => "Tablero".to_string(),
             Self::Workspaces => "Workspaces".to_string(),
             Self::WorkspaceTree(_) => "Proyecto".to_string(),
-            Self::WorkspaceFile(_, path) => path.rsplit('/').next().unwrap_or(path).to_string(),
+            Self::TaskTree(_) => "Archivos".to_string(),
+            Self::WorkspaceFile(_, path) | Self::TaskFile(_, path) => {
+                path.rsplit('/').next().unwrap_or(path).to_string()
+            }
             Self::WorkspaceEdit(_) => "Editar workspace".to_string(),
             Self::WorkspaceTerminal(_) | Self::TaskTerminal(_) => "Terminal".to_string(),
             Self::Terminals => "Terminales".to_string(),
@@ -143,8 +154,8 @@ impl TabRoute {
     fn icon(&self) -> &'static str {
         match self {
             Self::Board => "▦",
-            Self::Workspaces | Self::WorkspaceTree(_) => "▤",
-            Self::WorkspaceFile(..) => "◫",
+            Self::Workspaces | Self::WorkspaceTree(_) | Self::TaskTree(_) => "▤",
+            Self::WorkspaceFile(..) | Self::TaskFile(..) => "◫",
             Self::WorkspaceEdit(_) | Self::TaskEdit(_) => "✎",
             Self::TaskDiff(_) => "±",
             Self::WorkspaceTerminal(_)
@@ -169,6 +180,10 @@ impl TabRoute {
             params.insert("id", id.clone());
             params.insert("path", path.clone());
         }
+        if let Self::TaskFile(id, path) = self {
+            params.insert("id", task_scope(id));
+            params.insert("path", path.clone());
+        }
         match self {
             Self::WorkspaceTree(id)
             | Self::WorkspaceEdit(id)
@@ -177,6 +192,7 @@ impl TabRoute {
             | Self::TaskEdit(id)
             | Self::TaskTerminal(id)
             | Self::TaskDiff(id) => params.insert("id", id.clone()),
+            Self::TaskTree(id) => params.insert("id", task_scope(id)),
             Self::JiraIssue(key) | Self::JiraConvert(key) => params.insert("key", key.clone()),
             Self::TerminalSession(id) => params.insert("session_id", id.clone()),
             _ => {}
@@ -188,8 +204,10 @@ impl TabRoute {
         match self {
             Self::Board => view! { <BoardPage /> }.into_any(),
             Self::Workspaces => view! { <WorkspacesPage /> }.into_any(),
-            Self::WorkspaceTree(_) => view! { <ProjectTreePage /> }.into_any(),
-            Self::WorkspaceFile(..) => view! { <ProjectFilePage /> }.into_any(),
+            Self::WorkspaceTree(_) | Self::TaskTree(_) => view! { <ProjectTreePage /> }.into_any(),
+            Self::WorkspaceFile(..) | Self::TaskFile(..) => {
+                view! { <ProjectFilePage /> }.into_any()
+            }
             Self::WorkspaceEdit(_) => view! { <WorkspaceEditPage /> }.into_any(),
             Self::WorkspaceTerminal(_) => view! { <NewTerminalPage /> }.into_any(),
             Self::Terminals => view! { <TerminalsPage /> }.into_any(),
@@ -214,6 +232,11 @@ impl TabRoute {
             Self::NotFound => view! { <p class="muted p-4">"Página no encontrada."</p> }.into_any(),
         }
     }
+}
+
+/// Scope id that the project tree server functions expect for a task worktree.
+fn task_scope(task_id: &str) -> String {
+    format!("task:{task_id}")
 }
 
 fn tab_title(path: &str) -> String {
@@ -468,6 +491,18 @@ mod tests {
             TabRoute::WorkspaceFile("w".into(), "src/a b/main.rs".into())
         );
         assert_eq!(TabRoute::parse("/workspaces/w/files"), TabRoute::NotFound);
+        assert_eq!(
+            TabRoute::parse("/tasks/t/files"),
+            TabRoute::TaskTree("t".into())
+        );
+        assert_eq!(
+            TabRoute::parse("/tasks/t/files/src/a%20b/main.rs"),
+            TabRoute::TaskFile("t".into(), "src/a b/main.rs".into())
+        );
+        assert_eq!(
+            TabRoute::TaskTree("t".into()).params().get("id"),
+            Some("task:t".to_string())
+        );
         assert_eq!(
             TabRoute::WorkspaceFile("w".into(), "src/main.rs".into()).title(),
             "main.rs"

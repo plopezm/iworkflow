@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
+use crate::modules::project_tree::domain::models::project_scope::ProjectScope;
 
 use crate::modules::project_tree::domain::errors::project_tree_error::ProjectTreeError;
 use crate::modules::project_tree::domain::models::workspace_root::WorkspaceRoot;
@@ -20,11 +20,11 @@ impl WriteProjectFile {
 
     pub async fn execute(
         &self,
-        workspace_id: Uuid,
+        scope: ProjectScope,
         relative: &str,
         content: &str,
     ) -> Result<(), ProjectTreeError> {
-        let root: WorkspaceRoot = self.roots.resolve(workspace_id).await?;
+        let root: WorkspaceRoot = self.roots.resolve(scope).await?;
         self.files.write(&root.path, relative, content).await
     }
 }
@@ -32,6 +32,8 @@ impl WriteProjectFile {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use uuid::Uuid;
 
     use super::*;
     use crate::modules::project_tree::mocks::{MockFileStore, MockWorkspaceRoot};
@@ -53,7 +55,7 @@ mod tests {
             .returning(|_, _, _| Ok(()));
 
         WriteProjectFile::new(Arc::new(roots), Arc::new(files))
-            .execute(Uuid::new_v4(), "a.txt", "hola")
+            .execute(ProjectScope::Workspace(Uuid::new_v4()), "a.txt", "hola")
             .await
             .unwrap();
     }
@@ -74,7 +76,7 @@ mod tests {
 
         let result: Result<(), ProjectTreeError> =
             WriteProjectFile::new(Arc::new(roots), Arc::new(files))
-                .execute(Uuid::new_v4(), "d", "x")
+                .execute(ProjectScope::Workspace(Uuid::new_v4()), "d", "x")
                 .await;
 
         assert_eq!(result, Err(ProjectTreeError::NotAFile("d".to_string())));

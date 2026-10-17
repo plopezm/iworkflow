@@ -23,7 +23,7 @@ pub(super) fn io_error(error: std::io::Error) -> ProjectTreeError {
 }
 
 /// Accepts only plain `/`-separated names: no absolute paths, `.`, `..` or prefixes.
-pub(super) fn validate_relative(relative: &str) -> Result<(), ProjectTreeError> {
+pub fn validate_relative(relative: &str) -> Result<(), ProjectTreeError> {
     if relative.is_empty() {
         return Ok(());
     }

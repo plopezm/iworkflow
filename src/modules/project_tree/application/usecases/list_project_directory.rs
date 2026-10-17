@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
+use crate::modules::project_tree::domain::models::project_scope::ProjectScope;
 
 use crate::modules::project_tree::domain::errors::project_tree_error::ProjectTreeError;
 use crate::modules::project_tree::domain::models::directory_contents::DirectoryContents;
@@ -22,10 +22,10 @@ impl ListProjectDirectory {
 
     pub async fn execute(
         &self,
-        workspace_id: Uuid,
+        scope: ProjectScope,
         relative: &str,
     ) -> Result<ProjectDirectory, ProjectTreeError> {
-        let root: WorkspaceRoot = self.roots.resolve(workspace_id).await?;
+        let root: WorkspaceRoot = self.roots.resolve(scope).await?;
         let contents: DirectoryContents = self.reader.list(&root.path, relative).await?;
         Ok(ProjectDirectory {
             workspace_name: root.name,
@@ -37,6 +37,8 @@ impl ListProjectDirectory {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use uuid::Uuid;
 
     use super::*;
     use crate::modules::project_tree::domain::models::tree_entry::{TreeEntry, TreeEntryKind};
@@ -51,7 +53,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolves_root_then_lists() {
-        let id: Uuid = Uuid::new_v4();
+        let id: ProjectScope = ProjectScope::Workspace(Uuid::new_v4());
         let contents: DirectoryContents = DirectoryContents {
             path: "src".to_string(),
             entries: vec![TreeEntry {
@@ -63,7 +65,7 @@ mod tests {
         let mut roots: MockWorkspaceRoot = MockWorkspaceRoot::new();
         roots
             .expect_resolve()
-            .withf(move |got: &Uuid| *got == id)
+            .withf(move |got: &ProjectScope| *got == id)
             .times(1)
             .returning(|_| Ok(root()));
         let mut reader: MockDirectoryReader = MockDirectoryReader::new();
@@ -101,7 +103,7 @@ mod tests {
 
         let result: Result<ProjectDirectory, ProjectTreeError> =
             ListProjectDirectory::new(Arc::new(roots), Arc::new(reader))
-                .execute(Uuid::new_v4(), "")
+                .execute(ProjectScope::Workspace(Uuid::new_v4()), "")
                 .await;
 
         assert_eq!(result, Err(ProjectTreeError::WorkspaceNotFound));
@@ -118,7 +120,7 @@ mod tests {
 
         let result: Result<ProjectDirectory, ProjectTreeError> =
             ListProjectDirectory::new(Arc::new(roots), Arc::new(reader))
-                .execute(Uuid::new_v4(), "x")
+                .execute(ProjectScope::Workspace(Uuid::new_v4()), "x")
                 .await;
 
         assert_eq!(result, Err(ProjectTreeError::PathNotFound("x".to_string())));

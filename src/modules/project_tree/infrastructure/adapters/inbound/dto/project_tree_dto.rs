@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "ssr")]
+use crate::modules::project_tree::domain::models::git_change::{GitChange, GitChangeKind};
+#[cfg(feature = "ssr")]
 use crate::modules::project_tree::domain::models::project_directory::ProjectDirectory;
 #[cfg(feature = "ssr")]
 use crate::modules::project_tree::domain::models::project_file::ProjectFile;
@@ -21,6 +23,40 @@ pub struct ProjectDirectoryDto {
     /// Path relative to the project root; empty means the root itself.
     pub path: String,
     pub entries: Vec<TreeEntryDto>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GitChangeKindDto {
+    Modified,
+    Added,
+    Untracked,
+    Deleted,
+    Renamed,
+    Conflicted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GitChangeDto {
+    /// Path relative to the project root, `/`-separated.
+    pub path: String,
+    pub kind: GitChangeKindDto,
+}
+
+#[cfg(feature = "ssr")]
+impl From<GitChange> for GitChangeDto {
+    fn from(change: GitChange) -> Self {
+        Self {
+            path: change.path,
+            kind: match change.kind {
+                GitChangeKind::Modified => GitChangeKindDto::Modified,
+                GitChangeKind::Added => GitChangeKindDto::Added,
+                GitChangeKind::Untracked => GitChangeKindDto::Untracked,
+                GitChangeKind::Deleted => GitChangeKindDto::Deleted,
+                GitChangeKind::Renamed => GitChangeKindDto::Renamed,
+                GitChangeKind::Conflicted => GitChangeKindDto::Conflicted,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -73,6 +109,21 @@ impl From<ProjectDirectory> for ProjectDirectoryDto {
 mod tests {
     use super::*;
     use crate::modules::project_tree::domain::models::directory_contents::DirectoryContents;
+
+    #[test]
+    fn maps_git_change_to_dto() {
+        let dto: GitChangeDto = GitChangeDto::from(GitChange {
+            path: "a.rs".to_string(),
+            kind: GitChangeKind::Untracked,
+        });
+        assert_eq!(
+            dto,
+            GitChangeDto {
+                path: "a.rs".to_string(),
+                kind: GitChangeKindDto::Untracked,
+            }
+        );
+    }
 
     #[test]
     fn maps_file_to_dto() {

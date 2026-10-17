@@ -112,8 +112,6 @@ impl AppState {
             get_workspace: get_workspace.clone(),
             list_workspaces: list_workspaces.clone(),
         });
-        let project_tree: ProjectTreeContext =
-            ProjectTreeContext::new(workspace_root_resolver(get_workspace.clone()));
         let agents_files: AgentsFilesContext =
             AgentsFilesContext::new(pool.clone(), config.agents_files_dir.clone(), projects);
         let agent_settings: AgentSettingsContext = AgentSettingsContext::new(
@@ -155,6 +153,10 @@ impl AppState {
             workspace_path_resolver(get_workspace.clone()),
             task_path_resolver(tasks.get_task.clone()),
             config.home_dir.clone(),
+        );
+        let project_tree: ProjectTreeContext = ProjectTreeContext::new(
+            workspace_root_resolver(get_workspace.clone()),
+            task_root_resolver(tasks.get_task.clone()),
         );
         let workspace_tasks: Arc<dyn WorkspaceTasksPort> = Arc::new(WorkspaceTasksBridge {
             delete_workspace_tasks: tasks.delete_workspace_tasks.clone(),
@@ -265,6 +267,24 @@ fn workspace_root_resolver(get_workspace: Arc<GetWorkspace>) -> RootResolver {
                     path: workspace.path,
                 })),
                 Err(WorkspaceError::NotFound(_)) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            }
+        })
+    })
+}
+
+/// Expone el worktree de una tarea al feature de árbol de proyecto como una closure. `Ok(None)` si la
+/// tarea no existe o no tiene worktree en ese estado.
+fn task_root_resolver(get_task: Arc<GetTask>) -> RootResolver {
+    Arc::new(move |id: uuid::Uuid| -> RootLookupFuture {
+        let get_task: Arc<GetTask> = get_task.clone();
+        Box::pin(async move {
+            match get_task.execute(TaskId::from_uuid(id)).await {
+                Ok(task) => Ok(task_target(task).map(|target: TaskTarget| WorkspaceRoot {
+                    name: target.name,
+                    path: target.path,
+                })),
+                Err(TaskError::NotFound(_)) => Ok(None),
                 Err(error) => Err(error.to_string()),
             }
         })

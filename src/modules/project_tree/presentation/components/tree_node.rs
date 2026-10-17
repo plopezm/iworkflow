@@ -30,9 +30,15 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
     let title: String = name.clone();
 
     if !is_dir {
+        let class_path: String = path.clone();
         return view! {
             <li>
-                <TabLink href=file_href(&state.workspace_id.get_value(), &path) class="tree-row" style=style beside=true>
+                <TabLink
+                    href=file_href(&state.workspace_id.get_value(), &path)
+                    class=move || format!("tree-row {}", state.git_class(&class_path))
+                    style=style
+                    beside=true
+                >
                     <span class="tree-chevron-spacer" aria-hidden="true"></span>
                     <TreeIcon />
                     <span class="truncate" title=title>
@@ -50,13 +56,14 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
         let path: String = path.clone();
         move || state.is_expanded(&path)
     });
-    let children_path: String = path;
+    let children_path: String = path.clone();
+    let class_path: String = path;
 
     view! {
         <li>
             <button
                 type="button"
-                class="tree-row"
+                class=move || format!("tree-row {}", state.git_class(&class_path))
                 style=style
                 aria-expanded=move || expanded.get().to_string()
                 on:click=move |_| state.toggle(&toggle_path)

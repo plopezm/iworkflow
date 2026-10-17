@@ -109,6 +109,6 @@ fn file_body(file: ProjectFileDto, state: ProjectFileState) -> impl IntoView {
             </Show>
         </div>
         {move || state.save_error().map(|message: String| view! { <div class="px-3 py-1"><ErrorText message /></div> })}
-        <CodeEditor value=state.draft filename=name.clone() disabled=saving on_save=save />
+        <CodeEditor value=state.draft filename=name.clone() disabled=saving on_save=save marks=state.marks />
     }
 }

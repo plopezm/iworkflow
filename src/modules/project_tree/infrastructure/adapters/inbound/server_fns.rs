@@ -1,16 +1,15 @@
 use leptos::prelude::*;
 
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::{
-    ProjectDirectoryDto, ProjectFileDto,
+    GitChangeDto, ProjectDirectoryDto, ProjectFileDto,
 };
 
 #[cfg(feature = "ssr")]
 mod support {
-    use leptos::prelude::*;
-    use uuid::Uuid;
-
     use crate::modules::project_tree::domain::errors::project_tree_error::ProjectTreeError;
+    use crate::modules::project_tree::domain::models::project_scope::ProjectScope;
     use crate::modules::project_tree::infrastructure::di::project_tree_context::ProjectTreeContext;
+    use leptos::prelude::*;
 
     pub fn context() -> Result<ProjectTreeContext, ServerFnError> {
         use_context::<ProjectTreeContext>()
@@ -21,12 +20,15 @@ mod support {
         ServerFnError::new(error.to_string())
     }
 
-    pub fn workspace_id(id: &str) -> Result<Uuid, ServerFnError> {
-        Uuid::parse_str(id).map_err(|_| ServerFnError::new("id de workspace inválido"))
+    /// Parses the wire scope: a workspace uuid or `task:<uuid>`.
+    pub fn scope(id: &str) -> Result<ProjectScope, ServerFnError> {
+        ProjectScope::parse(id).ok_or_else(|| ServerFnError::new("id de workspace inválido"))
     }
 
     #[cfg(test)]
     mod tests {
+        use uuid::Uuid;
+
         use super::*;
 
         #[test]
@@ -56,7 +58,7 @@ mod support {
         #[test]
         fn invalid_workspace_id_is_rejected() {
             assert_eq!(
-                workspace_id("nope"),
+                scope("nope"),
                 Err(ServerFnError::ServerError(
                     "id de workspace inválido".to_string()
                 ))
@@ -66,7 +68,13 @@ mod support {
         #[test]
         fn valid_workspace_id_is_parsed() {
             let id: Uuid = Uuid::from_u128(7);
-            assert_eq!(workspace_id(&id.to_string()), Ok(id));
+            assert_eq!(scope(&id.to_string()), Ok(ProjectScope::Workspace(id)));
+        }
+
+        #[test]
+        fn task_scope_is_parsed() {
+            let id: Uuid = Uuid::from_u128(8);
+            assert_eq!(scope(&format!("task:{id}")), Ok(ProjectScope::Task(id)));
         }
     }
 }
@@ -80,7 +88,7 @@ pub async fn list_project_directory(
 
     let directory: ProjectDirectory = support::context()?
         .list_directory
-        .execute(support::workspace_id(&workspace_id)?, &path)
+        .execute(support::scope(&workspace_id)?, &path)
         .await
         .map_err(support::to_server_error)?;
     Ok(ProjectDirectoryDto::from(directory))
@@ -95,7 +103,7 @@ pub async fn read_project_file(
 
     let file: ProjectFile = support::context()?
         .read_file
-        .execute(support::workspace_id(&workspace_id)?, &path)
+        .execute(support::scope(&workspace_id)?, &path)
         .await
         .map_err(support::to_server_error)?;
     Ok(ProjectFileDto::from(file))
@@ -109,7 +117,32 @@ pub async fn write_project_file(
 ) -> Result<(), ServerFnError> {
     support::context()?
         .write_file
-        .execute(support::workspace_id(&workspace_id)?, &path, &content)
+        .execute(support::scope(&workspace_id)?, &path, &content)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn list_project_git_changes(
+    workspace_id: String,
+) -> Result<Vec<GitChangeDto>, ServerFnError> {
+    let changes = support::context()?
+        .git_changes
+        .execute(support::scope(&workspace_id)?)
+        .await
+        .map_err(support::to_server_error)?;
+    Ok(changes.into_iter().map(GitChangeDto::from).collect())
+}
+
+/// Content of the file at git `HEAD`; `None` when git does not know it yet.
+#[server]
+pub async fn read_project_file_base(
+    workspace_id: String,
+    path: String,
+) -> Result<Option<String>, ServerFnError> {
+    support::context()?
+        .file_base
+        .execute(support::scope(&workspace_id)?, &path)
         .await
         .map_err(support::to_server_error)
 }
