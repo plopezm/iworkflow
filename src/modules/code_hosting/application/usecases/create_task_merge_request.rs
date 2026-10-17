@@ -34,17 +34,15 @@ impl CreateTaskMergeRequest {
     ) -> Result<MergeRequestStatus, CodeHostError> {
         let resolved: ResolvedTask = self.resolver.resolve(&input.task_id).await?;
         let source = &resolved.source;
-        let existing: Option<MergeRequest> = self
-            .resolver
-            .client()
+        let existing: Option<MergeRequest> = resolved
+            .client
             .find_latest_merge_request(&resolved.settings, &resolved.project, &source.branch)
             .await?;
         let merge_request: MergeRequest = match existing {
             Some(open) if open.is_open() => open,
             _ => {
-                let published: bool = self
-                    .resolver
-                    .client()
+                let published: bool = resolved
+                    .client
                     .branch_exists(&resolved.settings, &resolved.project, &source.branch)
                     .await?;
                 if !published {
@@ -57,8 +55,8 @@ impl CreateTaskMergeRequest {
                     description: non_blank(input.description)
                         .unwrap_or_else(|| source.description.clone()),
                 };
-                self.resolver
-                    .client()
+                resolved
+                    .client
                     .create_merge_request(&resolved.settings, &resolved.project, &new)
                     .await?
             }

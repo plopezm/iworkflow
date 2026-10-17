@@ -8,7 +8,7 @@ use crate::modules::code_hosting::domain::models::merge_request::{
     MergeRequest, MergeRequestStatus,
 };
 
-/// Mezcla en GitLab el MR abierto de la rama de la tarea.
+/// Mezcla en el proveedor el MR abierto de la rama de la tarea.
 pub struct MergeTaskMergeRequest {
     resolver: Arc<TaskProjectResolver>,
 }
@@ -21,16 +21,14 @@ impl MergeTaskMergeRequest {
     pub async fn execute(&self, task_id: &str) -> Result<MergeRequestStatus, CodeHostError> {
         let resolved: ResolvedTask = self.resolver.resolve(task_id).await?;
         let branch: &str = &resolved.source.branch;
-        let open: MergeRequest = self
-            .resolver
-            .client()
+        let open: MergeRequest = resolved
+            .client
             .find_latest_merge_request(&resolved.settings, &resolved.project, branch)
             .await?
             .filter(MergeRequest::is_open)
             .ok_or_else(|| CodeHostError::MergeRequestNotFound(branch.to_string()))?;
-        let merged: MergeRequest = self
-            .resolver
-            .client()
+        let merged: MergeRequest = resolved
+            .client
             .merge_merge_request(&resolved.settings, &resolved.project, open.iid)
             .await?;
         // El merge ya está hecho: un fallo al leer el pipeline no debe presentarse como fallo del

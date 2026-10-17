@@ -4,7 +4,7 @@ use crate::modules::code_hosting::domain::models::merge_request::{
     MergeRequest, NewMergeRequest, Pipeline,
 };
 
-/// Cliente de la API REST v4 de GitLab. `project` es `namespace/proyecto`.
+/// Cliente de la API de un proveedor (GitLab o GitHub). `project` es `namespace/proyecto` u `owner/repo`.
 #[async_trait::async_trait]
 pub trait CodeHostClientPort: Send + Sync {
     /// Usuario autenticado por el token (sirve para probar la conexión).

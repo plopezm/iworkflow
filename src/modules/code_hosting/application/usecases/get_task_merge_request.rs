@@ -23,9 +23,8 @@ impl GetTaskMergeRequest {
         task_id: &str,
     ) -> Result<Option<MergeRequestStatus>, CodeHostError> {
         let resolved: ResolvedTask = self.resolver.resolve(task_id).await?;
-        let found: Option<MergeRequest> = self
-            .resolver
-            .client()
+        let found: Option<MergeRequest> = resolved
+            .client
             .find_latest_merge_request(
                 &resolved.settings,
                 &resolved.project,

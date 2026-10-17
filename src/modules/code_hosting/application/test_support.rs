@@ -5,9 +5,11 @@ use crate::modules::code_hosting::application::services::task_project_resolver::
 use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
 use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
 use crate::modules::code_hosting::domain::models::merge_request::MergeRequest;
+use crate::modules::code_hosting::domain::ports::outbound::code_host_client_port::CodeHostClientPort;
 use crate::modules::code_hosting::domain::ports::outbound::task_source_port::TaskSource;
 use crate::modules::code_hosting::mocks::{
-    MockCodeHostClient, MockCodeHostSettingsRepository, MockGitRemote, MockTaskSourceLookup,
+    MockCodeHostClient, MockCodeHostClientFactory, MockCodeHostSettingsRepository, MockGitRemote,
+    MockTaskSourceLookup,
 };
 
 pub const TASK_ID: &str = "task-1";
@@ -41,6 +43,16 @@ pub fn merge_request(iid: u64, state: &str) -> MergeRequest {
     }
 }
 
+/// Factoría que entrega siempre el cliente indicado, sea cual sea el proveedor.
+pub fn factory_for(client: MockCodeHostClient) -> MockCodeHostClientFactory {
+    let shared: Arc<dyn CodeHostClientPort> = Arc::new(client);
+    let mut factory: MockCodeHostClientFactory = MockCodeHostClientFactory::new();
+    factory
+        .expect_client_for()
+        .returning(move |_| shared.clone());
+    factory
+}
+
 /// Resolver con ajustes, tarea y `origin` válidos sobre el cliente indicado.
 pub fn resolver(client: MockCodeHostClient) -> Arc<TaskProjectResolver> {
     let mut repository: MockCodeHostSettingsRepository = MockCodeHostSettingsRepository::new();
@@ -56,6 +68,6 @@ pub fn resolver(client: MockCodeHostClient) -> Arc<TaskProjectResolver> {
         Arc::new(repository),
         Arc::new(tasks),
         Arc::new(remote),
-        Arc::new(client),
+        Arc::new(factory_for(client)),
     ))
 }

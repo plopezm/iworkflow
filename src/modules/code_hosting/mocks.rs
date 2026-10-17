@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use mockall::mock;
 
@@ -8,6 +9,7 @@ use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvi
 use crate::modules::code_hosting::domain::models::merge_request::{
     MergeRequest, NewMergeRequest, Pipeline,
 };
+use crate::modules::code_hosting::domain::ports::outbound::code_host_client_factory_port::CodeHostClientFactoryPort;
 use crate::modules::code_hosting::domain::ports::outbound::code_host_client_port::CodeHostClientPort;
 use crate::modules::code_hosting::domain::ports::outbound::code_host_settings_repository_port::CodeHostSettingsRepositoryPort;
 use crate::modules::code_hosting::domain::ports::outbound::git_remote_port::GitRemotePort;
@@ -86,5 +88,13 @@ mock! {
     #[async_trait::async_trait]
     impl TaskSourcePort for TaskSourceLookup {
         async fn find(&self, task_id: &str) -> Result<Option<TaskSource>, CodeHostError>;
+    }
+}
+
+mock! {
+    pub CodeHostClientFactory {}
+
+    impl CodeHostClientFactoryPort for CodeHostClientFactory {
+        fn client_for(&self, provider: HostingProvider) -> Arc<dyn CodeHostClientPort>;
     }
 }

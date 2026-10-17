@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use reqwest::{Method, RequestBuilder, Response, StatusCode};
+use reqwest::{Method, RequestBuilder, Response};
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
 
 use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
 use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
@@ -12,6 +12,9 @@ use crate::modules::code_hosting::domain::models::merge_request::{
 };
 use crate::modules::code_hosting::domain::ports::outbound::code_host_client_port::CodeHostClientPort;
 use crate::modules::code_hosting::infrastructure::adapters::outbound::http::http_client_manager::HttpClientManager;
+use crate::modules::code_hosting::infrastructure::adapters::outbound::http::http_support::{
+    encode_component, json, send,
+};
 
 const TOKEN_HEADER: &str = "PRIVATE-TOKEN";
 const JOBS_PER_PAGE: &str = "100";
@@ -45,73 +48,6 @@ impl GitLabHttpClientAdapter {
             .request(method, url)
             .header(TOKEN_HEADER, settings.token()))
     }
-
-    async fn send(request: RequestBuilder) -> Result<Response, CodeHostError> {
-        let response: Response = request
-            .send()
-            .await
-            .map_err(|e: reqwest::Error| CodeHostError::Network(e.without_url().to_string()))?;
-        let status: StatusCode = response.status();
-        if status.is_success() {
-            return Ok(response);
-        }
-        if status.is_redirection() {
-            return Err(CodeHostError::Redirected {
-                provider: HostingProvider::GitLab,
-                status: status.as_u16(),
-            });
-        }
-        Err(api_error(response).await)
-    }
-
-    async fn json<T: for<'de> Deserialize<'de>>(response: Response) -> Result<T, CodeHostError> {
-        response
-            .json::<T>()
-            .await
-            .map_err(|e: reqwest::Error| CodeHostError::Network(e.without_url().to_string()))
-    }
-}
-
-/// Codifica un componente de ruta (el proyecto `g/p` o una rama `pi/x`) para la API.
-fn encode_component(value: &str) -> String {
-    let mut encoded: String = String::with_capacity(value.len());
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
-            encoded.push(char::from(byte));
-        } else {
-            encoded.push_str(&format!("%{byte:02X}"));
-        }
-    }
-    encoded
-}
-
-async fn api_error(response: Response) -> CodeHostError {
-    let status: StatusCode = response.status();
-    let body: String = response.text().await.unwrap_or_default();
-    CodeHostError::Api {
-        provider: HostingProvider::GitLab,
-        status: status.as_u16(),
-        message: error_message(&body, status),
-    }
-}
-
-/// GitLab devuelve `{"message": ...}` (texto, lista u objeto) o `{"error": ...}`.
-fn error_message(body: &str, status: StatusCode) -> String {
-    let parsed: Option<Value> = serde_json::from_str(body).ok();
-    let message: Option<String> = parsed.and_then(|v: Value| {
-        let field: &Value = v.get("message").or_else(|| v.get("error"))?;
-        Some(match field {
-            Value::String(text) => text.clone(),
-            other => other.to_string(),
-        })
-    });
-    message.unwrap_or_else(|| {
-        if body.trim().is_empty() {
-            status.canonical_reason().unwrap_or("error").to_string()
-        } else {
-            body.chars().take(300).collect()
-        }
-    })
 }
 
 #[derive(Deserialize)]
@@ -169,8 +105,12 @@ struct UserJson {
 #[async_trait::async_trait]
 impl CodeHostClientPort for GitLabHttpClientAdapter {
     async fn current_user(&self, settings: &CodeHostSettings) -> Result<String, CodeHostError> {
-        let response: Response = Self::send(self.request(settings, Method::GET, "/user")?).await?;
-        Ok(Self::json::<UserJson>(response).await?.username)
+        let response: Response = send(
+            HostingProvider::GitLab,
+            self.request(settings, Method::GET, "/user")?,
+        )
+        .await?;
+        Ok(json::<UserJson>(response).await?.username)
     }
 
     async fn branch_exists(
@@ -184,7 +124,12 @@ impl CodeHostClientPort for GitLabHttpClientAdapter {
             encode_component(project),
             encode_component(branch)
         );
-        match Self::send(self.request(settings, Method::GET, &path)?).await {
+        match send(
+            HostingProvider::GitLab,
+            self.request(settings, Method::GET, &path)?,
+        )
+        .await
+        {
             Ok(_) => Ok(true),
             Err(CodeHostError::Api { status: 404, .. }) => Ok(false),
             Err(other) => Err(other),
@@ -203,8 +148,8 @@ impl CodeHostClientPort for GitLabHttpClientAdapter {
             ("order_by", "created_at"),
             ("sort", "desc"),
         ]);
-        let response: Response = Self::send(request).await?;
-        let list: Vec<MergeRequestJson> = Self::json(response).await?;
+        let response: Response = send(HostingProvider::GitLab, request).await?;
+        let list: Vec<MergeRequestJson> = json(response).await?;
         // Prefiere el abierto más reciente; si no hay, el más reciente de cualquier estado.
         let index: usize = list
             .iter()
@@ -226,8 +171,8 @@ impl CodeHostClientPort for GitLabHttpClientAdapter {
             "title": new.title,
             "description": new.description,
         }));
-        let response: Response = Self::send(request).await?;
-        Ok(Self::json::<MergeRequestJson>(response).await?.into())
+        let response: Response = send(HostingProvider::GitLab, request).await?;
+        Ok(json::<MergeRequestJson>(response).await?.into())
     }
 
     async fn get_merge_request(
@@ -240,8 +185,12 @@ impl CodeHostClientPort for GitLabHttpClientAdapter {
             "/projects/{}/merge_requests/{iid}",
             encode_component(project)
         );
-        let response: Response = Self::send(self.request(settings, Method::GET, &path)?).await?;
-        Ok(Self::json::<MergeRequestJson>(response).await?.into())
+        let response: Response = send(
+            HostingProvider::GitLab,
+            self.request(settings, Method::GET, &path)?,
+        )
+        .await?;
+        Ok(json::<MergeRequestJson>(response).await?.into())
     }
 
     async fn latest_pipeline(
@@ -252,9 +201,12 @@ impl CodeHostClientPort for GitLabHttpClientAdapter {
     ) -> Result<Option<Pipeline>, CodeHostError> {
         let encoded: String = encode_component(project);
         let list_path: String = format!("/projects/{encoded}/merge_requests/{iid}/pipelines");
-        let response: Response =
-            Self::send(self.request(settings, Method::GET, &list_path)?).await?;
-        let pipelines: Vec<PipelineJson> = Self::json(response).await?;
+        let response: Response = send(
+            HostingProvider::GitLab,
+            self.request(settings, Method::GET, &list_path)?,
+        )
+        .await?;
+        let pipelines: Vec<PipelineJson> = json(response).await?;
         // GitLab los devuelve del más reciente al más antiguo.
         let Some(latest) = pipelines.into_iter().next() else {
             return Ok(None);
@@ -263,8 +215,8 @@ impl CodeHostClientPort for GitLabHttpClientAdapter {
         let jobs_request: RequestBuilder = self
             .request(settings, Method::GET, &jobs_path)?
             .query(&[("per_page", JOBS_PER_PAGE)]);
-        let jobs_response: Response = Self::send(jobs_request).await?;
-        let jobs: Vec<JobJson> = Self::json(jobs_response).await?;
+        let jobs_response: Response = send(HostingProvider::GitLab, jobs_request).await?;
+        let jobs: Vec<JobJson> = json(jobs_response).await?;
         Ok(Some(Pipeline {
             id: latest.id,
             status: latest.status,
@@ -292,8 +244,12 @@ impl CodeHostClientPort for GitLabHttpClientAdapter {
             "/projects/{}/merge_requests/{iid}/merge",
             encode_component(project)
         );
-        let response: Response = Self::send(self.request(settings, Method::PUT, &path)?).await?;
-        Ok(Self::json::<MergeRequestJson>(response).await?.into())
+        let response: Response = send(
+            HostingProvider::GitLab,
+            self.request(settings, Method::PUT, &path)?,
+        )
+        .await?;
+        Ok(json::<MergeRequestJson>(response).await?.into())
     }
 }
 
@@ -306,6 +262,8 @@ mod tests {
     use axum::http::{HeaderMap, Method as HttpMethod, StatusCode as HttpStatus, Uri};
     use axum::response::{IntoResponse, Response as AxumResponse};
     use tokio::net::TcpListener;
+
+    use serde_json::Value;
 
     use super::*;
 
