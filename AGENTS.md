@@ -10,7 +10,7 @@
 
 ## 2. Orquestación
 
-Utiliza siempre la metodología ODD con multiagente al no ser que la tarea sea muy sencilla.
+Utiliza siempre la metodología ODD con multiagente
 
 
 ## 3. Arquitectura (Hexagonal + Vertical Slicing)
