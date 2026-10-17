@@ -25,7 +25,7 @@ Guía para leer el código de iworkflow, pensada para alguien con experiencia s�
 
 ## 1. Qué hace la aplicación
 
-iworkflow es un dashboard web para lanzar y supervisar agentes de código (`gentle-shell`, `pi`, `claude` o `cursor`) mediante un protocolo RPC. El agente concreto queda detrás de un puerto (`AgentRuntimePort`), de modo que el dominio no sabe qué agente ni qué transporte hay debajo ([§6.7](#67-abstracción-del-runtime-de-agentes)). Cada **tarea** se ejecuta en su propio **git worktree**; al terminar, el usuario revisa el diff y decide si integrar (`merge --no-ff`) o descartar.
+iworkflow es un ADE (Agentic Development Environment) para lanzar, orquestar y revisar agentes de código (`gentle-shell`, `pi`, `claude` o `cursor`) mediante un protocolo RPC. El agente concreto queda detrás de un puerto (`AgentRuntimePort`), de modo que el dominio no sabe qué agente ni qué transporte hay debajo ([§6.7](#67-abstracción-del-runtime-de-agentes)). Cada **tarea** se ejecuta en su propio **git worktree**; al terminar, el usuario revisa el diff y decide si integrar (`merge --no-ff`) o descartar.
 
 ```mermaid
 flowchart LR

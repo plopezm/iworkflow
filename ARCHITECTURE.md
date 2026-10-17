@@ -25,7 +25,7 @@ A guide to reading the iworkflow code, aimed at someone with solid Java experien
 
 ## 1. What the application does
 
-iworkflow is a web dashboard to launch and supervise coding agents (`gentle-shell`, `pi`, `claude` or `cursor`) over an RPC protocol. The concrete agent sits behind a port (`AgentRuntimePort`), so the domain does not know which agent or transport lies underneath ([§6.7](#67-agent-runtime-abstraction)). Each **task** runs in its own **git worktree**; when it finishes, the user reviews the diff and decides whether to integrate (`merge --no-ff`) or discard.
+iworkflow is an ADE (Agentic Development Environment) to launch, orchestrate and review coding agents (`gentle-shell`, `pi`, `claude` or `cursor`) over an RPC protocol. The concrete agent sits behind a port (`AgentRuntimePort`), so the domain does not know which agent or transport lies underneath ([§6.7](#67-agent-runtime-abstraction)). Each **task** runs in its own **git worktree**; when it finishes, the user reviews the diff and decides whether to integrate (`merge --no-ff`) or discard.
 
 ```mermaid
 flowchart LR

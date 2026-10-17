@@ -8,11 +8,14 @@
   </a>
 </p>
 
-Dashboard web para lanzar y controlar instancias de `gentle-shell` (pi) en modo RPC.
-Cada tarea corre en su propio **git worktree**; al terminar revisas el diff y decides si integrarla.
+**iworkflow es un ADE (Agentic Development Environment)**: un entorno de desarrollo potenciado por IA, concebido como una evolución del IDE tradicional. En lugar de escribir todo el código manualmente, orquestas agentes autónomos de IA que actúan como colaboradores activos. El flujo de trabajo principal deja de ser la edición de archivos y pasa a ser la **gestión de tareas**: lanzas, coordinas y revisas el trabajo de varios agentes a la vez.
 
-La app no impone ningún flujo: cada instancia usa la configuración y los plugins de
-gentle-shell que tengas instalados y el `AGENTS.md` del proyecto.
+- **Orquestación de agentes**: una superficie unificada para lanzar, seguir y dirigir varios agentes en paralelo (`gentle-shell`, `pi`, `claude`, `cursor`).
+- **Espacios de trabajo aislados**: cada tarea corre en su propio **git worktree**, de modo que los agentes en paralelo no sobrescriben el trabajo de los demás.
+- **Revisar, no rehacer**: al terminar un agente revisas su diff y decides si integrarlo (`merge --no-ff`) o descartarlo. Los agentes pueden ejecutar pruebas y las tareas se conectan con GitLab/GitHub (MR/PR y CI) y Jira.
+- **Cambio de rol del desarrollador**: de "hacerlo todo" a **orquestar y revisar** lo que ejecutan los agentes.
+
+La app no impone ningún flujo: cada agente usa la configuración y los plugins que tengas instalados y el `AGENTS.md` del proyecto. Internamente, los agentes se manejan por RPC (o ACP / stream-json, según el runtime).
 
 ## Arranque rápido
 
