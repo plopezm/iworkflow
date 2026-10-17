@@ -113,6 +113,8 @@ The **Jira** tab connects to an on-premise Jira using the server URL and a perso
 
 ## Agent profiles and models
 
+This feature is the integration with [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai), the agent harness behind `gentle-shell` and its gentle-pi package. Profiles and per-agent model routing are Gentle AI concepts: iworkflow does not define its own, it reads and writes the same configuration files (`profiles.json`, `models.json`), so changes made here are seen by the Gentle AI TUI and vice versa. Install and configure Gentle AI first; without it these screens have nothing to manage.
+
 Two screens equivalent to the gentle-pi commands, working on the same files:
 
 | Screen | Equivalent to | What it does |

@@ -113,6 +113,8 @@ La pestaña **Jira** conecta con un Jira on premise usando la URL del servidor y
 
 ## Perfiles y modelos de agentes
 
+Esta funcionalidad es la integración con [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai), el arnés de agentes que hay detrás de `gentle-shell` y su paquete gentle-pi. Los perfiles y el enrutado de modelos por agente son conceptos de Gentle AI: iworkflow no define los suyos, lee y escribe los mismos ficheros de configuración (`profiles.json`, `models.json`), así que los cambios hechos aquí los ve la TUI de Gentle AI y viceversa. Instala y configura Gentle AI primero; sin él estas pantallas no tienen nada que gestionar.
+
 Dos pantallas equivalentes a los comandos de gentle-pi, sobre los mismos ficheros:
 
 | Pantalla | Equivale a | Qué hace |
