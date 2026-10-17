@@ -2,9 +2,10 @@ use std::sync::Arc;
 
 use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
 use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
+use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
 use crate::modules::code_hosting::domain::ports::outbound::code_host_settings_repository_port::CodeHostSettingsRepositoryPort;
 
-/// Lee los ajustes de GitLab; `None` si aún no se han configurado.
+/// Lee los ajustes de un proveedor; `None` si aún no se han configurado.
 pub struct GetCodeHostSettings {
     repository: Arc<dyn CodeHostSettingsRepositoryPort>,
 }
@@ -14,8 +15,11 @@ impl GetCodeHostSettings {
         Self { repository }
     }
 
-    pub async fn execute(&self) -> Result<Option<CodeHostSettings>, CodeHostError> {
-        self.repository.get().await
+    pub async fn execute(
+        &self,
+        provider: HostingProvider,
+    ) -> Result<Option<CodeHostSettings>, CodeHostError> {
+        self.repository.get(provider).await
     }
 }
 
@@ -30,10 +34,11 @@ mod tests {
         let mut repository: MockCodeHostSettingsRepository = MockCodeHostSettingsRepository::new();
         repository
             .expect_get()
-            .returning(|| Ok(Some(test_support::settings())));
+            .withf(|provider: &HostingProvider| *provider == HostingProvider::GitLab)
+            .returning(|_| Ok(Some(test_support::settings())));
 
         let result: Option<CodeHostSettings> = GetCodeHostSettings::new(Arc::new(repository))
-            .execute()
+            .execute(HostingProvider::GitLab)
             .await
             .expect("get");
 
@@ -43,10 +48,10 @@ mod tests {
     #[tokio::test]
     async fn returns_none_when_unconfigured() {
         let mut repository: MockCodeHostSettingsRepository = MockCodeHostSettingsRepository::new();
-        repository.expect_get().returning(|| Ok(None));
+        repository.expect_get().returning(|_| Ok(None));
 
         let result: Option<CodeHostSettings> = GetCodeHostSettings::new(Arc::new(repository))
-            .execute()
+            .execute(HostingProvider::GitLab)
             .await
             .expect("get");
 

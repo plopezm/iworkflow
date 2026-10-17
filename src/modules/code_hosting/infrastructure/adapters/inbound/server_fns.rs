@@ -9,11 +9,16 @@ mod support {
     use leptos::prelude::*;
 
     use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
+    use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
     use crate::modules::code_hosting::infrastructure::di::code_host_context::CodeHostContext;
 
     pub fn context() -> Result<CodeHostContext, ServerFnError> {
         use_context::<CodeHostContext>()
             .ok_or_else(|| ServerFnError::new("CodeHostContext no disponible"))
+    }
+
+    pub fn provider(raw: &str) -> Result<HostingProvider, ServerFnError> {
+        HostingProvider::parse(raw).map_err(to_server_error)
     }
 
     pub fn to_server_error(error: CodeHostError) -> ServerFnError {
@@ -39,6 +44,7 @@ mod support {
         #[test]
         fn gitlab_api_error_keeps_status_and_message() {
             let error: ServerFnError = to_server_error(CodeHostError::Api {
+                provider: HostingProvider::GitLab,
                 status: 405,
                 message: "Branch cannot be merged".to_string(),
             });
@@ -53,13 +59,19 @@ mod support {
 }
 
 #[server]
-pub async fn get_code_host_settings() -> Result<CodeHostSettingsDto, ServerFnError> {
+pub async fn get_code_host_settings(
+    provider: String,
+) -> Result<CodeHostSettingsDto, ServerFnError> {
+    let provider = support::provider(&provider)?;
     let settings = support::context()?
         .get_settings
-        .execute()
+        .execute(provider)
         .await
         .map_err(support::to_server_error)?;
-    Ok(CodeHostSettingsDto::from(settings))
+    Ok(settings.map_or_else(
+        || CodeHostSettingsDto::unconfigured(provider),
+        CodeHostSettingsDto::from,
+    ))
 }
 
 // Json: la codificación url-encoded por defecto omite el `input` si todos sus campos son `None`.
@@ -69,18 +81,18 @@ pub async fn save_code_host_settings(
 ) -> Result<CodeHostSettingsDto, ServerFnError> {
     let saved = support::context()?
         .save_settings
-        .execute(input.into())
+        .execute(input.try_into().map_err(support::to_server_error)?)
         .await
         .map_err(support::to_server_error)?;
-    Ok(CodeHostSettingsDto::from(Some(saved)))
+    Ok(CodeHostSettingsDto::from(saved))
 }
 
 /// Comprueba la conexión con los ajustes guardados; devuelve el usuario autenticado.
 #[server]
-pub async fn test_code_host_connection() -> Result<String, ServerFnError> {
+pub async fn test_code_host_connection(provider: String) -> Result<String, ServerFnError> {
     support::context()?
         .test_connection
-        .execute()
+        .execute(support::provider(&provider)?)
         .await
         .map_err(support::to_server_error)
 }

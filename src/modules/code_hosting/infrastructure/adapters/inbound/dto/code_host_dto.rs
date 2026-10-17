@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 /// Ajustes visibles para la UI: el token nunca viaja al cliente.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct CodeHostSettingsDto {
+    /// Identificador del proveedor (`gitlab` o `github`).
+    pub provider: String,
     pub base_url: String,
     pub token_configured: bool,
     pub insecure_tls: bool,
@@ -10,6 +12,7 @@ pub struct CodeHostSettingsDto {
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct SaveCodeHostSettingsDto {
+    pub provider: String,
     pub base_url: String,
     /// Vacío o `None` conserva el token guardado.
     pub token: Option<String>,
@@ -20,6 +23,7 @@ pub struct SaveCodeHostSettingsDto {
 impl std::fmt::Debug for SaveCodeHostSettingsDto {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SaveCodeHostSettingsDto")
+            .field("provider", &self.provider)
             .field("base_url", &self.base_url)
             .field("token", &self.token.as_ref().map(|_| "***"))
             .field("insecure_tls", &self.insecure_tls)
@@ -83,31 +87,44 @@ mod mapping {
         SaveCodeHostSettingsDto,
     };
     use crate::modules::code_hosting::application::usecases::save_code_host_settings::SaveCodeHostSettingsInput;
+    use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
     use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
+    use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
     use crate::modules::code_hosting::domain::models::merge_request::{
         MergeRequest, MergeRequestStatus, Pipeline, PipelineJob,
     };
 
-    impl From<Option<CodeHostSettings>> for CodeHostSettingsDto {
-        fn from(settings: Option<CodeHostSettings>) -> Self {
-            match settings {
-                Some(s) => Self {
-                    base_url: s.base_url().to_string(),
-                    token_configured: true,
-                    insecure_tls: s.insecure_tls,
-                },
-                None => Self::default(),
+    impl From<CodeHostSettings> for CodeHostSettingsDto {
+        fn from(settings: CodeHostSettings) -> Self {
+            Self {
+                provider: settings.provider().as_str().to_string(),
+                base_url: settings.base_url().to_string(),
+                token_configured: true,
+                insecure_tls: settings.insecure_tls,
             }
         }
     }
 
-    impl From<SaveCodeHostSettingsDto> for SaveCodeHostSettingsInput {
-        fn from(dto: SaveCodeHostSettingsDto) -> Self {
+    impl CodeHostSettingsDto {
+        /// Proveedor aún sin configurar.
+        pub fn unconfigured(provider: HostingProvider) -> Self {
             Self {
+                provider: provider.as_str().to_string(),
+                ..Self::default()
+            }
+        }
+    }
+
+    impl TryFrom<SaveCodeHostSettingsDto> for SaveCodeHostSettingsInput {
+        type Error = CodeHostError;
+
+        fn try_from(dto: SaveCodeHostSettingsDto) -> Result<Self, Self::Error> {
+            Ok(Self {
+                provider: HostingProvider::parse(&dto.provider)?,
                 base_url: dto.base_url,
                 token: dto.token,
                 insecure_tls: dto.insecure_tls,
-            }
+            })
         }
     }
 
@@ -169,14 +186,20 @@ mod mapping {
 
         #[test]
         fn settings_dto_never_carries_the_token() {
-            let settings: CodeHostSettings =
-                CodeHostSettings::new("https://git.corp", "s3cr3t-token", true).expect("settings");
+            let settings: CodeHostSettings = CodeHostSettings::new(
+                HostingProvider::GitLab,
+                "https://git.corp",
+                "s3cr3t-token",
+                true,
+            )
+            .expect("settings");
 
-            let dto: CodeHostSettingsDto = Some(settings).into();
+            let dto: CodeHostSettingsDto = settings.into();
 
             assert_eq!(
                 dto,
                 CodeHostSettingsDto {
+                    provider: "gitlab".to_string(),
                     base_url: "https://git.corp".to_string(),
                     token_configured: true,
                     insecure_tls: true,
@@ -188,20 +211,44 @@ mod mapping {
 
         #[test]
         fn unconfigured_settings_map_to_empty_dto() {
-            let dto: CodeHostSettingsDto = None.into();
-            assert_eq!(dto, CodeHostSettingsDto::default());
+            let dto: CodeHostSettingsDto =
+                CodeHostSettingsDto::unconfigured(HostingProvider::GitHub);
+            assert_eq!(
+                dto,
+                CodeHostSettingsDto {
+                    provider: "github".to_string(),
+                    ..CodeHostSettingsDto::default()
+                }
+            );
         }
 
         #[test]
         fn save_dto_maps_to_use_case_input() {
             let input: SaveCodeHostSettingsInput = SaveCodeHostSettingsDto {
-                base_url: "https://git.corp".to_string(),
+                provider: "github".to_string(),
+                base_url: "https://github.com".to_string(),
                 token: None,
                 insecure_tls: false,
             }
-            .into();
+            .try_into()
+            .expect("input");
+            assert_eq!(input.provider, HostingProvider::GitHub);
             assert_eq!(input.token, None);
-            assert_eq!(input.base_url, "https://git.corp");
+            assert_eq!(input.base_url, "https://github.com");
+        }
+
+        #[test]
+        fn save_dto_with_unknown_provider_is_rejected() {
+            let result: Result<SaveCodeHostSettingsInput, CodeHostError> =
+                SaveCodeHostSettingsDto {
+                    provider: "bitbucket".to_string(),
+                    ..SaveCodeHostSettingsDto::default()
+                }
+                .try_into();
+            assert_eq!(
+                result.unwrap_err(),
+                CodeHostError::UnknownProvider("bitbucket".to_string())
+            );
         }
 
         #[test]

@@ -5,6 +5,9 @@ use crate::modules::code_hosting::infrastructure::adapters::inbound::server_fns:
     SaveCodeHostSettings, TestCodeHostConnection, get_code_host_settings,
 };
 
+/// Proveedor que muestra la tarjeta mientras no haya selector (se amplía en la UI de GitHub).
+const DEFAULT_PROVIDER: &str = "gitlab";
+
 /// Estado de la tarjeta de ajustes de GitLab: lectura, guardado y prueba de conexión.
 #[derive(Clone, Copy)]
 pub struct CodeHostSettingsState {
@@ -17,8 +20,10 @@ impl CodeHostSettingsState {
     pub fn new() -> Self {
         let save: ServerAction<SaveCodeHostSettings> = ServerAction::new();
         let test: ServerAction<TestCodeHostConnection> = ServerAction::new();
-        let settings: Resource<Result<CodeHostSettingsDto, ServerFnError>> =
-            Resource::new(move || save.version().get(), |_| get_code_host_settings());
+        let settings: Resource<Result<CodeHostSettingsDto, ServerFnError>> = Resource::new(
+            move || save.version().get(),
+            |_| get_code_host_settings(DEFAULT_PROVIDER.to_string()),
+        );
         Self {
             settings,
             save,

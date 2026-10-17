@@ -6,6 +6,7 @@ use serde_json::{Value, json};
 
 use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
 use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
+use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
 use crate::modules::code_hosting::domain::models::merge_request::{
     MergeRequest, NewMergeRequest, Pipeline, PipelineJob,
 };
@@ -55,7 +56,10 @@ impl GitLabHttpClientAdapter {
             return Ok(response);
         }
         if status.is_redirection() {
-            return Err(CodeHostError::Redirected(status.as_u16()));
+            return Err(CodeHostError::Redirected {
+                provider: HostingProvider::GitLab,
+                status: status.as_u16(),
+            });
         }
         Err(api_error(response).await)
     }
@@ -85,6 +89,7 @@ async fn api_error(response: Response) -> CodeHostError {
     let status: StatusCode = response.status();
     let body: String = response.text().await.unwrap_or_default();
     CodeHostError::Api {
+        provider: HostingProvider::GitLab,
         status: status.as_u16(),
         message: error_message(&body, status),
     }
@@ -374,8 +379,13 @@ mod tests {
         tokio::spawn(async move {
             let _ = axum::serve(listener, app).await;
         });
-        let settings: CodeHostSettings =
-            CodeHostSettings::new(&format!("http://{addr}"), TOKEN, false).expect("settings");
+        let settings: CodeHostSettings = CodeHostSettings::new(
+            HostingProvider::GitLab,
+            &format!("http://{addr}"),
+            TOKEN,
+            false,
+        )
+        .expect("settings");
         (settings, seen)
     }
 
@@ -562,6 +572,7 @@ mod tests {
         assert_eq!(
             err,
             CodeHostError::Api {
+                provider: HostingProvider::GitLab,
                 status: 405,
                 message: "405 Method Not Allowed".to_string()
             }
@@ -589,7 +600,8 @@ mod tests {
     #[tokio::test]
     async fn network_failure_does_not_leak_token() {
         let settings: CodeHostSettings =
-            CodeHostSettings::new("http://127.0.0.1:1", TOKEN, false).expect("settings");
+            CodeHostSettings::new(HostingProvider::GitLab, "http://127.0.0.1:1", TOKEN, false)
+                .expect("settings");
 
         let err: CodeHostError = GitLabHttpClientAdapter::new()
             .current_user(&settings)
@@ -640,14 +652,24 @@ mod redirect_tests {
         tokio::spawn(async move {
             let _ = axum::serve(origin_listener, origin).await;
         });
-        let settings: CodeHostSettings =
-            CodeHostSettings::new(&format!("http://{origin_addr}"), "glpat-secret", false)
-                .expect("settings");
+        let settings: CodeHostSettings = CodeHostSettings::new(
+            HostingProvider::GitLab,
+            &format!("http://{origin_addr}"),
+            "glpat-secret",
+            false,
+        )
+        .expect("settings");
 
         let result: Result<String, CodeHostError> =
             GitLabHttpClientAdapter::new().current_user(&settings).await;
 
-        assert_eq!(result, Err(CodeHostError::Redirected(302)));
+        assert_eq!(
+            result,
+            Err(CodeHostError::Redirected {
+                provider: HostingProvider::GitLab,
+                status: 302
+            })
+        );
         assert!(leaked.lock().expect("lock").is_empty());
     }
 }

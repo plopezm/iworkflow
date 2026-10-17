@@ -50,6 +50,7 @@ impl MergeTaskMergeRequest {
 mod tests {
     use super::*;
     use crate::modules::code_hosting::application::test_support::{self, TASK_ID};
+    use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
     use crate::modules::code_hosting::mocks::MockCodeHostClient;
 
     #[tokio::test]
@@ -125,6 +126,7 @@ mod tests {
             .returning(|_, _, _| Ok(Some(test_support::merge_request(7, "opened"))));
         client.expect_merge_merge_request().returning(|_, _, _| {
             Err(CodeHostError::Api {
+                provider: HostingProvider::GitLab,
                 status: 405,
                 message: "Branch cannot be merged".to_string(),
             })

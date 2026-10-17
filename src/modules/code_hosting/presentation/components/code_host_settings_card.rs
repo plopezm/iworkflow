@@ -46,6 +46,8 @@ fn CodeHostSettingsForm(
     let token: RwSignal<String> = RwSignal::new(String::new());
     let insecure: RwSignal<bool> = RwSignal::new(settings.insecure_tls);
     let token_configured: bool = settings.token_configured;
+    let settings_provider: String = settings.provider.clone();
+    let test_provider: String = settings.provider;
     let saving: Signal<bool> = state.save.pending().into();
     let testing: Signal<bool> = state.test.pending().into();
     let token_placeholder: &str = if token_configured {
@@ -57,6 +59,7 @@ fn CodeHostSettingsForm(
     let on_save = move |_| {
         state.save.dispatch(SaveCodeHostSettings {
             input: SaveCodeHostSettingsDto {
+                provider: settings_provider.clone(),
                 base_url: base_url.get_untracked(),
                 token: token_to_save(&token.get_untracked()),
                 insecure_tls: insecure.get_untracked(),
@@ -64,7 +67,9 @@ fn CodeHostSettingsForm(
         });
     };
     let on_test = move |_| {
-        state.test.dispatch(TestCodeHostConnection {});
+        state.test.dispatch(TestCodeHostConnection {
+            provider: test_provider.clone(),
+        });
     };
 
     view! {

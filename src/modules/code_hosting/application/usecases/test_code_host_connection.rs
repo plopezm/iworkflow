@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
 use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
+use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
 use crate::modules::code_hosting::domain::ports::outbound::code_host_client_port::CodeHostClientPort;
 use crate::modules::code_hosting::domain::ports::outbound::code_host_settings_repository_port::CodeHostSettingsRepositoryPort;
 
-/// Comprueba URL y token guardados; devuelve el usuario autenticado.
+/// Comprueba URL y token guardados de un proveedor; devuelve el usuario autenticado.
 pub struct TestCodeHostConnection {
     repository: Arc<dyn CodeHostSettingsRepositoryPort>,
     client: Arc<dyn CodeHostClientPort>,
@@ -19,12 +20,12 @@ impl TestCodeHostConnection {
         Self { repository, client }
     }
 
-    pub async fn execute(&self) -> Result<String, CodeHostError> {
+    pub async fn execute(&self, provider: HostingProvider) -> Result<String, CodeHostError> {
         let settings: CodeHostSettings = self
             .repository
-            .get()
+            .get(provider)
             .await?
-            .ok_or(CodeHostError::NotConfigured)?;
+            .ok_or(CodeHostError::NotConfigured(provider))?;
         self.client.current_user(&settings).await
     }
 }
@@ -40,14 +41,14 @@ mod tests {
         let mut repository: MockCodeHostSettingsRepository = MockCodeHostSettingsRepository::new();
         repository
             .expect_get()
-            .returning(|| Ok(Some(test_support::settings())));
+            .returning(|_| Ok(Some(test_support::settings())));
         let mut client: MockCodeHostClient = MockCodeHostClient::new();
         client
             .expect_current_user()
             .returning(|_| Ok("pablo".to_string()));
 
         let user: String = TestCodeHostConnection::new(Arc::new(repository), Arc::new(client))
-            .execute()
+            .execute(HostingProvider::GitLab)
             .await
             .expect("user");
 
@@ -57,15 +58,18 @@ mod tests {
     #[tokio::test]
     async fn fails_when_not_configured_without_calling_gitlab() {
         let mut repository: MockCodeHostSettingsRepository = MockCodeHostSettingsRepository::new();
-        repository.expect_get().returning(|| Ok(None));
+        repository.expect_get().returning(|_| Ok(None));
         let mut client: MockCodeHostClient = MockCodeHostClient::new();
         client.expect_current_user().never();
 
         let result: Result<String, CodeHostError> =
             TestCodeHostConnection::new(Arc::new(repository), Arc::new(client))
-                .execute()
+                .execute(HostingProvider::GitHub)
                 .await;
 
-        assert_eq!(result, Err(CodeHostError::NotConfigured));
+        assert_eq!(
+            result,
+            Err(CodeHostError::NotConfigured(HostingProvider::GitHub))
+        );
     }
 }

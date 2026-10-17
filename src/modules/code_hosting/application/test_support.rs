@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::modules::code_hosting::application::services::task_project_resolver::TaskProjectResolver;
 use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
+use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
 use crate::modules::code_hosting::domain::models::merge_request::MergeRequest;
 use crate::modules::code_hosting::domain::ports::outbound::task_source_port::TaskSource;
 use crate::modules::code_hosting::mocks::{
@@ -13,7 +14,8 @@ pub const TASK_ID: &str = "task-1";
 pub const PROJECT: &str = "grupo/proyecto";
 
 pub fn settings() -> CodeHostSettings {
-    CodeHostSettings::new("https://git.corp", "tok", false).expect("settings")
+    CodeHostSettings::new(HostingProvider::GitLab, "https://git.corp", "tok", false)
+        .expect("settings")
 }
 
 pub fn source() -> TaskSource {
@@ -42,7 +44,7 @@ pub fn merge_request(iid: u64, state: &str) -> MergeRequest {
 /// Resolver con ajustes, tarea y `origin` válidos sobre el cliente indicado.
 pub fn resolver(client: MockCodeHostClient) -> Arc<TaskProjectResolver> {
     let mut repository: MockCodeHostSettingsRepository = MockCodeHostSettingsRepository::new();
-    repository.expect_get().returning(|| Ok(Some(settings())));
+    repository.expect_list().returning(|| Ok(vec![settings()]));
     let mut tasks: MockTaskSourceLookup = MockTaskSourceLookup::new();
     tasks.expect_find().returning(|_| Ok(Some(source())));
     let mut remote: MockGitRemote = MockGitRemote::new();

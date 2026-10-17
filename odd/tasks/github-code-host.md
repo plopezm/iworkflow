@@ -11,10 +11,13 @@ El slice `gitlab` pasa a `code_hosting` (puerto neutro + factoría de clientes);
 
 ## Tasks
 - [x] T1 (S5) renombrar módulo gitlab→code_hosting y tipos neutros (sin cambio de comportamiento) — inline — commit: refactor(code-hosting) rename gitlab slice to code_hosting
-- [ ] T2 (S1,S2,S4,S5) `HostingProvider`, ajustes por proveedor (migración `code_host_settings`, riesgo alto), factoría, detección en el resolver — inline — commit:
-- [ ] T3 (S3,S4) `GitHubHttpClientAdapter` + soporte HTTP compartido + tests con servidor axum falso — inline — commit:
+- [x] T2 (S1,S2,S5) `HostingProvider`, ajustes por proveedor (migración `code_host_settings`, riesgo alto), errores con proveedor, detección por host del origin en el resolver — inline — commit: feat(code-hosting) provider-aware settings and origin detection
+  Risk: item 1 (migración mueve gitlab_settings→code_host_settings con el token; verificada up/redo/down con dato real)
+- [ ] T3 (S3,S4) `GitHubHttpClientAdapter` + soporte HTTP compartido + `CodeHostClientFactoryPort` y su factoría (resolver y test de conexión la usan) + tests con servidor axum falso — inline — commit:
 - [ ] T4 (S1,S3) DTOs/server fns con proveedor + UI (tarjetas GitHub/GitLab, panel PR/MR) + docs — inline — commit:
 - [ ] T5 (all) fmt, clippy ssr/hydrate, tests, differential check GitLab, revisión — commit:
 
 ## Log
 - L1: "Quiero una feature que me permita configurar github igual que gitlab. Un workspace puede ser un repositorio de github o de gitlab, detectar y aplicar la configuración de uno u otro para poder gestionar las PRs. utiliza el patron factoria y crea el adapter de github. si gitlab no es adapter, convertir"
+- L2: Límite de slice: T1 son 1518 líneas cambiadas pero casi todas son movimientos por renombrado (git detecta renames); es un único commit mecánico sin cambio de comportamiento. La factoría pasa de T2 a T3 porque su `match` necesita el adaptador GitHub para compilar.
+- L3: T2 evidencia: migración probada en BD temporal con fila real (token conservado en up, redo y down); 73 tests lib modules::code_hosting ok; test de integración code_host_settings_repository_adapter_test 5 ok; clippy ssr+hydrate -D warnings ok; fmt ok. Cambio observable: origin con host sin proveedor configurado ahora da UnknownHost (antes HostMismatch).
