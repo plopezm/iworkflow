@@ -17,6 +17,34 @@
 
 The app imposes no workflow: each agent uses the configuration and plugins you have installed, plus the project's `AGENTS.md`. Under the hood, agents are driven over RPC (or ACP / stream-json, depending on the runtime).
 
+## Index
+
+- [Designed for mobile](#designed-for-mobile)
+- [Quick start](#quick-start)
+- [Tabbed workspace](#tabbed-workspace)
+- [Task lifecycle](#task-lifecycle)
+- [Configuration](#configuration)
+  - [Agent runtimes](#agent-runtimes)
+- [GitLab and GitHub integration](#gitlab-and-github-integration)
+- [Jira integration (Server / Data Center)](#jira-integration-server--data-center)
+- [Agent profiles and models](#agent-profiles-and-models)
+  - [Executable arguments](#executable-arguments)
+- [Production](#production)
+- [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale)
+- [Prebuilt binaries (GitHub Actions)](#prebuilt-binaries-github-actions)
+- [Development](#development)
+- [Support the project](#support-the-project)
+
+## Designed for mobile
+
+iworkflow is built **mobile-first**. Since your job is to launch, follow and review agents (not to type code), it works well from a phone:
+
+- The UI is responsive: on small screens the side menu becomes a drawer opened from a top bar, and the tabbed workspace adapts to the viewport.
+- The agent keeps running on your machine while you are away. From the phone you check progress, answer agent questions, send a message, review the diff and merge or discard.
+- On iOS (Safari → Share → *Add to Home Screen*) and Android (Chrome → menu → *Add to Home screen*) you can pin it as a shortcut. For now it opens in the browser; it does not yet ship a web app manifest, so it is not a standalone full-screen app.
+
+The server runs on your computer and the phone is only a browser, so you need a secure way to reach it: see [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale).
+
 ## Quick start
 
 ```bash
@@ -166,6 +194,43 @@ is applied too. Variables specific to the script:
 To deploy on another machine, just copy `dist/` and launch it with
 `LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow`
 from inside that folder.
+
+## Developing from your phone with Tailscale
+
+[Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow has no authentication and launches agents that run commands as your user.
+
+1. Install Tailscale on the computer that runs iworkflow and on the phone (App Store / Google Play), and sign in to the **same account** on both.
+2. Start the server listening on the Tailscale interface (or all interfaces, which is the default of `scripts/prod.sh`):
+
+   ```bash
+   ./scripts/prod.sh run                                        # binds 0.0.0.0:3000
+   # or only reachable from this machine and the tailnet via Tailscale Serve (see below)
+   LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run --no-open
+   ```
+
+3. Find the computer's tailnet name or IP:
+
+   ```bash
+   tailscale ip -4        # e.g. 100.101.102.103
+   tailscale status       # shows the MagicDNS name, e.g. mypc.tailnet-name.ts.net
+   ```
+
+4. On the phone, open `http://<tailnet-ip>:3000` or `http://mypc.tailnet-name.ts.net:3000`.
+
+**Recommended: HTTPS with Tailscale Serve.** Keep the bind on `127.0.0.1` and let Tailscale expose it only inside your tailnet, with a valid certificate:
+
+```bash
+tailscale serve --bg 3000
+# https://mypc.tailnet-name.ts.net  (only reachable by your tailnet devices)
+```
+
+Terminal WebSockets are accepted when the `Origin` host matches the `Host` header, which holds when you use the same address in the browser.
+
+Tips:
+
+- Do **not** use Tailscale Funnel: it would publish the app to the whole internet.
+- Restrict who can reach the machine with Tailscale ACLs if the tailnet is shared.
+- The computer must stay awake and the server running; use `tmux`/a systemd user service for long sessions.
 
 ## Prebuilt binaries (GitHub Actions)
 
