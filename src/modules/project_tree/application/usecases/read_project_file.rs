@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use uuid::Uuid;
+use crate::modules::project_tree::domain::models::project_scope::ProjectScope;
 
 use crate::modules::project_tree::domain::errors::project_tree_error::ProjectTreeError;
 use crate::modules::project_tree::domain::models::project_file::ProjectFile;
@@ -21,10 +21,10 @@ impl ReadProjectFile {
 
     pub async fn execute(
         &self,
-        workspace_id: Uuid,
+        scope: ProjectScope,
         relative: &str,
     ) -> Result<ProjectFile, ProjectTreeError> {
-        let root: WorkspaceRoot = self.roots.resolve(workspace_id).await?;
+        let root: WorkspaceRoot = self.roots.resolve(scope).await?;
         self.files.read(&root.path, relative).await
     }
 }
@@ -32,6 +32,8 @@ impl ReadProjectFile {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use uuid::Uuid;
 
     use super::*;
     use crate::modules::project_tree::mocks::{MockFileStore, MockWorkspaceRoot};
@@ -45,7 +47,7 @@ mod tests {
 
     #[tokio::test]
     async fn resolves_root_then_reads() {
-        let id: Uuid = Uuid::new_v4();
+        let id: ProjectScope = ProjectScope::Workspace(Uuid::new_v4());
         let file: ProjectFile = ProjectFile {
             name: "main.rs".to_string(),
             path: "src/main.rs".to_string(),
@@ -78,7 +80,7 @@ mod tests {
 
         let result: Result<ProjectFile, ProjectTreeError> =
             ReadProjectFile::new(Arc::new(roots), Arc::new(files))
-                .execute(Uuid::new_v4(), "a.txt")
+                .execute(ProjectScope::Workspace(Uuid::new_v4()), "a.txt")
                 .await;
 
         assert_eq!(result, Err(ProjectTreeError::WorkspaceNotFound));

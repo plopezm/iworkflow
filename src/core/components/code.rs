@@ -3,6 +3,8 @@
 use leptos::html;
 use leptos::prelude::*;
 
+use crate::core::line_diff::LineMark;
+
 #[cfg(feature = "hydrate")]
 mod js {
     use wasm_bindgen::JsValue;
@@ -81,6 +83,16 @@ pub fn line_numbers(text: &str) -> String {
         .join("\n")
 }
 
+/// Clase CSS del número de línea según su marca de cambio (pura).
+pub fn mark_class(mark: Option<LineMark>) -> &'static str {
+    match mark {
+        Some(LineMark::Added) => "gm-added",
+        Some(LineMark::Modified) => "gm-modified",
+        Some(LineMark::Deleted) => "gm-deleted",
+        None => "gm-none",
+    }
+}
+
 /// Visor de solo lectura con colores de sintaxis y números de línea.
 #[component]
 pub fn CodeView(
@@ -124,6 +136,9 @@ pub fn CodeEditor(
     /// Se invoca con Ctrl/Cmd+S.
     #[prop(optional, into)]
     on_save: Option<Callback<()>>,
+    /// Marcas de cambio por línea (vacío = sin marcas): el margen pinta cada número en su propio `span`.
+    #[prop(optional, into)]
+    marks: Signal<Vec<Option<LineMark>>>,
 ) -> impl IntoView {
     let textarea: NodeRef<html::Textarea> = NodeRef::new();
     let layer: NodeRef<html::Code> = NodeRef::new();
@@ -170,7 +185,29 @@ pub fn CodeEditor(
     view! {
         <div class="code-box code-box-edit">
             <pre class="code-gutter code-gutter-edit" aria-hidden="true" node_ref=gutter_pre>
-                {move || gutter.get()}
+                {move || {
+                    if marks.with(|m: &Vec<Option<LineMark>>| m.is_empty()) {
+                        return gutter.get().into_any();
+                    }
+                    let numbers: String = gutter.get();
+                    let marks: Vec<Option<LineMark>> = marks.get();
+                    let last: usize = numbers.split('\n').count().saturating_sub(1);
+                    numbers
+                        .split('\n')
+                        .enumerate()
+                        .map(|(index, number): (usize, &str)| {
+                            let class: &'static str = mark_class(
+                                marks.get(index).copied().flatten(),
+                            );
+                            let tail: &str = if index == last { "" } else { "\n" };
+                            view! {
+                                <span class=class>{number.to_string()}</span>
+                                {tail}
+                            }
+                        })
+                        .collect_view()
+                        .into_any()
+                }}
             </pre>
             <div class="code-stack">
                 <pre class="code-text code-layer" aria-hidden="true" node_ref=layer_pre>
@@ -210,5 +247,13 @@ mod tests {
         assert_eq!(line_numbers(""), "1");
         assert_eq!(line_numbers("a"), "1");
         assert_eq!(line_numbers("a\nb\n"), "1\n2\n3");
+    }
+
+    #[test]
+    fn mark_class_per_mark() {
+        assert_eq!(mark_class(Some(LineMark::Added)), "gm-added");
+        assert_eq!(mark_class(Some(LineMark::Modified)), "gm-modified");
+        assert_eq!(mark_class(Some(LineMark::Deleted)), "gm-deleted");
+        assert_eq!(mark_class(None), "gm-none");
     }
 }

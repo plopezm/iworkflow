@@ -8,6 +8,9 @@ use crate::modules::project_tree::infrastructure::adapters::inbound::dto::projec
     ProjectDirectoryDto, TreeEntryDto,
 };
 use crate::modules::project_tree::presentation::components::tree_node::TreeNode;
+use crate::modules::project_tree::presentation::state::project_file_state::{
+    edit_href, terminal_href,
+};
 use crate::modules::project_tree::presentation::state::project_tree_state::ProjectTreeState;
 
 /// Árbol de directorios de un workspace. Se reconstruye por cada id (el router reutiliza el componente).
@@ -23,8 +26,8 @@ pub fn ProjectTreePage() -> impl IntoView {
 #[component]
 fn ProjectTreeContent(workspace_id: String) -> impl IntoView {
     let state: ProjectTreeState = ProjectTreeState::new(workspace_id.clone());
-    let edit_href: String = format!("/workspaces/{workspace_id}/edit");
-    let terminal_href: String = format!("/workspaces/{workspace_id}/terminal");
+    let edit_href: Option<String> = edit_href(&workspace_id);
+    let terminal_href: String = terminal_href(&workspace_id);
 
     view! {
         <div class="flex h-full min-h-0 flex-col bg-surface">
@@ -56,9 +59,15 @@ fn ProjectTreeContent(workspace_id: String) -> impl IntoView {
                     <TabLink href=terminal_href.clone() class="menu-item">
                         "Abrir terminal"
                     </TabLink>
-                    <TabLink href=edit_href.clone() class="menu-item">
-                        "Editar workspace"
-                    </TabLink>
+                    {edit_href
+                        .clone()
+                        .map(|href: String| {
+                            view! {
+                                <TabLink href=href class="menu-item">
+                                    "Editar workspace"
+                                </TabLink>
+                            }
+                        })}
                 </DropdownMenu>
             </div>
             <div class="min-h-0 flex-1 overflow-y-auto py-1">

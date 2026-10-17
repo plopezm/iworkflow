@@ -13,6 +13,7 @@ pub mod git;
 pub mod http;
 #[cfg(feature = "ssr")]
 pub mod launch;
+pub mod line_diff;
 pub mod markdown;
 #[cfg(feature = "ssr")]
 pub mod process;

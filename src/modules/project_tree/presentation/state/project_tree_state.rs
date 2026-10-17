@@ -3,9 +3,16 @@ use std::collections::{HashMap, HashSet};
 use leptos::prelude::*;
 
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::{
-    ProjectDirectoryDto, TreeEntryDto,
+    GitChangeDto, GitChangeKindDto, ProjectDirectoryDto, TreeEntryDto,
 };
-use crate::modules::project_tree::infrastructure::adapters::inbound::server_fns::list_project_directory;
+use crate::modules::project_tree::infrastructure::adapters::inbound::server_fns::{
+    list_project_directory, list_project_git_changes,
+};
+use crate::modules::project_tree::presentation::state::git_status::{status_class, status_map};
+
+#[cfg(feature = "hydrate")]
+/// How often the git status is refetched while the tree is open, in seconds.
+const GIT_POLL_SECONDS: u64 = 5;
 
 /// Path of the project root in the server function contract.
 const ROOT_PATH: &str = "";
@@ -25,7 +32,10 @@ pub struct ProjectTreeState {
     pub root: Resource<Result<ProjectDirectoryDto, ServerFnError>>,
     pub expanded: RwSignal<HashSet<String>>,
     pub children: RwSignal<HashMap<String, ChildrenState>>,
+    /// Git status per path (folders included); empty while loading or when it cannot be read.
+    pub git: Memo<HashMap<String, GitChangeKindDto>>,
     reload: RwSignal<u32>,
+    git_reload: RwSignal<u32>,
     load_children: Action<String, ()>,
 }
 
@@ -77,6 +87,30 @@ impl ProjectTreeState {
             }
         });
         let reload: RwSignal<u32> = RwSignal::new(0);
+        let git_reload: RwSignal<u32> = RwSignal::new(0);
+        let git_changes: LocalResource<Result<Vec<GitChangeDto>, ServerFnError>> =
+            LocalResource::new(move || {
+                git_reload.track();
+                list_project_git_changes(id.get_value())
+            });
+        let git: Memo<HashMap<String, GitChangeKindDto>> = Memo::new(move |_| {
+            git_changes
+                .get()
+                .and_then(|result: Result<Vec<GitChangeDto>, ServerFnError>| result.ok())
+                .map(|changes: Vec<GitChangeDto>| status_map(&changes))
+                .unwrap_or_default()
+        });
+        #[cfg(feature = "hydrate")]
+        Effect::new(move |_| {
+            let period: std::time::Duration = std::time::Duration::from_secs(GIT_POLL_SECONDS);
+            let handle = leptos::leptos_dom::helpers::set_interval_with_handle(
+                move || git_reload.update(|n: &mut u32| *n = n.wrapping_add(1)),
+                period,
+            );
+            if let Ok(handle) = handle {
+                on_cleanup(move || handle.clear());
+            }
+        });
         Self {
             workspace_id: id,
             root: Resource::new(
@@ -85,7 +119,9 @@ impl ProjectTreeState {
             ),
             expanded: RwSignal::new(HashSet::new()),
             children,
+            git,
             reload,
+            git_reload,
             load_children,
         }
     }
@@ -98,6 +134,7 @@ impl ProjectTreeState {
         self.children
             .update(|map: &mut HashMap<String, ChildrenState>| map.clear());
         self.reload.update(|n: &mut u32| *n = n.wrapping_add(1));
+        self.git_reload.update(|n: &mut u32| *n = n.wrapping_add(1));
         for path in expanded {
             self.load_children.dispatch(path);
         }
@@ -115,6 +152,14 @@ impl ProjectTreeState {
         if now_expanded && missing {
             self.load_children.dispatch(path.to_string());
         }
+    }
+
+    /// CSS modifier class that colors `path` by its git status.
+    pub fn git_class(&self, path: &str) -> &'static str {
+        status_class(
+            self.git
+                .with(|map: &HashMap<String, GitChangeKindDto>| map.get(path).copied()),
+        )
     }
 
     pub fn is_expanded(&self, path: &str) -> bool {

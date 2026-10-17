@@ -14,7 +14,6 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
     DialogAnswerDto, DialogRequestDto,
 };
-use crate::modules::tasks::presentation::components::agent_sidebar::AgentSidebar;
 use crate::modules::tasks::presentation::components::composer::Composer;
 use crate::modules::tasks::presentation::components::dialog_panel::DialogPanel;
 use crate::modules::tasks::presentation::components::subagents_panel::SubagentsPanel;
@@ -29,7 +28,6 @@ use crate::modules::tasks::presentation::state::transcript::Transcript;
 
 const PANEL_WIDTH_DEFAULT: &str = "md:w-[26rem]";
 const TAB_ACTIONS: &str = "acciones";
-const TAB_STATE: &str = "estado";
 
 /// Pestaña adicional del panel de la tarea que aporta el composition root (p. ej. GitLab), para que
 /// `tasks` no dependa de otros features.
@@ -45,16 +43,10 @@ const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
 
 /// Pestañas del panel de la tarea: las propias más la adicional, si la hay (pura).
 fn tab_items(extra: Option<TaskExtraTab>) -> Vec<TabItem> {
-    let mut tabs: Vec<TabItem> = vec![
-        TabItem {
-            id: TAB_ACTIONS,
-            label: "Acciones",
-        },
-        TabItem {
-            id: TAB_STATE,
-            label: "Estado",
-        },
-    ];
+    let mut tabs: Vec<TabItem> = vec![TabItem {
+        id: TAB_ACTIONS,
+        label: "Acciones",
+    }];
     if let Some(tab) = extra {
         tabs.push(TabItem {
             id: tab.id,
@@ -62,6 +54,11 @@ fn tab_items(extra: Option<TaskExtraTab>) -> Vec<TabItem> {
         });
     }
     tabs
+}
+
+/// Route of the dock tab that explores the worktree files of a task (pure).
+pub fn files_path(task_id: &str) -> String {
+    format!("/tasks/{task_id}/files")
 }
 
 /// Route of the dock tab that shows the diff of a task (pure).
@@ -221,6 +218,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
     let panel_width: Signal<String> = Signal::derive(|| PANEL_WIDTH_DEFAULT.to_string());
     let on_select_tab: Callback<String> = Callback::new(move |id: String| active_tab.set(id));
     let diff_path: String = diff_path(&state.task_id.get_value());
+    let files_path: String = files_path(&state.task_id.get_value());
 
     let handlers: TaskActionHandlers = TaskActionHandlers {
         abort: Callback::new(move |_| state.abort()),
@@ -230,6 +228,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
         discard: Callback::new(move |_| state.discard()),
         reset: Callback::new(move |_| state.reset()),
         open_diff: Callback::new(move |_| nav.open(&diff_path)),
+        open_files: Callback::new(move |_| nav.open(&files_path)),
         show_subagents: Callback::new(move |_| state.show_subagents.set(true)),
     };
     let busy: Signal<bool> = Signal::derive(move || {
@@ -525,13 +524,6 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                     <summary>"Prompt inicial"</summary>
                                     <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
                                 </details>
-                            </Show>
-                            <Show when=move || active_tab.get() == TAB_STATE>
-                                <AgentSidebar
-                                    transcript=state.transcript
-                                    connected=state.connected
-                                    class="min-w-0"
-                                />
                                 <Suspense fallback=|| ()>
                                     {move || Suspend::new(async move {
                                         let items: Vec<TaskAttachmentDto> = state
@@ -561,6 +553,17 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn files_path_targets_the_task_explorer() {
+        assert_eq!(files_path("t1"), "/tasks/t1/files");
+    }
+
+    #[test]
+    fn tabs_are_actions_plus_the_extra_one() {
+        let ids: Vec<&str> = tab_items(None).iter().map(|t: &TabItem| t.id).collect();
+        assert_eq!(ids, vec![TAB_ACTIONS]);
+    }
 
     #[test]
     fn short_branch_drops_uuid_suffix() {

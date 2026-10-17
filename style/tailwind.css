@@ -283,6 +283,18 @@ article.card:hover {
 .tree-row {
   @apply flex h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 pr-2 text-left text-[13px] text-fg transition-colors duration-100 hover:bg-surface-2;
 }
+.tree-row.git-modified {
+  @apply text-warn;
+}
+.tree-row.git-added {
+  @apply text-ok;
+}
+.tree-row.git-deleted {
+  @apply text-error line-through;
+}
+.tree-row.git-conflicted {
+  @apply text-error font-semibold;
+}
 .tree-row-muted {
   @apply text-muted;
 }
@@ -851,6 +863,24 @@ body.dock-resizing .xterm {
   position: static;
   /* Same extra tail as the editor layers so both scroll the same distance. */
   padding-bottom: 3rem;
+}
+/* Change bars (VS Code style): a 3px bar on the left edge of the line number. */
+.code-gutter-edit span {
+  display: inline-block;
+  box-sizing: border-box;
+  /* Span the gutter padding so the bar sits on the gutter's left edge. */
+  width: calc(100% + 1.5rem);
+  margin: 0 -0.75rem;
+  padding: 0 0.75rem;
+}
+.gm-added {
+  box-shadow: inset 3px 0 0 var(--color-ok);
+}
+.gm-modified {
+  box-shadow: inset 3px 0 0 var(--color-warn);
+}
+.gm-deleted {
+  box-shadow: inset 0 2px 0 0 var(--color-error);
 }
 .code-text {
   @apply px-3 py-3 text-fg;
