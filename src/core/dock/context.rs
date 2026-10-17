@@ -105,6 +105,11 @@ impl DockContext {
             .update(|l: &mut DockLayout| l.move_tab(tab, group, zone));
     }
 
+    pub fn reorder_tab(&self, tab: TabId, target: TabId, after: bool) {
+        self.layout
+            .update(|l: &mut DockLayout| l.reorder_tab(tab, target, after));
+    }
+
     pub fn move_to_new_split(&self, tab: TabId, dir: SplitDir) {
         self.layout
             .update(|l: &mut DockLayout| l.move_to_new_split(tab, dir));

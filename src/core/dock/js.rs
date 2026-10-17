@@ -10,6 +10,7 @@ mod bindings {
         pub fn pi_dock_resize(event: &JsValue, vertical: bool, on_done: &JsValue);
         pub fn pi_dock_drag_start(event: &JsValue, payload: &str);
         pub fn pi_dock_reveal_tab(element: &JsValue);
+        pub fn pi_dock_drop_after(event: &JsValue) -> bool;
     }
 }
 
@@ -51,5 +52,18 @@ pub fn reveal_tab(element: leptos::web_sys::HtmlDivElement) {
     #[cfg(not(feature = "hydrate"))]
     {
         drop(element);
+    }
+}
+
+/// Indica si el puntero de `event` está en la mitad derecha de la pestaña sobre la que se arrastra.
+pub fn drop_after(event: leptos::ev::DragEvent) -> bool {
+    #[cfg(feature = "hydrate")]
+    {
+        bindings::pi_dock_drop_after(&wasm_bindgen::JsValue::from(event))
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        drop(event);
+        true
     }
 }

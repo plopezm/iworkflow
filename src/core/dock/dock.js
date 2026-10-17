@@ -45,3 +45,11 @@ export function pi_dock_reveal_tab(element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
   });
 }
+
+// True when the pointer of a drag/drop `event` is over the right half of the tab it targets.
+export function pi_dock_drop_after(event) {
+  const tab = event.target && event.target.closest ? event.target.closest('[role="tab"]') : null;
+  if (!tab) return true;
+  const rect = tab.getBoundingClientRect();
+  return event.clientX > rect.left + rect.width / 2;
+}
