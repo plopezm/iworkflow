@@ -42,6 +42,7 @@ async fn backlog_task(db: &common::TestDb, title: &str) -> Task {
         status: TaskStatus::Backlog,
         priority: TaskPriority::default(),
         limits: ResourceLimits::default(),
+        usage_limit: Default::default(),
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),

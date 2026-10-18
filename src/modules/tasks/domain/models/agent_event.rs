@@ -98,6 +98,12 @@ pub enum AgentEvent {
         active: u32,
         waiting: u32,
     },
+    /// El proveedor rechazó la petición por límite de uso (suscripción, tokens o crédito
+    /// agotados). `resets_at` es el instante de renovación (epoch en segundos) si lo indica.
+    UsageLimitReached {
+        resets_at: Option<i64>,
+        message: String,
+    },
     ProcessExited {
         code: Option<i32>,
     },

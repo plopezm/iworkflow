@@ -178,6 +178,9 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                     }
                 })}
             {task.error.clone().map(|e: String| view! { <p class="text-xs text-error">{e}</p> })}
+            {task
+                .resume_notice()
+                .map(|notice: String| view! { <p class="text-xs text-muted">{notice}</p> })}
             <div class="row justify-between gap-2 pt-1">
                 <span class="text-[11px] text-muted">{short_timestamp(&task.updated_at)}</span>
                 <div class="row gap-1.5">

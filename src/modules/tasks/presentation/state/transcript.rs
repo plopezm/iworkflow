@@ -207,6 +207,12 @@ impl Transcript {
                 self.subagents_version = self.subagents_version.wrapping_add(1);
                 self.subagents_active = active.saturating_add(waiting);
             }
+            AgentEventDto::UsageLimitReached { message, .. } => {
+                self.items.push(TranscriptItem::Notice {
+                    level: NoticeLevelDto::Warning,
+                    message,
+                })
+            }
             AgentEventDto::ProcessExited { code } => {
                 self.clear_streaming();
                 self.resolve_dialogs(None);

@@ -14,6 +14,7 @@ use crate::modules::tasks::domain::models::task::{
     CreatedTask, NewTask, Task, TaskId, TaskStatus, branch_name, workspace_dir_name,
     worktree_dir_name,
 };
+use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
@@ -110,6 +111,7 @@ impl CreateTask {
             status: TaskStatus::Backlog,
             priority: input.priority,
             limits: input.limits,
+            usage_limit: UsageLimitState::default(),
             error: None,
             pending_dialogs: Vec::new(),
             subagents: Default::default(),

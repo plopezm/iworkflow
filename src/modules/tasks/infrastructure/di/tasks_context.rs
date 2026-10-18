@@ -31,6 +31,7 @@ use crate::modules::tasks::application::usecases::list_workspace_options::ListWo
 use crate::modules::tasks::application::usecases::merge_task::MergeTask;
 use crate::modules::tasks::application::usecases::reconcile_tasks::ReconcileTasks;
 use crate::modules::tasks::application::usecases::reset_task::ResetTask;
+use crate::modules::tasks::application::usecases::resume_rate_limited_tasks::ResumeRateLimitedTasks;
 use crate::modules::tasks::application::usecases::resume_task::ResumeTask;
 use crate::modules::tasks::application::usecases::send_message::SendMessage;
 use crate::modules::tasks::application::usecases::start_task::StartTask;
@@ -95,6 +96,7 @@ pub struct TasksContext {
     pub answer_dialog: Arc<AnswerDialog>,
     pub finish_task: Arc<FinishTask>,
     pub resume_task: Arc<ResumeTask>,
+    pub resume_rate_limited_tasks: Arc<ResumeRateLimitedTasks>,
     pub merge_task: Arc<MergeTask>,
     pub discard_task: Arc<DiscardTask>,
     pub get_task: Arc<GetTask>,
@@ -230,6 +232,15 @@ impl TasksContext {
             attachments.clone(),
             storage.clone(),
         ));
+        let send_message: Arc<SendMessage> =
+            Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone()));
+        let resume_task: Arc<ResumeTask> = Arc::new(ResumeTask::new(
+            lifecycle.clone(),
+            worktrees.clone(),
+            runtime.clone(),
+            launch_settings,
+            sink.clone(),
+        ));
 
         Self {
             create_task: Arc::new(CreateTask::new(
@@ -251,7 +262,7 @@ impl TasksContext {
                 worktrees.clone(),
                 storage.clone(),
             )),
-            send_message: Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone())),
+            send_message: send_message.clone(),
             abort_task: Arc::new(AbortTask::new(lifecycle.clone(), runtime.clone())),
             answer_dialog: Arc::new(AnswerDialog::new(lifecycle.clone(), runtime.clone())),
             finish_task: Arc::new(FinishTask::new(
@@ -260,13 +271,13 @@ impl TasksContext {
                 runtime.clone(),
                 Arc::new(AttachmentCleanup::new(attachments.clone(), storage.clone())),
             )),
-            resume_task: Arc::new(ResumeTask::new(
+            resume_rate_limited_tasks: Arc::new(ResumeRateLimitedTasks::new(
                 lifecycle.clone(),
-                worktrees.clone(),
                 runtime.clone(),
-                launch_settings,
-                sink.clone(),
+                resume_task.clone(),
+                send_message,
             )),
+            resume_task,
             merge_task: Arc::new(MergeTask::new(lifecycle.clone(), worktrees.clone())),
             discard_task: Arc::new(DiscardTask::new(
                 lifecycle.clone(),

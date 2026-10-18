@@ -20,6 +20,7 @@ pub mod list_workspace_options;
 pub mod merge_task;
 pub mod reconcile_tasks;
 pub mod reset_task;
+pub mod resume_rate_limited_tasks;
 pub mod resume_task;
 pub mod save_task_file;
 pub mod send_message;

@@ -10,6 +10,7 @@ use iworkflow::modules::tasks::domain::models::subagent_activity::SubagentActivi
 use iworkflow::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use iworkflow::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use iworkflow::modules::tasks::domain::models::task_priority::TaskPriority;
+use iworkflow::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use iworkflow::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use iworkflow::modules::tasks::domain::models::worktree::DiffRange;
 use iworkflow::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
@@ -47,6 +48,7 @@ fn task(workspace_id: &str, title: &str) -> Task {
         status: TaskStatus::Starting,
         priority: TaskPriority::default(),
         limits: ResourceLimits::default(),
+        usage_limit: UsageLimitState::default(),
         error: None,
         pending_dialogs: Vec::new(),
         subagents: SubagentActivity::default(),
@@ -1081,4 +1083,45 @@ async fn limits_persist_on_insert_and_update() {
         .await
         .expect("update");
     assert_eq!(found(&adapter, limited.id).await.limits, cleared);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn usage_limit_schedule_round_trips_and_is_cleared_when_leaving_rate_limited() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: Workspace = workspace(&db, "/repos/limit").await;
+    let adapter: TaskRepositoryAdapter = TaskRepositoryAdapter::new(db.pool.clone());
+    let original: Task = task(&ws.id.to_string(), "limite");
+    adapter.insert(&original).await.expect("insert");
+    let resume_at: DateTime<Utc> = Utc::now().trunc_subsecs(3);
+    let state: UsageLimitState = UsageLimitState {
+        resume_at: Some(resume_at),
+        attempts: 2,
+    };
+
+    adapter
+        .update_status(original.id, TaskStatus::RateLimited, None)
+        .await
+        .expect("estado");
+    adapter
+        .set_usage_limit(original.id, state)
+        .await
+        .expect("programa");
+    assert_eq!(found(&adapter, original.id).await.usage_limit, state);
+
+    adapter
+        .update_status(original.id, TaskStatus::Idle, None)
+        .await
+        .expect("reanuda");
+    let resumed: Task = found(&adapter, original.id).await;
+    assert_eq!(resumed.usage_limit.resume_at, None);
+    assert_eq!(resumed.usage_limit.attempts, 2);
+
+    adapter
+        .set_usage_limit(original.id, UsageLimitState::default())
+        .await
+        .expect("limpia");
+    assert_eq!(
+        found(&adapter, original.id).await.usage_limit,
+        UsageLimitState::default()
+    );
 }

@@ -10,6 +10,7 @@ use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::subagent_task::{
     SubagentStatus, SubagentTask, SubagentThreadItem,
 };
+use crate::modules::tasks::domain::models::usage_limit::looks_like_usage_limit;
 
 /// Límite de caracteres de salidas y argumentos de herramientas que se conservan.
 const MAX_TOOL_TEXT_CHARS: usize = 20_000;
@@ -156,8 +157,26 @@ pub fn decode(line: &str) -> Vec<AgentEvent> {
         _ => None,
     };
     let mut events: Vec<AgentEvent> = event.into_iter().collect();
+    if let Some(limit) = usage_limit_of(&events) {
+        events.push(limit);
+    }
     events.extend(decode_subagents(&record));
     events
+}
+
+/// Un mensaje del asistente que falló por límite de uso (pi solo informa del error en
+/// texto, sin instante de renovación).
+fn usage_limit_of(events: &[AgentEvent]) -> Option<AgentEvent> {
+    events.iter().find_map(|event: &AgentEvent| match event {
+        AgentEvent::AssistantMessage {
+            error: Some(message),
+            ..
+        } if looks_like_usage_limit(message) => Some(AgentEvent::UsageLimitReached {
+            resets_at: None,
+            message: message.clone(),
+        }),
+        _ => None,
+    })
 }
 
 /// Clave del widget con el que la extensión de subagentes publica su actividad.
@@ -612,6 +631,25 @@ mod tests {
                 error: None
             }
         );
+    }
+
+    #[test]
+    fn assistant_error_about_a_usage_limit_also_reports_the_limit() {
+        let events: Vec<AgentEvent> = decode(
+            r#"{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"429 usage limit reached"}}"#,
+        );
+        assert!(matches!(events[0], AgentEvent::AssistantMessage { .. }));
+        assert_eq!(
+            events[1],
+            AgentEvent::UsageLimitReached {
+                resets_at: None,
+                message: "429 usage limit reached".to_string()
+            }
+        );
+        let unrelated: Vec<AgentEvent> = decode(
+            r#"{"type":"message_end","message":{"role":"assistant","content":[],"stopReason":"error","errorMessage":"boom"}}"#,
+        );
+        assert_eq!(unrelated.len(), 1);
     }
 
     #[test]

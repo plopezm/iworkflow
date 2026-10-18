@@ -12,6 +12,7 @@ async fn main() {
     use iworkflow::core::launch::{LaunchCommand, LaunchOptions, USAGE, browser_url, open_browser};
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::attachment_http::task_attachments_router;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
+    use iworkflow::modules::tasks::infrastructure::background::resume_loop::run_resume_loop;
     use iworkflow::modules::terminal::infrastructure::adapters::inbound::ws::terminal_ws_router;
     use leptos::prelude::*;
     use leptos_axum::{AxumRouteListing, LeptosRoutes, generate_route_list};
@@ -52,6 +53,10 @@ async fn main() {
     if interrupted > 0 {
         tracing::info!("{interrupted} tareas marcadas como interrumpidas tras el reinicio");
     }
+
+    let resume_loop: tokio::task::JoinHandle<()> = tokio::spawn(run_resume_loop(
+        state.tasks.resume_rate_limited_tasks.clone(),
+    ));
 
     let conf: ConfFile = get_configuration(None).expect("configuración de Leptos");
     let leptos_options: LeptosOptions = conf.leptos_options;
@@ -105,6 +110,13 @@ async fn main() {
         } => tracing::warn!(
             "conexiones abiertas tras {SHUTDOWN_GRACE:?}; se fuerza el apagado del servidor"
         ),
+    }
+
+    resume_loop.abort();
+    if let Err(error) = resume_loop.await
+        && !error.is_cancelled()
+    {
+        tracing::error!(%error, "el bucle de reanudación terminó con error");
     }
 
     match tokio::time::timeout(SHUTDOWN_FLUSH_TIMEOUT, state.tasks.flush_events()).await {

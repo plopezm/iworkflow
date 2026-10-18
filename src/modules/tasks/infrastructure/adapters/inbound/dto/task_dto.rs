@@ -28,6 +28,7 @@ pub enum TaskStatusDto {
     Conflict,
     Failed,
     Interrupted,
+    RateLimited,
 }
 
 impl TaskStatusDto {
@@ -42,7 +43,8 @@ impl TaskStatusDto {
             | TaskStatusDto::Discarded
             | TaskStatusDto::Conflict
             | TaskStatusDto::Failed
-            | TaskStatusDto::Interrupted => false,
+            | TaskStatusDto::Interrupted
+            | TaskStatusDto::RateLimited => false,
         }
     }
 
@@ -93,6 +95,13 @@ impl TaskStatusDto {
                 "Unterbrochen",
                 "Interrompue",
             ),
+            TaskStatusDto::RateLimited => text(
+                "Usage limit",
+                "Límite de uso",
+                "已达使用上限",
+                "Nutzungslimit",
+                "Limite d'usage",
+            ),
         }
     }
 
@@ -100,7 +109,9 @@ impl TaskStatusDto {
     pub fn variant(&self) -> &'static str {
         match self {
             TaskStatusDto::Starting | TaskStatusDto::Running | TaskStatusDto::Finishing => "info",
-            TaskStatusDto::Idle | TaskStatusDto::AwaitingReview => "warn",
+            TaskStatusDto::Idle | TaskStatusDto::AwaitingReview | TaskStatusDto::RateLimited => {
+                "warn"
+            }
             TaskStatusDto::Merged => "ok",
             TaskStatusDto::Discarded | TaskStatusDto::Backlog => "muted",
             TaskStatusDto::Conflict | TaskStatusDto::Failed | TaskStatusDto::Interrupted => "error",
@@ -244,6 +255,8 @@ pub struct TaskDto {
     pub memory_limit_mb: Option<u32>,
     pub cpu_limit_percent: Option<u32>,
     pub error: Option<String>,
+    /// RFC 3339 en UTC: cuándo se reintentará la reanudación tras un límite de uso.
+    pub resume_at: Option<String>,
     pub actions: TaskActionsDto,
     pub stage: TaskStageDto,
     pub needs_attention: bool,
@@ -251,6 +264,26 @@ pub struct TaskDto {
     /// RFC 3339 en UTC.
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl TaskDto {
+    /// Aviso «se reanudará automáticamente» con la hora (UTC) programada, si la tarea
+    /// está parada por un límite de uso y tiene reanudación programada.
+    pub fn resume_notice(&self) -> Option<String> {
+        if self.status != TaskStatusDto::RateLimited {
+            return None;
+        }
+        let at: &str = self.resume_at.as_deref()?;
+        let label: &str = text(
+            "Resumes automatically at",
+            "Se reanudará automáticamente a las",
+            "将自动恢复于",
+            "Wird automatisch fortgesetzt um",
+            "Reprise automatique à",
+        );
+        let short: String = at.get(..16).unwrap_or(at).replace('T', " ");
+        Some(format!("{label} {short} UTC"))
+    }
 }
 
 /// Resultado de crear una tarea: la tarea (que existe aunque el arranque falle) y, si se
@@ -317,6 +350,8 @@ mod mapping {
     use super::*;
     use crate::modules::tasks::domain::errors::task_error::TaskError;
     use crate::modules::tasks::domain::models::agent_command::MessageMode;
+    use chrono::{DateTime, Utc};
+
     use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
     use crate::modules::tasks::domain::models::task::{
         CreatedTask, NewTask, Task, TaskStage, TaskStatus,
@@ -338,6 +373,7 @@ mod mapping {
                 TaskStatus::Conflict => TaskStatusDto::Conflict,
                 TaskStatus::Failed => TaskStatusDto::Failed,
                 TaskStatus::Interrupted => TaskStatusDto::Interrupted,
+                TaskStatus::RateLimited => TaskStatusDto::RateLimited,
             }
         }
     }
@@ -416,6 +452,10 @@ mod mapping {
                 memory_limit_mb: task.limits.memory_mb,
                 cpu_limit_percent: task.limits.cpu_percent,
                 error: task.error,
+                resume_at: task
+                    .usage_limit
+                    .resume_at
+                    .map(|at: DateTime<Utc>| at.to_rfc3339()),
                 actions,
                 stage: stage.into(),
                 needs_attention,
@@ -493,6 +533,7 @@ mod mapping {
                 status,
                 priority: TaskPriority::default(),
                 limits: ResourceLimits::default(),
+                usage_limit: Default::default(),
                 error: None,
                 pending_dialogs: Vec::new(),
                 subagents: Default::default(),
@@ -500,6 +541,27 @@ mod mapping {
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             }
+        }
+
+        #[test]
+        fn rate_limited_task_shows_when_it_will_resume_and_can_be_resumed_manually() {
+            use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
+            use chrono::TimeZone;
+
+            let mut limited: Task = task(TaskStatus::RateLimited);
+            limited.usage_limit = UsageLimitState {
+                resume_at: Utc.with_ymd_and_hms(2026, 10, 18, 15, 45, 30).single(),
+                attempts: 1,
+            };
+            let dto: TaskDto = TaskDto::from(limited);
+            assert!(!dto.status.has_live_agent());
+            assert!(dto.actions.can_resume);
+            let notice: String = dto.resume_notice().expect("aviso");
+            assert!(notice.ends_with("2026-10-18 15:45 UTC"), "{notice}");
+            assert_eq!(
+                TaskDto::from(task(TaskStatus::Failed)).resume_notice(),
+                None
+            );
         }
 
         #[test]

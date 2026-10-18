@@ -636,6 +636,7 @@ mod tests {
             base_branch: "main".to_string(),
             worktree_path: std::path::PathBuf::from(path),
             status,
+            usage_limit: Default::default(),
             priority: TaskPriority::default(),
             limits: ResourceLimits::default(),
             error: None,
