@@ -500,6 +500,12 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                                             })
                                                     }}
                                                     <div class="stack gap-1">
+                                                        <span class="eyebrow">"Rama de partida"</span>
+                                                        <code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">
+                                                            {task.base_branch.clone()}
+                                                        </code>
+                                                    </div>
+                                                    <div class="stack gap-1">
                                                         <span class="eyebrow">"Worktree"</span>
                                                         <code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">
                                                             {task.worktree_path.clone()}
