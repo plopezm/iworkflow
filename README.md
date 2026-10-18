@@ -22,6 +22,7 @@ The app imposes no workflow: each agent uses the configuration and plugins you h
 - [Designed for mobile](#designed-for-mobile)
 - [Quick start](#quick-start)
 - [Tabbed workspace](#tabbed-workspace)
+- [Workspace board](#workspace-board)
 - [Task lifecycle](#task-lifecycle)
 - [GitLab and GitHub integration](#gitlab-and-github-integration)
 - [Jira integration (Server / Data Center)](#jira-integration-server--data-center)
@@ -70,6 +71,16 @@ The interface is an IDE-like workspace: every screen (board, task, diff, termina
 - Modified, added, untracked, deleted or conflicted files and folders are colored according to `git status`.
 - While you edit, the left gutter marks added, modified and deleted lines against `HEAD` (as in VS Code).
 - When **editing a task**, the CPU and memory limits live under *Advanced options*.
+
+## Workspace board
+
+Each workspace has its own **board**: a canvas of task nodes joined by arrows (`/board/<workspace>`; `/` opens the first workspace by name). Clicking a workspace in the sidebar opens its board, and the workspace chips at the top of the board switch between workspaces. The sidebar item menu keeps **View files** (the project tree), **Open terminal** and **Manage workspaces**.
+
+- **Dependency graph:** drag from a node's right port onto another task to make it wait for the first one. Select an arrow to delete it. Self-references, duplicates, cycles, arrows across workspaces and arrows into a task that is no longer in *To do* are rejected with a message.
+- **Merge trigger:** a task with predecessors starts on its own, on its configured base branch, once **all** of them are `merged`. A *To do* task without predecessors is started manually with **Start**. Arrows are drawn muted while the predecessor is pending, with a flowing dashed line while it works, and solid green once it is merged. (Edge conditions are not implemented yet; the model leaves room for them.)
+- **Nested and parallel tasks:** *Add next task* creates a task that depends on the selected one; *Add parallel task* creates one with the same predecessors. Both are created in *To do*.
+- **Canvas:** drag the background to pan, use the wheel to zoom and **Fit view** to frame everything. Node positions are saved; tasks without a saved position are laid out automatically in layers.
+- **Loose tasks panel:** on the left, tasks with no arrows and no saved position (every task made with *New task* starts here) are listed with their usual actions (Start, Edit, Delete, Open, Merge…), so they can run standalone without any chain. Drag a card onto the canvas, or press **Add to graph**, to make it a node; *Add next / parallel task* tasks go straight into the graph. **Remove from graph** on a node deletes all its arrows and saved position (atomically) and sends it back to this panel; successors left without predecessors become ordinary standalone tasks. The panel is collapsible and counts its tasks; on screens under 768 px it becomes a **Loose (N) / Graph** tab switch.
 
 ## Task lifecycle
 

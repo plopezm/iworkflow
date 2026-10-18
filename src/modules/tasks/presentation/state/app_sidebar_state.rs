@@ -152,7 +152,7 @@ impl AppSidebarState {
         self.dock.is_path_visible(&task_path(task_id))
     }
 
-    /// Indica si el árbol de `workspace_id` es visible en alguna pestaña activa.
+    /// Indica si `path` (el tablero de un workspace) es visible en alguna pestaña activa.
     pub fn is_path_visible(&self, path: &str) -> bool {
         self.dock.is_path_visible(path)
     }

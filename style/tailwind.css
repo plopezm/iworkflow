@@ -1184,3 +1184,450 @@ body.dock-resizing .xterm {
     break-inside: auto;
   }
 }
+
+/* ── Task graph board ───────────────────────────── */
+/* Pannable/zoomable canvas: dotted grid background (size and offset follow the viewport via
+   inline style), a transformed layer holding the SVG edges and the HTML nodes. */
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  overscroll-behavior: contain;
+  background-color: var(--color-bg);
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-fg) 20%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 24px 24px;
+}
+.graph-canvas-busy {
+  cursor: grabbing;
+}
+.graph-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.graph-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Nodes */
+.graph-node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: grab;
+}
+.graph-node > article.card {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 16px -8px rgb(0 0 0 / 0.18);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.graph-node:hover > article.card {
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.08), 0 10px 22px -8px rgb(0 0 0 / 0.26);
+}
+.graph-node-selected > article.card {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), 0 10px 22px -8px rgb(0 0 0 / 0.3);
+}
+.graph-node-target > article.card {
+  border-color: var(--color-ok);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-ok) 45%, transparent);
+}
+.graph-node-attention > article.card {
+  border-color: color-mix(in srgb, var(--color-stage-attention) 55%, var(--color-border));
+}
+.graph-waiting-dot {
+  display: inline-block;
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Ports */
+.graph-port {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  height: 0.875rem;
+  width: 0.875rem;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+.graph-port-in {
+  left: -0.4375rem;
+}
+.graph-port-out {
+  right: -0.4375rem;
+  cursor: crosshair;
+  padding: 0;
+}
+.graph-port-out:hover,
+.graph-node-selected .graph-port,
+.graph-node-target .graph-port-in {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  transform: translateY(-50%) scale(1.25);
+}
+
+/* "Add next / parallel" shortcuts under a node */
+.graph-node-tools {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.375rem;
+  padding-top: 0.375rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.graph-node:hover .graph-node-tools,
+.graph-node:focus-within .graph-node-tools,
+.graph-node-selected .graph-node-tools {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .graph-node-tools {
+    opacity: 1;
+  }
+}
+.graph-tool {
+  display: inline-flex;
+  min-height: 1.5rem;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 0.125rem 0.5rem;
+  font-size: 11px;
+  color: var(--color-muted);
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.graph-tool:hover {
+  border-color: var(--color-accent);
+  color: var(--color-fg);
+  background: var(--color-surface-2);
+}
+
+/* Edges: colour follows the predecessor (merged = done, working = flowing, pending = muted). */
+.graph-edge-line {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke 0.2s ease, stroke-width 0.15s ease;
+}
+.graph-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.graph-edge-done .graph-edge-line {
+  stroke: var(--color-ok);
+}
+.graph-edge-working .graph-edge-line {
+  stroke: var(--color-stage-working);
+  stroke-dasharray: 7 6;
+  animation: graph-edge-flow 0.9s linear infinite;
+}
+.graph-edge-pending .graph-edge-line {
+  stroke: color-mix(in srgb, var(--color-muted) 55%, var(--color-border));
+  stroke-dasharray: 2 5;
+}
+.graph-edge:hover .graph-edge-line,
+.graph-edge-selected .graph-edge-line {
+  stroke-width: 3;
+}
+.graph-edge-selected .graph-edge-line {
+  stroke: var(--color-accent);
+}
+.graph-edge-preview {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  stroke-dasharray: 4 5;
+  pointer-events: none;
+}
+.graph-edge-label {
+  fill: var(--color-muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+.graph-edge-delete {
+  cursor: pointer;
+  pointer-events: all;
+}
+.graph-edge-delete circle {
+  fill: var(--color-surface);
+  stroke: var(--color-error);
+  stroke-width: 1.5;
+}
+.graph-edge-delete path {
+  fill: none;
+  stroke: var(--color-error);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+}
+.graph-edge-delete:hover circle {
+  fill: color-mix(in srgb, var(--color-error) 14%, var(--color-surface));
+}
+.graph-arrow-done {
+  fill: var(--color-ok);
+}
+.graph-arrow-working {
+  fill: var(--color-stage-working);
+}
+.graph-arrow-pending {
+  fill: color-mix(in srgb, var(--color-muted) 55%, var(--color-border));
+}
+.graph-arrow-active {
+  fill: var(--color-accent);
+}
+@keyframes graph-edge-flow {
+  to {
+    stroke-dashoffset: -13;
+  }
+}
+
+/* Zoom controls (bottom-left of a canvas) */
+.zoom-controls {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.25);
+}
+.zoom-control {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.zoom-control:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}
+.zoom-readout {
+  min-width: 3rem;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+/* Empty board call to action */
+.graph-empty {
+  display: flex;
+  max-width: 24rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+/* Board body: loose-tasks panel on the left, graph canvas on the right */
+.board-body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+}
+.board-panes {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+.board-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+/* Collapsible side panel (fixed width, scrollable body) */
+.side-panel {
+  display: flex;
+  width: 280px;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.side-panel-collapsed {
+  width: auto;
+}
+.side-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.side-panel-collapsed .side-panel-header {
+  border-bottom: 0;
+}
+.side-panel-collapsed .side-panel-title {
+  display: none;
+}
+.side-panel-title {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.side-panel-toggle {
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+}
+.side-panel-toggle:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}
+.side-panel-body {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-y: auto;
+}
+.side-panel-body[hidden] {
+  display: none;
+}
+
+/* Loose task cards: draggable onto the canvas */
+.loose-card {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+.loose-card-attention {
+  border-color: color-mix(in srgb, var(--color-stage-attention) 55%, var(--color-border));
+}
+.loose-ghost {
+  position: fixed;
+  z-index: 60;
+  max-width: 16rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-surface);
+  padding: 0.375rem 0.625rem;
+  font-size: 12px;
+  color: var(--color-fg);
+  box-shadow: 0 10px 22px -8px rgb(0 0 0 / 0.35);
+}
+
+/* Segmented control (sub-tabs); only shown on narrow screens by .board-tabs */
+.segmented {
+  display: inline-flex;
+  gap: 0.125rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  padding: 0.125rem;
+}
+.segment {
+  min-height: 1.75rem;
+  flex: 1 1 0%;
+  cursor: pointer;
+  border-radius: calc(var(--radius-md) - 2px);
+  padding: 0.125rem 0.75rem;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.segment-selected {
+  background: var(--color-surface);
+  color: var(--color-fg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+}
+.board-tabs {
+  display: none;
+}
+
+/* Narrow screens: sub-tabs instead of two panels. The inactive pane stays laid out (hidden,
+   not removed) so the canvas keeps its size for fit and "Add to graph".
+   767px is Tailwind's `md` (768px) minus one: keep it in sync with NARROW_BREAKPOINT_PX in
+   src/modules/tasks/presentation/state/loose_drag.rs (the only Rust copy). */
+@media (max-width: 767px) {
+  .board-tabs {
+    display: flex;
+    margin: 0.5rem 0.75rem;
+  }
+  .board-panes > .side-panel,
+  .board-panes > .board-canvas {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    max-height: none;
+    border-right: 0;
+  }
+  .board-panes > .side-panel {
+    z-index: 2;
+  }
+  .board-panes[data-tab="graph"] > .side-panel,
+  .board-panes[data-tab="loose"] > .board-canvas {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .side-panel-toggle {
+    display: none;
+  }
+  .side-panel-collapsed .side-panel-title {
+    display: block;
+  }
+  .side-panel-body[hidden] {
+    display: block;
+  }
+}

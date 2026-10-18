@@ -1,13 +1,16 @@
 pub mod browser_notification;
 pub mod code;
+pub mod collapsible_panel;
 pub mod confirm_panel;
 pub mod form;
 pub mod language_picker;
 pub mod layout;
 pub mod modal;
 pub mod progress_dialog;
+pub mod segmented_control;
 pub mod select;
 pub mod shell;
 pub mod theme_toggle;
 pub mod toast;
 pub mod tree;
+pub mod zoom_controls;

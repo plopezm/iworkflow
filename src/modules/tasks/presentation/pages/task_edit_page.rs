@@ -7,6 +7,7 @@ use crate::core::i18n::Msg;
 use crate::modules::tasks::presentation::components::existing_attachments::ExistingAttachments;
 use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
 use crate::modules::tasks::presentation::components::task_modal::priority_select_options;
+use crate::modules::tasks::presentation::state::graph_model::board_return_path;
 use crate::modules::tasks::presentation::state::task_edit_state::TaskEditState;
 
 const LOADING_TASK: Msg = Msg {
@@ -151,7 +152,9 @@ pub fn TaskEditPage() -> impl IntoView {
 fn TaskEditContent(task_id: String) -> impl IntoView {
     let state: TaskEditState = TaskEditState::new(task_id);
     let nav = use_tab_nav();
-    let leave: Callback<()> = Callback::new(move |_| nav.close_and_open("/"));
+    let leave: Callback<()> = Callback::new(move |_| {
+        nav.close_and_open(&board_return_path(state.task.get_untracked()));
+    });
 
     // Precarga una sola vez, cuando llega la tarea.
     let prefilled: RwSignal<bool> = RwSignal::new(false);

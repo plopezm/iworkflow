@@ -40,7 +40,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 console_error_panic_hook = { version = "0.1", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", features = ["AddEventListenerOptions", "Blob", "ClipboardEvent", "DataTransfer", "Document", "Event", "EventSource", "EventTarget", "File", "FileList", "FileReader", "HtmlInputElement", "MessageEvent", "Notification", "NotificationOptions", "NotificationPermission", "Window"], optional = true }
+web-sys = { version = "0.3", features = ["AddEventListenerOptions", "Blob", "ClipboardEvent", "DataTransfer", "Document", "DomRect", "Event", "EventSource", "EventTarget", "File", "FileList", "FileReader", "HtmlInputElement", "MessageEvent", "Notification", "NotificationOptions", "NotificationPermission", "Window"], optional = true }
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
 
 [target.'cfg(unix)'.dependencies]
@@ -128,6 +128,11 @@ required-features = ["ssr"]
 [[test]]
 name = "task_attachment_repository_adapter_test"
 path = "tests/modules/tasks/task_attachment_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "task_graph_repository_adapter_test"
+path = "tests/modules/tasks/task_graph_repository_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]

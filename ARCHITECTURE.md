@@ -434,7 +434,7 @@ pub fn after_agent_event(&self, event: &AgentEvent) -> Option<(TaskStatus, Optio
 
 Reading it as a Java developer: `matches!(x, A | B)` is a `switch` that returns `boolean`; the `if`s after the pattern (`RunStarted if self.has_live_agent()`) are *guards*; returning `Option<(TaskStatus, Option<String>)>` means "maybe there is a transition, and maybe it carries an error message". This function is **pure** (it does not touch the DB), which makes it trivial to test.
 
-`TaskStage` is a projection (`Backlog`, `Working`, `Attention`, `Review`, `Done`) computed from the status, pending dialogs and subagent activity; the board groups by it and `needs_attention()` decides what to highlight.
+`TaskStage` is a projection (`Backlog`, `Working`, `Attention`, `Review`, `Done`) computed from the status, pending dialogs and subagent activity; the board colours nodes by it and `needs_attention()` decides what to highlight.
 
 **Errors** (`domain/errors/task_error.rs`): a `TaskError` enum with `thiserror`. It is the equivalent of an exception hierarchy, but closed and exhaustive. It includes `is_transient()` (only `Busy`, "SQLite locked"), which the retry decorator uses.
 
@@ -597,8 +597,8 @@ If a subscriber lags more than the channel capacity, it receives `lagged` and th
 ```text
 presentation/
 ├── pages/        board_page.rs · task_detail_page.rs · task_edit_page.rs
-├── state/        board_state.rs · task_detail_state.rs · task_edit_state.rs · task_events.rs · ...
-└── components/   task_card.rs · board_lane.rs · composer.rs · diff_view.rs · transcript_view.rs · ...
+├── state/        board_state.rs · graph_model.rs · graph_geometry.rs · graph_interaction.rs · loose_drag.rs · task_detail_state.rs · task_edit_state.rs · task_events.rs · ...
+└── components/   task_graph_canvas.rs · task_node.rs · loose_tasks_panel.rs · loose_task_card.rs · graph_edge.rs · workspace_switcher.rs · board_toolbar.rs · task_card.rs · composer.rs · diff_view.rs · transcript_view.rs · ...
 ```
 
 The page creates its state, and the components render. Full detail in [§9](#9-frontend-leptos-and-signals).
@@ -904,7 +904,7 @@ flowchart LR
     S -- "ServerAction&lt;StartTask&gt;" --> SF2[start_task]
     S -- "tick: RwSignal&lt;u32&gt;" --> R[(re-fetch)]
     SSE["EventSource /api/tasks/events"] -- "bump tick" --> S
-    P --> C["BoardLane → TaskCard (dumb components)"]
+    P --> C["TaskGraphCanvas → TaskNode / GraphEdgeLine (dumb components)"]
 ```
 
 `BoardState` (`presentation/state/board_state.rs`) is a `Copy` struct of signals (Leptos signals are cheap-to-copy *handles*). Its `Resource` re-runs when its "key" changes: a tuple of version counters of each action plus `tick`.
@@ -919,9 +919,15 @@ let tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> = Resource::new(
 
 Reading: "reload the list every time an action finishes **or** `tick` changes". `tick` is incremented by the SSE `EventSource` when the server reports a change. So the flow is: user action / server event → a dependency changes → the `Resource` refetches → the UI updates only where it changed.
 
+### Workspace board (dependency graph)
+
+The board is scoped to one workspace (`/board/:workspace_id`; `/` resolves the first workspace by name) and renders the task dependency graph: HTML nodes (`TaskNode`) and SVG Bézier edges (`GraphEdgeLine`) inside a pannable/zoomable layer (`TaskGraphCanvas`). `BoardState` loads the graph with `get_task_graph` in a `Resource` keyed by the workspace, the version counters of the edge/position actions and a signature of the statuses of the workspace's tasks, so a successor that the server starts on its own (all its predecessors `merged`) shows up without a reload. Gestures end in `add_task_dependency`, `remove_task_dependency` or `set_task_position`; rejected edges (cycle, duplicate, cross-workspace…) are shown as toasts and leave the graph unchanged. *Add next / parallel task* creates the task with `start_now = false` and then adds the needed edges. The edge view model reserves an optional `label` for future edge conditions; none are implemented. In the sidebar, clicking a workspace opens its board and the item menu offers **View files** (`/workspaces/:id`, the project tree).
+
+**Loose tasks panel.** Every visible task of the workspace is either a graph node or *loose*, never both and never neither: `partition_tasks` in `graph_model.rs` is the single definition (a task is a node when it has an edge to another *visible* task, a saved position or a just-placed one; edges to tasks hidden by the *show completed* filter do not count), and `loose_tasks` / `build_graph` both derive from it. Loose tasks are not drawn on the canvas. They appear in the left `LooseTasksPanel` (`CollapsiblePanel` from `core/components`, fixed 280 px, scrollable) as `LooseTaskCard`s that reuse `TaskCardActions`, so they run standalone. Dragging a card onto the canvas (pointer helpers in `loose_drag.rs`: hit-test against the canvas rect, drop position through the viewport transform) or the *Add to graph* button (visible canvas centre) calls the existing `set_task_position`, which turns it into a node; an optimistic override (pure transitions in `placement.rs`: place, roll back on a failed save, drop once the server returns the same position) keeps it from flashing back into the panel. The inverse is the *Remove from graph* node action: `detach_task_from_graph` → `DetachTaskFromGraph` → `TaskGraphRepositoryPort::detach_task`, which deletes every edge of the task (both directions) and its `task_positions` row in one immediate transaction, then runs the successor trigger (failure only logged); former successors left with no predecessors become standalone tasks (never auto-started), those whose remaining predecessors are all merged may start. `BoardState` drops the task's override and selection on success so it reappears in the panel. Under 768 px the two panels become `SegmentedControl` sub-tabs (*Loose (N)* / *Graph*, `BoardTab` signal in `BoardState`, default = Graph unless there are no nodes and some loose tasks); the inactive pane is hidden with CSS but stays laid out so the canvas keeps its size, and drag-to-canvas is disabled there in favour of the button.
+
 ### Logic outside the components
 
-Components (`task_card.rs`, `board_lane.rs`, …) only render and receive `Callback`s. **Pure** presentation rules are extracted into testable functions in `state/`, for example `build_lanes(tasks, workspaces, stage_filter, show_done) -> Vec<LaneView>` (groups by workspace, filters, sorts by attention/priority/age) and `card_key(&task)` (the `<For>` key that decides which cards to rebuild). Being functions without I/O, they are tested with plain `#[test]`s without a browser.
+Components (`task_node.rs`, `graph_edge.rs`, `task_graph_canvas.rs`, …) only render and receive `Callback`s. **Pure** presentation rules are extracted into testable functions in `state/`: `graph_model.rs` (`build_graph`, `waiting_count`, `resolve_positions` — the layered auto layout for nodes without a saved position —, `link_predecessors` for *next*/*parallel* tasks, `resolve_board_workspace`), `graph_geometry.rs` (screen↔canvas transforms, zoom, fit, anchors and Bézier edge paths) and `graph_interaction.rs` (the pan / drag-node / connect gesture state machine). Being functions without I/O, they are tested with plain `#[test]`s without a browser.
 
 ### Browser-only code
 
@@ -941,7 +947,7 @@ pub fn subscribe_task_events(tick: RwSignal<u32>) { /* EventSource + reconnectio
 
 | Route | Page |
 |---|---|
-| `/` | `BoardPage` (kanban board per workspace) |
+| `/` · `/board/:workspace_id` | `BoardPage` (dependency-graph board of one workspace; `/` shows the first workspace by name) |
 | `/workspaces` | `WorkspacesPage` |
 | `/workspaces/:id` · `/workspaces/:id/files/*` | Workspace file tree and editor |
 | `/tasks/:id` · `/tasks/:id/edit` | `TaskDetailPage` · `TaskEditPage` |
@@ -1049,7 +1055,7 @@ Platform-specific code is confined to infrastructure:
 
 | What | Where | How |
 |---|---|---|
-| Domain rules | `#[cfg(test)] mod tests` next to the code | Pure `#[test]`s (`TaskStatus`, `after_agent_event`, `build_lanes`) |
+| Domain rules | `#[cfg(test)] mod tests` next to the code | Pure `#[test]`s (`TaskStatus`, `after_agent_event`, `build_graph`) |
 | Use cases | `#[cfg(test)] mod tests` in each `usecases/*.rs` | `#[tokio::test]` + `mockall` mocks of the ports; `application/test_support.rs` offers a `Recorded` to inspect emitted states and events |
 | Mocks | `src/modules/<feature>/mocks.rs` | `mock! { pub TaskRepository {} #[async_trait] impl TaskRepositoryPort for TaskRepository { ... } }` — the equivalent of Mockito's `@Mock` generated from the trait |
 | Diesel / FS / git / runtime adapters | `tests/modules/<feature>/*_test.rs` | Integration against temporary SQLite (`tempfile`) with the real migrations applied; `tests/common/mod.rs` provides `test_db()` and `git_repo()` |

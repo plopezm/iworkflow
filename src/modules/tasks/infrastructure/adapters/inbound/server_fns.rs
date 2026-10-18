@@ -14,6 +14,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dt
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_file_dto::{
     SaveTaskFileDto, TaskFileDto,
 };
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_graph_dto::{
+    TaskDependencyDto, TaskGraphDto,
+};
 
 #[cfg(feature = "ssr")]
 mod support {
@@ -84,6 +87,19 @@ mod support {
                 ServerFnError::ServerError(expected.clone())
             );
             assert!(expected.contains("abc"));
+        }
+
+        #[test]
+        fn graph_errors_keep_their_messages() {
+            for error in [
+                TaskError::DependencyCycle,
+                TaskError::SelfDependency,
+                TaskError::DuplicateDependency,
+                TaskError::CrossWorkspaceDependency,
+            ] {
+                let expected: String = error.to_string();
+                assert_eq!(to_server_error(error), ServerFnError::ServerError(expected));
+            }
         }
 
         #[test]
@@ -269,11 +285,72 @@ pub async fn resume_task(id: String) -> Result<(), ServerFnError> {
 
 #[server]
 pub async fn merge_task(id: String) -> Result<MergeOutcomeDto, ServerFnError> {
-    support::context()?
+    use crate::modules::tasks::domain::models::worktree::MergeOutcome;
+
+    let outcome: MergeOutcome = support::context()?
         .merge_task
         .execute(support::task_id(&id)?)
         .await
-        .map(MergeOutcomeDto::from)
+        .map_err(support::to_server_error)?;
+    Ok(MergeOutcomeDto::from(outcome))
+}
+
+#[server]
+pub async fn get_task_graph(workspace_id: String) -> Result<TaskGraphDto, ServerFnError> {
+    support::context()?
+        .get_task_graph
+        .execute(workspace_id)
+        .await
+        .map(TaskGraphDto::from)
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn add_task_dependency(
+    predecessor_id: String,
+    successor_id: String,
+) -> Result<TaskDependencyDto, ServerFnError> {
+    support::context()?
+        .add_task_dependency
+        .execute(
+            support::task_id(&predecessor_id)?,
+            support::task_id(&successor_id)?,
+        )
+        .await
+        .map(TaskDependencyDto::from)
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn remove_task_dependency(
+    predecessor_id: String,
+    successor_id: String,
+) -> Result<(), ServerFnError> {
+    support::context()?
+        .remove_task_dependency
+        .execute(
+            support::task_id(&predecessor_id)?,
+            support::task_id(&successor_id)?,
+        )
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn detach_task_from_graph(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .detach_task_from_graph
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn set_task_position(id: String, x: f64, y: f64) -> Result<(), ServerFnError> {
+    support::context()?
+        .set_task_position
+        .execute(support::task_id(&id)?, x, y)
+        .await
         .map_err(support::to_server_error)
 }
 

@@ -14,6 +14,7 @@ pub mod task;
 pub mod task_attachment_content;
 pub mod task_event;
 pub mod task_file_content;
+pub mod task_graph;
 pub mod task_priority;
 pub mod usage_limit;
 pub mod workspace_ref;
