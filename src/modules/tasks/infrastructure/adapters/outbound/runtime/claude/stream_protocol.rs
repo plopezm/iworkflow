@@ -14,6 +14,7 @@ use crate::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogAnswer, DialogKind, DialogRequest, NoticeLevel,
 };
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
+use crate::modules::tasks::domain::models::usage_limit::looks_like_usage_limit;
 
 /// Límite de caracteres de salidas y argumentos de herramientas que se conservan.
 const MAX_TOOL_TEXT_CHARS: usize = 20_000;
@@ -60,6 +61,11 @@ pub struct ClaudeProtocol {
     pending: HashMap<String, Pending>,
     /// Peticiones ya resueltas (canceladas) cuyos diálogos hermanos aún pueden llegar.
     settled: HashSet<String>,
+    /// El último `rate_limit_event` rechazó la petición: el `result` de error que sigue es un
+    /// límite de uso (el texto del error varía según el plan y el idioma).
+    limit_rejected: bool,
+    /// Renovación del límite (epoch en segundos) indicada por ese `rate_limit_event`.
+    limit_resets_at: Option<i64>,
 }
 
 impl ClaudeProtocol {
@@ -84,6 +90,10 @@ impl ClaudeProtocol {
             "assistant" => self.decode_assistant(&record),
             "user" => self.decode_user(&record),
             "control_request" => self.decode_control_request(&record),
+            "rate_limit_event" => {
+                self.note_rate_limit(&record);
+                Vec::new()
+            }
             "result" => self.decode_result(&record),
             _ => Vec::new(),
         }
@@ -406,6 +416,21 @@ impl ClaudeProtocol {
         }
     }
 
+    /// Recuerda si claude rechazó la petición por límite de uso y cuándo se renueva.
+    fn note_rate_limit(&mut self, record: &Value) {
+        let Some(info) = record.get("rate_limit_info") else {
+            return;
+        };
+        let Some(status) = str_field(info, "status") else {
+            return;
+        };
+        self.limit_rejected = !matches!(status, "allowed" | "allowed_warning");
+        self.limit_resets_at = self
+            .limit_rejected
+            .then(|| info.get("resetsAt").and_then(Value::as_i64))
+            .flatten();
+    }
+
     fn decode_result(&mut self, record: &Value) -> Vec<AgentEvent> {
         self.running = false;
         self.thinking.clear();
@@ -417,19 +442,24 @@ impl ClaudeProtocol {
             .and_then(Value::as_bool)
             .unwrap_or(false)
             || str_field(record, "subtype").is_some_and(|s: &str| s != "success");
+        let limit_rejected: bool = std::mem::take(&mut self.limit_rejected);
+        let limit_resets_at: Option<i64> = self.limit_resets_at.take();
         let mut events: Vec<AgentEvent> = Vec::new();
         if failed {
+            let message: String = str_field(record, "result")
+                .or_else(|| str_field(record, "subtype"))
+                .unwrap_or("error del agente")
+                .to_string();
             events.push(
                 if str_field(record, "terminal_reason") == Some("aborted_streaming") {
                     notice(NoticeLevel::Warning, INTERRUPTED_MESSAGE.to_string())
+                } else if limit_rejected || looks_like_usage_limit(&message) {
+                    AgentEvent::UsageLimitReached {
+                        resets_at: limit_resets_at,
+                        message,
+                    }
                 } else {
-                    notice(
-                        NoticeLevel::Error,
-                        str_field(record, "result")
-                            .or_else(|| str_field(record, "subtype"))
-                            .unwrap_or("error del agente")
-                            .to_string(),
-                    )
+                    notice(NoticeLevel::Error, message)
                 },
             );
         }
@@ -1227,6 +1257,69 @@ mod tests {
                 AgentEvent::TextDelta { delta: "b".into() },
             ]
         );
+    }
+
+    #[test]
+    fn rejected_rate_limit_followed_by_error_result_reports_the_usage_limit() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                json!({"type": "rate_limit_event", "rate_limit_info": {
+                    "status": "rejected", "resetsAt": 1784283600, "rateLimitType": "five_hour"}}),
+                json!({"type": "result", "subtype": "success", "is_error": true,
+                     "result": "You've hit your session limit · resets 3:45pm"}),
+            ],
+        );
+        assert_eq!(
+            events,
+            vec![
+                AgentEvent::UsageLimitReached {
+                    resets_at: Some(1_784_283_600),
+                    message: "You've hit your session limit · resets 3:45pm".to_string(),
+                },
+                AgentEvent::RunSettled,
+            ]
+        );
+    }
+
+    #[test]
+    fn limit_text_alone_is_detected_without_a_reset_time() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                json!({"type": "result", "subtype": "error", "is_error": true,
+                     "result": "Claude AI usage limit reached"}),
+            ],
+        );
+        assert!(matches!(
+            events[0],
+            AgentEvent::UsageLimitReached {
+                resets_at: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn allowed_rate_limit_and_successful_results_do_not_report_a_limit() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                json!({"type": "rate_limit_event", "rate_limit_info": {"status": "rejected", "resetsAt": 5}}),
+                json!({"type": "rate_limit_event", "rate_limit_info": {"status": "allowed"}}),
+                result_line("error_max_turns", true),
+            ],
+        );
+        assert!(matches!(
+            events[0],
+            AgentEvent::Notice {
+                level: NoticeLevel::Error,
+                ..
+            }
+        ));
     }
 
     #[test]

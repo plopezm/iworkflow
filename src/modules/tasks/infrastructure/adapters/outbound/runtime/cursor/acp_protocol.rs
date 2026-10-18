@@ -16,6 +16,7 @@ use crate::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogAnswer, DialogKind, DialogRequest, NoticeLevel,
 };
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
+use crate::modules::tasks::domain::models::usage_limit::looks_like_usage_limit;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_process::LineCodec;
 
 /// Límite de caracteres de salidas y argumentos de herramientas que se conservan.
@@ -242,7 +243,7 @@ impl AcpProtocol {
         let had_work: bool = self.prompt_in_flight || !self.queued.is_empty();
         self.queued.clear();
         self.prompt_in_flight = false;
-        let mut events: Vec<AgentEvent> = vec![notice(NoticeLevel::Error, message)];
+        let mut events: Vec<AgentEvent> = vec![error_event(message)];
         if had_work || self.running {
             self.running = false;
             events.push(AgentEvent::RunSettled);
@@ -357,7 +358,7 @@ impl AcpProtocol {
         self.start_run(&mut events);
         self.flush_message(&mut events);
         match (error, str_field(result, "stopReason")) {
-            (Some(message), _) => events.push(notice(NoticeLevel::Error, message)),
+            (Some(message), _) => events.push(error_event(message)),
             (None, Some("cancelled")) => {
                 events.push(notice(
                     NoticeLevel::Warning,
@@ -995,6 +996,19 @@ fn notice(level: NoticeLevel, message: String) -> AgentEvent {
     AgentEvent::Notice { level, message }
 }
 
+/// Error del agente: un límite de uso agotado (sin instante de renovación: ACP solo da texto)
+/// o un aviso de error genérico.
+fn error_event(message: String) -> AgentEvent {
+    if looks_like_usage_limit(&message) {
+        AgentEvent::UsageLimitReached {
+            resets_at: None,
+            message,
+        }
+    } else {
+        notice(NoticeLevel::Error, message)
+    }
+}
+
 fn str_field<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
     value.get(key).and_then(Value::as_str)
 }
@@ -1323,6 +1337,30 @@ mod tests {
         }));
         assert_eq!(events.last(), Some(&AgentEvent::RunSettled));
         assert_eq!(out[0]["params"]["prompt"][0]["text"], "dos");
+    }
+
+    #[test]
+    fn a_prompt_rejected_for_usage_limit_reports_the_limit_and_settles() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        command(&mut protocol, prompt("hola"));
+
+        let (events, _) = feed(
+            &mut protocol,
+            json!({ "jsonrpc": "2.0", "id": 4,
+                "error": { "code": -1, "message": "You've hit your usage limit. Upgrade your plan" } }),
+        );
+
+        assert_eq!(
+            events,
+            vec![
+                AgentEvent::RunStarted,
+                AgentEvent::UsageLimitReached {
+                    resets_at: None,
+                    message: "You've hit your usage limit. Upgrade your plan".to_string()
+                },
+                AgentEvent::RunSettled
+            ]
+        );
     }
 
     #[test]
