@@ -225,7 +225,8 @@ const EMPTY_GROUP: Msg = Msg {
 /// Pantalla que muestra una pestaña, deducida de su ruta.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum TabRoute {
-    Board,
+    /// Tablero de un workspace; sin id (`/`) muestra el primero por nombre.
+    Board(Option<String>),
     Workspaces,
     WorkspaceTree(String),
     /// Fichero del proyecto: id del workspace y ruta relativa (ya decodificada).
@@ -256,7 +257,8 @@ impl TabRoute {
     fn parse(path: &str) -> Self {
         let segments: Vec<&str> = path.split('/').filter(|s: &&str| !s.is_empty()).collect();
         match segments.as_slice() {
-            [] => Self::Board,
+            [] | ["board"] => Self::Board(None),
+            ["board", id] => Self::Board(Some((*id).to_string())),
             ["workspaces"] => Self::Workspaces,
             ["workspaces", id] => Self::WorkspaceTree((*id).to_string()),
             ["workspaces", id, "files", rest @ ..] if !rest.is_empty() => {
@@ -287,7 +289,7 @@ impl TabRoute {
 
     fn title(&self) -> String {
         match self {
-            Self::Board => TITLE_BOARD.get().to_string(),
+            Self::Board(_) => TITLE_BOARD.get().to_string(),
             Self::Workspaces => TITLE_WORKSPACES.get().to_string(),
             Self::WorkspaceTree(_) => TITLE_PROJECT.get().to_string(),
             Self::TaskTree(_) => TITLE_FILES.get().to_string(),
@@ -320,7 +322,7 @@ impl TabRoute {
 
     fn icon(&self) -> &'static str {
         match self {
-            Self::Board => "▦",
+            Self::Board(_) => "▦",
             Self::Workspaces | Self::WorkspaceTree(_) | Self::TaskTree(_) => "▤",
             Self::WorkspaceFile(..) | Self::TaskFile(..) => "◫",
             Self::WorkspaceEdit(_) | Self::TaskEdit(_) => "✎",
@@ -343,6 +345,9 @@ impl TabRoute {
     /// Parámetros de ruta que esperan las páginas (`id` o `session_id`).
     fn params(&self) -> ParamsMap {
         let mut params: ParamsMap = ParamsMap::new();
+        if let Self::Board(Some(workspace_id)) = self {
+            params.insert("workspace_id", workspace_id.clone());
+        }
         if let Self::WorkspaceFile(id, path) = self {
             params.insert("id", id.clone());
             params.insert("path", path.clone());
@@ -369,7 +374,7 @@ impl TabRoute {
 
     fn view(self) -> AnyView {
         match self {
-            Self::Board => view! { <BoardPage /> }.into_any(),
+            Self::Board(_) => view! { <BoardPage /> }.into_any(),
             Self::Workspaces => view! { <WorkspacesPage /> }.into_any(),
             Self::WorkspaceTree(_) | Self::TaskTree(_) => view! { <ProjectTreePage /> }.into_any(),
             Self::WorkspaceFile(..) | Self::TaskFile(..) => {
@@ -596,6 +601,8 @@ pub fn App() -> impl IntoView {
             <Routes fallback=|| ()>
                 <Route path=StaticSegment("") view=|| () />
                 <Route path=StaticSegment("workspaces") view=|| () />
+                <Route path=StaticSegment("board") view=|| () />
+                <Route path=(StaticSegment("board"), WildcardSegment("rest")) view=|| () />
                 <Route path=StaticSegment("terminals") view=|| () />
                 <Route path=StaticSegment("agents-files") view=|| () />
                 <Route path=StaticSegment("jira") view=|| () />
@@ -637,7 +644,13 @@ mod tests {
 
     #[test]
     fn parse_maps_every_known_path_to_its_screen() {
-        assert_eq!(TabRoute::parse("/"), TabRoute::Board);
+        assert_eq!(TabRoute::parse("/"), TabRoute::Board(None));
+        assert_eq!(TabRoute::parse("/board"), TabRoute::Board(None));
+        assert_eq!(
+            TabRoute::parse("/board/w1"),
+            TabRoute::Board(Some("w1".into()))
+        );
+        assert_eq!(TabRoute::parse("/board/w1/x"), TabRoute::NotFound);
         assert_eq!(TabRoute::parse("/settings"), TabRoute::Settings);
         assert_eq!(TabRoute::Settings.title(), "Settings");
         assert_eq!(TabRoute::parse("/tasks/a1"), TabRoute::Task("a1".into()));
@@ -728,12 +741,20 @@ mod tests {
                 .as_deref(),
             Some("ABC-12")
         );
-        assert_eq!(TabRoute::Board.params().get("id"), None);
+        assert_eq!(TabRoute::Board(None).params().get("workspace_id"), None);
+        assert_eq!(
+            TabRoute::parse("/board/w1")
+                .params()
+                .get("workspace_id")
+                .as_deref(),
+            Some("w1")
+        );
     }
 
     #[test]
     fn titles_fall_back_to_a_short_terminal_id() {
         assert_eq!(tab_title("/"), "Board");
+        assert_eq!(tab_title("/board/w1"), "Board");
         assert_eq!(tab_title("/terminals/0123456789"), "Terminal 01234567");
     }
 

@@ -1,54 +1,36 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 
 use leptos::prelude::*;
 
 use crate::core::components::form::parse_positive_number;
-
 use crate::core::components::toast::{ToastMessage, push_toast};
+use crate::core::dock::context::use_tab_params;
 use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    BranchOptionDto, CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
+    BranchOptionDto, CreateTaskDto, CreatedTaskDto, TaskDto, TaskPriorityDto, WorkspaceOptionDto,
+};
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_graph_dto::{
+    TaskDependencyDto, TaskGraphDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    CreateTask, DeleteTask, FinishTask, MergeTask, StartTask, list_done_tasks,
+    AddTaskDependency, DeleteTask, FinishTask, MergeTask, RemoveTaskDependency, SetTaskPosition,
+    StartTask, add_task_dependency, create_task, get_task_graph, list_done_tasks,
     list_workspace_branches,
+};
+use crate::modules::tasks::presentation::state::graph_geometry::{
+    Point, Viewport, ZOOM_STEP, bounds_of_nodes, fit_viewport, wheel_zoom_factor,
+};
+use crate::modules::tasks::presentation::state::graph_interaction::{
+    DragEffect, DragMode, DragOutcome,
+};
+use crate::modules::tasks::presentation::state::graph_model::{
+    BoardWorkspace, GraphView, NewTaskLink, build_graph, edges_for_new_task, link_predecessors,
+    resolve_board_workspace, resolve_positions, saved_positions,
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
-
-const ONE_TASK: Msg = Msg {
-    en: "1 task",
-    es: "1 tarea",
-    zh: "1 个任务",
-    de: "1 Aufgabe",
-    fr: "1 tâche",
-};
-
-const TASKS_COUNT: Msg = Msg {
-    en: "{n} tasks",
-    es: "{n} tareas",
-    zh: "{n} 个任务",
-    de: "{n} Aufgaben",
-    fr: "{n} tâches",
-};
-
-const ATTENTION_COUNT: Msg = Msg {
-    en: "{n} attention",
-    es: "{n} atención",
-    zh: "{n} 个需要关注",
-    de: "{n} Aufmerksamkeit",
-    fr: "{n} attention",
-};
-
-const ALL_FILTER: Msg = Msg {
-    en: "All",
-    es: "Todas",
-    zh: "全部",
-    de: "Alle",
-    fr: "Toutes",
-};
 
 const START_FAILED_AFTER_CREATE: Msg = Msg {
     en: "Task created in To do, but it could not be started: {error}",
@@ -57,36 +39,6 @@ const START_FAILED_AFTER_CREATE: Msg = Msg {
     de: "Aufgabe in „Zu erledigen“ erstellt, konnte aber nicht gestartet werden: {error}",
     fr: "Tâche créée dans « À faire », mais impossible de la démarrer : {error}",
 };
-
-/// Compara dos instantes RFC 3339 por su valor temporal; si alguno no se puede interpretar
-/// se recurre a la comparación textual, que es cronológica para el formato que emite el servidor.
-fn compare_instants(a: &str, b: &str) -> std::cmp::Ordering {
-    let parse = |value: &str| -> Option<chrono::DateTime<chrono::FixedOffset>> {
-        chrono::DateTime::parse_from_rfc3339(value).ok()
-    };
-    match (parse(a), parse(b)) {
-        (Some(left), Some(right)) => left.cmp(&right),
-        _ => a.cmp(b),
-    }
-}
-
-/// Orden de las tarjetas dentro de una columna: primero las abiertas (atención, prioridad y
-/// antigüedad) y al final las finalizadas, la última cerrada primero.
-fn compare_lane_tasks(a: &TaskDto, b: &TaskDto) -> std::cmp::Ordering {
-    let a_done: bool = a.stage == TaskStageDto::Done;
-    let b_done: bool = b.stage == TaskStageDto::Done;
-    a_done.cmp(&b_done).then_with(|| {
-        if a_done {
-            return compare_instants(&b.updated_at, &a.updated_at);
-        }
-        b.needs_attention.cmp(&a.needs_attention).then_with(|| {
-            b.priority
-                .rank()
-                .cmp(&a.priority.rank())
-                .then_with(|| compare_instants(&a.created_at, &b.created_at))
-        })
-    })
-}
 
 /// Tamaño de página de las tareas finalizadas.
 pub const DONE_PAGE_SIZE: usize = 50;
@@ -160,203 +112,6 @@ async fn fetch_done_pages(pages: usize) -> Result<DonePages, ServerFnError> {
     })
     .await
 }
-
-/// Carril del tablero: todas las tareas visibles de un mismo workspace.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LaneView {
-    pub workspace_id: String,
-    pub workspace_name: String,
-    pub base_branch: String,
-    pub tasks: Vec<TaskDto>,
-    pub total: usize,
-    pub attention_count: usize,
-}
-
-/// El chip "Necesita atención" usa `needs_attention` (Attention + Review) para coincidir con
-/// los contadores del carril y del título; el resto de chips filtran por etapa exacta.
-fn matches_stage_filter(task: &TaskDto, stage_filter: Option<TaskStageDto>) -> bool {
-    match stage_filter {
-        None => true,
-        Some(TaskStageDto::Attention) => task.needs_attention,
-        Some(stage) => task.stage == stage,
-    }
-}
-
-/// Agrupa, filtra y ordena las tareas en carriles por workspace (función pura, sin I/O).
-///
-/// Reglas: un workspace solo aparece si tiene tareas visibles tras aplicar `stage_filter`
-/// y `show_done`; dentro de un carril las tareas se ordenan por prioridad descendente y, a igual
-/// prioridad, por `created_at` ascendente (la más antigua primero); los carriles con alguna tarea en atención van primero,
-/// y el resto se ordena por nombre de workspace.
-pub fn build_lanes(
-    tasks: &[TaskDto],
-    workspaces: &[WorkspaceOptionDto],
-    stage_filter: Option<TaskStageDto>,
-    show_done: bool,
-) -> Vec<LaneView> {
-    let visible: Vec<TaskDto> = tasks
-        .iter()
-        .filter(|t: &&TaskDto| {
-            let matches_filter: bool = matches_stage_filter(t, stage_filter);
-            let matches_done: bool = t.stage != TaskStageDto::Done || show_done;
-            matches_filter && matches_done
-        })
-        .cloned()
-        .collect();
-
-    let mut lanes: Vec<LaneView> = Vec::new();
-    for task in visible {
-        let workspace_id: String = task.workspace_id.clone();
-        match lanes
-            .iter_mut()
-            .find(|lane: &&mut LaneView| lane.workspace_id == workspace_id)
-        {
-            Some(lane) => lane.tasks.push(task),
-            None => {
-                let workspace: Option<&WorkspaceOptionDto> = workspaces
-                    .iter()
-                    .find(|w: &&WorkspaceOptionDto| w.id == workspace_id);
-                lanes.push(LaneView {
-                    workspace_name: workspace
-                        .map(|w: &WorkspaceOptionDto| w.name.clone())
-                        .unwrap_or_else(|| workspace_id.clone()),
-                    base_branch: workspace
-                        .map(|w: &WorkspaceOptionDto| w.base_branch.clone())
-                        .unwrap_or_default(),
-                    workspace_id,
-                    tasks: vec![task],
-                    total: 0,
-                    attention_count: 0,
-                });
-            }
-        }
-    }
-
-    for lane in &mut lanes {
-        // `sort_by` is stable: attention-first keeps the priority/age order within each group.
-        lane.tasks.sort_by(compare_lane_tasks);
-        lane.total = lane.tasks.len();
-        lane.attention_count = lane
-            .tasks
-            .iter()
-            .filter(|t: &&TaskDto| t.needs_attention)
-            .count();
-    }
-
-    lanes.sort_by(|a: &LaneView, b: &LaneView| {
-        let a_has_attention: bool = a.attention_count > 0;
-        let b_has_attention: bool = b.attention_count > 0;
-        b_has_attention
-            .cmp(&a_has_attention)
-            .then_with(|| a.workspace_name.cmp(&b.workspace_name))
-    });
-
-    lanes
-}
-
-/// Etiqueta del contador de tareas de un carril ("1 tarea" / "3 tareas").
-pub fn lane_total_label(total: usize) -> String {
-    if total == 1 {
-        ONE_TASK.get().to_string()
-    } else {
-        TASKS_COUNT.fmt(&[("n", &total.to_string())])
-    }
-}
-
-/// Etiqueta del contador de atención de un carril; `None` cuando no hay ninguna.
-pub fn lane_attention_label(attention: usize) -> Option<String> {
-    (attention > 0).then(|| ATTENTION_COUNT.fmt(&[("n", &attention.to_string())]))
-}
-
-/// Clave de una tarjeta para el `<For>` del tablero: identifica la tarea y cambia cuando
-/// cambia cualquier dato visible, de modo que solo se reconstruyen las tarjetas modificadas.
-pub fn card_key(task: &TaskDto) -> String {
-    format!(
-        "{}|{}|{}|{:?}|{:?}|{:?}|{}|{}|{:?}|{}",
-        task.id,
-        task.updated_at,
-        task.title,
-        task.stage,
-        task.status,
-        task.priority,
-        task.needs_attention,
-        task.pending_dialogs,
-        task.error,
-        task.prompt,
-    )
-}
-
-/// Ids de los carriles en orden de pintado (claves del `<For>` de carriles).
-pub fn lane_ids(lanes: &[LaneView]) -> Vec<String> {
-    lanes
-        .iter()
-        .map(|l: &LaneView| l.workspace_id.clone())
-        .collect()
-}
-
-/// Etapas disponibles como chips de filtro (excluye `Done`, controlado por su propio toggle).
-pub const FILTER_STAGES: [Option<TaskStageDto>; 5] = [
-    None,
-    Some(TaskStageDto::Attention),
-    Some(TaskStageDto::Working),
-    Some(TaskStageDto::Backlog),
-    Some(TaskStageDto::Review),
-];
-
-/// Etiqueta de un chip de filtro.
-pub fn filter_label(stage: Option<TaskStageDto>) -> &'static str {
-    match stage {
-        None => ALL_FILTER.get(),
-        Some(s) => s.label(),
-    }
-}
-
-/// Estado de la pantalla del tablero: tareas agrupadas por carril, filtros y modal de alta de tarea.
-#[derive(Clone, Copy)]
-pub struct BoardState {
-    /// Almacén compartido (shell): tareas activas, finalizadas visibles y workspaces.
-    pub store: TaskStore,
-    /// Carga de las finalizadas (vacío mientras `show_done` esté desactivado); su resultado
-    /// se vuelca en `store.done`, que los eventos de SSE parchean sin recargar páginas.
-    pub done_tasks: Resource<Result<DonePages, ServerFnError>>,
-    /// Si la última página de finalizadas pedida al servidor vino completa; solo cambia al
-    /// cargar, no con los parches de SSE sobre `store.done`.
-    pub done_has_more: RwSignal<bool>,
-    /// Páginas de finalizadas que se piden al servidor ("Cargar más" la incrementa).
-    pub done_pages: RwSignal<usize>,
-    pub workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>>,
-    pub stage_filter: RwSignal<Option<TaskStageDto>>,
-    pub show_done: RwSignal<bool>,
-    pub create: ServerAction<CreateTask>,
-    pub delete: ServerAction<DeleteTask>,
-    pub start: ServerAction<StartTask>,
-    pub finish: ServerAction<FinishTask>,
-    pub merge: ServerAction<MergeTask>,
-    pub modal_open: RwSignal<bool>,
-    pub form_workspace_id: RwSignal<String>,
-    pub form_title: RwSignal<String>,
-    pub form_prompt: RwSignal<String>,
-    /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
-    pub form_priority: RwSignal<String>,
-    pub form_memory_limit: RwSignal<String>,
-    pub form_cpu_limit: RwSignal<String>,
-    /// Muestra las opciones avanzadas (límites de RAM y CPU) en el alta.
-    pub form_show_advanced: RwSignal<bool>,
-    pub form_start_now: RwSignal<bool>,
-    /// Rama de la que parte el worktree; vacío = base del workspace.
-    pub form_base_branch: RwSignal<String>,
-    /// Ramas del workspace elegido en el formulario (vacías mientras no haya ninguno).
-    pub branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>>,
-    /// Imágenes adjuntas al prompt inicial.
-    pub images: ImageAttachments,
-    pub toasts: RwSignal<Vec<ToastMessage>>,
-    toast_seq: RwSignal<u32>,
-    pub start_target: RwSignal<Option<String>>,
-    pub delete_target: RwSignal<Option<String>>,
-    pub finish_target: RwSignal<Option<String>>,
-    pub merge_target: RwSignal<Option<String>>,
-}
-
 /// Texto del aviso cuando la tarea se crea pero no puede iniciarse.
 pub fn start_failed_after_create_text(error: &str) -> String {
     START_FAILED_AFTER_CREATE.fmt(&[("error", error)])
@@ -407,18 +162,182 @@ pub fn current_branch(branches: &[BranchOptionDto]) -> Option<String> {
         .map(|b: &BranchOptionDto| b.name.clone())
 }
 
+const LINK_FAILED_AFTER_CREATE: Msg = Msg {
+    en: "Task created, but its dependency could not be added: {error}",
+    es: "Tarea creada, pero no se pudo añadir su dependencia: {error}",
+    zh: "任务已创建，但无法添加其依赖：{error}",
+    de: "Aufgabe erstellt, aber die Abhängigkeit konnte nicht hinzugefügt werden: {error}",
+    fr: "Tâche créée, mais sa dépendance n'a pas pu être ajoutée : {error}",
+};
+
+/// Texto del aviso cuando la tarea se crea pero alguna de sus aristas falla.
+pub fn link_failed_after_create_text(error: &str) -> String {
+    LINK_FAILED_AFTER_CREATE.fmt(&[("error", error)])
+}
+
+/// Petición de alta desde el tablero: la tarea y las predecesoras de las que depende.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinkedCreate {
+    pub input: CreateTaskDto,
+    pub predecessors: Vec<String>,
+}
+
+/// Resultado del alta: la tarea creada y los errores de las aristas que no se pudieron crear.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LinkedCreated {
+    pub created: CreatedTaskDto,
+    pub link_errors: Vec<String>,
+}
+
+/// Crea la tarea y, solo si se creó, una arista por cada predecesora. Una arista rechazada no
+/// deshace la tarea: se acumula su error para avisar.
+async fn create_with_links<C, CFut, L, LFut>(
+    request: LinkedCreate,
+    create: C,
+    mut link: L,
+) -> Result<LinkedCreated, ServerFnError>
+where
+    C: FnOnce(CreateTaskDto) -> CFut,
+    CFut: Future<Output = Result<CreatedTaskDto, ServerFnError>>,
+    L: FnMut(String, String) -> LFut,
+    LFut: Future<Output = Result<(), ServerFnError>>,
+{
+    let created: CreatedTaskDto = create(request.input).await?;
+    let mut link_errors: Vec<String> = Vec::new();
+    for (predecessor, successor) in edges_for_new_task(&created.task.id, &request.predecessors) {
+        if let Err(error) = link(predecessor, successor).await {
+            link_errors.push(error.to_string());
+        }
+    }
+    Ok(LinkedCreated {
+        created,
+        link_errors,
+    })
+}
+
+/// Estado de la pantalla del tablero de un workspace: grafo, lienzo (vista, gestos,
+/// selección), acciones sobre tareas y aristas, y el modal de alta de tarea.
+#[derive(Clone, Copy)]
+pub struct BoardState {
+    /// Almacén compartido (shell): tareas activas, finalizadas visibles y workspaces.
+    pub store: TaskStore,
+    /// Workspace que muestra la pestaña (el de la ruta o, en `/`, el primero por nombre).
+    pub workspace: Memo<BoardWorkspace>,
+    /// Id del workspace mostrado, si ya se conoce.
+    pub workspace_id: Memo<Option<String>>,
+    /// Lista de workspaces (conserva la última carga mientras se recarga).
+    pub workspace_options: Memo<Vec<WorkspaceOptionDto>>,
+    /// Carga de las finalizadas; su resultado se vuelca en `store.done`, que los eventos de
+    /// SSE parchean sin recargar páginas.
+    pub done_tasks: Resource<Result<DonePages, ServerFnError>>,
+    /// Si la última página de finalizadas pedida al servidor vino completa.
+    pub done_has_more: RwSignal<bool>,
+    /// Páginas de finalizadas que se piden al servidor ("Cargar más" la incrementa).
+    pub done_pages: RwSignal<usize>,
+    /// Mostrar las tareas finalizadas en el lienzo.
+    pub show_completed: RwSignal<bool>,
+    /// Grafo guardado del workspace; se recarga tras cada acción de arista/posición y cuando
+    /// cambia el estado de alguna de sus tareas.
+    pub graph: Resource<Result<TaskGraphDto, ServerFnError>>,
+    /// Último grafo cargado con éxito (se conserva mientras se recarga).
+    pub graph_data: RwSignal<TaskGraphDto>,
+    pub graph_loaded: RwSignal<bool>,
+    /// Nodos y aristas visibles.
+    pub view: Memo<GraphView>,
+    /// Posición efectiva de cada nodo (guardada, arrastrada o calculada).
+    pub positions: Memo<HashMap<String, Point>>,
+    /// Posiciones fijadas en esta sesión (mientras se arrastra y hasta que el servidor las confirma).
+    overrides: RwSignal<HashMap<String, Point>>,
+    pub viewport: RwSignal<Viewport>,
+    pub drag: RwSignal<DragMode>,
+    pub selected_node: RwSignal<Option<String>>,
+    /// Arista seleccionada: (predecesora, sucesora).
+    pub selected_edge: RwSignal<Option<(String, String)>>,
+    pub add_edge: ServerAction<AddTaskDependency>,
+    pub remove_edge: ServerAction<RemoveTaskDependency>,
+    pub set_position: ServerAction<SetTaskPosition>,
+    pub create: Action<LinkedCreate, Result<LinkedCreated, ServerFnError>>,
+    pub delete: ServerAction<DeleteTask>,
+    pub start: ServerAction<StartTask>,
+    pub finish: ServerAction<FinishTask>,
+    pub merge: ServerAction<MergeTask>,
+    pub modal_open: RwSignal<bool>,
+    pub form_workspace_id: RwSignal<String>,
+    pub form_title: RwSignal<String>,
+    pub form_prompt: RwSignal<String>,
+    /// Valor serializado de `TaskPriorityDto` (alimenta un `SelectField`).
+    pub form_priority: RwSignal<String>,
+    pub form_memory_limit: RwSignal<String>,
+    pub form_cpu_limit: RwSignal<String>,
+    /// Muestra las opciones avanzadas (límites de RAM y CPU) en el alta.
+    pub form_show_advanced: RwSignal<bool>,
+    pub form_start_now: RwSignal<bool>,
+    /// Si la tarea nueva se enlaza a otra («siguiente»/«paralela»): fuerza `start_now = false`
+    /// y el workspace del tablero.
+    pub form_link: RwSignal<Option<NewTaskLink>>,
+    /// Rama de la que parte el worktree; vacío = base del workspace.
+    pub form_base_branch: RwSignal<String>,
+    /// Ramas del workspace elegido en el formulario (vacías mientras no haya ninguno).
+    pub branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>>,
+    /// Imágenes adjuntas al prompt inicial.
+    pub images: ImageAttachments,
+    pub toasts: RwSignal<Vec<ToastMessage>>,
+    toast_seq: RwSignal<u32>,
+    pub start_target: RwSignal<Option<String>>,
+    pub delete_target: RwSignal<Option<String>>,
+    pub finish_target: RwSignal<Option<String>>,
+    pub merge_target: RwSignal<Option<String>>,
+    pub position_target: RwSignal<Option<String>>,
+}
+
+/// Firma de los estados de las tareas de `workspace_id`: cambia cuando alguna tarea del
+/// workspace aparece, desaparece o cambia de estado, y es la clave de recarga del grafo.
+pub fn workspace_status_signature(
+    workspace_id: &str,
+    active: &[TaskDto],
+    done: &[TaskDto],
+) -> String {
+    let mut entries: Vec<String> = combine_tasks(active, done)
+        .iter()
+        .filter(|t: &&TaskDto| t.workspace_id == workspace_id)
+        .map(|t: &TaskDto| format!("{}:{:?}", t.id, t.status))
+        .collect();
+    entries.sort();
+    entries.join(",")
+}
+
 impl BoardState {
     pub fn new() -> Self {
-        let create: ServerAction<CreateTask> = ServerAction::new();
+        let add_edge: ServerAction<AddTaskDependency> = ServerAction::new();
+        let remove_edge: ServerAction<RemoveTaskDependency> = ServerAction::new();
+        let set_position: ServerAction<SetTaskPosition> = ServerAction::new();
+        let create: Action<LinkedCreate, Result<LinkedCreated, ServerFnError>> =
+            Action::new(|request: &LinkedCreate| {
+                let request: LinkedCreate = request.clone();
+                async move {
+                    create_with_links(
+                        request,
+                        create_task,
+                        |predecessor: String, successor: String| async move {
+                            add_task_dependency(predecessor, successor)
+                                .await
+                                .map(|_: TaskDependencyDto| ())
+                        },
+                    )
+                    .await
+                }
+            });
         let delete: ServerAction<DeleteTask> = ServerAction::new();
         let start: ServerAction<StartTask> = ServerAction::new();
         let finish: ServerAction<FinishTask> = ServerAction::new();
         let merge: ServerAction<MergeTask> = ServerAction::new();
         let store: TaskStore = use_task_store();
-        let show_done: RwSignal<bool> = store.show_done;
-        // El tablero arranca sin finalizadas y, al salir, deja de parchearlas.
-        show_done.set(false);
-        on_cleanup(move || show_done.set(false));
+        let params = use_tab_params();
+
+        // El tablero necesita también las finalizadas (una predecesora integrada es un nodo
+        // más del grafo) y, al salir, deja de parchearlas.
+        store.show_done.set(true);
+        on_cleanup(move || store.show_done.set(false));
         let done_pages: RwSignal<usize> = RwSignal::new(1);
         // Crear una tarea en "Por hacer" no emite evento SSE (start/finish/merge/delete sí),
         // así que el alta recarga el almacén. Solo mueve un contador (no llama al backend);
@@ -430,10 +349,14 @@ impl BoardState {
             }
             true
         });
-        // Solo se recarga al (des)activar `show_done`, pedir más páginas o en una recarga
-        // completa del almacén; los `changed` sueltos parchean `store.done`.
         let done_tasks: Resource<Result<DonePages, ServerFnError>> = Resource::new(
-            move || (show_done.get(), done_pages.get(), store.reload_count()),
+            move || {
+                (
+                    store.show_done.get(),
+                    done_pages.get(),
+                    store.reload_count(),
+                )
+            },
             |(show, pages, _)| async move {
                 if show {
                     fetch_done_pages(pages).await
@@ -450,7 +373,98 @@ impl BoardState {
                 store.done.set(loaded.tasks);
             }
         });
-        let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> = store.workspaces;
+
+        let workspace_list: Memo<Option<Vec<WorkspaceOptionDto>>> =
+            Memo::new(move |previous: Option<&Option<Vec<WorkspaceOptionDto>>>| {
+                match store.workspaces.get() {
+                    Some(Ok(list)) => Some(list),
+                    _ => previous.cloned().flatten(),
+                }
+            });
+        let workspace_options: Memo<Vec<WorkspaceOptionDto>> =
+            Memo::new(move |_| workspace_list.get().unwrap_or_default());
+        let route_workspace: Memo<Option<String>> =
+            Memo::new(move |_| params.with(|p| p.get("workspace_id")));
+        let workspace: Memo<BoardWorkspace> = Memo::new(move |_| {
+            workspace_list.with(|list: &Option<Vec<WorkspaceOptionDto>>| {
+                resolve_board_workspace(route_workspace.get().as_deref(), list.as_deref())
+            })
+        });
+        let workspace_id: Memo<Option<String>> = Memo::new(move |_| match workspace.get() {
+            BoardWorkspace::Selected(id) => Some(id),
+            _ => None,
+        });
+
+        let status_signature: Memo<String> = Memo::new(move |_| {
+            let Some(id): Option<String> = workspace_id.get() else {
+                return String::new();
+            };
+            store.active.with(|active: &Vec<TaskDto>| {
+                store
+                    .done
+                    .with(|done: &Vec<TaskDto>| workspace_status_signature(&id, active, done))
+            })
+        });
+        // Cualquier acción de arista/posición y cualquier cambio de estado de una tarea del
+        // workspace (p. ej. una sucesora que el servidor arranca sola) recargan el grafo.
+        let graph: Resource<Result<TaskGraphDto, ServerFnError>> = Resource::new(
+            move || {
+                (
+                    workspace_id.get(),
+                    add_edge.version().get(),
+                    remove_edge.version().get(),
+                    set_position.version().get(),
+                    status_signature.get(),
+                )
+            },
+            |(workspace_id, ..)| async move {
+                match workspace_id {
+                    Some(id) => get_task_graph(id).await,
+                    None => Ok(TaskGraphDto::default()),
+                }
+            },
+        );
+        let graph_data: RwSignal<TaskGraphDto> = RwSignal::new(TaskGraphDto::default());
+        let graph_loaded: RwSignal<bool> = RwSignal::new(false);
+        // Copia el resultado a una señal propia (solo cliente) para conservar el grafo anterior
+        // mientras se recarga; no coordina llamadas al backend.
+        Effect::new(move |_| {
+            if let Some(Ok(loaded)) = graph.get() {
+                if graph_data.with_untracked(|current: &TaskGraphDto| *current != loaded) {
+                    graph_data.set(loaded);
+                }
+                graph_loaded.set(true);
+            }
+        });
+
+        let show_completed: RwSignal<bool> = RwSignal::new(true);
+        let view: Memo<GraphView> = Memo::new(move |_| {
+            let Some(id): Option<String> = workspace_id.get() else {
+                return GraphView::default();
+            };
+            let tasks: Vec<TaskDto> = store.active.with(|active: &Vec<TaskDto>| {
+                store
+                    .done
+                    .with(|done: &Vec<TaskDto>| combine_tasks(active, done))
+            });
+            graph_data
+                .with(|graph: &TaskGraphDto| build_graph(&id, &tasks, graph, show_completed.get()))
+        });
+        let overrides: RwSignal<HashMap<String, Point>> = RwSignal::new(HashMap::new());
+        let positions: Memo<HashMap<String, Point>> = Memo::new(move |_| {
+            view.with(|graph: &GraphView| {
+                let ids: Vec<String> = graph.nodes.iter().map(|n| n.task.id.clone()).collect();
+                let edges: Vec<(String, String)> = graph
+                    .edges
+                    .iter()
+                    .map(|e| (e.predecessor_id.clone(), e.successor_id.clone()))
+                    .collect();
+                let mut saved: HashMap<String, Point> = graph_data.with(saved_positions);
+                saved.extend(overrides.get());
+                resolve_positions(&ids, &edges, &saved)
+            })
+        });
+
         let form_workspace_id: RwSignal<String> = RwSignal::new(String::new());
         let form_base_branch: RwSignal<String> = RwSignal::new(String::new());
         let branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>> = Resource::new(
@@ -477,12 +491,26 @@ impl BoardState {
 
         Self {
             store,
+            workspace,
+            workspace_id,
+            workspace_options,
             done_tasks,
             done_has_more: has_more,
             done_pages,
-            workspaces,
-            stage_filter: RwSignal::new(None),
-            show_done,
+            show_completed,
+            graph,
+            graph_data,
+            graph_loaded,
+            view,
+            positions,
+            overrides,
+            viewport: RwSignal::new(Viewport::default()),
+            drag: RwSignal::new(DragMode::Idle),
+            selected_node: RwSignal::new(None),
+            selected_edge: RwSignal::new(None),
+            add_edge,
+            remove_edge,
+            set_position,
             create,
             delete,
             start,
@@ -497,6 +525,7 @@ impl BoardState {
             form_cpu_limit: RwSignal::new(String::new()),
             form_show_advanced: RwSignal::new(false),
             form_start_now: RwSignal::new(false),
+            form_link: RwSignal::new(None),
             form_base_branch,
             branches,
             images: ImageAttachments::new(),
@@ -506,13 +535,181 @@ impl BoardState {
             delete_target: RwSignal::new(None),
             finish_target: RwSignal::new(None),
             merge_target: RwSignal::new(None),
+            position_target: RwSignal::new(None),
         }
     }
 
-    /// Abre el modal de alta con el formulario vacío, descartando errores previos.
+    /// Nodos con su posición, en orden de pintado (para localizar el nodo bajo el puntero).
+    fn node_points(&self) -> Vec<(String, Point)> {
+        let positions: HashMap<String, Point> = self.positions.get_untracked();
+        self.view.with_untracked(|graph: &GraphView| {
+            graph
+                .nodes
+                .iter()
+                .filter_map(|n| {
+                    positions
+                        .get(&n.task.id)
+                        .map(|p: &Point| (n.task.id.clone(), *p))
+                })
+                .collect()
+        })
+    }
+
+    // ── Gestos del lienzo ────────────────────────────────────────────────────────────────
+
+    /// Empieza a arrastrar el fondo (`screen`: punto relativo al lienzo).
+    pub fn pointer_down_background(&self, screen: Point) {
+        self.drag
+            .set(DragMode::pan(screen, self.viewport.get_untracked()));
+    }
+
+    /// Empieza a arrastrar el nodo `id`.
+    pub fn pointer_down_node(&self, id: String, screen: Point) {
+        let start: Option<Point> = self
+            .positions
+            .with_untracked(|p: &HashMap<String, Point>| p.get(&id).copied());
+        if let Some(start) = start {
+            self.drag.set(DragMode::node(
+                id,
+                screen,
+                start,
+                &self.viewport.get_untracked(),
+            ));
+        }
+    }
+
+    /// Empieza una arista desde el puerto de salida del nodo `id`.
+    pub fn pointer_down_port(&self, id: String, screen: Point) {
+        self.drag.set(DragMode::connect(
+            id,
+            screen,
+            &self.viewport.get_untracked(),
+        ));
+    }
+
+    pub fn pointer_move(&self, screen: Point) {
+        let mode: DragMode = self.drag.get_untracked();
+        if mode.is_idle() {
+            return;
+        }
+        let (next, effect): (DragMode, DragEffect) =
+            mode.moved(screen, &self.viewport.get_untracked(), &self.node_points());
+        self.drag.set(next);
+        match effect {
+            DragEffect::None => {}
+            DragEffect::SetViewport(viewport) => self.viewport.set(viewport),
+            DragEffect::MoveNode(id, position) => {
+                self.overrides.update(|m: &mut HashMap<String, Point>| {
+                    m.insert(id, position);
+                });
+            }
+        }
+    }
+
+    pub fn pointer_up(&self, screen: Point) {
+        let mode: DragMode = self.drag.get_untracked();
+        self.drag.set(DragMode::Idle);
+        let positions: HashMap<String, Point> = self.positions.get_untracked();
+        let outcome: DragOutcome = mode.finished(
+            screen,
+            &self.viewport.get_untracked(),
+            &self.node_points(),
+            |id: &str| positions.get(id).copied(),
+        );
+        match outcome {
+            DragOutcome::None => {}
+            DragOutcome::ClearSelection => self.clear_selection(),
+            DragOutcome::SelectNode(id) => {
+                self.selected_edge.set(None);
+                self.selected_node.set(Some(id));
+            }
+            DragOutcome::CommitNode(id, position) => {
+                self.position_target.set(Some(id.clone()));
+                self.set_position.dispatch(SetTaskPosition {
+                    id,
+                    x: position.x,
+                    y: position.y,
+                });
+            }
+            DragOutcome::Connect { from, to } => {
+                self.add_edge.dispatch(AddTaskDependency {
+                    predecessor_id: from,
+                    successor_id: to,
+                });
+            }
+        }
+    }
+
+    /// Gesto cancelado por el navegador: se abandona sin guardar nada.
+    pub fn pointer_cancel(&self) {
+        self.drag.set(DragMode::Idle);
+    }
+
+    /// Zoom con la rueda, centrado en el cursor.
+    pub fn wheel(&self, screen: Point, delta_y: f64) {
+        let factor: f64 = wheel_zoom_factor(delta_y);
+        self.viewport
+            .update(|v: &mut Viewport| *v = v.zoomed_at(screen, factor));
+    }
+
+    /// Acerca o aleja un paso, centrado en `center`.
+    pub fn zoom_step(&self, zoom_in: bool, center: Point) {
+        let factor: f64 = if zoom_in { ZOOM_STEP } else { 1.0 / ZOOM_STEP };
+        self.viewport
+            .update(|v: &mut Viewport| *v = v.zoomed_at(center, factor));
+    }
+
+    /// Encuadra todos los nodos en un lienzo de `size` píxeles.
+    pub fn fit(&self, size: (f64, f64)) {
+        let points: Vec<Point> = self
+            .positions
+            .with_untracked(|p: &HashMap<String, Point>| p.values().copied().collect());
+        self.viewport
+            .set(fit_viewport(bounds_of_nodes(&points), size));
+    }
+
+    pub fn select_edge(&self, predecessor_id: String, successor_id: String) {
+        self.selected_node.set(None);
+        self.selected_edge.set(Some((predecessor_id, successor_id)));
+    }
+
+    pub fn clear_selection(&self) {
+        self.selected_node.set(None);
+        self.selected_edge.set(None);
+    }
+
+    /// Borra la arista seleccionada.
+    pub fn delete_selected_edge(&self) {
+        if let Some((predecessor_id, successor_id)) = self.selected_edge.get_untracked() {
+            self.remove_edge.dispatch(RemoveTaskDependency {
+                predecessor_id,
+                successor_id,
+            });
+            self.selected_edge.set(None);
+        }
+    }
+
+    // ── Alta de tareas ───────────────────────────────────────────────────────────────────
+
+    /// Abre el modal de alta con el formulario vacío y el workspace del tablero preseleccionado.
     pub fn open_create(&self) {
+        self.reset_form();
+        self.form_link.set(None);
+        self.modal_open.set(true);
+    }
+
+    /// Abre el modal de alta de una tarea enlazada a otra («siguiente» o «paralela»): no puede
+    /// iniciarse al crearla porque espera a sus predecesoras.
+    pub fn open_create_linked(&self, link: NewTaskLink) {
+        self.reset_form();
+        self.form_link.set(Some(link));
+        self.modal_open.set(true);
+    }
+
+    fn reset_form(&self) {
         self.create.clear();
-        self.form_workspace_id.set(String::new());
+        self.form_workspace_id
+            .set(self.workspace_id.get_untracked().unwrap_or_default());
         self.form_title.set(String::new());
         self.form_prompt.set(String::new());
         self.form_priority
@@ -523,7 +720,6 @@ impl BoardState {
         self.form_start_now.set(false);
         self.form_base_branch.set(String::new());
         self.images.clear();
-        self.modal_open.set(true);
     }
 
     pub fn close_modal(&self) {
@@ -539,17 +735,26 @@ impl BoardState {
             &self.form_memory_limit.get_untracked(),
             &self.form_cpu_limit.get_untracked(),
         );
-        self.create.dispatch(CreateTask {
+        let link: Option<NewTaskLink> = self.form_link.get_untracked();
+        let predecessors: Vec<String> = link
+            .as_ref()
+            .map(|link: &NewTaskLink| {
+                self.graph_data
+                    .with_untracked(|g: &TaskGraphDto| link_predecessors(link, &g.dependencies))
+            })
+            .unwrap_or_default();
+        self.create.dispatch(LinkedCreate {
             input: build_create_task_dto(
                 self.form_workspace_id.get_untracked(),
                 self.form_title.get_untracked(),
                 self.form_prompt.get_untracked(),
                 &self.form_priority.get_untracked(),
                 (&memory_limit, &cpu_limit),
-                self.form_start_now.get_untracked(),
+                start_now_for(link.as_ref(), self.form_start_now.get_untracked()),
                 &self.form_base_branch.get_untracked(),
                 self.images.images.get_untracked(),
             ),
+            predecessors,
         });
     }
 
@@ -578,6 +783,70 @@ impl BoardState {
         self.merge.dispatch(MergeTask { id });
     }
 
+    // ── Notificaciones ───────────────────────────────────────────────────────────────────
+
+    /// Convierte cada error de una acción en una notificación descartable y avisa de los
+    /// avisos del alta. Solo toca estado de UI; no llama al backend.
+    pub fn watch_action_errors(&self) {
+        let state: Self = *self;
+        Effect::new(move |_| {
+            if let Some(Ok(done)) = state.create.value().get() {
+                if let Some(message) = done.created.start_error {
+                    state.notify_start_failed_after_create(&message);
+                }
+                for error in done.link_errors {
+                    state.push(link_failed_after_create_text(&error));
+                }
+            }
+        });
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.start.value().get() {
+                state.notify_error(state.start_target.get_untracked(), e.to_string());
+            }
+        });
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.delete.value().get() {
+                state.notify_error(state.delete_target.get_untracked(), e.to_string());
+            }
+        });
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.finish.value().get() {
+                state.notify_error(state.finish_target.get_untracked(), e.to_string());
+            }
+        });
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.merge.value().get() {
+                state.notify_error(state.merge_target.get_untracked(), e.to_string());
+            }
+        });
+        // Una arista rechazada (ciclo, duplicada, otro workspace…) no cambia el grafo.
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.add_edge.value().get() {
+                state.push(e.to_string());
+            }
+        });
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.remove_edge.value().get() {
+                state.push(e.to_string());
+            }
+        });
+        // Si no se pudo guardar la posición, el nodo vuelve a la que tenía en el servidor.
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.set_position.value().get() {
+                if let Some(id) = state.position_target.get_untracked() {
+                    state.overrides.update(|m: &mut HashMap<String, Point>| {
+                        m.remove(&id);
+                    });
+                }
+                state.push(e.to_string());
+            }
+        });
+    }
+
+    fn push(&self, text: String) {
+        push_toast(self.toasts, self.toast_seq, text);
+    }
+
     /// Muestra un error de una acción del tablero como notificación, incluyendo el título
     /// de la tarea afectada cuando se conoce su id.
     pub fn notify_error(&self, task_id: Option<String>, message: String) {
@@ -593,22 +862,23 @@ impl BoardState {
             Some(label) => format!("{label}: {message}"),
             None => message,
         };
-        push_toast(self.toasts, self.toast_seq, text);
+        self.push(text);
     }
 
     /// Avisa de que la tarea se creó en "Por hacer" pero su arranque falló.
     pub fn notify_start_failed_after_create(&self, error: &str) {
-        push_toast(
-            self.toasts,
-            self.toast_seq,
-            start_failed_after_create_text(error),
-        );
+        self.push(start_failed_after_create_text(error));
     }
 
     pub fn dismiss_toast(&self, id: u32) {
         self.toasts
             .update(|list: &mut Vec<ToastMessage>| list.retain(|t: &ToastMessage| t.id != id));
     }
+}
+
+/// Una tarea enlazada a otras espera a sus predecesoras: nunca se inicia al crearla.
+pub fn start_now_for(link: Option<&NewTaskLink>, requested: bool) -> bool {
+    requested && link.is_none()
 }
 
 impl Default for BoardState {
@@ -620,6 +890,9 @@ impl Default for BoardState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
+        TaskStageDto, TaskStatusDto,
+    };
 
     #[test]
     fn advanced_limits_are_sent_when_section_is_shown() {
@@ -701,29 +974,6 @@ mod tests {
     }
 
     #[test]
-    fn combine_tasks_appends_done_after_active_and_feeds_build_lanes() {
-        let active: Vec<TaskDto> = vec![task(
-            "a",
-            "ws-a",
-            TaskStageDto::Working,
-            "2026-01-01T00:00:00Z",
-        )];
-        let done: Vec<TaskDto> = vec![task(
-            "d",
-            "ws-a",
-            TaskStageDto::Done,
-            "2026-01-01T00:00:00Z",
-        )];
-
-        let combined: Vec<TaskDto> = combine_tasks(&active, &done);
-
-        let ids: Vec<&str> = combined.iter().map(|t: &TaskDto| t.id.as_str()).collect();
-        assert_eq!(ids, vec!["a", "d"]);
-        let lanes: Vec<LaneView> = build_lanes(&combined, &[workspace("ws-a", "A")], None, true);
-        assert_eq!(lanes[0].tasks.len(), 2);
-    }
-
-    #[test]
     fn combine_tasks_drops_ids_repeated_across_lists() {
         let active: Vec<TaskDto> = vec![task(
             "a",
@@ -742,6 +992,146 @@ mod tests {
         let ids: Vec<&str> = combined.iter().map(|t: &TaskDto| t.id.as_str()).collect();
         assert_eq!(ids, vec!["a", "d"]);
         assert_eq!(combined[0].stage, TaskStageDto::Working);
+    }
+
+    #[test]
+    fn combine_tasks_appends_done_after_active() {
+        let active: Vec<TaskDto> = vec![task(
+            "a",
+            "ws-a",
+            TaskStageDto::Working,
+            "2026-01-01T00:00:00Z",
+        )];
+        let done: Vec<TaskDto> = vec![task(
+            "d",
+            "ws-a",
+            TaskStageDto::Done,
+            "2026-01-01T00:00:00Z",
+        )];
+
+        let combined: Vec<TaskDto> = combine_tasks(&active, &done);
+
+        let ids: Vec<&str> = combined.iter().map(|t: &TaskDto| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "d"]);
+    }
+
+    #[test]
+    fn status_signature_changes_with_the_workspace_task_states_only() {
+        let a: TaskDto = task("a", "ws", TaskStageDto::Working, "1");
+        let other: TaskDto = task("o", "other", TaskStageDto::Working, "1");
+        let before: String = workspace_status_signature("ws", &[a.clone(), other.clone()], &[]);
+
+        let mut changed_other: TaskDto = other.clone();
+        changed_other.status = TaskStatusDto::Merged;
+        assert_eq!(
+            before,
+            workspace_status_signature("ws", &[a.clone(), changed_other], &[])
+        );
+
+        let mut changed: TaskDto = a.clone();
+        changed.status = TaskStatusDto::Merged;
+        assert_ne!(before, workspace_status_signature("ws", &[changed], &[]));
+        // El orden de las listas no importa.
+        let b: TaskDto = task("b", "ws", TaskStageDto::Backlog, "2");
+        assert_eq!(
+            workspace_status_signature("ws", &[a.clone(), b.clone()], &[]),
+            workspace_status_signature("ws", &[b], &[a])
+        );
+    }
+
+    #[test]
+    fn linked_tasks_are_never_started_on_creation() {
+        let link: NewTaskLink = NewTaskLink::Next("a".to_string());
+        assert!(!start_now_for(Some(&link), true));
+        assert!(start_now_for(None, true));
+        assert!(!start_now_for(None, false));
+    }
+
+    #[test]
+    fn link_failure_text_carries_the_error() {
+        assert_eq!(
+            link_failed_after_create_text("cycle"),
+            "Task created, but its dependency could not be added: cycle"
+        );
+    }
+
+    fn created(id: &str) -> CreatedTaskDto {
+        CreatedTaskDto {
+            task: task(id, "ws", TaskStageDto::Backlog, "1"),
+            start_error: None,
+        }
+    }
+
+    fn request(predecessors: &[&str]) -> LinkedCreate {
+        LinkedCreate {
+            input: CreateTaskDto::default(),
+            predecessors: predecessors
+                .iter()
+                .map(|p: &&str| (*p).to_string())
+                .collect(),
+        }
+    }
+
+    #[tokio::test]
+    async fn create_with_links_adds_one_edge_per_predecessor_after_creating() {
+        let linked: std::sync::Mutex<Vec<(String, String)>> = std::sync::Mutex::new(Vec::new());
+        let result: Result<LinkedCreated, ServerFnError> = create_with_links(
+            request(&["p", "q"]),
+            |_input: CreateTaskDto| async { Ok(created("n")) },
+            |p: String, s: String| {
+                linked.lock().expect("lock").push((p, s));
+                async { Ok(()) }
+            },
+        )
+        .await;
+
+        let done: LinkedCreated = result.expect("created");
+        assert!(done.link_errors.is_empty());
+        assert_eq!(done.created.task.id, "n");
+        assert_eq!(
+            *linked.lock().expect("lock"),
+            vec![
+                ("p".to_string(), "n".to_string()),
+                ("q".to_string(), "n".to_string())
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn create_with_links_keeps_the_task_and_reports_rejected_edges() {
+        let result: Result<LinkedCreated, ServerFnError> = create_with_links(
+            request(&["p", "q"]),
+            |_input: CreateTaskDto| async { Ok(created("n")) },
+            |p: String, _s: String| async move {
+                if p == "p" {
+                    Err(ServerFnError::new("cycle"))
+                } else {
+                    Ok(())
+                }
+            },
+        )
+        .await;
+
+        let done: LinkedCreated = result.expect("created");
+        assert_eq!(done.link_errors.len(), 1);
+        assert!(done.link_errors[0].contains("cycle"));
+    }
+
+    #[tokio::test]
+    async fn create_with_links_creates_no_edges_when_creation_fails() {
+        let calls: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        let result: Result<LinkedCreated, ServerFnError> = create_with_links(
+            request(&["p"]),
+            |_input: CreateTaskDto| async { Err(ServerFnError::new("boom")) },
+            |_p: String, _s: String| {
+                calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                async { Ok(()) }
+            },
+        )
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
     }
 
     fn full_page(prefix: &str) -> Vec<TaskDto> {
@@ -866,356 +1256,5 @@ mod tests {
             created_at: updated_at.to_string(),
             updated_at: updated_at.to_string(),
         }
-    }
-
-    fn workspace(id: &str, name: &str) -> WorkspaceOptionDto {
-        WorkspaceOptionDto {
-            id: id.to_string(),
-            name: name.to_string(),
-            base_branch: "main".to_string(),
-        }
-    }
-
-    #[test]
-    fn workspaces_without_visible_tasks_have_no_lane() {
-        let tasks: Vec<TaskDto> = vec![task(
-            "1",
-            "ws-a",
-            TaskStageDto::Done,
-            "2026-01-01T00:00:00Z",
-        )];
-        let workspaces: Vec<WorkspaceOptionDto> =
-            vec![workspace("ws-a", "A"), workspace("ws-b", "B")];
-
-        let lanes: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
-
-        assert!(lanes.is_empty());
-    }
-
-    #[test]
-    fn card_key_changes_only_when_visible_data_changes() {
-        let base: TaskDto = task("a", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z");
-        let same: TaskDto = base.clone();
-        let mut moved: TaskDto = base.clone();
-        moved.stage = TaskStageDto::Review;
-        let mut retitled: TaskDto = base.clone();
-        retitled.title = "otro".to_string();
-
-        assert_eq!(card_key(&base), card_key(&same));
-        assert_ne!(card_key(&base), card_key(&moved));
-        assert_ne!(card_key(&base), card_key(&retitled));
-    }
-
-    #[test]
-    fn lane_ids_follow_lane_order() {
-        let tasks: Vec<TaskDto> = vec![
-            task("a", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
-            task("b", "ws-b", TaskStageDto::Attention, "2026-01-01T00:00:00Z"),
-        ];
-        let workspaces: Vec<WorkspaceOptionDto> =
-            vec![workspace("ws-a", "A"), workspace("ws-b", "B")];
-        let lanes: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
-
-        assert_eq!(
-            lane_ids(&lanes),
-            vec!["ws-b".to_string(), "ws-a".to_string()]
-        );
-    }
-
-    fn lane_ids_of(tasks: &[TaskDto]) -> Vec<String> {
-        let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("ws-a", "A")];
-        let lanes: Vec<LaneView> = build_lanes(tasks, &workspaces, None, false);
-        assert_eq!(lanes.len(), 1);
-        lanes[0]
-            .tasks
-            .iter()
-            .map(|t: &TaskDto| t.id.clone())
-            .collect()
-    }
-
-    fn prioritized(
-        id: &str,
-        stage: TaskStageDto,
-        priority: TaskPriorityDto,
-        created_at: &str,
-    ) -> TaskDto {
-        let mut dto: TaskDto = task(id, "ws-a", stage, "2030-01-01T00:00:00Z");
-        dto.priority = priority;
-        dto.created_at = created_at.to_string();
-        dto
-    }
-
-    #[test]
-    fn equal_priority_is_listed_oldest_first_regardless_of_non_attention_stage_or_updates() {
-        let tasks: Vec<TaskDto> = vec![
-            prioritized(
-                "newest",
-                TaskStageDto::Working,
-                TaskPriorityDto::Normal,
-                "2026-01-03T00:00:00Z",
-            ),
-            prioritized(
-                "oldest",
-                TaskStageDto::Backlog,
-                TaskPriorityDto::Normal,
-                "2026-01-01T00:00:00Z",
-            ),
-            prioritized(
-                "middle",
-                TaskStageDto::Backlog,
-                TaskPriorityDto::Normal,
-                "2026-01-02T00:00:00Z",
-            ),
-        ];
-
-        assert_eq!(lane_ids_of(&tasks), vec!["oldest", "middle", "newest"]);
-    }
-
-    #[test]
-    fn higher_priority_beats_age() {
-        let tasks: Vec<TaskDto> = vec![
-            prioritized(
-                "old-normal",
-                TaskStageDto::Working,
-                TaskPriorityDto::Normal,
-                "2026-01-01T00:00:00Z",
-            ),
-            prioritized(
-                "new-urgent",
-                TaskStageDto::Working,
-                TaskPriorityDto::Urgent,
-                "2026-01-05T00:00:00Z",
-            ),
-            prioritized(
-                "old-low",
-                TaskStageDto::Working,
-                TaskPriorityDto::Low,
-                "2025-12-01T00:00:00Z",
-            ),
-            prioritized(
-                "mid-high",
-                TaskStageDto::Working,
-                TaskPriorityDto::High,
-                "2026-01-03T00:00:00Z",
-            ),
-            prioritized(
-                "old-high",
-                TaskStageDto::Working,
-                TaskPriorityDto::High,
-                "2026-01-02T00:00:00Z",
-            ),
-        ];
-
-        assert_eq!(
-            lane_ids_of(&tasks),
-            vec![
-                "new-urgent",
-                "old-high",
-                "mid-high",
-                "old-normal",
-                "old-low"
-            ]
-        );
-    }
-
-    #[test]
-    fn attention_tasks_come_first_keeping_order_within_groups() {
-        let tasks: Vec<TaskDto> = vec![
-            prioritized(
-                "w-old",
-                TaskStageDto::Working,
-                TaskPriorityDto::Normal,
-                "2026-01-01T00:00:00Z",
-            ),
-            prioritized(
-                "a-new",
-                TaskStageDto::Attention,
-                TaskPriorityDto::Normal,
-                "2026-01-03T00:00:00Z",
-            ),
-            prioritized(
-                "w-new",
-                TaskStageDto::Working,
-                TaskPriorityDto::Normal,
-                "2026-01-02T00:00:00Z",
-            ),
-            prioritized(
-                "r-old",
-                TaskStageDto::Review,
-                TaskPriorityDto::Normal,
-                "2026-01-02T12:00:00Z",
-            ),
-        ];
-
-        assert_eq!(
-            lane_ids_of(&tasks),
-            vec!["r-old", "a-new", "w-old", "w-new"]
-        );
-    }
-
-    #[test]
-    fn lane_labels_are_singular_and_plural() {
-        assert_eq!(lane_total_label(1), "1 task");
-        assert_eq!(lane_total_label(3), "3 tasks");
-        assert_eq!(
-            TASKS_COUNT.in_locale(crate::core::i18n::Locale::Es),
-            "{n} tareas"
-        );
-        assert_eq!(lane_attention_label(0), None);
-        assert_eq!(lane_attention_label(2), Some("2 attention".to_string()));
-    }
-
-    #[test]
-    fn card_key_changes_when_priority_changes() {
-        let base: TaskDto = task("a", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z");
-        let mut urgent: TaskDto = base.clone();
-        urgent.priority = TaskPriorityDto::Urgent;
-
-        assert_ne!(card_key(&base), card_key(&urgent));
-    }
-
-    #[test]
-    fn lanes_with_attention_come_first_then_alphabetical() {
-        let tasks: Vec<TaskDto> = vec![
-            task("1", "ws-z", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
-            task("2", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
-            task("3", "ws-m", TaskStageDto::Attention, "2026-01-01T00:00:00Z"),
-        ];
-        let workspaces: Vec<WorkspaceOptionDto> = vec![
-            workspace("ws-z", "Zeta"),
-            workspace("ws-a", "Alpha"),
-            workspace("ws-m", "Medio"),
-        ];
-
-        let lanes: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
-
-        let names: Vec<&str> = lanes
-            .iter()
-            .map(|l: &LaneView| l.workspace_name.as_str())
-            .collect();
-        assert_eq!(names, vec!["Medio", "Alpha", "Zeta"]);
-    }
-
-    #[test]
-    fn done_tasks_are_hidden_unless_show_done_is_set() {
-        let tasks: Vec<TaskDto> = vec![
-            task("1", "ws-a", TaskStageDto::Done, "2026-01-01T00:00:00Z"),
-            task("2", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
-        ];
-        let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("ws-a", "A")];
-
-        let hidden: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
-        assert_eq!(hidden[0].tasks.len(), 1);
-
-        let shown: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, true);
-        assert_eq!(shown[0].tasks.len(), 2);
-    }
-
-    #[test]
-    fn stage_filter_narrows_visible_tasks() {
-        let tasks: Vec<TaskDto> = vec![
-            task("1", "ws-a", TaskStageDto::Backlog, "2026-01-01T00:00:00Z"),
-            task("2", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
-        ];
-        let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("ws-a", "A")];
-
-        let lanes: Vec<LaneView> =
-            build_lanes(&tasks, &workspaces, Some(TaskStageDto::Working), false);
-
-        assert_eq!(lanes.len(), 1);
-        assert_eq!(lanes[0].tasks.len(), 1);
-        assert_eq!(lanes[0].tasks[0].id, "2");
-    }
-
-    #[test]
-    fn attention_filter_matches_attention_counters() {
-        let tasks: Vec<TaskDto> = vec![
-            task("1", "ws-a", TaskStageDto::Attention, "2026-01-01T00:00:00Z"),
-            task("2", "ws-a", TaskStageDto::Review, "2026-01-01T00:00:00Z"),
-            task("3", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
-        ];
-        let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("ws-a", "A")];
-
-        let unfiltered: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
-        let filtered: Vec<LaneView> =
-            build_lanes(&tasks, &workspaces, Some(TaskStageDto::Attention), false);
-
-        assert_eq!(filtered[0].tasks.len(), unfiltered[0].attention_count);
-        assert_eq!(filtered[0].tasks.len(), 2);
-    }
-
-    #[test]
-    fn lane_counts_reflect_visible_tasks() {
-        let tasks: Vec<TaskDto> = vec![
-            task("1", "ws-a", TaskStageDto::Attention, "2026-01-01T00:00:00Z"),
-            task("2", "ws-a", TaskStageDto::Working, "2026-01-01T00:00:00Z"),
-        ];
-        let workspaces: Vec<WorkspaceOptionDto> = vec![workspace("ws-a", "A")];
-
-        let lanes: Vec<LaneView> = build_lanes(&tasks, &workspaces, None, false);
-
-        assert_eq!(lanes[0].total, 2);
-        assert_eq!(lanes[0].attention_count, 1);
-    }
-
-    #[test]
-    fn unknown_workspace_falls_back_to_its_id() {
-        let tasks: Vec<TaskDto> = vec![task(
-            "1",
-            "missing-ws",
-            TaskStageDto::Working,
-            "2026-01-01T00:00:00Z",
-        )];
-
-        let lanes: Vec<LaneView> = build_lanes(&tasks, &[], None, false);
-
-        assert_eq!(lanes[0].workspace_name, "missing-ws");
-    }
-
-    #[test]
-    fn done_tasks_follow_active_ones_ordered_by_latest_completion_first() {
-        let mut old_urgent: TaskDto = task(
-            "done-old",
-            "ws-a",
-            TaskStageDto::Done,
-            "2026-01-01T00:00:00Z",
-        );
-        old_urgent.priority = TaskPriorityDto::Urgent;
-        old_urgent.created_at = "2025-12-01T00:00:00Z".to_string();
-        let mut last: TaskDto = task(
-            "done-last",
-            "ws-a",
-            TaskStageDto::Done,
-            "2026-01-05T00:00:00Z",
-        );
-        last.priority = TaskPriorityDto::Low;
-        last.created_at = "2025-12-31T00:00:00Z".to_string();
-        let mut middle: TaskDto = task(
-            "done-mid",
-            "ws-a",
-            TaskStageDto::Done,
-            "2026-01-03T00:00:00Z",
-        );
-        middle.created_at = "2025-12-15T00:00:00Z".to_string();
-        let working: TaskDto = task(
-            "working",
-            "ws-a",
-            TaskStageDto::Working,
-            "2026-01-02T00:00:00Z",
-        );
-
-        let lanes: Vec<LaneView> = build_lanes(
-            &[old_urgent, working, last, middle],
-            &[workspace("ws-a", "A")],
-            None,
-            true,
-        );
-
-        let ids: Vec<&str> = lanes[0]
-            .tasks
-            .iter()
-            .map(|t: &TaskDto| t.id.as_str())
-            .collect();
-        assert_eq!(ids, vec!["working", "done-last", "done-mid", "done-old"]);
     }
 }

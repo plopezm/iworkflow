@@ -11,3 +11,4 @@ pub mod shell;
 pub mod theme_toggle;
 pub mod toast;
 pub mod tree;
+pub mod zoom_controls;

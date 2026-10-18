@@ -4,9 +4,11 @@ use leptos::prelude::*;
 use crate::core::components::form::{ActionError, NumberField, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
 use crate::core::i18n::Msg;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskDto;
 use crate::modules::tasks::presentation::components::existing_attachments::ExistingAttachments;
 use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
 use crate::modules::tasks::presentation::components::task_modal::priority_select_options;
+use crate::modules::tasks::presentation::state::graph_model::back_to_board_path;
 use crate::modules::tasks::presentation::state::task_edit_state::TaskEditState;
 
 const LOADING_TASK: Msg = Msg {
@@ -151,7 +153,14 @@ pub fn TaskEditPage() -> impl IntoView {
 fn TaskEditContent(task_id: String) -> impl IntoView {
     let state: TaskEditState = TaskEditState::new(task_id);
     let nav = use_tab_nav();
-    let leave: Callback<()> = Callback::new(move |_| nav.close_and_open("/"));
+    let leave: Callback<()> = Callback::new(move |_| {
+        let workspace_id: Option<String> = state
+            .task
+            .get_untracked()
+            .and_then(Result::ok)
+            .map(|t: TaskDto| t.workspace_id);
+        nav.close_and_open(&back_to_board_path(workspace_id.as_deref()));
+    });
 
     // Precarga una sola vez, cuando llega la tarea.
     let prefilled: RwSignal<bool> = RwSignal::new(false);

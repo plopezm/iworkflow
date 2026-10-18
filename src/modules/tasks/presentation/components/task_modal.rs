@@ -278,7 +278,10 @@ pub fn TaskModal(state: BoardState, workspaces: Signal<Vec<WorkspaceOptionDto>>)
             on_close=Callback::new(move |_| state.close_modal())
         >
             <form class="stack" on:submit=submit>
-                {move || if has_workspaces.get() {
+                {move || if state.form_link.with(Option::is_some) {
+                        // Una tarea enlazada vive en el workspace del tablero: no se elige.
+                        ().into_any()
+                    } else if has_workspaces.get() {
                         view! {
                             <SelectField
                                 label=WORKSPACE.get()
@@ -342,15 +345,18 @@ pub fn TaskModal(state: BoardState, workspaces: Signal<Vec<WorkspaceOptionDto>>)
                         value=state.form_cpu_limit
                     />
                 </Show>
-                <label class="row min-h-10 items-center gap-2 text-sm text-fg">
-                    <input
-                        type="checkbox"
-                        class="h-5 w-5"
-                        prop:checked=move || state.form_start_now.get()
-                        on:change=move |ev| state.form_start_now.set(event_target_checked(&ev))
-                    />
-                    {START_NOW.get()}
-                </label>
+                // Una tarea enlazada espera a sus predecesoras: no puede iniciarse al crearla.
+                <Show when=move || state.form_link.with(Option::is_none)>
+                    <label class="row min-h-10 items-center gap-2 text-sm text-fg">
+                        <input
+                            type="checkbox"
+                            class="h-5 w-5"
+                            prop:checked=move || state.form_start_now.get()
+                            on:change=move |ev| state.form_start_now.set(event_target_checked(&ev))
+                        />
+                        {START_NOW.get()}
+                    </label>
+                </Show>
                 <ActionError result=state.create.value().into() />
                 <div class="row justify-end gap-2">
                     <button type="button" class="btn-secondary" on:click=move |_| state.close_modal()>

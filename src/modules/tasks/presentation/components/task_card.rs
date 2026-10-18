@@ -5,9 +5,8 @@ use crate::core::i18n::Msg;
 
 use crate::core::browser::confirm;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    TaskActionsDto, TaskDto, TaskPriorityDto, TaskStageDto,
+    TaskActionsDto, TaskDto, TaskStageDto,
 };
-use crate::modules::tasks::presentation::components::stage_badge::StageBadge;
 
 const START: Msg = Msg {
     en: "Start",
@@ -104,7 +103,7 @@ pub struct TaskActionBusy {
 }
 
 impl TaskActionBusy {
-    fn is_busy(&self, task_id: &str) -> bool {
+    pub fn is_busy(&self, task_id: &str) -> bool {
         self.pending.get() && self.target.get().as_deref() == Some(task_id)
     }
 }
@@ -119,186 +118,126 @@ pub struct TaskCardBusy {
     pub merge: TaskActionBusy,
 }
 
-/// Tarjeta de una tarea dentro de un carril del tablero.
+/// Botones de acción de una tarea según su estado (iniciar/editar/borrar en `Backlog`;
+/// abrir/finalizar/integrar en el resto). Las acciones disponibles las decide el servidor.
 #[component]
-pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -> impl IntoView {
+pub fn TaskCardActions(
+    task: TaskDto,
+    handlers: TaskCardHandlers,
+    busy: TaskCardBusy,
+) -> impl IntoView {
     let id: String = task.id.clone();
-    let title: String = task.title.clone();
-    let is_backlog: bool = task.stage == TaskStageDto::Backlog;
-    let show_prompt: bool = prompt_adds_info(&task.title, &task.prompt);
-    let article_class: String = format!(
-        "card {} animate-fade-in stack gap-2.5{}",
-        stage_rail_class(task.stage),
-        if task.needs_attention {
-            " animate-pulse-glow"
-        } else {
-            ""
+    if task.stage == TaskStageDto::Backlog {
+        let start_id: String = id.clone();
+        let delete_id: String = id.clone();
+        let edit_task: TaskDto = task.clone();
+        let actions: TaskActionsDto = task.actions;
+        let start_busy: Signal<bool> = {
+            let id: String = id.clone();
+            Signal::derive(move || busy.start.is_busy(&id))
+        };
+        let delete_busy: Signal<bool> = {
+            let id: String = id.clone();
+            Signal::derive(move || busy.delete.is_busy(&id))
+        };
+        view! {
+            {actions
+                .can_start
+                .then(|| {
+                    view! {
+                        <button
+                            class="btn-primary min-h-8 px-2.5 py-1 text-xs"
+                            disabled=move || start_busy.get()
+                            on:click=move |_| handlers.start.run(start_id.clone())
+                        >
+                            {START.get()}
+                        </button>
+                    }
+                })}
+            {actions
+                .can_edit
+                .then(|| {
+                    view! {
+                        <button
+                            class="btn-ghost min-h-8 px-2.5 py-1 text-xs"
+                            on:click=move |_| handlers.edit.run(edit_task.clone())
+                        >
+                            {EDIT.get()}
+                        </button>
+                    }
+                })}
+            {actions
+                .can_delete
+                .then(|| {
+                    view! {
+                        <button
+                            class="btn-ghost min-h-8 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
+                            disabled=move || delete_busy.get()
+                            on:click=move |_| {
+                                if confirm(CONFIRM_DELETE.get()) {
+                                    handlers.delete.run(delete_id.clone());
+                                }
+                            }
+                        >
+                            {DELETE.get()}
+                        </button>
+                    }
+                })}
         }
-    );
-
-    view! {
-        <article class=article_class>
-            <div class="row justify-between gap-2">
-                <TabLink
-                    href=format!("/tasks/{id}")
-                    class="line-clamp-2 font-medium text-fg hover:text-accent transition-colors"
-                >
-                    {title}
-                </TabLink>
-                <div class="row shrink-0 gap-1.5">
-                    <StageBadge stage=task.stage />
-                    {(task.pending_dialogs > 0)
-                        .then(|| {
-                            view! {
-                                <span class="badge badge-muted">
-                                    {pending_dialogs_label(task.pending_dialogs)}
-                                </span>
-                            }
-                        })}
-                </div>
-            </div>
-            {(task.priority != TaskPriorityDto::Normal)
-                .then(|| {
-                    view! {
-                        <div class="row gap-1.5">
-                            <span class=format!(
-                                "badge badge-{}",
-                                task.priority.variant(),
-                            )>{task.priority.label()}</span>
-                        </div>
-                    }
-                })}
-            {show_prompt.then(|| view! { <p class="muted line-clamp-2">{task.prompt.clone()}</p> })}
-            {(!is_backlog)
-                .then(|| {
-                    view! {
-                        <code class="truncate rounded-md bg-surface-2/60 px-1.5 py-0.5 font-mono text-[10px] text-muted">
-                            {task.branch.clone()}
-                        </code>
-                    }
-                })}
-            {task.error.clone().map(|e: String| view! { <p class="text-xs text-error">{e}</p> })}
+        .into_any()
+    } else {
+        let finish_id: String = id.clone();
+        let merge_id: String = id.clone();
+        let finish_busy: Signal<bool> = {
+            let id: String = id.clone();
+            Signal::derive(move || busy.finish.is_busy(&id))
+        };
+        let merge_busy: Signal<bool> = {
+            let id: String = id.clone();
+            Signal::derive(move || busy.merge.is_busy(&id))
+        };
+        view! {
+            <TabLink
+                href=format!("/tasks/{id}")
+                class="btn-ghost min-h-8 px-2.5 py-1 text-xs"
+            >
+                {OPEN.get()}
+            </TabLink>
             {task
-                .resume_notice()
-                .map(|notice: String| view! { <p class="text-xs text-muted">{notice}</p> })}
-            <div class="row justify-between gap-2 pt-1">
-                <span class="text-[11px] text-muted">{short_timestamp(&task.updated_at)}</span>
-                <div class="row gap-1.5">
-                    {if is_backlog {
-                            let start_id: String = id.clone();
-                            let delete_id: String = id.clone();
-                            let edit_task: TaskDto = task.clone();
-                            let actions: TaskActionsDto = task.actions;
-                            let start_busy: Signal<bool> = {
-                                let id: String = id.clone();
-                                Signal::derive(move || busy.start.is_busy(&id))
-                            };
-                            let delete_busy: Signal<bool> = {
-                                let id: String = id.clone();
-                                Signal::derive(move || busy.delete.is_busy(&id))
-                            };
-                            view! {
-                                {actions
-                                    .can_start
-                                    .then(|| {
-                                        view! {
-                                            <button
-                                                class="btn-primary min-h-9 px-3 py-1.5 text-xs"
-                                                disabled=move || start_busy.get()
-                                                on:click=move |_| handlers.start.run(start_id.clone())
-                                            >
-                                                {START.get()}
-                                            </button>
-                                        }
-                                    })}
-                                {actions
-                                    .can_edit
-                                    .then(|| {
-                                        view! {
-                                            <button
-                                                class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
-                                                on:click=move |_| handlers.edit.run(edit_task.clone())
-                                            >
-                                                {EDIT.get()}
-                                            </button>
-                                        }
-                                    })}
-                                {actions
-                                    .can_delete
-                                    .then(|| {
-                                        view! {
-                                            <button
-                                                class="btn-ghost min-h-9 px-3 py-1.5 text-xs hover:bg-error/10 hover:text-error"
-                                                disabled=move || delete_busy.get()
-                                                on:click=move |_| {
-                                                    if confirm(CONFIRM_DELETE.get()) {
-                                                        handlers.delete.run(delete_id.clone());
-                                                    }
-                                                }
-                                            >
-                                                {DELETE.get()}
-                                            </button>
-                                        }
-                                    })}
-                            }
-                                .into_any()
-                        } else {
-                            let finish_id: String = id.clone();
-                            let merge_id: String = id.clone();
-                            let finish_busy: Signal<bool> = {
-                                let id: String = id.clone();
-                                Signal::derive(move || busy.finish.is_busy(&id))
-                            };
-                            let merge_busy: Signal<bool> = {
-                                let id: String = id.clone();
-                                Signal::derive(move || busy.merge.is_busy(&id))
-                            };
-                            view! {
-                                <TabLink
-                                    href=format!("/tasks/{id}")
-                                    class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
-                                >
-                                    {OPEN.get()}
-                                </TabLink>
-                                {task
-                                    .actions
-                                    .can_finish
-                                    .then(|| {
-                                        view! {
-                                            <button
-                                                class="btn-primary min-h-9 px-3 py-1.5 text-xs"
-                                                disabled=move || finish_busy.get()
-                                                on:click=move |_| handlers.finish.run(finish_id.clone())
-                                            >
-                                                {FINISH.get()}
-                                            </button>
-                                        }
-                                    })}
-                                {task
-                                    .actions
-                                    .can_merge
-                                    .then(|| {
-                                        view! {
-                                            <button
-                                                class="btn-primary min-h-9 px-3 py-1.5 text-xs"
-                                                disabled=move || merge_busy.get()
-                                                on:click=move |_| handlers.merge.run(merge_id.clone())
-                                            >
-                                                {MERGE.get()}
-                                            </button>
-                                        }
-                                    })}
-                            }
-                                .into_any()
-                        }}
-                </div>
-            </div>
-        </article>
+                .actions
+                .can_finish
+                .then(|| {
+                    view! {
+                        <button
+                            class="btn-primary min-h-8 px-2.5 py-1 text-xs"
+                            disabled=move || finish_busy.get()
+                            on:click=move |_| handlers.finish.run(finish_id.clone())
+                        >
+                            {FINISH.get()}
+                        </button>
+                    }
+                })}
+            {task
+                .actions
+                .can_merge
+                .then(|| {
+                    view! {
+                        <button
+                            class="btn-primary min-h-8 px-2.5 py-1 text-xs"
+                            disabled=move || merge_busy.get()
+                            on:click=move |_| handlers.merge.run(merge_id.clone())
+                        >
+                            {MERGE.get()}
+                        </button>
+                    }
+                })}
+        }
+        .into_any()
     }
 }
 
 /// Left-rail classes (full literals so Tailwind can see them) colored by stage.
-fn stage_rail_class(stage: TaskStageDto) -> &'static str {
+pub fn stage_rail_class(stage: TaskStageDto) -> &'static str {
     match stage {
         TaskStageDto::Backlog => "border-l-[3px] border-l-stage-backlog",
         TaskStageDto::Working => "border-l-[3px] border-l-stage-working",
@@ -320,7 +259,7 @@ pub fn prompt_adds_info(title: &str, prompt: &str) -> bool {
 }
 
 /// Etiqueta con singular/plural del número de diálogos pendientes.
-fn pending_dialogs_label(count: usize) -> String {
+pub fn pending_dialogs_label(count: usize) -> String {
     if count == 1 {
         PENDING_DIALOG_ONE.get().to_string()
     } else {
@@ -365,7 +304,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_dialogs_label_pluralises() {
+    pub fn pending_dialogs_label_pluralises() {
         assert_eq!(pending_dialogs_label(1), "1 dialog");
         assert_eq!(pending_dialogs_label(3), "3 dialogs");
         assert_eq!(PENDING_DIALOG_ONE.in_locale(Locale::Es), "1 diálogo");

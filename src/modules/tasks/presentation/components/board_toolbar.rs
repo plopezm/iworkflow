@@ -1,9 +1,8 @@
 use leptos::prelude::*;
 
 use crate::core::i18n::Msg;
-
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStageDto;
-use crate::modules::tasks::presentation::state::board_state::{FILTER_STAGES, filter_label};
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::WorkspaceOptionDto;
+use crate::modules::tasks::presentation::components::workspace_switcher::WorkspaceSwitcher;
 
 const BOARD: Msg = Msg {
     en: "Board",
@@ -26,63 +25,51 @@ const SHOW_DONE: Msg = Msg {
     de: "Erledigte anzeigen",
     fr: "Afficher les terminées",
 };
+const FIT_VIEW: Msg = Msg {
+    en: "Fit view",
+    es: "Ajustar vista",
+    zh: "适应视图",
+    de: "Ansicht einpassen",
+    fr: "Ajuster la vue",
+};
 
-/// Clase Tailwind completa del punto de color de un chip de filtro.
-fn filter_dot_class(stage: TaskStageDto) -> &'static str {
-    match stage {
-        TaskStageDto::Backlog => "h-1.5 w-1.5 rounded-full bg-stage-backlog",
-        TaskStageDto::Working => "h-1.5 w-1.5 rounded-full bg-stage-working",
-        TaskStageDto::Attention => "h-1.5 w-1.5 rounded-full bg-stage-attention",
-        TaskStageDto::Review => "h-1.5 w-1.5 rounded-full bg-stage-review",
-        TaskStageDto::Done => "h-1.5 w-1.5 rounded-full bg-stage-done",
-    }
-}
-
-/// Barra superior del tablero: filtros de etapa, toggle de terminadas y alta de tarea.
+/// Barra superior del tablero: selector de workspace, ajustar vista, terminadas y alta de tarea.
 #[component]
 pub fn BoardToolbar(
-    stage_filter: RwSignal<Option<TaskStageDto>>,
-    show_done: RwSignal<bool>,
+    #[prop(into)] workspaces: Signal<Vec<WorkspaceOptionDto>>,
+    #[prop(into)] selected_workspace: Signal<Option<String>>,
+    show_completed: RwSignal<bool>,
+    on_select_workspace: Callback<String>,
+    on_fit: Callback<()>,
     on_new_task: Callback<()>,
 ) -> impl IntoView {
     view! {
-        <div class="flex shrink-0 flex-col gap-2 border-b border-border bg-surface px-4 py-2.5">
-            <div class="flex items-center justify-between gap-3">
-                <h1 class="page-title">{BOARD.get()}</h1>
-                <button class="btn-primary" on:click=move |_| on_new_task.run(())>
-                    <span class="text-lg leading-none">+</span>
-                    <span class="hidden sm:inline">{NEW_TASK.get()}</span>
-                </button>
+        <div class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-2.5">
+            <h1 class="page-title">{BOARD.get()}</h1>
+            <div class="min-w-0 flex-1">
+                <WorkspaceSwitcher
+                    workspaces
+                    selected=selected_workspace
+                    on_select=on_select_workspace
+                />
             </div>
-            <div class="flex items-center gap-2 overflow-x-auto pb-0.5">
-                {FILTER_STAGES
-                    .into_iter()
-                    .map(|stage: Option<TaskStageDto>| {
-                        let class: Memo<&'static str> = Memo::new(move |_| {
-                            if stage_filter.get() == stage { "chip chip-selected" } else { "chip" }
-                        });
-                        view! {
-                            <button
-                                class=move || class.get()
-                                on:click=move |_| stage_filter.set(stage)
-                            >
-                                {stage.map(|s: TaskStageDto| view! { <span class=filter_dot_class(s)></span> })}
-                                {filter_label(stage)}
-                            </button>
-                        }
-                    })
-                    .collect_view()}
-                <div class="mx-1 h-5 w-px shrink-0 bg-border"></div>
-                <label class="flex min-h-9 shrink-0 items-center gap-2 whitespace-nowrap text-xs text-muted">
-                    <input
-                        type="checkbox"
-                        class="h-4 w-4 accent-accent"
-                        prop:checked=move || show_done.get()
-                        on:change=move |ev| show_done.set(event_target_checked(&ev))
-                    />
-                    {SHOW_DONE.get()}
-                </label>
-            </div>
+            <label class="flex min-h-8 shrink-0 items-center gap-2 whitespace-nowrap text-xs text-muted">
+                <input
+                    type="checkbox"
+                    class="h-4 w-4 accent-accent"
+                    prop:checked=move || show_completed.get()
+                    on:change=move |ev| show_completed.set(event_target_checked(&ev))
+                />
+                {SHOW_DONE.get()}
+            </label>
+            <button type="button" class="btn-secondary" on:click=move |_| on_fit.run(())>
+                <span aria-hidden="true">"⤢"</span>
+                <span class="hidden sm:inline">{FIT_VIEW.get()}</span>
+            </button>
+            <button type="button" class="btn-primary" on:click=move |_| on_new_task.run(())>
+                <span class="text-lg leading-none">+</span>
+                <span class="hidden sm:inline">{NEW_TASK.get()}</span>
+            </button>
         </div>
     }
 }
