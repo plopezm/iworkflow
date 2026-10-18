@@ -19,17 +19,21 @@ use crate::modules::tasks::domain::models::subagent_task::SubagentTask;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_file_content::TaskFileContent;
+use crate::modules::tasks::domain::models::task_graph::{NodePosition, TaskDependency};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome, TaskDiff};
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
+use crate::modules::tasks::domain::ports::inbound::start_task_use_case::StartTaskUseCase;
+use crate::modules::tasks::domain::ports::inbound::successor_trigger::SuccessorTrigger;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
 use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
 use crate::modules::tasks::domain::ports::outbound::task_file_port::TaskFilePort;
+use crate::modules::tasks::domain::ports::outbound::task_graph_repository_port::TaskGraphRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
@@ -43,6 +47,37 @@ mock! {
         async fn list_by_task(&self, task_id: TaskId) -> Result<Vec<StoredAttachment>, TaskError>;
         async fn remove(&self, task_id: TaskId, ids: &[String]) -> Result<Vec<StoredAttachment>, TaskError>;
         async fn delete_by_task(&self, task_id: TaskId) -> Result<(), TaskError>;
+    }
+}
+
+mock! {
+    pub TaskGraphRepository {}
+
+    #[async_trait::async_trait]
+    impl TaskGraphRepositoryPort for TaskGraphRepository {
+        async fn insert_dependency(&self, dependency: &TaskDependency) -> Result<(), TaskError>;
+        async fn remove_dependency(&self, predecessor: TaskId, successor: TaskId) -> Result<bool, TaskError>;
+        async fn list_dependencies(&self, workspace_id: Option<String>) -> Result<Vec<TaskDependency>, TaskError>;
+        async fn set_position(&self, task_id: TaskId, position: NodePosition) -> Result<(), TaskError>;
+        async fn list_positions(&self, workspace_id: String) -> Result<Vec<(TaskId, NodePosition)>, TaskError>;
+    }
+}
+
+mock! {
+    pub StartTaskUseCase {}
+
+    #[async_trait::async_trait]
+    impl StartTaskUseCase for StartTaskUseCase {
+        async fn start(&self, id: TaskId) -> Result<Task, TaskError>;
+    }
+}
+
+mock! {
+    pub SuccessorTrigger {}
+
+    #[async_trait::async_trait]
+    impl SuccessorTrigger for SuccessorTrigger {
+        async fn trigger(&self) -> Result<usize, TaskError>;
     }
 }
 

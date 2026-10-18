@@ -8,6 +8,11 @@ use crate::modules::tasks::application::services::queued_agent_event_sink::{
 };
 use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::abort_task::AbortTask;
+use crate::modules::tasks::application::usecases::add_task_dependency::AddTaskDependency;
+use crate::modules::tasks::application::usecases::get_task_graph::GetTaskGraph;
+use crate::modules::tasks::application::usecases::remove_task_dependency::RemoveTaskDependency;
+use crate::modules::tasks::application::usecases::set_task_position::SetTaskPosition;
+use crate::modules::tasks::application::usecases::trigger_successors::TriggerSuccessors;
 use crate::modules::tasks::application::usecases::answer_dialog::AnswerDialog;
 use crate::modules::tasks::application::usecases::create_task::CreateTask;
 use crate::modules::tasks::application::services::attachment_cleanup::AttachmentCleanup;
@@ -39,6 +44,9 @@ use crate::modules::tasks::application::usecases::update_task::UpdateTask;
 use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::runtime_id::RuntimeId;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
+use crate::modules::tasks::domain::ports::inbound::start_task_use_case::StartTaskUseCase;
+use crate::modules::tasks::domain::ports::inbound::successor_trigger::SuccessorTrigger;
+use crate::modules::tasks::domain::ports::outbound::task_graph_repository_port::TaskGraphRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
@@ -56,6 +64,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::persistence::retr
     RetryPolicy, RetryingTaskRepository,
 };
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_attachment_repository_adapter::TaskAttachmentRepositoryAdapter;
+use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_graph_repository_adapter::TaskGraphRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::persistence::task_repository_adapter::TaskRepositoryAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::storage::fs_attachment_storage_adapter::FsAttachmentStorageAdapter;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_runtime_router::AgentRuntimeRouter;
@@ -113,6 +122,11 @@ pub struct TasksContext {
     pub list_workspace_branches: Arc<ListWorkspaceBranches>,
     pub reconcile_tasks: Arc<ReconcileTasks>,
     pub reset_task: Arc<ResetTask>,
+    pub add_task_dependency: Arc<AddTaskDependency>,
+    pub remove_task_dependency: Arc<RemoveTaskDependency>,
+    pub set_task_position: Arc<SetTaskPosition>,
+    pub get_task_graph: Arc<GetTaskGraph>,
+    pub trigger_successors: Arc<TriggerSuccessors>,
     /// Bus en vivo consumido por el endpoint SSE.
     pub event_bus: BroadcastTaskEventBus,
     /// Sink de eventos de agente (cola con reintento persistente hacia SQLite).
@@ -193,6 +207,8 @@ impl TasksContext {
             Arc::new(TaskAttachmentRepositoryAdapter::new(pool.clone()));
         let storage: Arc<dyn AttachmentStoragePort> =
             Arc::new(FsAttachmentStorageAdapter::new(attachments_dir));
+        let graph: Arc<dyn TaskGraphRepositoryPort> =
+            Arc::new(TaskGraphRepositoryAdapter::new(pool.clone()));
         let base_repository: Arc<dyn TaskRepositoryPort> =
             Arc::new(TaskRepositoryAdapter::new(pool));
         let repository: Arc<dyn TaskRepositoryPort> = Arc::new(RetryingTaskRepository::new(
@@ -232,6 +248,13 @@ impl TasksContext {
             attachments.clone(),
             storage.clone(),
         ));
+        let starter: Arc<dyn StartTaskUseCase> = start_task.clone();
+        let trigger_successors: Arc<TriggerSuccessors> = Arc::new(TriggerSuccessors::new(
+            repository.clone(),
+            graph.clone(),
+            starter,
+        ));
+        let trigger: Arc<dyn SuccessorTrigger> = trigger_successors.clone();
         let send_message: Arc<SendMessage> =
             Arc::new(SendMessage::new(lifecycle.clone(), runtime.clone()));
         let resume_task: Arc<ResumeTask> = Arc::new(ResumeTask::new(
@@ -309,6 +332,15 @@ impl TasksContext {
                 lifecycle.clone(),
                 worktrees.clone(),
             )),
+            add_task_dependency: Arc::new(AddTaskDependency::new(
+                lifecycle.clone(),
+                graph.clone(),
+                trigger.clone(),
+            )),
+            remove_task_dependency: Arc::new(RemoveTaskDependency::new(graph.clone(), trigger)),
+            set_task_position: Arc::new(SetTaskPosition::new(graph.clone())),
+            get_task_graph: Arc::new(GetTaskGraph::new(graph)),
+            trigger_successors,
             reconcile_tasks: Arc::new(ReconcileTasks::new(lifecycle, worktrees)),
             event_bus,
             event_sink: sink,

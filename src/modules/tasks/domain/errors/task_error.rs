@@ -51,6 +51,18 @@ pub enum TaskError {
     FileNotEditable(String),
     #[error("el workspace tiene tareas activas")]
     WorkspaceHasActiveTasks,
+    #[error("una tarea no puede depender de sí misma")]
+    SelfDependency,
+    #[error("la dependencia ya existe")]
+    DuplicateDependency,
+    #[error("la dependencia crearía un ciclo")]
+    DependencyCycle,
+    #[error("las tareas de una dependencia deben pertenecer al mismo workspace")]
+    CrossWorkspaceDependency,
+    #[error("disparador de dependencia desconocido: {0}")]
+    InvalidTrigger(String),
+    #[error("posición de nodo inválida")]
+    InvalidPosition,
 }
 
 impl TaskError {

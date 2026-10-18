@@ -17,6 +17,7 @@ use crate::modules::tasks::domain::models::task::{
 };
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::ports::inbound::agent_event_sink::AgentEventSink;
+use crate::modules::tasks::domain::ports::inbound::start_task_use_case::StartTaskUseCase;
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
@@ -207,6 +208,13 @@ impl StartTask {
                 },
             )
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl StartTaskUseCase for StartTask {
+    async fn start(&self, id: TaskId) -> Result<Task, TaskError> {
+        self.execute(id).await
     }
 }
 

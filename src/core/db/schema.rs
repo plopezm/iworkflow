@@ -96,11 +96,29 @@ diesel::table! {
 }
 
 diesel::table! {
+    task_dependencies (predecessor_id, successor_id) {
+        predecessor_id -> Text,
+        successor_id -> Text,
+        workspace_id -> Text,
+        trigger_event -> Text,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     task_events (seq) {
         seq -> Integer,
         task_id -> Text,
         payload -> Text,
         created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
+    task_positions (task_id) {
+        task_id -> Text,
+        x -> Double,
+        y -> Double,
     }
 }
 
@@ -143,7 +161,9 @@ diesel::table! {
 diesel::joinable!(jira_lane_issues -> jira_issues (issue_key));
 diesel::joinable!(jira_lane_issues -> jira_lanes (lane_id));
 diesel::joinable!(task_attachments -> tasks (task_id));
+diesel::joinable!(task_dependencies -> workspaces (workspace_id));
 diesel::joinable!(task_events -> tasks (task_id));
+diesel::joinable!(task_positions -> tasks (task_id));
 diesel::joinable!(tasks -> workspaces (workspace_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
@@ -155,7 +175,9 @@ diesel::allow_tables_to_appear_in_same_query!(
     jira_lane_issues,
     jira_lanes,
     task_attachments,
+    task_dependencies,
     task_events,
+    task_positions,
     tasks,
     workspaces,
 );

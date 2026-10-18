@@ -12,6 +12,7 @@ async fn main() {
     use iworkflow::core::launch::{LaunchCommand, LaunchOptions, USAGE, browser_url, open_browser};
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::attachment_http::task_attachments_router;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
+    use iworkflow::modules::tasks::infrastructure::background::graph_loop::run_graph_loop;
     use iworkflow::modules::tasks::infrastructure::background::resume_loop::run_resume_loop;
     use iworkflow::modules::terminal::infrastructure::adapters::inbound::ws::terminal_ws_router;
     use leptos::prelude::*;
@@ -57,6 +58,9 @@ async fn main() {
     let resume_loop: tokio::task::JoinHandle<()> = tokio::spawn(run_resume_loop(
         state.tasks.resume_rate_limited_tasks.clone(),
     ));
+
+    let graph_loop: tokio::task::JoinHandle<()> =
+        tokio::spawn(run_graph_loop(state.tasks.trigger_successors.clone()));
 
     let conf: ConfFile = get_configuration(None).expect("configuración de Leptos");
     let leptos_options: LeptosOptions = conf.leptos_options;
@@ -110,6 +114,13 @@ async fn main() {
         } => tracing::warn!(
             "conexiones abiertas tras {SHUTDOWN_GRACE:?}; se fuerza el apagado del servidor"
         ),
+    }
+
+    graph_loop.abort();
+    if let Err(error) = graph_loop.await
+        && !error.is_cancelled()
+    {
+        tracing::error!(%error, "el bucle del grafo de dependencias terminó con error");
     }
 
     resume_loop.abort();

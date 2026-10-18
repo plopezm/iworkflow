@@ -131,6 +131,11 @@ path = "tests/modules/tasks/task_attachment_repository_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]
+name = "task_graph_repository_adapter_test"
+path = "tests/modules/tasks/task_graph_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "fs_attachment_storage_adapter_test"
 path = "tests/modules/tasks/fs_attachment_storage_adapter_test.rs"
 required-features = ["ssr"]
