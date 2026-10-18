@@ -263,6 +263,16 @@ impl DockLayout {
         })
     }
 
+    /// Primera pestaña (y su grupo) cuya ruta cumple `matches`, en orden de grupos.
+    pub fn find_path_where(&self, matches: fn(&str) -> bool) -> Option<(GroupId, TabId)> {
+        self.groups.iter().find_map(|g: &TabGroup| {
+            g.tabs
+                .iter()
+                .find(|t: &&TabEntry| matches(&t.path))
+                .map(|t: &TabEntry| (g.id, t.id))
+        })
+    }
+
     /// Grupos en orden de aparición en el árbol.
     pub fn leaf_order(&self) -> Vec<GroupId> {
         let mut out: Vec<GroupId> = Vec::new();
@@ -668,6 +678,16 @@ mod tests {
         let group: &TabGroup = layout.group(layout.focused).expect("focused group");
         assert_eq!(group.tabs.len(), 2);
         assert_eq!(group.active, Some(b));
+    }
+
+    #[test]
+    fn find_path_where_returns_the_first_matching_tab() {
+        let (layout, a, _) = two_tabs();
+        let found: Option<TabId> = layout
+            .find_path_where(|p: &str| p.starts_with('/'))
+            .map(|(_, tab)| tab);
+        assert_eq!(found, Some(a));
+        assert!(layout.find_path_where(|p: &str| p == "/none").is_none());
     }
 
     #[test]

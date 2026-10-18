@@ -367,6 +367,9 @@ pub fn SidebarToggle(#[prop(optional, into)] class: String) -> impl IntoView {
 #[component]
 pub fn AppShell(
     #[prop(into)] brand: String,
+    /// Rutas que cuentan como "inicio": el título activa una pestaña abierta que cumpla esto.
+    #[prop(optional)]
+    home_reuse: Option<fn(&str) -> bool>,
     #[prop(into)] sidebar: ViewFn,
     children: Children,
 ) -> impl IntoView {
@@ -419,7 +422,11 @@ pub fn AppShell(
                     >
                         "☰"
                     </button>
-                    <TabLink href="/" class="text-sm font-semibold tracking-tight">
+                    <TabLink
+                        href="/"
+                        reuse=home_reuse
+                        class="text-sm font-semibold tracking-tight"
+                    >
                         {brand}
                     </TabLink>
                 </header>
