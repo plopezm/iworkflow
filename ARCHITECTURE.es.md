@@ -434,7 +434,7 @@ pub fn after_agent_event(&self, event: &AgentEvent) -> Option<(TaskStatus, Optio
 
 Lectura para Java: `matches!(x, A | B)` es un `switch` que devuelve `boolean`; los `if` tras el patrón (`RunStarted if self.has_live_agent()`) son *guards*; devolver `Option<(TaskStatus, Option<String>)>` significa "quizá hay transición, y quizá lleva un mensaje de error". Esta función es **pura** (no toca BD), lo que la hace trivial de testear.
 
-`TaskStage` es una proyección (`Backlog`, `Working`, `Attention`, `Review`, `Done`) calculada a partir del estado, los diálogos pendientes y la actividad de subagentes; el tablero agrupa por ella y `needs_attention()` decide qué resaltar.
+`TaskStage` es una proyección (`Backlog`, `Working`, `Attention`, `Review`, `Done`) calculada a partir del estado, los diálogos pendientes y la actividad de subagentes; el tablero colorea los nodos por ella y `needs_attention()` decide qué resaltar.
 
 **Errores** (`domain/errors/task_error.rs`): un `enum TaskError` con `thiserror`. Es el equivalente a una jerarquía de excepciones, pero cerrada y exhaustiva. Incluye `is_transient()` (solo `Busy`, "SQLite bloqueada"), que usa el decorador de reintentos.
 
@@ -597,8 +597,8 @@ Si un suscriptor se retrasa más que la capacidad del canal, recibe `lagged` y e
 ```text
 presentation/
 ├── pages/        board_page.rs · task_detail_page.rs · task_edit_page.rs
-├── state/        board_state.rs · task_detail_state.rs · task_edit_state.rs · task_events.rs · ...
-└── components/   task_card.rs · board_lane.rs · composer.rs · diff_view.rs · transcript_view.rs · ...
+├── state/        board_state.rs · graph_model.rs · graph_geometry.rs · graph_interaction.rs · task_detail_state.rs · task_edit_state.rs · task_events.rs · ...
+└── components/   task_graph_canvas.rs · task_node.rs · graph_edge.rs · workspace_switcher.rs · board_toolbar.rs · task_card.rs · composer.rs · diff_view.rs · transcript_view.rs · ...
 ```
 
 La página crea su estado, y los componentes pintan. Detalle completo en [§9](#9-frontend-leptos-y-signals).
@@ -904,7 +904,7 @@ flowchart LR
     S -- "ServerAction&lt;StartTask&gt;" --> SF2[start_task]
     S -- "tick: RwSignal&lt;u32&gt;" --> R[(re-fetch)]
     SSE["EventSource /api/tasks/events"] -- "bump tick" --> S
-    P --> C["BoardLane → TaskCard (componentes tontos)"]
+    P --> C["TaskGraphCanvas → TaskNode / GraphEdgeLine (componentes tontos)"]
 ```
 
 `BoardState` (`presentation/state/board_state.rs`) es un struct `Copy` de signals (los signals de Leptos son *handles* baratos de copiar). Su `Resource` se vuelve a ejecutar cuando cambia su "clave": una tupla de contadores de versión de cada acción más `tick`.
@@ -919,9 +919,11 @@ let tasks: Resource<Result<Vec<TaskDto>, ServerFnError>> = Resource::new(
 
 Lectura: "recarga la lista cada vez que una acción termine **o** `tick` cambie". `tick` lo incrementa el `EventSource` SSE cuando el servidor avisa de un cambio. Así el flujo es: acción del usuario / evento del servidor → cambia una dependencia → el `Resource` refetchea → la UI se actualiza solo donde cambió.
 
-### Lógica fuera de los componentes
+### Tablero por workspace (grafo de dependencias)
 
-Los componentes (`task_card.rs`, `board_lane.rs`, …) solo pintan y reciben `Callback`s. Las reglas de presentación **puras** se extraen a funciones testeables en `state/`, por ejemplo `build_lanes(tasks, workspaces, stage_filter, show_done) -> Vec<LaneView>` (agrupa por workspace, filtra, ordena por atención/prioridad/antigüedad) y `card_key(&task)` (la clave del `<For>` que decide qué tarjetas reconstruir). Al ser funciones sin I/O, se prueban con `#[test]` normales sin navegador.
+El tablero está acotado a un workspace (`/board/:workspace_id`; `/` resuelve el primero por nombre) y pinta el grafo de dependencias entre tareas: nodos HTML (`TaskNode`) y aristas Bézier SVG (`GraphEdgeLine`) dentro de una capa desplazable y con zoom (`TaskGraphCanvas`). `BoardState` carga el grafo con `get_task_graph` en un `Resource` cuya clave es el workspace, los contadores de versión de las acciones de aristas/posición y una firma de los estados de las tareas del workspace, de modo que una sucesora que el servidor arranca sola (todas sus predecesoras `merged`) aparece sin recargar. Los gestos acaban en `add_task_dependency`, `remove_task_dependency` o `set_task_position`; las aristas rechazadas (ciclo, duplicada, otro workspace…) se muestran como avisos y dejan el grafo intacto. *Añadir tarea siguiente / en paralelo* crea la tarea con `start_now = false` y después añade las aristas necesarias. El modelo de vista de la arista reserva una `label` opcional para las futuras condiciones; no hay ninguna implementada. En la barra lateral, pulsar un workspace abre su tablero y el menú del elemento ofrece **Ver ficheros** (`/workspaces/:id`, el árbol del proyecto).
+
+Los componentes (`task_node.rs`, `graph_edge.rs`, `task_graph_canvas.rs`, …) solo pintan y reciben `Callback`s. Las reglas de presentación **puras** se extraen a funciones testeables en `state/`: `graph_model.rs` (`build_graph`, `waiting_count`, `resolve_positions` —el layout automático por capas para nodos sin posición guardada—, `link_predecessors` para tareas *siguiente*/*paralela*, `resolve_board_workspace`), `graph_geometry.rs` (transformaciones pantalla↔lienzo, zoom, encuadre, anclajes y trazado Bézier de las aristas) y `graph_interaction.rs` (la máquina de estados de los gestos: desplazar, arrastrar nodo, conectar). Al ser funciones sin I/O, se prueban con `#[test]` normales sin navegador.
 
 ### Código solo de navegador
 
@@ -941,7 +943,7 @@ pub fn subscribe_task_events(tick: RwSignal<u32>) { /* EventSource + reconexión
 
 | Ruta | Página |
 |---|---|
-| `/` | `BoardPage` (tablero kanban por workspace) |
+| `/` · `/board/:workspace_id` | `BoardPage` (tablero de grafo de dependencias de un workspace; `/` muestra el primero por nombre) |
 | `/workspaces` | `WorkspacesPage` |
 | `/workspaces/:id` · `/workspaces/:id/files/*` | Árbol y editor de ficheros del workspace |
 | `/tasks/:id` · `/tasks/:id/edit` | `TaskDetailPage` · `TaskEditPage` |
@@ -1051,7 +1053,7 @@ El código específico de plataforma está acotado a infraestructura:
 
 | Qué | Dónde | Cómo |
 |---|---|---|
-| Reglas de dominio | `#[cfg(test)] mod tests` junto al código | `#[test]` puros (`TaskStatus`, `after_agent_event`, `build_lanes`) |
+| Reglas de dominio | `#[cfg(test)] mod tests` junto al código | `#[test]` puros (`TaskStatus`, `after_agent_event`, `build_graph`) |
 | Casos de uso | `#[cfg(test)] mod tests` en cada `usecases/*.rs` | `#[tokio::test]` + mocks `mockall` de los puertos; `application/test_support.rs` ofrece una `Recorded` para inspeccionar estados y eventos emitidos |
 | Mocks | `src/modules/<feature>/mocks.rs` | `mock! { pub TaskRepository {} #[async_trait] impl TaskRepositoryPort for TaskRepository { ... } }` — el equivalente a `@Mock` de Mockito generado a partir del trait |
 | Adaptadores Diesel / FS / git / runtime | `tests/modules/<feature>/*_test.rs` | Integración contra SQLite temporal (`tempfile`) con migraciones reales aplicadas; `tests/common/mod.rs` provee `test_db()` y `git_repo()` |

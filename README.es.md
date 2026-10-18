@@ -22,6 +22,7 @@ La app no impone ningún flujo: cada agente usa la configuración y los plugins 
 - [Diseñada para el móvil](#diseñada-para-el-móvil)
 - [Arranque rápido](#arranque-rápido)
 - [Espacio de trabajo con pestañas](#espacio-de-trabajo-con-pestañas)
+- [Tablero por workspace](#tablero-por-workspace)
 - [Ciclo de vida de una tarea](#ciclo-de-vida-de-una-tarea)
 - [Integración con GitLab y GitHub](#integración-con-gitlab-y-github)
 - [Integración con Jira (Server / Data Center)](#integración-con-jira-server--data-center)
@@ -70,6 +71,15 @@ La interfaz es un espacio de trabajo tipo IDE: cada pantalla (tablero, tarea, di
 - Los ficheros y carpetas modificados, añadidos, sin seguimiento, borrados o en conflicto se colorean según `git status`.
 - Mientras editas, el margen izquierdo marca las líneas añadidas, modificadas y borradas respecto a `HEAD` (como en VS Code).
 - Al **editar una tarea**, los límites de CPU y memoria están en *Opciones avanzadas*.
+
+## Tablero por workspace
+
+Cada workspace tiene su propio **tablero**: un lienzo de nodos de tarea unidos por flechas (`/board/<workspace>`; `/` abre el primer workspace por nombre). Al pulsar un workspace en la barra lateral se abre su tablero, y los chips de workspace de la parte superior del tablero permiten cambiar de uno a otro. El menú del elemento de la barra lateral conserva **Ver ficheros** (el árbol del proyecto), **Abrir terminal** y **Gestionar workspaces**.
+
+- **Grafo de dependencias:** arrastra desde el puerto derecho de un nodo hasta otra tarea para que esta espere a la primera. Selecciona una flecha para borrarla. Las autoaristas, duplicados, ciclos, flechas entre workspaces y flechas hacia una tarea que ya no está en *Por hacer* se rechazan con un mensaje.
+- **Disparador al integrar:** una tarea con predecesoras arranca sola, sobre su rama base configurada, cuando **todas** están `merged`. Una tarea *Por hacer* sin predecesoras se inicia a mano con **Iniciar**. Las flechas se dibujan atenuadas mientras la predecesora está pendiente, con una línea discontinua en movimiento mientras trabaja y en verde continuo cuando se integra. (Las condiciones de arista aún no están implementadas; el modelo deja sitio para ellas.)
+- **Tareas anidadas y en paralelo:** *Añadir tarea siguiente* crea una tarea que depende de la seleccionada; *Añadir tarea en paralelo* crea una con las mismas predecesoras. Ambas se crean en *Por hacer*.
+- **Lienzo:** arrastra el fondo para desplazarte, usa la rueda para hacer zoom y **Ajustar vista** para encuadrar todo. Las posiciones de los nodos se guardan; las tareas sin posición guardada se colocan automáticamente por capas.
 
 ## Ciclo de vida de una tarea
 
