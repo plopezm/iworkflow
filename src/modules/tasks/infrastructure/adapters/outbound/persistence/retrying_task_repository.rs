@@ -12,6 +12,7 @@ use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use crate::modules::tasks::domain::models::worktree::DiffRange;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 
@@ -242,6 +243,11 @@ impl TaskRepositoryPort for RetryingTaskRepository {
             self.inner.record_diff_range(id, range.clone())
         })
         .await
+    }
+
+    async fn set_usage_limit(&self, id: TaskId, state: UsageLimitState) -> Result<(), TaskError> {
+        self.retry("set_usage_limit", || self.inner.set_usage_limit(id, state))
+            .await
     }
 
     async fn delete_if_backlog(&self, id: TaskId) -> Result<bool, TaskError> {

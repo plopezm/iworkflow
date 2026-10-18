@@ -213,6 +213,7 @@ mod tests {
             memory_limit_mb: None,
             cpu_limit_percent: None,
             error: None,
+            resume_at: None,
             actions: Default::default(),
             stage: TaskStageDto::Working,
             needs_attention,

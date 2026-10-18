@@ -11,6 +11,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use crate::modules::tasks::domain::models::worktree::DiffRange;
 
 const MAX_TITLE_LENGTH: usize = 120;
@@ -79,10 +80,12 @@ pub enum TaskStatus {
     Failed,
     /// El proceso terminó inesperadamente (p.ej. reinicio del servidor).
     Interrupted,
+    /// El proveedor rechazó al agente por límite de uso; se reanuda sola al renovarse.
+    RateLimited,
 }
 
 impl TaskStatus {
-    pub const ALL: [TaskStatus; 11] = [
+    pub const ALL: [TaskStatus; 12] = [
         TaskStatus::Backlog,
         TaskStatus::Starting,
         TaskStatus::Running,
@@ -94,6 +97,7 @@ impl TaskStatus {
         TaskStatus::Conflict,
         TaskStatus::Failed,
         TaskStatus::Interrupted,
+        TaskStatus::RateLimited,
     ];
 
     pub fn as_str(&self) -> &'static str {
@@ -109,6 +113,7 @@ impl TaskStatus {
             TaskStatus::Conflict => "conflict",
             TaskStatus::Failed => "failed",
             TaskStatus::Interrupted => "interrupted",
+            TaskStatus::RateLimited => "rate_limited",
         }
     }
 
@@ -150,6 +155,9 @@ impl TaskStatus {
             {
                 Some((TaskStatus::Idle, None))
             }
+            AgentEvent::UsageLimitReached { message, .. } if self.has_live_agent() => {
+                Some((TaskStatus::RateLimited, Some(message.clone())))
+            }
             AgentEvent::ProcessExited { code } if self.has_live_agent() => {
                 let detail: String = code
                     .map(|c: i32| format!("código {c}"))
@@ -179,6 +187,7 @@ impl TaskStatus {
         matches!(
             self,
             TaskStatus::Interrupted
+                | TaskStatus::RateLimited
                 | TaskStatus::Failed
                 | TaskStatus::Conflict
                 | TaskStatus::AwaitingReview
@@ -262,6 +271,8 @@ pub struct Task {
     /// Límites de RAM/CPU propios de la tarea; cada recurso definido prevalece sobre el global.
     pub limits: ResourceLimits,
     pub error: Option<String>,
+    /// Reanudación programada tras un límite de uso del proveedor.
+    pub usage_limit: UsageLimitState,
     /// Diálogos abiertos por el agente y aún sin responder.
     pub pending_dialogs: Vec<PendingDialog>,
     /// Subagentes vivos del agente principal (siguen trabajando aunque este se asiente).
@@ -319,9 +330,10 @@ impl Task {
                     TaskStage::Attention
                 }
             }
-            TaskStatus::Conflict | TaskStatus::Failed | TaskStatus::Interrupted => {
-                TaskStage::Attention
-            }
+            TaskStatus::Conflict
+            | TaskStatus::Failed
+            | TaskStatus::Interrupted
+            | TaskStatus::RateLimited => TaskStage::Attention,
             TaskStatus::Starting | TaskStatus::Running | TaskStatus::Finishing => {
                 if self.pending_dialog_count_at(now) == 0 {
                     TaskStage::Working
@@ -733,6 +745,7 @@ mod tests {
             status,
             priority: TaskPriority::default(),
             limits: ResourceLimits::default(),
+            usage_limit: Default::default(),
             error: None,
             pending_dialogs,
             subagents: SubagentActivity::default(),

@@ -12,6 +12,7 @@ use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use crate::modules::tasks::domain::models::worktree::DiffRange;
 
 #[derive(Debug, Clone, Queryable, Selectable, Insertable)]
@@ -38,6 +39,8 @@ pub struct TaskRow {
     pub head_sha: Option<String>,
     pub memory_limit_mb: Option<i32>,
     pub cpu_limit_percent: Option<i32>,
+    pub resume_at: Option<NaiveDateTime>,
+    pub resume_attempts: i32,
 }
 
 /// JSON por defecto cuando la serialización (imposible en la práctica) fallara.
@@ -119,6 +122,11 @@ impl From<&Task> for TaskRow {
                 .limits
                 .cpu_percent
                 .and_then(|v: u32| i32::try_from(v).ok()),
+            resume_at: task
+                .usage_limit
+                .resume_at
+                .map(|at: DateTime<Utc>| at.naive_utc()),
+            resume_attempts: clamp_count(task.usage_limit.attempts),
             base_sha: task
                 .diff_range
                 .as_ref()
@@ -154,6 +162,10 @@ impl TryFrom<TaskRow> for Task {
                     .and_then(|v: i32| u32::try_from(v).ok()),
             },
             error: row.error,
+            usage_limit: UsageLimitState {
+                resume_at: row.resume_at.map(|at: NaiveDateTime| at.and_utc()),
+                attempts: u32::try_from(row.resume_attempts).unwrap_or(0),
+            },
             pending_dialogs: decode_pending_dialogs(&row.pending_dialogs)?,
             subagents: SubagentActivity::new(
                 u32::try_from(row.subagents_active).unwrap_or(0),
@@ -199,6 +211,7 @@ mod tests {
             priority: TaskPriority::default(),
             limits: ResourceLimits::default(),
             error: None,
+            usage_limit: UsageLimitState::default(),
             pending_dialogs: Vec::new(),
             subagents: SubagentActivity::default(),
             diff_range,

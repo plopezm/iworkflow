@@ -97,6 +97,11 @@ pub enum AgentEventDto {
         active: u32,
         waiting: u32,
     },
+    UsageLimitReached {
+        /// RFC 3339 en UTC, si el proveedor indicó cuándo se renueva el límite.
+        resets_at: Option<String>,
+        message: String,
+    },
     ProcessExited {
         code: Option<i32>,
     },
@@ -135,6 +140,8 @@ mod mapping {
     };
     use crate::modules::tasks::domain::models::task::TaskStatus;
     use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
+    use crate::modules::tasks::domain::models::usage_limit::from_epoch_secs;
+    use chrono::{DateTime, Utc};
 
     impl From<NoticeLevel> for NoticeLevelDto {
         fn from(level: NoticeLevel) -> Self {
@@ -245,6 +252,14 @@ mod mapping {
                 }
                 AgentEvent::SubagentsChanged { active, waiting } => {
                     AgentEventDto::SubagentsChanged { active, waiting }
+                }
+                AgentEvent::UsageLimitReached { resets_at, message } => {
+                    AgentEventDto::UsageLimitReached {
+                        resets_at: resets_at
+                            .and_then(from_epoch_secs)
+                            .map(|at: DateTime<Utc>| at.to_rfc3339()),
+                        message,
+                    }
                 }
                 AgentEvent::ProcessExited { code } => AgentEventDto::ProcessExited { code },
             }

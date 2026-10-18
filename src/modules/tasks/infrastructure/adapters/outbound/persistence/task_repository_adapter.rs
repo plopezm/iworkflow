@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use diesel::prelude::*;
 use diesel::result::Error as DieselError;
 use diesel_async::RunQueryDsl;
@@ -12,6 +12,7 @@ use crate::modules::tasks::domain::models::pending_dialog::PendingDialog;
 use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
+use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::models::worktree::DiffRange;
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
@@ -186,6 +187,13 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         if updated == 0 {
             return Err(TaskError::NotFound(id.to_string()));
         }
+        if status != TaskStatus::RateLimited {
+            diesel::update(tasks::table.find(id.to_string()))
+                .set(tasks::resume_at.eq(None::<NaiveDateTime>))
+                .execute(&mut connection)
+                .await
+                .map_err(db_error)?;
+        }
         if !status.has_live_agent() {
             diesel::update(tasks::table.find(id.to_string()))
                 .set((
@@ -222,6 +230,19 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         .execute(&mut connection)
         .await
         .map_err(db_error)?;
+        Ok(())
+    }
+
+    async fn set_usage_limit(&self, id: TaskId, state: UsageLimitState) -> Result<(), TaskError> {
+        let mut connection: DbConnection = self.connection().await?;
+        diesel::update(tasks::table.find(id.to_string()))
+            .set((
+                tasks::resume_at.eq(state.resume_at.map(|at: DateTime<Utc>| at.naive_utc())),
+                tasks::resume_attempts.eq(i32::try_from(state.attempts).unwrap_or(i32::MAX)),
+            ))
+            .execute(&mut connection)
+            .await
+            .map_err(db_error)?;
         Ok(())
     }
 

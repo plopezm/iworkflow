@@ -12,6 +12,7 @@ use crate::modules::tasks::domain::models::subagent_activity::SubagentActivity;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::task_event::{TaskEvent, TaskEventKind};
 use crate::modules::tasks::domain::models::task_priority::TaskPriority;
+use crate::modules::tasks::domain::models::usage_limit::UsageLimitState;
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::mocks::{
     MockTaskEventPublisher, MockTaskRepository, MockWorkspaceLookup,
@@ -44,6 +45,7 @@ pub fn task_with_pending_dialogs(status: TaskStatus, ids: Vec<String>) -> Task {
         status,
         priority: TaskPriority::default(),
         limits: ResourceLimits::default(),
+        usage_limit: UsageLimitState::default(),
         error: None,
         pending_dialogs,
         subagents: Default::default(),
@@ -119,6 +121,15 @@ pub fn repository_with(task: Option<Task>, recorded: &Recorded) -> MockTaskRepos
     repository
         .expect_find()
         .returning(move |_| Ok(task.clone()));
+    record_into(repository, recorded)
+}
+
+/// Como [`repository_with`], pero sin `find`: el llamante define cómo se resuelve.
+pub fn repository_without_find(recorded: &Recorded) -> MockTaskRepository {
+    record_into(MockTaskRepository::new(), recorded)
+}
+
+fn record_into(mut repository: MockTaskRepository, recorded: &Recorded) -> MockTaskRepository {
     let statuses: StatusLog = recorded.statuses.clone();
     repository
         .expect_update_status()
