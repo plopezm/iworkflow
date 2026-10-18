@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use crate::core::components::layout::ErrorText;
 use crate::core::components::select::{OptionSelect, SelectOption};
 use crate::core::components::toast::ToastStack;
+use crate::core::i18n::Msg;
 use crate::modules::agent_settings::infrastructure::adapters::inbound::dto::agent_settings_dto::{
     AgentSettingsDto, ModelOptionDto, ProfileCatalogDto,
 };
@@ -12,7 +13,111 @@ use crate::modules::agent_settings::presentation::state::agent_settings_state::{
 
 /// Runtime por defecto (el que representa la opción vacía del selector).
 const DEFAULT_RUNTIME: &str = "gentle-shell";
-const APPLIES_TO_NEW_TASKS_HINT: &str = "Los cambios se aplican a las tareas nuevas que se inicien, no a las que ya están en marcha ni a las que se reanudan.";
+const APPLIES_TO_NEW_TASKS_HINT: Msg = Msg {
+    en: "Changes apply to newly started tasks, not to ones already running or being resumed.",
+    es: "Los cambios se aplican a las tareas nuevas que se inicien, no a las que ya están en marcha ni a las que se reanudan.",
+    zh: "更改适用于新启动的任务，不适用于已在运行或正在恢复的任务。",
+    de: "Änderungen gelten für neu gestartete Aufgaben, nicht für bereits laufende oder fortgesetzte.",
+    fr: "Les modifications s'appliquent aux nouvelles tâches démarrées, pas à celles déjà en cours ni à celles qui sont reprises.",
+};
+const AGENT: Msg = Msg {
+    en: "Agent",
+    es: "Agente",
+    zh: "智能体",
+    de: "Agent",
+    fr: "Agent",
+};
+const MODEL: Msg = Msg {
+    en: "Model",
+    es: "Modelo",
+    zh: "模型",
+    de: "Modell",
+    fr: "Modèle",
+};
+const PROFILE: Msg = Msg {
+    en: "Profile",
+    es: "Perfil",
+    zh: "配置文件",
+    de: "Profil",
+    fr: "Profil",
+};
+const THINKING: Msg = Msg {
+    en: "Reasoning",
+    es: "Razonamiento",
+    zh: "推理",
+    de: "Reasoning",
+    fr: "Raisonnement",
+};
+const DEFAULT: Msg = Msg {
+    en: "Default",
+    es: "Por defecto",
+    zh: "默认",
+    de: "Standard",
+    fr: "Par défaut",
+};
+const APPLIES_TO_NEW_TASKS: Msg = Msg {
+    en: "Applies to new tasks.",
+    es: "Se aplica a las tareas nuevas.",
+    zh: "适用于新任务。",
+    de: "Gilt für neue Aufgaben.",
+    fr: "S'applique aux nouvelles tâches.",
+};
+const ACTIVE_SUFFIX: Msg = Msg {
+    en: "{name} (active)",
+    es: "{name} (activo)",
+    zh: "{name}（当前）",
+    de: "{name} (aktiv)",
+    fr: "{name} (actif)",
+};
+const THINKING_OFF: Msg = Msg {
+    en: "No reasoning",
+    es: "No reasoning",
+    zh: "无推理",
+    de: "Kein Reasoning",
+    fr: "Sans raisonnement",
+};
+const THINKING_MINIMAL: Msg = Msg {
+    en: "Minimal",
+    es: "Mínimo",
+    zh: "最低",
+    de: "Minimal",
+    fr: "Minimal",
+};
+const THINKING_LOW: Msg = Msg {
+    en: "Low",
+    es: "Bajo",
+    zh: "低",
+    de: "Niedrig",
+    fr: "Faible",
+};
+const THINKING_MEDIUM: Msg = Msg {
+    en: "Medium",
+    es: "Medium",
+    zh: "中",
+    de: "Mittel",
+    fr: "Moyen",
+};
+const THINKING_HIGH: Msg = Msg {
+    en: "High",
+    es: "Alto",
+    zh: "高",
+    de: "Hoch",
+    fr: "Élevé",
+};
+const THINKING_XHIGH: Msg = Msg {
+    en: "Very high",
+    es: "Very high",
+    zh: "非常高",
+    de: "Sehr hoch",
+    fr: "Très élevé",
+};
+const THINKING_MAX: Msg = Msg {
+    en: "Maximum",
+    es: "Maximum",
+    zh: "最高",
+    de: "Maximal",
+    fr: "Maximum",
+};
 
 /// Icono de runtime (terminal) para el selector de implementación de agente.
 fn runtime_icon() -> impl IntoView {
@@ -87,26 +192,26 @@ fn thinking_icon() -> impl IntoView {
     }
 }
 
-/// Etiqueta en español de un nivel de razonamiento (identificador de pi en
+/// Etiqueta traducida de un nivel de razonamiento (identificador de pi en
 /// minúsculas -> texto mostrado en el selector).
 fn thinking_option_label(id: &str) -> String {
-    match id {
-        "off" => "Sin razonamiento",
-        "minimal" => "Mínimo",
-        "low" => "Bajo",
-        "medium" => "Medio",
-        "high" => "Alto",
-        "xhigh" => "Muy alto",
-        "max" => "Máximo",
-        other => other,
-    }
-    .to_string()
+    let label: Option<Msg> = match id {
+        "off" => Some(THINKING_OFF),
+        "minimal" => Some(THINKING_MINIMAL),
+        "low" => Some(THINKING_LOW),
+        "medium" => Some(THINKING_MEDIUM),
+        "high" => Some(THINKING_HIGH),
+        "xhigh" => Some(THINKING_XHIGH),
+        "max" => Some(THINKING_MAX),
+        _ => None,
+    };
+    label.map_or_else(|| id.to_string(), |msg: Msg| msg.get().to_string())
 }
 
 /// Etiqueta visible de una opción de perfil, marcando cuál es el activo globalmente.
 fn profile_option_label(name: &str, active: Option<&str>) -> String {
     if active == Some(name) {
-        format!("{name} (activo)")
+        ACTIVE_SUFFIX.fmt(&[("name", name)])
     } else {
         name.to_string()
     }
@@ -130,7 +235,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
     view! {
         <div
             class="flex flex-col gap-1.5"
-            title=APPLIES_TO_NEW_TASKS_HINT
+            title=APPLIES_TO_NEW_TASKS_HINT.get()
         >
             <Transition fallback=|| view! {
                 <span class="select-pill-skeleton" aria-hidden="true"></span>
@@ -152,7 +257,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .collect();
                     view! {
                         <OptionSelect
-                            label="Agente"
+                            label=AGENT.get()
                             value=current_value
                             options=options
                             default_label=DEFAULT_RUNTIME
@@ -194,10 +299,10 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .collect();
                     view! {
                         <OptionSelect
-                            label="Modelo"
+                            label=MODEL.get()
                             value=current_value
                             options=options
-                            default_label="Por defecto"
+                            default_label=DEFAULT.get()
                             on_change=Callback::new(move |value: String| {
                                 state.select_model(&settings, value)
                             })
@@ -227,10 +332,10 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .collect();
                     view! {
                         <OptionSelect
-                            label="Razonamiento"
+                            label=THINKING.get()
                             value=current_value
                             options=options
-                            default_label="Por defecto"
+                            default_label=DEFAULT.get()
                             on_change=Callback::new(move |value: String| {
                                 state.select_thinking(&settings, value)
                             })
@@ -267,10 +372,10 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .collect();
                     view! {
                         <OptionSelect
-                            label="Perfil"
+                            label=PROFILE.get()
                             value=current_value
                             options=options
-                            default_label="Por defecto"
+                            default_label=DEFAULT.get()
                             on_change=Callback::new(move |value: String| {
                                 state.select_profile(&settings, value)
                             })
@@ -281,7 +386,7 @@ pub fn AgentSettingsBar() -> impl IntoView {
                         .into_any()
                 })}
             </Transition>
-            <p class="text-[11px] text-muted">"Se aplica a las tareas nuevas."</p>
+            <p class="text-[11px] text-muted">{APPLIES_TO_NEW_TASKS.get()}</p>
             <ToastStack toasts=state.toasts />
         </div>
     }
@@ -295,7 +400,7 @@ mod tests {
     fn profile_label_marks_active_profile() {
         assert_eq!(
             profile_option_label("Claude", Some("Claude")),
-            "Claude (activo)"
+            "Claude (active)"
         );
         assert_eq!(profile_option_label("Claude", Some("Other")), "Claude");
         assert_eq!(profile_option_label("Claude", None), "Claude");
@@ -303,13 +408,13 @@ mod tests {
 
     #[test]
     fn thinking_label_translates_known_ids() {
-        assert_eq!(thinking_option_label("off"), "Sin razonamiento");
-        assert_eq!(thinking_option_label("minimal"), "Mínimo");
-        assert_eq!(thinking_option_label("low"), "Bajo");
-        assert_eq!(thinking_option_label("medium"), "Medio");
-        assert_eq!(thinking_option_label("high"), "Alto");
-        assert_eq!(thinking_option_label("xhigh"), "Muy alto");
-        assert_eq!(thinking_option_label("max"), "Máximo");
+        assert_eq!(thinking_option_label("off"), "No reasoning");
+        assert_eq!(thinking_option_label("minimal"), "Minimal");
+        assert_eq!(thinking_option_label("low"), "Low");
+        assert_eq!(thinking_option_label("medium"), "Medium");
+        assert_eq!(thinking_option_label("high"), "High");
+        assert_eq!(thinking_option_label("xhigh"), "Very high");
+        assert_eq!(thinking_option_label("max"), "Maximum");
     }
 
     #[test]

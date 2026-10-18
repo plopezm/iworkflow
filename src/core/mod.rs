@@ -11,6 +11,7 @@ pub mod env;
 pub mod git;
 #[cfg(feature = "ssr")]
 pub mod http;
+pub mod i18n;
 #[cfg(feature = "ssr")]
 pub mod launch;
 pub mod line_diff;

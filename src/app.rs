@@ -6,11 +6,13 @@ use leptos_router::params::ParamsMap;
 use leptos_router::{StaticSegment, WildcardSegment};
 
 use crate::core::browser;
+use crate::core::components::language_picker::{LanguageCard, LanguagePrompt};
 use crate::core::components::shell::{AppShell, SidebarSection, SidebarToggle};
 use crate::core::components::theme_toggle::{THEME_INIT_SCRIPT, ThemeToggle, provide_theme_mode};
 use crate::core::dock::context::{DockContext, use_dock};
 use crate::core::dock::host::{DockHooks, DockHost};
 use crate::core::dock::link::TabLink;
+use crate::core::i18n::{Msg, detect_locale, provide_locale};
 use crate::core::refresh::DataRefresh;
 use crate::core::url_path::decode_path;
 use crate::modules::agent_profiles::presentation::pages::models_page::ModelsPage;
@@ -41,9 +43,10 @@ use crate::modules::workspaces::presentation::pages::workspace_edit_page::Worksp
 use crate::modules::workspaces::presentation::pages::workspaces_page::WorkspacesPage;
 
 pub fn shell(options: LeptosOptions) -> impl IntoView {
+    let lang: &'static str = detect_locale().locale.code();
     view! {
         <!DOCTYPE html>
-        <html lang="es">
+        <html lang=lang>
             <head>
                 <meta charset="utf-8" />
                 <script inner_html=THEME_INIT_SCRIPT></script>
@@ -58,6 +61,166 @@ pub fn shell(options: LeptosOptions) -> impl IntoView {
         </html>
     }
 }
+
+const AGENTS_FILES: Msg = Msg {
+    en: "AGENTS.md",
+    es: "AGENTS.md",
+    zh: "AGENTS.md",
+    de: "AGENTS.md",
+    fr: "AGENTS.md",
+};
+
+const JIRA: Msg = Msg {
+    en: "Jira",
+    es: "Jira",
+    zh: "Jira",
+    de: "Jira",
+    fr: "Jira",
+};
+
+const TITLE_BOARD: Msg = Msg {
+    en: "Board",
+    es: "Tablero",
+    zh: "看板",
+    de: "Board",
+    fr: "Tableau",
+};
+
+const TITLE_WORKSPACES: Msg = Msg {
+    en: "Workspaces",
+    es: "Workspaces",
+    zh: "工作区",
+    de: "Workspaces",
+    fr: "Espaces de travail",
+};
+
+const TITLE_PROJECT: Msg = Msg {
+    en: "Project",
+    es: "Proyecto",
+    zh: "项目",
+    de: "Projekt",
+    fr: "Projet",
+};
+
+const TITLE_FILES: Msg = Msg {
+    en: "Files",
+    es: "Archivos",
+    zh: "文件",
+    de: "Dateien",
+    fr: "Fichiers",
+};
+
+const TITLE_EDIT_WORKSPACE: Msg = Msg {
+    en: "Edit workspace",
+    es: "Editar workspace",
+    zh: "编辑工作区",
+    de: "Workspace bearbeiten",
+    fr: "Modifier l'espace de travail",
+};
+
+const TITLE_TERMINAL: Msg = Msg {
+    en: "Terminal",
+    es: "Terminal",
+    zh: "终端",
+    de: "Terminal",
+    fr: "Terminal",
+};
+
+const TITLE_TERMINALS: Msg = Msg {
+    en: "Terminals",
+    es: "Terminales",
+    zh: "终端",
+    de: "Terminals",
+    fr: "Terminaux",
+};
+
+const TITLE_CONVERT: Msg = Msg {
+    en: "Convert {key}",
+    es: "Convertir {key}",
+    zh: "转换 {key}",
+    de: "{key} konvertieren",
+    fr: "Convertir {key}",
+};
+
+const TITLE_PROFILES: Msg = Msg {
+    en: "Profiles",
+    es: "Perfiles",
+    zh: "配置文件",
+    de: "Profile",
+    fr: "Profils",
+};
+
+const TITLE_MODELS: Msg = Msg {
+    en: "Models",
+    es: "Modelos",
+    zh: "模型",
+    de: "Modelle",
+    fr: "Modèles",
+};
+
+const TITLE_SETTINGS: Msg = Msg {
+    en: "Settings",
+    es: "Configuración",
+    zh: "设置",
+    de: "Einstellungen",
+    fr: "Paramètres",
+};
+
+const TITLE_TASK: Msg = Msg {
+    en: "Task",
+    es: "Tarea",
+    zh: "任务",
+    de: "Aufgabe",
+    fr: "Tâche",
+};
+
+const TITLE_EDIT_TASK: Msg = Msg {
+    en: "Edit task",
+    es: "Editar tarea",
+    zh: "编辑任务",
+    de: "Aufgabe bearbeiten",
+    fr: "Modifier la tâche",
+};
+
+const TITLE_NOT_FOUND: Msg = Msg {
+    en: "Not found",
+    es: "No encontrada",
+    zh: "未找到",
+    de: "Nicht gefunden",
+    fr: "Introuvable",
+};
+
+const PAGE_NOT_FOUND: Msg = Msg {
+    en: "Page not found.",
+    es: "Página no encontrada.",
+    zh: "未找到页面。",
+    de: "Seite nicht gefunden.",
+    fr: "Page introuvable.",
+};
+
+const MENU: Msg = Msg {
+    en: "Menu",
+    es: "Menú",
+    zh: "菜单",
+    de: "Menü",
+    fr: "Menu",
+};
+
+const NAVIGATION: Msg = Msg {
+    en: "Navigation",
+    es: "Navegación",
+    zh: "导航",
+    de: "Navigation",
+    fr: "Navigation",
+};
+
+const EMPTY_GROUP: Msg = Msg {
+    en: "This group has no tabs. Open one:",
+    es: "Este grupo no tiene pestañas. Abre una:",
+    zh: "此分组没有标签页。请打开一个：",
+    de: "Diese Gruppe hat keine Tabs. Öffne einen:",
+    fr: "Ce groupe n'a aucun onglet. Ouvrez-en un :",
+};
 
 /// Pantalla que muestra una pestaña, deducida de su ruta.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -124,30 +287,34 @@ impl TabRoute {
 
     fn title(&self) -> String {
         match self {
-            Self::Board => "Tablero".to_string(),
-            Self::Workspaces => "Workspaces".to_string(),
-            Self::WorkspaceTree(_) => "Proyecto".to_string(),
-            Self::TaskTree(_) => "Archivos".to_string(),
+            Self::Board => TITLE_BOARD.get().to_string(),
+            Self::Workspaces => TITLE_WORKSPACES.get().to_string(),
+            Self::WorkspaceTree(_) => TITLE_PROJECT.get().to_string(),
+            Self::TaskTree(_) => TITLE_FILES.get().to_string(),
             Self::WorkspaceFile(_, path) | Self::TaskFile(_, path) => {
                 path.rsplit('/').next().unwrap_or(path).to_string()
             }
-            Self::WorkspaceEdit(_) => "Editar workspace".to_string(),
-            Self::WorkspaceTerminal(_) | Self::TaskTerminal(_) => "Terminal".to_string(),
-            Self::Terminals => "Terminales".to_string(),
+            Self::WorkspaceEdit(_) => TITLE_EDIT_WORKSPACE.get().to_string(),
+            Self::WorkspaceTerminal(_) | Self::TaskTerminal(_) => TITLE_TERMINAL.get().to_string(),
+            Self::Terminals => TITLE_TERMINALS.get().to_string(),
             Self::TerminalSession(id) => {
-                format!("Terminal {}", id.chars().take(8).collect::<String>())
+                format!(
+                    "{} {}",
+                    TITLE_TERMINAL.get(),
+                    id.chars().take(8).collect::<String>()
+                )
             }
             Self::AgentsFiles => "AGENTS.md".to_string(),
             Self::Jira => "Jira".to_string(),
             Self::JiraIssue(key) => key.clone(),
-            Self::JiraConvert(key) => format!("Convertir {key}"),
-            Self::Profiles => "Perfiles".to_string(),
-            Self::Models => "Modelos".to_string(),
-            Self::Settings => "Configuración".to_string(),
-            Self::Task(_) => "Tarea".to_string(),
-            Self::TaskEdit(_) => "Editar tarea".to_string(),
+            Self::JiraConvert(key) => TITLE_CONVERT.fmt(&[("key", key)]),
+            Self::Profiles => TITLE_PROFILES.get().to_string(),
+            Self::Models => TITLE_MODELS.get().to_string(),
+            Self::Settings => TITLE_SETTINGS.get().to_string(),
+            Self::Task(_) => TITLE_TASK.get().to_string(),
+            Self::TaskEdit(_) => TITLE_EDIT_TASK.get().to_string(),
             Self::TaskDiff(_) => "Diff".to_string(),
-            Self::NotFound => "No encontrada".to_string(),
+            Self::NotFound => TITLE_NOT_FOUND.get().to_string(),
         }
     }
 
@@ -219,7 +386,7 @@ impl TabRoute {
             Self::Profiles => view! { <ProfilesPage /> }.into_any(),
             Self::Models => view! { <ModelsPage /> }.into_any(),
             Self::Settings => view! {
-                <SettingsPage>
+                <SettingsPage leading=Box::new(|| view! { <LanguageCard /> }.into_any())>
                     <JiraSettingsSection />
                     <CodeHostSettingsCard provider="gitlab" />
                     <CodeHostSettingsCard provider="github" />
@@ -230,7 +397,7 @@ impl TabRoute {
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
             Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
             Self::TaskTerminal(_) => view! { <NewTaskTerminalPage /> }.into_any(),
-            Self::NotFound => view! { <p class="muted p-4">"Página no encontrada."</p> }.into_any(),
+            Self::NotFound => view! { <p class="muted p-4">{PAGE_NOT_FOUND.get()}</p> }.into_any(),
         }
     }
 }
@@ -253,26 +420,26 @@ fn tab_params(path: &str) -> ParamsMap {
 }
 
 /// Destinos de nivel superior que ofrecen la barra lateral, el menú `+` y los grupos vacíos.
-const TOP_LEVEL_DESTINATIONS: [(&str, &str, &str); 8] = [
-    ("/", "▦", "Tablero"),
-    ("/terminals", "❯", "Terminales"),
-    ("/workspaces", "▤", "Workspaces"),
-    ("/agents-files", "§", "AGENTS.md"),
-    ("/jira", "◈", "Jira"),
-    ("/profiles", "☰", "Perfiles"),
-    ("/models", "◇", "Modelos"),
-    ("/settings", "⚙", "Configuración"),
+const TOP_LEVEL_DESTINATIONS: [(&str, &str, Msg); 8] = [
+    ("/", "▦", TITLE_BOARD),
+    ("/terminals", "❯", TITLE_TERMINALS),
+    ("/workspaces", "▤", TITLE_WORKSPACES),
+    ("/agents-files", "§", AGENTS_FILES),
+    ("/jira", "◈", JIRA),
+    ("/profiles", "☰", TITLE_PROFILES),
+    ("/models", "◇", TITLE_MODELS),
+    ("/settings", "⚙", TITLE_SETTINGS),
 ];
 
 /// Navegación de la barra lateral, en una sección colapsable "Menú".
 fn sidebar_nav() -> impl IntoView {
     let dock: DockContext = use_dock();
     view! {
-        <SidebarSection title="Menú" count=Signal::stored(TOP_LEVEL_DESTINATIONS.len())>
-            <nav class="flex flex-col gap-0.5" aria-label="Navegación">
+        <SidebarSection title=MENU.get() count=Signal::stored(TOP_LEVEL_DESTINATIONS.len())>
+            <nav class="flex flex-col gap-0.5" aria-label=NAVIGATION.get()>
                 {TOP_LEVEL_DESTINATIONS
                     .into_iter()
-                    .map(|(path, icon, label)| {
+                    .map(|(path, icon, label): (&str, &str, Msg)| {
                         view! {
                             <TabLink
                                 href=path
@@ -285,7 +452,7 @@ fn sidebar_nav() -> impl IntoView {
                                 }
                             >
                                 <span class="sidebar-nav-icon" aria-hidden="true">{icon}</span>
-                                {label}
+                                {label.get()}
                             </TabLink>
                         }
                     })
@@ -318,11 +485,11 @@ fn app_sidebar() -> impl IntoView {
 fn tab_launcher() -> impl IntoView {
     TOP_LEVEL_DESTINATIONS
         .into_iter()
-        .map(|(path, icon, label)| {
+        .map(|(path, icon, label): (&str, &str, Msg)| {
             view! {
                 <TabLink href=path class="menu-item">
                     <span class="mr-2 inline-block w-4 text-center text-muted" aria-hidden="true">{icon}</span>
-                    {label}
+                    {label.get()}
                 </TabLink>
             }
         })
@@ -333,11 +500,11 @@ fn tab_launcher() -> impl IntoView {
 fn empty_group() -> impl IntoView {
     view! {
         <div class="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <p class="text-sm text-muted">"Este grupo no tiene pestañas. Abre una:"</p>
+            <p class="text-sm text-muted">{EMPTY_GROUP.get()}</p>
             <div class="flex max-w-md flex-wrap justify-center gap-2">
                 {TOP_LEVEL_DESTINATIONS
                     .into_iter()
-                    .map(|(path, icon, label)| {
+                    .map(|(path, icon, label): (&str, &str, Msg)| {
                         view! {
                             <TabLink
                                 href=path
@@ -345,7 +512,7 @@ fn empty_group() -> impl IntoView {
                                 class="btn-secondary min-h-8 px-3 py-1 text-xs"
                             >
                                 <span class="mr-1.5" aria-hidden="true">{icon}</span>
-                                {label}
+                                {label.get()}
                             </TabLink>
                         }
                     })
@@ -409,6 +576,7 @@ fn DockBootstrap() -> impl IntoView {
 #[component]
 pub fn App() -> impl IntoView {
     provide_meta_context();
+    provide_locale();
     provide_theme_mode();
     DockContext::provide(tab_title);
     DataRefresh::provide();
@@ -441,6 +609,7 @@ pub fn App() -> impl IntoView {
             </Routes>
             <TaskStoreProvider>
                 <DocumentTitle />
+                <LanguagePrompt />
                 <DockBootstrap />
                 <AppShell brand="iworkflow" sidebar=app_sidebar>
                     <DockHost hooks=hooks launcher=tab_launcher empty=empty_group />
@@ -464,12 +633,13 @@ fn code_host_task_tab() -> TaskExtraTab {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::i18n::{Locale, LocaleState};
 
     #[test]
     fn parse_maps_every_known_path_to_its_screen() {
         assert_eq!(TabRoute::parse("/"), TabRoute::Board);
         assert_eq!(TabRoute::parse("/settings"), TabRoute::Settings);
-        assert_eq!(TabRoute::Settings.title(), "Configuración");
+        assert_eq!(TabRoute::Settings.title(), "Settings");
         assert_eq!(TabRoute::parse("/tasks/a1"), TabRoute::Task("a1".into()));
         assert_eq!(
             TabRoute::parse("/tasks/a1/edit"),
@@ -533,7 +703,7 @@ mod tests {
         assert_eq!(TabRoute::JiraIssue("ABC-12".into()).title(), "ABC-12");
         assert_eq!(
             TabRoute::JiraConvert("ABC-12".into()).title(),
-            "Convertir ABC-12"
+            "Convert ABC-12"
         );
         assert_eq!(TabRoute::parse("/nope/x/y/z"), TabRoute::NotFound);
     }
@@ -563,7 +733,27 @@ mod tests {
 
     #[test]
     fn titles_fall_back_to_a_short_terminal_id() {
-        assert_eq!(tab_title("/"), "Tablero");
+        assert_eq!(tab_title("/"), "Board");
         assert_eq!(tab_title("/terminals/0123456789"), "Terminal 01234567");
+    }
+
+    #[test]
+    fn titles_follow_the_active_language() {
+        let owner: Owner = Owner::new();
+        owner.with(|| {
+            provide_context(LocaleState {
+                locale: Locale::Es,
+                chosen: true,
+            });
+            assert_eq!(tab_title("/settings"), "Configuración");
+            assert_eq!(tab_title("/jira/ABC-1/convert"), "Convertir ABC-1");
+        });
+        Owner::new().with(|| {
+            provide_context(LocaleState {
+                locale: Locale::De,
+                chosen: true,
+            });
+            assert_eq!(tab_title("/settings"), "Einstellungen");
+        });
     }
 }

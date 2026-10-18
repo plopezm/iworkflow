@@ -3,10 +3,26 @@ use leptos::prelude::*;
 use crate::core::components::layout::ErrorText;
 use crate::core::components::tree::{TreeChevron, TreeIcon};
 use crate::core::dock::link::TabLink;
+use crate::core::i18n::Msg;
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::TreeEntryDto;
 use crate::modules::project_tree::presentation::state::project_file_state::file_href;
 use crate::modules::project_tree::presentation::state::project_tree_state::{
     ChildrenState, ProjectTreeState,
+};
+
+const LOADING: Msg = Msg {
+    en: "Loading…",
+    es: "Cargando…",
+    zh: "加载中…",
+    de: "Wird geladen…",
+    fr: "Chargement…",
+};
+const EMPTY_FOLDER: Msg = Msg {
+    en: "Empty folder.",
+    es: "Carpeta vacía.",
+    zh: "文件夹为空。",
+    de: "Leerer Ordner.",
+    fr: "Dossier vide.",
 };
 
 /// Horizontal indentation per depth level, in rem.
@@ -81,7 +97,7 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
                         None | Some(ChildrenState::Loading) => {
                             view! {
                                 <p class="py-1 pr-2 text-xs text-muted" style=indent_style(depth + 2)>
-                                    "Cargando…"
+                                    {LOADING.get()}
                                 </p>
                             }
                                 .into_any()
@@ -97,7 +113,7 @@ pub fn TreeNode(entry: TreeEntryDto, depth: usize, state: ProjectTreeState) -> i
                         Some(ChildrenState::Loaded(entries)) if entries.is_empty() => {
                             view! {
                                 <p class="py-1 pr-2 text-xs text-muted" style=indent_style(depth + 2)>
-                                    "Carpeta vacía."
+                                    {EMPTY_FOLDER.get()}
                                 </p>
                             }
                                 .into_any()

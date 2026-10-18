@@ -6,6 +6,7 @@ use leptos::prelude::*;
 use crate::core::components::browser_notification::{
     request_permission_on_first_interaction, show_notification,
 };
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, WorkspaceOptionDto,
 };
@@ -13,6 +14,14 @@ use crate::modules::tasks::presentation::state::task_notifications::{
     NotificationPlan, TaskNotification, TaskSnapshot, plan_notifications,
 };
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
+
+const ACTIVE_COUNT: Msg = Msg {
+    en: "{branch} · {count} active",
+    es: "{branch} · {count} activas",
+    zh: "{branch} · {count} 个进行中",
+    de: "{branch} · {count} aktiv",
+    fr: "{branch} · {count} actives",
+};
 
 /// Fila de un workspace en la barra lateral.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,7 +60,8 @@ pub fn build_workspace_rows(
             SidebarWorkspaceRow {
                 id: w.id.clone(),
                 name: w.name.clone(),
-                subtitle: format!("{} · {count} activas", w.base_branch),
+                subtitle: ACTIVE_COUNT
+                    .fmt(&[("branch", &w.base_branch), ("count", &count.to_string())]),
             }
         })
         .collect()
@@ -221,8 +231,8 @@ mod tests {
             task("b", "w1", "2026-01-02T00:00:00Z"),
         ];
         let rows: Vec<SidebarWorkspaceRow> = build_workspace_rows(&workspaces, &tasks);
-        assert_eq!(rows[0].subtitle, "main · 2 activas");
-        assert_eq!(rows[1].subtitle, "main · 0 activas");
+        assert_eq!(rows[0].subtitle, "main · 2 active");
+        assert_eq!(rows[1].subtitle, "main · 0 active");
     }
 
     #[test]
@@ -239,8 +249,8 @@ mod tests {
             .map(|r: &SidebarTaskRow| r.id.as_str())
             .collect();
         assert_eq!(ids, ["new", "orphan", "old"]);
-        assert_eq!(rows[0].subtitle, "Esperando · uno");
-        assert_eq!(rows[1].subtitle, "Esperando");
+        assert_eq!(rows[0].subtitle, "Waiting · uno");
+        assert_eq!(rows[1].subtitle, "Waiting");
     }
 
     #[test]

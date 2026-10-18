@@ -1,7 +1,31 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStageDto;
 use crate::modules::tasks::presentation::state::board_state::{FILTER_STAGES, filter_label};
+
+const BOARD: Msg = Msg {
+    en: "Board",
+    es: "Tablero",
+    zh: "看板",
+    de: "Board",
+    fr: "Tableau",
+};
+const NEW_TASK: Msg = Msg {
+    en: "New task",
+    es: "Nueva tarea",
+    zh: "新建任务",
+    de: "Neue Aufgabe",
+    fr: "Nouvelle tâche",
+};
+const SHOW_DONE: Msg = Msg {
+    en: "Show completed",
+    es: "Mostrar terminadas",
+    zh: "显示已完成",
+    de: "Erledigte anzeigen",
+    fr: "Afficher les terminées",
+};
 
 /// Clase Tailwind completa del punto de color de un chip de filtro.
 fn filter_dot_class(stage: TaskStageDto) -> &'static str {
@@ -24,10 +48,10 @@ pub fn BoardToolbar(
     view! {
         <div class="flex shrink-0 flex-col gap-2 border-b border-border bg-surface px-4 py-2.5">
             <div class="flex items-center justify-between gap-3">
-                <h1 class="page-title">"Tablero"</h1>
+                <h1 class="page-title">{BOARD.get()}</h1>
                 <button class="btn-primary" on:click=move |_| on_new_task.run(())>
                     <span class="text-lg leading-none">+</span>
-                    <span class="hidden sm:inline">"Nueva tarea"</span>
+                    <span class="hidden sm:inline">{NEW_TASK.get()}</span>
                 </button>
             </div>
             <div class="flex items-center gap-2 overflow-x-auto pb-0.5">
@@ -56,7 +80,7 @@ pub fn BoardToolbar(
                         prop:checked=move || show_done.get()
                         on:change=move |ev| show_done.set(event_target_checked(&ev))
                     />
-                    "Mostrar terminadas"
+                    {SHOW_DONE.get()}
                 </label>
             </div>
         </div>

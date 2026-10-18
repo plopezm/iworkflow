@@ -2,7 +2,16 @@ use leptos::prelude::*;
 
 use crate::core::components::form::TextField;
 use crate::core::components::modal::Modal;
+use crate::core::i18n::Msg;
 use crate::modules::agent_profiles::presentation::state::name_rules::slug_hint;
+
+const CANCEL: Msg = Msg {
+    en: "Cancel",
+    es: "Cancelar",
+    zh: "取消",
+    de: "Abbrechen",
+    fr: "Annuler",
+};
 
 /// Diálogo genérico que pide un nombre slug (nuevo, duplicado, renombrado…).
 #[component]
@@ -46,7 +55,7 @@ pub fn NameDialog(
                         {move || confirm_label.get_value()}
                     </button>
                     <button type="button" class="btn-secondary" on:click=move |_| on_close.run(())>
-                        "Cancelar"
+                        {CANCEL.get()}
                     </button>
                 </div>
             </form>

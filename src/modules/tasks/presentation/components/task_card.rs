@@ -1,11 +1,85 @@
 use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::core::browser::confirm;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskActionsDto, TaskDto, TaskPriorityDto, TaskStageDto,
 };
 use crate::modules::tasks::presentation::components::stage_badge::StageBadge;
+
+const START: Msg = Msg {
+    en: "Start",
+    es: "Iniciar",
+    zh: "开始",
+    de: "Starten",
+    fr: "Démarrer",
+};
+
+const EDIT: Msg = Msg {
+    en: "Edit",
+    es: "Editar",
+    zh: "编辑",
+    de: "Bearbeiten",
+    fr: "Modifier",
+};
+
+const DELETE: Msg = Msg {
+    en: "Delete",
+    es: "Borrar",
+    zh: "删除",
+    de: "Löschen",
+    fr: "Supprimer",
+};
+
+const OPEN: Msg = Msg {
+    en: "Open",
+    es: "Abrir",
+    zh: "打开",
+    de: "Öffnen",
+    fr: "Ouvrir",
+};
+
+const FINISH: Msg = Msg {
+    en: "Finish",
+    es: "Finalizar",
+    zh: "完成",
+    de: "Abschließen",
+    fr: "Terminer",
+};
+
+const MERGE: Msg = Msg {
+    en: "Merge",
+    es: "Integrar",
+    zh: "合并",
+    de: "Integrieren",
+    fr: "Intégrer",
+};
+
+const CONFIRM_DELETE: Msg = Msg {
+    en: "Delete this task from the pending list?",
+    es: "¿Borrar esta tarea de la lista de pendientes?",
+    zh: "要从待办列表中删除此任务吗？",
+    de: "Diese Aufgabe aus der Liste der offenen Aufgaben löschen?",
+    fr: "Supprimer cette tâche de la liste des tâches en attente ?",
+};
+
+const PENDING_DIALOG_ONE: Msg = Msg {
+    en: "1 dialog",
+    es: "1 diálogo",
+    zh: "1 个对话框",
+    de: "1 Dialog",
+    fr: "1 dialogue",
+};
+
+const PENDING_DIALOGS_MANY: Msg = Msg {
+    en: "{count} dialogs",
+    es: "{count} diálogos",
+    zh: "{count} 个对话框",
+    de: "{count} Dialoge",
+    fr: "{count} dialogues",
+};
 
 /// Fecha RFC 3339 recortada a `AAAA-MM-DD HH:MM` para mostrarla de forma compacta.
 pub fn short_timestamp(rfc3339: &str) -> String {
@@ -130,7 +204,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                                 disabled=move || start_busy.get()
                                                 on:click=move |_| handlers.start.run(start_id.clone())
                                             >
-                                                "Iniciar"
+                                                {START.get()}
                                             </button>
                                         }
                                     })}
@@ -142,7 +216,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                                 class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
                                                 on:click=move |_| handlers.edit.run(edit_task.clone())
                                             >
-                                                "Editar"
+                                                {EDIT.get()}
                                             </button>
                                         }
                                     })}
@@ -154,12 +228,12 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                                 class="btn-ghost min-h-9 px-3 py-1.5 text-xs hover:bg-error/10 hover:text-error"
                                                 disabled=move || delete_busy.get()
                                                 on:click=move |_| {
-                                                    if confirm("¿Borrar esta tarea de la lista de pendientes?") {
+                                                    if confirm(CONFIRM_DELETE.get()) {
                                                         handlers.delete.run(delete_id.clone());
                                                     }
                                                 }
                                             >
-                                                "Borrar"
+                                                {DELETE.get()}
                                             </button>
                                         }
                                     })}
@@ -181,7 +255,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                     href=format!("/tasks/{id}")
                                     class="btn-ghost min-h-9 px-3 py-1.5 text-xs"
                                 >
-                                    "Abrir"
+                                    {OPEN.get()}
                                 </TabLink>
                                 {task
                                     .actions
@@ -193,7 +267,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                                 disabled=move || finish_busy.get()
                                                 on:click=move |_| handlers.finish.run(finish_id.clone())
                                             >
-                                                "Finalizar"
+                                                {FINISH.get()}
                                             </button>
                                         }
                                     })}
@@ -207,7 +281,7 @@ pub fn TaskCard(task: TaskDto, handlers: TaskCardHandlers, busy: TaskCardBusy) -
                                                 disabled=move || merge_busy.get()
                                                 on:click=move |_| handlers.merge.run(merge_id.clone())
                                             >
-                                                "Integrar"
+                                                {MERGE.get()}
                                             </button>
                                         }
                                     })}
@@ -245,15 +319,16 @@ pub fn prompt_adds_info(title: &str, prompt: &str) -> bool {
 /// Etiqueta con singular/plural del número de diálogos pendientes.
 fn pending_dialogs_label(count: usize) -> String {
     if count == 1 {
-        "1 diálogo".to_string()
+        PENDING_DIALOG_ONE.get().to_string()
     } else {
-        format!("{count} diálogos")
+        PENDING_DIALOGS_MANY.fmt(&[("count", &count.to_string())])
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::i18n::Locale;
 
     #[test]
     fn short_timestamp_keeps_minutes() {
@@ -288,7 +363,14 @@ mod tests {
 
     #[test]
     fn pending_dialogs_label_pluralises() {
-        assert_eq!(pending_dialogs_label(1), "1 diálogo");
-        assert_eq!(pending_dialogs_label(3), "3 diálogos");
+        assert_eq!(pending_dialogs_label(1), "1 dialog");
+        assert_eq!(pending_dialogs_label(3), "3 dialogs");
+        assert_eq!(PENDING_DIALOG_ONE.in_locale(Locale::Es), "1 diálogo");
+        assert_eq!(
+            PENDING_DIALOGS_MANY
+                .in_locale(Locale::Es)
+                .replace("{count}", "3"),
+            "3 diálogos"
+        );
     }
 }

@@ -3,6 +3,7 @@ use leptos::web_sys::FormData;
 
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
+use crate::core::i18n::Msg;
 use crate::modules::agents_files::infrastructure::adapters::inbound::dto::agents_file_dto::{
     AgentsFileDto, ProjectOptionDto,
 };
@@ -10,6 +11,28 @@ use crate::modules::agents_files::presentation::components::agents_file_list::Ag
 use crate::modules::agents_files::presentation::components::agents_file_upload_form::AgentsFileUploadForm;
 use crate::modules::agents_files::presentation::state::agents_files_state::{
     AgentsFilesState, ApplyFeedback,
+};
+
+const UPLOAD_FILE: Msg = Msg {
+    en: "Upload file",
+    es: "Subir fichero",
+    zh: "上传文件",
+    de: "Datei hochladen",
+    fr: "Envoyer un fichier",
+};
+const FILES: Msg = Msg {
+    en: "Files",
+    es: "Ficheros",
+    zh: "文件",
+    de: "Dateien",
+    fr: "Fichiers",
+};
+const LOADING: Msg = Msg {
+    en: "Loading…",
+    es: "Cargando…",
+    zh: "加载中…",
+    de: "Wird geladen…",
+    fr: "Chargement…",
 };
 
 #[component]
@@ -41,7 +64,7 @@ pub fn AgentsFilesPage() -> impl IntoView {
                 <h1 class="page-title">"AGENTS.md"</h1>
             </div>
             <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
-                <Card title="Subir fichero">
+                <Card title=UPLOAD_FILE.get()>
                     <AgentsFileUploadForm
                         description=state.description
                         form_ref=state.form_ref
@@ -50,10 +73,10 @@ pub fn AgentsFilesPage() -> impl IntoView {
                     />
                     <ActionError result=state.upload.value().into() />
                 </Card>
-                <Card title="Ficheros">
+                <Card title=FILES.get()>
                     <ActionError result=state.apply.value().into() />
                     <ActionError result=state.delete.value().into() />
-                    <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+                    <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
                         {move || Suspend::new(async move {
                             let files: Result<Vec<AgentsFileDto>, ServerFnError> =
                                 state.agents_files.await;

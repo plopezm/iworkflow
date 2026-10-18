@@ -1,10 +1,68 @@
 use leptos::portal::Portal;
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::core::markdown::render_markdown;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::presentation::components::diff_view::line_class;
 use crate::modules::tasks::presentation::state::diff_report::{FilePatch, split_patch_by_file};
+
+const SAVE_AS_PDF: Msg = Msg {
+    en: "Save as PDF",
+    es: "Guardar como PDF",
+    zh: "另存为 PDF",
+    de: "Als PDF speichern",
+    fr: "Enregistrer en PDF",
+};
+
+const CLOSE: Msg = Msg {
+    en: "Close",
+    es: "Cerrar",
+    zh: "关闭",
+    de: "Schließen",
+    fr: "Fermer",
+};
+
+const COMMITS: Msg = Msg {
+    en: "Commits ({n})",
+    es: "Commits ({n})",
+    zh: "提交（{n}）",
+    de: "Commits ({n})",
+    fr: "Commits ({n})",
+};
+
+const SUMMARY: Msg = Msg {
+    en: "Summary",
+    es: "Resumen",
+    zh: "摘要",
+    de: "Zusammenfassung",
+    fr: "Résumé",
+};
+
+const TRUNCATED: Msg = Msg {
+    en: "Patch truncated: review the rest with git.",
+    es: "Parche truncado: revisa el resto con git.",
+    zh: "补丁已截断：请使用 git 查看其余部分。",
+    de: "Patch gekürzt: Den Rest mit git prüfen.",
+    fr: "Patch tronqué : consultez le reste avec git.",
+};
+
+const AGENT_EXPLANATION: Msg = Msg {
+    en: "Agent explanation",
+    es: "Explicación del agente",
+    zh: "智能体说明",
+    de: "Erklärung des Agents",
+    fr: "Explication de l’agent",
+};
+
+const CHANGES_BY_FILE: Msg = Msg {
+    en: "Changes by file",
+    es: "Cambios por fichero",
+    zh: "按文件划分的更改",
+    de: "Änderungen pro Datei",
+    fr: "Modifications par fichier",
+};
 
 /// Opens the browser print dialog (where "Save as PDF" is available).
 fn print_page() {
@@ -41,29 +99,29 @@ fn report_body(
             <div class="print-report">
                 <div class="print-report-toolbar">
                     <button type="button" class="btn-primary" on:click=move |_| print_page()>
-                        "Guardar como PDF"
+                        {SAVE_AS_PDF.get()}
                     </button>
                     <button type="button" class="btn-secondary" on:click=move |_| on_close.run(())>
-                        "Cerrar"
+                        {CLOSE.get()}
                     </button>
                 </div>
                 <article class="print-report-page">
                     <h1>{title}</h1>
-                    <h2>{format!("Commits ({})", diff.commits.len())}</h2>
+                    <h2>{COMMITS.fmt(&[("n", &diff.commits.len().to_string())])}</h2>
                     <pre class="print-report-block">{diff.commits.join("\n")}</pre>
-                    <h2>"Resumen"</h2>
+                    <h2>{SUMMARY.get()}</h2>
                     <pre class="print-report-block">{diff.stat}</pre>
                     {diff
                         .truncated
-                        .then(|| view! { <p>"Parche truncado: revisa el resto con git."</p> })}
+                        .then(|| view! { <p>{TRUNCATED.get()}</p> })}
                     {explanation
                         .map(|text: String| {
                             view! {
-                                <h2>"Explicación del agente"</h2>
+                                <h2>{AGENT_EXPLANATION.get()}</h2>
                                 <div class="markdown" inner_html=render_markdown(&text)></div>
                             }
                         })}
-                    <h2>"Cambios por fichero"</h2>
+                    <h2>{CHANGES_BY_FILE.get()}</h2>
                     {files
                         .into_iter()
                         .map(|file: FilePatch| {

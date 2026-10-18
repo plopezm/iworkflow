@@ -2,18 +2,35 @@ use leptos::prelude::*;
 
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
+use crate::core::i18n::Msg;
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::JiraConnectionDto;
 use crate::modules::jira::presentation::components::connection_form::JiraConnectionForm;
 use crate::modules::jira::presentation::components::connection_summary::JiraConnectionSummary;
 use crate::modules::jira::presentation::state::jira_connection_state::JiraConnectionState;
+
+const CARD_TITLE: Msg = Msg {
+    en: "Jira connection",
+    es: "Conexión con Jira",
+    zh: "Jira 连接",
+    de: "Jira-Verbindung",
+    fr: "Connexion à Jira",
+};
+
+const LOADING: Msg = Msg {
+    en: "Loading…",
+    es: "Cargando…",
+    zh: "加载中…",
+    de: "Wird geladen…",
+    fr: "Chargement…",
+};
 
 /// Card to view, set, edit and remove the Jira connection. Shared by the Jira and the
 /// settings screens.
 #[component]
 pub fn JiraConnectionCard(state: JiraConnectionState) -> impl IntoView {
     view! {
-        <Card title="Conexión con Jira">
-            <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+        <Card title=CARD_TITLE.get()>
+            <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
                 {move || Suspend::new(async move {
                     match state.connection.await {
                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),

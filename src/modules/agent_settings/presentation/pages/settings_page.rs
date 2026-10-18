@@ -2,10 +2,52 @@ use leptos::prelude::*;
 
 use crate::core::components::form::{ActionError, NumberInput};
 use crate::core::components::layout::{Card, ErrorText};
+use crate::core::i18n::Msg;
 use crate::modules::agent_settings::infrastructure::adapters::inbound::dto::agent_settings_dto::AgentSettingsDto;
 use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
 
-const LIMITS_HELP: &str = "Limita la RAM y la CPU del agente de cada tarea (solo Linux con systemd). Cada tarea puede fijar sus propios valores, que prevalecen sobre estos. Se aplica a las tareas que se inicien o reanuden a partir de ahora.";
+const LIMITS_HELP: Msg = Msg {
+    en: "Limits the RAM and CPU of each task's agent (Linux with systemd only). Each task can set its own values, which take precedence over these. Applies to tasks started or resumed from now on.",
+    es: "Limita la RAM y la CPU del agente de cada tarea (solo Linux con systemd). Cada tarea puede fijar sus propios valores, que prevalecen sobre estos. Se aplica a las tareas que se inicien o reanuden a partir de ahora.",
+    zh: "限制每个任务中智能体的内存和 CPU（仅限使用 systemd 的 Linux）。每个任务可以设置自己的值，并优先于此处的值。适用于从现在起启动或恢复的任务。",
+    de: "Begrenzt RAM und CPU des Agents jeder Aufgabe (nur Linux mit systemd). Jede Aufgabe kann eigene Werte festlegen, die Vorrang vor diesen haben. Gilt für Aufgaben, die ab jetzt gestartet oder fortgesetzt werden.",
+    fr: "Limite la RAM et le CPU de l'agent de chaque tâche (Linux avec systemd uniquement). Chaque tâche peut définir ses propres valeurs, qui prévalent sur celles-ci. S'applique aux tâches démarrées ou reprises à partir de maintenant.",
+};
+const PAGE_TITLE: Msg = Msg {
+    en: "Settings",
+    es: "Configuración",
+    zh: "设置",
+    de: "Einstellungen",
+    fr: "Paramètres",
+};
+const LOADING: Msg = Msg {
+    en: "Loading…",
+    es: "Cargando…",
+    zh: "加载中…",
+    de: "Wird geladen…",
+    fr: "Chargement…",
+};
+const RESOURCE_LIMITS: Msg = Msg {
+    en: "Resource limits",
+    es: "Límites de recursos",
+    zh: "资源限制",
+    de: "Ressourcenlimits",
+    fr: "Limites de ressources",
+};
+const LIMIT_AGENT_RESOURCES: Msg = Msg {
+    en: "Limit agent resources",
+    es: "Limitar recursos del agente",
+    zh: "限制智能体资源",
+    de: "Agent-Ressourcen begrenzen",
+    fr: "Limiter les ressources de l'agent",
+};
+const NO_LIMIT: Msg = Msg {
+    en: "no limit",
+    es: "sin límite",
+    zh: "无限制",
+    de: "kein Limit",
+    fr: "sans limite",
+};
 
 /// Pantalla de configuración: límites de recursos del agente.
 #[component]
@@ -13,6 +55,9 @@ pub fn SettingsPage(
     /// Extra sections supplied by the composition root (e.g. other features' settings).
     #[prop(optional)]
     children: Option<Children>,
+    /// Section rendered before everything else (e.g. the language card).
+    #[prop(optional)]
+    leading: Option<Children>,
 ) -> impl IntoView {
     let state: AgentSettingsState = AgentSettingsState::shared();
     let pending: Signal<bool> = state.update.pending().into();
@@ -20,10 +65,11 @@ pub fn SettingsPage(
     view! {
         <div class="flex h-full min-h-0 flex-col">
             <div class="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2.5">
-                <h1 class="page-title">"Configuración"</h1>
+                <h1 class="page-title">{PAGE_TITLE.get()}</h1>
             </div>
             <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
-                <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+                {leading.map(|first: Children| first())}
+                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
                     {move || Suspend::new(async move {
                         let settings: AgentSettingsDto = match state.settings.await {
                             Ok(settings) => settings,
@@ -45,8 +91,8 @@ pub fn SettingsPage(
                         let inputs_disabled: Signal<bool> =
                             Signal::derive(move || pending.get() || !enabled);
                         view! {
-                            <Card title="Límites de recursos">
-                                <p class="muted text-sm">{LIMITS_HELP}</p>
+                            <Card title=RESOURCE_LIMITS.get()>
+                                <p class="muted text-sm">{LIMITS_HELP.get()}</p>
                                 <label class="row items-center gap-2 text-sm text-fg">
                                     <input
                                         type="checkbox"
@@ -61,14 +107,14 @@ pub fn SettingsPage(
                                                 )
                                         }
                                     />
-                                    "Limitar recursos del agente"
+                                    {LIMIT_AGENT_RESOURCES.get()}
                                 </label>
                                 <div class="row flex-wrap gap-2">
                                     <NumberInput
                                         label="RAM"
                                         value=memory
                                         unit="MiB"
-                                        placeholder="sin límite"
+                                        placeholder=NO_LIMIT.get()
                                         on_change=Callback::new(move |value: String| {
                                             state.set_memory_limit(&for_memory, value)
                                         })
@@ -78,7 +124,7 @@ pub fn SettingsPage(
                                         label="CPU"
                                         value=cpu
                                         unit="%"
-                                        placeholder="sin límite"
+                                        placeholder=NO_LIMIT.get()
                                         on_change=Callback::new(move |value: String| {
                                             state.set_cpu_limit(&settings, value)
                                         })

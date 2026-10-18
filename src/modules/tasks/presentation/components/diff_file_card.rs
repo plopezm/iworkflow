@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::tasks::presentation::components::diff_badges::{DiffCounts, DiffStatusBadge};
 use crate::modules::tasks::presentation::components::diff_file_editor::DiffFileEditor;
 use crate::modules::tasks::presentation::state::diff_files::{
@@ -7,6 +9,46 @@ use crate::modules::tasks::presentation::state::diff_files::{
 };
 use crate::modules::tasks::presentation::state::diff_view_state::{
     DiffViewState, ViewMode, anchor_id,
+};
+
+const EDIT: Msg = Msg {
+    en: "Edit",
+    es: "Editar",
+    zh: "编辑",
+    de: "Bearbeiten",
+    fr: "Modifier",
+};
+
+const BINARY_FILE: Msg = Msg {
+    en: "Binary file: content is not shown.",
+    es: "Fichero binario: no se muestra el contenido.",
+    zh: "二进制文件：不显示内容。",
+    de: "Binärdatei: Der Inhalt wird nicht angezeigt.",
+    fr: "Fichier binaire : le contenu n’est pas affiché.",
+};
+
+const NO_CONTENT_CHANGES: Msg = Msg {
+    en: "No content changes.",
+    es: "Sin cambios de contenido.",
+    zh: "内容没有变化。",
+    de: "Keine Inhaltsänderungen.",
+    fr: "Aucune modification de contenu.",
+};
+
+const BEFORE: Msg = Msg {
+    en: "Before",
+    es: "Antes",
+    zh: "之前",
+    de: "Vorher",
+    fr: "Avant",
+};
+
+const AFTER: Msg = Msg {
+    en: "After",
+    es: "Después",
+    zh: "之后",
+    de: "Nachher",
+    fr: "Après",
 };
 
 /// CSS class of a split-view cell; a missing cell is the blank side of an add/remove.
@@ -106,7 +148,7 @@ pub fn DiffFileCard(file: FileDiff, state: DiffViewState, editable: bool) -> imp
                             move |_| state.start_edit(&edit_path)
                         }
                     >
-                        "Editar"
+                        {EDIT.get()}
                     </button>
                 </Show>
             </header>
@@ -117,10 +159,10 @@ pub fn DiffFileCard(file: FileDiff, state: DiffViewState, editable: bool) -> imp
                         if editing.get() {
                             view! { <DiffFileEditor path=editor_path.clone() state /> }.into_any()
                         } else if binary {
-                            view! { <p class="muted p-3">"Fichero binario: no se muestra el contenido."</p> }
+                            view! { <p class="muted p-3">{BINARY_FILE.get()}</p> }
                                 .into_any()
                         } else if !has_hunks {
-                            view! { <p class="muted p-3">"Sin cambios de contenido."</p> }.into_any()
+                            view! { <p class="muted p-3">{NO_CONTENT_CHANGES.get()}</p> }.into_any()
                         } else {
                             match state.view_mode.get() {
                                 ViewMode::Split => {
@@ -147,9 +189,9 @@ fn SplitBody(hunks: Vec<Hunk>) -> impl IntoView {
                 <thead>
                     <tr>
                         <th class="diff-num"></th>
-                        <th class="diff-col-head">"Antes"</th>
+                        <th class="diff-col-head">{BEFORE.get()}</th>
                         <th class="diff-num"></th>
-                        <th class="diff-col-head">"Después"</th>
+                        <th class="diff-col-head">{AFTER.get()}</th>
                     </tr>
                 </thead>
                 <tbody>

@@ -1,6 +1,36 @@
 use leptos::prelude::*;
 
 use crate::core::browser;
+use crate::core::i18n::Msg;
+
+const THEME_LIGHT: Msg = Msg {
+    en: "☀ Light",
+    es: "☀ Claro",
+    zh: "☀ 浅色",
+    de: "☀ Hell",
+    fr: "☀ Clair",
+};
+const THEME_DARK: Msg = Msg {
+    en: "☾ Dark",
+    es: "☾ Oscuro",
+    zh: "☾ 深色",
+    de: "☾ Dunkel",
+    fr: "☾ Sombre",
+};
+const THEME_AUTO: Msg = Msg {
+    en: "Auto",
+    es: "Auto",
+    zh: "自动",
+    de: "Auto",
+    fr: "Auto",
+};
+const THEME: Msg = Msg {
+    en: "Theme",
+    es: "Tema",
+    zh: "主题",
+    de: "Design",
+    fr: "Thème",
+};
 
 /// Script bloqueante del `<head>`: fija `data-theme` antes del primer pintado.
 pub const THEME_INIT_SCRIPT: &str = "(function(){try{var m=localStorage.getItem('pi-theme');\
@@ -60,10 +90,10 @@ fn choose_theme(mode: RwSignal<ThemeMode>, next: ThemeMode) {
     browser::set_document_theme(next.resolve(browser::system_prefers_dark()));
 }
 
-const OPTIONS: [(ThemeMode, &str); 3] = [
-    (ThemeMode::Light, "☀ Claro"),
-    (ThemeMode::Dark, "☾ Oscuro"),
-    (ThemeMode::System, "Auto"),
+const OPTIONS: [(ThemeMode, Msg); 3] = [
+    (ThemeMode::Light, THEME_LIGHT),
+    (ThemeMode::Dark, THEME_DARK),
+    (ThemeMode::System, THEME_AUTO),
 ];
 
 /// Selector claro / oscuro / sistema. Requiere `provide_theme_mode()` en un ancestro.
@@ -71,10 +101,10 @@ const OPTIONS: [(ThemeMode, &str); 3] = [
 pub fn ThemeToggle() -> impl IntoView {
     let mode: RwSignal<ThemeMode> = expect_context::<RwSignal<ThemeMode>>();
     view! {
-        <div class="flex gap-1.5" role="group" aria-label="Tema">
+        <div class="flex gap-1.5" role="group" aria-label=THEME.get()>
             {OPTIONS
                 .into_iter()
-                .map(|(option, label): (ThemeMode, &str)| {
+                .map(|(option, label): (ThemeMode, Msg)| {
                     view! {
                         <button
                             class=move || {
@@ -87,7 +117,7 @@ pub fn ThemeToggle() -> impl IntoView {
                             aria-pressed=move || (mode.get() == option).to_string()
                             on:click=move |_| choose_theme(mode, option)
                         >
-                            {label}
+                            {label.get()}
                         </button>
                     }
                 })

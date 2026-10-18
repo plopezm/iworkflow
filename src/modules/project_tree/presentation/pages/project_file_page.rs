@@ -3,9 +3,53 @@ use leptos::prelude::*;
 use crate::core::components::code::CodeEditor;
 use crate::core::components::layout::ErrorText;
 use crate::core::dock::context::use_tab_params;
+use crate::core::i18n::Msg;
 use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::ProjectFileDto;
 use crate::modules::project_tree::presentation::state::project_file_state::{
     ProjectFileState, is_dirty,
+};
+
+const LOADING_FILE: Msg = Msg {
+    en: "Loading file…",
+    es: "Cargando fichero…",
+    zh: "正在加载文件…",
+    de: "Datei wird geladen…",
+    fr: "Chargement du fichier…",
+};
+const SAVING: Msg = Msg {
+    en: "Saving…",
+    es: "Guardando…",
+    zh: "保存中…",
+    de: "Wird gespeichert…",
+    fr: "Enregistrement…",
+};
+const SAVE: Msg = Msg {
+    en: "Save",
+    es: "Guardar",
+    zh: "保存",
+    de: "Speichern",
+    fr: "Enregistrer",
+};
+const DISCARD: Msg = Msg {
+    en: "Discard",
+    es: "Descartar",
+    zh: "放弃",
+    de: "Verwerfen",
+    fr: "Abandonner",
+};
+const RELOAD_FROM_DISK: Msg = Msg {
+    en: "Reload from disk",
+    es: "Recargar desde disco",
+    zh: "从磁盘重新加载",
+    de: "Von Festplatte neu laden",
+    fr: "Recharger depuis le disque",
+};
+const UNSAVED_CHANGES: Msg = Msg {
+    en: "Unsaved changes",
+    es: "Cambios sin guardar",
+    zh: "未保存的更改",
+    de: "Nicht gespeicherte Änderungen",
+    fr: "Modifications non enregistrées",
 };
 
 /// Visor/editor de un fichero del proyecto. Se reconstruye por cada (workspace, ruta).
@@ -43,7 +87,7 @@ fn ProjectFileContent(workspace_id: String, path: String) -> impl IntoView {
                 </h1>
             </div>
             <Transition fallback=|| {
-                view! { <p class="px-3 py-2 text-xs text-muted">"Cargando fichero…"</p> }
+                view! { <p class="px-3 py-2 text-xs text-muted">{LOADING_FILE.get()}</p> }
             }>
                 {move || {
                     let path: String = path.clone();
@@ -91,7 +135,7 @@ fn file_body(file: ProjectFileDto, state: ProjectFileState) -> impl IntoView {
                 disabled=move || saving.get() || !dirty.get()
                 on:click=move |_| save.run(())
             >
-                {move || if saving.get() { "Guardando…" } else { "Guardar" }}
+                {move || if saving.get() { SAVING.get() } else { SAVE.get() }}
             </button>
             <button
                 type="button"
@@ -99,13 +143,13 @@ fn file_body(file: ProjectFileDto, state: ProjectFileState) -> impl IntoView {
                 disabled=move || saving.get() || !dirty.get()
                 on:click=move |_| state.draft.set(loaded.get_value())
             >
-                "Descartar"
+                {DISCARD.get()}
             </button>
-            <button type="button" class="icon-btn" title="Recargar desde disco" on:click=move |_| state.refresh()>
+            <button type="button" class="icon-btn" title=RELOAD_FROM_DISK.get() on:click=move |_| state.refresh()>
                 "↻"
             </button>
             <Show when=move || dirty.get()>
-                <span class="text-xs text-muted">"Cambios sin guardar"</span>
+                <span class="text-xs text-muted">{UNSAVED_CHANGES.get()}</span>
             </Show>
         </div>
         {move || state.save_error().map(|message: String| view! { <div class="px-3 py-1"><ErrorText message /></div> })}

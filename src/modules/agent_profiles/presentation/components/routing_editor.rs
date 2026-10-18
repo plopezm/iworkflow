@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use leptos::prelude::*;
 
 use crate::core::components::form::SelectOption;
+use crate::core::i18n::Msg;
 use crate::modules::agent_profiles::infrastructure::adapters::inbound::dto::agent_profiles_dto::{
     AgentRoleDto, ModelOptionDto, RoutingEntryDto,
 };
@@ -82,7 +83,77 @@ pub fn load_error<T>(loaded: &Option<Result<T, ServerFnError>>) -> Option<String
 }
 
 /// Etiqueta de la opción "sin valor" del nivel de razonamiento.
-const INHERIT_LABEL: &str = "Heredar / por defecto";
+const INHERIT_LABEL: Msg = Msg {
+    en: "Inherit / default",
+    es: "Heredar / por defecto",
+    zh: "继承 / 默认",
+    de: "Erben / Standard",
+    fr: "Hériter / par défaut",
+};
+
+const REMOVE: Msg = Msg {
+    en: "Remove",
+    es: "Quitar",
+    zh: "移除",
+    de: "Entfernen",
+    fr: "Retirer",
+};
+
+const MODEL: Msg = Msg {
+    en: "Model",
+    es: "Modelo",
+    zh: "模型",
+    de: "Modell",
+    fr: "Modèle",
+};
+
+const THINKING: Msg = Msg {
+    en: "Reasoning",
+    es: "Razonamiento",
+    zh: "推理",
+    de: "Reasoning",
+    fr: "Raisonnement",
+};
+
+const AGENT_TO_ADD: Msg = Msg {
+    en: "Agent to add",
+    es: "Agente a añadir",
+    zh: "要添加的智能体",
+    de: "Hinzuzufügender Agent",
+    fr: "Agent à ajouter",
+};
+
+const ADD_AGENT: Msg = Msg {
+    en: "Add agent…",
+    es: "Añadir agente…",
+    zh: "添加智能体…",
+    de: "Agent hinzufügen…",
+    fr: "Ajouter un agent…",
+};
+
+const ADD_ROW: Msg = Msg {
+    en: "Add row",
+    es: "Añadir fila",
+    zh: "添加行",
+    de: "Zeile hinzufügen",
+    fr: "Ajouter une ligne",
+};
+
+const SAVING: Msg = Msg {
+    en: "Saving…",
+    es: "Guardando…",
+    zh: "保存中…",
+    de: "Wird gespeichert…",
+    fr: "Enregistrement…",
+};
+
+const SAVE_ROUTING: Msg = Msg {
+    en: "Save routing",
+    es: "Guardar enrutado",
+    zh: "保存路由",
+    de: "Routing speichern",
+    fr: "Enregistrer le routage",
+};
 
 /// Niveles de razonamiento ofrecidos para una fila: los conocidos más el valor actual si no
 /// figura entre ellos (para no perderlo al renderizar).
@@ -208,11 +279,11 @@ pub fn RoutingEditor(
                                             })
                                         }
                                     >
-                                        "Quitar"
+                                        {REMOVE.get()}
                                     </button>
                                 </div>
                                 <label class="stack gap-1.5">
-                                    <span class="text-sm font-medium text-fg">"Modelo"</span>
+                                    <span class="text-sm font-medium text-fg">{MODEL.get()}</span>
                                     <select
                                         class="input"
                                         on:change=move |ev| {
@@ -224,7 +295,7 @@ pub fn RoutingEditor(
                                         }
                                     >
                                         <option value="" selected=move || blank_selected().is_empty()>
-                                            {INHERIT_LABEL}
+                                            {INHERIT_LABEL.get()}
                                         </option>
                                         {move || {
                                             let live: String = current_model();
@@ -243,7 +314,7 @@ pub fn RoutingEditor(
                                     </select>
                                 </label>
                                 <label class="stack gap-1.5">
-                                    <span class="text-sm font-medium text-fg">"Razonamiento"</span>
+                                    <span class="text-sm font-medium text-fg">{THINKING.get()}</span>
                                     <select
                                         class="input"
                                         on:change=move |ev| {
@@ -255,7 +326,7 @@ pub fn RoutingEditor(
                                         }
                                     >
                                         <option value="" selected=thinking_current.is_empty()>
-                                            {INHERIT_LABEL}
+                                            {INHERIT_LABEL.get()}
                                         </option>
                                         {move || {
                                             thinking_choices(&thinking_levels.get(), &choices_current)
@@ -281,11 +352,11 @@ pub fn RoutingEditor(
             <div class="row flex-wrap gap-2">
                 <select
                     class="input w-auto"
-                    aria-label="Agente a añadir"
+                    aria-label=AGENT_TO_ADD.get()
                     prop:value=move || to_add.get()
                     on:change=move |ev| to_add.set(event_target_value(&ev))
                 >
-                    <option value="">"Añadir agente…"</option>
+                    <option value="">{ADD_AGENT.get()}</option>
                     <For
                         each=move || addable.get()
                         key=|agent: &String| agent.clone()
@@ -301,7 +372,7 @@ pub fn RoutingEditor(
                     disabled=move || to_add.get().is_empty()
                     on:click=add_row
                 >
-                    "Añadir fila"
+                    {ADD_ROW.get()}
                 </button>
                 <button
                     type="button"
@@ -309,7 +380,7 @@ pub fn RoutingEditor(
                     disabled=move || saving.get()
                     on:click=move |_| on_save.run(rows.get_untracked())
                 >
-                    {move || if saving.get() { "Guardando…" } else { "Guardar enrutado" }}
+                    {move || if saving.get() { SAVING.get() } else { SAVE_ROUTING.get() }}
                 </button>
             </div>
         </div>

@@ -1,7 +1,38 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
     DialogAnswerDto, DialogKindDto, DialogRequestDto,
+};
+
+const YES: Msg = Msg {
+    en: "Yes",
+    es: "Sí",
+    zh: "是",
+    de: "Ja",
+    fr: "Oui",
+};
+const NO: Msg = Msg {
+    en: "No",
+    es: "No",
+    zh: "否",
+    de: "Nein",
+    fr: "Non",
+};
+const SEND: Msg = Msg {
+    en: "Send",
+    es: "Enviar",
+    zh: "发送",
+    de: "Senden",
+    fr: "Envoyer",
+};
+const CANCEL_DIALOG: Msg = Msg {
+    en: "Cancel dialog",
+    es: "Cancelar diálogo",
+    zh: "取消对话框",
+    de: "Dialog abbrechen",
+    fr: "Annuler la boîte de dialogue",
 };
 
 /// Panel para responder a un diálogo abierto por el agente.
@@ -50,7 +81,7 @@ pub fn DialogPanel(
                     class="btn-primary"
                     on:click=move |_| { on_answer.run(DialogAnswerDto::Confirmed { confirmed: true }) }
                 >
-                    "Sí"
+                    {YES.get()}
                 </button>
                 <button
                     class="btn-secondary"
@@ -58,7 +89,7 @@ pub fn DialogPanel(
                         on_answer.run(DialogAnswerDto::Confirmed { confirmed: false })
                     }
                 >
-                    "No"
+                    {NO.get()}
                 </button>
             </div>
         }
@@ -73,7 +104,7 @@ pub fn DialogPanel(
                     on:input=move |ev| text.set(event_target_value(&ev))
                 />
                 <button class="btn-primary" on:click=submit_text>
-                    "Enviar"
+                    {SEND.get()}
                 </button>
             </div>
         }
@@ -87,7 +118,7 @@ pub fn DialogPanel(
                 ></textarea>
                 <div class="row">
                     <button class="btn-primary" on:click=submit_text>
-                        "Enviar"
+                        {SEND.get()}
                     </button>
                 </div>
             </div>
@@ -101,7 +132,7 @@ pub fn DialogPanel(
             {body}
             <div class="row">
                 <button class="btn-secondary" on:click=move |_| on_answer.run(DialogAnswerDto::Cancelled)>
-                    "Cancelar diálogo"
+                    {CANCEL_DIALOG.get()}
                 </button>
             </div>
         </section>

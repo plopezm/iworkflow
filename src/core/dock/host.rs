@@ -9,6 +9,50 @@ use crate::core::dock::js;
 use crate::core::dock::layout::{
     DockLayout, DropZone, GroupId, LayoutNode, SplitDir, TabEntry, TabId,
 };
+use crate::core::i18n::Msg;
+
+const CLOSE_OTHERS: Msg = Msg {
+    en: "Close others",
+    es: "Cerrar las demás",
+    zh: "关闭其他",
+    de: "Andere schließen",
+    fr: "Fermer les autres",
+};
+const CLOSE_SPLIT: Msg = Msg {
+    en: "Close split",
+    es: "Cerrar división",
+    zh: "关闭分屏",
+    de: "Teilung schließen",
+    fr: "Fermer la division",
+};
+const CLOSE_TAB: Msg = Msg {
+    en: "Close tab",
+    es: "Cerrar pestaña",
+    zh: "关闭标签页",
+    de: "Tab schließen",
+    fr: "Fermer l'onglet",
+};
+const MOVE_TAB_DOWN: Msg = Msg {
+    en: "Move tab down",
+    es: "Mover pestaña abajo",
+    zh: "将标签页移到下方",
+    de: "Tab nach unten verschieben",
+    fr: "Déplacer l'onglet vers le bas",
+};
+const MOVE_TAB_RIGHT: Msg = Msg {
+    en: "Move tab to the right",
+    es: "Mover pestaña a la derecha",
+    zh: "将标签页移到右侧",
+    de: "Tab nach rechts verschieben",
+    fr: "Déplacer l'onglet vers la droite",
+};
+const NEW_TAB: Msg = Msg {
+    en: "New tab",
+    es: "Nueva pestaña",
+    zh: "新建标签页",
+    de: "Neuer Tab",
+    fr: "Nouvel onglet",
+};
 
 /// Funciones que la aplicación aporta al dock: contenido, parámetros e icono de cada ruta.
 #[derive(Clone, Copy)]
@@ -229,7 +273,7 @@ fn TabButton(
             <span class="min-w-0 flex-1 truncate">{move || title.get()}</span>
             <button
                 class="dock-tab-close"
-                aria-label="Cerrar pestaña"
+                aria-label=CLOSE_TAB.get()
                 on:click=move |ev: leptos::ev::MouseEvent| {
                     ev.stop_propagation();
                     dock.close_tab(tab_id);
@@ -332,7 +376,7 @@ fn DockGroup(
                 </div>
                 <DropdownMenu
                     label="+"
-                    aria_label="Nueva pestaña"
+                    aria_label=NEW_TAB.get()
                     trigger_class="dock-icon-btn"
                     menu_class="min-w-52"
                 >
@@ -365,7 +409,7 @@ fn DockGroup(
                             })
                         }
                     >
-                        "Mover pestaña a la derecha"
+                        {MOVE_TAB_RIGHT.get()}
                     </button>
                     <button
                         class="menu-item"
@@ -376,7 +420,7 @@ fn DockGroup(
                             })
                         }
                     >
-                        "Mover pestaña abajo"
+                        {MOVE_TAB_DOWN.get()}
                     </button>
                     <button
                         class="menu-item"
@@ -385,14 +429,14 @@ fn DockGroup(
                             with_active(|d: &DockContext, tab: TabId| d.close_others(tab))
                         }
                     >
-                        "Cerrar las demás"
+                        {CLOSE_OTHERS.get()}
                     </button>
                     <button
                         class="menu-item"
                         disabled=move || is_only_group.get()
                         on:click=move |_| dock.close_group(group_id)
                     >
-                        "Cerrar división"
+                        {CLOSE_SPLIT.get()}
                     </button>
                 </DropdownMenu>
             </div>
@@ -419,7 +463,7 @@ fn DockGroup(
                             class="btn-secondary absolute right-3 bottom-3 min-h-8 px-3 py-1 text-xs"
                             on:click=move |_| dock.close_group(group_id)
                         >
-                            "Cerrar división"
+                            {CLOSE_SPLIT.get()}
                         </button>
                     </Show>
                 </Show>

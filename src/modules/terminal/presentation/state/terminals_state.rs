@@ -1,6 +1,8 @@
 use chrono::DateTime;
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::{
     TerminalSessionDto, TerminalStatusDto,
 };
@@ -25,10 +27,25 @@ pub fn started_at_label(created_at: &str) -> String {
         .unwrap_or_else(|_| created_at.to_string())
 }
 
+const STATUS_RUNNING: Msg = Msg {
+    en: "Running",
+    es: "Running",
+    zh: "运行中",
+    de: "Läuft",
+    fr: "En cours",
+};
+const STATUS_EXITED: Msg = Msg {
+    en: "Exited",
+    es: "Exited",
+    zh: "已退出",
+    de: "Beendet",
+    fr: "Terminé",
+};
+
 pub fn status_label(status: TerminalStatusDto) -> &'static str {
     match status {
-        TerminalStatusDto::Running => "Running",
-        TerminalStatusDto::Exited => "Exited",
+        TerminalStatusDto::Running => STATUS_RUNNING.get(),
+        TerminalStatusDto::Exited => STATUS_EXITED.get(),
     }
 }
 

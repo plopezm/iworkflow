@@ -1,5 +1,15 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
+const SPECIAL_KEYS: Msg = Msg {
+    en: "Special keys",
+    es: "Teclas especiales",
+    zh: "特殊按键",
+    de: "Sondertasten",
+    fr: "Touches spéciales",
+};
+
 /// Teclas especiales ofrecidas bajo la terminal: (etiqueta, nombre de tecla entendido por `terminal.js`).
 pub const TERMINAL_KEYS: [(&str, &str); 6] = [
     ("Tab", "tab"),
@@ -14,7 +24,7 @@ pub const TERMINAL_KEYS: [(&str, &str); 6] = [
 #[component]
 pub fn TerminalKeyBar(#[prop(into)] on_key: Callback<&'static str>) -> impl IntoView {
     view! {
-        <div class="row flex-wrap gap-1.5" role="toolbar" aria-label="Teclas especiales">
+        <div class="row flex-wrap gap-1.5" role="toolbar" aria-label=SPECIAL_KEYS.get()>
             {TERMINAL_KEYS
                 .iter()
                 .map(|&(label, key)| {
