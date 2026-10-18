@@ -35,7 +35,7 @@ use crate::modules::tasks::presentation::state::loose_drag::{
     LooseDrag, centre_position, drop_position,
 };
 use crate::modules::tasks::presentation::state::placement::{
-    can_place, place, roll_back, unconfirmed,
+    after_detach, can_place, place, roll_back, unconfirmed,
 };
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
 
@@ -832,8 +832,16 @@ impl BoardState {
     }
 
     /// Saca la tarea del grafo (sin aristas ni posición) para que vuelva a las sueltas. La
-    /// posición provisional y la selección se limpian al confirmarlo el servidor.
+    /// posición provisional y la selección se limpian al lanzar la acción (`after_detach`), así
+    /// que dos desacoples seguidos no dependen de cuál sea el último envío; `detach_target` solo
+    /// sirve para atribuir el error a la tarea.
     pub fn detach(&self, id: String) {
+        let overrides: HashMap<String, Point> = self.overrides.get_untracked();
+        let selected: Option<String> = self.selected_node.get_untracked();
+        let (next, kept): (HashMap<String, Point>, Option<String>) =
+            after_detach(&overrides, selected.as_deref(), &id);
+        self.overrides.set(next);
+        self.selected_node.set(kept);
         self.detach_target.set(Some(id.clone()));
         self.detach.dispatch(DetachTaskFromGraph { id });
     }
@@ -1000,21 +1008,12 @@ impl BoardState {
                 state.push(e.to_string());
             }
         });
-        // Tras sacar una tarea del grafo, su posición provisional y su selección ya no valen:
-        // sin ellas `partition_tasks` la devuelve al panel de sueltas. El id es el del envío.
-        Effect::new(move |_| match state.detach.value().get() {
-            Some(Ok(())) => {
-                if let Some(id) = state.detach_target.get_untracked() {
-                    state
-                        .overrides
-                        .update(|m: &mut HashMap<String, Point>| *m = roll_back(m, &id));
-                    if state.selected_node.get_untracked().as_deref() == Some(id.as_str()) {
-                        state.selected_node.set(None);
-                    }
-                }
+        // Un desacople rechazado se avisa con el título de la tarea; el éxito ya se aplicó al
+        // lanzarlo y el grafo se recarga solo (la versión de la acción forma parte de su clave).
+        Effect::new(move |_| {
+            if let Some(Err(e)) = state.detach.value().get() {
+                state.notify_error(state.detach_target.get_untracked(), e.to_string());
             }
-            Some(Err(e)) => state.push(e.to_string()),
-            None => {}
         });
         // Si no se pudo guardar la posición, el nodo vuelve a la que tenía en el servidor. La
         // tarea afectada es la del último envío (`position_target`), que se corresponde con este
@@ -1083,8 +1082,25 @@ mod tests {
     };
 
     #[test]
-    fn completed_tasks_are_hidden_by_default() {
-        const { assert!(!DEFAULT_SHOW_COMPLETED) };
+    fn completed_tasks_are_hidden_by_default_and_shown_on_request() {
+        let active: TaskDto = task("a", "w", TaskStageDto::Backlog, "2026-01-01T00:00:00Z");
+        let done: TaskDto = task("d", "w", TaskStageDto::Done, "2026-01-02T00:00:00Z");
+        let tasks: Vec<TaskDto> = vec![active, done];
+        let no_graph: TaskGraphDto = TaskGraphDto::default();
+        let none: HashSet<String> = HashSet::new();
+
+        let by_default: Vec<String> =
+            loose_tasks("w", &tasks, &no_graph, DEFAULT_SHOW_COMPLETED, &none)
+                .into_iter()
+                .map(|t: TaskDto| t.id)
+                .collect();
+        let when_shown: Vec<String> = loose_tasks("w", &tasks, &no_graph, true, &none)
+            .into_iter()
+            .map(|t: TaskDto| t.id)
+            .collect();
+
+        assert_eq!(by_default, vec!["a".to_string()]);
+        assert_eq!(when_shown, vec!["a".to_string(), "d".to_string()]);
     }
 
     #[test]

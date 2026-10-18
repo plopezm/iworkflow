@@ -33,6 +33,20 @@ pub fn roll_back(overrides: &HashMap<String, Point>, id: &str) -> HashMap<String
     next
 }
 
+/// Estado de pantalla al sacar `id` del grafo: sin posición provisional y, si era el nodo
+/// seleccionado, sin selección. Se aplica al lanzar la acción, no al terminar: así dos desacoples
+/// seguidos limpian cada uno lo suyo aunque la acción solo conserve el resultado del último.
+pub fn after_detach(
+    overrides: &HashMap<String, Point>,
+    selected: Option<&str>,
+    id: &str,
+) -> (HashMap<String, Point>, Option<String>) {
+    let kept: Option<String> = selected
+        .filter(|current: &&str| *current != id)
+        .map(str::to_string);
+    (roll_back(overrides, id), kept)
+}
+
 /// Overrides que el servidor aún no ha confirmado: se descartan los que ya coinciden con la
 /// posición guardada. Una carga más antigua que el guardado (otra posición) no los toca.
 pub fn unconfirmed(
@@ -95,6 +109,23 @@ mod tests {
             created_at: String::new(),
             updated_at: String::new(),
         }
+    }
+
+    #[test]
+    fn detaching_drops_only_that_override_and_selection() {
+        let overrides: HashMap<String, Point> = map(&[("a", at(1.0, 2.0)), ("b", at(3.0, 4.0))]);
+
+        let (next, selected) = after_detach(&overrides, Some("a"), "a");
+        assert_eq!(next, map(&[("b", at(3.0, 4.0))]));
+        assert_eq!(selected, None);
+
+        let (next, selected) = after_detach(&overrides, Some("b"), "a");
+        assert_eq!(next, map(&[("b", at(3.0, 4.0))]));
+        assert_eq!(selected.as_deref(), Some("b"));
+
+        let (next, selected) = after_detach(&overrides, None, "missing");
+        assert_eq!(next, overrides);
+        assert_eq!(selected, None);
     }
 
     #[test]
