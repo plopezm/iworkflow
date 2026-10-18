@@ -1,21 +1,22 @@
 # iworkflow
 
-<p align="center">
-  <a href="https://buymeacoffee.com/plopezm" target="_blank" rel="noopener">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=plopezm&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" height="50" />
-  </a>
-</p>
-
 > 🇪🇸 Versión en castellano: [README.es.md](README.es.md)
 
-**iworkflow is an ADE (Agentic Development Environment)**: an AI-powered development environment conceived as an evolution of the traditional IDE. Instead of writing every line yourself, you orchestrate autonomous AI agents that act as active collaborators. The main workflow stops being file editing and becomes **task management**: you launch, coordinate and review the work of several agents at once.
+**iworkflow is an ADE (Agentic Development Environment)**: a self-hosted web app to launch, follow and review several AI coding agents in parallel. Instead of editing files yourself, you manage **tasks**: each one runs an agent in its own git worktree, and you review the diff before anything reaches your branch.
 
-- **Agent orchestration**: one unified surface to launch, follow and steer several agents in parallel (`gentle-shell`, `pi`, `claude`, `cursor`).
-- **Isolated workspaces**: each task runs in its own **git worktree**, so parallel agents never overwrite each other's work.
-- **Review, don't redo**: when an agent finishes you review its diff and decide whether to integrate it (`merge --no-ff`) or discard it. Agents can run tests, and tasks connect to GitLab/GitHub (MR/PR and CI) and Jira.
-- **Developer role shift**: from "doing everything" to **orchestrating and reviewing** what the agents execute.
+> **Status:** early and actively developed. It runs on your own machine, has no authentication and is source-available (PolyForm Shield 1.0.0), not OSI open source. See [Quick start](#quick-start) and [License](#license).
 
-The app imposes no workflow: each agent uses the configuration and plugins you have installed, plus the project's `AGENTS.md`. Under the hood, agents are driven over RPC (or ACP / stream-json, depending on the runtime).
+## Highlights
+
+- **Parallel agents, one place**: launch and steer `gentle-shell`, `pi`, `claude` or `cursor` side by side.
+- **Isolated by design**: every task gets its own **git worktree**, so agents never overwrite each other.
+- **Review, don't redo**: when an agent finishes you read its diff and either merge it (`merge --no-ff`) or discard it.
+- **Task graph**: chain tasks on a board; a task starts by itself once its predecessors are merged.
+- **Integrated**: GitLab / GitHub (MR/PR and CI status) and Jira Server / Data Center.
+- **Mobile-first**: check progress, answer an agent's question and merge from your phone (through Tailscale).
+- **Tabbed IDE-like workspace**: board, task, diff, terminal and file editor as draggable, splittable tabs.
+
+iworkflow imposes no workflow: each agent uses the configuration and plugins you already have installed, plus the project's `AGENTS.md`. Under the hood agents are driven over RPC (or ACP / stream-json, depending on the runtime). It is built with Rust, Leptos (SSR + hydration), Diesel and SQLite.
 
 ## Index
 
@@ -48,7 +49,11 @@ The server runs on your computer and the phone is only a browser, so you need a 
 
 ## Quick start
 
+Requirements: `git`, a Rust toolchain (edition 2024, Rust 1.85 or newer), [`cargo-leptos`](https://github.com/leptos-rs/cargo-leptos) (`cargo install cargo-leptos --locked`), the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`) and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude` or `agent` for Cursor).
+
 ```bash
+git clone https://github.com/plopezm/iworkflow.git
+cd iworkflow
 cargo leptos watch          # http://127.0.0.1:3000
 ```
 
@@ -279,5 +284,11 @@ You may use, modify and distribute iworkflow freely, including inside companies 
 Bundled third-party assets keep their own licenses: xterm.js (MIT) and highlight.js (BSD-3-Clause) in `public/vendor/`, and the Instrument Serif and Martian Mono fonts (SIL OFL 1.1) in `public/fonts/`. All Rust dependencies use permissive licenses (MIT, Apache-2.0, BSD, Zlib, Unicode…).
 
 ## Support the project
+
+<p align="center">
+  <a href="https://buymeacoffee.com/plopezm" target="_blank" rel="noopener">
+    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=plopezm&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" height="50" />
+  </a>
+</p>
 
 If iworkflow saves you time, you can buy me a coffee at **[buymeacoffee.com/plopezm](https://buymeacoffee.com/plopezm)**. Thank you! ☕

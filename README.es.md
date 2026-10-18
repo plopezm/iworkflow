@@ -2,20 +2,21 @@
 
 > 🇬🇧 English version: [README.md](README.md)
 
-<p align="center">
-  <a href="https://buymeacoffee.com/plopezm" target="_blank" rel="noopener">
-    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=plopezm&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" height="50" />
-  </a>
-</p>
+**iworkflow es un ADE (Agentic Development Environment)**: una aplicación web autoalojada para lanzar, seguir y revisar varios agentes de código con IA en paralelo. En lugar de editar archivos tú mismo, gestionas **tareas**: cada una ejecuta un agente en su propio git worktree y revisas el diff antes de que nada llegue a tu rama.
 
-**iworkflow es un ADE (Agentic Development Environment)**: un entorno de desarrollo potenciado por IA, concebido como una evolución del IDE tradicional. En lugar de escribir todo el código manualmente, orquestas agentes autónomos de IA que actúan como colaboradores activos. El flujo de trabajo principal deja de ser la edición de archivos y pasa a ser la **gestión de tareas**: lanzas, coordinas y revisas el trabajo de varios agentes a la vez.
+> **Estado:** temprano y en desarrollo activo. Se ejecuta en tu propia máquina, no tiene autenticación y es *source-available* (PolyForm Shield 1.0.0), no open source aprobado por la OSI. Consulta [Arranque rápido](#arranque-rápido) y [Licencia](#licencia).
 
-- **Orquestación de agentes**: una superficie unificada para lanzar, seguir y dirigir varios agentes en paralelo (`gentle-shell`, `pi`, `claude`, `cursor`).
-- **Espacios de trabajo aislados**: cada tarea corre en su propio **git worktree**, de modo que los agentes en paralelo no sobrescriben el trabajo de los demás.
-- **Revisar, no rehacer**: al terminar un agente revisas su diff y decides si integrarlo (`merge --no-ff`) o descartarlo. Los agentes pueden ejecutar pruebas y las tareas se conectan con GitLab/GitHub (MR/PR y CI) y Jira.
-- **Cambio de rol del desarrollador**: de "hacerlo todo" a **orquestar y revisar** lo que ejecutan los agentes.
+## Características
 
-La app no impone ningún flujo: cada agente usa la configuración y los plugins que tengas instalados y el `AGENTS.md` del proyecto. Internamente, los agentes se manejan por RPC (o ACP / stream-json, según el runtime).
+- **Agentes en paralelo, un solo lugar**: lanza y dirige `gentle-shell`, `pi`, `claude` o `cursor` a la vez.
+- **Aislamiento por diseño**: cada tarea tiene su propio **git worktree**, así que los agentes no se pisan.
+- **Revisar, no rehacer**: al terminar un agente lees su diff y lo integras (`merge --no-ff`) o lo descartas.
+- **Grafo de tareas**: encadena tareas en un tablero; una tarea arranca sola cuando sus predecesoras están integradas.
+- **Integraciones**: GitLab / GitHub (MR/PR y estado de CI) y Jira Server / Data Center.
+- **Mobile-first**: consulta el progreso, responde a un agente e integra desde el móvil (con Tailscale).
+- **Espacio de trabajo con pestañas**: tablero, tarea, diff, terminal y editor de archivos en pestañas arrastrables y divisibles.
+
+iworkflow no impone ningún flujo: cada agente usa la configuración y los plugins que ya tengas instalados y el `AGENTS.md` del proyecto. Internamente, los agentes se manejan por RPC (o ACP / stream-json, según el runtime). Está construido con Rust, Leptos (SSR + hidratación), Diesel y SQLite.
 
 ## Índice
 
@@ -48,7 +49,11 @@ El servidor corre en tu ordenador y el móvil es solo un navegador, así que nec
 
 ## Arranque rápido
 
+Requisitos: `git`, una toolchain de Rust (edición 2024, Rust 1.85 o superior), [`cargo-leptos`](https://github.com/leptos-rs/cargo-leptos) (`cargo install cargo-leptos --locked`), el target `wasm32-unknown-unknown` (`rustup target add wasm32-unknown-unknown`) y al menos un CLI de agente instalado y con sesión iniciada (`gentle-shell`, `pi`, `claude` o `agent` para Cursor).
+
 ```bash
+git clone https://github.com/plopezm/iworkflow.git
+cd iworkflow
 cargo leptos watch          # http://127.0.0.1:3000
 ```
 
@@ -279,5 +284,11 @@ Puedes usar, modificar y distribuir iworkflow libremente, también dentro de emp
 Los recursos de terceros incluidos mantienen su propia licencia: xterm.js (MIT) y highlight.js (BSD-3-Clause) en `public/vendor/`, y las fuentes Instrument Serif y Martian Mono (SIL OFL 1.1) en `public/fonts/`. Todas las dependencias de Rust usan licencias permisivas (MIT, Apache-2.0, BSD, Zlib, Unicode…).
 
 ## Apoya el proyecto
+
+<p align="center">
+  <a href="https://buymeacoffee.com/plopezm" target="_blank" rel="noopener">
+    <img src="https://img.buymeacoffee.com/button-api/?text=Buy%20me%20a%20coffee&emoji=%E2%98%95&slug=plopezm&button_colour=FFDD00&font_colour=000000&font_family=Cookie&outline_colour=000000&coffee_colour=ffffff" alt="Buy me a coffee" height="50" />
+  </a>
+</p>
 
 Si iworkflow te ahorra tiempo, puedes invitarme a un café en **[buymeacoffee.com/plopezm](https://buymeacoffee.com/plopezm)**. ¡Gracias! ☕
