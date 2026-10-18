@@ -7,7 +7,7 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, TaskStageDto, TaskStatusDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_graph_dto::{
-    TaskDependencyDto, TaskGraphDto,
+    NodePositionDto, TaskDependencyDto, TaskGraphDto,
 };
 use crate::modules::tasks::presentation::state::graph_geometry::{
     NODE_HEIGHT, NODE_WIDTH, Point, Rect,
@@ -101,15 +101,62 @@ pub fn waiting_count(
         .count()
 }
 
-/// Construye el grafo visible de `workspace_id` con las tareas dadas (activas y finalizadas).
-/// Los nodos van por antigüedad; las finalizadas se ocultan con `show_done = false` junto con
-/// sus aristas; las aristas con un extremo no visible se descartan.
-pub fn build_graph(
+/// Subpestaña del tablero en pantallas estrechas, donde los dos paneles no caben a la vez.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BoardTab {
+    Loose,
+    Graph,
+}
+
+impl BoardTab {
+    /// Valor estable para el control segmentado y el atributo `data-tab`.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Loose => "loose",
+            Self::Graph => "graph",
+        }
+    }
+
+    pub fn from_value(value: &str) -> Option<Self> {
+        match value {
+            "loose" => Some(Self::Loose),
+            "graph" => Some(Self::Graph),
+            _ => None,
+        }
+    }
+}
+
+/// Subpestaña por defecto: el grafo, salvo que no tenga nodos y haya tareas sueltas.
+pub fn default_board_tab(graph_nodes: usize, loose: usize) -> BoardTab {
+    if graph_nodes == 0 && loose > 0 {
+        BoardTab::Loose
+    } else {
+        BoardTab::Graph
+    }
+}
+
+/// Una tarea está suelta cuando no tiene ninguna arista (ni como predecesora ni como
+/// sucesora) ni posición guardada. `placed` son los ids con una posición recién fijada que el
+/// servidor aún no ha devuelto.
+pub fn is_loose(task_id: &str, graph: &TaskGraphDto, placed: &HashSet<String>) -> bool {
+    !placed.contains(task_id)
+        && !graph
+            .dependencies
+            .iter()
+            .any(|d: &TaskDependencyDto| d.predecessor_id == task_id || d.successor_id == task_id)
+        && !graph
+            .positions
+            .iter()
+            .any(|p: &NodePositionDto| p.task_id == task_id)
+}
+
+/// Tareas de `workspace_id` que se muestran (las finalizadas solo con `show_done`), de la más
+/// antigua a la más reciente.
+fn visible_tasks<'a>(
     workspace_id: &str,
-    tasks: &[TaskDto],
-    graph: &TaskGraphDto,
+    tasks: &'a [TaskDto],
     show_done: bool,
-) -> GraphView {
+) -> Vec<&'a TaskDto> {
     let mut visible: Vec<&TaskDto> = tasks
         .iter()
         .filter(|t: &&TaskDto| t.workspace_id == workspace_id)
@@ -120,6 +167,40 @@ pub fn build_graph(
             .cmp(&b.created_at)
             .then_with(|| a.id.cmp(&b.id))
     });
+    visible
+}
+
+/// Tareas sueltas visibles de `workspace_id`: las que muestra el panel izquierdo y que no se
+/// pintan en el lienzo.
+pub fn loose_tasks(
+    workspace_id: &str,
+    tasks: &[TaskDto],
+    graph: &TaskGraphDto,
+    show_done: bool,
+    placed: &HashSet<String>,
+) -> Vec<TaskDto> {
+    visible_tasks(workspace_id, tasks, show_done)
+        .into_iter()
+        .filter(|t: &&TaskDto| is_loose(&t.id, graph, placed))
+        .cloned()
+        .collect()
+}
+
+/// Construye el grafo visible de `workspace_id` con las tareas dadas (activas y finalizadas).
+/// Los nodos van por antigüedad; las tareas sueltas no son nodos; las finalizadas se ocultan
+/// con `show_done = false` junto con sus aristas; las aristas con un extremo no visible se
+/// descartan.
+pub fn build_graph(
+    workspace_id: &str,
+    tasks: &[TaskDto],
+    graph: &TaskGraphDto,
+    show_done: bool,
+    placed: &HashSet<String>,
+) -> GraphView {
+    let visible: Vec<&TaskDto> = visible_tasks(workspace_id, tasks, show_done)
+        .into_iter()
+        .filter(|t: &&TaskDto| !is_loose(&t.id, graph, placed))
+        .collect();
     let statuses: HashMap<&str, TaskStatusDto> = tasks
         .iter()
         .map(|t: &TaskDto| (t.id.as_str(), t.status))
@@ -442,7 +523,7 @@ mod tests {
             dependencies: vec![dep("early", "late"), dep("early", "other")],
             positions: Vec::new(),
         };
-        let view: GraphView = build_graph("w", &tasks, &graph, true);
+        let view: GraphView = build_graph("w", &tasks, &graph, true, &HashSet::new());
         let order: Vec<&str> = view
             .nodes
             .iter()
@@ -466,11 +547,104 @@ mod tests {
             dependencies: vec![dep("a", "b")],
             positions: Vec::new(),
         };
-        let shown: GraphView = build_graph("w", &tasks, &graph, true);
+        let shown: GraphView = build_graph("w", &tasks, &graph, true, &HashSet::new());
         assert_eq!((shown.nodes.len(), shown.edges.len()), (2, 1));
         assert_eq!(shown.edges[0].state, EdgeState::Done);
-        let hidden: GraphView = build_graph("w", &tasks, &graph, false);
+        let hidden: GraphView = build_graph("w", &tasks, &graph, false, &HashSet::new());
         assert_eq!((hidden.nodes.len(), hidden.edges.len()), (1, 0));
+    }
+
+    fn positioned(id: &str) -> NodePositionDto {
+        NodePositionDto {
+            task_id: id.to_string(),
+            x: 1.0,
+            y: 2.0,
+        }
+    }
+
+    #[test]
+    fn default_tab_is_the_graph_unless_only_loose_tasks_exist() {
+        assert_eq!(default_board_tab(3, 2), BoardTab::Graph);
+        assert_eq!(default_board_tab(0, 0), BoardTab::Graph);
+        assert_eq!(default_board_tab(0, 1), BoardTab::Loose);
+        assert_eq!(
+            BoardTab::from_value(BoardTab::Loose.as_str()),
+            Some(BoardTab::Loose)
+        );
+        assert_eq!(BoardTab::from_value("graph"), Some(BoardTab::Graph));
+        assert_eq!(BoardTab::from_value("x"), None);
+    }
+
+    #[test]
+    fn a_task_without_edges_or_position_is_loose() {
+        let graph: TaskGraphDto = TaskGraphDto {
+            dependencies: vec![dep("a", "b")],
+            positions: vec![positioned("p")],
+        };
+        let none: HashSet<String> = HashSet::new();
+        assert!(is_loose("free", &graph, &none));
+        // Con arista (como predecesora o sucesora) o con posición guardada ya no lo es.
+        assert!(!is_loose("a", &graph, &none));
+        assert!(!is_loose("b", &graph, &none));
+        assert!(!is_loose("p", &graph, &none));
+        // Una posición recién fijada, aún no guardada en el servidor, también cuenta.
+        let placed: HashSet<String> = HashSet::from(["free".to_string()]);
+        assert!(!is_loose("free", &graph, &placed));
+    }
+
+    #[test]
+    fn loose_tasks_leave_the_graph_and_respect_the_workspace_and_completed_filter() {
+        let tasks: Vec<TaskDto> = vec![
+            task("loose-late", "w", TaskStatusDto::Backlog, "3"),
+            task("loose-early", "w", TaskStatusDto::Backlog, "1"),
+            task("loose-done", "w", TaskStatusDto::Merged, "2"),
+            task("chained", "w", TaskStatusDto::Backlog, "4"),
+            task("head", "w", TaskStatusDto::Running, "5"),
+            task("placed", "w", TaskStatusDto::Backlog, "6"),
+            task("elsewhere", "x", TaskStatusDto::Backlog, "7"),
+        ];
+        let graph: TaskGraphDto = TaskGraphDto {
+            dependencies: vec![dep("head", "chained")],
+            positions: vec![positioned("placed")],
+        };
+        let none: HashSet<String> = HashSet::new();
+        let ids_of = |list: Vec<TaskDto>| -> Vec<String> {
+            list.into_iter().map(|t: TaskDto| t.id).collect()
+        };
+
+        assert_eq!(
+            ids_of(loose_tasks("w", &tasks, &graph, true, &none)),
+            ["loose-early", "loose-done", "loose-late"]
+        );
+        assert_eq!(
+            ids_of(loose_tasks("w", &tasks, &graph, false, &none)),
+            ["loose-early", "loose-late"]
+        );
+        let view: GraphView = build_graph("w", &tasks, &graph, true, &none);
+        let nodes: Vec<&str> = view
+            .nodes
+            .iter()
+            .map(|n: &NodeView| n.task.id.as_str())
+            .collect();
+        assert_eq!(nodes, ["chained", "head", "placed"]);
+    }
+
+    #[test]
+    fn a_task_linked_to_a_hidden_completed_one_stays_a_node() {
+        let tasks: Vec<TaskDto> = vec![
+            task("a", "w", TaskStatusDto::Merged, "1"),
+            task("b", "w", TaskStatusDto::Backlog, "2"),
+        ];
+        let graph: TaskGraphDto = TaskGraphDto {
+            dependencies: vec![dep("a", "b")],
+            positions: Vec::new(),
+        };
+        let none: HashSet<String> = HashSet::new();
+        assert!(loose_tasks("w", &tasks, &graph, false, &none).is_empty());
+        assert_eq!(
+            build_graph("w", &tasks, &graph, false, &none).nodes.len(),
+            1
+        );
     }
 
     #[test]

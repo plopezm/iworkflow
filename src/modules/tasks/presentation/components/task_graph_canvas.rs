@@ -9,7 +9,7 @@ use crate::modules::tasks::presentation::components::task_card::{TaskCardBusy, T
 use crate::modules::tasks::presentation::components::task_node::TaskNode;
 use crate::modules::tasks::presentation::state::board_state::BoardState;
 use crate::modules::tasks::presentation::state::graph_geometry::{
-    Point, Viewport, edge_path, input_anchor, output_anchor,
+    Point, Rect, Viewport, edge_path, input_anchor, output_anchor,
 };
 use crate::modules::tasks::presentation::state::graph_interaction::DragMode;
 use crate::modules::tasks::presentation::state::graph_model::{
@@ -49,6 +49,31 @@ pub fn canvas_size(canvas: NodeRef<html::Div>) -> Option<(f64, f64)> {
     canvas
         .get_untracked()
         .map(|el| (f64::from(el.client_width()), f64::from(el.client_height())))
+}
+
+/// Rectángulo del lienzo en coordenadas de ventana. Solo existe en el navegador.
+pub fn canvas_rect(canvas: NodeRef<html::Div>) -> Option<Rect> {
+    #[cfg(feature = "hydrate")]
+    if let Some(el) = canvas.get_untracked() {
+        let rect = el.get_bounding_client_rect();
+        return Some(Rect {
+            x: rect.left(),
+            y: rect.top(),
+            width: rect.width(),
+            height: rect.height(),
+        });
+    }
+    #[cfg(not(feature = "hydrate"))]
+    let _canvas: NodeRef<html::Div> = canvas;
+    None
+}
+
+/// Ancho de la ventana en píxeles; solo se conoce en el navegador.
+pub fn window_width() -> Option<f64> {
+    #[cfg(feature = "hydrate")]
+    return web_sys::window()?.inner_width().ok()?.as_f64();
+    #[cfg(not(feature = "hydrate"))]
+    None
 }
 
 /// Punto de pantalla (client) relativo a la esquina del lienzo. Solo en el navegador se

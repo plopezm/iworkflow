@@ -1461,3 +1461,171 @@ body.dock-resizing .xterm {
   padding: 1.5rem;
   text-align: center;
 }
+
+/* Board body: loose-tasks panel on the left, graph canvas on the right */
+.board-body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+}
+.board-panes {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+.board-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+/* Collapsible side panel (fixed width, scrollable body) */
+.side-panel {
+  display: flex;
+  width: 280px;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.side-panel-collapsed {
+  width: auto;
+}
+.side-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.side-panel-collapsed .side-panel-header {
+  border-bottom: 0;
+}
+.side-panel-collapsed .side-panel-title {
+  display: none;
+}
+.side-panel-title {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.side-panel-toggle {
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+}
+.side-panel-toggle:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}
+.side-panel-body {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-y: auto;
+}
+.side-panel-body[hidden] {
+  display: none;
+}
+
+/* Loose task cards: draggable onto the canvas */
+.loose-card {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+.loose-card-attention {
+  border-color: color-mix(in srgb, var(--color-stage-attention) 55%, var(--color-border));
+}
+.loose-ghost {
+  position: fixed;
+  z-index: 60;
+  max-width: 16rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-surface);
+  padding: 0.375rem 0.625rem;
+  font-size: 12px;
+  color: var(--color-fg);
+  box-shadow: 0 10px 22px -8px rgb(0 0 0 / 0.35);
+}
+
+/* Segmented control (sub-tabs); only shown on narrow screens by .board-tabs */
+.segmented {
+  display: inline-flex;
+  gap: 0.125rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  padding: 0.125rem;
+}
+.segment {
+  min-height: 1.75rem;
+  flex: 1 1 0%;
+  cursor: pointer;
+  border-radius: calc(var(--radius-md) - 2px);
+  padding: 0.125rem 0.75rem;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.segment-selected {
+  background: var(--color-surface);
+  color: var(--color-fg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+}
+.board-tabs {
+  display: none;
+}
+
+/* Narrow screens: sub-tabs instead of two panels. The inactive pane stays laid out (hidden,
+   not removed) so the canvas keeps its size for fit and "Add to graph". */
+@media (max-width: 767px) {
+  .board-tabs {
+    display: flex;
+    margin: 0.5rem 0.75rem;
+  }
+  .board-panes > .side-panel,
+  .board-panes > .board-canvas {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    max-height: none;
+    border-right: 0;
+  }
+  .board-panes > .side-panel {
+    z-index: 2;
+  }
+  .board-panes[data-tab="graph"] > .side-panel,
+  .board-panes[data-tab="loose"] > .board-canvas {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .side-panel-toggle {
+    display: none;
+  }
+  .side-panel-collapsed .side-panel-title {
+    display: block;
+  }
+  .side-panel-body[hidden] {
+    display: block;
+  }
+}

@@ -2,6 +2,7 @@ use leptos::html;
 use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
+use crate::core::components::segmented_control::{SegmentOption, SegmentedControl};
 use crate::core::components::toast::ToastStack;
 use crate::core::dock::context::{TabContext, use_dock, use_tab_nav};
 use crate::core::dock::link::TabLink;
@@ -10,6 +11,7 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::presentation::components::board_toolbar::BoardToolbar;
+use crate::modules::tasks::presentation::components::loose_tasks_panel::LooseTasksPanel;
 use crate::modules::tasks::presentation::components::task_card::{
     TaskActionBusy, TaskCardBusy, TaskCardHandlers,
 };
@@ -18,7 +20,9 @@ use crate::modules::tasks::presentation::components::task_graph_canvas::{
 };
 use crate::modules::tasks::presentation::components::task_modal::TaskModal;
 use crate::modules::tasks::presentation::state::board_state::BoardState;
-use crate::modules::tasks::presentation::state::graph_model::{BoardWorkspace, board_path};
+use crate::modules::tasks::presentation::state::graph_model::{
+    BoardTab, BoardWorkspace, board_path,
+};
 
 const BOARD: Msg = Msg {
     en: "Board",
@@ -91,6 +95,44 @@ const LOAD_MORE_DONE: Msg = Msg {
     de: "Mehr erledigte laden",
     fr: "Charger plus de terminées",
 };
+
+const TAB_LOOSE: Msg = Msg {
+    en: "Loose ({n})",
+    es: "Sueltas ({n})",
+    zh: "零散 ({n})",
+    de: "Lose ({n})",
+    fr: "Libres ({n})",
+};
+
+const TAB_GRAPH: Msg = Msg {
+    en: "Graph",
+    es: "Grafo",
+    zh: "图",
+    de: "Graph",
+    fr: "Graphe",
+};
+
+const TABS_LABEL: Msg = Msg {
+    en: "Board view",
+    es: "Vista del tablero",
+    zh: "看板视图",
+    de: "Board-Ansicht",
+    fr: "Vue du tableau",
+};
+
+/// Opciones de las subpestañas del tablero (pantallas estrechas).
+pub fn tab_options(loose_count: usize) -> Vec<SegmentOption> {
+    vec![
+        SegmentOption {
+            value: BoardTab::Loose.as_str().to_string(),
+            label: TAB_LOOSE.fmt(&[("n", &loose_count.to_string())]),
+        },
+        SegmentOption {
+            value: BoardTab::Graph.as_str().to_string(),
+            label: TAB_GRAPH.get().to_string(),
+        },
+    ]
+}
 
 /// Título de la pestaña del tablero de un workspace (función pura).
 pub fn board_tab_title(workspace_name: &str) -> String {
@@ -185,6 +227,7 @@ pub fn BoardPage() -> impl IntoView {
         state.graph_loaded.get()
             && state.store.loaded.get()
             && state.view.with(|g| g.nodes.is_empty())
+            && state.loose.with(Vec::is_empty)
     });
 
     view! {
@@ -199,7 +242,7 @@ pub fn BoardPage() -> impl IntoView {
                 on_fit
                 on_new_task=Callback::new(move |_| state.open_create())
             />
-            <div class="relative min-h-0 flex-1">
+            <div class="board-body">
                 {move || match state.workspace.get() {
                     BoardWorkspace::Loading => {
                         view! { <p class="muted p-4">{LOADING_BOARD.get()}</p> }.into_any()
@@ -221,6 +264,27 @@ pub fn BoardPage() -> impl IntoView {
                     }
                     BoardWorkspace::Selected(_) => {
                         view! {
+                            <SegmentedControl
+                                class="board-tabs"
+                                options=Signal::derive(move || {
+                                    tab_options(state.loose.with(Vec::len))
+                                })
+                                selected=Signal::derive(move || {
+                                    state.active_tab.get().as_str().to_string()
+                                })
+                                aria_label=TABS_LABEL.get()
+                                on_select=Callback::new(move |value: String| {
+                                    if let Some(tab) = BoardTab::from_value(&value) {
+                                        state.select_tab(tab);
+                                    }
+                                })
+                            />
+                            <div
+                                class="board-panes"
+                                data-tab=move || state.active_tab.get().as_str()
+                            >
+                            <LooseTasksPanel state canvas handlers busy />
+                            <div class="board-canvas">
                             <TaskGraphCanvas state canvas handlers busy />
                             <Show when=move || !state.graph_loaded.get()>
                                 <p class="muted pointer-events-none absolute left-4 top-3">
@@ -253,6 +317,8 @@ pub fn BoardPage() -> impl IntoView {
                                     {LOAD_MORE_DONE.get()}
                                 </button>
                             </Show>
+                            </div>
+                            </div>
                         }
                             .into_any()
                     }
@@ -291,6 +357,14 @@ mod tests {
             name: name.to_string(),
             base_branch: "main".to_string(),
         }
+    }
+
+    #[test]
+    fn tab_options_carry_the_loose_count() {
+        let options: Vec<SegmentOption> = tab_options(3);
+        assert_eq!(options[0].value, "loose");
+        assert_eq!(options[0].label, "Loose (3)");
+        assert_eq!(options[1].value, "graph");
     }
 
     #[test]

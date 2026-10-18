@@ -20,16 +20,20 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     list_workspace_branches,
 };
 use crate::modules::tasks::presentation::state::graph_geometry::{
-    Point, Viewport, ZOOM_STEP, bounds_of_nodes, fit_viewport, wheel_zoom_factor,
+    Point, Rect, Viewport, ZOOM_STEP, bounds_of_nodes, fit_viewport, wheel_zoom_factor,
 };
 use crate::modules::tasks::presentation::state::graph_interaction::{
     DragEffect, DragMode, DragOutcome,
 };
 use crate::modules::tasks::presentation::state::graph_model::{
-    BoardWorkspace, GraphView, NewTaskLink, build_graph, edges_for_new_task, link_predecessors,
-    resolve_board_workspace, resolve_positions, saved_positions,
+    BoardTab, BoardWorkspace, GraphView, NewTaskLink, build_graph, default_board_tab,
+    edges_for_new_task, link_predecessors, loose_tasks, resolve_board_workspace, resolve_positions,
+    saved_positions,
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
+use crate::modules::tasks::presentation::state::loose_drag::{
+    LooseDrag, centre_position, drop_position,
+};
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
 
 const START_FAILED_AFTER_CREATE: Msg = Msg {
@@ -244,6 +248,16 @@ pub struct BoardState {
     pub graph_loaded: RwSignal<bool>,
     /// Nodos y aristas visibles.
     pub view: Memo<GraphView>,
+    /// Tareas sueltas (sin aristas ni posición) que muestra el panel izquierdo.
+    pub loose: Memo<Vec<TaskDto>>,
+    /// Subpestaña elegida en pantallas estrechas; `None` = la que corresponda por defecto.
+    pub board_tab: RwSignal<Option<BoardTab>>,
+    /// Subpestaña visible en pantallas estrechas.
+    pub active_tab: Memo<BoardTab>,
+    /// Panel de tareas sueltas plegado.
+    pub panel_collapsed: RwSignal<bool>,
+    /// Tarea suelta que se está arrastrando hacia el lienzo.
+    pub loose_drag: RwSignal<Option<LooseDrag>>,
     /// Posición efectiva de cada nodo (guardada, arrastrada o calculada).
     pub positions: Memo<HashMap<String, Point>>,
     /// Posiciones fijadas en esta sesión (mientras se arrastra y hasta que el servidor las confirma).
@@ -438,19 +452,44 @@ impl BoardState {
         });
 
         let show_completed: RwSignal<bool> = RwSignal::new(true);
+        let overrides: RwSignal<HashMap<String, Point>> = RwSignal::new(HashMap::new());
+        // Tareas con posición recién fijada que el servidor aún no ha devuelto: ya no están
+        // sueltas. Memo aparte para no reconstruir el grafo en cada movimiento de un nodo.
+        let placed: Memo<HashSet<String>> = Memo::new(move |_| {
+            overrides.with(|m: &HashMap<String, Point>| m.keys().cloned().collect())
+        });
+        let workspace_tasks: Memo<Vec<TaskDto>> = Memo::new(move |_| {
+            store.active.with(|active: &Vec<TaskDto>| {
+                store
+                    .done
+                    .with(|done: &Vec<TaskDto>| combine_tasks(active, done))
+            })
+        });
+        let loose: Memo<Vec<TaskDto>> = Memo::new(move |_| {
+            let Some(id): Option<String> = workspace_id.get() else {
+                return Vec::new();
+            };
+            workspace_tasks.with(|tasks: &Vec<TaskDto>| {
+                graph_data.with(|graph: &TaskGraphDto| {
+                    placed.with(|placed: &HashSet<String>| {
+                        loose_tasks(&id, tasks, graph, show_completed.get(), placed)
+                    })
+                })
+            })
+        });
+        let board_tab: RwSignal<Option<BoardTab>> = RwSignal::new(None);
         let view: Memo<GraphView> = Memo::new(move |_| {
             let Some(id): Option<String> = workspace_id.get() else {
                 return GraphView::default();
             };
-            let tasks: Vec<TaskDto> = store.active.with(|active: &Vec<TaskDto>| {
-                store
-                    .done
-                    .with(|done: &Vec<TaskDto>| combine_tasks(active, done))
-            });
-            graph_data
-                .with(|graph: &TaskGraphDto| build_graph(&id, &tasks, graph, show_completed.get()))
+            workspace_tasks.with(|tasks: &Vec<TaskDto>| {
+                graph_data.with(|graph: &TaskGraphDto| {
+                    placed.with(|placed: &HashSet<String>| {
+                        build_graph(&id, tasks, graph, show_completed.get(), placed)
+                    })
+                })
+            })
         });
-        let overrides: RwSignal<HashMap<String, Point>> = RwSignal::new(HashMap::new());
         let positions: Memo<HashMap<String, Point>> = Memo::new(move |_| {
             view.with(|graph: &GraphView| {
                 let ids: Vec<String> = graph.nodes.iter().map(|n| n.task.id.clone()).collect();
@@ -462,6 +501,15 @@ impl BoardState {
                 let mut saved: HashMap<String, Point> = graph_data.with(saved_positions);
                 saved.extend(overrides.get());
                 resolve_positions(&ids, &edges, &saved)
+            })
+        });
+
+        let active_tab: Memo<BoardTab> = Memo::new(move |_| {
+            board_tab.get().unwrap_or_else(|| {
+                default_board_tab(
+                    view.with(|g: &GraphView| g.nodes.len()),
+                    loose.with(Vec::len),
+                )
             })
         });
 
@@ -502,6 +550,11 @@ impl BoardState {
             graph_data,
             graph_loaded,
             view,
+            loose,
+            board_tab,
+            active_tab,
+            panel_collapsed: RwSignal::new(false),
+            loose_drag: RwSignal::new(None),
             positions,
             overrides,
             viewport: RwSignal::new(Viewport::default()),
@@ -537,6 +590,69 @@ impl BoardState {
             merge_target: RwSignal::new(None),
             position_target: RwSignal::new(None),
         }
+    }
+
+    /// Fija la posición de `id` en el lienzo y la guarda: la tarea pasa a ser un nodo del grafo.
+    fn place_task(&self, id: String, position: Point) {
+        self.overrides.update(|m: &mut HashMap<String, Point>| {
+            m.insert(id.clone(), position);
+        });
+        self.position_target.set(Some(id.clone()));
+        self.set_position.dispatch(SetTaskPosition {
+            id,
+            x: position.x,
+            y: position.y,
+        });
+    }
+
+    // ── Panel de tareas sueltas ──────────────────────────────────────────────────────────
+
+    /// Empieza a arrastrar la tarea suelta `id` (`client`: coordenadas de ventana).
+    pub fn loose_pointer_down(&self, id: String, client: Point) {
+        self.loose_drag.set(Some(LooseDrag {
+            task_id: id,
+            pointer: client,
+        }));
+    }
+
+    pub fn loose_pointer_move(&self, client: Point) {
+        self.loose_drag.update(|drag: &mut Option<LooseDrag>| {
+            if let Some(drag) = drag {
+                drag.pointer = client;
+            }
+        });
+    }
+
+    /// Suelta la tarea arrastrada: si el puntero está sobre el lienzo (`canvas`, rectángulo en
+    /// coordenadas de ventana) pasa a ser un nodo en esa posición.
+    pub fn loose_pointer_up(&self, client: Point, canvas: Option<Rect>) {
+        let Some(drag) = self.loose_drag.get_untracked() else {
+            return;
+        };
+        self.loose_drag.set(None);
+        let target: Option<Point> = canvas
+            .and_then(|rect: Rect| drop_position(client, &rect, &self.viewport.get_untracked()));
+        if let Some(position) = target {
+            self.place_task(drag.task_id, position);
+        }
+    }
+
+    /// Gesto cancelado por el navegador: la tarea sigue suelta.
+    pub fn loose_pointer_cancel(&self) {
+        self.loose_drag.set(None);
+    }
+
+    /// Añade la tarea suelta `id` al grafo, en el centro visible del lienzo de `size`.
+    pub fn add_loose_to_graph(&self, id: String, size: (f64, f64)) {
+        let position: Point = centre_position(size, &self.viewport.get_untracked());
+        self.place_task(id, position);
+        // En pantallas estrechas el lienzo no se ve: se enseña el resultado.
+        self.board_tab.set(Some(BoardTab::Graph));
+    }
+
+    /// Elige la subpestaña visible en pantallas estrechas.
+    pub fn select_tab(&self, tab: BoardTab) {
+        self.board_tab.set(Some(tab));
     }
 
     /// Nodos con su posición, en orden de pintado (para localizar el nodo bajo el puntero).
