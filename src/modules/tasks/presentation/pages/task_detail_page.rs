@@ -561,6 +561,9 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                                         }
                                                     })}
                                                 {task.error.clone().map(|e: String| view! { <ErrorText message=e /> })}
+                                                {task
+                                                    .resume_notice()
+                                                    .map(|notice: String| view! { <p class="text-xs text-muted">{notice}</p> })}
                                             }
                                                 .into_any()
                                         }

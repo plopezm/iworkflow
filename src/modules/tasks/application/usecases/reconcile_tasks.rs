@@ -125,4 +125,23 @@ mod tests {
             vec![TaskStatus::Interrupted, TaskStatus::Interrupted]
         );
     }
+
+    #[tokio::test]
+    async fn leaves_rate_limited_tasks_untouched() {
+        let recorded: Recorded = Recorded::default();
+        let mut repository: MockTaskRepository = test_support::repository_with(None, &recorded);
+        repository
+            .expect_list_by_status()
+            .withf(|statuses: &[TaskStatus]| !statuses.contains(&TaskStatus::RateLimited))
+            .returning(|_| Ok(Vec::new()));
+        let lifecycle: Arc<TaskLifecycle> = test_support::lifecycle_with(repository, &recorded);
+
+        let count: usize = ReconcileTasks::new(lifecycle, worktrees_existing(true))
+            .execute()
+            .await
+            .expect("ok");
+
+        assert_eq!(count, 0);
+        assert!(recorded.statuses().is_empty());
+    }
 }
