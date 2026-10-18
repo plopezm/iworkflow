@@ -22,7 +22,7 @@ pub fn TabLink(
     beside: bool,
     /// Si ya hay una pestaña abierta cuya ruta cumple el predicado, la activa en lugar de
     /// abrir `href` (p. ej. volver al tablero abierto, sea cual sea su workspace).
-    #[prop(optional)]
+    #[prop(optional_no_strip)]
     reuse: Option<fn(&str) -> bool>,
     children: Children,
 ) -> impl IntoView {

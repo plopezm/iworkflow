@@ -486,7 +486,7 @@ fn app_sidebar() -> impl IntoView {
             <span class="live-dot text-accent" aria-hidden="true"></span>
             <TabLink
                 href="/"
-                reuse=is_board_path
+                reuse=Some(is_board_path as fn(&str) -> bool)
                 class="flex-1 text-sm font-semibold tracking-tight"
             >
                 "iworkflow"
