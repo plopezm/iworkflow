@@ -263,6 +263,8 @@ PLAYWRIGHT_MODULE=/ruta/node_modules/playwright ./end2end/run_smoke.sh   # UI co
 
 Copyright 2026 Pablo López (plopezm). Distribuido bajo la [licencia PolyForm Shield 1.0.0](LICENSE).
 
+Puedes usar, modificar y distribuir iworkflow libremente, también dentro de empresas y para trabajo comercial, pero no usarlo para ofrecer un producto que compita con él (por ejemplo, revenderlo u ofrecerlo como servicio alojado). Es una licencia *source-available*, no una licencia open source aprobada por la OSI.
+
 Los recursos de terceros incluidos mantienen su propia licencia: xterm.js (MIT) y highlight.js (BSD-3-Clause) en `public/vendor/`, y las fuentes Instrument Serif y Martian Mono (SIL OFL 1.1) en `public/fonts/`. Todas las dependencias de Rust usan licencias permisivas (MIT, Apache-2.0, BSD, Zlib, Unicode…).
 
 ## Apoya el proyecto
