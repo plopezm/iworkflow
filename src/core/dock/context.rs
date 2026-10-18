@@ -63,6 +63,17 @@ impl DockContext {
         });
     }
 
+    /// Activa la pestaña abierta cuya ruta cumple `reuse`; si no hay ninguna, abre `path`.
+    pub fn open_or_reuse(&self, path: &str, group: Option<GroupId>, reuse: fn(&str) -> bool) {
+        let existing: Option<TabId> = self
+            .layout
+            .with_untracked(|l: &DockLayout| l.find_path_where(reuse).map(|(_, tab)| tab));
+        match existing {
+            Some(tab) => self.activate(tab),
+            None => self.open(path, None, group),
+        }
+    }
+
     /// Abre `path` a la derecha del grupo `from` (ver [`DockLayout::open_beside`]).
     pub fn open_beside(&self, path: &str, title: Option<&str>, from: GroupId) {
         let title: String = title.map_or_else(|| self.title_for(path), str::to_string);
@@ -188,6 +199,11 @@ impl TabNav {
             Some(group) => self.dock.open_beside(path, None, group),
             None => self.dock.open(path, None, None),
         }
+    }
+
+    /// Como [`Self::open`], pero antes activa una pestaña ya abierta cuya ruta cumpla `reuse`.
+    pub fn open_or_reuse(&self, path: &str, reuse: fn(&str) -> bool) {
+        self.dock.open_or_reuse(path, self.group, reuse);
     }
 
     pub fn open_titled(&self, path: &str, title: &str) {

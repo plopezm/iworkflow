@@ -424,6 +424,17 @@ fn tab_params(path: &str) -> ParamsMap {
     TabRoute::parse(path).params()
 }
 
+/// `true` si la ruta es la de un tablero, de cualquier workspace.
+fn is_board_path(path: &str) -> bool {
+    matches!(TabRoute::parse(path), TabRoute::Board(_))
+}
+
+/// Predicado de reutilización para el destino `/` (tablero): si ya hay uno abierto se
+/// activa en lugar de abrir otro con el primer workspace.
+fn board_reuse(path: &str) -> Option<fn(&str) -> bool> {
+    (path == "/").then_some(is_board_path as fn(&str) -> bool)
+}
+
 /// Destinos de nivel superior que ofrecen la barra lateral, el menú `+` y los grupos vacíos.
 const TOP_LEVEL_DESTINATIONS: [(&str, &str, Msg); 8] = [
     ("/", "▦", TITLE_BOARD),
@@ -448,6 +459,7 @@ fn sidebar_nav() -> impl IntoView {
                         view! {
                             <TabLink
                                 href=path
+                                reuse=board_reuse(path)
                                 class=move || {
                                     if dock.is_path_visible(path) {
                                         "sidebar-nav sidebar-nav-active".to_string()
@@ -472,7 +484,13 @@ fn app_sidebar() -> impl IntoView {
     view! {
         <div class="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
             <span class="live-dot text-accent" aria-hidden="true"></span>
-            <span class="flex-1 text-sm font-semibold tracking-tight">"iworkflow"</span>
+            <TabLink
+                href="/"
+                reuse=is_board_path
+                class="flex-1 text-sm font-semibold tracking-tight"
+            >
+                "iworkflow"
+            </TabLink>
             <SidebarToggle class="hidden md:flex" />
         </div>
         {sidebar_nav()}
@@ -492,7 +510,7 @@ fn tab_launcher() -> impl IntoView {
         .into_iter()
         .map(|(path, icon, label): (&str, &str, Msg)| {
             view! {
-                <TabLink href=path class="menu-item">
+                <TabLink href=path reuse=board_reuse(path) class="menu-item">
                     <span class="mr-2 inline-block w-4 text-center text-muted" aria-hidden="true">{icon}</span>
                     {label.get()}
                 </TabLink>
@@ -513,7 +531,7 @@ fn empty_group() -> impl IntoView {
                         view! {
                             <TabLink
                                 href=path
-
+                                reuse=board_reuse(path)
                                 class="btn-secondary min-h-8 px-3 py-1 text-xs"
                             >
                                 <span class="mr-1.5" aria-hidden="true">{icon}</span>
@@ -618,7 +636,7 @@ pub fn App() -> impl IntoView {
                 <DocumentTitle />
                 <LanguagePrompt />
                 <DockBootstrap />
-                <AppShell brand="iworkflow" sidebar=app_sidebar>
+                <AppShell brand="iworkflow" home_reuse=is_board_path sidebar=app_sidebar>
                     <DockHost hooks=hooks launcher=tab_launcher empty=empty_group />
                 </AppShell>
             </TaskStoreProvider>
@@ -644,6 +662,11 @@ mod tests {
 
     #[test]
     fn parse_maps_every_known_path_to_its_screen() {
+        assert!(is_board_path("/"));
+        assert!(is_board_path("/board/w2"));
+        assert!(!is_board_path("/workspaces"));
+        assert_eq!(board_reuse("/").map(|f| f("/board/w2")), Some(true));
+        assert!(board_reuse("/jira").is_none());
         assert_eq!(TabRoute::parse("/"), TabRoute::Board(None));
         assert_eq!(TabRoute::parse("/board"), TabRoute::Board(None));
         assert_eq!(

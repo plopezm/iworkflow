@@ -20,6 +20,10 @@ pub fn TabLink(
     /// Abre la pestaña en el grupo de la derecha en lugar de en el actual.
     #[prop(optional)]
     beside: bool,
+    /// Si ya hay una pestaña abierta cuya ruta cumple el predicado, la activa en lugar de
+    /// abrir `href` (p. ej. volver al tablero abierto, sea cual sea su workspace).
+    #[prop(optional)]
+    reuse: Option<fn(&str) -> bool>,
     children: Children,
 ) -> impl IntoView {
     let nav: TabNav = use_tab_nav();
@@ -36,6 +40,10 @@ pub fn TabLink(
                 ev.prevent_default();
                 if beside {
                     nav.open_beside(&target);
+                    return;
+                }
+                if let Some(reuse) = reuse {
+                    nav.open_or_reuse(&target, reuse);
                     return;
                 }
                 match &title {
