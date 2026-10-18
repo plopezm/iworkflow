@@ -51,7 +51,9 @@ impl ResumeRateLimitedTasks {
             {
                 tracing::warn!(task_id = %task.id, %error, "no se pudo detener el agente inactivo");
             }
-            if !task.usage_limit.is_due(now) {
+            // Sin hora programada (p. ej. el servidor cayó entre registrar el límite y
+            // planificarlo) la tarea se reintenta ya: de otro modo quedaría parada para siempre.
+            if task.usage_limit.resume_at.is_some() && !task.usage_limit.is_due(now) {
                 continue;
             }
             match self.resume(task.id).await {
@@ -182,6 +184,30 @@ mod tests {
             .expect_runtime_capabilities()
             .returning(|_| AgentCapabilities::full());
         runtime
+    }
+
+    #[tokio::test]
+    async fn resumes_a_parked_task_that_has_no_schedule() {
+        let now: DateTime<Utc> = Utc::now();
+        let recorded: Recorded = Recorded::default();
+        let scheduled: Scheduled = Scheduled::default();
+        let mut unscheduled: Task = parked(0, now);
+        unscheduled.usage_limit = UsageLimitState::default();
+        let mut runtime: MockAgentRuntime = runtime(false);
+        runtime
+            .expect_start()
+            .times(1)
+            .returning(|_, _, _, _, _| Ok(()));
+        runtime.expect_send().times(1).returning(|_, _| Ok(()));
+        let use_case: ResumeRateLimitedTasks = build(
+            lifecycle_for(unscheduled, &recorded, &scheduled),
+            runtime,
+            true,
+        );
+
+        let resumed: usize = use_case.execute(now).await.expect("tick");
+
+        assert_eq!(resumed, 1);
     }
 
     #[tokio::test]
