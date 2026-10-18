@@ -9,6 +9,7 @@ pub mod graph_interaction;
 pub mod graph_model;
 pub mod image_attachments;
 pub mod loose_drag;
+pub mod placement;
 pub mod task_detail_state;
 pub mod task_edit_state;
 pub mod task_events;

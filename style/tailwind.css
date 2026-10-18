@@ -1597,7 +1597,9 @@ body.dock-resizing .xterm {
 }
 
 /* Narrow screens: sub-tabs instead of two panels. The inactive pane stays laid out (hidden,
-   not removed) so the canvas keeps its size for fit and "Add to graph". */
+   not removed) so the canvas keeps its size for fit and "Add to graph".
+   767px is Tailwind's `md` (768px) minus one: keep it in sync with NARROW_BREAKPOINT_PX in
+   src/modules/tasks/presentation/state/loose_drag.rs (the only Rust copy). */
 @media (max-width: 767px) {
   .board-tabs {
     display: flex;

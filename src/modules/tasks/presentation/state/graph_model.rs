@@ -135,21 +135,6 @@ pub fn default_board_tab(graph_nodes: usize, loose: usize) -> BoardTab {
     }
 }
 
-/// Una tarea está suelta cuando no tiene ninguna arista (ni como predecesora ni como
-/// sucesora) ni posición guardada. `placed` son los ids con una posición recién fijada que el
-/// servidor aún no ha devuelto.
-pub fn is_loose(task_id: &str, graph: &TaskGraphDto, placed: &HashSet<String>) -> bool {
-    !placed.contains(task_id)
-        && !graph
-            .dependencies
-            .iter()
-            .any(|d: &TaskDependencyDto| d.predecessor_id == task_id || d.successor_id == task_id)
-        && !graph
-            .positions
-            .iter()
-            .any(|p: &NodePositionDto| p.task_id == task_id)
-}
-
 /// Tareas de `workspace_id` que se muestran (las finalizadas solo con `show_done`), de la más
 /// antigua a la más reciente.
 fn visible_tasks<'a>(
@@ -170,6 +155,50 @@ fn visible_tasks<'a>(
     visible
 }
 
+/// Reparto de las tareas visibles de un workspace entre el lienzo y el panel de sueltas.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct BoardPartition<'a> {
+    /// Tareas que se pintan como nodos del grafo, de la más antigua a la más reciente.
+    pub nodes: Vec<&'a TaskDto>,
+    /// Tareas sueltas del panel izquierdo, de la más antigua a la más reciente.
+    pub loose: Vec<&'a TaskDto>,
+}
+
+/// Única definición de qué es un nodo y qué una tarea suelta: cada tarea visible de
+/// `workspace_id` cae en exactamente uno de los dos grupos. Es nodo si tiene una arista hacia
+/// otra tarea visible, una posición guardada o una posición recién fijada (`placed`: ids que
+/// el servidor aún no ha devuelto); si no, está suelta. Las aristas cuyo otro extremo no se
+/// ve (finalizada oculta, otro workspace) no cuentan.
+pub fn partition_tasks<'a>(
+    workspace_id: &str,
+    tasks: &'a [TaskDto],
+    graph: &TaskGraphDto,
+    show_done: bool,
+    placed: &HashSet<String>,
+) -> BoardPartition<'a> {
+    let visible: Vec<&TaskDto> = visible_tasks(workspace_id, tasks, show_done);
+    let ids: HashSet<&str> = visible.iter().map(|t: &&TaskDto| t.id.as_str()).collect();
+    let linked: HashSet<&str> = graph
+        .dependencies
+        .iter()
+        .filter(|d: &&TaskDependencyDto| {
+            ids.contains(d.predecessor_id.as_str()) && ids.contains(d.successor_id.as_str())
+        })
+        .flat_map(|d: &TaskDependencyDto| [d.predecessor_id.as_str(), d.successor_id.as_str()])
+        .collect();
+    let positioned: HashSet<&str> = graph
+        .positions
+        .iter()
+        .map(|p: &NodePositionDto| p.task_id.as_str())
+        .collect();
+    let (nodes, loose): (Vec<&TaskDto>, Vec<&TaskDto>) =
+        visible.into_iter().partition(|t: &&TaskDto| {
+            let id: &str = t.id.as_str();
+            linked.contains(id) || positioned.contains(id) || placed.contains(id)
+        });
+    BoardPartition { nodes, loose }
+}
+
 /// Tareas sueltas visibles de `workspace_id`: las que muestra el panel izquierdo y que no se
 /// pintan en el lienzo.
 pub fn loose_tasks(
@@ -179,15 +208,15 @@ pub fn loose_tasks(
     show_done: bool,
     placed: &HashSet<String>,
 ) -> Vec<TaskDto> {
-    visible_tasks(workspace_id, tasks, show_done)
+    partition_tasks(workspace_id, tasks, graph, show_done, placed)
+        .loose
         .into_iter()
-        .filter(|t: &&TaskDto| is_loose(&t.id, graph, placed))
         .cloned()
         .collect()
 }
 
 /// Construye el grafo visible de `workspace_id` con las tareas dadas (activas y finalizadas).
-/// Los nodos van por antigüedad; las tareas sueltas no son nodos; las finalizadas se ocultan
+/// Los nodos van por antigüedad; las tareas sueltas (`partition_tasks`) no son nodos; las finalizadas se ocultan
 /// con `show_done = false` junto con sus aristas; las aristas con un extremo no visible se
 /// descartan.
 pub fn build_graph(
@@ -197,10 +226,8 @@ pub fn build_graph(
     show_done: bool,
     placed: &HashSet<String>,
 ) -> GraphView {
-    let visible: Vec<&TaskDto> = visible_tasks(workspace_id, tasks, show_done)
-        .into_iter()
-        .filter(|t: &&TaskDto| !is_loose(&t.id, graph, placed))
-        .collect();
+    let visible: Vec<&TaskDto> =
+        partition_tasks(workspace_id, tasks, graph, show_done, placed).nodes;
     let statuses: HashMap<&str, TaskStatusDto> = tasks
         .iter()
         .map(|t: &TaskDto| (t.id.as_str(), t.status))
@@ -413,6 +440,13 @@ pub fn back_to_board_path(workspace_id: Option<&str>) -> String {
     workspace_id.map_or_else(|| "/".to_string(), board_path)
 }
 
+/// Destino de «volver al tablero» a partir de la tarea cargada (si ya llegó y no falló):
+/// punto único para las pantallas de detalle y edición.
+pub fn board_return_path<E>(task: Option<Result<TaskDto, E>>) -> String {
+    let workspace_id: Option<String> = task.and_then(Result::ok).map(|t: TaskDto| t.workspace_id);
+    back_to_board_path(workspace_id.as_deref())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -551,7 +585,8 @@ mod tests {
         assert_eq!((shown.nodes.len(), shown.edges.len()), (2, 1));
         assert_eq!(shown.edges[0].state, EdgeState::Done);
         let hidden: GraphView = build_graph("w", &tasks, &graph, false, &HashSet::new());
-        assert_eq!((hidden.nodes.len(), hidden.edges.len()), (1, 0));
+        // `b` solo estaba enlazada a la finalizada oculta: pasa a las sueltas.
+        assert_eq!((hidden.nodes.len(), hidden.edges.len()), (0, 0));
     }
 
     fn positioned(id: &str) -> NodePositionDto {
@@ -573,23 +608,6 @@ mod tests {
         );
         assert_eq!(BoardTab::from_value("graph"), Some(BoardTab::Graph));
         assert_eq!(BoardTab::from_value("x"), None);
-    }
-
-    #[test]
-    fn a_task_without_edges_or_position_is_loose() {
-        let graph: TaskGraphDto = TaskGraphDto {
-            dependencies: vec![dep("a", "b")],
-            positions: vec![positioned("p")],
-        };
-        let none: HashSet<String> = HashSet::new();
-        assert!(is_loose("free", &graph, &none));
-        // Con arista (como predecesora o sucesora) o con posición guardada ya no lo es.
-        assert!(!is_loose("a", &graph, &none));
-        assert!(!is_loose("b", &graph, &none));
-        assert!(!is_loose("p", &graph, &none));
-        // Una posición recién fijada, aún no guardada en el servidor, también cuenta.
-        let placed: HashSet<String> = HashSet::from(["free".to_string()]);
-        assert!(!is_loose("free", &graph, &placed));
     }
 
     #[test]
@@ -629,8 +647,21 @@ mod tests {
         assert_eq!(nodes, ["chained", "head", "placed"]);
     }
 
+    fn partition_ids(
+        tasks: &[TaskDto],
+        graph: &TaskGraphDto,
+        show_done: bool,
+        placed: &HashSet<String>,
+    ) -> (Vec<String>, Vec<String>) {
+        let part: BoardPartition = partition_tasks("w", tasks, graph, show_done, placed);
+        let ids = |list: Vec<&TaskDto>| -> Vec<String> {
+            list.into_iter().map(|t: &TaskDto| t.id.clone()).collect()
+        };
+        (ids(part.nodes), ids(part.loose))
+    }
+
     #[test]
-    fn a_task_linked_to_a_hidden_completed_one_stays_a_node() {
+    fn a_task_linked_only_to_a_hidden_completed_one_is_loose() {
         let tasks: Vec<TaskDto> = vec![
             task("a", "w", TaskStatusDto::Merged, "1"),
             task("b", "w", TaskStatusDto::Backlog, "2"),
@@ -640,11 +671,93 @@ mod tests {
             positions: Vec::new(),
         };
         let none: HashSet<String> = HashSet::new();
-        assert!(loose_tasks("w", &tasks, &graph, false, &none).is_empty());
-        assert_eq!(
-            build_graph("w", &tasks, &graph, false, &none).nodes.len(),
-            1
-        );
+        let (nodes, loose): (Vec<String>, Vec<String>) =
+            partition_ids(&tasks, &graph, false, &none);
+        assert!(nodes.is_empty());
+        assert_eq!(loose, ["b"]);
+        // Con las finalizadas visibles la arista existe y ambas son nodos.
+        let (nodes, loose): (Vec<String>, Vec<String>) = partition_ids(&tasks, &graph, true, &none);
+        assert_eq!(nodes, ["a", "b"]);
+        assert!(loose.is_empty());
+    }
+
+    #[test]
+    fn a_task_that_lost_its_last_edge_returns_to_the_loose_panel() {
+        let tasks: Vec<TaskDto> = vec![
+            task("a", "w", TaskStatusDto::Running, "1"),
+            task("b", "w", TaskStatusDto::Backlog, "2"),
+        ];
+        let none: HashSet<String> = HashSet::new();
+        let linked: TaskGraphDto = TaskGraphDto {
+            dependencies: vec![dep("a", "b")],
+            positions: Vec::new(),
+        };
+        assert_eq!(partition_ids(&tasks, &linked, true, &none).0, ["a", "b"]);
+        let unlinked: TaskGraphDto = TaskGraphDto::default();
+        let (nodes, loose): (Vec<String>, Vec<String>) =
+            partition_ids(&tasks, &unlinked, true, &none);
+        assert!(nodes.is_empty());
+        assert_eq!(loose, ["a", "b"]);
+    }
+
+    #[test]
+    fn every_visible_task_is_in_exactly_one_group() {
+        let tasks: Vec<TaskDto> = vec![
+            task("done", "w", TaskStatusDto::Merged, "1"),
+            task("tail", "w", TaskStatusDto::Backlog, "2"),
+            task("head", "w", TaskStatusDto::Running, "3"),
+            task("mid", "w", TaskStatusDto::Backlog, "4"),
+            task("saved", "w", TaskStatusDto::Backlog, "5"),
+            task("fresh", "w", TaskStatusDto::Backlog, "6"),
+            task("free", "w", TaskStatusDto::Backlog, "7"),
+            task("other", "x", TaskStatusDto::Backlog, "8"),
+        ];
+        let graphs: Vec<TaskGraphDto> = vec![
+            TaskGraphDto::default(),
+            TaskGraphDto {
+                dependencies: vec![
+                    dep("done", "tail"),
+                    dep("head", "mid"),
+                    dep("head", "other"),
+                ],
+                positions: vec![positioned("saved"), positioned("ghost")],
+            },
+            TaskGraphDto {
+                dependencies: vec![dep("done", "tail")],
+                positions: vec![positioned("tail")],
+            },
+        ];
+        let placed_sets: Vec<HashSet<String>> = vec![
+            HashSet::new(),
+            HashSet::from(["fresh".to_string()]),
+            HashSet::from(["free".to_string(), "other".to_string()]),
+        ];
+        for graph in &graphs {
+            for placed in &placed_sets {
+                for show_done in [true, false] {
+                    let (nodes, loose): (Vec<String>, Vec<String>) =
+                        partition_ids(&tasks, graph, show_done, placed);
+                    let mut all: Vec<String> = nodes.iter().chain(loose.iter()).cloned().collect();
+                    all.sort();
+                    let mut expected: Vec<String> = tasks
+                        .iter()
+                        .filter(|t: &&TaskDto| t.workspace_id == "w")
+                        .filter(|t: &&TaskDto| show_done || t.stage != TaskStageDto::Done)
+                        .map(|t: &TaskDto| t.id.clone())
+                        .collect();
+                    expected.sort();
+                    assert_eq!(all, expected, "show_done={show_done} placed={placed:?}");
+                    // Y el grafo pinta exactamente los nodos.
+                    let view: GraphView = build_graph("w", &tasks, graph, show_done, placed);
+                    let drawn: Vec<String> = view
+                        .nodes
+                        .iter()
+                        .map(|n: &NodeView| n.task.id.clone())
+                        .collect();
+                    assert_eq!(drawn, nodes);
+                }
+            }
+        }
     }
 
     #[test]
@@ -793,6 +906,14 @@ mod tests {
         assert_eq!(board_path("w1"), "/board/w1");
         assert_eq!(back_to_board_path(Some("w1")), "/board/w1");
         assert_eq!(back_to_board_path(None), "/");
+    }
+
+    #[test]
+    fn the_return_path_comes_from_the_loaded_task_or_falls_back_to_the_default_board() {
+        let loaded: TaskDto = task("a", "w9", TaskStatusDto::Running, "1");
+        assert_eq!(board_return_path::<String>(Some(Ok(loaded))), "/board/w9");
+        assert_eq!(board_return_path::<String>(Some(Err("x".to_string()))), "/");
+        assert_eq!(board_return_path::<String>(None), "/");
         assert_eq!(edge_key("a", "b"), "a->b");
     }
 }

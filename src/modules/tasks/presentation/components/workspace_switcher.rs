@@ -20,6 +20,15 @@ pub fn switcher_chip_class(selected: bool) -> &'static str {
     }
 }
 
+/// Clave de un chip para el `<For>`: todo lo que el chip pinta (nombre y rama base, que va
+/// en el `title`), de modo que cambiar cualquiera de los dos lo reconstruye.
+pub fn workspace_chip_key(workspace: &WorkspaceOptionDto) -> String {
+    format!(
+        "{}|{}|{}",
+        workspace.id, workspace.name, workspace.base_branch
+    )
+}
+
 /// Selector rápido de workspace: una fila desplazable de chips, uno por workspace.
 #[component]
 pub fn WorkspaceSwitcher(
@@ -34,16 +43,16 @@ pub fn WorkspaceSwitcher(
         >
             <For
                 each=move || workspaces.get()
-                key=|w: &WorkspaceOptionDto| format!("{}|{}", w.id, w.name)
+                key=workspace_chip_key
                 children=move |workspace: WorkspaceOptionDto| {
-                    let id: String = workspace.id.clone();
+                    let chip_id: String = workspace.id.clone();
                     let click_id: String = workspace.id.clone();
                     view! {
                         <button
                             type="button"
                             class=move || {
                                 switcher_chip_class(
-                                    selected.with(|s: &Option<String>| s.as_deref() == Some(id.as_str())),
+                                    selected.with(|s: &Option<String>| s.as_deref() == Some(chip_id.as_str())),
                                 )
                             }
                             title=workspace.base_branch.clone()
@@ -61,6 +70,26 @@ pub fn WorkspaceSwitcher(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_chip_key_changes_with_name_or_base_branch() {
+        let workspace: WorkspaceOptionDto = WorkspaceOptionDto {
+            id: "w1".to_string(),
+            name: "api".to_string(),
+            base_branch: "main".to_string(),
+        };
+        let before: String = workspace_chip_key(&workspace);
+        let renamed: WorkspaceOptionDto = WorkspaceOptionDto {
+            name: "web".to_string(),
+            ..workspace.clone()
+        };
+        let rebased: WorkspaceOptionDto = WorkspaceOptionDto {
+            base_branch: "develop".to_string(),
+            ..workspace
+        };
+        assert_ne!(before, workspace_chip_key(&renamed));
+        assert_ne!(before, workspace_chip_key(&rebased));
+    }
 
     #[test]
     fn selected_workspace_uses_the_selected_chip_style() {

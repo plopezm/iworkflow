@@ -134,6 +134,45 @@ pub fn tab_options(loose_count: usize) -> Vec<SegmentOption> {
     ]
 }
 
+/// Qué muestra el tablero sobre la carga de sus datos; los tres casos son excluyentes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoadStatus {
+    /// Datos listos: no se muestra nada.
+    Ready,
+    /// Aún sin datos y sin error: texto de carga.
+    Loading,
+    /// Al menos una carga falló: mensajes distintos, sin repetidos y sin texto de carga.
+    Failed(Vec<String>),
+}
+
+/// Decide el estado de carga del tablero a partir de lo cargado y de los errores del grafo y
+/// de las tareas (función pura). Un error siempre prevalece sobre el texto de carga.
+pub fn load_status(
+    graph_loaded: bool,
+    tasks_loaded: bool,
+    errors: [Option<String>; 2],
+) -> LoadStatus {
+    let mut messages: Vec<String> = Vec::new();
+    for message in errors.into_iter().flatten() {
+        if !messages.contains(&message) {
+            messages.push(message);
+        }
+    }
+    if !messages.is_empty() {
+        LoadStatus::Failed(messages)
+    } else if graph_loaded && tasks_loaded {
+        LoadStatus::Ready
+    } else {
+        LoadStatus::Loading
+    }
+}
+
+/// Tamaño del lienzo con el que encuadrar, solo si los datos están cargados, la pestaña se
+/// ve y el lienzo tiene área (un lienzo oculto o colapsado mide 0×0 y encuadraría mal).
+pub fn fit_size(ready: bool, visible: bool, size: Option<(f64, f64)>) -> Option<(f64, f64)> {
+    size.filter(|(width, height): &(f64, f64)| ready && visible && *width > 0.0 && *height > 0.0)
+}
+
 /// Título de la pestaña del tablero de un workspace (función pura).
 pub fn board_tab_title(workspace_name: &str) -> String {
     format!("{} · {workspace_name}", BOARD.get())
@@ -200,18 +239,24 @@ pub fn BoardPage() -> impl IntoView {
             .with(|all: &Vec<WorkspaceOptionDto>| workspace_name(all, &id))
     });
     let tab: Option<TabContext> = use_context::<TabContext>();
+    let tab_path: Option<String> = tab.as_ref().map(|t: &TabContext| t.path.clone());
     Effect::new(move |_| {
         if let (Some(tab), Some(name)) = (tab.as_ref(), selected_name.get()) {
             dock.set_title(&tab.path, &board_tab_title(&name));
         }
     });
-    // Encuadra el grafo una vez, cuando llegan los datos y el lienzo está montado.
+    // Encuadra el grafo una vez, cuando llegan los datos y el lienzo es visible y tiene área.
+    // La visibilidad de la pestaña se sigue para reintentar al volver a ella.
     Effect::new(move |fitted: Option<bool>| {
         if fitted == Some(true) {
             return true;
         }
         let ready: bool = state.graph_loaded.get() && state.store.loaded.get();
-        if let (true, Some(size)) = (ready, canvas.get().and_then(|_| canvas_size(canvas))) {
+        let visible: bool = tab_path
+            .as_deref()
+            .is_none_or(|path: &str| dock.is_path_visible(path));
+        let size: Option<(f64, f64)> = canvas.get().and_then(|_| canvas_size(canvas));
+        if let Some(size) = fit_size(ready, visible, size) {
             state.fit(size);
             return true;
         }
@@ -222,6 +267,25 @@ pub fn BoardPage() -> impl IntoView {
         if let Some(size) = canvas_size(canvas) {
             state.fit(size);
         }
+    });
+    let load: Memo<LoadStatus> = Memo::new(move |_| {
+        load_status(
+            state.graph_loaded.get(),
+            state.store.loaded.get(),
+            [
+                state
+                    .graph
+                    .get()
+                    .and_then(Result::err)
+                    .map(|e: ServerFnError| e.to_string()),
+                state
+                    .store
+                    .tasks
+                    .get()
+                    .and_then(Result::err)
+                    .map(|e: ServerFnError| e.to_string()),
+            ],
+        )
     });
     let is_empty: Memo<bool> = Memo::new(move |_| {
         state.graph_loaded.get()
@@ -286,7 +350,7 @@ pub fn BoardPage() -> impl IntoView {
                             <LooseTasksPanel state canvas handlers busy />
                             <div class="board-canvas">
                             <TaskGraphCanvas state canvas handlers busy />
-                            <Show when=move || !state.graph_loaded.get()>
+                            <Show when=move || load.get() == LoadStatus::Loading>
                                 <p class="muted pointer-events-none absolute left-4 top-3">
                                     {LOADING_BOARD.get()}
                                 </p>
@@ -323,20 +387,15 @@ pub fn BoardPage() -> impl IntoView {
                             .into_any()
                     }
                 }}
-                {move || {
-                    state
-                        .graph
-                        .get()
-                        .and_then(Result::err)
-                        .map(|e| view! { <ErrorText message=e.to_string() /> })
-                }}
-                {move || {
-                    state
-                        .store
-                        .tasks
-                        .get()
-                        .and_then(Result::err)
-                        .map(|e| view! { <ErrorText message=e.to_string() /> })
+                {move || match load.get() {
+                    LoadStatus::Failed(messages) => {
+                        messages
+                            .into_iter()
+                            .map(|message: String| view! { <ErrorText message /> })
+                            .collect_view()
+                            .into_any()
+                    }
+                    LoadStatus::Ready | LoadStatus::Loading => ().into_any(),
                 }}
             </div>
             // Fuera de cualquier `Suspend`: una recarga de workspaces no debe reconstruir el modal
@@ -365,6 +424,45 @@ mod tests {
         assert_eq!(options[0].value, "loose");
         assert_eq!(options[0].label, "Loose (3)");
         assert_eq!(options[1].value, "graph");
+    }
+
+    #[test]
+    fn errors_win_over_the_loading_text_and_are_not_repeated() {
+        let same: String = "sin conexión".to_string();
+        assert_eq!(
+            load_status(false, false, [Some(same.clone()), Some(same.clone())]),
+            LoadStatus::Failed(vec![same.clone()])
+        );
+        assert_eq!(
+            load_status(true, true, [None, Some("tareas".to_string())]),
+            LoadStatus::Failed(vec!["tareas".to_string()])
+        );
+        assert_eq!(
+            load_status(
+                false,
+                false,
+                [Some("grafo".to_string()), Some(same.clone())]
+            ),
+            LoadStatus::Failed(vec!["grafo".to_string(), same])
+        );
+    }
+
+    #[test]
+    fn without_errors_the_board_is_loading_until_both_loads_finish() {
+        assert_eq!(load_status(false, true, [None, None]), LoadStatus::Loading);
+        assert_eq!(load_status(true, false, [None, None]), LoadStatus::Loading);
+        assert_eq!(load_status(true, true, [None, None]), LoadStatus::Ready);
+    }
+
+    #[test]
+    fn fit_waits_for_data_visibility_and_a_non_empty_canvas() {
+        let size: Option<(f64, f64)> = Some((800.0, 600.0));
+        assert_eq!(fit_size(true, true, size), size);
+        assert_eq!(fit_size(false, true, size), None);
+        assert_eq!(fit_size(true, false, size), None);
+        assert_eq!(fit_size(true, true, None), None);
+        assert_eq!(fit_size(true, true, Some((0.0, 600.0))), None);
+        assert_eq!(fit_size(true, true, Some((800.0, 0.0))), None);
     }
 
     #[test]

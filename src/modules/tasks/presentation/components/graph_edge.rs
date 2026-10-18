@@ -16,7 +16,8 @@ const REMOVE_DEPENDENCY: Msg = Msg {
     fr: "Supprimer la dépendance",
 };
 
-/// Identificadores de los `<marker>` de punta de flecha, uno por estado.
+/// Nombres base de los `<marker>` de punta de flecha, uno por estado. Los ids de SVG son
+/// globales al documento, así que el id real lleva además el ámbito del lienzo (`marker_id`).
 pub const ARROW_DONE: &str = "iwf-arrow-done";
 pub const ARROW_WORKING: &str = "iwf-arrow-working";
 pub const ARROW_PENDING: &str = "iwf-arrow-pending";
@@ -36,9 +37,32 @@ pub fn edge_class(state: EdgeState, selected: bool) -> String {
     }
 }
 
+/// Ámbito de ids de un lienzo: distinto por pestaña (su ruta), para que varios tableros en el
+/// mismo documento no compartan `<marker>`. Determinista, así que coincide entre SSR e
+/// hidratación; los caracteres que no son alfanuméricos se escapan de forma inyectiva.
+pub fn marker_scope(tab_path: Option<&str>) -> String {
+    let Some(path) = tab_path else {
+        return "board".to_string();
+    };
+    path.chars()
+        .map(|c: char| {
+            if c.is_ascii_alphanumeric() {
+                c.to_string()
+            } else {
+                format!("_{:x}_", u32::from(c))
+            }
+        })
+        .collect()
+}
+
+/// Id del `<marker>` de nombre base `name` dentro del ámbito `scope`.
+pub fn marker_id(scope: &str, name: &str) -> String {
+    format!("{name}-{scope}")
+}
+
 /// Valor del atributo `marker-end` de la arista.
-pub fn arrow_marker(state: EdgeState, selected: bool) -> String {
-    let id: &str = if selected {
+pub fn arrow_marker(state: EdgeState, selected: bool, scope: &str) -> String {
+    let name: &str = if selected {
         ARROW_ACTIVE
     } else {
         match state {
@@ -47,12 +71,12 @@ pub fn arrow_marker(state: EdgeState, selected: bool) -> String {
             EdgeState::Pending => ARROW_PENDING,
         }
     };
-    format!("url(#{id})")
+    format!("url(#{})", marker_id(scope, name))
 }
 
 /// Definiciones SVG de las puntas de flecha (una por estado más la de selección).
 #[component]
-pub fn GraphArrowDefs() -> impl IntoView {
+pub fn GraphArrowDefs(#[prop(into)] scope: String) -> impl IntoView {
     view! {
         <defs>
             {[
@@ -62,10 +86,10 @@ pub fn GraphArrowDefs() -> impl IntoView {
                 (ARROW_ACTIVE, "graph-arrow-active"),
             ]
                 .into_iter()
-                .map(|(id, class): (&str, &str)| {
+                .map(|(name, class): (&str, &str)| {
                     view! {
                         <marker
-                            id=id
+                            id=marker_id(&scope, name)
                             class=class
                             viewBox="0 0 10 10"
                             refX="9"
@@ -89,6 +113,7 @@ pub fn GraphArrowDefs() -> impl IntoView {
 #[component]
 pub fn GraphEdgeLine(
     edge: EdgeView,
+    #[prop(into)] marker_scope: String,
     #[prop(into)] from: Signal<Point>,
     #[prop(into)] to: Signal<Point>,
     #[prop(into)] selected: Signal<bool>,
@@ -115,7 +140,7 @@ pub fn GraphEdgeLine(
             <path
                 class="graph-edge-line"
                 d=move || path.get()
-                marker-end=move || arrow_marker(state, selected.get())
+                marker-end=move || arrow_marker(state, selected.get(), &marker_scope)
             />
             {label
                 .map(|text: String| {
@@ -173,14 +198,44 @@ mod tests {
 
     #[test]
     fn arrow_marker_points_to_the_state_marker_or_the_active_one() {
-        assert_eq!(arrow_marker(EdgeState::Done, false), "url(#iwf-arrow-done)");
         assert_eq!(
-            arrow_marker(EdgeState::Pending, false),
-            "url(#iwf-arrow-pending)"
+            arrow_marker(EdgeState::Done, false, "s"),
+            "url(#iwf-arrow-done-s)"
         );
         assert_eq!(
-            arrow_marker(EdgeState::Working, true),
-            "url(#iwf-arrow-active)"
+            arrow_marker(EdgeState::Pending, false, "s"),
+            "url(#iwf-arrow-pending-s)"
         );
+        assert_eq!(
+            arrow_marker(EdgeState::Working, true, "s"),
+            "url(#iwf-arrow-active-s)"
+        );
+    }
+
+    #[test]
+    fn marker_ids_differ_between_canvases_and_match_their_references() {
+        let first: String = marker_scope(Some("/board/w1"));
+        let second: String = marker_scope(Some("/board/w2"));
+        assert_ne!(
+            marker_id(&first, ARROW_DONE),
+            marker_id(&second, ARROW_DONE)
+        );
+        assert_eq!(
+            arrow_marker(EdgeState::Done, false, &first),
+            format!("url(#{})", marker_id(&first, ARROW_DONE))
+        );
+    }
+
+    #[test]
+    fn marker_scope_is_a_valid_injective_id_fragment() {
+        assert_eq!(marker_scope(None), "board");
+        let scope: String = marker_scope(Some("/board/a-b"));
+        assert!(
+            scope
+                .chars()
+                .all(|c: char| c.is_ascii_alphanumeric() || c == '_')
+        );
+        assert_ne!(marker_scope(Some("/a/b")), marker_scope(Some("/a-b")));
+        assert_ne!(marker_scope(Some("/a_b")), marker_scope(Some("/a/b")));
     }
 }

@@ -5,6 +5,7 @@ use crate::modules::tasks::domain::errors::task_error::TaskError;
 use crate::modules::tasks::domain::models::task::{Task, TaskId, TaskStatus};
 use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::models::worktree::{DiffRange, MergeOutcome};
+use crate::modules::tasks::domain::ports::inbound::successor_trigger::SuccessorTrigger;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
 /// Integra la rama de la tarea en la base tras la revisión manual y elimina el worktree.
@@ -12,13 +13,20 @@ use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 pub struct MergeTask {
     lifecycle: Arc<TaskLifecycle>,
     worktrees: Arc<dyn WorktreePort>,
+    /// Si existe, se evalúa tras un merge para arrancar al instante a las sucesoras desbloqueadas.
+    successors: Option<Arc<dyn SuccessorTrigger>>,
 }
 
 impl MergeTask {
-    pub fn new(lifecycle: Arc<TaskLifecycle>, worktrees: Arc<dyn WorktreePort>) -> Self {
+    pub fn new(
+        lifecycle: Arc<TaskLifecycle>,
+        worktrees: Arc<dyn WorktreePort>,
+        successors: Option<Arc<dyn SuccessorTrigger>>,
+    ) -> Self {
         Self {
             lifecycle,
             worktrees,
+            successors,
         }
     }
 
@@ -74,6 +82,12 @@ impl MergeTask {
                 self.lifecycle
                     .transition(id, TaskStatus::Merged, error)
                     .await?;
+                // El bucle de fondo cubriría el hueco; un fallo aquí no invalida el merge hecho.
+                if let Some(successors) = &self.successors
+                    && let Err(error) = successors.trigger().await
+                {
+                    tracing::warn!(%error, "no se pudo evaluar el grafo tras integrar la tarea");
+                }
             }
             MergeOutcome::Conflict { files } => {
                 let detail: String = format!("conflictos en: {}", files.join(", "));
@@ -93,7 +107,7 @@ mod tests {
     use super::*;
     use crate::modules::tasks::application::test_support::{self, Recorded};
     use crate::modules::tasks::domain::models::worktree::DiffRange;
-    use crate::modules::tasks::mocks::{MockTaskRepository, MockWorktree};
+    use crate::modules::tasks::mocks::{MockSuccessorTrigger, MockTaskRepository, MockWorktree};
 
     type RecordedRanges = Arc<Mutex<Vec<DiffRange>>>;
 
@@ -135,6 +149,7 @@ mod tests {
         let outcome: Result<MergeOutcome, TaskError> = MergeTask::new(
             test_support::lifecycle_with(repository, recorded),
             Arc::new(worktrees),
+            None,
         )
         .execute(id)
         .await;
@@ -207,6 +222,7 @@ mod tests {
         MergeTask::new(
             test_support::lifecycle_with(repository, &recorded),
             Arc::new(worktrees),
+            None,
         )
         .execute(id)
         .await
@@ -364,5 +380,76 @@ mod tests {
         )
         .await;
         assert!(matches!(result, Err(TaskError::InvalidState { .. })));
+    }
+
+    async fn merge_with_trigger(
+        worktrees: MockWorktree,
+        trigger: MockSuccessorTrigger,
+    ) -> Result<MergeOutcome, TaskError> {
+        let recorded: Recorded = Recorded::default();
+        let task: Task = test_support::task(TaskStatus::AwaitingReview);
+        let id: TaskId = task.id;
+        let mut repository: MockTaskRepository =
+            test_support::repository_with(Some(task), &recorded);
+        repository
+            .expect_record_diff_range()
+            .returning(|_, _| Ok(()));
+        MergeTask::new(
+            test_support::lifecycle_with(repository, &recorded),
+            Arc::new(worktrees),
+            Some(Arc::new(trigger)),
+        )
+        .execute(id)
+        .await
+    }
+
+    fn merged_worktrees() -> MockWorktree {
+        let mut worktrees: MockWorktree = worktrees_with_pin();
+        worktrees
+            .expect_merge()
+            .returning(|_, _, _, _| Ok(MergeOutcome::Merged));
+        worktrees.expect_remove().returning(|_, _, _| Ok(()));
+        worktrees
+    }
+
+    #[tokio::test]
+    async fn merged_evaluates_successors_once() {
+        let mut trigger: MockSuccessorTrigger = MockSuccessorTrigger::new();
+        trigger.expect_trigger().times(1).returning(|| Ok(1));
+
+        let outcome: MergeOutcome = merge_with_trigger(merged_worktrees(), trigger)
+            .await
+            .expect("merge");
+
+        assert_eq!(outcome, MergeOutcome::Merged);
+    }
+
+    #[tokio::test]
+    async fn conflict_does_not_evaluate_successors() {
+        let mut worktrees: MockWorktree = worktrees_with_pin();
+        worktrees.expect_merge().returning(|_, _, _, _| {
+            Ok(MergeOutcome::Conflict {
+                files: vec!["a".to_string()],
+            })
+        });
+        let mut trigger: MockSuccessorTrigger = MockSuccessorTrigger::new();
+        trigger.expect_trigger().never();
+
+        merge_with_trigger(worktrees, trigger).await.expect("merge");
+    }
+
+    #[tokio::test]
+    async fn successor_trigger_error_does_not_fail_the_merge() {
+        let mut trigger: MockSuccessorTrigger = MockSuccessorTrigger::new();
+        trigger
+            .expect_trigger()
+            .times(1)
+            .returning(|| Err(TaskError::Git("boom".to_string())));
+
+        let outcome: MergeOutcome = merge_with_trigger(merged_worktrees(), trigger)
+            .await
+            .expect("merge");
+
+        assert_eq!(outcome, MergeOutcome::Merged);
     }
 }

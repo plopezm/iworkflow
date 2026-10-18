@@ -14,8 +14,10 @@ pub enum DragMode {
     Idle,
     /// Arrastre del fondo: desplaza la vista.
     Pan {
+        /// Puntero (en pantalla) al empezar, para medir el umbral.
         origin: Point,
-        viewport: Viewport,
+        /// Último puntero (en pantalla) ya aplicado a la vista.
+        last: Point,
         moved: bool,
     },
     /// Arrastre de un nodo.
@@ -69,10 +71,10 @@ fn distance(a: Point, b: Point) -> f64 {
 }
 
 impl DragMode {
-    pub fn pan(origin: Point, viewport: Viewport) -> Self {
+    pub fn pan(origin: Point) -> Self {
         Self::Pan {
             origin,
-            viewport,
+            last: origin,
             moved: false,
         }
     }
@@ -111,21 +113,26 @@ impl DragMode {
             Self::Idle => (Self::Idle, DragEffect::None),
             Self::Pan {
                 origin,
-                viewport: start,
+                last,
                 moved,
             } => {
-                let dx: f64 = screen.x - origin.x;
-                let dy: f64 = screen.y - origin.y;
                 let moved: bool = moved || distance(screen, origin) >= DRAG_THRESHOLD;
-                let effect: DragEffect = if moved {
-                    DragEffect::SetViewport(start.panned(dx, dy))
+                // El desplazamiento se aplica sobre la vista actual (no la del inicio del
+                // gesto), así un zoom hecho durante el arrastre se conserva.
+                let (effect, last): (DragEffect, Point) = if moved {
+                    (
+                        DragEffect::SetViewport(
+                            viewport.panned(screen.x - last.x, screen.y - last.y),
+                        ),
+                        screen,
+                    )
                 } else {
-                    DragEffect::None
+                    (DragEffect::None, last)
                 };
                 (
                     Self::Pan {
                         origin,
-                        viewport: start,
+                        last,
                         moved,
                     },
                     effect,
@@ -227,7 +234,7 @@ mod tests {
     #[test]
     fn small_pan_movements_are_still_a_click() {
         let viewport: Viewport = Viewport::default();
-        let mode: DragMode = DragMode::pan(Point::new(10.0, 10.0), viewport);
+        let mode: DragMode = DragMode::pan(Point::new(10.0, 10.0));
         let (mode, effect): (DragMode, DragEffect) =
             mode.moved(Point::new(11.0, 11.0), &viewport, &nodes());
         assert_eq!(effect, DragEffect::None);
@@ -244,7 +251,7 @@ mod tests {
             y: 5.0,
             zoom: 1.0,
         };
-        let mode: DragMode = DragMode::pan(Point::new(100.0, 100.0), viewport);
+        let mode: DragMode = DragMode::pan(Point::new(100.0, 100.0));
         let (mode, effect): (DragMode, DragEffect) =
             mode.moved(Point::new(130.0, 90.0), &viewport, &[]);
         assert_eq!(
@@ -258,6 +265,29 @@ mod tests {
         assert_eq!(
             mode.finished(Point::new(130.0, 90.0), &viewport, &[], |_| None),
             DragOutcome::None
+        );
+    }
+
+    #[test]
+    fn panning_keeps_the_current_zoom() {
+        let start: Viewport = Viewport::default();
+        let mode: DragMode = DragMode::pan(Point::new(100.0, 100.0));
+        let (mode, _): (DragMode, DragEffect) = mode.moved(Point::new(120.0, 100.0), &start, &[]);
+        // El usuario hace zoom con la rueda en mitad del arrastre.
+        let zoomed: Viewport = Viewport {
+            x: 20.0,
+            y: 0.0,
+            zoom: 2.0,
+        };
+        let (_, effect): (DragMode, DragEffect) =
+            mode.moved(Point::new(130.0, 105.0), &zoomed, &[]);
+        assert_eq!(
+            effect,
+            DragEffect::SetViewport(Viewport {
+                x: 30.0,
+                y: 5.0,
+                zoom: 2.0
+            })
         );
     }
 

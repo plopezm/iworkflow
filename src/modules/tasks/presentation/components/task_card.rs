@@ -304,9 +304,13 @@ mod tests {
     }
 
     #[test]
-    pub fn pending_dialogs_label_pluralises() {
+    fn pending_dialogs_label_pluralises() {
         assert_eq!(pending_dialogs_label(1), "1 dialog");
         assert_eq!(pending_dialogs_label(3), "3 dialogs");
+    }
+
+    #[test]
+    fn pending_dialogs_label_is_translated() {
         assert_eq!(PENDING_DIALOG_ONE.in_locale(Locale::Es), "1 diálogo");
         assert_eq!(
             PENDING_DIALOGS_MANY

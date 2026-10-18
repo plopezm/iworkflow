@@ -3,8 +3,11 @@ use leptos::html;
 use leptos::prelude::*;
 
 use crate::core::components::zoom_controls::ZoomControls;
+use crate::core::dock::context::TabContext;
 use crate::core::i18n::Msg;
-use crate::modules::tasks::presentation::components::graph_edge::{GraphArrowDefs, GraphEdgeLine};
+use crate::modules::tasks::presentation::components::graph_edge::{
+    GraphArrowDefs, GraphEdgeLine, marker_scope,
+};
 use crate::modules::tasks::presentation::components::task_card::{TaskCardBusy, TaskCardHandlers};
 use crate::modules::tasks::presentation::components::task_node::TaskNode;
 use crate::modules::tasks::presentation::state::board_state::BoardState;
@@ -143,6 +146,13 @@ pub fn TaskGraphCanvas(
         state.wheel(point, ev.delta_y());
     };
 
+    // Los `<marker>` de SVG tienen ids globales: cada pestaña usa los suyos.
+    let scope: String = marker_scope(
+        use_context::<TabContext>()
+            .map(|t: TabContext| t.path)
+            .as_deref(),
+    );
+    let edge_scope: String = scope.clone();
     let nodes: Signal<Vec<NodeView>> =
         Signal::derive(move || state.view.with(|g: &GraphView| g.nodes.clone()));
     let edges: Signal<Vec<EdgeView>> =
@@ -191,7 +201,7 @@ pub fn TaskGraphCanvas(
                 style=move || format!("transform: {};", state.viewport.get().transform_css())
             >
                 <svg class="graph-edges" width="1" height="1" aria-hidden="true">
-                    <GraphArrowDefs />
+                    <GraphArrowDefs scope=scope.clone() />
                     <For
                         each=move || edges.get()
                         key=|e: &EdgeView| format!("{}|{:?}|{:?}", e.key(), e.state, e.label)
@@ -223,6 +233,7 @@ pub fn TaskGraphCanvas(
                             view! {
                                 <GraphEdgeLine
                                     edge
+                                    marker_scope=edge_scope.clone()
                                     from
                                     to
                                     selected

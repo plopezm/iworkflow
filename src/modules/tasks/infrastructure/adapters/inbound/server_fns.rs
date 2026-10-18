@@ -287,19 +287,11 @@ pub async fn resume_task(id: String) -> Result<(), ServerFnError> {
 pub async fn merge_task(id: String) -> Result<MergeOutcomeDto, ServerFnError> {
     use crate::modules::tasks::domain::models::worktree::MergeOutcome;
 
-    let ctx = support::context()?;
-    let outcome: MergeOutcome = ctx
+    let outcome: MergeOutcome = support::context()?
         .merge_task
         .execute(support::task_id(&id)?)
         .await
         .map_err(support::to_server_error)?;
-    // La integración desbloquea a las sucesoras; el bucle de fondo cubriría el hueco, pero así
-    // arrancan al instante. Un fallo aquí no invalida el merge ya hecho.
-    if matches!(outcome, MergeOutcome::Merged)
-        && let Err(error) = ctx.trigger_successors.execute().await
-    {
-        tracing::warn!(%error, "no se pudo evaluar el grafo tras integrar la tarea");
-    }
     Ok(MergeOutcomeDto::from(outcome))
 }
 

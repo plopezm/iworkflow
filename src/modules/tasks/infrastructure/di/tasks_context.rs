@@ -301,7 +301,11 @@ impl TasksContext {
                 send_message,
             )),
             resume_task,
-            merge_task: Arc::new(MergeTask::new(lifecycle.clone(), worktrees.clone())),
+            merge_task: Arc::new(MergeTask::new(
+                lifecycle.clone(),
+                worktrees.clone(),
+                Some(trigger.clone()),
+            )),
             discard_task: Arc::new(DiscardTask::new(
                 lifecycle.clone(),
                 worktrees.clone(),

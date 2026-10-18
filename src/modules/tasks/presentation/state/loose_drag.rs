@@ -12,13 +12,18 @@ pub struct LooseDrag {
     pub pointer: Point,
 }
 
-/// Ancho de ventana (px) por debajo del cual el tablero usa subpestañas en lugar de dos paneles.
-pub const NARROW_BREAKPOINT: f64 = 768.0;
+/// Ancho de ventana (px) por debajo del cual el tablero usa subpestañas en lugar de dos
+/// paneles. Es el punto de corte `md` de Tailwind: `style/tailwind.css` lo repite en su
+/// `@media (max-width: 767px)` y debe cambiar a la vez.
+pub const NARROW_BREAKPOINT_PX: f64 = 768.0;
 
 /// Indica si una ventana de `width` px usa el diseño estrecho (subpestañas).
 pub fn is_narrow_viewport(width: f64) -> bool {
-    width < NARROW_BREAKPOINT
+    width < NARROW_BREAKPOINT_PX
 }
+
+/// Tamaño del lienzo (ancho, alto) que se asume cuando aún no se ha medido o mide cero.
+const FALLBACK_CANVAS_SIZE: (f64, f64) = (800.0, 600.0);
 
 /// Posición de nodo (esquina superior izquierda) que deja su centro en `centre`.
 fn node_position_centred_at(centre: Point) -> Point {
@@ -43,6 +48,11 @@ pub fn drop_position(client: Point, canvas: &Rect, viewport: &Viewport) -> Optio
 /// Posición del nodo cuando se añade con el botón: centrado en la parte visible del lienzo
 /// de tamaño `size` (ancho, alto).
 pub fn centre_position(size: (f64, f64), viewport: &Viewport) -> Point {
+    let size: (f64, f64) = if size.0 > 0.0 && size.1 > 0.0 {
+        size
+    } else {
+        FALLBACK_CANVAS_SIZE
+    };
     let centre: Point = viewport.screen_to_canvas(Point::new(size.0 / 2.0, size.1 / 2.0));
     node_position_centred_at(centre)
 }
@@ -77,6 +87,21 @@ mod tests {
             height: 0.0,
         };
         assert!(!is_over_canvas(Point::new(10.0, 10.0), &empty));
+    }
+
+    #[test]
+    fn the_breakpoint_matches_the_tailwind_md_one_used_in_the_css() {
+        assert_eq!(NARROW_BREAKPOINT_PX, 768.0);
+        let css: &str = include_str!("../../../../../style/tailwind.css");
+        assert!(css.contains("@media (max-width: 767px)"));
+    }
+
+    #[test]
+    fn an_unmeasured_canvas_falls_back_to_a_default_size() {
+        assert_eq!(
+            centre_position((0.0, 0.0), &Viewport::default()),
+            centre_position(FALLBACK_CANVAS_SIZE, &Viewport::default())
+        );
     }
 
     #[test]

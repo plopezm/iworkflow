@@ -24,7 +24,9 @@ use crate::modules::tasks::presentation::components::task_actions::{
 use crate::modules::tasks::presentation::components::task_attachments_list::TaskAttachmentsList;
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
 use crate::modules::tasks::presentation::components::transcript_view::TranscriptView;
-use crate::modules::tasks::presentation::state::graph_model::back_to_board_path;
+use crate::modules::tasks::presentation::state::graph_model::{
+    back_to_board_path, board_return_path,
+};
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
@@ -420,12 +422,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
             .value()
             .with(|r: &Option<Result<(), ServerFnError>>| matches!(r, Some(Ok(()))));
         if reset_done {
-            let workspace_id: Option<String> = state
-                .task
-                .get_untracked()
-                .and_then(Result::ok)
-                .map(|t: TaskDto| t.workspace_id);
-            nav.close_and_open(&back_to_board_path(workspace_id.as_deref()));
+            nav.close_and_open(&board_return_path(state.task.get_untracked()));
         }
     });
     let right_open: RwSignal<bool> = RwSignal::new(true);

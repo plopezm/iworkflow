@@ -61,6 +61,26 @@ fn dragged_title(tasks: &[TaskDto], drag: &LooseDrag) -> Option<String> {
         .map(|t: &TaskDto| t.title.clone())
 }
 
+/// Clave de una tarjeta suelta para el `<For>`: solo contiene lo que la tarjeta pinta. No
+/// incluye el estado del arrastre (puntero, tarea arrastrada) ni `updated_at`, que cambia sin
+/// que la tarjeta lo muestre: reconstruir el nodo en pleno arrastre perdería la captura del
+/// puntero.
+pub fn loose_card_key(task: &TaskDto) -> String {
+    format!(
+        "{}|{}|{:?}|{:?}|{:?}|{:?}|{:?}|{:?}|{}|{}",
+        task.id,
+        task.title,
+        task.stage,
+        task.status,
+        task.priority,
+        task.error,
+        task.resume_at,
+        task.actions,
+        task.pending_dialogs,
+        task.needs_attention,
+    )
+}
+
 /// Estilo del fantasma de arrastre, anclado a la ventana en la posición del puntero.
 pub fn ghost_style(pointer: Point) -> String {
     format!("left: {:.0}px; top: {:.0}px;", pointer.x, pointer.y)
@@ -82,9 +102,8 @@ pub fn LooseTasksPanel(
         state.loose_pointer_up(client, canvas_rect(canvas).filter(|_| !narrow));
     });
     let on_add: Callback<String> = Callback::new(move |id: String| {
-        if let Some(size) = canvas_size(canvas) {
-            state.add_loose_to_graph(id, size);
-        }
+        // Sin lienzo medido se usa un tamaño por defecto en vez de ignorar el clic.
+        state.add_loose_to_graph(id, canvas_size(canvas).unwrap_or_default());
     });
     let ghost: Memo<Option<(String, Point)>> = Memo::new(move |_| {
         let drag: LooseDrag = state.loose_drag.get()?;
@@ -116,7 +135,7 @@ pub fn LooseTasksPanel(
                 <ul class="stack gap-2 p-2">
                     <For
                         each=move || state.loose.get()
-                        key=|t: &TaskDto| format!("{}|{}|{:?}|{:?}|{:?}|{}|{}", t.id, t.updated_at, t.status, t.error, t.priority, t.pending_dialogs, t.needs_attention)
+                        key=loose_card_key
                         children=move |task: TaskDto| {
                             let id: String = task.id.clone();
                             view! {
@@ -157,6 +176,57 @@ pub fn LooseTasksPanel(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
+        TaskStageDto, TaskStatusDto,
+    };
+
+    fn task(id: &str) -> TaskDto {
+        TaskDto {
+            id: id.to_string(),
+            workspace_id: "w".to_string(),
+            title: "título".to_string(),
+            prompt: "prompt".to_string(),
+            branch: "pi/x".to_string(),
+            base_branch: "main".to_string(),
+            worktree_path: "/wt".to_string(),
+            status: TaskStatusDto::Backlog,
+            priority: Default::default(),
+            memory_limit_mb: None,
+            cpu_limit_percent: None,
+            error: None,
+            resume_at: None,
+            actions: Default::default(),
+            stage: TaskStageDto::Backlog,
+            needs_attention: false,
+            pending_dialogs: 0,
+            created_at: "1".to_string(),
+            updated_at: "1".to_string(),
+        }
+    }
+
+    #[test]
+    fn the_card_key_ignores_what_the_card_does_not_draw() {
+        let base: TaskDto = task("a");
+        let mut touched: TaskDto = base.clone();
+        touched.updated_at = "2".to_string();
+        touched.prompt = "otro".to_string();
+        assert_eq!(loose_card_key(&base), loose_card_key(&touched));
+    }
+
+    #[test]
+    fn the_card_key_changes_with_what_the_card_draws() {
+        let base: TaskDto = task("a");
+        let before: String = loose_card_key(&base);
+        let mut renamed: TaskDto = base.clone();
+        renamed.title = "nuevo".to_string();
+        assert_ne!(before, loose_card_key(&renamed));
+        let mut attention: TaskDto = base.clone();
+        attention.needs_attention = true;
+        assert_ne!(before, loose_card_key(&attention));
+        let mut failed: TaskDto = base;
+        failed.error = Some("falló".to_string());
+        assert_ne!(before, loose_card_key(&failed));
+    }
 
     #[test]
     fn ghost_follows_the_pointer() {

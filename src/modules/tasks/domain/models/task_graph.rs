@@ -141,6 +141,26 @@ pub fn startable_tasks(tasks: &[Task], edges: &[TaskDependency]) -> Vec<TaskId> 
         .collect()
 }
 
+/// Tareas en `Backlog` que nunca arrancarán solas porque alguna predecesora está `Discarded`
+/// (descartada después de crear la arista). El usuario las desbloquea quitando esa arista.
+pub fn blocked_by_discarded(tasks: &[Task], edges: &[TaskDependency]) -> Vec<TaskId> {
+    let status_of: HashMap<TaskId, TaskStatus> = tasks
+        .iter()
+        .map(|task: &Task| (task.id, task.status))
+        .collect();
+    tasks
+        .iter()
+        .filter(|task: &&Task| task.status == TaskStatus::Backlog)
+        .filter(|task: &&Task| {
+            edges.iter().any(|edge: &TaskDependency| {
+                edge.successor == task.id
+                    && status_of.get(&edge.predecessor) == Some(&TaskStatus::Discarded)
+            })
+        })
+        .map(|task: &Task| task.id)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,5 +246,29 @@ mod tests {
         let running: Task = task(TaskStatus::Running);
         let edges: Vec<TaskDependency> = vec![edge(merged.id, running.id)];
         assert!(startable_tasks(&[merged, running], &edges).is_empty());
+    }
+
+    #[test]
+    fn backlog_successor_with_discarded_predecessor_is_blocked() {
+        let discarded: Task = task(TaskStatus::Discarded);
+        let merged: Task = task(TaskStatus::Merged);
+        let stuck: Task = task(TaskStatus::Backlog);
+        let fine: Task = task(TaskStatus::Backlog);
+        let running: Task = task(TaskStatus::Running);
+        let edges: Vec<TaskDependency> = vec![
+            edge(discarded.id, stuck.id),
+            edge(merged.id, stuck.id),
+            edge(merged.id, fine.id),
+            edge(discarded.id, running.id),
+        ];
+        let stuck_id: TaskId = stuck.id;
+        let tasks: Vec<Task> = vec![discarded, merged, stuck, fine, running];
+
+        assert_eq!(blocked_by_discarded(&tasks, &edges), vec![stuck_id]);
+        assert!(
+            startable_tasks(&tasks, &edges)
+                .iter()
+                .all(|id: &TaskId| *id != stuck_id)
+        );
     }
 }

@@ -34,6 +34,9 @@ use crate::modules::tasks::presentation::state::image_attachments::ImageAttachme
 use crate::modules::tasks::presentation::state::loose_drag::{
     LooseDrag, centre_position, drop_position,
 };
+use crate::modules::tasks::presentation::state::placement::{
+    can_place, place, roll_back, unconfirmed,
+};
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
 
 const START_FAILED_AFTER_CREATE: Msg = Msg {
@@ -301,7 +304,6 @@ pub struct BoardState {
     pub delete_target: RwSignal<Option<String>>,
     pub finish_target: RwSignal<Option<String>>,
     pub merge_target: RwSignal<Option<String>>,
-    pub position_target: RwSignal<Option<String>>,
 }
 
 /// Firma de los estados de las tareas de `workspace_id`: cambia cuando alguna tarea del
@@ -428,6 +430,8 @@ impl BoardState {
                     add_edge.version().get(),
                     remove_edge.version().get(),
                     set_position.version().get(),
+                    // El alta crea sus aristas después de la tarea: se recarga al terminar.
+                    create.version().get(),
                     status_signature.get(),
                 )
             },
@@ -440,10 +444,32 @@ impl BoardState {
         );
         let graph_data: RwSignal<TaskGraphDto> = RwSignal::new(TaskGraphDto::default());
         let graph_loaded: RwSignal<bool> = RwSignal::new(false);
+        let overrides: RwSignal<HashMap<String, Point>> = RwSignal::new(HashMap::new());
+        // Al cambiar de workspace no sobreviven el grafo ni las posiciones del anterior.
+        Effect::new(move |previous: Option<Option<String>>| {
+            let current: Option<String> = workspace_id.get();
+            if previous.is_some_and(|before: Option<String>| before != current) {
+                graph_data.set(TaskGraphDto::default());
+                graph_loaded.set(false);
+                overrides.set(HashMap::new());
+            }
+            current
+        });
         // Copia el resultado a una señal propia (solo cliente) para conservar el grafo anterior
-        // mientras se recarga; no coordina llamadas al backend.
+        // mientras se recarga; no coordina llamadas al backend. Las posiciones que el servidor
+        // ya devuelve dejan de ser provisionales.
         Effect::new(move |_| {
             if let Some(Ok(loaded)) = graph.get() {
+                let saved: HashMap<String, Point> = saved_positions(&loaded);
+                let pending: HashMap<String, Point> =
+                    overrides.with_untracked(|current: &HashMap<String, Point>| {
+                        unconfirmed(current, &saved)
+                    });
+                if overrides.with_untracked(|current: &HashMap<String, Point>| {
+                    current.len() != pending.len()
+                }) {
+                    overrides.set(pending);
+                }
                 if graph_data.with_untracked(|current: &TaskGraphDto| *current != loaded) {
                     graph_data.set(loaded);
                 }
@@ -452,7 +478,6 @@ impl BoardState {
         });
 
         let show_completed: RwSignal<bool> = RwSignal::new(true);
-        let overrides: RwSignal<HashMap<String, Point>> = RwSignal::new(HashMap::new());
         // Tareas con posición recién fijada que el servidor aún no ha devuelto: ya no están
         // sueltas. Memo aparte para no reconstruir el grafo en cada movimiento de un nodo.
         let placed: Memo<HashSet<String>> = Memo::new(move |_| {
@@ -588,16 +613,13 @@ impl BoardState {
             delete_target: RwSignal::new(None),
             finish_target: RwSignal::new(None),
             merge_target: RwSignal::new(None),
-            position_target: RwSignal::new(None),
         }
     }
 
     /// Fija la posición de `id` en el lienzo y la guarda: la tarea pasa a ser un nodo del grafo.
     fn place_task(&self, id: String, position: Point) {
-        self.overrides.update(|m: &mut HashMap<String, Point>| {
-            m.insert(id.clone(), position);
-        });
-        self.position_target.set(Some(id.clone()));
+        self.overrides
+            .update(|m: &mut HashMap<String, Point>| *m = place(m, &id, position));
         self.set_position.dispatch(SetTaskPosition {
             id,
             x: position.x,
@@ -632,7 +654,9 @@ impl BoardState {
         self.loose_drag.set(None);
         let target: Option<Point> = canvas
             .and_then(|rect: Rect| drop_position(client, &rect, &self.viewport.get_untracked()));
-        if let Some(position) = target {
+        if let Some(position) = target
+            && self.is_still_loose(&drag.task_id)
+        {
             self.place_task(drag.task_id, position);
         }
     }
@@ -644,10 +668,19 @@ impl BoardState {
 
     /// Añade la tarea suelta `id` al grafo, en el centro visible del lienzo de `size`.
     pub fn add_loose_to_graph(&self, id: String, size: (f64, f64)) {
+        if !self.is_still_loose(&id) {
+            return;
+        }
         let position: Point = centre_position(size, &self.viewport.get_untracked());
         self.place_task(id, position);
         // En pantallas estrechas el lienzo no se ve: se enseña el resultado.
         self.board_tab.set(Some(BoardTab::Graph));
+    }
+
+    /// La tarea sigue en el panel de sueltas (no se ha colocado ni borrado mientras tanto).
+    fn is_still_loose(&self, id: &str) -> bool {
+        self.loose
+            .with_untracked(|loose: &Vec<TaskDto>| can_place(id, loose))
     }
 
     /// Elige la subpestaña visible en pantallas estrechas.
@@ -675,8 +708,7 @@ impl BoardState {
 
     /// Empieza a arrastrar el fondo (`screen`: punto relativo al lienzo).
     pub fn pointer_down_background(&self, screen: Point) {
-        self.drag
-            .set(DragMode::pan(screen, self.viewport.get_untracked()));
+        self.drag.set(DragMode::pan(screen));
     }
 
     /// Empieza a arrastrar el nodo `id`.
@@ -740,7 +772,6 @@ impl BoardState {
                 self.selected_node.set(Some(id));
             }
             DragOutcome::CommitNode(id, position) => {
-                self.position_target.set(Some(id.clone()));
                 self.set_position.dispatch(SetTaskPosition {
                     id,
                     x: position.x,
@@ -946,13 +977,14 @@ impl BoardState {
                 state.push(e.to_string());
             }
         });
-        // Si no se pudo guardar la posición, el nodo vuelve a la que tenía en el servidor.
+        // Si no se pudo guardar la posición, el nodo vuelve a la que tenía en el servidor. La
+        // tarea afectada es la de la entrada de la acción, que se corresponde con este resultado.
         Effect::new(move |_| {
             if let Some(Err(e)) = state.set_position.value().get() {
-                if let Some(id) = state.position_target.get_untracked() {
-                    state.overrides.update(|m: &mut HashMap<String, Point>| {
-                        m.remove(&id);
-                    });
+                if let Some(input) = state.set_position.input().get_untracked() {
+                    state
+                        .overrides
+                        .update(|m: &mut HashMap<String, Point>| *m = roll_back(m, &input.id));
                 }
                 state.push(e.to_string());
             }
