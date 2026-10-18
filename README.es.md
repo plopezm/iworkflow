@@ -4,6 +4,12 @@
 
 **iworkflow es un ADE (Agentic Development Environment)**: una aplicación web autoalojada para lanzar, seguir y revisar varios agentes de código con IA en paralelo. En lugar de editar archivos tú mismo, gestionas **tareas**: cada una ejecuta un agente en su propio git worktree y revisas el diff antes de que nada llegue a tu rama.
 
+<p align="center">
+  <img src="docs/media/task-graph.gif" alt="Grafo de tareas de iworkflow: las tareas encadenadas esperan a sus predecesoras y, al integrar una, arrancan las siguientes solas" width="900" />
+  <br />
+  <sub>Encadena tareas en un tablero; al integrar una, las que dependen de ella arrancan solas.</sub>
+</p>
+
 > **Estado:** temprano y en desarrollo activo. Se ejecuta en tu propia máquina, no tiene autenticación y es *source-available* (PolyForm Shield 1.0.0), no open source aprobado por la OSI. Consulta [Arranque rápido](#arranque-rápido) y [Licencia](#licencia).
 
 ## Características
@@ -88,6 +94,12 @@ Cada workspace tiene su propio **tablero**: un lienzo de nodos de tarea unidos p
 - **Panel de tareas sueltas:** a la izquierda se listan las tareas sin flechas ni posición guardada (todas las creadas con *Nueva tarea* nacen aquí) con sus acciones habituales (Iniciar, Editar, Borrar, Abrir, Integrar…), de modo que se pueden ejecutar por separado sin ninguna cadena. Arrastra una tarjeta al lienzo, o pulsa **Añadir al grafo**, para convertirla en nodo; las tareas de *Añadir siguiente / en paralelo* van directas al grafo. **Quitar del grafo** en un nodo borra todas sus flechas y su posición guardada (de forma atómica) y la devuelve a este panel; las sucesoras que se quedan sin predecesoras pasan a ser tareas sueltas normales. El panel se pliega y muestra su contador; en pantallas de menos de 768 px pasa a ser un selector **Sueltas (N) / Grafo**.
 
 ## Ciclo de vida de una tarea
+
+<p align="center">
+  <img src="docs/media/task-review.gif" alt="Revisión de una tarea en iworkflow: lanzar un agente, seguirlo en vivo, revisar su diff e integrarlo" width="800" />
+  <br />
+  <sub>Una tarea de principio a fin: lanzar, seguir al agente en vivo, revisar el diff, integrar. (Interfaz en inglés.)</sub>
+</p>
 
 ```text
 starting → running ⇄ idle → finishing → awaiting_review → merged

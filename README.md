@@ -4,6 +4,12 @@
 
 **iworkflow is an ADE (Agentic Development Environment)**: a self-hosted web app to launch, follow and review several AI coding agents in parallel. Instead of editing files yourself, you manage **tasks**: each one runs an agent in its own git worktree, and you review the diff before anything reaches your branch.
 
+<p align="center">
+  <img src="docs/media/task-graph.gif" alt="iworkflow task graph: chained tasks wait for their predecessors, and a merged task starts its successors automatically" width="900" />
+  <br />
+  <sub>Chain tasks on a board; when one is merged, the tasks that depend on it start on their own.</sub>
+</p>
+
 > **Status:** early and actively developed. It runs on your own machine, has no authentication and is source-available (PolyForm Shield 1.0.0), not OSI open source. See [Quick start](#quick-start) and [License](#license).
 
 ## Highlights
@@ -88,6 +94,12 @@ Each workspace has its own **board**: a canvas of task nodes joined by arrows (`
 - **Loose tasks panel:** on the left, tasks with no arrows and no saved position (every task made with *New task* starts here) are listed with their usual actions (Start, Edit, Delete, Open, Merge…), so they can run standalone without any chain. Drag a card onto the canvas, or press **Add to graph**, to make it a node; *Add next / parallel task* tasks go straight into the graph. **Remove from graph** on a node deletes all its arrows and saved position (atomically) and sends it back to this panel; successors left without predecessors become ordinary standalone tasks. The panel is collapsible and counts its tasks; on screens under 768 px it becomes a **Loose (N) / Graph** tab switch.
 
 ## Task lifecycle
+
+<p align="center">
+  <img src="docs/media/task-review.gif" alt="iworkflow task review: launch an agent, follow it live, review its diff and merge it" width="800" />
+  <br />
+  <sub>One task end to end: launch, follow the agent live, review the diff, merge.</sub>
+</p>
 
 ```text
 starting → running ⇄ idle → finishing → awaiting_review → merged
