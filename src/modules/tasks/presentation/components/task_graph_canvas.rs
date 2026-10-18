@@ -304,6 +304,9 @@ pub fn TaskGraphCanvas(
                                 on_add_parallel=Callback::new(move |anchor: String| {
                                     state.open_create_linked(NewTaskLink::Parallel(anchor));
                                 })
+                                on_detach=Callback::new(move |anchor: String| {
+                                    state.detach(anchor);
+                                })
                             />
                         }
                     }

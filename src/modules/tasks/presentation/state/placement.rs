@@ -115,6 +115,12 @@ mod tests {
     }
 
     #[test]
+    fn detaching_drops_the_pending_override_so_the_task_is_loose_again() {
+        let pending: HashMap<String, Point> = map(&[("a", at(1.0, 1.0))]);
+        assert!(roll_back(&pending, "a").is_empty());
+    }
+
+    #[test]
     fn a_load_that_matches_the_override_confirms_it() {
         let overrides: HashMap<String, Point> = map(&[("a", at(1.0, 1.0)), ("b", at(5.0, 6.0))]);
         let saved: HashMap<String, Point> = map(&[("a", at(1.0, 1.0)), ("b", at(0.0, 0.0))]);

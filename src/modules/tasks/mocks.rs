@@ -59,6 +59,7 @@ mock! {
         async fn remove_dependency(&self, predecessor: TaskId, successor: TaskId) -> Result<bool, TaskError>;
         async fn list_dependencies(&self, workspace_id: Option<String>) -> Result<Vec<TaskDependency>, TaskError>;
         async fn set_position(&self, task_id: TaskId, position: NodePosition) -> Result<(), TaskError>;
+        async fn detach_task(&self, task_id: TaskId) -> Result<(), TaskError>;
         async fn list_positions(&self, workspace_id: String) -> Result<Vec<(TaskId, NodePosition)>, TaskError>;
     }
 }

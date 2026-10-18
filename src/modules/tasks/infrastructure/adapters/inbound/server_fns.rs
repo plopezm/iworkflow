@@ -337,6 +337,15 @@ pub async fn remove_task_dependency(
 }
 
 #[server]
+pub async fn detach_task_from_graph(id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .detach_task_from_graph
+        .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
 pub async fn set_task_position(id: String, x: f64, y: f64) -> Result<(), ServerFnError> {
     support::context()?
         .set_task_position

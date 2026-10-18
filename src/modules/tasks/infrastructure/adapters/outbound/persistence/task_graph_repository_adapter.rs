@@ -137,6 +137,29 @@ impl TaskGraphRepositoryPort for TaskGraphRepositoryAdapter {
         }
     }
 
+    async fn detach_task(&self, task_id: TaskId) -> Result<(), TaskError> {
+        let id: String = task_id.to_string();
+        let mut connection: DbConnection = self.connection().await?;
+        connection
+            .immediate_transaction::<(), DieselError, _>(async move |conn| {
+                diesel::delete(
+                    task_dependencies::table.filter(
+                        task_dependencies::predecessor_id
+                            .eq(&id)
+                            .or(task_dependencies::successor_id.eq(&id)),
+                    ),
+                )
+                .execute(conn)
+                .await?;
+                diesel::delete(task_positions::table.filter(task_positions::task_id.eq(&id)))
+                    .execute(conn)
+                    .await?;
+                Ok(())
+            })
+            .await
+            .map_err(db_error)
+    }
+
     async fn list_positions(
         &self,
         workspace_id: String,

@@ -20,6 +20,9 @@ pub trait TaskGraphRepositoryPort: Send + Sync {
     ) -> Result<Vec<TaskDependency>, TaskError>;
     /// Guarda (o sustituye) la posición del nodo de una tarea. No falla si la tarea ya no existe.
     async fn set_position(&self, task_id: TaskId, position: NodePosition) -> Result<(), TaskError>;
+    /// Saca la tarea del grafo: borra todas sus aristas (como predecesora y como sucesora) y su
+    /// posición en una única transacción. No falla si no había nada que borrar.
+    async fn detach_task(&self, task_id: TaskId) -> Result<(), TaskError>;
     /// Posiciones guardadas de las tareas del workspace.
     async fn list_positions(
         &self,

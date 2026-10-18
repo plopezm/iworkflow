@@ -222,3 +222,60 @@ async fn positions_are_upserted_per_task_and_scoped_to_the_workspace() {
     let positions: Vec<(TaskId, NodePosition)> = graph.list_positions(ws).await.expect("positions");
     assert_eq!(positions, vec![(a, NodePosition { x: -5.5, y: 7.25 })]);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn detaching_a_task_removes_its_edges_in_both_directions_and_its_position() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: String = workspace(&db, "demo").await;
+    let (a, b, c, d, e): (TaskId, TaskId, TaskId, TaskId, TaskId) = (
+        backlog_task(&db, &ws, "a").await,
+        backlog_task(&db, &ws, "b").await,
+        backlog_task(&db, &ws, "c").await,
+        backlog_task(&db, &ws, "d").await,
+        backlog_task(&db, &ws, "e").await,
+    );
+    let graph: TaskGraphRepositoryAdapter = TaskGraphRepositoryAdapter::new(db.pool.clone());
+    graph
+        .insert_dependency(&edge(&ws, a, b))
+        .await
+        .expect("a->b");
+    graph
+        .insert_dependency(&edge(&ws, b, c))
+        .await
+        .expect("b->c");
+    graph
+        .insert_dependency(&edge(&ws, d, e))
+        .await
+        .expect("d->e");
+    graph
+        .set_position(b, NodePosition::new(1.0, 2.0).expect("pos"))
+        .await
+        .expect("pos b");
+    graph
+        .set_position(d, NodePosition::new(3.0, 4.0).expect("pos"))
+        .await
+        .expect("pos d");
+
+    graph.detach_task(b).await.expect("detach");
+
+    assert_eq!(
+        graph.list_dependencies(None).await.expect("edges"),
+        vec![edge(&ws, d, e)]
+    );
+    assert_eq!(
+        graph.list_positions(ws).await.expect("positions"),
+        vec![(d, NodePosition { x: 3.0, y: 4.0 })]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn detaching_is_idempotent_and_accepts_unknown_tasks() {
+    let db: common::TestDb = common::test_db().await;
+    let ws: String = workspace(&db, "demo").await;
+    let a: TaskId = backlog_task(&db, &ws, "a").await;
+    let graph: TaskGraphRepositoryAdapter = TaskGraphRepositoryAdapter::new(db.pool.clone());
+
+    graph.detach_task(a).await.expect("nothing to remove");
+    graph.detach_task(a).await.expect("twice");
+    graph.detach_task(TaskId::new()).await.expect("unknown");
+}

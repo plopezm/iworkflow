@@ -4,6 +4,7 @@ pub mod answer_dialog;
 pub mod create_task;
 pub mod delete_task;
 pub mod delete_workspace_tasks;
+pub mod detach_task_from_graph;
 pub mod discard_task;
 pub mod finish_task;
 pub mod get_task;

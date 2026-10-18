@@ -10,6 +10,7 @@ use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::abort_task::AbortTask;
 use crate::modules::tasks::application::usecases::add_task_dependency::AddTaskDependency;
 use crate::modules::tasks::application::usecases::get_task_graph::GetTaskGraph;
+use crate::modules::tasks::application::usecases::detach_task_from_graph::DetachTaskFromGraph;
 use crate::modules::tasks::application::usecases::remove_task_dependency::RemoveTaskDependency;
 use crate::modules::tasks::application::usecases::set_task_position::SetTaskPosition;
 use crate::modules::tasks::application::usecases::trigger_successors::TriggerSuccessors;
@@ -124,6 +125,7 @@ pub struct TasksContext {
     pub reset_task: Arc<ResetTask>,
     pub add_task_dependency: Arc<AddTaskDependency>,
     pub remove_task_dependency: Arc<RemoveTaskDependency>,
+    pub detach_task_from_graph: Arc<DetachTaskFromGraph>,
     pub set_task_position: Arc<SetTaskPosition>,
     pub get_task_graph: Arc<GetTaskGraph>,
     pub trigger_successors: Arc<TriggerSuccessors>,
@@ -341,7 +343,11 @@ impl TasksContext {
                 graph.clone(),
                 trigger.clone(),
             )),
-            remove_task_dependency: Arc::new(RemoveTaskDependency::new(graph.clone(), trigger)),
+            remove_task_dependency: Arc::new(RemoveTaskDependency::new(
+                graph.clone(),
+                trigger.clone(),
+            )),
+            detach_task_from_graph: Arc::new(DetachTaskFromGraph::new(graph.clone(), trigger)),
             set_task_position: Arc::new(SetTaskPosition::new(graph.clone())),
             get_task_graph: Arc::new(GetTaskGraph::new(graph)),
             trigger_successors,

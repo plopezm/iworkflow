@@ -45,6 +45,22 @@ const PARALLEL_SHORT: Msg = Msg {
     fr: "Parallèle",
 };
 
+const DETACH_SHORT: Msg = Msg {
+    en: "Remove from graph",
+    es: "Quitar del grafo",
+    zh: "移出图表",
+    de: "Aus Graph entfernen",
+    fr: "Retirer du graphe",
+};
+
+const DETACH_TITLE: Msg = Msg {
+    en: "Remove from graph: deletes all its connections and sends it back to the loose tasks",
+    es: "Quitar del grafo: elimina todas sus conexiones y la devuelve a las tareas sueltas",
+    zh: "移出图表：删除其所有连线，并将其放回零散任务",
+    de: "Aus Graph entfernen: löscht alle Verbindungen und legt die Aufgabe zu den losen Aufgaben zurück",
+    fr: "Retirer du graphe : supprime toutes ses connexions et la renvoie aux tâches libres",
+};
+
 const WAITING_ONE: Msg = Msg {
     en: "Waiting for 1 predecessor",
     es: "Esperando 1 predecesora",
@@ -125,11 +141,14 @@ pub fn TaskNode(
     on_connect_start: Callback<PointerEvent>,
     on_add_next: Callback<String>,
     on_add_parallel: Callback<String>,
+    /// Saca la tarea del grafo y la devuelve a las sueltas.
+    on_detach: Callback<String>,
 ) -> impl IntoView {
     let task: TaskDto = node.task;
     let id: String = task.id.clone();
     let next_id: String = id.clone();
     let parallel_id: String = id.clone();
+    let detach_id: String = id.clone();
     let needs_attention: bool = task.needs_attention;
     let title: String = task.title.clone();
     let article_class: String = format!(
@@ -236,6 +255,16 @@ pub fn TaskNode(
                 >
                     <span aria-hidden="true">"⇉"</span>
                     {PARALLEL_SHORT.get()}
+                </button>
+                <button
+                    type="button"
+                    class="graph-tool"
+                    title=DETACH_TITLE.get()
+                    aria-label=DETACH_TITLE.get()
+                    on:click=move |_| on_detach.run(detach_id.clone())
+                >
+                    <span aria-hidden="true">"⊖"</span>
+                    {DETACH_SHORT.get()}
                 </button>
             </div>
         </div>

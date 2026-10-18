@@ -682,6 +682,15 @@ mod tests {
     }
 
     #[test]
+    fn a_detached_task_without_edges_position_or_override_is_loose() {
+        let tasks: Vec<TaskDto> = vec![task("a", "w", TaskStatusDto::Backlog, "1")];
+        let (nodes, loose): (Vec<String>, Vec<String>) =
+            partition_ids(&tasks, &TaskGraphDto::default(), true, &HashSet::new());
+        assert!(nodes.is_empty());
+        assert_eq!(loose, ["a"]);
+    }
+
+    #[test]
     fn a_task_that_lost_its_last_edge_returns_to_the_loose_panel() {
         let tasks: Vec<TaskDto> = vec![
             task("a", "w", TaskStatusDto::Running, "1"),

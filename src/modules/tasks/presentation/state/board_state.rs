@@ -15,9 +15,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_graph_dt
     TaskDependencyDto, TaskGraphDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    AddTaskDependency, DeleteTask, FinishTask, MergeTask, RemoveTaskDependency, SetTaskPosition,
-    StartTask, add_task_dependency, create_task, get_task_graph, list_done_tasks,
-    list_workspace_branches,
+    AddTaskDependency, DeleteTask, DetachTaskFromGraph, FinishTask, MergeTask,
+    RemoveTaskDependency, SetTaskPosition, StartTask, add_task_dependency, create_task,
+    get_task_graph, list_done_tasks, list_workspace_branches,
 };
 use crate::modules::tasks::presentation::state::graph_geometry::{
     Point, Rect, Viewport, ZOOM_STEP, bounds_of_nodes, fit_viewport, wheel_zoom_factor,
@@ -49,6 +49,7 @@ const START_FAILED_AFTER_CREATE: Msg = Msg {
 
 /// Tamaño de página de las tareas finalizadas.
 pub const DONE_PAGE_SIZE: usize = 50;
+
 
 /// Desplazamiento de la página `page` (empieza en 0) de tareas finalizadas.
 pub fn done_page_offset(page: usize) -> i64 {
@@ -272,6 +273,9 @@ pub struct BoardState {
     pub selected_edge: RwSignal<Option<(String, String)>>,
     pub add_edge: ServerAction<AddTaskDependency>,
     pub remove_edge: ServerAction<RemoveTaskDependency>,
+    pub detach: ServerAction<DetachTaskFromGraph>,
+    /// Tarea del último envío de `detach` (la acción solo conserva el resultado del último).
+    pub detach_target: RwSignal<Option<String>>,
     pub set_position: ServerAction<SetTaskPosition>,
     /// Tarea de la última posición enviada. `Action::input()` vuelve a `None` al terminar la
     /// acción, así que el deshacer de un guardado fallido no puede leerla de ahí. Un `Action`
@@ -330,6 +334,7 @@ impl BoardState {
     pub fn new() -> Self {
         let add_edge: ServerAction<AddTaskDependency> = ServerAction::new();
         let remove_edge: ServerAction<RemoveTaskDependency> = ServerAction::new();
+        let detach: ServerAction<DetachTaskFromGraph> = ServerAction::new();
         let set_position: ServerAction<SetTaskPosition> = ServerAction::new();
         let create: Action<LinkedCreate, Result<LinkedCreated, ServerFnError>> =
             Action::new(|request: &LinkedCreate| {
@@ -433,6 +438,7 @@ impl BoardState {
                     workspace_id.get(),
                     add_edge.version().get(),
                     remove_edge.version().get(),
+                    detach.version().get(),
                     set_position.version().get(),
                     // El alta crea sus aristas después de la tarea: se recarga al terminar.
                     create.version().get(),
@@ -592,6 +598,8 @@ impl BoardState {
             selected_edge: RwSignal::new(None),
             add_edge,
             remove_edge,
+            detach,
+            detach_target: RwSignal::new(None),
             set_position,
             position_target: RwSignal::new(None),
             create,
@@ -820,6 +828,13 @@ impl BoardState {
             .set(fit_viewport(bounds_of_nodes(&points), size));
     }
 
+    /// Saca la tarea del grafo (sin aristas ni posición) para que vuelva a las sueltas. La
+    /// posición provisional y la selección se limpian al confirmarlo el servidor.
+    pub fn detach(&self, id: String) {
+        self.detach_target.set(Some(id.clone()));
+        self.detach.dispatch(DetachTaskFromGraph { id });
+    }
+
     pub fn select_edge(&self, predecessor_id: String, successor_id: String) {
         self.selected_node.set(None);
         self.selected_edge.set(Some((predecessor_id, successor_id)));
@@ -981,6 +996,22 @@ impl BoardState {
             if let Some(Err(e)) = state.remove_edge.value().get() {
                 state.push(e.to_string());
             }
+        });
+        // Tras sacar una tarea del grafo, su posición provisional y su selección ya no valen:
+        // sin ellas `partition_tasks` la devuelve al panel de sueltas. El id es el del envío.
+        Effect::new(move |_| match state.detach.value().get() {
+            Some(Ok(())) => {
+                if let Some(id) = state.detach_target.get_untracked() {
+                    state
+                        .overrides
+                        .update(|m: &mut HashMap<String, Point>| *m = roll_back(m, &id));
+                    if state.selected_node.get_untracked().as_deref() == Some(id.as_str()) {
+                        state.selected_node.set(None);
+                    }
+                }
+            }
+            Some(Err(e)) => state.push(e.to_string()),
+            None => {}
         });
         // Si no se pudo guardar la posición, el nodo vuelve a la que tenía en el servidor. La
         // tarea afectada es la del último envío (`position_target`), que se corresponde con este
