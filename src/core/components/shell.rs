@@ -1,7 +1,72 @@
 use crate::core::browser;
 use crate::core::dock::context::use_dock;
 use crate::core::dock::link::TabLink;
+use crate::core::i18n::Msg;
 use leptos::prelude::*;
+
+const CLOSE_PANEL: Msg = Msg {
+    en: "Close panel",
+    es: "Cerrar panel",
+    zh: "关闭面板",
+    de: "Bereich schließen",
+    fr: "Fermer le panneau",
+};
+const COLLAPSE_PANEL: Msg = Msg {
+    en: "Collapse panel",
+    es: "Colapsar panel",
+    zh: "折叠面板",
+    de: "Bereich einklappen",
+    fr: "Réduire le panneau",
+};
+const EXPAND_PANEL: Msg = Msg {
+    en: "Expand panel",
+    es: "Expandir panel",
+    zh: "展开面板",
+    de: "Bereich ausklappen",
+    fr: "Développer le panneau",
+};
+const HIDE_SIDEBAR: Msg = Msg {
+    en: "Hide sidebar",
+    es: "Ocultar barra lateral",
+    zh: "隐藏侧边栏",
+    de: "Seitenleiste ausblenden",
+    fr: "Masquer la barre latérale",
+};
+const MORE_ACTIONS: Msg = Msg {
+    en: "More actions",
+    es: "Más acciones",
+    zh: "更多操作",
+    de: "Weitere Aktionen",
+    fr: "Plus d'actions",
+};
+const NEEDS_ATTENTION: Msg = Msg {
+    en: "Needs attention",
+    es: "Necesita atención",
+    zh: "需要关注",
+    de: "Erfordert Aufmerksamkeit",
+    fr: "Nécessite votre attention",
+};
+const OPEN_MENU: Msg = Msg {
+    en: "Open menu",
+    es: "Abrir menú",
+    zh: "打开菜单",
+    de: "Menü öffnen",
+    fr: "Ouvrir le menu",
+};
+const SHOW_SIDEBAR: Msg = Msg {
+    en: "Show sidebar",
+    es: "Mostrar barra lateral",
+    zh: "显示侧边栏",
+    de: "Seitenleiste einblenden",
+    fr: "Afficher la barre latérale",
+};
+const SIDEBAR: Msg = Msg {
+    en: "Sidebar",
+    es: "Barra lateral",
+    zh: "侧边栏",
+    de: "Seitenleiste",
+    fr: "Barre latérale",
+};
 
 /// Borde del layout en el que se ancla un panel colapsable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +136,7 @@ pub fn CollapsePanel(
             <Show when=move || overlay_open.get()>
                 <button
                     class="fixed inset-0 z-30 cursor-default bg-black/40 md:hidden"
-                    aria-label="Cerrar panel"
+                    aria-label=CLOSE_PANEL.get()
                     on:click=move |_| overlay_open.set(false)
                 ></button>
             </Show>
@@ -80,7 +145,7 @@ pub fn CollapsePanel(
             </aside>
             <button
                 class=move || handle_class(side, open.get())
-                aria-label=move || if open.get() { "Colapsar panel" } else { "Expandir panel" }
+                aria-label=move || if open.get() { COLLAPSE_PANEL.get() } else { EXPAND_PANEL.get() }
                 on:click=move |_| open.update(|v: &mut bool| *v = !*v)
             >
                 {move || handle_glyph(side, open.get())}
@@ -187,7 +252,7 @@ pub fn SidebarItem(
                             view! {
                                 <span
                                     class="h-1.5 w-1.5 shrink-0 rounded-full bg-error"
-                                    title="Necesita atención"
+                                    title=NEEDS_ATTENTION.get()
                                 ></span>
                             }
                         })}
@@ -202,7 +267,7 @@ pub fn SidebarItem(
                         <div class="flex">
                             <DropdownMenu
                                 label="…"
-                                aria_label="Más acciones"
+                                aria_label=MORE_ACTIONS.get()
                                 trigger_class="flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"
                             >
                                 {menu.run()}
@@ -279,8 +344,8 @@ pub fn SidebarToggle(#[prop(optional, into)] class: String) -> impl IntoView {
     view! {
         <button
             class=format!("icon-btn {class}")
-            aria-label=move || if open.get() { "Ocultar barra lateral" } else { "Mostrar barra lateral" }
-            title=move || if open.get() { "Ocultar barra lateral" } else { "Mostrar barra lateral" }
+            aria-label=move || if open.get() { HIDE_SIDEBAR.get() } else { SHOW_SIDEBAR.get() }
+            title=move || if open.get() { HIDE_SIDEBAR.get() } else { SHOW_SIDEBAR.get() }
             on:click=move |_| {
                 if let Some(s) = state {
                     s.toggle();
@@ -336,7 +401,7 @@ pub fn AppShell(
                 open=sidebar_open
                 overlay_open=mobile_open
                 width="md:w-72"
-                label="Barra lateral"
+                label=SIDEBAR.get()
             >
                 {sidebar.run()}
             </CollapsePanel>
@@ -349,7 +414,7 @@ pub fn AppShell(
                 <header class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden">
                     <button
                         class="btn-secondary min-h-9 px-2.5 py-1"
-                        aria-label="Abrir menú"
+                        aria-label=OPEN_MENU.get()
                         on:click=move |_| mobile_open.set(true)
                     >
                         "☰"

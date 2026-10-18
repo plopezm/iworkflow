@@ -1,4 +1,13 @@
+use crate::core::i18n::Msg;
 use leptos::prelude::*;
+
+const CLOSE_NOTIFICATION: Msg = Msg {
+    en: "Close notification",
+    es: "Cerrar notificación",
+    zh: "关闭通知",
+    de: "Benachrichtigung schließen",
+    fr: "Fermer la notification",
+};
 
 /// Tiempo tras el cual una notificación se descarta sola.
 #[cfg(feature = "hydrate")]
@@ -66,7 +75,7 @@ fn ToastItem(msg: ToastMessage, toasts: RwSignal<Vec<ToastMessage>>) -> impl Int
                 <span class="flex-1">{msg.text}</span>
                 <button
                     class="btn-ghost min-h-10 min-w-10 rounded-full px-2"
-                    aria-label="Cerrar notificación"
+                    aria-label=CLOSE_NOTIFICATION.get()
                     on:click=move |_| dismiss()
                 >
                     "✕"

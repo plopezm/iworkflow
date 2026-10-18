@@ -1,6 +1,18 @@
 use serde::{Deserialize, Serialize};
 
 use super::image_attachment_dto::ImageAttachmentDto;
+use crate::core::i18n::Msg;
+
+/// Text of a label in the current language.
+fn text(
+    en: &'static str,
+    es: &'static str,
+    zh: &'static str,
+    de: &'static str,
+    fr: &'static str,
+) -> &'static str {
+    Msg { en, es, zh, de, fr }.get()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,17 +48,51 @@ impl TaskStatusDto {
 
     pub fn label(&self) -> &'static str {
         match self {
-            TaskStatusDto::Backlog => "Por hacer",
-            TaskStatusDto::Starting => "Arrancando",
-            TaskStatusDto::Running => "Trabajando",
-            TaskStatusDto::Idle => "Esperando",
-            TaskStatusDto::Finishing => "Finalizando",
-            TaskStatusDto::AwaitingReview => "Pendiente de revisión",
-            TaskStatusDto::Merged => "Integrada",
-            TaskStatusDto::Discarded => "Descartada",
-            TaskStatusDto::Conflict => "Conflicto",
-            TaskStatusDto::Failed => "Fallida",
-            TaskStatusDto::Interrupted => "Interrumpida",
+            TaskStatusDto::Backlog => text("To do", "Por hacer", "待办", "Offen", "À faire"),
+            TaskStatusDto::Starting => {
+                text("Starting", "Arrancando", "启动中", "Startet", "Démarrage")
+            }
+            TaskStatusDto::Running => {
+                text("Working", "Trabajando", "工作中", "Arbeitet", "En cours")
+            }
+            TaskStatusDto::Idle => text("Waiting", "Esperando", "等待中", "Wartet", "En attente"),
+            TaskStatusDto::Finishing => text(
+                "Finishing",
+                "Finalizando",
+                "收尾中",
+                "Wird abgeschlossen",
+                "Finalisation",
+            ),
+            TaskStatusDto::AwaitingReview => text(
+                "Awaiting review",
+                "Pendiente de revisión",
+                "待审核",
+                "Wartet auf Review",
+                "En attente de revue",
+            ),
+            TaskStatusDto::Merged => text(
+                "Merged",
+                "Integrada",
+                "已合并",
+                "Zusammengeführt",
+                "Fusionnée",
+            ),
+            TaskStatusDto::Discarded => text(
+                "Discarded",
+                "Descartada",
+                "已丢弃",
+                "Verworfen",
+                "Abandonnée",
+            ),
+            TaskStatusDto::Conflict => text("Conflict", "Conflicto", "冲突", "Konflikt", "Conflit"),
+            TaskStatusDto::Failed => text("Failed", "Fallida", "失败", "Fehlgeschlagen", "Échouée"),
+            TaskStatusDto::Interrupted => text(
+                "Interrupted",
+                "Interrumpida",
+                "已中断",
+                "Unterbrochen",
+                "Interrompue",
+            ),
         }
     }
 
@@ -76,11 +122,25 @@ pub enum TaskStageDto {
 impl TaskStageDto {
     pub fn label(&self) -> &'static str {
         match self {
-            TaskStageDto::Backlog => "Por hacer",
-            TaskStageDto::Working => "Trabajando",
-            TaskStageDto::Attention => "Necesita atención",
-            TaskStageDto::Review => "En revisión",
-            TaskStageDto::Done => "Hecho",
+            TaskStageDto::Backlog => text("To do", "Por hacer", "待办", "Offen", "À faire"),
+            TaskStageDto::Working => {
+                text("Working", "Trabajando", "工作中", "Arbeitet", "En cours")
+            }
+            TaskStageDto::Attention => text(
+                "Needs attention",
+                "Necesita atención",
+                "需要关注",
+                "Braucht Aufmerksamkeit",
+                "Nécessite une attention",
+            ),
+            TaskStageDto::Review => text(
+                "In review",
+                "En revisión",
+                "审核中",
+                "In Prüfung",
+                "En revue",
+            ),
+            TaskStageDto::Done => text("Done", "Hecho", "完成", "Erledigt", "Terminé"),
         }
     }
 }
@@ -123,10 +183,10 @@ impl TaskPriorityDto {
 
     pub fn label(&self) -> &'static str {
         match self {
-            TaskPriorityDto::Low => "Baja",
-            TaskPriorityDto::Normal => "Normal",
-            TaskPriorityDto::High => "Alta",
-            TaskPriorityDto::Urgent => "Urgente",
+            TaskPriorityDto::Low => text("Low", "Baja", "低", "Niedrig", "Basse"),
+            TaskPriorityDto::Normal => text("Normal", "Normal", "普通", "Normal", "Normale"),
+            TaskPriorityDto::High => text("High", "Alta", "高", "Hoch", "Haute"),
+            TaskPriorityDto::Urgent => text("Urgent", "Urgente", "紧急", "Dringend", "Urgente"),
         }
     }
 

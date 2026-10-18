@@ -3,7 +3,16 @@
 use leptos::html;
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
 use crate::core::line_diff::LineMark;
+
+const FILE_CONTENT: Msg = Msg {
+    en: "File content",
+    es: "Contenido del fichero",
+    zh: "文件内容",
+    de: "Dateiinhalt",
+    fr: "Contenu du fichier",
+};
 
 #[cfg(feature = "hydrate")]
 mod js {
@@ -220,7 +229,7 @@ pub fn CodeEditor(
                     autocapitalize="off"
                     autocomplete="off"
                     wrap="off"
-                    aria-label="Contenido del fichero"
+                    aria-label=FILE_CONTENT.get()
                     prop:value=move || value.get()
                     prop:disabled=move || disabled.get()
                     on:input=move |ev| value.set(event_target_value(&ev))

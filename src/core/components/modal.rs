@@ -1,4 +1,13 @@
+use crate::core::i18n::Msg;
 use leptos::prelude::*;
+
+const CLOSE: Msg = Msg {
+    en: "Close",
+    es: "Cerrar",
+    zh: "关闭",
+    de: "Schließen",
+    fr: "Fermer",
+};
 
 #[cfg(feature = "hydrate")]
 const FOCUS_DELAY: std::time::Duration = std::time::Duration::from_millis(0);
@@ -93,7 +102,7 @@ pub fn Modal(
                         </h2>
                         <button
                             class="btn-ghost min-h-10 min-w-10 rounded-full px-2 transition-colors hover:bg-surface-2"
-                            aria-label="Cerrar"
+                            aria-label=CLOSE.get()
                             on:click=move |_| on_close.run(())
                         >
                             "✕"
