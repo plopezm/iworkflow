@@ -38,6 +38,15 @@ export function pi_set_document_theme(theme) {
 export function pi_replace_url(path) {
   try { window.history.replaceState(null, '', path); } catch (_) {}
 }
+export function pi_read_cookies() {
+  try { return document.cookie; } catch (_) { return ''; }
+}
+export function pi_set_cookie(name, value, maxAge) {
+  try { document.cookie = name + '=' + value + '; path=/; max-age=' + maxAge + '; SameSite=Lax'; } catch (_) {}
+}
+export function pi_reload() {
+  try { window.location.reload(); } catch (_) {}
+}
 export function pi_history_back() {
   if (window.history.length <= 1) return false;
   window.history.back();
@@ -51,6 +60,9 @@ export function pi_history_back() {
         pub fn pi_set_document_theme(theme: &str);
         pub fn pi_replace_url(path: &str);
         pub fn pi_history_back() -> bool;
+        pub fn pi_read_cookies() -> String;
+        pub fn pi_set_cookie(name: &str, value: &str, max_age: u32);
+        pub fn pi_reload();
     }
 }
 
@@ -87,6 +99,38 @@ pub fn write_local_storage(key: &str, value: &str) {
     #[cfg(not(feature = "hydrate"))]
     {
         let _args: (&str, &str) = (key, value);
+    }
+}
+
+/// Lee `document.cookie`. Fuera del navegador devuelve `None`.
+pub fn read_cookies() -> Option<String> {
+    #[cfg(feature = "hydrate")]
+    {
+        Some(theme_js::pi_read_cookies())
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        None
+    }
+}
+
+/// Guarda una cookie de sitio (`path=/`, `SameSite=Lax`) con la vigencia indicada.
+pub fn set_cookie(name: &str, value: &str, max_age_secs: u32) {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_set_cookie(name, value, max_age_secs);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _args: (&str, &str, u32) = (name, value, max_age_secs);
+    }
+}
+
+/// Recarga la página actual.
+pub fn reload_page() {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_reload();
     }
 }
 

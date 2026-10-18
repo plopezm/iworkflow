@@ -2,6 +2,7 @@ pub mod browser_notification;
 pub mod code;
 pub mod confirm_panel;
 pub mod form;
+pub mod language_picker;
 pub mod layout;
 pub mod modal;
 pub mod progress_dialog;
