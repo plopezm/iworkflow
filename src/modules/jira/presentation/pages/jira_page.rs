@@ -2,6 +2,7 @@ use leptos::prelude::*;
 
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
+use crate::core::i18n::Msg;
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
     JiraIssueListDto, JiraLaneDto, JiraLaneListingDto, SavedLaneDto,
 };
@@ -13,6 +14,54 @@ use crate::modules::jira::presentation::state::formatting::sync_message;
 use crate::modules::jira::presentation::state::jira_connection_state::JiraConnectionState;
 use crate::modules::jira::presentation::state::jira_issues_state::{
     JiraIssuesState, LaneFormMode, lane_sync_notice,
+};
+
+const IMPORTED_ISSUES: Msg = Msg {
+    en: "Imported issues",
+    es: "Tareas importadas",
+    zh: "已导入的任务",
+    de: "Importierte Aufgaben",
+    fr: "Tâches importées",
+};
+
+const SYNCING: Msg = Msg {
+    en: "Syncing…",
+    es: "Sincronizando…",
+    zh: "同步中…",
+    de: "Wird synchronisiert…",
+    fr: "Synchronisation…",
+};
+
+const SYNC: Msg = Msg {
+    en: "Sync",
+    es: "Sincronizar",
+    zh: "同步",
+    de: "Synchronisieren",
+    fr: "Synchroniser",
+};
+
+const NEW_LANE: Msg = Msg {
+    en: "+ New lane",
+    es: "+ Nuevo carril",
+    zh: "+ 新建泳道",
+    de: "+ Neue Lane",
+    fr: "+ Nouvelle voie",
+};
+
+const LANE_FAILED: Msg = Msg {
+    en: "Lane {lane}",
+    es: "Carril {lane}",
+    zh: "泳道 {lane}",
+    de: "Lane {lane}",
+    fr: "Voie {lane}",
+};
+
+const LOADING_ISSUES: Msg = Msg {
+    en: "Loading issues…",
+    es: "Cargando tareas…",
+    zh: "正在加载任务…",
+    de: "Aufgaben werden geladen…",
+    fr: "Chargement des tâches…",
 };
 
 /// Conexión con Jira y carriles (consultas JQL) con las tareas importadas.
@@ -74,21 +123,21 @@ fn issues_panel(state: JiraIssuesState, on_ignore: Callback<(String, bool)>) -> 
         saved.as_ref().and_then(lane_sync_notice)
     });
     view! {
-        <Card title="Tareas importadas">
+        <Card title=IMPORTED_ISSUES.get()>
             <div class="row flex-wrap items-center gap-2">
                 <button
                     class="btn-primary"
                     disabled=move || syncing.get()
                     on:click=move |_| state.start_sync()
                 >
-                    {move || if syncing.get() { "Sincronizando…" } else { "Sincronizar" }}
+                    {move || if syncing.get() { SYNCING.get() } else { SYNC.get() }}
                 </button>
                 <button
                     class="btn-secondary"
                     disabled=move || state.lane_form.get() != LaneFormMode::Closed
                     on:click=move |_| state.begin_create_lane()
                 >
-                    "+ Nuevo carril"
+                    {NEW_LANE.get()}
                 </button>
                 {move || sync_status.get().map(|m: String| view! { <span class="muted text-sm">{m}</span> })}
             </div>
@@ -96,7 +145,7 @@ fn issues_panel(state: JiraIssuesState, on_ignore: Callback<(String, bool)>) -> 
                 failed_lanes
                     .get()
                     .into_iter()
-                    .map(|m: String| view! { <ErrorText message=format!("Carril {m}") /> })
+                    .map(|m: String| view! { <ErrorText message=LANE_FAILED.fmt(&[("lane", &m)]) /> })
                     .collect_view()
             }}
             {move || lane_notice.get().map(|m: String| view! { <ErrorText message=m /> })}
@@ -106,7 +155,7 @@ fn issues_panel(state: JiraIssuesState, on_ignore: Callback<(String, bool)>) -> 
             <IssueFilters state />
         </Card>
         {move || (state.lane_form.get() != LaneFormMode::Closed).then(|| view! { <LaneForm state /> })}
-        <Transition fallback=|| view! { <p class="muted">"Cargando tareas…"</p> }>
+        <Transition fallback=|| view! { <p class="muted">{LOADING_ISSUES.get()}</p> }>
             {move || Suspend::new(async move {
                 match state.issues.await {
                     Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),

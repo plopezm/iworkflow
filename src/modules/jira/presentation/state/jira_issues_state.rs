@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
 use crate::core::refresh::current_epoch;
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
     IssueFilterDto, IssueLocalStateDto, JiraIssueListDto, JiraLaneDto, SavedLaneDto,
@@ -22,13 +23,18 @@ pub fn can_save_lane(name: &str, jql: &str) -> bool {
     !name.trim().is_empty() && !jql.trim().is_empty()
 }
 
+const LANE_SYNC_FAILED: Msg = Msg {
+    en: "Lane “{lane}” was saved, but it could not be synced: {error}",
+    es: "El carril «{lane}» se guardó, pero no se pudo sincronizar: {error}",
+    zh: "泳道“{lane}”已保存，但无法同步：{error}",
+    de: "Die Lane „{lane}“ wurde gespeichert, konnte aber nicht synchronisiert werden: {error}",
+    fr: "La voie « {lane} » a été enregistrée, mais n'a pas pu être synchronisée : {error}",
+};
+
 /// Message for a lane that was stored but whose first sync failed.
 pub fn lane_sync_notice(saved: &SavedLaneDto) -> Option<String> {
     saved.sync_error.as_ref().map(|error: &String| {
-        format!(
-            "El carril «{}» se guardó, pero no se pudo sincronizar: {error}",
-            saved.lane.name
-        )
+        LANE_SYNC_FAILED.fmt(&[("lane", saved.lane.name.as_str()), ("error", error)])
     })
 }
 

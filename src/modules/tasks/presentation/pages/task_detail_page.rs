@@ -6,6 +6,7 @@ use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::TaskAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
@@ -26,6 +27,214 @@ use crate::modules::tasks::presentation::components::transcript_view::Transcript
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
+const ACTIONS: Msg = Msg {
+    en: "Actions",
+    es: "Acciones",
+    zh: "操作",
+    de: "Aktionen",
+    fr: "Actions",
+};
+
+const START: Msg = Msg {
+    en: "Start",
+    es: "Iniciar",
+    zh: "开始",
+    de: "Starten",
+    fr: "Démarrer",
+};
+
+const EDIT: Msg = Msg {
+    en: "Edit",
+    es: "Editar",
+    zh: "编辑",
+    de: "Bearbeiten",
+    fr: "Modifier",
+};
+
+const CONFIRM_DELETE: Msg = Msg {
+    en: "Delete this task from the to-do list?",
+    es: "¿Borrar esta tarea de la lista de pendientes?",
+    zh: "要从待办列表中删除此任务吗？",
+    de: "Diese Aufgabe aus der To-do-Liste löschen?",
+    fr: "Supprimer cette tâche de la liste des tâches à faire ?",
+};
+
+const DELETE: Msg = Msg {
+    en: "Delete",
+    es: "Borrar",
+    zh: "删除",
+    de: "Löschen",
+    fr: "Supprimer",
+};
+
+const TASK_DELETED: Msg = Msg {
+    en: "Task deleted",
+    es: "Tarea eliminada",
+    zh: "任务已删除",
+    de: "Aufgabe gelöscht",
+    fr: "Tâche supprimée",
+};
+
+const TASK_GONE: Msg = Msg {
+    en: "This task no longer exists.",
+    es: "Esta tarea ya no existe.",
+    zh: "此任务已不存在。",
+    de: "Diese Aufgabe existiert nicht mehr.",
+    fr: "Cette tâche n'existe plus.",
+};
+
+const BACK_TO_BOARD: Msg = Msg {
+    en: "Back to the board",
+    es: "Volver al tablero",
+    zh: "返回看板",
+    de: "Zurück zum Board",
+    fr: "Retour au tableau",
+};
+
+const LOADING_TASK: Msg = Msg {
+    en: "Loading task…",
+    es: "Cargando tarea…",
+    zh: "正在加载任务…",
+    de: "Aufgabe wird geladen…",
+    fr: "Chargement de la tâche…",
+};
+
+const BRANCH_PREFIX: Msg = Msg {
+    en: "Branch ",
+    es: "Rama ",
+    zh: "分支 ",
+    de: "Branch ",
+    fr: "Branche ",
+};
+
+const BRANCH_FROM: Msg = Msg {
+    en: " from ",
+    es: " desde ",
+    zh: " 基于 ",
+    de: " von ",
+    fr: " depuis ",
+};
+
+const PANEL: Msg = Msg {
+    en: "Panel",
+    es: "Panel",
+    zh: "面板",
+    de: "Panel",
+    fr: "Panneau",
+};
+
+const GO_TO_LAST_MESSAGE: Msg = Msg {
+    en: "Go to the last message",
+    es: "Ir al último mensaje",
+    zh: "跳转到最新消息",
+    de: "Zur letzten Nachricht springen",
+    fr: "Aller au dernier message",
+};
+
+const LAST_MESSAGE: Msg = Msg {
+    en: "↓ Last message",
+    es: "↓ Último mensaje",
+    zh: "↓ 最新消息",
+    de: "↓ Letzte Nachricht",
+    fr: "↓ Dernier message",
+};
+
+const LIVE: Msg = Msg {
+    en: "live",
+    es: "en vivo",
+    zh: "实时",
+    de: "live",
+    fr: "en direct",
+};
+
+const DISCONNECTED: Msg = Msg {
+    en: "disconnected",
+    es: "desconectado",
+    zh: "已断开连接",
+    de: "getrennt",
+    fr: "déconnecté",
+};
+
+const TASK_PANEL: Msg = Msg {
+    en: "Task panel",
+    es: "Panel de la tarea",
+    zh: "任务面板",
+    de: "Aufgabenpanel",
+    fr: "Panneau de la tâche",
+};
+
+const TASK: Msg = Msg {
+    en: "Task",
+    es: "Tarea",
+    zh: "任务",
+    de: "Aufgabe",
+    fr: "Tâche",
+};
+
+const CLOSE: Msg = Msg {
+    en: "Close",
+    es: "Cerrar",
+    zh: "关闭",
+    de: "Schließen",
+    fr: "Fermer",
+};
+
+const LOADING: Msg = Msg {
+    en: "Loading…",
+    es: "Cargando…",
+    zh: "加载中…",
+    de: "Wird geladen…",
+    fr: "Chargement…",
+};
+
+const MERGED_INTO_BASE: Msg = Msg {
+    en: "Merged into the base branch.",
+    es: "Integrada en la rama base.",
+    zh: "已合并到基础分支。",
+    de: "In den Basis-Branch integriert.",
+    fr: "Intégrée dans la branche de base.",
+};
+
+const MERGE_CONFLICTS: Msg = Msg {
+    en: "Conflicts in {files}. Resume the agent to resolve them or do it by hand in the worktree.",
+    es: "Conflictos en {files}. Reanuda el agente para resolverlos o hazlo a mano en el worktree.",
+    zh: "{files} 中存在冲突。请恢复智能体来解决，或在 worktree 中手动解决。",
+    de: "Konflikte in {files}. Setze den Agent fort, um sie zu lösen, oder löse sie manuell im Worktree.",
+    fr: "Conflits dans {files}. Relancez l'agent pour les résoudre ou faites-le à la main dans le worktree.",
+};
+
+const BASE_BRANCH: Msg = Msg {
+    en: "Starting branch",
+    es: "Rama de partida",
+    zh: "起始分支",
+    de: "Ausgangs-Branch",
+    fr: "Branche de départ",
+};
+
+const AUTO_SCROLL: Msg = Msg {
+    en: "Auto-scroll",
+    es: "Scroll automático",
+    zh: "自动滚动",
+    de: "Automatisch scrollen",
+    fr: "Défilement automatique",
+};
+
+const INITIAL_PROMPT: Msg = Msg {
+    en: "Initial prompt",
+    es: "Prompt inicial",
+    zh: "初始提示词",
+    de: "Ursprünglicher Prompt",
+    fr: "Prompt initial",
+};
+
+const SUBAGENTS: Msg = Msg {
+    en: "Subagents",
+    es: "Subagentes",
+    zh: "子智能体",
+    de: "Subagents",
+    fr: "Sous-agents",
+};
+
 const PANEL_WIDTH_DEFAULT: &str = "md:w-[26rem]";
 const TAB_ACTIONS: &str = "acciones";
 
@@ -45,7 +254,7 @@ const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
 fn tab_items(extra: Option<TaskExtraTab>) -> Vec<TabItem> {
     let mut tabs: Vec<TabItem> = vec![TabItem {
         id: TAB_ACTIONS,
-        label: "Acciones",
+        label: ACTIONS.get(),
     }];
     if let Some(tab) = extra {
         tabs.push(TabItem {
@@ -145,7 +354,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                                 disabled=move || busy.get()
                                 on:click=move |_| state.start()
                             >
-                                "Iniciar"
+                                {START.get()}
                             </button>
                         }
                     })}
@@ -155,7 +364,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                     .then(|| {
                         view! {
                             <TabLink href=edit_href class="btn-secondary">
-                                "Editar"
+                                {EDIT.get()}
                             </TabLink>
                         }
                     })}
@@ -168,12 +377,12 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                                 class="btn-danger"
                                 disabled=move || busy.get()
                                 on:click=move |_| {
-                                    if confirm("¿Borrar esta tarea de la lista de pendientes?") {
+                                    if confirm(CONFIRM_DELETE.get()) {
                                         state.delete();
                                     }
                                 }
                             >
-                                "Borrar"
+                                {DELETE.get()}
                             </button>
                         }
                     })}
@@ -303,7 +512,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
     });
 
     view! {
-        <Modal title="Subagentes" open=state.show_subagents on_close=on_close_subagents>
+        <Modal title=SUBAGENTS.get() open=state.show_subagents on_close=on_close_subagents>
             {move || subagents_error.get().map(|e: String| view! { <ErrorText message=e /> })}
             <SubagentsPanel
                 subagents=subagents_list
@@ -316,10 +525,10 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
             fallback=|| {
                 view! {
                     <section class="card stack m-4">
-                        <h1 class="task-title">"Tarea eliminada"</h1>
-                        <p class="muted">"Esta tarea ya no existe."</p>
+                        <h1 class="task-title">{TASK_DELETED.get()}</h1>
+                        <p class="muted">{TASK_GONE.get()}</p>
                         <TabLink href="/" class="btn-secondary">
-                            "Volver al tablero"
+                            {BACK_TO_BOARD.get()}
                         </TabLink>
                     </section>
                 }
@@ -329,7 +538,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                 <div class="flex min-w-0 flex-1 flex-col">
                     <div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2.5">
                         <div class="min-w-0 flex-1">
-                            <Transition fallback=|| view! { <p class="muted">"Cargando tarea…"</p> }>
+                            <Transition fallback=|| view! { <p class="muted">{LOADING_TASK.get()}</p> }>
                                 {move || Suspend::new(async move {
                                     match state.task.await {
                                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -342,11 +551,11 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                                     .then(|| {
                                                         view! {
                                                             <p class="truncate text-[11px] text-muted">
-                                                                "Rama "
+                                                                {BRANCH_PREFIX.get()}
                                                                 <code class="font-mono" title=task.branch.clone()>
                                                                     {short_branch(&task.branch)}
                                                                 </code>
-                                                                " desde "
+                                                                {BRANCH_FROM.get()}
                                                                 <code class="font-mono">{task.base_branch.clone()}</code>
                                                             </p>
                                                         }
@@ -364,7 +573,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                 class="btn-secondary min-h-9 px-3 py-1 text-xs md:hidden"
                                 on:click=move |_| right_overlay.set(true)
                             >
-                                "Panel"
+                                {PANEL.get()}
                             </button>
                         </Show>
                     </div>
@@ -393,10 +602,10 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                             </div>
                             <button
                                 class="btn-secondary absolute right-4 bottom-3 rounded-full shadow-md group-data-[at-bottom=true]/scroll:hidden!"
-                                aria-label="Ir al último mensaje"
+                                aria-label=GO_TO_LAST_MESSAGE.get()
                                 on:click=move |_| scroll_to_bottom(&scroll_id.get_value())
                             >
-                                "↓ Último mensaje"
+                                {LAST_MESSAGE.get()}
                             </button>
                         </div>
                         <div class="stack max-h-[60vh] shrink-0 gap-2 overflow-y-auto border-t border-border bg-surface p-3">
@@ -422,7 +631,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                         .map(|t: TaskDto| view! { <TaskStatusBadge status=t.status /> })
                                 }}
                                 <span>
-                                    {move || if state.connected.get() { "en vivo" } else { "desconectado" }}
+                                    {move || if state.connected.get() { LIVE.get() } else { DISCONNECTED.get() }}
                                 </span>
                             </div>
                             <Show when=move || can_message.get()>
@@ -442,15 +651,15 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                         open=right_open
                         overlay_open=right_overlay
                         width=panel_width
-                        label="Panel de la tarea"
+                        label=TASK_PANEL.get()
                     >
                         <div class="flex shrink-0 items-center justify-between border-b border-border px-3 py-2 md:hidden">
-                            <span class="text-xs font-bold tracking-widest uppercase">"Tarea"</span>
+                            <span class="text-xs font-bold tracking-widest uppercase">{TASK.get()}</span>
                             <button
                                 class="btn-ghost min-h-8 px-2 py-1 text-xs"
                                 on:click=move |_| right_overlay.set(false)
                             >
-                                "Cerrar"
+                                {CLOSE.get()}
                             </button>
                         </div>
                         <TabBar
@@ -460,7 +669,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                         />
                         <div class="stack min-h-0 flex-1 overflow-y-auto p-3">
                             <Show when=move || active_tab.get() == TAB_ACTIONS>
-                                <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+                                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
                                     {move || Suspend::new(async move {
                                         match state.task.await {
                                             Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -483,16 +692,13 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                                             .and_then(|r| r.ok())
                                                             .map(|outcome: MergeOutcomeDto| match outcome {
                                                                 MergeOutcomeDto::Merged => {
-                                                                    view! { <p class="notice notice-info animate-fade-in">"Integrada en la rama base."</p> }
+                                                                    view! { <p class="notice notice-info animate-fade-in">{MERGED_INTO_BASE.get()}</p> }
                                                                         .into_any()
                                                                 }
                                                                 MergeOutcomeDto::Conflict { files } => {
                                                                     view! {
                                                                         <p class="notice notice-warn animate-fade-in">
-                                                                            {format!(
-                                                                                "Conflictos en {}. Reanuda el agente para resolverlos o hazlo a mano en el worktree.",
-                                                                                files.join(", "),
-                                                                            )}
+                                                                            {MERGE_CONFLICTS.fmt(&[("files", &files.join(", "))])}
                                                                         </p>
                                                                     }
                                                                         .into_any()
@@ -500,7 +706,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                                             })
                                                     }}
                                                     <div class="stack gap-1">
-                                                        <span class="eyebrow">"Rama de partida"</span>
+                                                        <span class="eyebrow">{BASE_BRANCH.get()}</span>
                                                         <code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">
                                                             {task.base_branch.clone()}
                                                         </code>
@@ -518,7 +724,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                                             prop:checked=move || state.autoscroll.get()
                                                             on:change=move |ev| state.autoscroll.set(event_target_checked(&ev))
                                                         />
-                                                        "Scroll automático"
+                                                        {AUTO_SCROLL.get()}
                                                     </label>
                                                 }
                                                     .into_any()
@@ -527,7 +733,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                     })}
                                 </Transition>
                                 <details class="card prompt">
-                                    <summary>"Prompt inicial"</summary>
+                                    <summary>{INITIAL_PROMPT.get()}</summary>
                                     <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
                                 </details>
                                 <Suspense fallback=|| ()>

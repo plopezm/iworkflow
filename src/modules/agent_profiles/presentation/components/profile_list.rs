@@ -1,6 +1,15 @@
 use leptos::prelude::*;
 
 use crate::core::components::layout::Badge;
+use crate::core::i18n::Msg;
+
+const NO_ITEMS: Msg = Msg {
+    en: "No items.",
+    es: "No hay elementos.",
+    zh: "没有项目。",
+    de: "Keine Elemente.",
+    fr: "Aucun élément.",
+};
 
 /// Elemento de la lista de selección: nombre y etiqueta opcional (p. ej. "Activo").
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,7 +24,7 @@ pub fn ProfileList(
     items: Vec<ProfileListItem>,
     #[prop(into)] selected: Signal<Option<String>>,
     on_select: Callback<String>,
-    #[prop(into, default = "No hay elementos.".to_string())] empty_text: String,
+    #[prop(into, default = NO_ITEMS.get().to_string())] empty_text: String,
 ) -> impl IntoView {
     if items.is_empty() {
         return view! { <p class="muted">{empty_text}</p> }.into_any();

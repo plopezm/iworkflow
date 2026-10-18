@@ -1,12 +1,21 @@
 use leptos::prelude::*;
 
 use crate::core::components::form::SelectOption;
+use crate::core::i18n::Msg;
 use crate::core::refresh::bump_when_changes;
 use crate::modules::workspaces::infrastructure::adapters::inbound::dto::workspace_dto::{
     AgentsFileOptionDto, UpdateWorkspaceDto, WorkspaceDto,
 };
 use crate::modules::workspaces::infrastructure::adapters::inbound::server_fns::{
     UpdateWorkspace, get_workspace, list_agents_file_options,
+};
+
+const AGENTS_LOAD_FAILED: Msg = Msg {
+    en: "Could not load the AGENTS.md files: {error}",
+    es: "No se pudieron cargar los ficheros AGENTS.md: {error}",
+    zh: "无法加载 AGENTS.md 文件：{error}",
+    de: "Die AGENTS.md-Dateien konnten nicht geladen werden: {error}",
+    fr: "Impossible de charger les fichiers AGENTS.md : {error}",
 };
 
 /// Estado de la pantalla de edición de un workspace.
@@ -56,7 +65,7 @@ pub fn split_agents_options(
         Ok(options) => (agents_select_options(options), None),
         Err(e) => (
             Vec::new(),
-            Some(format!("No se pudieron cargar los ficheros AGENTS.md: {e}")),
+            Some(AGENTS_LOAD_FAILED.fmt(&[("error", &e.to_string())])),
         ),
     }
 }

@@ -2,6 +2,7 @@ use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::dock::context::{DockContext, use_dock, use_tab_params};
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskDto;
 use crate::modules::tasks::presentation::components::diff_view::DiffView;
@@ -10,9 +11,41 @@ use crate::modules::tasks::presentation::state::diff_report_state::DiffReportSta
 use crate::modules::tasks::presentation::state::diff_view_state::DiffViewState;
 use crate::modules::tasks::presentation::state::task_detail_state::TaskDetailState;
 
+const DIFF_TAB_TITLE: Msg = Msg {
+    en: "Diff · {title}",
+    es: "Diff · {title}",
+    zh: "差异 · {title}",
+    de: "Diff · {title}",
+    fr: "Diff · {title}",
+};
+
+const CALCULATING_DIFF: Msg = Msg {
+    en: "Computing diff…",
+    es: "Calculando diff…",
+    zh: "正在计算差异…",
+    de: "Diff wird berechnet…",
+    fr: "Calcul du diff…",
+};
+
+const CHANGES_REPORT: Msg = Msg {
+    en: "Changes report",
+    es: "Informe de cambios",
+    zh: "变更报告",
+    de: "Änderungsbericht",
+    fr: "Rapport de modifications",
+};
+
+const NO_DIFF: Msg = Msg {
+    en: "No diff available for this task.",
+    es: "Sin diff disponible para esta tarea.",
+    zh: "此任务没有可用的差异。",
+    de: "Kein Diff für diese Aufgabe verfügbar.",
+    fr: "Aucun diff disponible pour cette tâche.",
+};
+
 /// Title of the dock tab for the diff of a task titled `task_title` (pure).
 pub fn diff_tab_title(task_title: &str) -> String {
-    format!("Diff · {task_title}")
+    DIFF_TAB_TITLE.fmt(&[("title", task_title)])
 }
 
 /// Diff de una tarea en su propia pestaña, con todo el ancho del grupo. Se reconstruye por
@@ -60,7 +93,7 @@ fn TaskDiffContent(task_id: String) -> impl IntoView {
 
     view! {
         <div class="h-full min-h-0 overflow-y-auto p-3">
-            <Transition fallback=|| view! { <p class="muted">"Calculando diff…"</p> }>
+            <Transition fallback=|| view! { <p class="muted">{CALCULATING_DIFF.get()}</p> }>
                 {move || Suspend::new(async move {
                     match state.diff.await {
                         Some(Ok(diff)) => {
@@ -69,13 +102,13 @@ fn TaskDiffContent(task_id: String) -> impl IntoView {
                                 .get()
                                 .and_then(|r: Result<TaskDto, ServerFnError>| r.ok())
                                 .map(|t: TaskDto| t.title)
-                                .unwrap_or_else(|| "Informe de cambios".to_string());
+                                .unwrap_or_else(|| CHANGES_REPORT.get().to_string());
                             view! { <DiffView diff title report state=diff_state can_edit_files /> }
                                 .into_any()
                         }
                         Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
                         None => {
-                            view! { <p class="muted">"Sin diff disponible para esta tarea."</p> }
+                            view! { <p class="muted">{NO_DIFF.get()}</p> }
                                 .into_any()
                         }
                     }
@@ -88,10 +121,17 @@ fn TaskDiffContent(task_id: String) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::i18n::Locale;
 
     #[test]
     fn tab_title_names_the_task() {
-        assert_eq!(diff_tab_title("Arreglar login"), "Diff · Arreglar login");
+        assert_eq!(diff_tab_title("Fix login"), "Diff · Fix login");
+        assert_eq!(
+            DIFF_TAB_TITLE
+                .in_locale(Locale::Es)
+                .replace("{title}", "Arreglar login"),
+            "Diff · Arreglar login"
+        );
     }
 
     #[test]

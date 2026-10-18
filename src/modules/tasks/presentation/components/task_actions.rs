@@ -1,9 +1,147 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::core::browser::confirm;
 use crate::core::components::layout::Badge;
 use crate::core::dock::link::TabLink;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskActionsDto;
+
+const SECTION_AGENT: Msg = Msg {
+    en: "Agent",
+    es: "Agente",
+    zh: "智能体",
+    de: "Agent",
+    fr: "Agent",
+};
+
+const SECTION_REVIEW: Msg = Msg {
+    en: "Review",
+    es: "Revisión",
+    zh: "审查",
+    de: "Überprüfung",
+    fr: "Révision",
+};
+
+const SECTION_DANGER: Msg = Msg {
+    en: "Danger zone",
+    es: "Zona de peligro",
+    zh: "危险区域",
+    de: "Gefahrenzone",
+    fr: "Zone dangereuse",
+};
+
+const CONFIRM_FINISH: Msg = Msg {
+    en: "Finish the task? The agent will be closed and the changes will be consolidated for review.",
+    es: "¿Finalizar la tarea? Se cerrará el agente y se consolidarán los cambios para revisión.",
+    zh: "要完成该任务吗？智能体将被关闭，更改将合并以供审查。",
+    de: "Aufgabe abschließen? Der Agent wird beendet und die Änderungen werden zur Überprüfung zusammengeführt.",
+    fr: "Terminer la tâche ? L’agent sera fermé et les modifications seront consolidées pour révision.",
+};
+
+const CONFIRM_MERGE: Msg = Msg {
+    en: "Merge the branch into the base? The worktree will be removed.",
+    es: "¿Integrar la rama en la base? Se eliminará el worktree.",
+    zh: "要将分支合并到基础分支吗？worktree 将被删除。",
+    de: "Den Branch in die Basis integrieren? Der Worktree wird gelöscht.",
+    fr: "Intégrer la branche dans la base ? Le worktree sera supprimé.",
+};
+
+const CONFIRM_RESET: Msg = Msg {
+    en: "Reset the task? The agent will be stopped, the worktree, the branch and the history will be deleted, and it will go back to Backlog.",
+    es: "¿Restablecer la tarea? Se detendrá el agente, se borrarán el worktree, la rama y el historial, y volverá a Backlog.",
+    zh: "要重置该任务吗？智能体将被停止，worktree、分支和历史记录将被删除，任务将回到 Backlog。",
+    de: "Aufgabe zurücksetzen? Der Agent wird gestoppt, Worktree, Branch und Verlauf werden gelöscht und die Aufgabe kehrt ins Backlog zurück.",
+    fr: "Réinitialiser la tâche ? L’agent sera arrêté, le worktree, la branche et l’historique seront supprimés, et la tâche retournera dans le Backlog.",
+};
+
+const CONFIRM_DISCARD: Msg = Msg {
+    en: "Discard the task? The worktree and the unmerged branch will be deleted.",
+    es: "¿Descartar la tarea? Se borrarán el worktree y la rama sin integrar.",
+    zh: "要丢弃该任务吗？worktree 和未合并的分支将被删除。",
+    de: "Aufgabe verwerfen? Der Worktree und der nicht integrierte Branch werden gelöscht.",
+    fr: "Abandonner la tâche ? Le worktree et la branche non intégrée seront supprimés.",
+};
+
+const FINISH_AND_REVIEW: Msg = Msg {
+    en: "Finish and review",
+    es: "Finalizar y revisar",
+    zh: "完成并审查",
+    de: "Abschließen und überprüfen",
+    fr: "Terminer et réviser",
+};
+
+const RESUME_AGENT: Msg = Msg {
+    en: "Resume agent",
+    es: "Reanudar agente",
+    zh: "恢复智能体",
+    de: "Agent fortsetzen",
+    fr: "Reprendre l’agent",
+};
+
+const ABORT_RUN: Msg = Msg {
+    en: "Abort run",
+    es: "Abortar ejecución",
+    zh: "中止运行",
+    de: "Ausführung abbrechen",
+    fr: "Interrompre l’exécution",
+};
+
+const SUBAGENTS: Msg = Msg {
+    en: "Subagents",
+    es: "Subagentes",
+    zh: "子智能体",
+    de: "Subagents",
+    fr: "Sous-agents",
+};
+
+const VIEW_DIFF: Msg = Msg {
+    en: "View diff",
+    es: "Ver diff",
+    zh: "查看 diff",
+    de: "Diff anzeigen",
+    fr: "Voir le diff",
+};
+
+const EXPLORE_FILES: Msg = Msg {
+    en: "Browse files",
+    es: "Explorar archivos",
+    zh: "浏览文件",
+    de: "Dateien durchsuchen",
+    fr: "Parcourir les fichiers",
+};
+
+const OPEN_TERMINAL: Msg = Msg {
+    en: "Open terminal",
+    es: "Abrir terminal",
+    zh: "打开终端",
+    de: "Terminal öffnen",
+    fr: "Ouvrir le terminal",
+};
+
+const RESET: Msg = Msg {
+    en: "Reset",
+    es: "Restablecer",
+    zh: "重置",
+    de: "Zurücksetzen",
+    fr: "Réinitialiser",
+};
+
+const DISCARD: Msg = Msg {
+    en: "Discard",
+    es: "Descartar",
+    zh: "丢弃",
+    de: "Verwerfen",
+    fr: "Abandonner",
+};
+
+const MERGE: Msg = Msg {
+    en: "Merge",
+    es: "Merge",
+    zh: "合并",
+    de: "Mergen",
+    fr: "Fusionner",
+};
 
 /// Callbacks de las acciones sobre una tarea.
 #[derive(Clone, Copy)]
@@ -84,16 +222,16 @@ pub fn TaskActions(
     let [_agent, review, worktree, danger] = visible_sections(&actions);
     let plain =
         |action: Callback<()>| Callback::new(move |_: leptos::ev::MouseEvent| action.run(()));
-    let ask = |message: &'static str, action: Callback<()>| {
+    let ask = |message: Msg, action: Callback<()>| {
         Callback::new(move |_: leptos::ev::MouseEvent| {
-            if confirm(message) {
+            if confirm(message.get()) {
                 action.run(());
             }
         })
     };
     view! {
         <div class="action-list -mx-3">
-            <div class="action-section">"Agente"</div>
+            <div class="action-section">{SECTION_AGENT.get()}</div>
             {actions
                 .can_finish
                 .then(|| {
@@ -103,11 +241,11 @@ pub fn TaskActions(
                             tone=ActionTone::Primary
                             disabled=busy
                             on_click=ask(
-                                "¿Finalizar la tarea? Se cerrará el agente y se consolidarán los cambios para revisión.",
+                                CONFIRM_FINISH,
                                 handlers.finish,
                             )
                         >
-                            "Finalizar y revisar"
+                            {FINISH_AND_REVIEW.get()}
                         </ActionRow>
                     }
                 })}
@@ -116,7 +254,7 @@ pub fn TaskActions(
                 .then(|| {
                     view! {
                         <ActionRow icon="▶" disabled=busy on_click=plain(handlers.resume)>
-                            "Reanudar agente"
+                            {RESUME_AGENT.get()}
                         </ActionRow>
                     }
                 })}
@@ -125,12 +263,12 @@ pub fn TaskActions(
                 .then(|| {
                     view! {
                         <ActionRow icon="■" disabled=busy on_click=plain(handlers.abort)>
-                            "Abortar ejecución"
+                            {ABORT_RUN.get()}
                         </ActionRow>
                     }
                 })}
             <ActionRow icon="◈" on_click=plain(handlers.show_subagents)>
-                "Subagentes"
+                {SUBAGENTS.get()}
                 {move || {
                     let active: u32 = subagents_active.get();
                     (active > 0)
@@ -140,13 +278,13 @@ pub fn TaskActions(
             {review
                 .then(|| {
                     view! {
-                        <div class="action-section">"Revisión"</div>
+                        <div class="action-section">{SECTION_REVIEW.get()}</div>
                         {actions
                             .can_view_diff
                             .then(|| {
                                 view! {
                                     <ActionRow icon="±" on_click=plain(handlers.open_diff)>
-                                        "Ver diff"
+                                        {VIEW_DIFF.get()}
                                     </ActionRow>
                                 }
                             })}
@@ -155,7 +293,7 @@ pub fn TaskActions(
                             .then(|| {
                                 view! {
                                     <ActionRow icon="▤" on_click=plain(handlers.open_files)>
-                                        "Explorar archivos"
+                                        {EXPLORE_FILES.get()}
                                     </ActionRow>
                                 }
                             })}
@@ -168,11 +306,11 @@ pub fn TaskActions(
                                         tone=ActionTone::Primary
                                         disabled=busy
                                         on_click=ask(
-                                            "¿Integrar la rama en la base? Se eliminará el worktree.",
+                                            CONFIRM_MERGE,
                                             handlers.merge,
                                         )
                                     >
-                                        "Merge"
+                                        {MERGE.get()}
                                     </ActionRow>
                                 }
                             })}
@@ -186,14 +324,14 @@ pub fn TaskActions(
                             <span class="action-icon" aria-hidden="true">
                                 "❯"
                             </span>
-                            "Abrir terminal"
+                            {OPEN_TERMINAL.get()}
                         </TabLink>
                     }
                 })}
             {danger
                 .then(|| {
                     view! {
-                        <div class="action-section">"Zona de peligro"</div>
+                        <div class="action-section">{SECTION_DANGER.get()}</div>
                         {actions
                             .can_reset
                             .then(|| {
@@ -203,11 +341,11 @@ pub fn TaskActions(
                                         tone=ActionTone::Danger
                                         disabled=busy
                                         on_click=ask(
-                                            "¿Restablecer la tarea? Se detendrá el agente, se borrarán el worktree, la rama y el historial, y volverá a Backlog.",
+                                            CONFIRM_RESET,
                                             handlers.reset,
                                         )
                                     >
-                                        "Restablecer"
+                                        {RESET.get()}
                                     </ActionRow>
                                 }
                             })}
@@ -220,11 +358,11 @@ pub fn TaskActions(
                                         tone=ActionTone::Danger
                                         disabled=busy
                                         on_click=ask(
-                                            "¿Descartar la tarea? Se borrarán el worktree y la rama sin integrar.",
+                                            CONFIRM_DISCARD,
                                             handlers.discard,
                                         )
                                     >
-                                        "Descartar"
+                                        {DISCARD.get()}
                                     </ActionRow>
                                 }
                             })}

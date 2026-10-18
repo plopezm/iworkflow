@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     TaskDto, TaskStageDto,
 };
@@ -11,7 +12,13 @@ pub struct TaskSnapshot {
 }
 
 /// Notification body shown when a task needs human intervention.
-const ATTENTION_BODY: &str = "Necesita atención";
+const ATTENTION_BODY: Msg = Msg {
+    en: "Needs attention",
+    es: "Necesita atención",
+    zh: "需要关注",
+    de: "Benötigt Aufmerksamkeit",
+    fr: "Nécessite votre attention",
+};
 
 /// A notification to raise for a task that just started needing human attention.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,7 +54,7 @@ pub fn detect_task_notifications(
             Some(TaskNotification {
                 task_id: t.id.clone(),
                 title: t.title.clone(),
-                body: ATTENTION_BODY.to_string(),
+                body: ATTENTION_BODY.get().to_string(),
             })
         })
         .collect()
@@ -116,7 +123,7 @@ mod tests {
             vec![TaskNotification {
                 task_id: "a".to_string(),
                 title: "tarea a".to_string(),
-                body: "Necesita atención".to_string(),
+                body: "Needs attention".to_string(),
             }]
         );
         assert_eq!(
@@ -166,7 +173,7 @@ mod tests {
         let plan: NotificationPlan =
             plan_notifications(Some(&first), &[task("a", TaskStageDto::Attention)]);
         assert_eq!(plan.notifications.len(), 1);
-        assert_eq!(plan.notifications[0].body, "Necesita atención");
+        assert_eq!(plan.notifications[0].body, "Needs attention");
     }
 
     #[test]

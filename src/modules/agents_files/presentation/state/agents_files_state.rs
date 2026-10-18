@@ -1,12 +1,35 @@
 use leptos::prelude::*;
 use leptos::web_sys::FormData;
 
+use crate::core::i18n::Msg;
 use crate::modules::agents_files::infrastructure::adapters::inbound::dto::agents_file_dto::{
     AgentsFileDto, ApplyAgentsFileDto, ApplyAgentsFileOutcomeDto, ProjectOptionDto,
 };
 use crate::modules::agents_files::infrastructure::adapters::inbound::server_fns::{
     ApplyAgentsFile, DeleteAgentsFile, list_agents_file_projects, list_agents_files,
     upload_agents_file,
+};
+
+const ADDED_COMMITTED: Msg = Msg {
+    en: "Added and committed",
+    es: "Añadido y commiteado",
+    zh: "已添加并提交",
+    de: "Hinzugefügt und committet",
+    fr: "Ajouté et commité",
+};
+const ADDED_NOT_COMMITTED: Msg = Msg {
+    en: "Added (the commit could not be created; left uncommitted)",
+    es: "Añadido (no se pudo crear el commit; queda sin commitear)",
+    zh: "已添加（无法创建提交；保持未提交状态）",
+    de: "Hinzugefügt (der Commit konnte nicht erstellt werden; bleibt uncommittet)",
+    fr: "Ajouté (impossible de créer le commit ; reste non commité)",
+};
+const TARGET_EXISTS: Msg = Msg {
+    en: "AGENTS.md already exists in that project. Overwrite?",
+    es: "Ya existe AGENTS.md en ese proyecto. ¿Sobrescribir?",
+    zh: "该项目中已存在 AGENTS.md。是否覆盖？",
+    de: "AGENTS.md existiert in diesem Projekt bereits. Überschreiben?",
+    fr: "AGENTS.md existe déjà dans ce projet. Écraser ?",
 };
 
 /// Resultado de añadir un AGENTS.md a un proyecto, listo para pintar.
@@ -28,9 +51,9 @@ impl ApplyFeedback {
 
     pub fn message(self) -> &'static str {
         match self {
-            Self::Committed => "Añadido y commiteado",
-            Self::NotCommitted => "Añadido (no se pudo crear el commit; queda sin commitear)",
-            Self::TargetExists => "Ya existe AGENTS.md en ese proyecto. ¿Sobrescribir?",
+            Self::Committed => ADDED_COMMITTED.get(),
+            Self::NotCommitted => ADDED_NOT_COMMITTED.get(),
+            Self::TargetExists => TARGET_EXISTS.get(),
         }
     }
 }
@@ -158,6 +181,7 @@ impl Default for AgentsFilesState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::i18n::Locale;
 
     #[test]
     fn maps_applied_committed() {
@@ -165,7 +189,11 @@ mod tests {
             ApplyFeedback::from_outcome(&ApplyAgentsFileOutcomeDto::Applied { committed: true });
 
         assert_eq!(feedback, ApplyFeedback::Committed);
-        assert_eq!(feedback.message(), "Añadido y commiteado");
+        assert_eq!(feedback.message(), "Added and committed");
+        assert_eq!(
+            ADDED_COMMITTED.in_locale(Locale::Es),
+            "Añadido y commiteado"
+        );
     }
 
     #[test]
@@ -176,7 +204,7 @@ mod tests {
         assert_eq!(feedback, ApplyFeedback::NotCommitted);
         assert_eq!(
             feedback.message(),
-            "Añadido (no se pudo crear el commit; queda sin commitear)"
+            "Added (the commit could not be created; left uncommitted)"
         );
     }
 
@@ -188,7 +216,7 @@ mod tests {
         assert_eq!(feedback, ApplyFeedback::TargetExists);
         assert_eq!(
             feedback.message(),
-            "Ya existe AGENTS.md en ese proyecto. ¿Sobrescribir?"
+            "AGENTS.md already exists in that project. Overwrite?"
         );
     }
 }

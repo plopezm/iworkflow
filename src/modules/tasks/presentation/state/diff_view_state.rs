@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_file_dto::{
     SaveTaskFileDto, TaskFileDto,
 };
@@ -12,6 +13,22 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
 };
 use crate::modules::tasks::presentation::state::diff_files::{
     FileDiff, FileStatus, TreeNode, build_tree, parse_patch,
+};
+
+const SPLIT: Msg = Msg {
+    en: "Split",
+    es: "Dividido",
+    zh: "分栏",
+    de: "Geteilt",
+    fr: "Côte à côte",
+};
+
+const UNIFIED: Msg = Msg {
+    en: "Unified",
+    es: "Unificado",
+    zh: "统一",
+    de: "Vereint",
+    fr: "Unifié",
 };
 
 /// Prefix of the DOM id of every file card (target of the tree anchors).
@@ -35,8 +52,8 @@ impl ViewMode {
 
     pub fn label(self) -> &'static str {
         match self {
-            ViewMode::Split => "Dividido",
-            ViewMode::Unified => "Unificado",
+            ViewMode::Split => SPLIT.get(),
+            ViewMode::Unified => UNIFIED.get(),
         }
     }
 }
@@ -282,8 +299,8 @@ mod tests {
         assert_eq!(ViewMode::default(), ViewMode::Split);
         assert_eq!(ViewMode::Split.toggled(), ViewMode::Unified);
         assert_eq!(ViewMode::Unified.toggled(), ViewMode::Split);
-        assert_eq!(ViewMode::Split.label(), "Dividido");
-        assert_eq!(ViewMode::Unified.label(), "Unificado");
+        assert_eq!(ViewMode::Split.label(), "Split");
+        assert_eq!(ViewMode::Unified.label(), "Unified");
     }
 
     #[test]

@@ -5,6 +5,7 @@ use leptos::prelude::*;
 use crate::core::components::form::SelectOption;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::components::toast::ToastStack;
+use crate::core::i18n::Msg;
 use crate::modules::agent_profiles::infrastructure::adapters::inbound::dto::agent_profiles_dto::{
     AgentRoleDto, ModelOptionDto, RoutingEntryDto,
 };
@@ -15,7 +16,45 @@ use crate::modules::agent_profiles::presentation::components::routing_editor::{
 use crate::modules::agent_profiles::presentation::state::models_state::ModelsState;
 
 /// Explicación de la pantalla.
-const MODELS_HELP: &str = "Routing global de modelos y esfuerzo por agente; los perfiles guardan snapshots de este routing; no se aplica a la sesión de pi actual hasta el siguiente lanzamiento de subagente.";
+const MODELS_HELP: Msg = Msg {
+    en: "Global routing of models and effort per agent; profiles store snapshots of this routing; it does not apply to the current pi session until the next subagent launch.",
+    es: "Routing global de modelos y esfuerzo por agente; los perfiles guardan snapshots de este routing; no se aplica a la sesión de pi actual hasta el siguiente lanzamiento de subagente.",
+    zh: "按智能体划分的模型和推理强度全局路由；配置文件会保存此路由的快照；在下一次启动子智能体之前，不会应用到当前的 pi 会话。",
+    de: "Globales Routing von Modellen und Aufwand pro Agent; Profile speichern Snapshots dieses Routings; es gilt für die aktuelle pi-Sitzung erst ab dem nächsten Start eines Subagents.",
+    fr: "Routage global des modèles et de l'effort par agent ; les profils enregistrent des instantanés de ce routage ; il ne s'applique pas à la session pi en cours avant le prochain lancement d'un sous-agent.",
+};
+
+const TITLE: Msg = Msg {
+    en: "Models",
+    es: "Modelos",
+    zh: "模型",
+    de: "Modelle",
+    fr: "Modèles",
+};
+
+const CREATE_ROLE: Msg = Msg {
+    en: "Create role",
+    es: "Crear rol",
+    zh: "创建角色",
+    de: "Rolle erstellen",
+    fr: "Créer un rôle",
+};
+
+const LOADING: Msg = Msg {
+    en: "Loading…",
+    es: "Cargando…",
+    zh: "加载中…",
+    de: "Wird geladen…",
+    fr: "Chargement…",
+};
+
+const GLOBAL_ROUTING: Msg = Msg {
+    en: "Global routing",
+    es: "Routing global",
+    zh: "全局路由",
+    de: "Globales Routing",
+    fr: "Routage global",
+};
 
 #[component]
 pub fn ModelsPage() -> impl IntoView {
@@ -49,13 +88,13 @@ pub fn ModelsPage() -> impl IntoView {
     view! {
         <div class="flex h-full min-h-0 flex-col">
             <div class="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2.5">
-                <h1 class="page-title">"Modelos"</h1>
+                <h1 class="page-title">{TITLE.get()}</h1>
                 <button type="button" class="btn-secondary" on:click=move |_| state.open_role_dialog()>
-                    "Crear rol"
+                    {CREATE_ROLE.get()}
                 </button>
             </div>
             <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
-                <p class="muted text-sm">{MODELS_HELP}</p>
+                <p class="muted text-sm">{MODELS_HELP.get()}</p>
                 {move || {
                     let loaded: [Option<String>; 3] = [
                         load_error(&state.model_options.get()),
@@ -68,7 +107,7 @@ pub fn ModelsPage() -> impl IntoView {
                         .next()
                         .map(|message: String| view! { <ErrorText message /> })
                 }}
-                <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
                     {move || Suspend::new(async move {
                         let routing: Result<BTreeMap<String, RoutingEntryDto>, ServerFnError> =
                             state.routing.await;
@@ -80,7 +119,7 @@ pub fn ModelsPage() -> impl IntoView {
                         };
                         let initial_rows: Vec<RoutingRow> = rows_from_routing(&routing);
                         view! {
-                            <Card title="Routing global">
+                            <Card title=GLOBAL_ROUTING.get()>
                                 <RoutingEditor
                                     initial_rows
                                     model_options

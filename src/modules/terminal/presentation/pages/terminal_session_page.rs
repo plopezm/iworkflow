@@ -1,11 +1,28 @@
 use crate::core::dock::link::{TabLink, TabRedirect};
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::core::components::form::ActionError;
 use crate::modules::terminal::presentation::components::terminal_view::TerminalView;
 use crate::modules::terminal::presentation::state::terminal_page_state::terminals_path;
 use crate::modules::terminal::presentation::state::terminal_session_state::{
     TerminalSessionState, session_title, title_for,
+};
+
+const ALL_TERMINALS: Msg = Msg {
+    en: "All terminals",
+    es: "Todas las terminales",
+    zh: "所有终端",
+    de: "Alle Terminals",
+    fr: "Tous les terminaux",
+};
+const CLOSE_SESSION: Msg = Msg {
+    en: "Close session",
+    es: "Cerrar sesión",
+    zh: "关闭会话",
+    de: "Sitzung schließen",
+    fr: "Fermer la session",
 };
 
 /// Página a altura completa con la terminal interactiva de una sesión.
@@ -37,14 +54,14 @@ pub fn TerminalSessionPage() -> impl IntoView {
                         </h1>
                         <div class="row gap-1.5">
                             <TabLink href=terminals_path() class="btn-secondary min-h-8 px-2.5 py-1 text-xs">
-                                "Todas las terminales"
+                                {ALL_TERMINALS.get()}
                             </TabLink>
                             <button
                                 class="btn-danger min-h-8 px-2.5 py-1 text-xs"
                                 disabled=move || state.close.pending().get()
                                 on:click=move |_| state.close_session()
                             >
-                                "Cerrar sesión"
+                                {CLOSE_SESSION.get()}
                             </button>
                         </div>
                     </header>

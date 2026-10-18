@@ -1,6 +1,24 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::TaskAttachmentDto;
+
+const ATTACHED_IMAGES: Msg = Msg {
+    en: "Attached images",
+    es: "Imágenes adjuntas",
+    zh: "已附加的图片",
+    de: "Angehängte Bilder",
+    fr: "Images jointes",
+};
+
+const REMOVE_IMAGE: Msg = Msg {
+    en: "Remove image {name}",
+    es: "Quitar imagen {name}",
+    zh: "移除图片 {name}",
+    de: "Bild {name} entfernen",
+    fr: "Retirer l’image {name}",
+};
 
 /// Miniaturas de imágenes ya guardadas con botón para quitarlas; no ocupa espacio si no hay.
 #[component]
@@ -10,7 +28,7 @@ pub fn ExistingAttachments(
 ) -> impl IntoView {
     view! {
         <Show when=move || items.with(|list: &Vec<TaskAttachmentDto>| !list.is_empty())>
-            <ul class="flex flex-wrap gap-2" aria-label="Imágenes adjuntas">
+            <ul class="flex flex-wrap gap-2" aria-label=ATTACHED_IMAGES.get()>
                 {move || {
                     items
                         .get()
@@ -28,7 +46,7 @@ pub fn ExistingAttachments(
                                     <button
                                         type="button"
                                         class="absolute top-0 right-0 flex h-7 w-7 items-center justify-center bg-bg/80 text-fg hover:text-error"
-                                        aria-label=format!("Quitar imagen {}", item.name)
+                                        aria-label=REMOVE_IMAGE.fmt(&[("name", &item.name)])
                                         on:click=move |_| on_remove.run(id.clone())
                                     >
                                         "×"

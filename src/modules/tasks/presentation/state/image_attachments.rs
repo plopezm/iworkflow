@@ -1,7 +1,48 @@
 use leptos::prelude::*;
 use thiserror::Error;
 
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
+
+const UNSUPPORTED_TYPE: Msg = Msg {
+    en: "{name}: unsupported image type (use PNG, JPEG, GIF or WebP)",
+    es: "{name}: tipo de imagen no admitido (usa PNG, JPEG, GIF o WebP)",
+    zh: "{name}：不支持的图片类型（请使用 PNG、JPEG、GIF 或 WebP）",
+    de: "{name}: Bildtyp wird nicht unterstützt (verwende PNG, JPEG, GIF oder WebP)",
+    fr: "{name} : type d'image non pris en charge (utilisez PNG, JPEG, GIF ou WebP)",
+};
+
+const EMPTY_IMAGE: Msg = Msg {
+    en: "{name}: the image is empty",
+    es: "{name}: la imagen está vacía",
+    zh: "{name}：图片为空",
+    de: "{name}: Das Bild ist leer",
+    fr: "{name} : l'image est vide",
+};
+
+const TOO_LARGE: Msg = Msg {
+    en: "{name}: the image exceeds {max_mib} MiB",
+    es: "{name}: la imagen supera los {max_mib} MiB",
+    zh: "{name}：图片超过 {max_mib} MiB",
+    de: "{name}: Das Bild überschreitet {max_mib} MiB",
+    fr: "{name} : l'image dépasse {max_mib} Mio",
+};
+
+const TOO_MANY: Msg = Msg {
+    en: "At most {max} images per message",
+    es: "Máximo {max} imágenes por mensaje",
+    zh: "每条消息最多 {max} 张图片",
+    de: "Höchstens {max} Bilder pro Nachricht",
+    fr: "{max} images maximum par message",
+};
+
+const UNREADABLE: Msg = Msg {
+    en: "{name}: the image could not be read",
+    es: "{name}: no se pudo leer la imagen",
+    zh: "{name}：无法读取图片",
+    de: "{name}: Das Bild konnte nicht gelesen werden",
+    fr: "{name} : impossible de lire l'image",
+};
 
 /// Máximo de imágenes por mensaje (refleja `MAX_IMAGES_PER_MESSAGE` del dominio).
 pub const MAX_IMAGES: usize = 5;
@@ -31,16 +72,26 @@ impl Default for ImageLimits {
 /// Motivo por el que se rechaza una imagen en el cliente.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ImageRejection {
-    #[error("{0}: tipo de imagen no admitido (usa PNG, JPEG, GIF o WebP)")]
     UnsupportedType(String),
-    #[error("{0}: la imagen está vacía")]
     Empty(String),
-    #[error("{name}: la imagen supera los {max_mib} MiB")]
     TooLarge { name: String, max_mib: usize },
-    #[error("Máximo {0} imágenes por mensaje")]
     TooMany(usize),
-    #[error("{0}: no se pudo leer la imagen")]
     Unreadable(String),
+}
+
+impl std::fmt::Display for ImageRejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text: String = match self {
+            ImageRejection::UnsupportedType(name) => UNSUPPORTED_TYPE.fmt(&[("name", name)]),
+            ImageRejection::Empty(name) => EMPTY_IMAGE.fmt(&[("name", name)]),
+            ImageRejection::TooLarge { name, max_mib } => {
+                TOO_LARGE.fmt(&[("name", name), ("max_mib", &max_mib.to_string())])
+            }
+            ImageRejection::TooMany(max) => TOO_MANY.fmt(&[("max", &max.to_string())]),
+            ImageRejection::Unreadable(name) => UNREADABLE.fmt(&[("name", name)]),
+        };
+        f.write_str(&text)
+    }
 }
 
 /// Valida un fichero antes de leerlo (tipo, tamaño y hueco disponible).
@@ -352,5 +403,21 @@ mod tests {
     #[test]
     fn hint_shows_count_and_size() {
         assert_eq!(hint_text(2, ImageLimits::default()), "2/5 · 4 MiB");
+    }
+
+    #[test]
+    fn rejection_messages_are_localised() {
+        use crate::core::i18n::Locale;
+        let too_many: ImageRejection = ImageRejection::TooMany(5);
+        assert_eq!(too_many.to_string(), "At most 5 images per message");
+        assert_eq!(
+            TOO_MANY.in_locale(Locale::Es).replace("{max}", "5"),
+            "Máximo 5 imágenes por mensaje"
+        );
+        let large: ImageRejection = ImageRejection::TooLarge {
+            name: "a.png".to_string(),
+            max_mib: 4,
+        };
+        assert_eq!(large.to_string(), "a.png: the image exceeds 4 MiB");
     }
 }

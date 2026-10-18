@@ -6,6 +6,7 @@ use leptos::prelude::*;
 use crate::core::components::form::parse_positive_number;
 
 use crate::core::components::toast::{ToastMessage, push_toast};
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     BranchOptionDto, CreateTaskDto, TaskDto, TaskPriorityDto, TaskStageDto, WorkspaceOptionDto,
@@ -16,6 +17,46 @@ use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::task_store::{TaskStore, use_task_store};
+
+const ONE_TASK: Msg = Msg {
+    en: "1 task",
+    es: "1 tarea",
+    zh: "1 个任务",
+    de: "1 Aufgabe",
+    fr: "1 tâche",
+};
+
+const TASKS_COUNT: Msg = Msg {
+    en: "{n} tasks",
+    es: "{n} tareas",
+    zh: "{n} 个任务",
+    de: "{n} Aufgaben",
+    fr: "{n} tâches",
+};
+
+const ATTENTION_COUNT: Msg = Msg {
+    en: "{n} attention",
+    es: "{n} atención",
+    zh: "{n} 个需要关注",
+    de: "{n} Aufmerksamkeit",
+    fr: "{n} attention",
+};
+
+const ALL_FILTER: Msg = Msg {
+    en: "All",
+    es: "Todas",
+    zh: "全部",
+    de: "Alle",
+    fr: "Toutes",
+};
+
+const START_FAILED_AFTER_CREATE: Msg = Msg {
+    en: "Task created in To do, but it could not be started: {error}",
+    es: "Tarea creada en Por hacer, pero no se pudo iniciar: {error}",
+    zh: "任务已创建在“待办”中，但无法启动：{error}",
+    de: "Aufgabe in „Zu erledigen“ erstellt, konnte aber nicht gestartet werden: {error}",
+    fr: "Tâche créée dans « À faire », mais impossible de la démarrer : {error}",
+};
 
 /// Compara dos instantes RFC 3339 por su valor temporal; si alguno no se puede interpretar
 /// se recurre a la comparación textual, que es cronológica para el formato que emite el servidor.
@@ -216,15 +257,15 @@ pub fn build_lanes(
 /// Etiqueta del contador de tareas de un carril ("1 tarea" / "3 tareas").
 pub fn lane_total_label(total: usize) -> String {
     if total == 1 {
-        "1 tarea".to_string()
+        ONE_TASK.get().to_string()
     } else {
-        format!("{total} tareas")
+        TASKS_COUNT.fmt(&[("n", &total.to_string())])
     }
 }
 
 /// Etiqueta del contador de atención de un carril; `None` cuando no hay ninguna.
 pub fn lane_attention_label(attention: usize) -> Option<String> {
-    (attention > 0).then(|| format!("{attention} atención"))
+    (attention > 0).then(|| ATTENTION_COUNT.fmt(&[("n", &attention.to_string())]))
 }
 
 /// Clave de una tarjeta para el `<For>` del tablero: identifica la tarea y cambia cuando
@@ -265,7 +306,7 @@ pub const FILTER_STAGES: [Option<TaskStageDto>; 5] = [
 /// Etiqueta de un chip de filtro.
 pub fn filter_label(stage: Option<TaskStageDto>) -> &'static str {
     match stage {
-        None => "Todas",
+        None => ALL_FILTER.get(),
         Some(s) => s.label(),
     }
 }
@@ -318,7 +359,7 @@ pub struct BoardState {
 
 /// Texto del aviso cuando la tarea se crea pero no puede iniciarse.
 pub fn start_failed_after_create_text(error: &str) -> String {
-    format!("Tarea creada en Por hacer, pero no se pudo iniciar: {error}")
+    START_FAILED_AFTER_CREATE.fmt(&[("error", error)])
 }
 
 /// Construye el DTO de alta con las imágenes adjuntas (función pura). `limits` es el texto de
@@ -798,8 +839,8 @@ mod tests {
     #[test]
     fn start_failure_after_create_text_mentions_backlog_and_error() {
         assert_eq!(
-            start_failed_after_create_text("sin rama"),
-            "Tarea creada en Por hacer, pero no se pudo iniciar: sin rama"
+            start_failed_after_create_text("no branch"),
+            "Task created in To do, but it could not be started: no branch"
         );
     }
 
@@ -1013,10 +1054,14 @@ mod tests {
 
     #[test]
     fn lane_labels_are_singular_and_plural() {
-        assert_eq!(lane_total_label(1), "1 tarea");
-        assert_eq!(lane_total_label(3), "3 tareas");
+        assert_eq!(lane_total_label(1), "1 task");
+        assert_eq!(lane_total_label(3), "3 tasks");
+        assert_eq!(
+            TASKS_COUNT.in_locale(crate::core::i18n::Locale::Es),
+            "{n} tareas"
+        );
         assert_eq!(lane_attention_label(0), None);
-        assert_eq!(lane_attention_label(2), Some("2 atención".to_string()));
+        assert_eq!(lane_attention_label(2), Some("2 attention".to_string()));
     }
 
     #[test]

@@ -1,10 +1,19 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
 use crate::modules::agents_files::infrastructure::adapters::inbound::dto::agents_file_dto::{
     AgentsFileDto, ProjectOptionDto,
 };
 use crate::modules::agents_files::presentation::components::agents_file_item::AgentsFileItem;
 use crate::modules::agents_files::presentation::state::agents_files_state::ApplyFeedback;
+
+const NO_FILES: Msg = Msg {
+    en: "No AGENTS.md files yet.",
+    es: "Aún no hay ficheros AGENTS.md.",
+    zh: "还没有 AGENTS.md 文件。",
+    de: "Noch keine AGENTS.md-Dateien.",
+    fr: "Aucun fichier AGENTS.md pour le moment.",
+};
 
 /// Listado de ficheros AGENTS.md. `feedback_for` resuelve el aviso de cada fichero.
 #[component]
@@ -19,7 +28,7 @@ pub fn AgentsFileList(
     on_delete: Callback<String>,
 ) -> impl IntoView {
     if files.is_empty() {
-        return view! { <p class="muted">"Aún no hay ficheros AGENTS.md."</p> }.into_any();
+        return view! { <p class="muted">{NO_FILES.get()}</p> }.into_any();
     }
 
     view! {

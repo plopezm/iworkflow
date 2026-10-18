@@ -3,11 +3,90 @@ use leptos::prelude::*;
 
 use crate::core::components::form::{ActionError, SelectField, SelectOption, TextField};
 use crate::core::components::layout::ErrorText;
+use crate::core::i18n::Msg;
 use crate::modules::workspaces::presentation::state::workspace_edit_state::{
     WorkspaceEditState, split_agents_options,
 };
 
 const WORKSPACES_HREF: &str = "/workspaces";
+
+const LOADING_WORKSPACE: Msg = Msg {
+    en: "Loading workspace…",
+    es: "Cargando workspace…",
+    zh: "正在加载工作区…",
+    de: "Workspace wird geladen…",
+    fr: "Chargement de l'espace de travail…",
+};
+const EDIT_WORKSPACE: Msg = Msg {
+    en: "Edit workspace",
+    es: "Editar workspace",
+    zh: "编辑工作区",
+    de: "Workspace bearbeiten",
+    fr: "Modifier l'espace de travail",
+};
+const NAME: Msg = Msg {
+    en: "Name",
+    es: "Nombre",
+    zh: "名称",
+    de: "Name",
+    fr: "Nom",
+};
+const NAME_PLACEHOLDER: Msg = Msg {
+    en: "my-project",
+    es: "mi-proyecto",
+    zh: "我的项目",
+    de: "mein-projekt",
+    fr: "mon-projet",
+};
+const PATH: Msg = Msg {
+    en: "Path",
+    es: "Ruta",
+    zh: "路径",
+    de: "Pfad",
+    fr: "Chemin",
+};
+const BASE_BRANCH: Msg = Msg {
+    en: "Base branch",
+    es: "Rama base",
+    zh: "基础分支",
+    de: "Basis-Branch",
+    fr: "Branche de base",
+};
+const REPLACE_AGENTS: Msg = Msg {
+    en: "Replace AGENTS.md (optional)",
+    es: "Sustituir AGENTS.md (opcional)",
+    zh: "替换 AGENTS.md（可选）",
+    de: "AGENTS.md ersetzen (optional)",
+    fr: "Remplacer AGENTS.md (facultatif)",
+};
+const KEEP_CURRENT: Msg = Msg {
+    en: "Keep the current one",
+    es: "Mantener el actual",
+    zh: "保留当前文件",
+    de: "Aktuelle beibehalten",
+    fr: "Conserver l'actuel",
+};
+const CANCEL: Msg = Msg {
+    en: "Cancel",
+    es: "Cancelar",
+    zh: "取消",
+    de: "Abbrechen",
+    fr: "Annuler",
+};
+const SAVING: Msg = Msg {
+    en: "Saving…",
+    es: "Guardando…",
+    zh: "保存中…",
+    de: "Wird gespeichert…",
+    fr: "Enregistrement…",
+};
+const SAVE_CHANGES: Msg = Msg {
+    en: "Save changes",
+    es: "Guardar cambios",
+    zh: "保存更改",
+    de: "Änderungen speichern",
+    fr: "Enregistrer les modifications",
+};
 
 /// Página de edición. Se reconstruye por cada id (el router reutiliza el componente).
 #[component]
@@ -46,7 +125,7 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
     view! {
         <div class="h-full min-h-0 overflow-y-auto">
             <div class="mx-auto w-full max-w-3xl p-4 pb-10 md:p-6 md:pb-12">
-                <Transition fallback=|| view! { <p class="muted">"Cargando workspace…"</p> }>
+                <Transition fallback=|| view! { <p class="muted">{LOADING_WORKSPACE.get()}</p> }>
                     {move || Suspend::new(async move {
                         match state.workspace.await {
                             Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -63,21 +142,21 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
                                             state.submit();
                                         }
                                     >
-                                        <h1 class="page-title">"Editar workspace"</h1>
+                                        <h1 class="page-title">{EDIT_WORKSPACE.get()}</h1>
                                         <TextField
-                                            label="Nombre"
+                                            label=NAME.get()
                                             value=state.form_name
-                                            placeholder="mi-proyecto"
+                                            placeholder=NAME_PLACEHOLDER.get()
                                             required=true
                                         />
                                         <div class="stack gap-1.5">
-                                            <span class="text-sm font-medium text-fg">"Ruta"</span>
+                                            <span class="text-sm font-medium text-fg">{PATH.get()}</span>
                                             <code class="truncate font-mono text-xs text-muted">
                                                 {workspace.path}
                                             </code>
                                         </div>
                                         <TextField
-                                            label="Rama base"
+                                            label=BASE_BRANCH.get()
                                             value=state.form_base_branch
                                             placeholder="main"
                                         />
@@ -89,10 +168,10 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
                                             .then(|| {
                                                 view! {
                                                     <SelectField
-                                                        label="Sustituir AGENTS.md (opcional)"
+                                                        label=REPLACE_AGENTS.get()
                                                         value=state.form_agents_file_id
                                                         options
-                                                        placeholder="Mantener el actual"
+                                                        placeholder=KEEP_CURRENT.get()
                                                     />
                                                 }
                                             })}
@@ -103,7 +182,7 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
                                                 class="btn-secondary"
                                                 on:click=move |_| leave.run(())
                                             >
-                                                "Cancelar"
+                                                {CANCEL.get()}
                                             </button>
                                             <button
                                                 type="submit"
@@ -112,9 +191,9 @@ fn WorkspaceEditContent(workspace_id: String) -> impl IntoView {
                                             >
                                                 {move || {
                                                     if state.update.pending().get() {
-                                                        "Guardando…"
+                                                        SAVING.get()
                                                     } else {
-                                                        "Guardar cambios"
+                                                        SAVE_CHANGES.get()
                                                     }
                                                 }}
                                             </button>

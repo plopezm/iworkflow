@@ -1,10 +1,27 @@
 use leptos::ev::KeyboardEvent;
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::tasks::presentation::components::image_picker::{
     ImageAttachButton, ImagePreviews, paste_callback,
 };
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
+
+const MESSAGE_PLACEHOLDER: Msg = Msg {
+    en: "Write a message for the agent… (Ctrl+Enter to send)",
+    es: "Escribe un mensaje para el agente… (Ctrl+Enter para enviar)",
+    zh: "给智能体写一条消息…（Ctrl+Enter 发送）",
+    de: "Schreibe eine Nachricht an den Agent … (Strg+Enter zum Senden)",
+    fr: "Écrivez un message pour l’agent… (Ctrl+Entrée pour envoyer)",
+};
+const SEND: Msg = Msg {
+    en: "Send",
+    es: "Enviar",
+    zh: "发送",
+    de: "Senden",
+    fr: "Envoyer",
+};
 
 /// Caja de mensajes para el agente. Ctrl/Cmd+Enter envía; los mensajes son siempre `Steer`.
 #[component]
@@ -26,7 +43,7 @@ pub fn Composer(
     view! {
         <div class="stack composer">
             <textarea
-                placeholder="Escribe un mensaje para el agente… (Ctrl+Enter para enviar)"
+                placeholder=MESSAGE_PLACEHOLDER.get()
                 prop:value=move || message.get()
                 on:input=move |ev| message.set(event_target_value(&ev))
                 on:keydown=on_keydown
@@ -43,7 +60,7 @@ pub fn Composer(
                     }
                     on:click=move |_| on_send.run(())
                 >
-                    "Enviar"
+                    {SEND.get()}
                 </button>
                 <ImageAttachButton attachments />
             </div>

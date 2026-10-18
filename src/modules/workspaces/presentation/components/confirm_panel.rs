@@ -1,5 +1,15 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
+const CANCEL: Msg = Msg {
+    en: "Cancel",
+    es: "Cancelar",
+    zh: "取消",
+    de: "Abbrechen",
+    fr: "Annuler",
+};
+
 /// Panel de aviso inline con un mensaje y dos acciones (confirmar / cancelar).
 #[component]
 pub fn ConfirmPanel(
@@ -27,7 +37,7 @@ pub fn ConfirmPanel(
                     disabled=move || pending.get()
                     on:click=move |_| on_cancel.run(())
                 >
-                    "Cancelar"
+                    {CANCEL.get()}
                 </button>
             </div>
         </div>

@@ -1,11 +1,117 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::core::components::layout::ErrorText;
 use crate::core::markdown::render_markdown;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::NoticeLevelDto;
 use crate::modules::tasks::presentation::components::task_status_badge::TaskStatusBadge;
 use crate::modules::tasks::presentation::state::transcript::{
     Transcript, TranscriptItem, images_label,
+};
+
+const LAUNCH_DETAILS: Msg = Msg {
+    en: "Launch details",
+    es: "Detalles de arranque",
+    zh: "启动详情",
+    de: "Startdetails",
+    fr: "Détails de démarrage",
+};
+
+const ROLE_USER: Msg = Msg {
+    en: "You",
+    es: "Tú",
+    zh: "你",
+    de: "Du",
+    fr: "Vous",
+};
+
+const ROLE_AGENT: Msg = Msg {
+    en: "Agent",
+    es: "Agente",
+    zh: "智能体",
+    de: "Agent",
+    fr: "Agent",
+};
+
+const REASONING: Msg = Msg {
+    en: "Reasoning",
+    es: "Razonamiento",
+    zh: "推理过程",
+    de: "Überlegungen",
+    fr: "Raisonnement",
+};
+
+const TOOL_RUNNING: Msg = Msg {
+    en: "running",
+    es: "en curso",
+    zh: "进行中",
+    de: "läuft",
+    fr: "en cours",
+};
+
+const TOOL_OK: Msg = Msg {
+    en: "ok",
+    es: "ok",
+    zh: "成功",
+    de: "ok",
+    fr: "ok",
+};
+
+const TOOL_ERROR: Msg = Msg {
+    en: "error",
+    es: "error",
+    zh: "错误",
+    de: "Fehler",
+    fr: "erreur",
+};
+
+const DIALOG_ANSWERED: Msg = Msg {
+    en: "answered",
+    es: "respondido",
+    zh: "已回答",
+    de: "beantwortet",
+    fr: "répondu",
+};
+
+const DIALOG_PENDING: Msg = Msg {
+    en: "pending",
+    es: "pendiente",
+    zh: "待处理",
+    de: "ausstehend",
+    fr: "en attente",
+};
+
+const AGENT_STOPPED_CODE: Msg = Msg {
+    en: "Agent stopped (code {code})",
+    es: "Agente detenido (código {code})",
+    zh: "智能体已停止（代码 {code}）",
+    de: "Agent angehalten (Code {code})",
+    fr: "Agent arrêté (code {code})",
+};
+
+const AGENT_STOPPED_NO_CODE: Msg = Msg {
+    en: "Agent stopped (no code)",
+    es: "Agente detenido (sin código)",
+    zh: "智能体已停止（无代码）",
+    de: "Agent angehalten (kein Code)",
+    fr: "Agent arrêté (sans code)",
+};
+
+const NO_ACTIVITY: Msg = Msg {
+    en: "No activity yet.",
+    es: "Sin actividad todavía.",
+    zh: "暂无活动。",
+    de: "Noch keine Aktivität.",
+    fr: "Aucune activité pour l’instant.",
+};
+
+const AGENT_WRITING: Msg = Msg {
+    en: "Agent · writing…",
+    es: "Agente · escribiendo…",
+    zh: "智能体 · 正在输入…",
+    de: "Agent · schreibt …",
+    fr: "Agent · en train d’écrire…",
 };
 
 /// Longitud máxima del resumen de argumentos de una herramienta.
@@ -77,7 +183,7 @@ fn markdown_body(text: String) -> impl IntoView {
 /// Summary for startup notices that dump launch details (`args=... cwd=...`), which are
 /// collapsed by default; `None` for ordinary notices.
 fn launch_notice_summary(message: &str) -> Option<&'static str> {
-    (message.contains("args=") || message.contains("cwd=")).then_some("Detalles de arranque")
+    (message.contains("args=") || message.contains("cwd=")).then_some(LAUNCH_DETAILS.get())
 }
 
 fn notice_class(level: NoticeLevelDto) -> &'static str {
@@ -92,7 +198,7 @@ fn render_item(item: TranscriptItem) -> AnyView {
     match item {
         TranscriptItem::User { text, images } => view! {
             <div class="msg msg-user animate-slide-in-right">
-                <span class="msg-role">"Tú"</span>
+                <span class="msg-role">{ROLE_USER.get()}</span>
                 {(images > 0)
                     .then(|| view! { <span class="msg-attachments">{images_label(images)}</span> })}
                 {(!text.is_empty())
@@ -106,12 +212,12 @@ fn render_item(item: TranscriptItem) -> AnyView {
             error,
         } => view! {
             <div class="msg msg-assistant animate-slide-in-right">
-                <span class="msg-role">"Agente"</span>
+                <span class="msg-role">{ROLE_AGENT.get()}</span>
                 {thinking
                     .map(|t: String| {
                         view! {
                             <details class="thinking">
-                                <summary>"Razonamiento"</summary>
+                                <summary>{REASONING.get()}</summary>
                                 <pre class="whitespace-pre-wrap break-words">{t}</pre>
                             </details>
                         }
@@ -130,9 +236,9 @@ fn render_item(item: TranscriptItem) -> AnyView {
             ..
         } => {
             let (state, class): (&str, &str) = match is_error {
-                None => ("en curso", "tool tool-running"),
-                Some(false) => ("ok", "tool tool-ok"),
-                Some(true) => ("error", "tool tool-error"),
+                None => (TOOL_RUNNING.get(), "tool tool-running"),
+                Some(false) => (TOOL_OK.get(), "tool tool-ok"),
+                Some(true) => (TOOL_ERROR.get(), "tool tool-error"),
             };
             let summary: String = format!("🔧 {name} · {state} · {}", args_summary(&args));
             let rows: Vec<(String, String)> = arg_rows(&args);
@@ -193,16 +299,20 @@ fn render_item(item: TranscriptItem) -> AnyView {
         }
         .into_any(),
         TranscriptItem::Dialog { request, resolved } => {
-            let state: &str = if resolved { "respondido" } else { "pendiente" };
+            let state: &str = if resolved {
+                DIALOG_ANSWERED.get()
+            } else {
+                DIALOG_PENDING.get()
+            };
             view! { <div class="notice notice-info">{format!("❓ {} ({state})", request.title)}</div> }
                 .into_any()
         }
         TranscriptItem::Exit { code } => {
-            let detail: String = code
-                .map(|c: i32| format!("código {c}"))
-                .unwrap_or_else(|| "sin código".to_string());
-            view! { <div class="status-line muted">{format!("Agente detenido ({detail})")}</div> }
-                .into_any()
+            let message: String = match code {
+                Some(c) => AGENT_STOPPED_CODE.fmt(&[("code", &c.to_string())]),
+                None => AGENT_STOPPED_NO_CODE.get().to_string(),
+            };
+            view! { <div class="status-line muted">{message}</div> }.into_any()
         }
     }
 }
@@ -220,7 +330,7 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
     view! {
         <div class="transcript">
             <Show when=move || item_count.get() == 0>
-                <p class="muted">"Sin actividad todavía."</p>
+                <p class="muted">{NO_ACTIVITY.get()}</p>
             </Show>
             <For
                 each=move || 0..item_count.get()
@@ -238,7 +348,7 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
                     .then(|| {
                         view! {
                             <div class="msg msg-assistant streaming animate-fade-in">
-                                <span class="msg-role">"Agente · escribiendo…"</span>
+                                <span class="msg-role">{AGENT_WRITING.get()}</span>
                                 {(!thinking.is_empty())
                                     .then(|| {
                                         view! {
@@ -257,13 +367,15 @@ pub fn TranscriptView(transcript: RwSignal<Transcript>) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::i18n::Locale;
 
     #[test]
     fn launch_notices_are_collapsed() {
         assert_eq!(
             launch_notice_summary("Arrancando agente args=[--x] cwd=/wt"),
-            Some("Detalles de arranque")
+            Some("Launch details")
         );
+        assert_eq!(LAUNCH_DETAILS.in_locale(Locale::Es), "Detalles de arranque");
         assert_eq!(launch_notice_summary("Conflictos en a.rs"), None);
     }
 

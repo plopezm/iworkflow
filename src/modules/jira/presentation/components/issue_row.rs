@@ -2,11 +2,52 @@ use leptos::prelude::*;
 
 use crate::core::components::layout::Badge;
 use crate::core::dock::link::TabLink;
+use crate::core::i18n::Msg;
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
     IssueLocalStateDto, JiraIssueDto,
 };
 use crate::modules::jira::presentation::components::local_state_badge::LocalStateBadge;
 use crate::modules::jira::presentation::state::formatting::short_timestamp;
+
+const VIEW_TASK: Msg = Msg {
+    en: "View task",
+    es: "Ver tarea",
+    zh: "查看任务",
+    de: "Aufgabe ansehen",
+    fr: "Voir la tâche",
+};
+
+const CONVERT: Msg = Msg {
+    en: "Convert to task",
+    es: "Convertir en tarea",
+    zh: "转换为任务",
+    de: "In Aufgabe umwandeln",
+    fr: "Convertir en tâche",
+};
+
+const IGNORE: Msg = Msg {
+    en: "Ignore",
+    es: "Ignorar",
+    zh: "忽略",
+    de: "Ignorieren",
+    fr: "Ignorer",
+};
+
+const RESTORE: Msg = Msg {
+    en: "Restore",
+    es: "Restaurar",
+    zh: "恢复",
+    de: "Wiederherstellen",
+    fr: "Restaurer",
+};
+
+const OPEN_IN_JIRA: Msg = Msg {
+    en: "Open in Jira",
+    es: "Abrir en Jira",
+    zh: "在 Jira 中打开",
+    de: "In Jira öffnen",
+    fr: "Ouvrir dans Jira",
+};
 
 /// One imported issue in the list, with its quick actions.
 #[component]
@@ -46,7 +87,7 @@ pub fn IssueRow(
                     (IssueLocalStateDto::Converted, Some(path)) => {
                         view! {
                             <TabLink href=path class="btn-secondary min-h-8 px-3 py-1 text-xs">
-                                "Ver tarea"
+                                {VIEW_TASK.get()}
                             </TabLink>
                         }
                             .into_any()
@@ -55,7 +96,7 @@ pub fn IssueRow(
                     _ => {
                         view! {
                             <TabLink href=convert_path class="btn-primary min-h-8 px-3 py-1 text-xs">
-                                "Convertir en tarea"
+                                {CONVERT.get()}
                             </TabLink>
                         }
                             .into_any()
@@ -69,7 +110,7 @@ pub fn IssueRow(
                                 class="btn-ghost min-h-8 px-3 py-1 text-xs"
                                 on:click=move |_| on_ignore.run((key.clone(), true))
                             >
-                                "Ignorar"
+                                {IGNORE.get()}
                             </button>
                         }
                             .into_any()
@@ -81,7 +122,7 @@ pub fn IssueRow(
                                 class="btn-ghost min-h-8 px-3 py-1 text-xs"
                                 on:click=move |_| on_ignore.run((key.clone(), false))
                             >
-                                "Restaurar"
+                                {RESTORE.get()}
                             </button>
                         }
                             .into_any()
@@ -94,7 +135,7 @@ pub fn IssueRow(
                     rel="noopener noreferrer"
                     class="btn-ghost min-h-8 px-3 py-1 text-xs"
                 >
-                    "Abrir en Jira"
+                    {OPEN_IN_JIRA.get()}
                 </a>
             </div>
         </li>

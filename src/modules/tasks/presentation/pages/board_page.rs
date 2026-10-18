@@ -16,6 +16,40 @@ use crate::modules::tasks::presentation::state::board_state::{
     BoardState, LaneView, build_lanes, combine_tasks, lane_ids,
 };
 
+use crate::core::i18n::Msg;
+
+const LOADING_BOARD: Msg = Msg {
+    en: "Loading board…",
+    es: "Cargando tablero…",
+    zh: "正在加载看板…",
+    de: "Board wird geladen…",
+    fr: "Chargement du tableau…",
+};
+
+const NO_TASKS_WITH_FILTERS: Msg = Msg {
+    en: "No tasks match these filters.",
+    es: "No hay tareas visibles con estos filtros.",
+    zh: "没有符合这些筛选条件的任务。",
+    de: "Keine Aufgaben für diese Filter sichtbar.",
+    fr: "Aucune tâche visible avec ces filtres.",
+};
+
+const NO_TASKS_YET: Msg = Msg {
+    en: "No tasks yet.",
+    es: "Aún no hay tareas.",
+    zh: "还没有任务。",
+    de: "Noch keine Aufgaben.",
+    fr: "Aucune tâche pour le moment.",
+};
+
+const LOAD_MORE: Msg = Msg {
+    en: "Load more",
+    es: "Cargar más",
+    zh: "加载更多",
+    de: "Mehr laden",
+    fr: "Charger plus",
+};
+
 #[component]
 pub fn BoardPage() -> impl IntoView {
     let state: BoardState = BoardState::new();
@@ -152,7 +186,7 @@ pub fn BoardPage() -> impl IntoView {
         />
         // Este `Suspend` solo espera los datos y pinta errores: el tablero se pinta fuera
         // (a partir de `lanes`) para que un refresco no lo reconstruya.
-        <Transition fallback=|| view! { <p class="muted p-4">"Cargando tablero…"</p> }>
+        <Transition fallback=|| view! { <p class="muted p-4">{LOADING_BOARD.get()}</p> }>
             {move || Suspend::new(async move {
                 if let Err(e) = state.workspaces.await {
                     return view! { <ErrorText message=e.to_string() /> }.into_any();
@@ -169,12 +203,12 @@ pub fn BoardPage() -> impl IntoView {
         <Show when=move || {
             loaded.get() && lanes.with(|l: &Vec<LaneView>| l.is_empty()) && filters_active.get()
         }>
-            <p class="muted p-8 text-center">"No hay tareas visibles con estos filtros."</p>
+            <p class="muted p-8 text-center">{NO_TASKS_WITH_FILTERS.get()}</p>
         </Show>
         <Show when=move || {
             loaded.get() && lanes.with(|l: &Vec<LaneView>| l.is_empty()) && !filters_active.get()
         }>
-            <p class="muted p-8 text-center">"Aún no hay tareas."</p>
+            <p class="muted p-8 text-center">{NO_TASKS_YET.get()}</p>
         </Show>
         <Show when=move || loaded.get() && lanes.with(|l: &Vec<LaneView>| !l.is_empty())>
             <div class="reveal flex min-h-0 flex-1 snap-x snap-mandatory gap-5 overflow-x-auto p-5">
@@ -194,7 +228,7 @@ pub fn BoardPage() -> impl IntoView {
                     class="btn-ghost"
                     on:click=move |_| state.load_more_done()
                 >
-                    "Cargar más"
+                    {LOAD_MORE.get()}
                 </button>
             </div>
         </Show>

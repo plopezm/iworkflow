@@ -1,17 +1,27 @@
 use crate::core::dock::context::use_tab_params;
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::terminal::infrastructure::adapters::inbound::dto::terminal_session_dto::TerminalSessionDto;
 use crate::modules::terminal::infrastructure::adapters::inbound::server_fns::{
     close_terminal, list_terminals,
 };
 use crate::modules::terminal::presentation::state::terminals_state::short_id;
 
+const SESSION_TITLE: Msg = Msg {
+    en: "Terminal {id}",
+    es: "Terminal {id}",
+    zh: "终端 {id}",
+    de: "Terminal {id}",
+    fr: "Terminal {id}",
+};
+
 /// Título de cabecera: nombre del workspace si se conoce, si no el id corto.
 pub fn session_title(workspace_name: Option<&str>, session_id: &str) -> String {
     match workspace_name {
         Some(name) if !name.is_empty() => format!("{name} · {}", short_id(session_id)),
-        _ => format!("Terminal {}", short_id(session_id)),
+        _ => SESSION_TITLE.fmt(&[("id", &short_id(session_id))]),
     }
 }
 

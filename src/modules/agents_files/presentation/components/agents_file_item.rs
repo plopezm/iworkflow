@@ -4,10 +4,68 @@ use leptos::prelude::*;
 use crate::core::browser::confirm;
 use crate::core::components::confirm_panel::ConfirmPanel;
 use crate::core::components::form::{SelectField, SelectOption};
+use crate::core::i18n::Msg;
 use crate::modules::agents_files::infrastructure::adapters::inbound::dto::agents_file_dto::{
     AgentsFileDto, ProjectOptionDto,
 };
 use crate::modules::agents_files::presentation::state::agents_files_state::ApplyFeedback;
+
+const CONFIRM_DELETE: Msg = Msg {
+    en: "Delete \"{description}\"?",
+    es: "¿Eliminar \"{description}\"?",
+    zh: "要删除“{description}”吗？",
+    de: "„{description}“ löschen?",
+    fr: "Supprimer « {description} » ?",
+};
+const DELETE: Msg = Msg {
+    en: "Delete",
+    es: "Eliminar",
+    zh: "删除",
+    de: "Löschen",
+    fr: "Supprimer",
+};
+const PROJECT: Msg = Msg {
+    en: "Project",
+    es: "Proyecto",
+    zh: "项目",
+    de: "Projekt",
+    fr: "Projet",
+};
+const PICK_PROJECT: Msg = Msg {
+    en: "Choose a project",
+    es: "Elige un proyecto",
+    zh: "选择一个项目",
+    de: "Projekt auswählen",
+    fr: "Choisissez un projet",
+};
+const ADD_TO_PROJECT: Msg = Msg {
+    en: "Add to project",
+    es: "Añadir a proyecto",
+    zh: "添加到项目",
+    de: "Zum Projekt hinzufügen",
+    fr: "Ajouter au projet",
+};
+const NO_WORKSPACES: Msg = Msg {
+    en: "No workspaces registered.",
+    es: "No hay workspaces registrados.",
+    zh: "没有已注册的工作区。",
+    de: "Keine Workspaces registriert.",
+    fr: "Aucun espace de travail enregistré.",
+};
+const OVERWRITE: Msg = Msg {
+    en: "Overwrite",
+    es: "Sobrescribir",
+    zh: "覆盖",
+    de: "Überschreiben",
+    fr: "Écraser",
+};
+const CLOSE: Msg = Msg {
+    en: "Close",
+    es: "Cerrar",
+    zh: "关闭",
+    de: "Schließen",
+    fr: "Fermer",
+};
 
 /// Fecha legible (UTC) a partir de un RFC 3339; si no se puede interpretar, el texto original.
 fn format_created_at(raw: &str) -> String {
@@ -50,12 +108,12 @@ pub fn AgentsFileItem(
                     type="button"
                     class="btn-danger min-h-9 rounded-lg px-2.5 py-1 text-xs"
                     on:click=move |_| {
-                        if confirm(&format!("¿Eliminar \"{delete_description}\"?")) {
+                        if confirm(&CONFIRM_DELETE.fmt(&[("description", &delete_description)])) {
                             on_delete.run(delete_id.clone());
                         }
                     }
                 >
-                    "Eliminar"
+                    {DELETE.get()}
                 </button>
             </div>
             <span class="muted">{format_created_at(&file.created_at)}</span>
@@ -65,10 +123,10 @@ pub fn AgentsFileItem(
                     <div class="stack gap-2 sm:flex-row sm:items-end">
                         <div class="min-w-0 sm:flex-1">
                             <SelectField
-                                label="Proyecto"
+                                label=PROJECT.get()
                                 value=project_id
                                 options
-                                placeholder="Elige un proyecto"
+                                placeholder=PICK_PROJECT.get()
                             />
                         </div>
                         <button
@@ -79,13 +137,13 @@ pub fn AgentsFileItem(
                                 on_apply.run((apply_id.clone(), project_id.get_untracked()));
                             }
                         >
-                            "Añadir a proyecto"
+                            {ADD_TO_PROJECT.get()}
                         </button>
                     </div>
                 }
                     .into_any()
             } else {
-                view! { <p class="muted">"No hay workspaces registrados."</p> }.into_any()
+                view! { <p class="muted">{NO_WORKSPACES.get()}</p> }.into_any()
             }}
             {move || {
                 feedback
@@ -95,7 +153,7 @@ pub fn AgentsFileItem(
                             view! {
                                 <ConfirmPanel
                                     message=f.message()
-                                    confirm_label="Sobrescribir"
+                                    confirm_label=OVERWRITE.get()
                                     pending=applying
                                     on_confirm=on_confirm_overwrite
                                     on_cancel=on_dismiss
@@ -117,7 +175,7 @@ pub fn AgentsFileItem(
                                         class="btn-ghost"
                                         on:click=move |_| on_dismiss.run(())
                                     >
-                                        "Cerrar"
+                                        {CLOSE.get()}
                                     </button>
                                 </div>
                             }

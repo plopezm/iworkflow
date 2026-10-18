@@ -2,6 +2,7 @@ use leptos::prelude::*;
 
 use crate::core::browser::{copy_text_to_clipboard, download_text_file};
 use crate::core::components::toast::{ToastMessage, push_toast};
+use crate::core::i18n::Msg;
 use crate::modules::agent_profiles::infrastructure::adapters::inbound::dto::agent_profiles_dto::{
     AgentRoleDto, ModelOptionDto, NewAgentRoleDto, ProfileDto, ProfileStoreDto,
 };
@@ -16,6 +17,86 @@ use crate::modules::agent_profiles::presentation::components::routing_editor::{
 
 /// Tipo MIME de la descarga de exportación.
 const EXPORT_MIME: &str = "application/json";
+
+const PROFILE_CREATED: Msg = Msg {
+    en: "Profile created",
+    es: "Perfil creado",
+    zh: "配置文件已创建",
+    de: "Profil erstellt",
+    fr: "Profil créé",
+};
+
+const PROFILE_DUPLICATED: Msg = Msg {
+    en: "Profile duplicated",
+    es: "Perfil duplicado",
+    zh: "配置文件已复制",
+    de: "Profil dupliziert",
+    fr: "Profil dupliqué",
+};
+
+const PROFILE_RENAMED: Msg = Msg {
+    en: "Profile renamed",
+    es: "Perfil renombrado",
+    zh: "配置文件已重命名",
+    de: "Profil umbenannt",
+    fr: "Profil renommé",
+};
+
+const PROFILE_DELETED: Msg = Msg {
+    en: "Profile deleted",
+    es: "Perfil eliminado",
+    zh: "配置文件已删除",
+    de: "Profil gelöscht",
+    fr: "Profil supprimé",
+};
+
+const ROUTING_SAVED: Msg = Msg {
+    en: "Routing saved",
+    es: "Enrutado guardado",
+    zh: "路由已保存",
+    de: "Routing gespeichert",
+    fr: "Routage enregistré",
+};
+
+const PROFILE_IMPORTED: Msg = Msg {
+    en: "Profile imported",
+    es: "Perfil importado",
+    zh: "配置文件已导入",
+    de: "Profil importiert",
+    fr: "Profil importé",
+};
+
+const EXPORTED: Msg = Msg {
+    en: "Exported {file}",
+    es: "Exportado {file}",
+    zh: "已导出 {file}",
+    de: "{file} exportiert",
+    fr: "{file} exporté",
+};
+
+const JSON_COPIED: Msg = Msg {
+    en: "JSON copied to the clipboard",
+    es: "JSON copiado al portapapeles",
+    zh: "JSON 已复制到剪贴板",
+    de: "JSON in die Zwischenablage kopiert",
+    fr: "JSON copié dans le presse-papiers",
+};
+
+const COPY_FAILED: Msg = Msg {
+    en: "Could not copy to the clipboard",
+    es: "No se pudo copiar al portapapeles",
+    zh: "无法复制到剪贴板",
+    de: "Kopieren in die Zwischenablage fehlgeschlagen",
+    fr: "Impossible de copier dans le presse-papiers",
+};
+
+const ROLE_CREATED: Msg = Msg {
+    en: "Role created",
+    es: "Rol creado",
+    zh: "角色已创建",
+    de: "Rolle erstellt",
+    fr: "Rôle créé",
+};
 
 /// Diálogo abierto en la pantalla de perfiles (como máximo uno a la vez).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -213,7 +294,7 @@ impl ProfilesState {
                     );
                     dialog.set(None);
                 }
-                notifier.report(&result, "Perfil creado");
+                notifier.report(&result, PROFILE_CREATED.get());
                 result
             }
         });
@@ -234,7 +315,7 @@ impl ProfilesState {
                         );
                         dialog.set(None);
                     }
-                    notifier.report(&result, "Perfil duplicado");
+                    notifier.report(&result, PROFILE_DUPLICATED.get());
                     result
                 }
             });
@@ -258,7 +339,7 @@ impl ProfilesState {
                         );
                         dialog.set(None);
                     }
-                    notifier.report(&result, "Perfil renombrado");
+                    notifier.report(&result, PROFILE_RENAMED.get());
                     result
                 }
             });
@@ -278,7 +359,7 @@ impl ProfilesState {
                         );
                     }
                     confirming_delete.set(false);
-                    notifier.report(&result, "Perfil eliminado");
+                    notifier.report(&result, PROFILE_DELETED.get());
                     result
                 }
             });
@@ -289,7 +370,7 @@ impl ProfilesState {
                 async move {
                     let result: Result<ProfileDto, ServerFnError> =
                         set_profile_routing(name, routing).await;
-                    notifier.report(&result, "Enrutado guardado");
+                    notifier.report(&result, ROUTING_SAVED.get());
                     result
                 }
             });
@@ -312,7 +393,7 @@ impl ProfilesState {
                         import_raw.set(String::new());
                         import_rename.set(String::new());
                     }
-                    notifier.report(&result, "Perfil importado");
+                    notifier.report(&result, PROFILE_IMPORTED.get());
                     result
                 }
             });
@@ -324,15 +405,15 @@ impl ProfilesState {
                     match (&result, target) {
                         (Ok(json), ExportTarget::Download) => {
                             download_text_file(&export_filename(&name), json, EXPORT_MIME);
-                            notifier.say(format!("Exportado {}", export_filename(&name)));
+                            notifier.say(EXPORTED.fmt(&[("file", &export_filename(&name))]));
                         }
                         (Ok(json), ExportTarget::Clipboard) => {
                             copy_text_to_clipboard(json, move |copied: bool| {
                                 notifier.say(
                                     if copied {
-                                        "JSON copiado al portapapeles"
+                                        JSON_COPIED.get()
                                     } else {
-                                        "No se pudo copiar al portapapeles"
+                                        COPY_FAILED.get()
                                     }
                                     .to_string(),
                                 );
@@ -356,7 +437,7 @@ impl ProfilesState {
                         role_description.set(String::new());
                         role_prompt.set(String::new());
                     }
-                    notifier.report(&result, "Rol creado");
+                    notifier.report(&result, ROLE_CREATED.get());
                     result
                 }
             });

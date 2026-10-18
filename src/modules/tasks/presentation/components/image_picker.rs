@@ -1,9 +1,35 @@
 use leptos::ev::{ClipboardEvent, Event};
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::ImageAttachmentDto;
 use crate::modules::tasks::presentation::state::image_attachments::{
     ACCEPT_ATTRIBUTE, ImageAttachments, hint_text, preview_data_url,
+};
+
+const ATTACH_IMAGES_TITLE: Msg = Msg {
+    en: "Attach images (max. {mib} MiB each)",
+    es: "Adjuntar imágenes (máx. {mib} MiB cada una)",
+    zh: "附加图片（每张最大 {mib} MiB）",
+    de: "Bilder anhängen (max. {mib} MiB pro Bild)",
+    fr: "Joindre des images ({mib} Mio max. chacune)",
+};
+
+const ATTACH: Msg = Msg {
+    en: "Attach",
+    es: "Adjuntar",
+    zh: "附加",
+    de: "Anhängen",
+    fr: "Joindre",
+};
+
+const REMOVE_ITEM: Msg = Msg {
+    en: "Remove {name}",
+    es: "Quitar {name}",
+    zh: "移除 {name}",
+    de: "{name} entfernen",
+    fr: "Retirer {name}",
 };
 
 /// Lectura de ficheros del navegador (solo hidratación).
@@ -125,7 +151,7 @@ pub fn ImageAttachButton(attachments: ImageAttachments) -> impl IntoView {
         <label
             class="btn-secondary cursor-pointer"
             class:opacity-50=move || at_limit.get()
-            title=format!("Adjuntar imágenes (máx. {} MiB cada una)", limits.max_bytes / (1024 * 1024))
+            title=ATTACH_IMAGES_TITLE.fmt(&[("mib", &(limits.max_bytes / (1024 * 1024)).to_string())])
         >
             <svg
                 class="h-4 w-4 shrink-0"
@@ -139,7 +165,7 @@ pub fn ImageAttachButton(attachments: ImageAttachments) -> impl IntoView {
             >
                 <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
             </svg>
-            <span class="sr-only sm:not-sr-only">"Adjuntar"</span>
+            <span class="sr-only sm:not-sr-only">{ATTACH.get()}</span>
             <span class="text-[10px] font-normal tracking-normal text-muted normal-case">
                 {move || hint_text(attachments.total(), limits)}
             </span>
@@ -183,7 +209,7 @@ pub fn ImagePreviews(attachments: ImageAttachments) -> impl IntoView {
                                     <button
                                         type="button"
                                         class="absolute top-0 right-0 flex h-7 w-7 items-center justify-center bg-bg/80 text-fg hover:text-error"
-                                        aria-label=format!("Quitar {}", image.name)
+                                        aria-label=REMOVE_ITEM.fmt(&[("name", &image.name)])
                                         on:click=move |_| attachments.remove(index)
                                     >
                                         "×"

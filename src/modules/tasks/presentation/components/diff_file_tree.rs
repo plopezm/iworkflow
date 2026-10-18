@@ -1,9 +1,19 @@
 use leptos::prelude::*;
 
+use crate::core::i18n::Msg;
+
 use crate::core::components::tree::{TreeChevron, TreeIcon};
 use crate::modules::tasks::presentation::components::diff_badges::{DiffCounts, DiffStatusBadge};
 use crate::modules::tasks::presentation::state::diff_files::{FileDiff, TreeNode, TreeNodeKind};
 use crate::modules::tasks::presentation::state::diff_view_state::{DiffViewState, anchor_id};
+
+const CHANGED_FILES: Msg = Msg {
+    en: "Changed files",
+    es: "Ficheros modificados",
+    zh: "已修改的文件",
+    de: "Geänderte Dateien",
+    fr: "Fichiers modifiés",
+};
 
 /// Horizontal indentation per depth level, in rem.
 const INDENT_REM: f32 = 0.875;
@@ -22,7 +32,7 @@ pub fn indent_style(depth: usize) -> String {
 #[component]
 pub fn DiffFileTree(state: DiffViewState) -> impl IntoView {
     view! {
-        <nav class="diff-tree" aria-label="Ficheros modificados">
+        <nav class="diff-tree" aria-label=CHANGED_FILES.get()>
             <ul>
                 {move || {
                     state

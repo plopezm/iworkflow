@@ -2,6 +2,7 @@ use leptos::prelude::*;
 
 use crate::core::components::form::{ActionError, TextField};
 use crate::core::components::layout::{Badge, Card, ErrorText};
+use crate::core::i18n::Msg;
 use crate::modules::code_hosting::infrastructure::adapters::inbound::dto::code_host_dto::{
     CodeHostSettingsDto, SaveCodeHostSettingsDto,
 };
@@ -10,6 +11,63 @@ use crate::modules::code_hosting::infrastructure::adapters::inbound::server_fns:
 };
 use crate::modules::code_hosting::presentation::provider_text;
 use crate::modules::code_hosting::presentation::state::code_host_settings_state::CodeHostSettingsState;
+
+const LOADING: Msg = Msg {
+    en: "Loading…",
+    es: "Cargando…",
+    zh: "加载中…",
+    de: "Wird geladen…",
+    fr: "Chargement…",
+};
+const TOKEN_KEEP_PLACEHOLDER: Msg = Msg {
+    en: "•••••• (leave empty to keep it)",
+    es: "•••••• (déjalo vacío para conservarlo)",
+    zh: "••••••（留空以保留现有令牌）",
+    de: "•••••• (leer lassen, um es beizubehalten)",
+    fr: "•••••• (laissez vide pour le conserver)",
+};
+const URL_OF: Msg = Msg {
+    en: "{provider} URL",
+    es: "URL de {provider}",
+    zh: "{provider} URL",
+    de: "{provider}-URL",
+    fr: "URL de {provider}",
+};
+const TOKEN_LABEL: Msg = Msg {
+    en: "Personal access token",
+    es: "Token de acceso personal",
+    zh: "个人访问令牌",
+    de: "Persönliches Zugriffstoken",
+    fr: "Jeton d'accès personnel",
+};
+const INSECURE_TLS: Msg = Msg {
+    en: "Accept untrusted TLS certificate (internal CA or self-signed)",
+    es: "Aceptar certificado TLS no confiable (CA interna o autofirmado)",
+    zh: "接受不受信任的 TLS 证书（内部 CA 或自签名）",
+    de: "Nicht vertrauenswürdiges TLS-Zertifikat akzeptieren (interne CA oder selbstsigniert)",
+    fr: "Accepter un certificat TLS non approuvé (CA interne ou auto-signé)",
+};
+const SAVE: Msg = Msg {
+    en: "Save",
+    es: "Guardar",
+    zh: "保存",
+    de: "Speichern",
+    fr: "Enregistrer",
+};
+const TEST_CONNECTION: Msg = Msg {
+    en: "Test connection",
+    es: "Probar conexión",
+    zh: "测试连接",
+    de: "Verbindung testen",
+    fr: "Tester la connexion",
+};
+const CONNECTED_AS: Msg = Msg {
+    en: "Connected as {user}",
+    es: "Conectado como {user}",
+    zh: "已连接为 {user}",
+    de: "Verbunden als {user}",
+    fr: "Connecté en tant que {user}",
+};
 
 /// Convierte el token escrito en el campo: vacío = conservar el guardado.
 pub fn token_to_save(raw: &str) -> Option<String> {
@@ -24,7 +82,7 @@ pub fn CodeHostSettingsCard(provider: &'static str) -> impl IntoView {
     view! {
         <Card title=provider_text::label(provider)>
             <p class="muted text-sm">{provider_text::help(provider)}</p>
-            <Transition fallback=|| view! { <p class="muted">"Cargando…"</p> }>
+            <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
                 {move || Suspend::new(async move {
                     match state.settings.await {
                         Ok(settings) => view! { <CodeHostSettingsForm state provider settings /> }.into_any(),
@@ -54,7 +112,7 @@ fn CodeHostSettingsForm(
     let saving: Signal<bool> = state.save.pending().into();
     let testing: Signal<bool> = state.test.pending().into();
     let token_placeholder: &str = if token_configured {
-        "•••••• (déjalo vacío para conservarlo)"
+        TOKEN_KEEP_PLACEHOLDER.get()
     } else {
         provider_text::token_placeholder(provider)
     };
@@ -77,12 +135,12 @@ fn CodeHostSettingsForm(
 
     view! {
         <TextField
-            label=format!("URL de {}", provider_text::label(provider))
+            label=URL_OF.fmt(&[("provider", provider_text::label(provider))])
             value=base_url
             placeholder=provider_text::url_placeholder(provider)
         />
         <label class="stack gap-1.5">
-            <span class="text-sm font-medium text-fg">"Token de acceso personal"</span>
+            <span class="text-sm font-medium text-fg">{TOKEN_LABEL.get()}</span>
             <input
                 type="password"
                 class="input"
@@ -99,11 +157,11 @@ fn CodeHostSettingsForm(
                 prop:checked=move || insecure.get()
                 on:change=move |ev| insecure.set(event_target_checked(&ev))
             />
-            "Aceptar certificado TLS no confiable (CA interna o autofirmado)"
+            {INSECURE_TLS.get()}
         </label>
         <div class="row gap-2">
             <button type="button" class="btn-primary" disabled=move || saving.get() on:click=on_save>
-                "Guardar"
+                {SAVE.get()}
             </button>
             <button
                 type="button"
@@ -111,7 +169,7 @@ fn CodeHostSettingsForm(
                 disabled=move || testing.get() || saving.get() || !token_configured
                 on:click=on_test
             >
-                "Probar conexión"
+                {TEST_CONNECTION.get()}
             </button>
         </div>
         <ActionError result=state.save.value().into() />
@@ -122,7 +180,7 @@ fn CodeHostSettingsForm(
                 .get()
                 .map(|result: Result<String, ServerFnError>| match result {
                     Ok(user) => {
-                        view! { <Badge text=format!("Conectado como {user}") variant="ok" /> }
+                        view! { <Badge text=CONNECTED_AS.fmt(&[("user", &user)]) variant="ok" /> }
                             .into_any()
                     }
                     Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),

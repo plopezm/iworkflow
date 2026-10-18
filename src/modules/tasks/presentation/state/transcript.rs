@@ -2,9 +2,26 @@
 
 use std::collections::BTreeMap;
 
+use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::TaskStatusDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
     AgentEventDto, DialogRequestDto, NoticeLevelDto, TaskEventDto, TaskEventKindDto,
+};
+
+const ONE_IMAGE: Msg = Msg {
+    en: "📎 1 image",
+    es: "📎 1 imagen",
+    zh: "📎 1 张图片",
+    de: "📎 1 Bild",
+    fr: "📎 1 image",
+};
+
+const IMAGES_COUNT: Msg = Msg {
+    en: "📎 {n} images",
+    es: "📎 {n} imágenes",
+    zh: "📎 {n} 张图片",
+    de: "📎 {n} Bilder",
+    fr: "📎 {n} images",
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -47,9 +64,9 @@ pub enum TranscriptItem {
 /// Etiqueta del adjunto de un mensaje de usuario ("📎 2 imágenes").
 pub fn images_label(count: u32) -> String {
     if count == 1 {
-        "📎 1 imagen".to_string()
+        ONE_IMAGE.get().to_string()
     } else {
-        format!("📎 {count} imágenes")
+        IMAGES_COUNT.fmt(&[("n", &count.to_string())])
     }
 }
 
@@ -250,8 +267,8 @@ mod tests {
 
     #[test]
     fn labels_images_with_singular_and_plural() {
-        assert_eq!(images_label(1), "📎 1 imagen");
-        assert_eq!(images_label(2), "📎 2 imágenes");
+        assert_eq!(images_label(1), "📎 1 image");
+        assert_eq!(images_label(2), "📎 2 images");
     }
 
     #[test]
