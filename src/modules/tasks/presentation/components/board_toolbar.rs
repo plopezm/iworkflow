@@ -53,15 +53,19 @@ pub fn BoardToolbar(
                     on_select=on_select_workspace
                 />
             </div>
-            <label class="flex min-h-8 shrink-0 items-center gap-2 whitespace-nowrap text-xs text-muted">
-                <input
-                    type="checkbox"
-                    class="h-4 w-4 accent-accent"
-                    prop:checked=move || show_completed.get()
-                    on:change=move |ev| show_completed.set(event_target_checked(&ev))
-                />
-                {SHOW_DONE.get()}
-            </label>
+            <button
+                type="button"
+                class="btn-secondary"
+                class=("border-accent", move || show_completed.get())
+                class=("text-accent", move || show_completed.get())
+                aria-pressed=move || show_completed.get().to_string()
+                title=move || SHOW_DONE.get()
+                aria-label=move || SHOW_DONE.get()
+                on:click=move |_| show_completed.update(|value: &mut bool| *value = !*value)
+            >
+                <span aria-hidden="true">"✓"</span>
+                <span class="hidden lg:inline">{SHOW_DONE.get()}</span>
+            </button>
             <button type="button" class="btn-secondary" on:click=move |_| on_fit.run(())>
                 <span aria-hidden="true">"⤢"</span>
                 <span class="hidden sm:inline">{FIT_VIEW.get()}</span>
