@@ -50,6 +50,8 @@ const START_FAILED_AFTER_CREATE: Msg = Msg {
 /// Tamaño de página de las tareas finalizadas.
 pub const DONE_PAGE_SIZE: usize = 50;
 
+/// Si el tablero muestra las tareas terminadas al abrirse (el usuario lo activa desde la barra).
+pub const DEFAULT_SHOW_COMPLETED: bool = false;
 
 /// Desplazamiento de la página `page` (empieza en 0) de tareas finalizadas.
 pub fn done_page_offset(page: usize) -> i64 {
@@ -487,7 +489,8 @@ impl BoardState {
             }
         });
 
-        let show_completed: RwSignal<bool> = RwSignal::new(true);
+        // Por defecto las tareas terminadas no se ven; el usuario las muestra desde la barra.
+        let show_completed: RwSignal<bool> = RwSignal::new(DEFAULT_SHOW_COMPLETED);
         // Tareas con posición recién fijada que el servidor aún no ha devuelto: ya no están
         // sueltas. Memo aparte para no reconstruir el grafo en cada movimiento de un nodo.
         let placed: Memo<HashSet<String>> = Memo::new(move |_| {
@@ -1078,6 +1081,11 @@ mod tests {
     use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
         TaskStageDto, TaskStatusDto,
     };
+
+    #[test]
+    fn completed_tasks_are_hidden_by_default() {
+        const { assert!(!DEFAULT_SHOW_COMPLETED) };
+    }
 
     #[test]
     fn advanced_limits_are_sent_when_section_is_shown() {
