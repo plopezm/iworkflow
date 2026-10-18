@@ -273,6 +273,10 @@ pub struct BoardState {
     pub add_edge: ServerAction<AddTaskDependency>,
     pub remove_edge: ServerAction<RemoveTaskDependency>,
     pub set_position: ServerAction<SetTaskPosition>,
+    /// Tarea de la última posición enviada. `Action::input()` vuelve a `None` al terminar la
+    /// acción, así que el deshacer de un guardado fallido no puede leerla de ahí. Un `Action`
+    /// solo conserva el resultado del último envío, que es el que corresponde a este id.
+    pub position_target: RwSignal<Option<String>>,
     pub create: Action<LinkedCreate, Result<LinkedCreated, ServerFnError>>,
     pub delete: ServerAction<DeleteTask>,
     pub start: ServerAction<StartTask>,
@@ -589,6 +593,7 @@ impl BoardState {
             add_edge,
             remove_edge,
             set_position,
+            position_target: RwSignal::new(None),
             create,
             delete,
             start,
@@ -620,6 +625,12 @@ impl BoardState {
     fn place_task(&self, id: String, position: Point) {
         self.overrides
             .update(|m: &mut HashMap<String, Point>| *m = place(m, &id, position));
+        self.save_position(id, position);
+    }
+
+    /// Envía la posición al servidor recordando la tarea afectada para poder deshacer el cambio.
+    fn save_position(&self, id: String, position: Point) {
+        self.position_target.set(Some(id.clone()));
         self.set_position.dispatch(SetTaskPosition {
             id,
             x: position.x,
@@ -771,13 +782,7 @@ impl BoardState {
                 self.selected_edge.set(None);
                 self.selected_node.set(Some(id));
             }
-            DragOutcome::CommitNode(id, position) => {
-                self.set_position.dispatch(SetTaskPosition {
-                    id,
-                    x: position.x,
-                    y: position.y,
-                });
-            }
+            DragOutcome::CommitNode(id, position) => self.save_position(id, position),
             DragOutcome::Connect { from, to } => {
                 self.add_edge.dispatch(AddTaskDependency {
                     predecessor_id: from,
@@ -978,13 +983,14 @@ impl BoardState {
             }
         });
         // Si no se pudo guardar la posición, el nodo vuelve a la que tenía en el servidor. La
-        // tarea afectada es la de la entrada de la acción, que se corresponde con este resultado.
+        // tarea afectada es la del último envío (`position_target`), que se corresponde con este
+        // resultado porque la acción solo conserva el del último envío.
         Effect::new(move |_| {
             if let Some(Err(e)) = state.set_position.value().get() {
-                if let Some(input) = state.set_position.input().get_untracked() {
+                if let Some(id) = state.position_target.get_untracked() {
                     state
                         .overrides
-                        .update(|m: &mut HashMap<String, Point>| *m = roll_back(m, &input.id));
+                        .update(|m: &mut HashMap<String, Point>| *m = roll_back(m, &id));
                 }
                 state.push(e.to_string());
             }
