@@ -11,25 +11,12 @@ const SWITCH_WORKSPACE: Msg = Msg {
     fr: "Changer d'espace de travail",
 };
 
-/// Clase del chip de un workspace según esté o no seleccionado.
-pub fn switcher_chip_class(selected: bool) -> &'static str {
-    if selected {
-        "chip chip-selected shrink-0"
-    } else {
-        "chip shrink-0"
-    }
+/// Indica si `workspace_id` es el workspace seleccionado.
+pub fn is_selected_workspace(selected: Option<&str>, workspace_id: &str) -> bool {
+    selected == Some(workspace_id)
 }
 
-/// Clave de un chip para el `<For>`: todo lo que el chip pinta (nombre y rama base, que va
-/// en el `title`), de modo que cambiar cualquiera de los dos lo reconstruye.
-pub fn workspace_chip_key(workspace: &WorkspaceOptionDto) -> String {
-    format!(
-        "{}|{}|{}",
-        workspace.id, workspace.name, workspace.base_branch
-    )
-}
-
-/// Selector rápido de workspace: una fila desplazable de chips, uno por workspace.
+/// Selector de workspace: un desplegable nativo (en móvil abre el selector del sistema).
 #[component]
 pub fn WorkspaceSwitcher(
     #[prop(into)] workspaces: Signal<Vec<WorkspaceOptionDto>>,
@@ -37,33 +24,45 @@ pub fn WorkspaceSwitcher(
     on_select: Callback<String>,
 ) -> impl IntoView {
     view! {
-        <nav
-            class="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5"
-            aria-label=SWITCH_WORKSPACE.get()
-        >
-            <For
-                each=move || workspaces.get()
-                key=workspace_chip_key
-                children=move |workspace: WorkspaceOptionDto| {
-                    let chip_id: String = workspace.id.clone();
-                    let click_id: String = workspace.id.clone();
-                    view! {
-                        <button
-                            type="button"
-                            class=move || {
-                                switcher_chip_class(
-                                    selected.with(|s: &Option<String>| s.as_deref() == Some(chip_id.as_str())),
-                                )
+        <label class="select-pill max-w-xs" title=SWITCH_WORKSPACE.get()>
+            <span class="sr-only">{SWITCH_WORKSPACE.get()}</span>
+            <select
+                class="select-pill-input"
+                on:change=move |ev| on_select.run(event_target_value(&ev))
+            >
+                {move || {
+                    let current: Option<String> = selected.get();
+                    workspaces
+                        .get()
+                        .into_iter()
+                        .map(|workspace: WorkspaceOptionDto| {
+                            let is_selected: bool = is_selected_workspace(
+                                current.as_deref(),
+                                &workspace.id,
+                            );
+                            view! {
+                                <option
+                                    value=workspace.id.clone()
+                                    selected=is_selected
+                                    title=workspace.base_branch.clone()
+                                >
+                                    {workspace.name}
+                                </option>
                             }
-                            title=workspace.base_branch.clone()
-                            on:click=move |_| on_select.run(click_id.clone())
-                        >
-                            {workspace.name}
-                        </button>
-                    }
-                }
-            />
-        </nav>
+                        })
+                        .collect_view()
+                }}
+            </select>
+            <svg class="select-pill-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                <path
+                    d="M5.5 8L10 12.5L14.5 8"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                />
+            </svg>
+        </label>
     }
 }
 
@@ -72,28 +71,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_chip_key_changes_with_name_or_base_branch() {
-        let workspace: WorkspaceOptionDto = WorkspaceOptionDto {
-            id: "w1".to_string(),
-            name: "api".to_string(),
-            base_branch: "main".to_string(),
-        };
-        let before: String = workspace_chip_key(&workspace);
-        let renamed: WorkspaceOptionDto = WorkspaceOptionDto {
-            name: "web".to_string(),
-            ..workspace.clone()
-        };
-        let rebased: WorkspaceOptionDto = WorkspaceOptionDto {
-            base_branch: "develop".to_string(),
-            ..workspace
-        };
-        assert_ne!(before, workspace_chip_key(&renamed));
-        assert_ne!(before, workspace_chip_key(&rebased));
-    }
-
-    #[test]
-    fn selected_workspace_uses_the_selected_chip_style() {
-        assert!(switcher_chip_class(true).contains("chip-selected"));
-        assert!(!switcher_chip_class(false).contains("chip-selected"));
+    fn only_the_matching_workspace_is_selected() {
+        assert!(is_selected_workspace(Some("w1"), "w1"));
+        assert!(!is_selected_workspace(Some("w1"), "w2"));
+        assert!(!is_selected_workspace(None, "w1"));
     }
 }
