@@ -91,9 +91,52 @@ pub async fn run_git_with_stdin(
     }
 }
 
+/// Argumentos de git que habilitan las rutas largas (>260 caracteres) en Windows.
+const LONG_PATHS_ARGS: [&str; 4] = ["config", "--global", "core.longpaths", "true"];
+
+/// Habilita `core.longpaths` en la configuración global de git. Solo aplica en Windows, donde
+/// crear worktrees con rutas largas falla si no está activo; en otras plataformas no hace nada.
+pub async fn enable_long_paths() -> Result<(), GitCommandError> {
+    if cfg!(windows) {
+        run_long_paths_config(None).await?;
+    }
+    Ok(())
+}
+
+/// Ejecuta la configuración; `global_config` redirige el fichero global (`GIT_CONFIG_GLOBAL`).
+async fn run_long_paths_config(global_config: Option<&Path>) -> Result<(), GitCommandError> {
+    let mut command: Command = Command::new("git");
+    command
+        .args(LONG_PATHS_ARGS)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .kill_on_drop(true);
+    if let Some(path) = global_config {
+        command.env("GIT_CONFIG_GLOBAL", path);
+    }
+    let output: Output = command.output().await?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(GitCommandError::Failed {
+            args: LONG_PATHS_ARGS.join(" "),
+            code: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn long_paths_config_sets_core_longpaths_in_global_file() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let global: std::path::PathBuf = dir.path().join("gitconfig");
+        run_long_paths_config(Some(&global)).await.expect("config");
+        let content: String = std::fs::read_to_string(&global).expect("read");
+        assert!(content.contains("longpaths = true"), "{content}");
+    }
 
     #[tokio::test]
     async fn run_git_returns_error_outside_repository() {
