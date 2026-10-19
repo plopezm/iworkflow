@@ -41,6 +41,11 @@ async fn main() {
         )
         .init();
 
+    // Los worktrees con rutas largas fallan en Windows sin `core.longpaths`; no es fatal.
+    if let Err(error) = iworkflow::core::git::enable_long_paths().await {
+        tracing::warn!(%error, "no se pudo habilitar core.longpaths en git");
+    }
+
     let config: AppConfig = AppConfig::from_env().expect("configuración inválida");
     let pool: DbPool = build_pool(&config.database_url).expect("pool de Postgres");
     run_migrations(&pool).await.expect("migraciones");
