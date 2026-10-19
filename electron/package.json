@@ -1,0 +1,18 @@
+{
+  "name": "iworkflow-desktop",
+  "version": "0.13.5",
+  "private": true,
+  "description": "Desktop shell that runs the iworkflow server and shows it in a window",
+  "author": "iworkflow",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.0.0"
+  }
+}

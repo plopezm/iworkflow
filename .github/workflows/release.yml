@@ -26,10 +26,12 @@ jobs:
             os: ubuntu-22.04 # oldest hosted runner: keeps the glibc requirement low
             bin: iworkflow
             archive: tar.gz
+            installer: AppImage
           - name: windows-x86_64
             os: windows-latest
             bin: iworkflow.exe
             archive: zip
+            installer: exe
             # Statically link the MSVC runtime so no VC++ redistributable is needed.
             # Scoped to the host target so the wasm build is unaffected.
             rustflags: "-C target-feature=+crt-static"
@@ -82,6 +84,33 @@ jobs:
         with:
           name: iworkflow-${{ matrix.name }}
           path: ${{ steps.package.outputs.file }}
+          if-no-files-found: error
+
+      # Desktop installer (Electron) wrapping the server built above. See scripts/electron.sh.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: electron/package-lock.json
+
+      - name: Test desktop launcher
+        run: npm ci && npm test
+        working-directory: electron
+
+      - name: Build desktop installer
+        id: installer
+        run: |
+          set -euo pipefail
+          mkdir -p server-dist
+          cp "target/release/${{ matrix.bin }}" server-dist/
+          cp -r target/site server-dist/site
+          DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1 ./scripts/electron.sh build
+          echo "glob=server-dist/electron/iworkflow-*.${{ matrix.installer }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: iworkflow-desktop-${{ matrix.name }}
+          path: ${{ steps.installer.outputs.glob }}
           if-no-files-found: error
 
   release:
