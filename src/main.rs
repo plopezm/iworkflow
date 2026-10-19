@@ -63,7 +63,8 @@ async fn main() {
         tokio::spawn(run_graph_loop(state.tasks.trigger_successors.clone()));
 
     let conf: ConfFile = get_configuration(None).expect("configuración de Leptos");
-    let leptos_options: LeptosOptions = conf.leptos_options;
+    let leptos_options: LeptosOptions =
+        iworkflow::core::site::with_packaged_defaults(conf.leptos_options);
     let addr: std::net::SocketAddr = leptos_options.site_addr;
     let routes: Vec<AxumRouteListing> = generate_route_list(App);
 

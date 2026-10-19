@@ -19,4 +19,6 @@ pub mod markdown;
 #[cfg(feature = "ssr")]
 pub mod process;
 pub mod refresh;
+#[cfg(feature = "ssr")]
+pub mod site;
 pub mod url_path;
