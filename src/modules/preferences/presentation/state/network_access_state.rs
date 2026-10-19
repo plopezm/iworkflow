@@ -12,6 +12,8 @@ pub struct NetworkAccessState {
     pub save: ServerAction<SaveNetworkAccess>,
     pub save_require_token: ServerAction<SaveRequireAccessToken>,
     pub regenerate: ServerAction<RegenerateAccessToken>,
+    /// Address of the interface whose QR code is shown; `None` means the preferred one.
+    pub selected_address: RwSignal<Option<String>>,
 }
 
 impl NetworkAccessState {
@@ -34,6 +36,7 @@ impl NetworkAccessState {
             save,
             save_require_token,
             regenerate,
+            selected_address: RwSignal::new(None),
         }
     }
 

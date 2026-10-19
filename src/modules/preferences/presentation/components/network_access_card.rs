@@ -3,7 +3,9 @@ use leptos::prelude::*;
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Badge, Card, ErrorText};
 use crate::core::i18n::Msg;
-use crate::modules::preferences::infrastructure::adapters::inbound::dto::network_access_dto::NetworkAccessDto;
+use crate::modules::preferences::infrastructure::adapters::inbound::dto::network_access_dto::{
+    AccessTargetDto, NetworkAccessDto,
+};
 use crate::modules::preferences::infrastructure::adapters::inbound::server_fns::{
     RegenerateAccessToken, SaveNetworkAccess, SaveRequireAccessToken,
 };
@@ -93,12 +95,26 @@ const TOKEN_OFF_WARNING: Msg = Msg {
     de: "Ohne Token kann jeder im Netzwerk iworkflow nutzen und Befehle auf diesem Computer ausführen.",
     fr: "Sans le jeton, toute personne du réseau peut utiliser iworkflow et exécuter des commandes sur cet ordinateur.",
 };
-const SCAN_QR: Msg = Msg {
+const SCAN_QR_SIGNED_IN: Msg = Msg {
     en: "Scan this code with your phone to open iworkflow already signed in:",
     es: "Escanea este código con el móvil para abrir iworkflow ya autenticado:",
     zh: "用手机扫描此二维码，即可以已登录状态打开 iworkflow：",
     de: "Scanne diesen Code mit dem Smartphone, um iworkflow bereits angemeldet zu öffnen:",
     fr: "Scannez ce code avec votre téléphone pour ouvrir iworkflow déjà connecté :",
+};
+const SCAN_QR_PLAIN: Msg = Msg {
+    en: "Scan this code with your phone to open iworkflow:",
+    es: "Escanea este código con el móvil para abrir iworkflow:",
+    zh: "用手机扫描此二维码以打开 iworkflow：",
+    de: "Scanne diesen Code mit dem Smartphone, um iworkflow zu öffnen:",
+    fr: "Scannez ce code avec votre téléphone pour ouvrir iworkflow :",
+};
+const INTERFACE_LABEL: Msg = Msg {
+    en: "Network interface",
+    es: "Interfaz de red",
+    zh: "网络接口",
+    de: "Netzwerkschnittstelle",
+    fr: "Interface réseau",
 };
 const QR_LABEL: Msg = Msg {
     en: "QR code to open iworkflow from your phone",
@@ -179,10 +195,9 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
         (STATUS_PRIVATE.get(), "ok")
     };
     // Without a detected address there is nothing to scan, but the user still needs a URL hint.
-    let plain_url: Option<String> = (access.active && access.access_url.is_none())
+    let plain_url: Option<String> = (reachable && access.targets.is_empty())
         .then(|| format!("http://{ADDRESS_PLACEHOLDER}:{}", access.port));
-    let qr_svg: Option<String> = access.qr_svg.clone();
-    let access_url: Option<String> = access.access_url.clone();
+    let targets: Vec<AccessTargetDto> = access.targets.clone();
     let token: Option<String> = access.token.clone();
 
     view! {
@@ -224,23 +239,7 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
         {(reachable && !require_token)
             .then(|| view! { <p class="text-sm text-error" role="alert">{TOKEN_OFF_WARNING.get()}</p> })}
         {pending_restart.then(|| view! { <p class="text-sm text-warn">{RESTART_PENDING.get()}</p> })}
-        {qr_svg.map(|svg: String| view! {
-            <div class="stack gap-2">
-                <p class="text-sm text-fg">{SCAN_QR.get()}</p>
-                <div
-                    class="w-48 max-w-full rounded bg-white p-2"
-                    role="img"
-                    aria-label=QR_LABEL.get()
-                    inner_html=svg
-                ></div>
-            </div>
-        })}
-        {access_url.map(|url: String| view! {
-            <div class="stack gap-1">
-                <code class="break-all text-xs">{url}</code>
-                <p class="muted text-sm">{TOKEN_SECRET_NOTE.get()}</p>
-            </div>
-        })}
+        {(!targets.is_empty()).then(|| view! { <AccessTargets state targets require_token /> })}
         {plain_url.map(|url: String| view! {
             <p class="text-sm text-fg">{OPEN_FROM_PHONE.get()} " " <code>{url}</code></p>
         })}
@@ -269,14 +268,81 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
     }
 }
 
+/// Interface selector plus the link and QR code of the chosen interface.
+#[component]
+fn AccessTargets(
+    state: NetworkAccessState,
+    targets: Vec<AccessTargetDto>,
+    require_token: bool,
+) -> impl IntoView {
+    let options: Vec<AccessTargetDto> = targets.clone();
+    let selected: Memo<AccessTargetDto> = Memo::new(move |_| {
+        let wanted: Option<String> = state.selected_address.get();
+        pick_target(&targets, wanted.as_deref()).clone()
+    });
+    view! {
+        <div class="stack gap-2">
+            <label class="row items-center gap-2 text-sm text-fg">
+                {INTERFACE_LABEL.get()}
+                <select
+                    class="input"
+                    on:change=move |ev| state.selected_address.set(Some(event_target_value(&ev)))
+                >
+                    {options
+                        .into_iter()
+                        .map(|target: AccessTargetDto| {
+                            let address: String = target.address.clone();
+                            let label: String = format!("{} — {}", target.interface, target.address);
+                            view! {
+                                <option
+                                    value=address.clone()
+                                    selected=move || selected.get().address == address
+                                >
+                                    {label}
+                                </option>
+                            }
+                        })
+                        .collect_view()}
+                </select>
+            </label>
+            <p class="text-sm text-fg">
+                {if require_token { SCAN_QR_SIGNED_IN.get() } else { SCAN_QR_PLAIN.get() }}
+            </p>
+            {move || selected.get().qr_svg.map(|svg: String| view! {
+                <div
+                    class="w-48 max-w-full rounded bg-white p-2"
+                    role="img"
+                    aria-label=QR_LABEL.get()
+                    inner_html=svg
+                ></div>
+            })}
+            <code class="break-all text-xs">{move || selected.get().access_url}</code>
+            {require_token.then(|| view! { <p class="muted text-sm">{TOKEN_SECRET_NOTE.get()}</p> })}
+        </div>
+    }
+}
+
+/// The target matching `wanted`, or the first (preferred) one. `targets` must not be empty.
+pub fn pick_target<'a>(
+    targets: &'a [AccessTargetDto],
+    wanted: Option<&str>,
+) -> &'a AccessTargetDto {
+    wanted
+        .and_then(|address: &str| {
+            targets
+                .iter()
+                .find(|t: &&AccessTargetDto| t.address == address)
+        })
+        .unwrap_or(&targets[0])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn dto(enabled: bool, active: bool, locked_by_env: bool) -> NetworkAccessDto {
         // Token choice and running state agree by default, so only the case under test differs.
-        NetworkAccessDto::new(enabled, active, locked_by_env, 3000, None)
-            .with_token_state(true, true)
+        NetworkAccessDto::new(enabled, active, locked_by_env, 3000).with_token_state(true, true)
     }
 
     fn with_token(access: NetworkAccessDto, require: bool, active: bool) -> NetworkAccessDto {
@@ -317,5 +383,28 @@ mod tests {
             true,
             false
         )));
+    }
+
+    fn target(interface: &str, address: &str) -> AccessTargetDto {
+        AccessTargetDto {
+            interface: interface.to_string(),
+            address: address.to_string(),
+            access_url: format!("http://{address}:3000"),
+            qr_svg: None,
+        }
+    }
+
+    #[test]
+    fn picks_the_chosen_interface_or_falls_back_to_the_first() {
+        let targets: Vec<AccessTargetDto> = vec![
+            target("eth0", "192.168.1.5"),
+            target("tailscale0", "100.64.0.7"),
+        ];
+        assert_eq!(
+            pick_target(&targets, Some("100.64.0.7")).interface,
+            "tailscale0"
+        );
+        assert_eq!(pick_target(&targets, Some("10.9.9.9")).interface, "eth0");
+        assert_eq!(pick_target(&targets, None).interface, "eth0");
     }
 }

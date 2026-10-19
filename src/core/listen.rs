@@ -38,12 +38,63 @@ pub fn resolve_listen_addr(
     SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), configured.port())
 }
 
+/// A network interface of this machine that other devices could reach the server through.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NetworkInterface {
+    pub name: String,
+    pub ip: Ipv4Addr,
+}
+
 /// Address of this machine on the local network, if it has one.
 pub fn local_network_ip() -> Option<IpAddr> {
     let socket: UdpSocket = UdpSocket::bind((Ipv4Addr::UNSPECIFIED, 0)).ok()?;
     socket.connect(ROUTE_PROBE).ok()?;
     let ip: IpAddr = socket.local_addr().ok()?.ip();
     (!ip.is_loopback() && !ip.is_unspecified()).then_some(ip)
+}
+
+/// Keeps the addresses a phone could use: up, not loopback, unspecified or link-local, and
+/// listed once. `candidates` are `(interface name, address, is up)`.
+pub fn reachable_interfaces(candidates: Vec<(String, Ipv4Addr, bool)>) -> Vec<NetworkInterface> {
+    let mut interfaces: Vec<NetworkInterface> = Vec::new();
+    for (name, ip, up) in candidates {
+        let usable: bool = up && !ip.is_loopback() && !ip.is_unspecified() && !ip.is_link_local();
+        let seen: bool = interfaces
+            .iter()
+            .any(|known: &NetworkInterface| known.ip == ip);
+        if usable && !seen {
+            interfaces.push(NetworkInterface { name, ip });
+        }
+    }
+    interfaces
+}
+
+/// IPv4 interfaces of this machine (ethernet, Wi-Fi, Tailscale…), in the order the OS lists them.
+#[cfg(unix)]
+pub fn local_network_interfaces() -> Vec<NetworkInterface> {
+    use nix::ifaddrs::{InterfaceAddress, getifaddrs};
+    use nix::net::if_::InterfaceFlags;
+
+    let Ok(addresses) = getifaddrs() else {
+        return Vec::new();
+    };
+    let candidates: Vec<(String, Ipv4Addr, bool)> = addresses
+        .filter_map(|entry: InterfaceAddress| {
+            let ip: Ipv4Addr = entry.address?.as_sockaddr_in()?.ip();
+            let up: bool = entry.flags.contains(InterfaceFlags::IFF_UP);
+            Some((entry.interface_name, ip, up))
+        })
+        .collect();
+    reachable_interfaces(candidates)
+}
+
+/// Without interface enumeration, offer only the address the OS routes through.
+#[cfg(not(unix))]
+pub fn local_network_interfaces() -> Vec<NetworkInterface> {
+    match local_network_ip() {
+        Some(IpAddr::V4(ip)) => reachable_interfaces(vec![("default".to_string(), ip, true)]),
+        _ => Vec::new(),
+    }
 }
 
 #[cfg(test)]
@@ -69,6 +120,36 @@ mod tests {
     fn environment_address_wins_over_the_preference() {
         let pinned: SocketAddr = "127.0.0.1:9100".parse().expect("addr");
         assert_eq!(resolve_listen_addr(pinned, true, true), pinned);
+    }
+
+    fn candidate(name: &str, ip: [u8; 4], up: bool) -> (String, Ipv4Addr, bool) {
+        (name.to_string(), Ipv4Addr::from(ip), up)
+    }
+
+    #[test]
+    fn keeps_ethernet_and_tailscale_addresses() {
+        let found: Vec<NetworkInterface> = reachable_interfaces(vec![
+            candidate("eth0", [192, 168, 1, 5], true),
+            candidate("tailscale0", [100, 64, 0, 7], true),
+        ]);
+        let names: Vec<&str> = found
+            .iter()
+            .map(|i: &NetworkInterface| i.name.as_str())
+            .collect();
+        assert_eq!(names, vec!["eth0", "tailscale0"]);
+    }
+
+    #[test]
+    fn drops_loopback_link_local_down_and_duplicate_addresses() {
+        let found: Vec<NetworkInterface> = reachable_interfaces(vec![
+            candidate("lo", [127, 0, 0, 1], true),
+            candidate("wlan0", [169, 254, 3, 3], true),
+            candidate("eth1", [10, 0, 0, 2], false),
+            candidate("eth0", [192, 168, 1, 5], true),
+            candidate("eth0:1", [192, 168, 1, 5], true),
+        ]);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].name, "eth0");
     }
 
     #[test]
