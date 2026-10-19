@@ -733,6 +733,8 @@ mod tests {
     use super::*;
     use crate::core::i18n::{Locale, LocaleState};
 
+    // `TabRoute` usa tipos de leptos_router que llaman a js-sys en hydrate (solo wasm).
+    #[cfg(not(feature = "hydrate"))]
     #[test]
     fn parse_maps_every_known_path_to_its_screen() {
         assert!(is_board_path("/"));
@@ -817,6 +819,8 @@ mod tests {
         assert_eq!(TabRoute::parse("/nope/x/y/z"), TabRoute::NotFound);
     }
 
+    // `TabRoute` usa tipos de leptos_router que llaman a js-sys en hydrate (solo wasm).
+    #[cfg(not(feature = "hydrate"))]
     #[test]
     fn params_expose_the_ids_pages_read() {
         assert_eq!(

@@ -69,6 +69,8 @@ mod tests {
         assert_eq!(labels.len(), TERMINAL_KEYS.len());
     }
 
+    // Renderizar a HTML exige `ssr` y no funciona con `hydrate` (solo wasm).
+    #[cfg(all(feature = "ssr", not(feature = "hydrate")))]
     #[test]
     fn rendered_bar_has_one_button_per_key() {
         use super::TerminalKeyBar;
