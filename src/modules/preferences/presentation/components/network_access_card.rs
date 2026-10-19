@@ -7,7 +7,7 @@ use crate::modules::preferences::infrastructure::adapters::inbound::dto::network
     AccessTargetDto, NetworkAccessDto,
 };
 use crate::modules::preferences::infrastructure::adapters::inbound::server_fns::{
-    RegenerateAccessToken, SaveNetworkAccess, SaveRequireAccessToken,
+    RegenerateAccessToken, SaveListenPort, SaveNetworkAccess, SaveRequireAccessToken,
 };
 use crate::modules::preferences::presentation::state::network_access_state::NetworkAccessState;
 
@@ -151,6 +151,29 @@ const REGENERATE_NOTE: Msg = Msg {
     de: "Geräte mit dem aktuellen Token müssen sich erneut anmelden.",
     fr: "Les appareils qui utilisent le jeton actuel devront se reconnecter.",
 };
+const PORT_LABEL: Msg = Msg {
+    en: "Server port",
+    es: "Puerto del servidor",
+    zh: "服务器端口",
+    de: "Server-Port",
+    fr: "Port du serveur",
+};
+const PORT_HELP: Msg = Msg {
+    en: "Between 1024 and 65535. The change applies the next time the server starts.",
+    es: "Entre 1024 y 65535. El cambio se aplica la próxima vez que arranque el servidor.",
+    zh: "范围为 1024 至 65535。更改将在服务器下次启动时生效。",
+    de: "Zwischen 1024 und 65535. Die Änderung gilt ab dem nächsten Serverstart.",
+    fr: "Entre 1024 et 65535. Le changement s'applique au prochain démarrage du serveur.",
+};
+const PORT_SAVE: Msg = Msg {
+    en: "Save port",
+    es: "Guardar puerto",
+    zh: "保存端口",
+    de: "Port speichern",
+    fr: "Enregistrer le port",
+};
+/// Lowest port the server accepts (the domain enforces it too).
+const MIN_PORT: u16 = 1024;
 const ADDRESS_PLACEHOLDER: &str = "<IP>";
 
 /// Whether the saved choice differs from what the running server does.
@@ -159,6 +182,7 @@ pub fn restart_pending(access: &NetworkAccessDto) -> bool {
         return false;
     }
     access.enabled != access.active
+        || access.configured_port != access.port
         || (access.active && access.require_token != access.token_active)
 }
 
@@ -218,6 +242,7 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
             {TOGGLE_LABEL.get()}
         </label>
         {locked.then(|| view! { <p class="muted text-sm">{LOCKED_BY_ENV.get()}</p> })}
+        <PortField state configured_port=access.configured_port locked />
         {reachable.then(|| view! {
             <label class="row items-center gap-2 text-sm text-fg">
                 <input
@@ -264,8 +289,55 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
         })}
         <ActionError result=state.save.value().into() />
         <ActionError result=state.save_require_token.value().into() />
+        <ActionError result=state.save_port.value().into() />
         <ActionError result=state.regenerate.value().into() />
     }
+}
+
+/// Number input and save button for the port the server listens on.
+#[component]
+fn PortField(state: NetworkAccessState, configured_port: u16, locked: bool) -> impl IntoView {
+    let busy: Signal<bool> = state.busy();
+    let draft: RwSignal<String> = RwSignal::new(configured_port.to_string());
+    view! {
+        <div class="stack gap-1">
+            <label class="row items-center gap-2 text-sm text-fg">
+                {PORT_LABEL.get()}
+                <input
+                    type="number"
+                    class="input w-28"
+                    min="1024"
+                    max="65535"
+                    prop:value=move || draft.get()
+                    disabled=move || busy.get() || locked
+                    on:input=move |ev| draft.set(event_target_value(&ev))
+                />
+            </label>
+            <div class="row items-center gap-2">
+                <button
+                    type="button"
+                    class="btn-secondary"
+                    disabled=move || busy.get() || locked || parse_port(&draft.get()).is_none()
+                    on:click=move |_| {
+                        if let Some(port) = parse_port(&draft.get_untracked()) {
+                            state.save_port.dispatch(SaveListenPort { port });
+                        }
+                    }
+                >
+                    {PORT_SAVE.get()}
+                </button>
+                <span class="muted text-sm">{PORT_HELP.get()}</span>
+            </div>
+        </div>
+    }
+}
+
+/// Port typed by the user, or `None` while the text is not a number the server could bind.
+pub fn parse_port(text: &str) -> Option<u16> {
+    text.trim()
+        .parse::<u16>()
+        .ok()
+        .filter(|port: &u16| *port >= MIN_PORT)
 }
 
 /// Interface selector plus the link and QR code of the chosen interface.
@@ -392,6 +464,25 @@ mod tests {
             access_url: format!("http://{address}:3000"),
             qr_svg: None,
         }
+    }
+
+    #[test]
+    fn restart_is_pending_when_only_the_port_differs() {
+        assert!(restart_pending(
+            &dto(true, true, false).with_configured_port(9100)
+        ));
+        assert!(!restart_pending(
+            &dto(true, true, true).with_configured_port(9100)
+        ));
+    }
+
+    #[test]
+    fn parse_port_accepts_only_bindable_numbers() {
+        assert_eq!(parse_port(" 9000 "), Some(9000));
+        assert_eq!(parse_port("80"), None);
+        assert_eq!(parse_port("70000"), None);
+        assert_eq!(parse_port("abc"), None);
+        assert_eq!(parse_port(""), None);
     }
 
     #[test]

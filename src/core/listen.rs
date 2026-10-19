@@ -24,18 +24,25 @@ impl ListenInfo {
     }
 }
 
-/// Chooses the bind address. An explicit environment address always wins; otherwise opting in to
-/// network access listens on every IPv4 interface keeping the configured port, and the default
-/// stays on the configured (loopback) address.
+/// Chooses the bind address. An explicit environment address always wins; otherwise the saved
+/// port (if any) replaces the configured one, opting in to network access listens on every IPv4
+/// interface, and the default stays on the configured (loopback) host.
 pub fn resolve_listen_addr(
     configured: SocketAddr,
     env_locked: bool,
     network_access: bool,
+    saved_port: Option<u16>,
 ) -> SocketAddr {
-    if env_locked || !network_access {
+    if env_locked {
         return configured;
     }
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), configured.port())
+    let port: u16 = saved_port.unwrap_or(configured.port());
+    let ip: IpAddr = if network_access {
+        IpAddr::V4(Ipv4Addr::UNSPECIFIED)
+    } else {
+        configured.ip()
+    };
+    SocketAddr::new(ip, port)
 }
 
 /// A network interface of this machine that other devices could reach the server through.
@@ -107,19 +114,36 @@ mod tests {
 
     #[test]
     fn stays_on_loopback_by_default() {
-        assert_eq!(resolve_listen_addr(loopback(), false, false), loopback());
+        assert_eq!(
+            resolve_listen_addr(loopback(), false, false, None),
+            loopback()
+        );
     }
 
     #[test]
     fn opting_in_binds_every_interface_keeping_the_port() {
         let expected: SocketAddr = "0.0.0.0:3000".parse().expect("addr");
-        assert_eq!(resolve_listen_addr(loopback(), false, true), expected);
+        assert_eq!(resolve_listen_addr(loopback(), false, true, None), expected);
+    }
+
+    #[test]
+    fn saved_port_replaces_the_configured_one_in_both_modes() {
+        let private: SocketAddr = "127.0.0.1:9100".parse().expect("addr");
+        let exposed: SocketAddr = "0.0.0.0:9100".parse().expect("addr");
+        assert_eq!(
+            resolve_listen_addr(loopback(), false, false, Some(9100)),
+            private
+        );
+        assert_eq!(
+            resolve_listen_addr(loopback(), false, true, Some(9100)),
+            exposed
+        );
     }
 
     #[test]
     fn environment_address_wins_over_the_preference() {
         let pinned: SocketAddr = "127.0.0.1:9100".parse().expect("addr");
-        assert_eq!(resolve_listen_addr(pinned, true, true), pinned);
+        assert_eq!(resolve_listen_addr(pinned, true, true, Some(9500)), pinned);
     }
 
     fn candidate(name: &str, ip: [u8; 4], up: bool) -> (String, Ipv4Addr, bool) {

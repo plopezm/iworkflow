@@ -21,7 +21,10 @@ pub struct NetworkAccessDto {
     pub active: bool,
     /// `LEPTOS_SITE_ADDR` pins the address, so the saved choice has no effect.
     pub locked_by_env: bool,
+    /// Port the running server listens on.
     pub port: u16,
+    /// Saved choice: port to listen on the next time the server starts.
+    pub configured_port: u16,
     /// Interfaces other devices can use, preferred one first (empty if no network was detected
     /// or access is off).
     pub targets: Vec<AccessTargetDto>,
@@ -40,6 +43,7 @@ impl NetworkAccessDto {
             active,
             locked_by_env,
             port,
+            configured_port: port,
             targets: Vec::new(),
             require_token: true,
             token_active: false,
@@ -58,6 +62,11 @@ impl NetworkAccessDto {
         if self.enabled || self.active {
             self.targets = targets;
         }
+        self
+    }
+
+    pub fn with_configured_port(mut self, configured_port: u16) -> Self {
+        self.configured_port = configured_port;
         self
     }
 
@@ -95,6 +104,13 @@ mod tests {
             .with_targets(vec![target("tailscale0", "100.64.0.7")]);
         assert_eq!(enabled.targets.len(), 1);
         assert_eq!(active.targets[0].interface, "tailscale0");
+    }
+
+    #[test]
+    fn the_configured_port_defaults_to_the_running_one() {
+        let dto: NetworkAccessDto = NetworkAccessDto::new(true, true, false, 9000);
+        assert_eq!(dto.configured_port, 9000);
+        assert_eq!(dto.with_configured_port(9100).configured_port, 9100);
     }
 
     #[test]

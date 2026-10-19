@@ -52,6 +52,7 @@ pub async fn get_network_access() -> Result<NetworkAccessDto, ServerFnError> {
     use crate::core::listen::{
         ListenInfo, NetworkInterface, local_network_interfaces, local_network_ip,
     };
+    use crate::modules::preferences::domain::models::listen_port::ListenPort;
     use crate::modules::preferences::infrastructure::adapters::inbound::access_link::{
         build_access_url, render_qr_svg,
     };
@@ -73,6 +74,12 @@ pub async fn get_network_access() -> Result<NetworkAccessDto, ServerFnError> {
         .ok_or_else(|| ServerFnError::new("ListenInfo no disponible"))?;
     let active: bool = listen.is_exposed();
     let port: u16 = listen.addr.port();
+    let configured_port: u16 = context
+        .get_listen_port
+        .execute()
+        .await
+        .map_err(support::to_server_error)?
+        .map_or(port, |saved: ListenPort| saved.get());
 
     // The secret only leaves the server while the app is (or is about to be) reachable and a
     // token is demanded, now or after the next restart.
@@ -115,6 +122,7 @@ pub async fn get_network_access() -> Result<NetworkAccessDto, ServerFnError> {
     Ok(
         NetworkAccessDto::new(enabled, active, listen.locked_by_env, port)
             .with_token_state(require_token, listen.token_required)
+            .with_configured_port(configured_port)
             .with_targets(targets)
             .with_token(token),
     )
@@ -126,6 +134,17 @@ pub async fn save_network_access(enabled: bool) -> Result<(), ServerFnError> {
     support::context()?
         .save_network_access
         .execute(enabled)
+        .await
+        .map(|_| ())
+        .map_err(support::to_server_error)
+}
+
+/// Stores the port the server listens on; it applies on the next server start.
+#[server]
+pub async fn save_listen_port(port: u16) -> Result<(), ServerFnError> {
+    support::context()?
+        .save_listen_port
+        .execute(port)
         .await
         .map(|_| ())
         .map_err(support::to_server_error)

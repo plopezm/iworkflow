@@ -6,6 +6,8 @@ pub enum PreferencesError {
     UnsupportedLanguage(String),
     #[error("token de acceso no válido")]
     InvalidAccessToken,
+    #[error("puerto no válido: {0} (usa un puerto entre 1024 y 65535)")]
+    InvalidPort(u16),
     #[error("error de almacenamiento: {0}")]
     Repository(String),
 }
