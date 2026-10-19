@@ -18,7 +18,9 @@ use crate::core::url_path::decode_path;
 use crate::modules::agent_profiles::presentation::pages::models_page::ModelsPage;
 use crate::modules::agent_profiles::presentation::pages::profiles_page::ProfilesPage;
 use crate::modules::agent_settings::presentation::components::agent_settings_bar::AgentSettingsBar;
-use crate::modules::agent_settings::presentation::pages::settings_page::SettingsPage;
+use crate::modules::agent_settings::presentation::pages::settings_page::{
+    ResourceLimitsCard, SettingsPage, SettingsSection,
+};
 use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
 use crate::modules::agents_files::presentation::pages::agents_files_page::AgentsFilesPage;
 use crate::modules::code_hosting::presentation::components::code_host_settings_card::CodeHostSettingsCard;
@@ -394,22 +396,77 @@ impl TabRoute {
             Self::JiraConvert(_) => view! { <JiraConvertPage /> }.into_any(),
             Self::Profiles => view! { <ProfilesPage /> }.into_any(),
             Self::Models => view! { <ModelsPage /> }.into_any(),
-            Self::Settings => view! {
-                <SettingsPage leading=Box::new(|| view! { <LanguageCard on_choose=Callback::new(choose_language) /> }.into_any())>
-                    <NetworkAccessCard />
-                    <JiraSettingsSection />
-                    <CodeHostSettingsCard provider="gitlab" />
-                    <CodeHostSettingsCard provider="github" />
-                </SettingsPage>
+            Self::Settings => view! { <SettingsPage sections=settings_sections() /> }.into_any(),
+            Self::Task(_) => {
+                view! { <TaskDetailPage extra_tabs=vec![files_task_tab(), code_host_task_tab()] /> }
+                    .into_any()
             }
-            .into_any(),
-            Self::Task(_) => view! { <TaskDetailPage extra_tabs=vec![files_task_tab(), code_host_task_tab()] /> }.into_any(),
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
             Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
             Self::TaskTerminal(_) => view! { <NewTaskTerminalPage /> }.into_any(),
             Self::NotFound => view! { <p class="muted p-4">{PAGE_NOT_FOUND.get()}</p> }.into_any(),
         }
     }
+}
+
+const SETTINGS_TAB_LANGUAGE: Msg = Msg {
+    en: "Language",
+    es: "Idioma",
+    zh: "语言",
+    de: "Sprache",
+    fr: "Langue",
+};
+const SETTINGS_TAB_RESOURCES: Msg = Msg {
+    en: "Resources",
+    es: "Recursos",
+    zh: "资源",
+    de: "Ressourcen",
+    fr: "Ressources",
+};
+const SETTINGS_TAB_NETWORK: Msg = Msg {
+    en: "Network",
+    es: "Red",
+    zh: "网络",
+    de: "Netzwerk",
+    fr: "Réseau",
+};
+
+/// Subtabs of the settings screen, one per section.
+fn settings_sections() -> Vec<SettingsSection> {
+    vec![
+        SettingsSection {
+            id: "language",
+            label: SETTINGS_TAB_LANGUAGE.get().to_string(),
+            view: ViewFn::from(
+                || view! { <LanguageCard on_choose=Callback::new(choose_language) /> },
+            ),
+        },
+        SettingsSection {
+            id: "resources",
+            label: SETTINGS_TAB_RESOURCES.get().to_string(),
+            view: ViewFn::from(|| view! { <ResourceLimitsCard /> }),
+        },
+        SettingsSection {
+            id: "network",
+            label: SETTINGS_TAB_NETWORK.get().to_string(),
+            view: ViewFn::from(|| view! { <NetworkAccessCard /> }),
+        },
+        SettingsSection {
+            id: "jira",
+            label: "Jira".to_string(),
+            view: ViewFn::from(|| view! { <JiraSettingsSection /> }),
+        },
+        SettingsSection {
+            id: "gitlab",
+            label: "GitLab".to_string(),
+            view: ViewFn::from(|| view! { <CodeHostSettingsCard provider="gitlab" /> }),
+        },
+        SettingsSection {
+            id: "github",
+            label: "GitHub".to_string(),
+            view: ViewFn::from(|| view! { <CodeHostSettingsCard provider="github" /> }),
+        },
+    ]
 }
 
 /// Scope id that the project tree server functions expect for a task worktree.
