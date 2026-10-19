@@ -2,6 +2,7 @@ use leptos::prelude::*;
 
 use crate::core::components::form::{ActionError, NumberInput};
 use crate::core::components::layout::{Card, ErrorText};
+use crate::core::components::segmented_control::{SegmentOption, SegmentedControl};
 use crate::core::i18n::Msg;
 use crate::modules::agent_settings::infrastructure::adapters::inbound::dto::agent_settings_dto::AgentSettingsDto;
 use crate::modules::agent_settings::presentation::state::agent_settings_state::AgentSettingsState;
@@ -49,26 +50,82 @@ const NO_LIMIT: Msg = Msg {
     fr: "sans limite",
 };
 
-/// Pantalla de configuración: límites de recursos del agente.
+const SECTIONS_LABEL: Msg = Msg {
+    en: "Settings sections",
+    es: "Secciones de configuración",
+    zh: "设置分区",
+    de: "Einstellungsbereiche",
+    fr: "Sections des paramètres",
+};
+
+/// One subtab of the settings screen: a stable id, its translated label and its content.
+#[derive(Clone)]
+pub struct SettingsSection {
+    pub id: &'static str,
+    pub label: String,
+    pub view: ViewFn,
+}
+
+/// Id of the section to show: the selected one if it exists, otherwise the first.
+pub fn active_section_id(sections: &[SettingsSection], selected: &str) -> Option<&'static str> {
+    sections
+        .iter()
+        .find(|section: &&SettingsSection| section.id == selected)
+        .or_else(|| sections.first())
+        .map(|section: &SettingsSection| section.id)
+}
+
+/// Pantalla de configuración: una subpestaña por sección, aportadas por la raíz de composición.
 #[component]
-pub fn SettingsPage(
-    /// Extra sections supplied by the composition root (e.g. other features' settings).
-    #[prop(optional)]
-    children: Option<Children>,
-    /// Section rendered before everything else (e.g. the language card).
-    #[prop(optional)]
-    leading: Option<Children>,
-) -> impl IntoView {
+pub fn SettingsPage(sections: Vec<SettingsSection>) -> impl IntoView {
+    let selected: RwSignal<String> = RwSignal::new(String::new());
+    let options: Vec<SegmentOption> = sections
+        .iter()
+        .map(|section: &SettingsSection| SegmentOption {
+            value: section.id.to_string(),
+            label: section.label.clone(),
+        })
+        .collect();
+    let active: Signal<String> = Signal::derive({
+        let sections: Vec<SettingsSection> = sections.clone();
+        move || {
+            active_section_id(&sections, &selected.get())
+                .unwrap_or_default()
+                .to_string()
+        }
+    });
+
+    view! {
+        <div class="flex h-full min-h-0 flex-col">
+            <div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2.5">
+                <h1 class="page-title">{PAGE_TITLE.get()}</h1>
+                <SegmentedControl
+                    options=Signal::stored(options)
+                    selected=active
+                    aria_label=SECTIONS_LABEL.get().to_string()
+                    on_select=Callback::new(move |id: String| selected.set(id))
+                />
+            </div>
+            <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
+                {move || {
+                    let current: String = active.get();
+                    sections
+                        .iter()
+                        .find(|section: &&SettingsSection| section.id == current)
+                        .map(|section: &SettingsSection| section.view.run())
+                }}
+            </div>
+        </div>
+    }
+}
+
+/// Card with the agent's RAM and CPU limits.
+#[component]
+pub fn ResourceLimitsCard() -> impl IntoView {
     let state: AgentSettingsState = AgentSettingsState::shared();
     let pending: Signal<bool> = state.update.pending().into();
 
     view! {
-        <div class="flex h-full min-h-0 flex-col">
-            <div class="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2.5">
-                <h1 class="page-title">{PAGE_TITLE.get()}</h1>
-            </div>
-            <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
-                {leading.map(|first: Children| first())}
                 <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
                     {move || Suspend::new(async move {
                         let settings: AgentSettingsDto = match state.settings.await {
@@ -137,8 +194,36 @@ pub fn SettingsPage(
                             .into_any()
                     })}
                 </Transition>
-                {children.map(|extra: Children| extra())}
-            </div>
-        </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn section(id: &'static str) -> SettingsSection {
+        SettingsSection {
+            id,
+            label: id.to_string(),
+            view: ViewFn::from(|| ()),
+        }
+    }
+
+    #[test]
+    fn active_section_is_the_selected_one() {
+        let sections: Vec<SettingsSection> = vec![section("a"), section("b")];
+        assert_eq!(active_section_id(&sections, "b"), Some("b"));
+    }
+
+    #[test]
+    fn active_section_falls_back_to_first() {
+        let sections: Vec<SettingsSection> = vec![section("a"), section("b")];
+        assert_eq!(active_section_id(&sections, ""), Some("a"));
+        assert_eq!(active_section_id(&sections, "zzz"), Some("a"));
+    }
+
+    #[test]
+    fn no_sections_means_no_active_section() {
+        assert_eq!(active_section_id(&[], "a"), None);
     }
 }
