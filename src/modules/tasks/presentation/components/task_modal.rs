@@ -200,53 +200,78 @@ pub fn branch_option_label(branch: &BranchOptionDto) -> String {
     }
 }
 
-/// Desplegable con las ramas locales y remotas del workspace elegido; vacío = rama base del
-/// workspace.
+/// Desplegable con las ramas locales y remotas del repositorio; vacío = `default_branch`
+/// (la rama base del workspace). Una rama elegida que ya no figura en el listado se conserva
+/// como opción para no perderla al guardar.
 #[component]
-fn BaseBranchSelect(
-    state: BoardState,
-    workspaces: Signal<Vec<WorkspaceOptionDto>>,
+pub fn BaseBranchSelect(
+    branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>>,
+    value: RwSignal<String>,
+    #[prop(into)] default_branch: Signal<String>,
 ) -> impl IntoView {
+    // Solo cambia cuando la rama elegida entra o sale del listado, no en cada elección.
+    let unlisted: Memo<String> = Memo::new(move |_| {
+        let selected: String = value.get();
+        let listed: bool = branches.with(
+            |loaded: &Option<Result<Vec<BranchOptionDto>, ServerFnError>>| {
+                loaded
+                    .as_ref()
+                    .and_then(|r: &Result<Vec<BranchOptionDto>, ServerFnError>| r.as_ref().ok())
+                    .is_none_or(|all: &Vec<BranchOptionDto>| {
+                        all.iter().any(|b: &BranchOptionDto| b.name == selected)
+                    })
+            },
+        );
+        if listed { String::new() } else { selected }
+    });
     view! {
         <Suspense fallback=|| {
             view! { <p class="muted text-sm">{LOADING_BRANCHES.get()}</p> }
         }>
             {move || {
-                let branches: Vec<BranchOptionDto> = state
-                    .branches
+                let loaded: Vec<BranchOptionDto> = branches
                     .get()
                     .and_then(Result::ok)
                     .unwrap_or_default();
-                let workspace_id: String = state.form_workspace_id.get();
-                if workspace_id.is_empty() {
+                if loaded.is_empty() {
                     return ().into_any();
                 }
-                let default_branch: String = workspaces
-                    .with(|all: &Vec<WorkspaceOptionDto>| {
-                        all.iter()
-                            .find(|w: &&WorkspaceOptionDto| w.id == workspace_id)
-                            .map(|w: &WorkspaceOptionDto| w.base_branch.clone())
-                            .unwrap_or_default()
-                    });
-                let options: Vec<SelectOption> = branches
-                    .iter()
-                    .map(|b: &BranchOptionDto| SelectOption {
-                        value: b.name.clone(),
-                        label: branch_option_label(b),
-                    })
-                    .collect();
+                let options: Vec<SelectOption> = branch_select_options(
+                    &loaded,
+                    &unlisted.get(),
+                );
                 view! {
                     <SelectField
                         label=BASE_BRANCH.get()
-                        value=state.form_base_branch
+                        value=value
                         options=options
-                        placeholder=WORKSPACE_BRANCH.fmt(&[("branch", &default_branch)])
+                        placeholder=WORKSPACE_BRANCH
+                            .fmt(&[("branch", &default_branch.get())])
                     />
                 }
                     .into_any()
             }}
         </Suspense>
     }
+}
+
+/// Opciones del desplegable de ramas; añade `selected` al final si no está listada (función pura).
+pub fn branch_select_options(branches: &[BranchOptionDto], selected: &str) -> Vec<SelectOption> {
+    let mut options: Vec<SelectOption> = branches
+        .iter()
+        .map(|b: &BranchOptionDto| SelectOption {
+            value: b.name.clone(),
+            label: branch_option_label(b),
+        })
+        .collect();
+    let known: bool = options.iter().any(|o: &SelectOption| o.value == selected);
+    if !selected.is_empty() && !known {
+        options.push(SelectOption {
+            value: selected.to_string(),
+            label: selected.to_string(),
+        });
+    }
+    options
 }
 
 /// Modal de alta de tarea (Backlog o iniciada). La edición vive en su propia pantalla.
@@ -303,7 +328,20 @@ pub fn TaskModal(state: BoardState, workspaces: Signal<Vec<WorkspaceOptionDto>>)
                         }
                             .into_any()
                 }}
-                <BaseBranchSelect state=state workspaces=workspaces />
+                <BaseBranchSelect
+                    branches=state.branches
+                    value=state.form_base_branch
+                    default_branch=Signal::derive(move || {
+                        let workspace_id: String = state.form_workspace_id.get();
+                        workspaces
+                            .with(|all: &Vec<WorkspaceOptionDto>| {
+                                all.iter()
+                                    .find(|w: &&WorkspaceOptionDto| w.id == workspace_id)
+                                    .map(|w: &WorkspaceOptionDto| w.base_branch.clone())
+                                    .unwrap_or_default()
+                            })
+                    })
+                />
                 <TextField
                     label=TITLE_OPTIONAL.get()
                     value=state.form_title

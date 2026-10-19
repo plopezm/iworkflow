@@ -324,6 +324,9 @@ pub struct UpdateTaskDto {
     pub memory_limit_mb: Option<u32>,
     #[serde(default)]
     pub cpu_limit_percent: Option<u32>,
+    /// Rama (local o remota) de la que parte el worktree; vacío = base del workspace.
+    #[serde(default)]
+    pub base_branch: Option<String>,
     #[serde(default)]
     pub images: Vec<ImageAttachmentDto>,
     /// Ids de adjuntos ya guardados que se quitan de la tarea.

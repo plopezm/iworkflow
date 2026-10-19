@@ -6,10 +6,10 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachm
     ImageAttachmentDto, TaskAttachmentDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    TaskDto, TaskPriorityDto, UpdateTaskDto,
+    BranchOptionDto, TaskDto, TaskPriorityDto, UpdateTaskDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
-    UpdateTask, get_task, list_task_attachments,
+    UpdateTask, get_task, list_task_attachments, list_workspace_branches, list_workspace_options,
 };
 use crate::modules::tasks::presentation::state::board_state::effective_limits;
 use crate::modules::tasks::presentation::state::image_attachments::{ImageAttachments, MAX_IMAGES};
@@ -26,6 +26,12 @@ pub struct TaskEditState {
     pub form_priority: RwSignal<String>,
     pub form_memory_limit: RwSignal<String>,
     pub form_cpu_limit: RwSignal<String>,
+    /// Rama de la que parte el worktree; vacío = base del workspace.
+    pub form_base_branch: RwSignal<String>,
+    /// Ramas locales y remotas del repositorio de la tarea.
+    pub branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>>,
+    /// Rama base del workspace de la tarea (la que se usa si no se elige otra).
+    pub default_branch: Memo<String>,
     /// Muestra las opciones avanzadas (límites de RAM y CPU).
     pub form_show_advanced: RwSignal<bool>,
     /// Imágenes nuevas a añadir a las ya adjuntas.
@@ -64,12 +70,15 @@ pub fn remaining_slots(kept: usize) -> usize {
 }
 
 /// Construye el DTO de edición con las imágenes nuevas (función pura).
+// Un argumento por campo del formulario; agruparlos solo movería el problema.
+#[allow(clippy::too_many_arguments)]
 pub fn build_update_task_dto(
     title: String,
     prompt: String,
     priority: &str,
     memory_limit: &str,
     cpu_limit: &str,
+    base_branch: &str,
     images: Vec<ImageAttachmentDto>,
     remove_attachment_ids: Vec<String>,
 ) -> UpdateTaskDto {
@@ -79,6 +88,7 @@ pub fn build_update_task_dto(
         priority: TaskPriorityDto::from_value(priority).unwrap_or_default(),
         memory_limit_mb: parse_positive_number(memory_limit),
         cpu_limit_percent: parse_positive_number(cpu_limit),
+        base_branch: Some(base_branch.to_string()).filter(|b: &String| !b.trim().is_empty()),
         images,
         remove_attachment_ids,
     }
@@ -91,6 +101,31 @@ impl TaskEditState {
             Resource::new(|| (), move |_| get_task(id.get_value()));
         let attachments: Resource<Result<Vec<TaskAttachmentDto>, ServerFnError>> =
             Resource::new(|| (), move |_| list_task_attachments(id.get_value()));
+        let branches: Resource<Result<Vec<BranchOptionDto>, ServerFnError>> = Resource::new(
+            || (),
+            move |_| async move {
+                let task: TaskDto = get_task(id.get_value()).await?;
+                list_workspace_branches(task.workspace_id).await
+            },
+        );
+        let workspaces: Resource<Result<Vec<WorkspaceOptionDto>, ServerFnError>> =
+            Resource::new(|| (), |_| list_workspace_options());
+        let default_branch: Memo<String> = Memo::new(move |_| {
+            let workspace_id: String = task
+                .get()
+                .and_then(Result::ok)
+                .map(|t: TaskDto| t.workspace_id)
+                .unwrap_or_default();
+            workspaces
+                .get()
+                .and_then(Result::ok)
+                .and_then(|all: Vec<WorkspaceOptionDto>| {
+                    all.into_iter()
+                        .find(|w: &WorkspaceOptionDto| w.id == workspace_id)
+                })
+                .map(|w: WorkspaceOptionDto| w.base_branch)
+                .unwrap_or_default()
+        });
         let removed_ids: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
         let images: ImageAttachments = ImageAttachments::new();
         Effect::new(move |_| {
@@ -110,6 +145,9 @@ impl TaskEditState {
             form_priority: RwSignal::new(TaskPriorityDto::default().as_str().to_string()),
             form_memory_limit: RwSignal::new(String::new()),
             form_cpu_limit: RwSignal::new(String::new()),
+            form_base_branch: RwSignal::new(String::new()),
+            branches,
+            default_branch,
             form_show_advanced: RwSignal::new(false),
             images,
             attachments,
@@ -149,6 +187,7 @@ impl TaskEditState {
                 .map(|v: u32| v.to_string())
                 .unwrap_or_default(),
         );
+        self.form_base_branch.set(task.base_branch.clone());
         // Si la tarea ya tiene límites propios, la sección se abre para que se vean.
         self.form_show_advanced
             .set(task.memory_limit_mb.is_some() || task.cpu_limit_percent.is_some());
@@ -169,6 +208,7 @@ impl TaskEditState {
                 &self.form_priority.get_untracked(),
                 &memory_limit,
                 &cpu_limit,
+                &self.form_base_branch.get_untracked(),
                 self.images.images.get_untracked(),
                 self.removed_ids.get_untracked(),
             ),
@@ -228,6 +268,7 @@ mod tests {
             "urgent",
             "512",
             "150",
+            " origin/dev ",
             vec![image.clone()],
             vec!["a1".to_string()],
         );
@@ -236,6 +277,22 @@ mod tests {
         assert_eq!(dto.priority, TaskPriorityDto::Urgent);
         assert_eq!(dto.memory_limit_mb, Some(512));
         assert_eq!(dto.cpu_limit_percent, Some(150));
+        assert_eq!(dto.base_branch.as_deref(), Some(" origin/dev "));
+    }
+
+    #[test]
+    fn blank_base_branch_is_sent_as_none() {
+        let dto: UpdateTaskDto = build_update_task_dto(
+            "t".to_string(),
+            "p".to_string(),
+            "normal",
+            "",
+            "",
+            "  ",
+            Vec::new(),
+            Vec::new(),
+        );
+        assert_eq!(dto.base_branch, None);
     }
 
     fn stored(id: &str) -> TaskAttachmentDto {

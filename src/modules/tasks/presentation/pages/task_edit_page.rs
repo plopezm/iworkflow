@@ -6,7 +6,9 @@ use crate::core::components::layout::ErrorText;
 use crate::core::i18n::Msg;
 use crate::modules::tasks::presentation::components::existing_attachments::ExistingAttachments;
 use crate::modules::tasks::presentation::components::image_picker::{ImagePicker, paste_callback};
-use crate::modules::tasks::presentation::components::task_modal::priority_select_options;
+use crate::modules::tasks::presentation::components::task_modal::{
+    BaseBranchSelect, priority_select_options,
+};
 use crate::modules::tasks::presentation::state::graph_model::board_return_path;
 use crate::modules::tasks::presentation::state::task_edit_state::TaskEditState;
 
@@ -197,6 +199,11 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                         label=TITLE_OPTIONAL.get()
                                         value=state.form_title
                                         placeholder=TITLE_PLACEHOLDER.get()
+                                    />
+                                    <BaseBranchSelect
+                                        branches=state.branches
+                                        value=state.form_base_branch
+                                        default_branch=state.default_branch
                                     />
                                     <SelectField
                                         label=PRIORITY.get()

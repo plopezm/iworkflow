@@ -14,7 +14,8 @@ use crate::modules::tasks::domain::models::task_priority::TaskPriority;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 
-/// Edita titulo, prompt y prioridad de una tarea en `Backlog` (misma validacion que al crearla)
+/// Edita titulo, prompt, prioridad, límites y rama base de una tarea en `Backlog` (misma
+/// validacion que al crearla)
 /// quita las imágenes indicadas y añade imágenes nuevas a las ya adjuntas.
 pub struct UpdateTask {
     lifecycle: Arc<TaskLifecycle>,
@@ -107,6 +108,7 @@ impl UpdateTask {
         prompt: String,
         priority: TaskPriority,
         limits: ResourceLimits,
+        base_branch: Option<String>,
         images: Vec<ImageAttachment>,
         remove_attachment_ids: Vec<String>,
     ) -> Result<Task, TaskError> {
@@ -120,11 +122,21 @@ impl UpdateTask {
             prompt,
             priority,
             limits,
-            base_branch: None,
+            base_branch,
             images: Vec::new(),
             start_now: false,
         }
         .validated()?;
+        // Igual que al crear: sin rama elegida, la base del workspace.
+        let base_branch: String = match validated.base_branch.clone() {
+            Some(branch) => branch,
+            None => {
+                self.lifecycle
+                    .workspace(&task.workspace_id)
+                    .await?
+                    .base_branch
+            }
+        };
         let images: Vec<ImageAttachment> = ImageAttachment::validate_all(images)?;
         let mut removable_ids: Vec<String> = Vec::new();
         if !images.is_empty() || !remove_attachment_ids.is_empty() {
@@ -153,6 +165,7 @@ impl UpdateTask {
                 validated.prompt.clone(),
                 validated.priority,
                 validated.limits,
+                base_branch.clone(),
             )
             .await?;
         if !updated {
@@ -171,6 +184,7 @@ impl UpdateTask {
             prompt: validated.prompt,
             priority: validated.priority,
             limits: validated.limits,
+            base_branch,
             ..task
         })
     }
@@ -226,7 +240,7 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .returning(|_, _, _, _, _| Ok(true));
+            .returning(|_, _, _, _, _, _| Ok(true));
         test_support::lifecycle_with(repository, recorded)
     }
 
@@ -243,6 +257,7 @@ mod tests {
                 "Nuevo prompt".to_string(),
                 TaskPriority::default(),
                 ResourceLimits::default(),
+                None,
                 Vec::new(),
                 Vec::new(),
             )
@@ -263,8 +278,8 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .withf(|_, _, _, priority: &TaskPriority, _| *priority == TaskPriority::Urgent)
-            .returning(|_, _, _, _, _| Ok(true));
+            .withf(|_, _, _, priority: &TaskPriority, _, _| *priority == TaskPriority::Urgent)
+            .returning(|_, _, _, _, _, _| Ok(true));
 
         let updated: Task = use_case(test_support::lifecycle_with(repository, &recorded))
             .execute(
@@ -273,6 +288,7 @@ mod tests {
                 "p".to_string(),
                 TaskPriority::Urgent,
                 ResourceLimits::default(),
+                None,
                 Vec::new(),
                 Vec::new(),
             )
@@ -280,6 +296,67 @@ mod tests {
             .expect("editada");
 
         assert_eq!(updated.priority, TaskPriority::Urgent);
+    }
+
+    #[tokio::test]
+    async fn persists_the_chosen_base_branch() {
+        let task: Task = test_support::task(TaskStatus::Backlog);
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut repository: MockTaskRepository =
+            test_support::repository_with(Some(task), &recorded);
+        repository
+            .expect_update_details_if_backlog()
+            .times(1)
+            .withf(|_, _, _, _, _, base: &String| base == "origin/develop")
+            .returning(|_, _, _, _, _, _| Ok(true));
+
+        let updated: Task = use_case(test_support::lifecycle_with(repository, &recorded))
+            .execute(
+                id,
+                "t".to_string(),
+                "p".to_string(),
+                TaskPriority::default(),
+                ResourceLimits::default(),
+                Some(" origin/develop ".to_string()),
+                Vec::new(),
+                Vec::new(),
+            )
+            .await
+            .expect("editada");
+
+        assert_eq!(updated.base_branch, "origin/develop");
+    }
+
+    #[tokio::test]
+    async fn falls_back_to_the_workspace_base_branch_without_a_choice() {
+        let mut task: Task = test_support::task(TaskStatus::Backlog);
+        task.base_branch = "origin/develop".to_string();
+        let id: TaskId = task.id;
+        let recorded: Recorded = Recorded::default();
+        let mut repository: MockTaskRepository =
+            test_support::repository_with(Some(task), &recorded);
+        repository
+            .expect_update_details_if_backlog()
+            .times(1)
+            .withf(|_, _, _, _, _, base: &String| base == "main")
+            .returning(|_, _, _, _, _, _| Ok(true));
+
+        let updated: Task = use_case(test_support::lifecycle_with(repository, &recorded))
+            .execute(
+                id,
+                "t".to_string(),
+                "p".to_string(),
+                TaskPriority::default(),
+                ResourceLimits::default(),
+                None,
+                Vec::new(),
+                Vec::new(),
+            )
+            .await
+            .expect("editada");
+
+        assert_eq!(updated.base_branch, "main");
     }
 
     #[tokio::test]
@@ -295,6 +372,7 @@ mod tests {
                 "Arregla el test\nmas".to_string(),
                 TaskPriority::default(),
                 ResourceLimits::default(),
+                None,
                 Vec::new(),
                 Vec::new(),
             )
@@ -316,6 +394,7 @@ mod tests {
                     "p".to_string(),
                     TaskPriority::default(),
                     ResourceLimits::default(),
+                    None,
                     Vec::new(),
                     Vec::new(),
                 )
@@ -334,7 +413,7 @@ mod tests {
         repository
             .expect_update_details_if_backlog()
             .times(1)
-            .returning(|_, _, _, _, _| Ok(false));
+            .returning(|_, _, _, _, _, _| Ok(false));
 
         let result: Result<Task, TaskError> =
             use_case(test_support::lifecycle_with(repository, &recorded))
@@ -344,6 +423,7 @@ mod tests {
                     "p".to_string(),
                     TaskPriority::default(),
                     ResourceLimits::default(),
+                    None,
                     Vec::new(),
                     Vec::new(),
                 )
@@ -364,6 +444,7 @@ mod tests {
                     "   ".to_string(),
                     TaskPriority::default(),
                     ResourceLimits::default(),
+                    None,
                     Vec::new(),
                     Vec::new(),
                 )
@@ -404,6 +485,7 @@ mod tests {
             "p".to_string(),
             TaskPriority::default(),
             ResourceLimits::default(),
+            None,
             vec![image("a.png"), image("b.png")],
             Vec::new(),
         )
@@ -432,6 +514,7 @@ mod tests {
             "p".to_string(),
             TaskPriority::default(),
             ResourceLimits::default(),
+            None,
             vec![image("a.png"), image("b.png")],
             Vec::new(),
         )
@@ -455,6 +538,7 @@ mod tests {
                     "p".to_string(),
                     TaskPriority::default(),
                     ResourceLimits::default(),
+                    None,
                     vec![bad],
                     Vec::new(),
                 )
@@ -498,6 +582,7 @@ mod tests {
             "p".to_string(),
             TaskPriority::default(),
             ResourceLimits::default(),
+            None,
             vec![image("a.png"), image("b.png")],
             Vec::new(),
         )
@@ -539,6 +624,7 @@ mod tests {
             "p".to_string(),
             TaskPriority::default(),
             ResourceLimits::default(),
+            None,
             Vec::new(),
             vec!["a.png".to_string(), "unknown".to_string()],
         )
@@ -576,6 +662,7 @@ mod tests {
             "p".to_string(),
             TaskPriority::default(),
             ResourceLimits::default(),
+            None,
             Vec::new(),
             vec!["a.png".to_string()],
         )
@@ -625,6 +712,7 @@ mod tests {
             "p".to_string(),
             TaskPriority::default(),
             ResourceLimits::default(),
+            None,
             vec![image("a.png"), image("b.png")],
             vec!["1".to_string(), "2".to_string()],
         )
@@ -659,6 +747,7 @@ mod tests {
             "p".to_string(),
             TaskPriority::default(),
             ResourceLimits::default(),
+            None,
             vec![image("a.png"), image("b.png")],
             vec!["1".to_string()],
         )
@@ -680,6 +769,7 @@ mod tests {
                     "p".to_string(),
                     TaskPriority::default(),
                     ResourceLimits::default(),
+                    None,
                     Vec::new(),
                     vec!["a.png".to_string()],
                 )

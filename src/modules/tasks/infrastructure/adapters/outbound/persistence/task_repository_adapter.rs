@@ -266,6 +266,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
         prompt: String,
         priority: TaskPriority,
         limits: ResourceLimits,
+        base_branch: String,
     ) -> Result<bool, TaskError> {
         let mut connection: DbConnection = self.connection().await?;
         let now: NaiveDateTime = Utc::now().naive_utc();
@@ -278,6 +279,7 @@ impl TaskRepositoryPort for TaskRepositoryAdapter {
             tasks::title.eq(title),
             tasks::prompt.eq(prompt),
             tasks::priority.eq(priority.as_str()),
+            tasks::base_branch.eq(base_branch),
             tasks::memory_limit_mb.eq(limits.memory_mb.and_then(|v: u32| i32::try_from(v).ok())),
             tasks::cpu_limit_percent
                 .eq(limits.cpu_percent.and_then(|v: u32| i32::try_from(v).ok())),
