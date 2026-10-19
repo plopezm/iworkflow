@@ -114,6 +114,11 @@ impl WorktreePort for CachingWorktree {
         Ok(diff)
     }
 
+    /// Sin cache: depende de ficheros sin commitear, que no entran en ninguna huella barata.
+    async fn diff_live(&self, worktree: &Path, base_branch: &str) -> Result<TaskDiff, TaskError> {
+        self.inner.diff_live(worktree, base_branch).await
+    }
+
     async fn diff_fingerprint(
         &self,
         repo: &Path,

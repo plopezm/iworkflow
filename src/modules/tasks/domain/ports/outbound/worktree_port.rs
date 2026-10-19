@@ -34,6 +34,10 @@ pub trait WorktreePort: Send + Sync {
         branch: &str,
     ) -> Result<TaskDiff, TaskError>;
 
+    /// Diff en vivo del worktree contra el punto de divergencia con `base_branch`: incluye los
+    /// commits de la rama y los cambios sin commitear (también ficheros nuevos sin seguimiento).
+    async fn diff_live(&self, worktree: &Path, base_branch: &str) -> Result<TaskDiff, TaskError>;
+
     /// Huella barata del resultado de `diff`: cambia si y solo si cambia el diff (el diff solo
     /// depende de los commits de ambas ramas, no de cambios sin commitear).
     async fn diff_fingerprint(

@@ -8,7 +8,9 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
     MessageModeDto, TaskDto, TaskStatusDto,
 };
-use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
+use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
+    AgentEventDto, DialogAnswerDto, TaskEventKindDto,
+};
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResetTask,
     ResumeTask, SendTaskMessage, StartTask, get_task, get_task_diff, get_task_subagents,
@@ -81,6 +83,19 @@ pub fn build_send_message(
         images,
         mode,
     })
+}
+
+/// El agente puede haber tocado ficheros: tras una herramienta o al cerrar un turno el diff
+/// en vivo se vuelve a pedir (función pura).
+pub fn changes_working_tree(kind: &TaskEventKindDto) -> bool {
+    matches!(
+        kind,
+        TaskEventKindDto::Agent {
+            event: AgentEventDto::ToolFinished { .. }
+                | AgentEventDto::RunSettled
+                | AgentEventDto::ProcessExited { .. }
+        }
+    )
 }
 
 impl TaskDetailState {
@@ -311,9 +326,7 @@ impl TaskDetailState {
         use wasm_bindgen::closure::Closure;
         use web_sys::{Event, EventSource, MessageEvent};
 
-        use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
-            TaskEventDto, TaskEventKindDto,
-        };
+        use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::TaskEventDto;
 
         type Handler = Closure<dyn FnMut(Event)>;
 
@@ -371,6 +384,7 @@ impl TaskDetailState {
             transcript: RwSignal<Transcript>,
             connected: RwSignal<bool>,
             status_version: RwSignal<u32>,
+            diff_refresh: RwSignal<u32>,
             removed: RwSignal<bool>,
         }
 
@@ -379,6 +393,7 @@ impl TaskDetailState {
                 transcript,
                 connected,
                 status_version,
+                diff_refresh,
                 removed,
             } = signals;
             let resume_from: Option<i64> = slot.with_value(|state: &SseState| state.last_seq);
@@ -412,6 +427,9 @@ impl TaskDetailState {
                             return;
                         }
                         slot.update_value(|state: &mut SseState| state.last_seq = Some(seq));
+                    }
+                    if changes_working_tree(&event.kind) {
+                        diff_refresh.update(|v: &mut u32| *v = v.wrapping_add(1));
                     }
                     match event.kind {
                         TaskEventKindDto::Status { .. } | TaskEventKindDto::Changed => {
@@ -469,6 +487,7 @@ impl TaskDetailState {
             transcript: self.transcript,
             connected: self.connected,
             status_version: self.status_version,
+            diff_refresh: self.diff_refresh,
             removed: self.removed,
         };
         open(&url, signals, slot);
@@ -486,6 +505,29 @@ mod tests {
             mime_type: "image/png".to_string(),
             data: "aGVsbG8=".to_string(),
         }
+    }
+
+    fn agent(event: AgentEventDto) -> TaskEventKindDto {
+        TaskEventKindDto::Agent { event }
+    }
+
+    #[test]
+    fn diff_reloads_after_tools_and_turns_but_not_on_streaming() {
+        let finished: AgentEventDto = AgentEventDto::ToolFinished {
+            call_id: "c".into(),
+            tool_name: "edit".into(),
+            output: String::new(),
+            is_error: false,
+        };
+        assert!(changes_working_tree(&agent(finished)));
+        assert!(changes_working_tree(&agent(AgentEventDto::RunSettled)));
+        assert!(changes_working_tree(&agent(AgentEventDto::ProcessExited {
+            code: Some(0)
+        })));
+        assert!(!changes_working_tree(&agent(AgentEventDto::TextDelta {
+            delta: "x".into()
+        })));
+        assert!(!changes_working_tree(&TaskEventKindDto::Changed));
     }
 
     #[test]
