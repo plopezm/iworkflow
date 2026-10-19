@@ -3,6 +3,7 @@ pub mod agent_settings;
 pub mod agents_files;
 pub mod code_hosting;
 pub mod jira;
+pub mod preferences;
 pub mod project_tree;
 pub mod tasks;
 pub mod terminal;

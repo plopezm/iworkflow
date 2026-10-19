@@ -24,6 +24,13 @@ diesel::table! {
 }
 
 diesel::table! {
+    app_preferences (key) {
+        key -> Text,
+        value -> Text,
+    }
+}
+
+diesel::table! {
     code_host_settings (provider) {
         provider -> Text,
         base_url -> Text,
@@ -169,6 +176,7 @@ diesel::joinable!(tasks -> workspaces (workspace_id));
 diesel::allow_tables_to_appear_in_same_query!(
     agent_settings,
     agents_files,
+    app_preferences,
     code_host_settings,
     jira_connection,
     jira_issues,

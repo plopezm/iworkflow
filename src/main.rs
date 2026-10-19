@@ -10,6 +10,7 @@ async fn main() {
     use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
     use iworkflow::core::http::body_limit::with_server_fn_body_limit;
     use iworkflow::core::launch::{LaunchCommand, LaunchOptions, USAGE, browser_url, open_browser};
+    use iworkflow::modules::preferences::infrastructure::adapters::inbound::language_cookie::sync_language_cookie;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::attachment_http::task_attachments_router;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
     use iworkflow::modules::tasks::infrastructure::background::graph_loop::run_graph_loop;
@@ -84,6 +85,10 @@ async fn main() {
         .merge(task_attachments_router(state.tasks.clone()))
         .merge(terminal_ws_router(state.terminal.clone()))
         .merge(leptos_router)
+        .layer(axum::middleware::from_fn_with_state(
+            state.preferences.clone(),
+            sync_language_cookie,
+        ))
         .with_state(leptos_options);
 
     tracing::info!("escuchando en http://{addr}");
