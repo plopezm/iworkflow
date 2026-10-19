@@ -255,6 +255,27 @@ Para desplegar en otra máquina basta con copiar `dist/` y lanzarlo con
 `LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow`
 desde dentro de esa carpeta.
 
+## Aplicación de escritorio (Electron)
+
+Para quien no quiera usar la terminal, `electron/` envuelve el mismo servidor en una ventana de escritorio y `scripts/electron.sh` construye un instalador para la plataforma en la que se ejecuta (Linux: AppImage, Windows: `.exe` NSIS). El workflow de release genera ambos junto a los archivos comprimidos habituales.
+
+```bash
+./scripts/electron.sh build   # build release del servidor + instalador en dist/electron/
+./scripts/electron.sh dev     # ventana sobre el servidor ya empaquetado en dist/ (ejecuta antes prod.sh build)
+SKIP_SERVER_BUILD=1 ./scripts/electron.sh build   # reutiliza un dist/ existente
+```
+
+Requisitos: los de [Producción](#producción) más Node.js 22+. No hay compilación cruzada: el instalador de Windows se construye en Windows (Git Bash).
+
+Comportamiento:
+
+- La app arranca el servidor incluido (`--no-open`) y lo muestra en una ventana. El servidor no cambia: misma base de datos (`~/.iworkflow/workspaces.db`), mismo `LEPTOS_SITE_ADDR`, y el ajuste **Acceso desde la red** y el token funcionan como en [Acceso desde otros dispositivos](#acceso-desde-otros-dispositivos). La ventana entra sola con el token cuando se exige.
+- Por defecto el servidor escucha en `127.0.0.1:3000`. Si el puerto está ocupado la app muestra un error; libéralo o define `LEPTOS_SITE_ADDR` antes de lanzarla.
+- **Cerrar la ventana solo la oculta**, así que un móvil conectado por la red local o Tailscale sigue funcionando. Para detener el servidor usa el icono de la bandeja (**Quit and stop server**) o **File → Quit**. En un escritorio Linux sin bandeja, cerrar la ventana cierra la app.
+- Los enlaces externos se abren en el navegador del sistema; la ventana solo muestra el servidor local.
+- `git` (y los CLI de agentes que uses) deben estar instalados y en el `PATH`; el instalador no los incluye. Con el acceso desde la red activo, Windows pide una vez permitir la app en el cortafuegos.
+- Los instaladores no están firmados, así que Windows SmartScreen avisa en la primera ejecución. Aún no incluyen actualizaciones automáticas.
+
 ## Desarrollar desde el móvil con Tailscale
 
 [Tailscale](https://tailscale.com) crea una red privada (tailnet) entre tus dispositivos, de modo que el móvil alcanza el servidor que corre en tu ordenador sin abrir puertos a internet. Es importante porque iworkflow solo se protege con un token compartido sobre HTTP y lanza agentes que ejecutan comandos con tu usuario.

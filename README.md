@@ -255,6 +255,27 @@ To deploy on another machine, just copy `dist/` and launch it with
 `LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow`
 from inside that folder.
 
+## Desktop app (Electron)
+
+For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `scripts/electron.sh` builds an installer for the platform it runs on (Linux: AppImage, Windows: NSIS `.exe`). The release workflow builds both next to the plain archives.
+
+```bash
+./scripts/electron.sh build   # release server build + installer in dist/electron/
+./scripts/electron.sh dev     # window on the server already packaged in dist/ (run prod.sh build first)
+SKIP_SERVER_BUILD=1 ./scripts/electron.sh build   # reuse an existing dist/
+```
+
+Prerequisites: the ones of [Production](#production) plus Node.js 22+. Cross-building is not supported: build the Windows installer on Windows (Git Bash).
+
+How it behaves:
+
+- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `LEPTOS_SITE_ADDR`, and the **Network access** setting and access token work as in [Access from other devices](#access-from-other-devices). The window signs itself in with the token when one is required.
+- The server listens on `127.0.0.1:3000` by default. If that port is busy the app shows an error; free it or set `LEPTOS_SITE_ADDR` before launching.
+- **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On a Linux desktop without tray support, closing the window quits the app.
+- External links open in the system browser; the window itself only shows the local server.
+- `git` (and the agent CLIs you use) must be installed and on the `PATH`; the installer does not bundle them. With network access on, Windows asks once to allow the app through the firewall.
+- The installers are not code-signed, so Windows SmartScreen warns on first run. Automatic updates are not included yet.
+
 ## Developing from your phone with Tailscale
 
 [Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow is protected only by a shared token over plain HTTP and launches agents that run commands as your user.

@@ -57,7 +57,7 @@ flowchart LR
     S -- "PTY" --> T[Shell interactiva]
 ```
 
-Es un único binario Rust que sirve el HTML (SSR), el bundle WASM, las *server functions*, un endpoint SSE y un WebSocket.
+Es un único binario Rust que sirve el HTML (SSR), el bundle WASM, las *server functions*, un endpoint SSE y un WebSocket. Los instaladores de escritorio (`electron/`) son solo una cáscara: una ventana más un proceso hijo que ejecuta este mismo binario, sin lógica adicional.
 
 Ciclo de vida de una tarea (la máquina de estados vive en `src/modules/tasks/domain/models/task.rs`):
 
