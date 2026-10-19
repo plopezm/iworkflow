@@ -31,12 +31,18 @@ mod support {
 
         #[test]
         fn domain_error_message_is_preserved() {
-            let error: ServerFnError =
-                to_server_error(CodeHostError::BranchNotPublished("pi/x".to_string()));
+            let error: ServerFnError = to_server_error(CodeHostError::BranchPublishFailed {
+                branch: "pi/x".to_string(),
+                reason: "rejected".to_string(),
+            });
             assert_eq!(
                 error,
                 ServerFnError::ServerError(
-                    CodeHostError::BranchNotPublished("pi/x".to_string()).to_string()
+                    CodeHostError::BranchPublishFailed {
+                        branch: "pi/x".to_string(),
+                        reason: "rejected".to_string(),
+                    }
+                    .to_string()
                 )
             );
         }

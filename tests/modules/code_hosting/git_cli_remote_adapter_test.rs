@@ -42,3 +42,49 @@ async fn origin_url_ignores_other_remotes() {
 
     assert!(matches!(result, Err(CodeHostError::NoOrigin(_))));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn publish_branch_pushes_the_local_branch_to_origin() {
+    let (_dir, repo) = common::git_repo();
+    let remote_dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+    common::git(remote_dir.path(), &["init", "--bare", "-q"]);
+    common::git(
+        &repo,
+        &[
+            "remote",
+            "add",
+            "origin",
+            &remote_dir.path().display().to_string(),
+        ],
+    );
+    common::git(&repo, &["branch", "pi/feature"]);
+
+    GitCliRemoteAdapter::new()
+        .publish_branch(&repo, "pi/feature")
+        .await
+        .expect("publish");
+
+    common::git(
+        remote_dir.path(),
+        &["rev-parse", "--verify", "refs/heads/pi/feature"],
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn publish_branch_reports_failure_when_origin_is_unreachable() {
+    let (_dir, repo) = common::git_repo();
+    common::git(
+        &repo,
+        &["remote", "add", "origin", "/nonexistent/remote.git"],
+    );
+    common::git(&repo, &["branch", "pi/feature"]);
+
+    let result: Result<(), CodeHostError> = GitCliRemoteAdapter::new()
+        .publish_branch(&repo, "pi/feature")
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(CodeHostError::BranchPublishFailed { .. })
+    ));
+}

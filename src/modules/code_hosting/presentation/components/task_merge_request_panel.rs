@@ -14,11 +14,11 @@ use crate::modules::code_hosting::presentation::provider_text;
 use crate::modules::code_hosting::presentation::state::task_merge_request_state::TaskMergeRequestState;
 
 const NO_PUSH_NOTE: Msg = Msg {
-    en: "The branch must be published on origin: the app does not push.",
-    es: "La rama debe estar publicada en origin: la app no hace push.",
-    zh: "分支必须已发布到 origin：应用不会执行 push。",
-    de: "Der Branch muss auf origin veröffentlicht sein: Die App führt keinen Push aus.",
-    fr: "La branche doit être publiée sur origin : l'application ne fait pas de push.",
+    en: "If the branch is not on origin yet, it is pushed automatically.",
+    es: "Si la rama aún no está en origin, se publica automáticamente (push).",
+    zh: "如果分支尚未在 origin 上，将自动执行 push 发布。",
+    de: "Ist der Branch noch nicht auf origin, wird er automatisch gepusht.",
+    fr: "Si la branche n'est pas encore sur origin, elle est publiée automatiquement (push).",
 };
 const STATUS_SUCCESS: Msg = Msg {
     en: "successful",

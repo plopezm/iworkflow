@@ -30,6 +30,9 @@ use crate::modules::tasks::domain::ports::inbound::successor_trigger::SuccessorT
 use crate::modules::tasks::domain::ports::outbound::agent_runtime_port::AgentRuntimePort;
 use crate::modules::tasks::domain::ports::outbound::attachment_storage_port::AttachmentStoragePort;
 use crate::modules::tasks::domain::ports::outbound::launch_settings_port::LaunchSettingsPort;
+use crate::modules::tasks::domain::ports::outbound::remote_merge_port::{
+    RemoteMergeOutcome, RemoteMergePort,
+};
 use crate::modules::tasks::domain::ports::outbound::task_attachment_repository_port::TaskAttachmentRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::TaskEventPublisherPort;
 use crate::modules::tasks::domain::ports::outbound::task_file_port::TaskFilePort;
@@ -142,6 +145,15 @@ mock! {
     impl TaskFilePort for TaskFile {
         async fn read(&self, root: &Path, rel: &str) -> Result<TaskFileContent, TaskError>;
         async fn write(&self, root: &Path, rel: &str, content: &str) -> Result<(), TaskError>;
+    }
+}
+
+mock! {
+    pub RemoteMerge {}
+
+    #[async_trait::async_trait]
+    impl RemoteMergePort for RemoteMerge {
+        async fn merge_open_request(&self, task_id: &str) -> Result<RemoteMergeOutcome, TaskError>;
     }
 }
 

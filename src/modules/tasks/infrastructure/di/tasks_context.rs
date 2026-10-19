@@ -56,6 +56,7 @@ use crate::modules::tasks::domain::ports::outbound::task_event_publisher_port::T
 use crate::modules::tasks::domain::ports::outbound::task_file_port::TaskFilePort;
 use crate::modules::tasks::domain::ports::outbound::task_repository_port::TaskRepositoryPort;
 use crate::modules::tasks::domain::ports::outbound::workspace_lookup_port::WorkspaceLookupPort;
+use crate::modules::tasks::domain::ports::outbound::remote_merge_port::RemoteMergePort;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 use crate::modules::tasks::infrastructure::adapters::outbound::events::broadcast_task_event_bus::BroadcastTaskEventBus;
 use crate::modules::tasks::infrastructure::adapters::outbound::files::fs_task_file_adapter::FsTaskFileAdapter;
@@ -144,6 +145,7 @@ impl TasksContext {
         settings: TasksSettings,
         workspaces: Arc<dyn WorkspaceLookupPort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
+        remote_merge: Arc<dyn RemoteMergePort>,
     ) -> Result<Self, TaskError> {
         let runtime: Arc<dyn AgentRuntimePort> = Arc::new(Self::build_router(
             settings.gentle_shell_bin,
@@ -152,13 +154,14 @@ impl TasksContext {
             settings.cursor_bin,
             settings.cursor_sessions_dir,
         )?);
-        Ok(Self::with_runtime(
+        Ok(Self::build(
             pool,
             settings.worktrees_dir,
             settings.attachments_dir,
             workspaces,
             runtime,
             launch_settings,
+            Some(remote_merge),
         ))
     }
 
@@ -204,6 +207,27 @@ impl TasksContext {
         workspaces: Arc<dyn WorkspaceLookupPort>,
         runtime: Arc<dyn AgentRuntimePort>,
         launch_settings: Arc<dyn LaunchSettingsPort>,
+    ) -> Self {
+        Self::build(
+            pool,
+            worktrees_dir,
+            attachments_dir,
+            workspaces,
+            runtime,
+            launch_settings,
+            None,
+        )
+    }
+
+    /// `remote_merge`: integración por el MR remoto; sin él, `MergeTask` siempre integra en local.
+    fn build(
+        pool: DbPool,
+        worktrees_dir: PathBuf,
+        attachments_dir: PathBuf,
+        workspaces: Arc<dyn WorkspaceLookupPort>,
+        runtime: Arc<dyn AgentRuntimePort>,
+        launch_settings: Arc<dyn LaunchSettingsPort>,
+        remote_merge: Option<Arc<dyn RemoteMergePort>>,
     ) -> Self {
         let attachments: Arc<dyn TaskAttachmentRepositoryPort> =
             Arc::new(TaskAttachmentRepositoryAdapter::new(pool.clone()));
@@ -303,11 +327,13 @@ impl TasksContext {
                 send_message,
             )),
             resume_task,
-            merge_task: Arc::new(MergeTask::new(
-                lifecycle.clone(),
-                worktrees.clone(),
-                Some(trigger.clone()),
-            )),
+            merge_task: Arc::new(match remote_merge {
+                Some(remote) => {
+                    MergeTask::new(lifecycle.clone(), worktrees.clone(), Some(trigger.clone()))
+                        .with_remote_merge(remote)
+                }
+                None => MergeTask::new(lifecycle.clone(), worktrees.clone(), Some(trigger.clone())),
+            }),
             discard_task: Arc::new(DiscardTask::new(
                 lifecycle.clone(),
                 worktrees.clone(),
@@ -375,7 +401,7 @@ mod tests {
     use crate::modules::tasks::domain::models::launch_options::LaunchOptions;
     use crate::modules::tasks::domain::models::task::TaskId;
     use crate::modules::tasks::mocks::{
-        MockAgentEventSink, MockLaunchSettings, MockWorkspaceLookup,
+        MockAgentEventSink, MockLaunchSettings, MockRemoteMerge, MockWorkspaceLookup,
     };
 
     // Binarios inexistentes: estos tests nunca llegan a lanzar un proceso.
@@ -487,8 +513,14 @@ mod tests {
         let workspaces: Arc<dyn WorkspaceLookupPort> = Arc::new(MockWorkspaceLookup::new());
         let launch_settings: Arc<dyn LaunchSettingsPort> = Arc::new(MockLaunchSettings::new());
 
-        let context: TasksContext =
-            TasksContext::new(pool, settings, workspaces, launch_settings).expect("contexto");
+        let context: TasksContext = TasksContext::new(
+            pool,
+            settings,
+            workspaces,
+            launch_settings,
+            Arc::new(MockRemoteMerge::new()),
+        )
+        .expect("contexto");
 
         let active: Vec<_> = context.list_tasks.execute(None).await.expect("lista");
         assert!(active.is_empty());

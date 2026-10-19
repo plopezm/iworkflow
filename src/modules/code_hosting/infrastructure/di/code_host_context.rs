@@ -39,7 +39,7 @@ impl CodeHostContext {
         let resolver: Arc<TaskProjectResolver> = Arc::new(TaskProjectResolver::new(
             repository.clone(),
             tasks,
-            remote,
+            remote.clone(),
             clients.clone(),
         ));
         Self {
@@ -47,8 +47,11 @@ impl CodeHostContext {
             save_settings: Arc::new(SaveCodeHostSettings::new(repository.clone())),
             test_connection: Arc::new(TestCodeHostConnection::new(repository, clients)),
             get_task_merge_request: Arc::new(GetTaskMergeRequest::new(resolver.clone())),
-            create_task_merge_request: Arc::new(CreateTaskMergeRequest::new(resolver.clone())),
-            merge_task_merge_request: Arc::new(MergeTaskMergeRequest::new(resolver)),
+            create_task_merge_request: Arc::new(CreateTaskMergeRequest::new(
+                resolver.clone(),
+                remote.clone(),
+            )),
+            merge_task_merge_request: Arc::new(MergeTaskMergeRequest::new(resolver, remote)),
         }
     }
 }

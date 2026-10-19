@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use leptos::prelude::provide_context;
 
@@ -36,6 +36,7 @@ use crate::modules::agent_settings::domain::models::launch_preferences::LaunchPr
 use crate::modules::agent_settings::domain::models::agent_runtime::AgentRuntime;
 use crate::modules::agent_settings::domain::models::model_ref::ModelRef;
 use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLevel;
+use crate::modules::code_hosting::application::usecases::merge_task_merge_request::MergeTaskMergeRequest;
 use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
 use crate::modules::code_hosting::domain::ports::outbound::task_source_port::{TaskSource, TaskSourcePort};
 use crate::modules::code_hosting::infrastructure::di::code_host_context::CodeHostContext;
@@ -54,6 +55,9 @@ use crate::modules::terminal::infrastructure::adapters::outbound::workspace_path
     PathLookupFuture, PathResolver,
 };
 use crate::modules::terminal::infrastructure::di::terminal_context::TerminalContext;
+use crate::modules::tasks::domain::ports::outbound::remote_merge_port::{
+    RemoteMergeOutcome, RemoteMergePort,
+};
 use crate::modules::tasks::application::usecases::create_task::CreateTask;
 use crate::modules::tasks::application::usecases::get_task::GetTask;
 use crate::modules::tasks::application::usecases::list_workspace_branches::ListWorkspaceBranches;
@@ -137,6 +141,9 @@ impl AppState {
         let launch_settings: Arc<dyn LaunchSettingsPort> = Arc::new(LaunchSettingsBridge {
             prepare_launch: agent_settings.prepare_launch.clone(),
         });
+        // Tareas y code hosting se necesitan mutuamente: el puente se enlaza al crear el segundo.
+        let remote_merge: Arc<CodeHostRemoteMergeBridge> =
+            Arc::new(CodeHostRemoteMergeBridge::default());
         let tasks: TasksContext = TasksContext::new(
             pool.clone(),
             TasksSettings {
@@ -150,6 +157,7 @@ impl AppState {
             },
             lookup,
             launch_settings,
+            remote_merge.clone(),
         )?;
         let terminal: TerminalContext = TerminalContext::new(
             workspace_path_resolver(get_workspace.clone()),
@@ -172,6 +180,7 @@ impl AppState {
             get_workspace: get_workspace.clone(),
         });
         let code_hosting: CodeHostContext = CodeHostContext::new(pool.clone(), code_host_tasks);
+        remote_merge.bind(code_hosting.merge_task_merge_request.clone());
         let workspaces: WorkspacesContext = WorkspacesContext::new(
             pool.clone(),
             config.home_dir.clone(),
@@ -621,6 +630,53 @@ impl TaskSourcePort for CodeHostTaskSourceBridge {
     }
 }
 
+/// Integra una tarea mezclando su MR remoto (feature de code hosting) desde el feature de tareas.
+/// Se enlaza una sola vez en la composición porque ambos features se necesitan mutuamente;
+/// mientras no esté enlazado equivale a «sin MR abierto».
+#[derive(Default)]
+pub struct CodeHostRemoteMergeBridge {
+    merge: OnceLock<Arc<MergeTaskMergeRequest>>,
+}
+
+impl CodeHostRemoteMergeBridge {
+    pub fn bind(&self, merge: Arc<MergeTaskMergeRequest>) {
+        // Solo se enlaza una vez en el arranque; un segundo intento conserva el primero.
+        let _already_bound: Result<(), Arc<MergeTaskMergeRequest>> = self.merge.set(merge);
+    }
+}
+
+#[async_trait::async_trait]
+impl RemoteMergePort for CodeHostRemoteMergeBridge {
+    async fn merge_open_request(&self, task_id: &str) -> Result<RemoteMergeOutcome, TaskError> {
+        let Some(merge) = self.merge.get() else {
+            return Ok(RemoteMergeOutcome::NoOpenRequest);
+        };
+        match merge.execute_if_open(task_id).await {
+            Ok(Some(_)) => Ok(RemoteMergeOutcome::Merged),
+            Ok(None) => Ok(RemoteMergeOutcome::NoOpenRequest),
+            Err(error) if is_remote_merge_not_applicable(&error) => {
+                Ok(RemoteMergeOutcome::NoOpenRequest)
+            }
+            Err(error) => Err(TaskError::Runtime(error.to_string())),
+        }
+    }
+}
+
+/// Errores que indican que la tarea no usa un proveedor remoto (sin `origin`, host sin
+/// configurar...): se integra en local en vez de fallar.
+fn is_remote_merge_not_applicable(error: &CodeHostError) -> bool {
+    matches!(
+        error,
+        CodeHostError::NotConfigured(_)
+            | CodeHostError::NoOrigin(_)
+            | CodeHostError::UnparsableRemote(_)
+            | CodeHostError::HostMismatch { .. }
+            | CodeHostError::UnknownHost(_)
+            | CodeHostError::InvalidProjectPath { .. }
+            | CodeHostError::TaskNotFound(_)
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -629,6 +685,34 @@ mod tests {
     use crate::modules::tasks::infrastructure::di::tasks_context::{
         CLAUDE_RUNTIME, CURSOR_RUNTIME, GENTLE_SHELL_RUNTIME, PI_RUNTIME,
     };
+
+    #[tokio::test]
+    async fn unbound_remote_merge_bridge_reports_no_open_request() {
+        let outcome: RemoteMergeOutcome = CodeHostRemoteMergeBridge::default()
+            .merge_open_request("t")
+            .await
+            .expect("outcome");
+        assert_eq!(outcome, RemoteMergeOutcome::NoOpenRequest);
+    }
+
+    #[test]
+    fn missing_provider_setup_falls_back_to_local_merge_but_other_errors_do_not() {
+        assert!(is_remote_merge_not_applicable(&CodeHostError::NoOrigin(
+            "/r".to_string()
+        )));
+        assert!(is_remote_merge_not_applicable(&CodeHostError::UnknownHost(
+            "h".to_string()
+        )));
+        assert!(!is_remote_merge_not_applicable(&CodeHostError::Network(
+            "x".to_string()
+        )));
+        assert!(!is_remote_merge_not_applicable(
+            &CodeHostError::BranchPublishFailed {
+                branch: "b".to_string(),
+                reason: "r".to_string()
+            }
+        ));
+    }
 
     fn task_with(status: TaskStatus, workspace_id: &str, path: &str) -> Task {
         Task {

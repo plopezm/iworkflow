@@ -34,6 +34,7 @@ mock! {
     #[async_trait::async_trait]
     impl GitRemotePort for GitRemote {
         async fn origin_url(&self, repo: &Path) -> Result<String, CodeHostError>;
+        async fn publish_branch(&self, repo: &Path, branch: &str) -> Result<(), CodeHostError>;
     }
 }
 

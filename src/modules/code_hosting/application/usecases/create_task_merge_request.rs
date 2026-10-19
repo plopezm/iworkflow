@@ -7,6 +7,7 @@ use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError
 use crate::modules::code_hosting::domain::models::merge_request::{
     MergeRequest, MergeRequestStatus, NewMergeRequest,
 };
+use crate::modules::code_hosting::domain::ports::outbound::git_remote_port::GitRemotePort;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CreateTaskMergeRequestInput {
@@ -18,14 +19,15 @@ pub struct CreateTaskMergeRequestInput {
 }
 
 /// Abre un MR de la rama de la tarea hacia su rama base (o reutiliza el abierto).
-/// Nunca publica la rama: debe existir ya en `origin`.
+/// Si la rama aún no existe en `origin`, la publica antes de abrir el MR.
 pub struct CreateTaskMergeRequest {
     resolver: Arc<TaskProjectResolver>,
+    remote: Arc<dyn GitRemotePort>,
 }
 
 impl CreateTaskMergeRequest {
-    pub fn new(resolver: Arc<TaskProjectResolver>) -> Self {
-        Self { resolver }
+    pub fn new(resolver: Arc<TaskProjectResolver>, remote: Arc<dyn GitRemotePort>) -> Self {
+        Self { resolver, remote }
     }
 
     pub async fn execute(
@@ -46,7 +48,9 @@ impl CreateTaskMergeRequest {
                     .branch_exists(&resolved.settings, &resolved.project, &source.branch)
                     .await?;
                 if !published {
-                    return Err(CodeHostError::BranchNotPublished(source.branch.clone()));
+                    self.remote
+                        .publish_branch(&source.repo_path, &source.branch)
+                        .await?;
                 }
                 let new: NewMergeRequest = NewMergeRequest {
                     source_branch: source.branch.clone(),
@@ -73,9 +77,11 @@ fn non_blank(value: Option<String>) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::modules::code_hosting::application::test_support::{self, TASK_ID};
-    use crate::modules::code_hosting::mocks::MockCodeHostClient;
+    use crate::modules::code_hosting::mocks::{MockCodeHostClient, MockGitRemote};
 
     fn input(title: Option<&str>) -> CreateTaskMergeRequestInput {
         CreateTaskMergeRequestInput {
@@ -83,6 +89,12 @@ mod tests {
             title: title.map(str::to_string),
             description: None,
         }
+    }
+
+    fn remote() -> Arc<dyn GitRemotePort> {
+        let mut remote: MockGitRemote = MockGitRemote::new();
+        remote.expect_publish_branch().never();
+        Arc::new(remote)
     }
 
     fn client_without_mr() -> MockCodeHostClient {
@@ -112,7 +124,7 @@ mod tests {
             .returning(|_, _, _| Ok(test_support::merge_request(9, "opened")));
 
         let status: MergeRequestStatus =
-            CreateTaskMergeRequest::new(test_support::resolver(client))
+            CreateTaskMergeRequest::new(test_support::resolver(client), remote())
                 .execute(input(Some("  ")))
                 .await
                 .expect("create");
@@ -129,7 +141,7 @@ mod tests {
             .withf(|_, _, new: &NewMergeRequest| new.title == "Título propio")
             .returning(|_, _, _| Ok(test_support::merge_request(9, "opened")));
 
-        CreateTaskMergeRequest::new(test_support::resolver(client))
+        CreateTaskMergeRequest::new(test_support::resolver(client), remote())
             .execute(input(Some("Título propio")))
             .await
             .expect("create");
@@ -147,7 +159,7 @@ mod tests {
         client.expect_create_merge_request().never();
 
         let status: MergeRequestStatus =
-            CreateTaskMergeRequest::new(test_support::resolver(client))
+            CreateTaskMergeRequest::new(test_support::resolver(client), remote())
                 .execute(input(None))
                 .await
                 .expect("reuse");
@@ -156,19 +168,53 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unpublished_branch_is_reported_and_nothing_is_created() {
+    async fn unpublished_branch_is_pushed_before_creating_the_mr() {
+        let mut client: MockCodeHostClient = client_without_mr();
+        client.expect_branch_exists().returning(|_, _, _| Ok(false));
+        client
+            .expect_create_merge_request()
+            .times(1)
+            .returning(|_, _, _| Ok(test_support::merge_request(5, "opened")));
+        let mut remote: MockGitRemote = MockGitRemote::new();
+        remote
+            .expect_publish_branch()
+            .withf(|repo: &Path, branch: &str| repo == Path::new("/repo") && branch == "pi/feature")
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        let status: MergeRequestStatus =
+            CreateTaskMergeRequest::new(test_support::resolver(client), Arc::new(remote))
+                .execute(input(None))
+                .await
+                .expect("create");
+
+        assert_eq!(status.merge_request.iid, 5);
+    }
+
+    #[tokio::test]
+    async fn failed_push_is_reported_and_nothing_is_created() {
         let mut client: MockCodeHostClient = client_without_mr();
         client.expect_branch_exists().returning(|_, _, _| Ok(false));
         client.expect_create_merge_request().never();
+        let mut remote: MockGitRemote = MockGitRemote::new();
+        remote.expect_publish_branch().returning(|_, branch: &str| {
+            Err(CodeHostError::BranchPublishFailed {
+                branch: branch.to_string(),
+                reason: "denied".to_string(),
+            })
+        });
 
         let result: Result<MergeRequestStatus, CodeHostError> =
-            CreateTaskMergeRequest::new(test_support::resolver(client))
+            CreateTaskMergeRequest::new(test_support::resolver(client), Arc::new(remote))
                 .execute(input(None))
                 .await;
 
         assert_eq!(
             result.unwrap_err(),
-            CodeHostError::BranchNotPublished("pi/feature".to_string())
+            CodeHostError::BranchPublishFailed {
+                branch: "pi/feature".to_string(),
+                reason: "denied".to_string()
+            }
         );
     }
 
@@ -188,7 +234,7 @@ mod tests {
             .returning(|_, _, _| Ok(test_support::merge_request(3, "opened")));
 
         let status: MergeRequestStatus =
-            CreateTaskMergeRequest::new(test_support::resolver(client))
+            CreateTaskMergeRequest::new(test_support::resolver(client), remote())
                 .execute(input(None))
                 .await
                 .expect("create");

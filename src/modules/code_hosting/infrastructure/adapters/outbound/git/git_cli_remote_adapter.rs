@@ -6,7 +6,7 @@ use crate::modules::code_hosting::domain::ports::outbound::git_remote_port::GitR
 
 const ORIGIN: &str = "origin";
 
-/// Lee los remotos con la CLI de `git`. Solo lectura: nunca publica ramas.
+/// Lee y publica en los remotos con la CLI de `git`.
 #[derive(Debug, Default)]
 pub struct GitCliRemoteAdapter;
 
@@ -27,6 +27,21 @@ impl GitRemotePort for GitCliRemoteAdapter {
             Ok(url)
         } else {
             Err(CodeHostError::NoOrigin(repo.display().to_string()))
+        }
+    }
+
+    async fn publish_branch(&self, repo: &Path, branch: &str) -> Result<(), CodeHostError> {
+        let refspec: String = format!("refs/heads/{branch}:refs/heads/{branch}");
+        let output: GitOutput = run_git_raw(repo, &["push", ORIGIN, &refspec])
+            .await
+            .map_err(|e| CodeHostError::Git(e.to_string()))?;
+        if output.success {
+            Ok(())
+        } else {
+            Err(CodeHostError::BranchPublishFailed {
+                branch: branch.to_string(),
+                reason: output.stderr,
+            })
         }
     }
 }
