@@ -35,6 +35,7 @@ tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 portable-pty = { version = "0.9", optional = true }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"], optional = true }
+qrcode = { version = "0.14", default-features = false, features = ["svg"], optional = true }
 
 # hydrate
 console_error_panic_hook = { version = "0.1", optional = true }
@@ -72,6 +73,7 @@ ssr = [
     "dep:tracing-subscriber",
     "dep:portable-pty",
     "dep:reqwest",
+    "dep:qrcode",
     "dep:nix",
     "leptos/ssr",
     "leptos_meta/ssr",
@@ -243,4 +245,9 @@ required-features = ["ssr"]
 [[test]]
 name = "profile_exchange_json_adapter_test"
 path = "tests/modules/agent_profiles/profile_exchange_json_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
+name = "access_guard_test"
+path = "tests/modules/preferences/access_guard_test.rs"
 required-features = ["ssr"]

@@ -10,7 +10,15 @@ async fn main() {
     use iworkflow::core::db::pool::{DbPool, build_pool, run_migrations};
     use iworkflow::core::http::body_limit::with_server_fn_body_limit;
     use iworkflow::core::launch::{LaunchCommand, LaunchOptions, USAGE, browser_url, open_browser};
+    use iworkflow::core::listen::{
+        ListenInfo, SITE_ADDR_VAR, local_network_ip, resolve_listen_addr,
+    };
+    use iworkflow::modules::preferences::domain::models::access_token::AccessToken;
+    use iworkflow::modules::preferences::infrastructure::adapters::inbound::access_guard::{
+        AccessGuard, access_router, require_access,
+    };
     use iworkflow::modules::preferences::infrastructure::adapters::inbound::language_cookie::sync_language_cookie;
+    use iworkflow::modules::preferences::infrastructure::adapters::inbound::same_origin::reject_cross_site_writes;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::attachment_http::task_attachments_router;
     use iworkflow::modules::tasks::infrastructure::adapters::inbound::sse::task_events_router;
     use iworkflow::modules::tasks::infrastructure::background::graph_loop::run_graph_loop;
@@ -71,7 +79,51 @@ async fn main() {
     let conf: ConfFile = get_configuration(None).expect("configuración de Leptos");
     let leptos_options: LeptosOptions =
         iworkflow::core::site::with_packaged_defaults(conf.leptos_options);
-    let addr: std::net::SocketAddr = leptos_options.site_addr;
+    // The bind address is read once at startup: the saved network-access choice only applies
+    // after a restart, and an explicit `LEPTOS_SITE_ADDR` always takes precedence.
+    let network_access: bool = match state.preferences.get_network_access.execute().await {
+        Ok(enabled) => enabled,
+        Err(error) => {
+            tracing::warn!(%error, "no se pudo leer el acceso desde la red; solo escucha en local");
+            false
+        }
+    };
+    let locked_by_env: bool = std::env::var_os(SITE_ADDR_VAR).is_some();
+    let addr: std::net::SocketAddr =
+        resolve_listen_addr(leptos_options.site_addr, locked_by_env, network_access);
+    // The token is demanded whenever the server is reachable from outside this computer, unless
+    // the user switched it off. A failed read keeps it required (fail closed).
+    let require_token: bool = match state.preferences.get_require_access_token.execute().await {
+        Ok(required) => required,
+        Err(error) => {
+            tracing::warn!(%error, "no se pudo leer si se exige el token; se exigirá");
+            true
+        }
+    };
+    let token_required: bool = !addr.ip().is_loopback() && require_token;
+    let listen_info: ListenInfo = ListenInfo {
+        addr,
+        locked_by_env,
+        token_required,
+    };
+    let access_token: AccessToken = state
+        .preferences
+        .get_access_token
+        .execute()
+        .await
+        .expect("token de acceso");
+    let access_guard: AccessGuard = AccessGuard::new(access_token.clone(), token_required);
+    if token_required {
+        let host: String = local_network_ip()
+            .map_or_else(|| "<IP>".to_string(), |ip: std::net::IpAddr| ip.to_string());
+        tracing::info!(
+            "acceso desde la red protegido con token; enlace: http://{host}:{}/?token={}",
+            addr.port(),
+            access_token.as_str()
+        );
+    } else if !addr.ip().is_loopback() {
+        tracing::warn!("el servidor es accesible desde la red SIN token de acceso");
+    }
     let routes: Vec<AxumRouteListing> = generate_route_list(App);
 
     let context_state: AppState = state.clone();
@@ -79,10 +131,22 @@ async fn main() {
     // cuerpo (2 MiB por defecto) para admitir mensajes con imágenes en base64.
     let leptos_router: Router<LeptosOptions> = with_server_fn_body_limit(
         Router::new()
-            .leptos_routes_with_context(&leptos_options, routes, move || context_state.provide(), {
-                let options: LeptosOptions = leptos_options.clone();
-                move || shell(options.clone())
-            })
+            .leptos_routes_with_context(
+                &leptos_options,
+                routes,
+                {
+                    let guard: AccessGuard = access_guard.clone();
+                    move || {
+                        context_state.provide();
+                        provide_context(listen_info);
+                        provide_context(guard.clone());
+                    }
+                },
+                {
+                    let options: LeptosOptions = leptos_options.clone();
+                    move || shell(options.clone())
+                },
+            )
             .fallback(leptos_axum::file_and_error_handler(shell)),
     );
     let app: Router = Router::new()
@@ -94,7 +158,15 @@ async fn main() {
             state.preferences.clone(),
             sync_language_cookie,
         ))
-        .with_state(leptos_options);
+        .with_state(leptos_options)
+        .merge(access_router(access_guard.clone()))
+        // Outermost layer: nothing (pages, server functions, SSE, WebSocket) is served before it.
+        .layer(axum::middleware::from_fn_with_state(
+            access_guard,
+            require_access,
+        ))
+        // Browsers cannot be used by another site to change settings or run actions here.
+        .layer(axum::middleware::from_fn(reject_cross_site_writes));
 
     tracing::info!("escuchando en http://{addr}");
     let listener: tokio::net::TcpListener =

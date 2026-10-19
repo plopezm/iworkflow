@@ -10,7 +10,7 @@
   <sub>Encadena tareas en un tablero; al integrar una, las que dependen de ella arrancan solas.</sub>
 </p>
 
-> **Estado:** temprano y en desarrollo activo. Se ejecuta en tu propia máquina, no tiene autenticación y es *source-available* (PolyForm Shield 1.0.0), no open source aprobado por la OSI. Consulta [Arranque rápido](#arranque-rápido) y [Licencia](#licencia).
+> **Estado:** temprano y en desarrollo activo. Se ejecuta en tu propia máquina, no tiene cuentas de usuario (solo un token opcional para acceso por red) y es *source-available* (PolyForm Shield 1.0.0), no open source aprobado por la OSI. Consulta [Arranque rápido](#arranque-rápido) y [Licencia](#licencia).
 
 ## Características
 
@@ -72,7 +72,7 @@ cargo leptos watch          # http://127.0.0.1:3000
 4. **Finalizar y revisar** → cierra el agente, commitea lo pendiente y muestra el diff.
 5. **Merge** (integra con `--no-ff` y borra el worktree) o **Descartar**.
 
-> **Seguridad:** iworkflow no tiene autenticación y lanza agentes que ejecutan comandos con tu usuario. No lo expongas a redes no confiables; consulta [Producción](#producción) y [Tailscale](#desarrollar-desde-el-móvil-con-tailscale). El desarrollo escucha en `127.0.0.1:3000`; el script de producción en `0.0.0.0:9000`.
+> **Seguridad:** iworkflow solo se protege con un token compartido sobre HTTP y lanza agentes que ejecutan comandos con tu usuario. No lo expongas a redes no confiables; consulta [Producción](#producción) y [Tailscale](#desarrollar-desde-el-móvil-con-tailscale). El desarrollo escucha en `127.0.0.1:3000`; el script de producción en `0.0.0.0:9000`.
 
 ## Espacio de trabajo con pestañas
 
@@ -196,6 +196,22 @@ Ejemplos: `./iworkflow --no-open`, `./scripts/prod.sh run --no-open`, `cargo lep
 
 En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
 
+### Acceso desde otros dispositivos
+
+Por defecto el servidor escucha solo en `127.0.0.1` (este equipo). Para usarlo desde el móvil, activa **Configuración → Acceso desde la red** y reinicia el servidor: pasa a escuchar en `0.0.0.0` con el mismo puerto, y la tarjeta muestra la dirección que abrir en el móvil. La elección se guarda en la base de datos. Si `LEPTOS_SITE_ADDR` está definida, tiene prioridad y el ajuste no surte efecto. La tarjeta muestra un **código QR**: escanéalo con el móvil y iworkflow se abre ya autenticado.
+
+Siempre que el servidor sea accesible desde la red (este ajuste, o un `LEPTOS_SITE_ADDR` que no sea loopback, como el `0.0.0.0:9000` de `scripts/prod.sh`) exige por defecto un **token de acceso**:
+
+- El QR y el enlace de la tarjeta llevan el token (`http://<ip>:<puerto>/?token=…`). Al abrirlo se guarda en una cookie y se redirige a una URL limpia, así que no queda en la barra de direcciones ni en el historial. Sin la cookie, el servidor muestra una página de acceso donde pegar el token.
+- Al arrancar, el servidor escribe ese enlace en el log, que es la forma de obtenerlo en una máquina sin navegador.
+- **Generar un token nuevo** en la tarjeta invalida el anterior al instante; los dispositivos que lo usaban deben autenticarse de nuevo.
+- La exigencia es opcional: desmarca **Exigir el token de acceso** (se aplica en el siguiente arranque) para servir a la red sin él. Entonces cualquiera que llegue al puerto puede ejecutar comandos con tu usuario, así que úsalo solo en una red de total confianza.
+- Un servidor solo en loopback (el valor por defecto) nunca pide el token.
+- La línea de log de arranque con el enlace contiene el token: trata los logs del servidor como sensibles.
+- Las escrituras (`POST`, etc.) que el navegador etiqueta con un `Origin` distinto del `Host` al que van se rechazan con 403, de modo que otra web no puede cambiar estos ajustes a través de tu navegador. Un reverse proxy debe por tanto reenviar el `Host` original.
+
+El token es un secreto compartido sobre HTTP sin cifrar: en una red no fiable puede interceptarse. Es preferible una red privada como Tailscale (ver más abajo).
+
 ## Producción
 
 Requisitos: la toolchain de Rust, `cargo-leptos` (`cargo install cargo-leptos --locked`) y el target `wasm32-unknown-unknown` (`rustup target add wasm32-unknown-unknown`).
@@ -228,10 +244,11 @@ también se aplica. Variables propias del script:
 | `DIST_DIR` | `dist/` en la raíz del repo |
 | `LEPTOS_SITE_ADDR` | `0.0.0.0:9000` (todas las interfaces) |
 
-> **Seguridad:** la app no tiene autenticación y lanza agentes que ejecutan comandos
-> con tu usuario. Con el bind a `0.0.0.0`, cualquiera que alcance el puerto puede
-> usarla. Restringe el acceso con firewall, red privada (Tailscale/WireGuard) o un
-> reverse proxy con autenticación y TLS. Para limitarlo a la máquina local:
+> **Seguridad:** la app lanza agentes que ejecutan comandos con tu usuario. Su única
+> protección es el token de acceso (ver [Acceso desde otros dispositivos](#acceso-desde-otros-dispositivos)),
+> que se exige siempre que el bind no sea loopback salvo que lo desactives, y viaja por HTTP sin
+> cifrar. Restringe el acceso con firewall, red privada (Tailscale/WireGuard) o un
+> reverse proxy con TLS. Para limitarlo a la máquina local:
 > `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
 
 Para desplegar en otra máquina basta con copiar `dist/` y lanzarlo con
@@ -240,7 +257,7 @@ desde dentro de esa carpeta.
 
 ## Desarrollar desde el móvil con Tailscale
 
-[Tailscale](https://tailscale.com) crea una red privada (tailnet) entre tus dispositivos, de modo que el móvil alcanza el servidor que corre en tu ordenador sin abrir puertos a internet. Es importante porque iworkflow no tiene autenticación y lanza agentes que ejecutan comandos con tu usuario.
+[Tailscale](https://tailscale.com) crea una red privada (tailnet) entre tus dispositivos, de modo que el móvil alcanza el servidor que corre en tu ordenador sin abrir puertos a internet. Es importante porque iworkflow solo se protege con un token compartido sobre HTTP y lanza agentes que ejecutan comandos con tu usuario.
 
 1. Instala Tailscale en el ordenador que ejecuta iworkflow y en el móvil (App Store / Google Play) e inicia sesión con la **misma cuenta** en ambos.
 2. Arranca el servidor escuchando en la interfaz de Tailscale (o en todas, que es el valor por defecto de `scripts/prod.sh`):

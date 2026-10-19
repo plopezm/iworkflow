@@ -10,7 +10,7 @@
   <sub>Chain tasks on a board; when one is merged, the tasks that depend on it start on their own.</sub>
 </p>
 
-> **Status:** early and actively developed. It runs on your own machine, has no authentication and is source-available (PolyForm Shield 1.0.0), not OSI open source. See [Quick start](#quick-start) and [License](#license).
+> **Status:** early and actively developed. It runs on your own machine, has no user accounts (only an optional access token for network access) and is source-available (PolyForm Shield 1.0.0), not OSI open source. See [Quick start](#quick-start) and [License](#license).
 
 ## Highlights
 
@@ -72,7 +72,7 @@ cargo leptos watch          # http://127.0.0.1:3000
 4. **Finish and review** → closes the agent, commits whatever is pending and shows the diff.
 5. **Merge** (integrates with `--no-ff` and deletes the worktree) or **Discard**.
 
-> **Security:** iworkflow has no authentication and launches agents that run commands as your user. Do not expose it to untrusted networks; see [Production](#production) and [Tailscale](#developing-from-your-phone-with-tailscale). Development listens on `127.0.0.1:3000`; the production script on `0.0.0.0:9000`.
+> **Security:** iworkflow is protected only by an optional access token and launches agents that run commands as your user. Do not expose it to untrusted networks; see [Production](#production) and [Tailscale](#developing-from-your-phone-with-tailscale). Development listens on `127.0.0.1:3000`; the production script on `0.0.0.0:9000`.
 
 ## Tabbed workspace
 
@@ -196,6 +196,22 @@ Examples: `./iworkflow --no-open`, `./scripts/prod.sh run --no-open`, `cargo lep
 
 In development (`cargo leptos watch`) the server listens only on `127.0.0.1`.
 
+### Access from other devices
+
+By default the server listens only on `127.0.0.1` (this computer). To reach it from your phone, turn on **Settings → Network access** and restart the server: it then listens on `0.0.0.0` with the same port, and the card shows the address to open on the phone. The choice is stored in the database. If `LEPTOS_SITE_ADDR` is set, it always wins and the setting has no effect. The card shows a **QR code**: scan it with the phone and iworkflow opens already signed in.
+
+Whenever the server is reachable from the network (this setting, or a non-loopback `LEPTOS_SITE_ADDR` such as the `0.0.0.0:9000` of `scripts/prod.sh`) it demands an **access token** by default:
+
+- The QR code and the link on the card carry the token (`http://<ip>:<port>/?token=…`). Opening it stores the token in a cookie and redirects to a clean URL, so it does not stay in the address bar or the history. Without the cookie, the server shows a login page where you can paste the token.
+- At startup the server logs that link, which is how you get it on a machine without a browser.
+- **Generate a new token** on the card invalidates the old one at once; devices using it must sign in again.
+- The requirement is optional: untick **Require the access token** (applies on the next start) to serve the network without it. Then anyone who can reach the port can run commands as your user, so use it only on a network you fully trust.
+- Loopback-only servers (the default) never ask for the token.
+- The startup log line with the link contains the token: treat the server logs as sensitive.
+- Writes (`POST`, etc.) that a browser labels with an `Origin` different from the `Host` it targeted are rejected with 403, so another website cannot change these settings through your browser. A reverse proxy must therefore forward the original `Host` header.
+
+The token is a shared secret over plain HTTP: on an untrusted network it can be sniffed. Prefer a private network such as Tailscale (see below).
+
 ## Production
 
 Prerequisites: the Rust toolchain, `cargo-leptos` (`cargo install cargo-leptos --locked`) and the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
@@ -228,10 +244,11 @@ is applied too. Variables specific to the script:
 | `DIST_DIR` | `dist/` at the repo root |
 | `LEPTOS_SITE_ADDR` | `0.0.0.0:9000` (all interfaces) |
 
-> **Security:** the app has no authentication and launches agents that run commands
-> as your user. With the bind on `0.0.0.0`, anyone who can reach the port can use it.
-> Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
-> reverse proxy with authentication and TLS. To limit it to the local machine:
+> **Security:** the app launches agents that run commands as your user. Its only
+> protection is the access token (see [Access from other devices](#access-from-other-devices)),
+> which is demanded whenever the bind is not loopback unless you switch it off, and it travels
+> over plain HTTP. Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
+> reverse proxy with TLS. To limit it to the local machine:
 > `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
 
 To deploy on another machine, just copy `dist/` and launch it with
@@ -240,7 +257,7 @@ from inside that folder.
 
 ## Developing from your phone with Tailscale
 
-[Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow has no authentication and launches agents that run commands as your user.
+[Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow is protected only by a shared token over plain HTTP and launches agents that run commands as your user.
 
 1. Install Tailscale on the computer that runs iworkflow and on the phone (App Store / Google Play), and sign in to the **same account** on both.
 2. Start the server listening on the Tailscale interface (or all interfaces, which is the default of `scripts/prod.sh`):
