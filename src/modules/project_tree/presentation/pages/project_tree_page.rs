@@ -74,8 +74,9 @@ pub fn ProjectTreePage() -> impl IntoView {
     view! { {move || view! { <ProjectTreeContent workspace_id=workspace_id.get() /> }} }
 }
 
+/// Árbol de un workspace o de un worktree de tarea (`task:<id>`), reutilizable fuera de una pestaña del dock.
 #[component]
-fn ProjectTreeContent(workspace_id: String) -> impl IntoView {
+pub fn ProjectTreeContent(workspace_id: String) -> impl IntoView {
     let state: ProjectTreeState = ProjectTreeState::new(workspace_id.clone());
     let edit_href: Option<String> = edit_href(&workspace_id);
     let terminal_href: String = terminal_href(&workspace_id);
