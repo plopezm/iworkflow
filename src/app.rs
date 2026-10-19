@@ -28,6 +28,7 @@ use crate::modules::jira::presentation::pages::jira_convert_page::JiraConvertPag
 use crate::modules::jira::presentation::pages::jira_issue_page::JiraIssuePage;
 use crate::modules::jira::presentation::pages::jira_page::JiraPage;
 use crate::modules::preferences::presentation::choose_language::choose_language;
+use crate::modules::preferences::presentation::components::network_access_card::NetworkAccessCard;
 use crate::modules::project_tree::presentation::pages::project_file_page::ProjectFilePage;
 use crate::modules::project_tree::presentation::pages::project_tree_page::{
     ProjectTreeContent, ProjectTreePage,
@@ -395,6 +396,7 @@ impl TabRoute {
             Self::Models => view! { <ModelsPage /> }.into_any(),
             Self::Settings => view! {
                 <SettingsPage leading=Box::new(|| view! { <LanguageCard on_choose=Callback::new(choose_language) /> }.into_any())>
+                    <NetworkAccessCard />
                     <JiraSettingsSection />
                     <CodeHostSettingsCard provider="gitlab" />
                     <CodeHostSettingsCard provider="github" />

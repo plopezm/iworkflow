@@ -15,6 +15,8 @@ pub mod i18n;
 #[cfg(feature = "ssr")]
 pub mod launch;
 pub mod line_diff;
+#[cfg(feature = "ssr")]
+pub mod listen;
 pub mod markdown;
 #[cfg(feature = "ssr")]
 pub mod process;
