@@ -257,24 +257,64 @@ from inside that folder.
 
 ## Desktop app (Electron)
 
-For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `scripts/electron.sh` builds an installer for the platform it runs on (Linux: AppImage, Windows: NSIS `.exe`). The release workflow builds both next to the plain archives.
+For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `scripts/electron.sh` builds an installer for the platform it runs on (Linux: AppImage, Windows: NSIS `.exe`). There is no separate "mobile server" to build: the installer already contains the same `iworkflow` binary, so a phone connects to the server running inside the app (see [Using it from your phone](#using-it-from-your-phone)).
+
+### Build the installer
+
+Prerequisites (once): the ones of [Production](#production) (Rust, `cargo-leptos`, the `wasm32-unknown-unknown` target), `git` and Node.js 22+ with npm. Cross-building is not supported: build each installer on its own platform.
 
 ```bash
-./scripts/electron.sh build   # release server build + installer in dist/electron/
-./scripts/electron.sh dev     # window on the server already packaged in dist/ (run prod.sh build first)
-SKIP_SERVER_BUILD=1 ./scripts/electron.sh build   # reuse an existing dist/
+./scripts/electron.sh build
 ```
 
-Prerequisites: the ones of [Production](#production) plus Node.js 22+. Cross-building is not supported: build the Windows installer on Windows (Git Bash).
+It runs, in order:
 
-How it behaves:
+1. `scripts/prod.sh build`: `cargo leptos build --release`, leaving the binary and `site/` in `dist/`.
+2. Copies both into `electron/resources/server/` (outside the asar archive, so the binary stays executable).
+3. `npm ci` and `electron-builder` for the current platform.
+4. Writes the installer to `dist/electron/`: `iworkflow-<version>-linux-x86_64.AppImage` or `iworkflow-<version>-win-x64.exe`.
 
-- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `LEPTOS_SITE_ADDR`, and the **Network access** setting and access token work as in [Access from other devices](#access-from-other-devices). The window signs itself in with the token when one is required.
+Other forms:
+
+```bash
+SKIP_SERVER_BUILD=1 ./scripts/electron.sh build   # reuse the server already in dist/
+DIST_DIR=/some/dir ./scripts/electron.sh build    # use another server package / output location
+./scripts/electron.sh dev                         # open the window on dist/ without building an installer
+```
+
+On Windows run it from **Git Bash** (with the MSVC Rust toolchain). The release build of the server takes a few minutes; limit parallelism with `CARGO_BUILD_JOBS=2` on small machines.
+
+### Run it
+
+```bash
+chmod +x dist/electron/iworkflow-*.AppImage
+./dist/electron/iworkflow-*.AppImage          # add --appimage-extract-and-run if FUSE is missing
+```
+
+On Windows run the installer and start **iworkflow** from the Start menu.
+
+### Using it from your phone
+
+The server inside the app is the regular one, so phone access works exactly as in [Access from other devices](#access-from-other-devices):
+
+1. In the app open **Settings → Network access** and turn it on.
+2. **Quit the app completely** (tray icon → **Quit and stop server**, or **File → Quit**) and start it again. Closing only the window is not enough: the server keeps running and reads this setting only at startup. It now listens on `0.0.0.0:3000`.
+3. Scan the **QR code** on the same card with the phone (same local network, or the same [Tailscale](#developing-from-your-phone-with-tailscale) tailnet). It opens already signed in with the access token.
+
+You can also pin the address before launching, e.g. `LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow-*.AppImage`; then the saved setting is ignored.
+
+### Behaviour
+
+- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `LEPTOS_SITE_ADDR`, same access token. The window signs itself in when a token is required.
 - The server listens on `127.0.0.1:3000` by default. If that port is busy the app shows an error; free it or set `LEPTOS_SITE_ADDR` before launching.
 - **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On a Linux desktop without tray support, closing the window quits the app.
 - External links open in the system browser; the window itself only shows the local server.
 - `git` (and the agent CLIs you use) must be installed and on the `PATH`; the installer does not bundle them. With network access on, Windows asks once to allow the app through the firewall.
 - The installers are not code-signed, so Windows SmartScreen warns on first run. Automatic updates are not included yet.
+
+### Release workflow
+
+`.github/workflows/release.yml` builds the server archives and, on the same Linux and Windows runners, the desktop installers: it runs the launcher tests (`npm test` in `electron/`), then `scripts/electron.sh build` over the server it just compiled, and uploads `iworkflow-desktop-<platform>`. Pushing a `v*` tag publishes everything in a GitHub release; it can also be started by hand (*Run workflow*). The installer version comes from `electron/package.json`: keep it equal to `Cargo.toml`.
 
 ## Developing from your phone with Tailscale
 
