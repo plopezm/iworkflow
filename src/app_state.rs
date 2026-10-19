@@ -39,6 +39,7 @@ use crate::modules::agent_settings::domain::models::thinking_level::ThinkingLeve
 use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
 use crate::modules::code_hosting::domain::ports::outbound::task_source_port::{TaskSource, TaskSourcePort};
 use crate::modules::code_hosting::infrastructure::di::code_host_context::CodeHostContext;
+use crate::modules::preferences::infrastructure::di::preferences_context::PreferencesContext;
 use crate::modules::project_tree::domain::models::workspace_root::WorkspaceRoot;
 use crate::modules::project_tree::infrastructure::adapters::outbound::workspace_root::resolver_workspace_root_adapter::{
     RootLookupFuture, RootResolver,
@@ -94,6 +95,7 @@ pub struct AppState {
     pub project_tree: ProjectTreeContext,
     pub code_hosting: CodeHostContext,
     pub jira: JiraContext,
+    pub preferences: PreferencesContext,
 }
 
 impl AppState {
@@ -195,6 +197,7 @@ impl AppState {
             project_tree,
             code_hosting,
             jira,
+            preferences: PreferencesContext::new(pool),
         })
     }
 
@@ -209,6 +212,7 @@ impl AppState {
         provide_context(self.project_tree.clone());
         provide_context(self.code_hosting.clone());
         provide_context(self.jira.clone());
+        provide_context(self.preferences.clone());
     }
 }
 

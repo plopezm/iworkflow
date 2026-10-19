@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
 use crate::core::components::layout::Card;
-use crate::core::i18n::{Locale, LocaleState, Msg, choose_locale, current_locale};
+use crate::core::i18n::{Locale, LocaleState, Msg, current_locale};
 
 const CARD_TITLE: Msg = Msg {
     en: "Language",
@@ -37,7 +37,11 @@ const PROMPT_HELP: Msg = Msg {
 
 /// Settings card with one button per supported language; picking one reloads the page.
 #[component]
-pub fn LanguageCard() -> impl IntoView {
+pub fn LanguageCard(
+    /// Applies the picked language (store it, then reload).
+    #[prop(into)]
+    on_choose: Callback<Locale>,
+) -> impl IntoView {
     let active: Locale = current_locale();
     view! {
         <Card title=CARD_TITLE.get()>
@@ -57,7 +61,7 @@ pub fn LanguageCard() -> impl IntoView {
                                 lang=locale.code()
                                 on:click=move |_| {
                                     if locale != active {
-                                        choose_locale(locale);
+                                        on_choose.run(locale);
                                     }
                                 }
                             >
@@ -73,7 +77,11 @@ pub fn LanguageCard() -> impl IntoView {
 
 /// First-run dialog that asks for the language until the user has picked one.
 #[component]
-pub fn LanguagePrompt() -> impl IntoView {
+pub fn LanguagePrompt(
+    /// Applies the picked language (store it, then reload).
+    #[prop(into)]
+    on_choose: Callback<Locale>,
+) -> impl IntoView {
     let state: LocaleState = expect_context::<LocaleState>();
     let other_languages: String = Locale::ALL
         .into_iter()
@@ -102,7 +110,7 @@ pub fn LanguagePrompt() -> impl IntoView {
                                     <button
                                         class="btn-secondary justify-center"
                                         lang=locale.code()
-                                        on:click=move |_| choose_locale(locale)
+                                        on:click=move |_| on_choose.run(locale)
                                     >
                                         {locale.native_name()}
                                     </button>

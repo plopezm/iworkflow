@@ -27,6 +27,7 @@ use crate::modules::jira::presentation::components::connection_card::JiraSetting
 use crate::modules::jira::presentation::pages::jira_convert_page::JiraConvertPage;
 use crate::modules::jira::presentation::pages::jira_issue_page::JiraIssuePage;
 use crate::modules::jira::presentation::pages::jira_page::JiraPage;
+use crate::modules::preferences::presentation::choose_language::choose_language;
 use crate::modules::project_tree::presentation::pages::project_file_page::ProjectFilePage;
 use crate::modules::project_tree::presentation::pages::project_tree_page::ProjectTreePage;
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
@@ -391,7 +392,7 @@ impl TabRoute {
             Self::Profiles => view! { <ProfilesPage /> }.into_any(),
             Self::Models => view! { <ModelsPage /> }.into_any(),
             Self::Settings => view! {
-                <SettingsPage leading=Box::new(|| view! { <LanguageCard /> }.into_any())>
+                <SettingsPage leading=Box::new(|| view! { <LanguageCard on_choose=Callback::new(choose_language) /> }.into_any())>
                     <JiraSettingsSection />
                     <CodeHostSettingsCard provider="gitlab" />
                     <CodeHostSettingsCard provider="github" />
@@ -634,7 +635,7 @@ pub fn App() -> impl IntoView {
             </Routes>
             <TaskStoreProvider>
                 <DocumentTitle />
-                <LanguagePrompt />
+                <LanguagePrompt on_choose=Callback::new(choose_language) />
                 <DockBootstrap />
                 <AppShell brand="iworkflow" home_reuse=is_board_path sidebar=app_sidebar>
                     <DockHost hooks=hooks launcher=tab_launcher empty=empty_group />

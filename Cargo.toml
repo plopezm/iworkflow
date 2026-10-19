@@ -171,6 +171,11 @@ path = "tests/modules/agent_settings/agent_settings_repository_adapter_test.rs"
 required-features = ["ssr"]
 
 [[test]]
+name = "preferences_repository_adapter_test"
+path = "tests/modules/preferences/preferences_repository_adapter_test.rs"
+required-features = ["ssr"]
+
+[[test]]
 name = "code_host_settings_repository_adapter_test"
 path = "tests/modules/code_hosting/code_host_settings_repository_adapter_test.rs"
 required-features = ["ssr"]

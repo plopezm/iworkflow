@@ -13,7 +13,7 @@ use crate::core::browser;
 pub const LOCALE_COOKIE: &str = "iw-lang";
 
 /// One year, in seconds.
-const COOKIE_MAX_AGE_SECS: u32 = 31_536_000;
+pub const COOKIE_MAX_AGE_SECS: u32 = 31_536_000;
 
 /// Languages the interface is available in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
