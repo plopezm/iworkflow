@@ -184,6 +184,7 @@ async fn updates_details_only_while_in_backlog() {
                 memory_mb: Some(1024),
                 cpu_percent: Some(150),
             },
+            "origin/develop".to_string(),
         )
         .await
         .expect("update");
@@ -194,6 +195,7 @@ async fn updates_details_only_while_in_backlog() {
             "Y".to_string(),
             TaskPriority::Urgent,
             ResourceLimits::default(),
+            "otra".to_string(),
         )
         .await
         .expect("update");
@@ -204,6 +206,7 @@ async fn updates_details_only_while_in_backlog() {
             "Y".to_string(),
             TaskPriority::Urgent,
             ResourceLimits::default(),
+            "otra".to_string(),
         )
         .await
         .expect("update");
@@ -213,6 +216,7 @@ async fn updates_details_only_while_in_backlog() {
     assert!(!missing);
     let edited: Task = found(&adapter, backlog.id).await;
     assert_eq!(edited.title, "Nuevo título");
+    assert_eq!(edited.base_branch, "origin/develop");
     assert_eq!(edited.prompt, "Nuevo prompt");
     assert_eq!(edited.priority, TaskPriority::High);
     assert_eq!(
@@ -220,6 +224,7 @@ async fn updates_details_only_while_in_backlog() {
         TaskPriority::Normal
     );
     assert!(edited.updated_at >= backlog.updated_at);
+    assert_ne!(found(&adapter, started.id).await.base_branch, "otra");
     assert_eq!(found(&adapter, started.id).await.title, "dos");
 }
 
@@ -1079,6 +1084,7 @@ async fn limits_persist_on_insert_and_update() {
             "p".to_string(),
             TaskPriority::Normal,
             cleared,
+            limited.base_branch.clone(),
         )
         .await
         .expect("update");

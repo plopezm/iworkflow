@@ -165,6 +165,7 @@ impl TaskRepositoryPort for RetryingTaskRepository {
         prompt: String,
         priority: TaskPriority,
         limits: ResourceLimits,
+        base_branch: String,
     ) -> Result<bool, TaskError> {
         self.retry("update_details_if_backlog", || {
             self.inner.update_details_if_backlog(
@@ -173,6 +174,7 @@ impl TaskRepositoryPort for RetryingTaskRepository {
                 prompt.clone(),
                 priority,
                 limits,
+                base_branch.clone(),
             )
         })
         .await

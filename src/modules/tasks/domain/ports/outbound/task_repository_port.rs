@@ -32,7 +32,8 @@ pub trait TaskRepositoryPort: Send + Sync {
         status: TaskStatus,
         error: Option<String>,
     ) -> Result<(), TaskError>;
-    /// Actualiza título, prompt y prioridad, solo si la tarea sigue en `Backlog`. Devuelve `false`
+    /// Actualiza título, prompt, prioridad, límites y rama base, solo si la tarea sigue en
+    /// `Backlog`. Devuelve `false`
     /// (sin modificar nada) si la tarea no existe o ya no está en `Backlog`.
     async fn update_details_if_backlog(
         &self,
@@ -41,6 +42,7 @@ pub trait TaskRepositoryPort: Send + Sync {
         prompt: String,
         priority: TaskPriority,
         limits: ResourceLimits,
+        base_branch: String,
     ) -> Result<bool, TaskError>;
     /// Reclama atómicamente una tarea en `Backlog` para arrancarla: fija el plan
     /// (rama, ruta de worktree y rama base) y pasa a `Starting` en una única

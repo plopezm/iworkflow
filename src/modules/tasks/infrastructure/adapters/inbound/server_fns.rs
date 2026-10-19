@@ -221,6 +221,7 @@ pub async fn update_task(id: String, input: UpdateTaskDto) -> Result<TaskDto, Se
                 memory_mb: input.memory_limit_mb,
                 cpu_percent: input.cpu_limit_percent,
             },
+            input.base_branch,
             input.images.into_iter().map(Into::into).collect(),
             input.remove_attachment_ids,
         )

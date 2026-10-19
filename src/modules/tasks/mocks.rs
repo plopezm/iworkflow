@@ -115,7 +115,7 @@ mock! {
             status: TaskStatus,
             error: Option<String>,
         ) -> Result<(), TaskError>;
-        async fn update_details_if_backlog(&self, id: TaskId, title: String, prompt: String, priority: TaskPriority, limits: ResourceLimits) -> Result<bool, TaskError>;
+        async fn update_details_if_backlog(&self, id: TaskId, title: String, prompt: String, priority: TaskPriority, limits: ResourceLimits, base_branch: String) -> Result<bool, TaskError>;
         async fn claim_for_start(
             &self,
             id: TaskId,
