@@ -3,10 +3,12 @@ use std::sync::Arc;
 use crate::core::db::pool::DbPool;
 use crate::modules::preferences::application::usecases::get_access_token::GetAccessToken;
 use crate::modules::preferences::application::usecases::get_language::GetLanguage;
+use crate::modules::preferences::application::usecases::get_listen_port::GetListenPort;
 use crate::modules::preferences::application::usecases::get_require_access_token::GetRequireAccessToken;
 use crate::modules::preferences::application::usecases::get_network_access::GetNetworkAccess;
 use crate::modules::preferences::application::usecases::regenerate_access_token::RegenerateAccessToken;
 use crate::modules::preferences::application::usecases::save_language::SaveLanguage;
+use crate::modules::preferences::application::usecases::save_listen_port::SaveListenPort;
 use crate::modules::preferences::application::usecases::save_require_access_token::SaveRequireAccessToken;
 use crate::modules::preferences::application::usecases::save_network_access::SaveNetworkAccess;
 use crate::modules::preferences::domain::ports::outbound::preferences_repository_port::PreferencesRepositoryPort;
@@ -18,6 +20,8 @@ pub struct PreferencesContext {
     pub save_language: Arc<SaveLanguage>,
     pub get_network_access: Arc<GetNetworkAccess>,
     pub save_network_access: Arc<SaveNetworkAccess>,
+    pub get_listen_port: Arc<GetListenPort>,
+    pub save_listen_port: Arc<SaveListenPort>,
     pub get_require_access_token: Arc<GetRequireAccessToken>,
     pub save_require_access_token: Arc<SaveRequireAccessToken>,
     pub get_access_token: Arc<GetAccessToken>,
@@ -33,6 +37,8 @@ impl PreferencesContext {
             save_language: Arc::new(SaveLanguage::new(repository.clone())),
             get_network_access: Arc::new(GetNetworkAccess::new(repository.clone())),
             save_network_access: Arc::new(SaveNetworkAccess::new(repository.clone())),
+            get_listen_port: Arc::new(GetListenPort::new(repository.clone())),
+            save_listen_port: Arc::new(SaveListenPort::new(repository.clone())),
             get_require_access_token: Arc::new(GetRequireAccessToken::new(repository.clone())),
             save_require_access_token: Arc::new(SaveRequireAccessToken::new(repository.clone())),
             get_access_token: Arc::new(GetAccessToken::new(repository.clone())),

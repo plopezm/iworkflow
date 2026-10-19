@@ -7,7 +7,7 @@
 #
 # Environment:
 #   DIST_DIR          output directory (default: <repo>/dist)
-#   LEPTOS_SITE_ADDR  listen address (default: 0.0.0.0:3000, all interfaces)
+#   LEPTOS_SITE_ADDR  listen address (default: 0.0.0.0:9000, all interfaces)
 # The server also reads IWF_DATABASE_URL, IWF_WORKTREES_DIR, IWF_GENTLE_SHELL_BIN and a
 # `.env` file from the current directory.
 set -euo pipefail

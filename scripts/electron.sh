@@ -8,8 +8,8 @@
 # Environment:
 #   DIST_DIR            server package produced by scripts/prod.sh (default: <repo>/dist)
 #   SKIP_SERVER_BUILD   set to 1 to reuse an existing $DIST_DIR instead of rebuilding it
-# The installer launches the server on 127.0.0.1:3000 like the plain binary does: the saved
-# network-access setting, LEPTOS_SITE_ADDR and the access token keep working unchanged.
+# The installer launches the server on 127.0.0.1:9000 like the plain binary does: the saved
+# network-access setting and port, LEPTOS_SITE_ADDR and the access token keep working unchanged.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"

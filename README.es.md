@@ -198,11 +198,11 @@ En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
 
 ### Acceso desde otros dispositivos
 
-Por defecto el servidor escucha solo en `127.0.0.1` (este equipo). Para usarlo desde el móvil, activa **Configuración → Acceso desde la red** y reinicia el servidor: pasa a escuchar en `0.0.0.0` con el mismo puerto, y la tarjeta muestra la dirección que abrir en el móvil. La elección se guarda en la base de datos. Si `LEPTOS_SITE_ADDR` está definida, tiene prioridad y el ajuste no surte efecto. La tarjeta muestra un **código QR**: escanéalo con el móvil y iworkflow se abre ya autenticado.
+Por defecto el servidor escucha solo en `127.0.0.1` (este equipo). Para usarlo desde el móvil, activa **Configuración → Acceso desde la red** y reinicia el servidor: pasa a escuchar en `0.0.0.0` con el mismo puerto, y la tarjeta muestra la dirección que abrir en el móvil. La elección se guarda en la base de datos. La misma tarjeta permite cambiar el **puerto del servidor** (1024–65535, se guarda en la base de datos y se aplica en el próximo arranque; un servidor empaquetado usa 9000 por defecto). Si `LEPTOS_SITE_ADDR` está definida, tiene prioridad y ninguno de los dos ajustes surte efecto. La tarjeta muestra un **código QR** y un selector con las interfaces de red del equipo (por ejemplo ethernet y Tailscale, cada una con su IP): elige la que el móvil pueda alcanzar y escanea el código. Con el token exigido, iworkflow se abre ya autenticado; sin él, el código contiene solo la dirección.
 
 Siempre que el servidor sea accesible desde la red (este ajuste, o un `LEPTOS_SITE_ADDR` que no sea loopback, como el `0.0.0.0:9000` de `scripts/prod.sh`) exige por defecto un **token de acceso**:
 
-- El QR y el enlace de la tarjeta llevan el token (`http://<ip>:<puerto>/?token=…`). Al abrirlo se guarda en una cookie y se redirige a una URL limpia, así que no queda en la barra de direcciones ni en el historial. Sin la cookie, el servidor muestra una página de acceso donde pegar el token.
+- El QR y el enlace de la tarjeta llevan el token (`http://<ip>:<puerto>/?token=…`) y siguen a la interfaz seleccionada. Al abrirlo se guarda en una cookie y se redirige a una URL limpia, así que no queda en la barra de direcciones ni en el historial. Sin la cookie, el servidor muestra una página de acceso donde pegar el token.
 - Al arrancar, el servidor escribe ese enlace en el log, que es la forma de obtenerlo en una máquina sin navegador.
 - **Generar un token nuevo** en la tarjeta invalida el anterior al instante; los dispositivos que lo usaban deben autenticarse de nuevo.
 - La exigencia es opcional: desmarca **Exigir el token de acceso** (se aplica en el siguiente arranque) para servir a la red sin él. Entonces cualquiera que llegue al puerto puede ejecutar comandos con tu usuario, así que úsalo solo en una red de total confianza.
@@ -252,7 +252,7 @@ también se aplica. Variables propias del script:
 > `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
 
 Para desplegar en otra máquina basta con copiar `dist/` y lanzarlo con
-`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow`
+`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow`
 desde dentro de esa carpeta.
 
 ## Aplicación de escritorio (Electron)
@@ -298,15 +298,15 @@ En Windows ejecuta el instalador y abre **iworkflow** desde el menú Inicio.
 El servidor de la app es el normal, así que el acceso desde el móvil funciona igual que en [Acceso desde otros dispositivos](#acceso-desde-otros-dispositivos):
 
 1. En la app abre **Configuración → Acceso desde la red** y actívalo.
-2. **Cierra la app del todo** (icono de la bandeja → **Quit and stop server**, o **File → Quit**) y vuelve a abrirla. Cerrar solo la ventana no basta: el servidor sigue en marcha y lee este ajuste únicamente al arrancar. Ahora escucha en `0.0.0.0:3000`.
+2. **Cierra la app del todo** (icono de la bandeja → **Quit and stop server**, o **File → Quit**) y vuelve a abrirla. Cerrar solo la ventana no basta: el servidor sigue en marcha y lee este ajuste únicamente al arrancar. Ahora escucha en `0.0.0.0:9000`.
 3. Escanea con el móvil el **código QR** de la misma tarjeta (misma red local, o el mismo tailnet de [Tailscale](#desarrollar-desde-el-móvil-con-tailscale)). Se abre ya autenticado con el token de acceso.
 
-También puedes fijar la dirección antes de lanzar, p. ej. `LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow-*.AppImage`; entonces se ignora el ajuste guardado.
+También puedes fijar la dirección antes de lanzar, p. ej. `LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow-*.AppImage`; entonces se ignora el ajuste guardado.
 
 ### Comportamiento
 
 - La app arranca el servidor incluido (`--no-open`) y lo muestra en una ventana. El servidor no cambia: misma base de datos (`~/.iworkflow/workspaces.db`), mismo `LEPTOS_SITE_ADDR`, mismo token de acceso. La ventana entra sola cuando se exige token.
-- Por defecto el servidor escucha en `127.0.0.1:3000`. Si el puerto está ocupado la app muestra un error; libéralo o define `LEPTOS_SITE_ADDR` antes de lanzarla.
+- Por defecto el servidor escucha en `127.0.0.1:9000`; cambia el puerto en **Configuración → Acceso desde la red**. La app lee la dirección que el servidor anuncia al arrancar, así que sigue al puerto guardado. Si el puerto está ocupado la app muestra un error; libéralo o elige otro.
 - **Cerrar la ventana solo la oculta**, así que un móvil conectado por la red local o Tailscale sigue funcionando. Para detener el servidor usa el icono de la bandeja (**Quit and stop server**) o **File → Quit**. En un escritorio Linux sin bandeja, cerrar la ventana cierra la app.
 - Los enlaces externos se abren en el navegador del sistema; la ventana solo muestra el servidor local.
 - `git` (y los CLI de agentes que uses) deben estar instalados y en el `PATH`; el instalador no los incluye. Con el acceso desde la red activo, Windows pide una vez permitir la app en el cortafuegos.

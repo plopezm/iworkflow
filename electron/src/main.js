@@ -13,6 +13,7 @@ const readline = require('node:readline');
 const {
   buildServerEnv,
   extractAccessToken,
+  extractListenAddr,
   isTrustedUrl,
   parseSiteAddr,
   serverArgs,
@@ -79,7 +80,7 @@ async function waitUntilReady(addr) {
   throw new Error('The server did not start listening in time.');
 }
 
-function startServer() {
+function startServer(onListening) {
   const binary = path.join(serverDir(), serverBinaryName(process.platform));
   const child = spawn(binary, serverArgs(), {
     cwd: os.homedir(),
@@ -92,6 +93,8 @@ function startServer() {
     rememberLog(line);
     console.log(`[server] ${line}`);
     accessToken = extractAccessToken(line) ?? accessToken;
+    const announced = extractListenAddr(line);
+    if (announced) onListening(announced);
   };
   readline.createInterface({ input: child.stdout }).on('line', onLine);
   readline.createInterface({ input: child.stderr }).on('line', onLine);
@@ -183,15 +186,33 @@ function createTray() {
   tray.on('click', showWindow);
 }
 
-async function main() {
-  const addr = parseSiteAddr(process.env);
-  if (!(await isPortFree(addr))) {
-    throw new Error(
-      `Port ${addr.port} is already in use (another iworkflow instance?). ` +
-        'Close it, or set LEPTOS_SITE_ADDR to another address.',
-    );
+/** The address is pinned by the environment, or announced by the server once it is bound. */
+async function startAndFindAddr() {
+  if (process.env.LEPTOS_SITE_ADDR) {
+    const addr = parseSiteAddr(process.env);
+    if (!(await isPortFree(addr))) {
+      throw new Error(
+        `Port ${addr.port} is already in use (another iworkflow instance?). ` +
+          'Close it, or set LEPTOS_SITE_ADDR to another address.',
+      );
+    }
+    startServer(() => {});
+    return addr;
   }
-  startServer();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('The server did not announce its address in time.')),
+      READY_TIMEOUT_MS,
+    );
+    startServer((announced) => {
+      clearTimeout(timer);
+      resolve(announced);
+    });
+  });
+}
+
+async function main() {
+  const addr = await startAndFindAddr();
   await waitUntilReady(addr);
   createTray();
   await createWindow(addr);

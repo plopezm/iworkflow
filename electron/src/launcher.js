@@ -3,10 +3,11 @@
 // Pure helpers for the Electron shell. Nothing here touches Electron or the filesystem so it
 // can be tested with `node --test`.
 
-const DEFAULT_SITE_ADDR = '127.0.0.1:3000';
+const DEFAULT_SITE_ADDR = '127.0.0.1:9000';
 const LOOPBACK_HOST = '127.0.0.1';
 const TOKEN_LENGTH = 64;
 const TOKEN_PATTERN = new RegExp(`[?&]token=([0-9a-fA-F]{${TOKEN_LENGTH}})(?![0-9a-zA-Z])`);
+const LISTEN_PATTERN = /escuchando en http:\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
 const UNSPECIFIED_HOSTS = new Set(['0.0.0.0', '::', '']);
 
 /** Host and port the server will listen on, following the same default as the binary. */
@@ -36,6 +37,17 @@ function serverArgs() {
  */
 function buildServerEnv(base) {
   return { ...base, LEPTOS_ENV: 'PROD', NO_COLOR: '1' };
+}
+
+/**
+ * Address the server announced in its startup log, if the line is that announcement. The saved
+ * port lives in the database, so this is the only reliable source when the environment is unset.
+ */
+function extractListenAddr(line) {
+  const match = LISTEN_PATTERN.exec(line);
+  if (!match) return null;
+  const port = Number(match[3]);
+  return port >= 1 && port <= 65535 ? { host: match[1] ?? match[2], port } : null;
 }
 
 /** Access token printed in the startup link, if the server demands one. */
@@ -74,6 +86,7 @@ module.exports = {
   serverArgs,
   buildServerEnv,
   extractAccessToken,
+  extractListenAddr,
   windowUrl,
   isTrustedUrl,
 };

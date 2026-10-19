@@ -6,12 +6,14 @@ use crate::core::db::pool::{DbConnection, DbPool};
 use crate::core::db::schema::app_preferences;
 use crate::modules::preferences::domain::errors::preferences_error::PreferencesError;
 use crate::modules::preferences::domain::models::access_token::AccessToken;
+use crate::modules::preferences::domain::models::listen_port::ListenPort;
 use crate::modules::preferences::domain::models::ui_language::UiLanguage;
 use crate::modules::preferences::domain::ports::outbound::preferences_repository_port::PreferencesRepositoryPort;
 use crate::modules::preferences::infrastructure::adapters::outbound::persistence::models::preference_row::PreferenceRow;
 
 const LANGUAGE_KEY: &str = "language";
 const NETWORK_ACCESS_KEY: &str = "network_access";
+const LISTEN_PORT_KEY: &str = "listen_port";
 const REQUIRE_TOKEN_KEY: &str = "require_access_token";
 const ACCESS_TOKEN_KEY: &str = "access_token";
 const ENABLED_VALUE: &str = "true";
@@ -86,6 +88,33 @@ impl PreferencesRepositoryPort for PreferencesRepositoryAdapter {
                 DISABLED_VALUE
             })
             .to_string(),
+        };
+        diesel::replace_into(app_preferences::table)
+            .values(&row)
+            .execute(&mut connection)
+            .await
+            .map_err(|e: DieselError| PreferencesError::Repository(e.to_string()))?;
+        Ok(())
+    }
+
+    async fn listen_port(&self) -> Result<Option<ListenPort>, PreferencesError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let row: Option<PreferenceRow> = app_preferences::table
+            .find(LISTEN_PORT_KEY)
+            .select(PreferenceRow::as_select())
+            .first(&mut connection)
+            .await
+            .optional()
+            .map_err(|e: DieselError| PreferencesError::Repository(e.to_string()))?;
+        // A damaged value counts as unset so the default port applies.
+        Ok(row.and_then(|row: PreferenceRow| ListenPort::parse(&row.value).ok()))
+    }
+
+    async fn save_listen_port(&self, port: &ListenPort) -> Result<(), PreferencesError> {
+        let mut connection: DbConnection = self.connection().await?;
+        let row: PreferenceRow = PreferenceRow {
+            key: LISTEN_PORT_KEY.to_string(),
+            value: port.get().to_string(),
         };
         diesel::replace_into(app_preferences::table)
             .values(&row)

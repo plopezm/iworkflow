@@ -46,13 +46,17 @@ pub async fn save_language(code: String) -> Result<(), ServerFnError> {
 }
 
 /// Whether the server is (or will be, after a restart) reachable from other devices, and how
-/// to open it from one: access URL, QR code and token.
+/// to open it from each network interface: access URL and QR code, plus the token when demanded.
 #[server]
 pub async fn get_network_access() -> Result<NetworkAccessDto, ServerFnError> {
-    use crate::core::listen::{ListenInfo, local_network_ip};
+    use crate::core::listen::{
+        ListenInfo, NetworkInterface, local_network_interfaces, local_network_ip,
+    };
+    use crate::modules::preferences::domain::models::listen_port::ListenPort;
     use crate::modules::preferences::infrastructure::adapters::inbound::access_link::{
         build_access_url, render_qr_svg,
     };
+    use crate::modules::preferences::infrastructure::adapters::inbound::dto::network_access_dto::AccessTargetDto;
     use crate::modules::preferences::infrastructure::di::preferences_context::PreferencesContext;
 
     let context: PreferencesContext = support::context()?;
@@ -69,35 +73,59 @@ pub async fn get_network_access() -> Result<NetworkAccessDto, ServerFnError> {
     let listen: ListenInfo = use_context::<ListenInfo>()
         .ok_or_else(|| ServerFnError::new("ListenInfo no disponible"))?;
     let active: bool = listen.is_exposed();
-    let lan_ip: Option<String> = local_network_ip().map(|ip: std::net::IpAddr| ip.to_string());
-    let dto: NetworkAccessDto = NetworkAccessDto::new(
-        enabled,
-        active,
-        listen.locked_by_env,
-        listen.addr.port(),
-        lan_ip,
-    )
-    .with_token_state(require_token, listen.token_required);
+    let port: u16 = listen.addr.port();
+    let configured_port: u16 = context
+        .get_listen_port
+        .execute()
+        .await
+        .map_err(support::to_server_error)?
+        .map_or(port, |saved: ListenPort| saved.get());
 
     // The secret only leaves the server while the app is (or is about to be) reachable and a
     // token is demanded, now or after the next restart.
     let token_in_play: bool = (enabled || active) && (require_token || listen.token_required);
-    if !token_in_play {
-        return Ok(dto);
+    let token: Option<String> = if token_in_play {
+        Some(
+            context
+                .get_access_token
+                .execute()
+                .await
+                .map_err(support::to_server_error)?
+                .as_str()
+                .to_string(),
+        )
+    } else {
+        None
+    };
+
+    // The interface the OS routes through goes first so it is the selector's default.
+    let mut interfaces: Vec<NetworkInterface> = local_network_interfaces();
+    if let Some(preferred) = local_network_ip() {
+        interfaces.sort_by_key(|interface: &NetworkInterface| {
+            std::net::IpAddr::V4(interface.ip) != preferred
+        });
     }
-    let token: String = context
-        .get_access_token
-        .execute()
-        .await
-        .map_err(support::to_server_error)?
-        .as_str()
-        .to_string();
-    let access_url: Option<String> = dto
-        .address
-        .as_deref()
-        .map(|host: &str| build_access_url(host, dto.port, Some(&token)));
-    let qr_svg: Option<String> = access_url.as_deref().and_then(render_qr_svg);
-    Ok(dto.with_access(Some(token), access_url, qr_svg))
+    let targets: Vec<AccessTargetDto> = interfaces
+        .into_iter()
+        .map(|interface: NetworkInterface| {
+            let address: String = interface.ip.to_string();
+            let access_url: String = build_access_url(&address, port, token.as_deref());
+            let qr_svg: Option<String> = render_qr_svg(&access_url);
+            AccessTargetDto {
+                interface: interface.name,
+                address,
+                access_url,
+                qr_svg,
+            }
+        })
+        .collect();
+    Ok(
+        NetworkAccessDto::new(enabled, active, listen.locked_by_env, port)
+            .with_token_state(require_token, listen.token_required)
+            .with_configured_port(configured_port)
+            .with_targets(targets)
+            .with_token(token),
+    )
 }
 
 /// Stores whether to listen on every network interface; it applies on the next server start.
@@ -106,6 +134,17 @@ pub async fn save_network_access(enabled: bool) -> Result<(), ServerFnError> {
     support::context()?
         .save_network_access
         .execute(enabled)
+        .await
+        .map(|_| ())
+        .map_err(support::to_server_error)
+}
+
+/// Stores the port the server listens on; it applies on the next server start.
+#[server]
+pub async fn save_listen_port(port: u16) -> Result<(), ServerFnError> {
+    support::context()?
+        .save_listen_port
+        .execute(port)
         .await
         .map(|_| ())
         .map_err(support::to_server_error)

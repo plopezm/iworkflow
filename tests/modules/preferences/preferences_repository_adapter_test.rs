@@ -3,6 +3,7 @@ mod common;
 
 use diesel_async::RunQueryDsl;
 use iworkflow::modules::preferences::domain::models::access_token::AccessToken;
+use iworkflow::modules::preferences::domain::models::listen_port::ListenPort;
 use iworkflow::modules::preferences::domain::models::ui_language::UiLanguage;
 use iworkflow::modules::preferences::domain::ports::outbound::preferences_repository_port::PreferencesRepositoryPort;
 use iworkflow::modules::preferences::infrastructure::adapters::outbound::persistence::preferences_repository_adapter::PreferencesRepositoryAdapter;
@@ -167,4 +168,42 @@ async fn unknown_require_token_value_keeps_the_token_required() {
     let adapter: PreferencesRepositoryAdapter = PreferencesRepositoryAdapter::new(db.pool);
 
     assert!(adapter.require_access_token().await.expect("required"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn listen_port_is_none_before_one_is_chosen() {
+    let db: common::TestDb = common::test_db().await;
+    let adapter: PreferencesRepositoryAdapter = PreferencesRepositoryAdapter::new(db.pool);
+
+    assert_eq!(adapter.listen_port().await.expect("port"), None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn listen_port_roundtrips_and_is_replaced() {
+    let db: common::TestDb = common::test_db().await;
+    let adapter: PreferencesRepositoryAdapter = PreferencesRepositoryAdapter::new(db.pool);
+    let first: ListenPort = ListenPort::new(9000).expect("port");
+    let second: ListenPort = ListenPort::new(9100).expect("port");
+
+    adapter.save_listen_port(&first).await.expect("save first");
+    assert_eq!(adapter.listen_port().await.expect("port"), Some(first));
+    adapter
+        .save_listen_port(&second)
+        .await
+        .expect("save second");
+    assert_eq!(adapter.listen_port().await.expect("port"), Some(second));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn damaged_listen_port_counts_as_unset() {
+    let db: common::TestDb = common::test_db().await;
+    let mut connection = db.pool.get().await.expect("connection");
+    diesel::sql_query("INSERT INTO app_preferences (key, value) VALUES ('listen_port', '80')")
+        .execute(&mut connection)
+        .await
+        .expect("insert");
+    drop(connection);
+    let adapter: PreferencesRepositoryAdapter = PreferencesRepositoryAdapter::new(db.pool);
+
+    assert_eq!(adapter.listen_port().await.expect("port"), None);
 }

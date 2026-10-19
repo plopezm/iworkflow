@@ -88,9 +88,20 @@ async fn main() {
             false
         }
     };
+    let saved_port: Option<u16> = match state.preferences.get_listen_port.execute().await {
+        Ok(port) => port.map(|port| port.get()),
+        Err(error) => {
+            tracing::warn!(%error, "no se pudo leer el puerto guardado; se usa el de por defecto");
+            None
+        }
+    };
     let locked_by_env: bool = std::env::var_os(SITE_ADDR_VAR).is_some();
-    let addr: std::net::SocketAddr =
-        resolve_listen_addr(leptos_options.site_addr, locked_by_env, network_access);
+    let addr: std::net::SocketAddr = resolve_listen_addr(
+        leptos_options.site_addr,
+        locked_by_env,
+        network_access,
+        saved_port,
+    );
     // The token is demanded whenever the server is reachable from outside this computer, unless
     // the user switched it off. A failed read keeps it required (fail closed).
     let require_token: bool = match state.preferences.get_require_access_token.execute().await {

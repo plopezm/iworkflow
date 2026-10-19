@@ -12,6 +12,9 @@ const SITE_DIR_NAME: &str = "site";
 const OUTPUT_NAME: &str = "iworkflow";
 const SITE_ROOT_VAR: &str = "LEPTOS_SITE_ROOT";
 const OUTPUT_NAME_VAR: &str = "LEPTOS_OUTPUT_NAME";
+const SITE_ADDR_VAR: &str = "LEPTOS_SITE_ADDR";
+/// Port of a packaged server (release binary, Electron app) when `LEPTOS_SITE_ADDR` is unset.
+const PACKAGED_PORT: u16 = 9000;
 
 /// Site directory shipped next to the executable, if it exists.
 pub fn bundled_site_root(exe_dir: &Path) -> Option<PathBuf> {
@@ -35,17 +38,27 @@ pub fn apply_packaged_defaults(
     options
 }
 
+/// Moves the listen port to [`PACKAGED_PORT`] unless the environment pinned the address.
+/// The host is kept (loopback), so the network-access setting still decides the exposure.
+pub fn apply_packaged_port(mut options: LeptosOptions, site_addr_set: bool) -> LeptosOptions {
+    if !site_addr_set {
+        options.site_addr.set_port(PACKAGED_PORT);
+    }
+    options
+}
+
 /// Same as [`apply_packaged_defaults`] reading the real environment and executable path.
 pub fn with_packaged_defaults(options: LeptosOptions) -> LeptosOptions {
     let exe_dir: Option<PathBuf> = std::env::current_exe()
         .ok()
         .and_then(|exe: PathBuf| exe.parent().map(Path::to_path_buf));
-    apply_packaged_defaults(
+    let options: LeptosOptions = apply_packaged_defaults(
         options,
         exe_dir.as_deref(),
         std::env::var_os(SITE_ROOT_VAR).is_some(),
         std::env::var_os(OUTPUT_NAME_VAR).is_some(),
-    )
+    );
+    apply_packaged_port(options, std::env::var_os(SITE_ADDR_VAR).is_some())
 }
 
 #[cfg(test)]
@@ -89,5 +102,19 @@ mod tests {
     fn output_name_defaults_to_the_binary_name() {
         let options: LeptosOptions = apply_packaged_defaults(base(), None, true, false);
         assert_eq!(&*options.output_name, "iworkflow");
+    }
+
+    #[test]
+    fn packaged_port_is_used_when_the_address_is_not_pinned() {
+        let options: LeptosOptions = apply_packaged_port(base(), false);
+        assert_eq!(options.site_addr.port(), 9000);
+        assert!(options.site_addr.ip().is_loopback());
+    }
+
+    #[test]
+    fn pinned_address_keeps_its_port() {
+        let before: u16 = base().site_addr.port();
+        let options: LeptosOptions = apply_packaged_port(base(), true);
+        assert_eq!(options.site_addr.port(), before);
     }
 }

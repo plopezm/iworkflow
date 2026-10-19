@@ -198,11 +198,11 @@ In development (`cargo leptos watch`) the server listens only on `127.0.0.1`.
 
 ### Access from other devices
 
-By default the server listens only on `127.0.0.1` (this computer). To reach it from your phone, turn on **Settings → Network access** and restart the server: it then listens on `0.0.0.0` with the same port, and the card shows the address to open on the phone. The choice is stored in the database. If `LEPTOS_SITE_ADDR` is set, it always wins and the setting has no effect. The card shows a **QR code**: scan it with the phone and iworkflow opens already signed in.
+By default the server listens only on `127.0.0.1` (this computer). To reach it from your phone, turn on **Settings → Network access** and restart the server: it then listens on `0.0.0.0` with the same port, and the card shows the address to open on the phone. The choice is stored in the database. The same card lets you change the **server port** (1024–65535, saved in the database and applied on the next start; a packaged server defaults to 9000). If `LEPTOS_SITE_ADDR` is set, it always wins and neither setting has an effect. The card shows a **QR code** and a selector with the machine's network interfaces (for example ethernet and Tailscale, each with its IP): pick the one your phone can reach and scan the code. With the token required, iworkflow opens already signed in; without it, the code just holds the plain address.
 
 Whenever the server is reachable from the network (this setting, or a non-loopback `LEPTOS_SITE_ADDR` such as the `0.0.0.0:9000` of `scripts/prod.sh`) it demands an **access token** by default:
 
-- The QR code and the link on the card carry the token (`http://<ip>:<port>/?token=…`). Opening it stores the token in a cookie and redirects to a clean URL, so it does not stay in the address bar or the history. Without the cookie, the server shows a login page where you can paste the token.
+- The QR code and the link on the card carry the token (`http://<ip>:<port>/?token=…`) and follow the selected interface. Opening it stores the token in a cookie and redirects to a clean URL, so it does not stay in the address bar or the history. Without the cookie, the server shows a login page where you can paste the token.
 - At startup the server logs that link, which is how you get it on a machine without a browser.
 - **Generate a new token** on the card invalidates the old one at once; devices using it must sign in again.
 - The requirement is optional: untick **Require the access token** (applies on the next start) to serve the network without it. Then anyone who can reach the port can run commands as your user, so use it only on a network you fully trust.
@@ -252,7 +252,7 @@ is applied too. Variables specific to the script:
 > `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
 
 To deploy on another machine, just copy `dist/` and launch it with
-`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow`
+`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow`
 from inside that folder.
 
 ## Desktop app (Electron)
@@ -298,15 +298,15 @@ On Windows run the installer and start **iworkflow** from the Start menu.
 The server inside the app is the regular one, so phone access works exactly as in [Access from other devices](#access-from-other-devices):
 
 1. In the app open **Settings → Network access** and turn it on.
-2. **Quit the app completely** (tray icon → **Quit and stop server**, or **File → Quit**) and start it again. Closing only the window is not enough: the server keeps running and reads this setting only at startup. It now listens on `0.0.0.0:3000`.
+2. **Quit the app completely** (tray icon → **Quit and stop server**, or **File → Quit**) and start it again. Closing only the window is not enough: the server keeps running and reads this setting only at startup. It now listens on `0.0.0.0:9000`.
 3. Scan the **QR code** on the same card with the phone (same local network, or the same [Tailscale](#developing-from-your-phone-with-tailscale) tailnet). It opens already signed in with the access token.
 
-You can also pin the address before launching, e.g. `LEPTOS_SITE_ADDR=0.0.0.0:3000 ./iworkflow-*.AppImage`; then the saved setting is ignored.
+You can also pin the address before launching, e.g. `LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow-*.AppImage`; then the saved setting is ignored.
 
 ### Behaviour
 
 - The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `LEPTOS_SITE_ADDR`, same access token. The window signs itself in when a token is required.
-- The server listens on `127.0.0.1:3000` by default. If that port is busy the app shows an error; free it or set `LEPTOS_SITE_ADDR` before launching.
+- The server listens on `127.0.0.1:9000` by default; change the port in **Settings → Network access**. The app reads the address the server announces at startup, so it follows the saved port. If the port is busy the app shows an error; free it or choose another one.
 - **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On a Linux desktop without tray support, closing the window quits the app.
 - External links open in the system browser; the window itself only shows the local server.
 - `git` (and the agent CLIs you use) must be installed and on the `PATH`; the installer does not bundle them. With network access on, Windows asks once to allow the app through the firewall.
