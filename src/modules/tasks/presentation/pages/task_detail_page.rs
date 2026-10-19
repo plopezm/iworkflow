@@ -253,24 +253,17 @@ pub struct TaskExtraTab {
 /// Id del contenedor con scroll de la conversación.
 const TRANSCRIPT_SCROLL_ID: &str = "task-transcript-scroll";
 
-/// Pestañas del panel de la tarea: las propias más la adicional, si la hay (pura).
-fn tab_items(extra: Option<TaskExtraTab>) -> Vec<TabItem> {
+/// Pestañas del panel de la tarea: las propias más las adicionales, en orden (pura).
+fn tab_items(extra: &[TaskExtraTab]) -> Vec<TabItem> {
     let mut tabs: Vec<TabItem> = vec![TabItem {
         id: TAB_ACTIONS,
         label: ACTIONS.get(),
     }];
-    if let Some(tab) = extra {
-        tabs.push(TabItem {
-            id: tab.id,
-            label: tab.label,
-        });
-    }
+    tabs.extend(extra.iter().map(|tab: &TaskExtraTab| TabItem {
+        id: tab.id,
+        label: tab.label,
+    }));
     tabs
-}
-
-/// Route of the dock tab that explores the worktree files of a task (pure).
-pub fn files_path(task_id: &str) -> String {
-    format!("/tasks/{task_id}/files")
 }
 
 /// Route of the dock tab that shows the diff of a task (pure).
@@ -398,16 +391,16 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
 /// Página de detalle. El router reutiliza este componente al pasar entre dos `/tasks/:id`
 /// (solo cambia el signal de parámetros), así que el contenido se reconstruye por cada id.
 #[component]
-pub fn TaskDetailPage(#[prop(optional)] extra_tab: Option<TaskExtraTab>) -> impl IntoView {
+pub fn TaskDetailPage(#[prop(optional)] extra_tabs: Vec<TaskExtraTab>) -> impl IntoView {
     let params = use_tab_params();
     let task_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
-    view! { {move || view! { <TaskDetailContent task_id=task_id.get() extra_tab /> }} }
+    view! { {move || view! { <TaskDetailContent task_id=task_id.get() extra_tabs=extra_tabs.clone() /> }} }
 }
 
 #[component]
-fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl IntoView {
+fn TaskDetailContent(task_id: String, extra_tabs: Vec<TaskExtraTab>) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
     // Several task tabs can be mounted at once, so the scroll container id is per task.
     let scroll_id: StoredValue<String> = StoredValue::new(format!(
@@ -425,13 +418,13 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
             nav.close_and_open(&board_return_path(state.task.get_untracked()));
         }
     });
+    let extra_tabs: StoredValue<Vec<TaskExtraTab>> = StoredValue::new(extra_tabs);
     let right_open: RwSignal<bool> = RwSignal::new(true);
     let right_overlay: RwSignal<bool> = RwSignal::new(false);
     let active_tab: RwSignal<String> = RwSignal::new(TAB_ACTIONS.to_string());
     let panel_width: Signal<String> = Signal::derive(|| PANEL_WIDTH_DEFAULT.to_string());
     let on_select_tab: Callback<String> = Callback::new(move |id: String| active_tab.set(id));
     let diff_path: String = diff_path(&state.task_id.get_value());
-    let files_path: String = files_path(&state.task_id.get_value());
 
     let handlers: TaskActionHandlers = TaskActionHandlers {
         abort: Callback::new(move |_| state.abort()),
@@ -441,7 +434,6 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
         discard: Callback::new(move |_| state.discard()),
         reset: Callback::new(move |_| state.reset()),
         open_diff: Callback::new(move |_| nav.open(&diff_path)),
-        open_files: Callback::new(move |_| nav.open(&files_path)),
         show_subagents: Callback::new(move |_| state.show_subagents.set(true)),
     };
     let busy: Signal<bool> = Signal::derive(move || {
@@ -670,7 +662,7 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                             </button>
                         </div>
                         <TabBar
-                            tabs=tab_items(extra_tab)
+                            tabs=tab_items(&extra_tabs.get_value())
                             active=active_tab
                             on_select=on_select_tab
                         />
@@ -753,14 +745,17 @@ fn TaskDetailContent(task_id: String, extra_tab: Option<TaskExtraTab>) -> impl I
                                     })}
                                 </Suspense>
                             </Show>
-                            {extra_tab
+                            {extra_tabs
+                                .get_value()
+                                .into_iter()
                                 .map(|tab: TaskExtraTab| {
                                     view! {
                                         <Show when=move || active_tab.get() == tab.id>
                                             {move || tab.render.run(state.task_id.get_value())}
                                         </Show>
                                     }
-                                })}
+                                })
+                                .collect_view()}
                         </div>
                     </CollapsePanel>
                 </Show>
@@ -774,14 +769,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn files_path_targets_the_task_explorer() {
-        assert_eq!(files_path("t1"), "/tasks/t1/files");
-    }
-
-    #[test]
     fn tabs_are_actions_plus_the_extra_one() {
-        let ids: Vec<&str> = tab_items(None).iter().map(|t: &TabItem| t.id).collect();
+        let ids: Vec<&str> = tab_items(&[]).iter().map(|t: &TabItem| t.id).collect();
         assert_eq!(ids, vec![TAB_ACTIONS]);
+        Owner::new().with(|| {
+            let extra = |id: &'static str| TaskExtraTab {
+                id,
+                label: id,
+                render: Callback::new(|_: String| ().into_any()),
+            };
+            let ids: Vec<&str> = tab_items(&[extra("files"), extra("code-host")])
+                .iter()
+                .map(|t: &TabItem| t.id)
+                .collect();
+            assert_eq!(ids, vec![TAB_ACTIONS, "files", "code-host"]);
+        });
     }
 
     #[test]

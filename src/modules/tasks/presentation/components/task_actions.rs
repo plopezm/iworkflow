@@ -103,14 +103,6 @@ const VIEW_DIFF: Msg = Msg {
     fr: "Voir le diff",
 };
 
-const EXPLORE_FILES: Msg = Msg {
-    en: "Browse files",
-    es: "Explorar archivos",
-    zh: "浏览文件",
-    de: "Dateien durchsuchen",
-    fr: "Parcourir les fichiers",
-};
-
 const OPEN_TERMINAL: Msg = Msg {
     en: "Open terminal",
     es: "Abrir terminal",
@@ -153,7 +145,6 @@ pub struct TaskActionHandlers {
     pub discard: Callback<()>,
     pub reset: Callback<()>,
     pub open_diff: Callback<()>,
-    pub open_files: Callback<()>,
     pub show_subagents: Callback<()>,
 }
 
@@ -179,7 +170,7 @@ impl ActionTone {
 pub fn visible_sections(actions: &TaskActionsDto) -> [bool; 4] {
     [
         actions.can_abort || actions.can_resume || actions.can_finish,
-        actions.can_view_diff || actions.can_edit_files || actions.can_merge,
+        actions.can_view_diff || actions.can_merge,
         actions.can_open_terminal,
         actions.can_discard || actions.can_reset,
     ]
@@ -289,15 +280,6 @@ pub fn TaskActions(
                                 }
                             })}
                         {actions
-                            .can_edit_files
-                            .then(|| {
-                                view! {
-                                    <ActionRow icon="▤" on_click=plain(handlers.open_files)>
-                                        {EXPLORE_FILES.get()}
-                                    </ActionRow>
-                                }
-                            })}
-                        {actions
                             .can_merge
                             .then(|| {
                                 view! {
@@ -392,12 +374,12 @@ mod tests {
             can_edit_files: true,
             ..Default::default()
         };
-        assert_eq!(visible_sections(&running), [true, true, true, false]);
+        assert_eq!(visible_sections(&running), [true, false, true, false]);
         let files_only: TaskActionsDto = TaskActionsDto {
             can_edit_files: true,
             ..Default::default()
         };
-        assert_eq!(visible_sections(&files_only), [false, true, false, false]);
+        assert_eq!(visible_sections(&files_only), [false, false, false, false]);
     }
 
     #[test]

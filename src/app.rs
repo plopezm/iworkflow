@@ -29,7 +29,9 @@ use crate::modules::jira::presentation::pages::jira_issue_page::JiraIssuePage;
 use crate::modules::jira::presentation::pages::jira_page::JiraPage;
 use crate::modules::preferences::presentation::choose_language::choose_language;
 use crate::modules::project_tree::presentation::pages::project_file_page::ProjectFilePage;
-use crate::modules::project_tree::presentation::pages::project_tree_page::ProjectTreePage;
+use crate::modules::project_tree::presentation::pages::project_tree_page::{
+    ProjectTreeContent, ProjectTreePage,
+};
 use crate::modules::tasks::presentation::components::app_sidebar::AppSidebar;
 use crate::modules::tasks::presentation::pages::board_page::BoardPage;
 use crate::modules::tasks::presentation::pages::task_detail_page::{TaskDetailPage, TaskExtraTab};
@@ -399,7 +401,7 @@ impl TabRoute {
                 </SettingsPage>
             }
             .into_any(),
-            Self::Task(_) => view! { <TaskDetailPage extra_tab=code_host_task_tab() /> }.into_any(),
+            Self::Task(_) => view! { <TaskDetailPage extra_tabs=vec![files_task_tab(), code_host_task_tab()] /> }.into_any(),
             Self::TaskEdit(_) => view! { <TaskEditPage /> }.into_any(),
             Self::TaskDiff(_) => view! { <TaskDiffPage /> }.into_any(),
             Self::TaskTerminal(_) => view! { <NewTaskTerminalPage /> }.into_any(),
@@ -642,6 +644,17 @@ pub fn App() -> impl IntoView {
                 </AppShell>
             </TaskStoreProvider>
         </Router>
+    }
+}
+
+/// Pestaña del explorador de archivos del worktree de la tarea: se compone aquí para que `tasks` no importe `project_tree`.
+fn files_task_tab() -> TaskExtraTab {
+    TaskExtraTab {
+        id: "files",
+        label: TITLE_FILES.get(),
+        render: Callback::new(|task_id: String| {
+            view! { <ProjectTreeContent workspace_id=task_scope(&task_id) /> }.into_any()
+        }),
     }
 }
 
