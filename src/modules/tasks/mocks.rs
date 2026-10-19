@@ -167,6 +167,7 @@ mock! {
         async fn create(&self, repo: &Path, base_branch: &str, branch: &str, path: &Path) -> Result<(), TaskError>;
         async fn commit_all(&self, path: &Path, message: &str) -> Result<bool, TaskError>;
         async fn diff(&self, repo: &Path, base_branch: &str, branch: &str) -> Result<TaskDiff, TaskError>;
+        async fn diff_live(&self, worktree: &Path, base_branch: &str) -> Result<TaskDiff, TaskError>;
         async fn diff_fingerprint(&self, repo: &Path, base_branch: &str, branch: &str) -> Result<String, TaskError>;
         async fn pin_range(&self, repo: &Path, base_branch: &str, branch: &str, pin_ref: &str) -> Result<DiffRange, TaskError>;
         async fn diff_range(&self, repo: &Path, range: &DiffRange) -> Result<TaskDiff, TaskError>;

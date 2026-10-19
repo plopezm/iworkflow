@@ -90,6 +90,48 @@ async fn diff_lists_changes_and_commits() {
 }
 
 #[tokio::test]
+async fn diff_live_includes_commits_uncommitted_and_untracked_changes() {
+    let f: Fixture = fixture_with_worktree().await;
+    std::fs::write(f.worktree.join("committed.txt"), "uno\n").expect("write");
+    f.adapter
+        .commit_all(&f.worktree, "pi: committed")
+        .await
+        .expect("commit");
+    std::fs::write(f.worktree.join("README.md"), "editado sin commit\n").expect("write");
+    std::fs::write(f.worktree.join("untracked.txt"), "nuevo\n").expect("write");
+
+    let diff: TaskDiff = f
+        .adapter
+        .diff_live(&f.worktree, "main")
+        .await
+        .expect("live");
+
+    assert!(diff.patch.contains("+uno"));
+    assert!(diff.patch.contains("+editado sin commit"));
+    assert!(diff.patch.contains("+nuevo"));
+    assert!(diff.patch.contains("b/untracked.txt"));
+    assert!(diff.stat.contains("untracked.txt"));
+    assert!(diff.stat.contains("README.md"));
+    assert_eq!(diff.commits.len(), 1);
+    // The agent's index is left alone: the new file is still untracked.
+    assert!(common::git(&f.worktree, &["status", "--porcelain"]).contains("?? untracked.txt"));
+}
+
+#[tokio::test]
+async fn diff_live_is_empty_for_a_clean_worktree() {
+    let f: Fixture = fixture_with_worktree().await;
+
+    let diff: TaskDiff = f
+        .adapter
+        .diff_live(&f.worktree, "main")
+        .await
+        .expect("live");
+
+    assert!(diff.patch.is_empty());
+    assert!(diff.commits.is_empty());
+}
+
+#[tokio::test]
 async fn diff_fingerprint_changes_only_with_commits() {
     let f: Fixture = fixture_with_worktree().await;
     let initial: String = f

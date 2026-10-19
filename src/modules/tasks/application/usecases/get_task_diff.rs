@@ -7,8 +7,8 @@ use crate::modules::tasks::domain::models::workspace_ref::WorkspaceRef;
 use crate::modules::tasks::domain::models::worktree::TaskDiff;
 use crate::modules::tasks::domain::ports::outbound::worktree_port::WorktreePort;
 
-/// Devuelve los cambios de la rama de la tarea respecto a la base; en tareas integradas
-/// los regenera desde el rango de commits registrado al integrarlas.
+/// Devuelve los cambios de la tarea respecto a la base, también los aún sin commitear mientras
+/// existe su worktree; en tareas integradas los regenera desde el rango de commits registrado al integrarlas.
 pub struct GetTaskDiff {
     lifecycle: Arc<TaskLifecycle>,
     worktrees: Arc<dyn WorktreePort>,
@@ -32,6 +32,13 @@ impl GetTaskDiff {
             _ if task.status.is_closed() => return Err(invalid_state("ver diff", task.status)),
             _ => self.lifecycle.workspace(&task.workspace_id).await?,
         };
+        // Con el agente trabajando los cambios aún no están commiteados: se lee el worktree.
+        if self.worktrees.exists(&task.worktree_path).await {
+            return self
+                .worktrees
+                .diff_live(&task.worktree_path, &task.base_branch)
+                .await;
+        }
         self.worktrees
             .diff(&workspace.path, &task.base_branch, &task.branch)
             .await
@@ -41,6 +48,8 @@ impl GetTaskDiff {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
+
     use crate::modules::tasks::application::test_support::{self, Recorded};
     use crate::modules::tasks::domain::models::worktree::DiffRange;
     use crate::modules::tasks::mocks::MockWorktree;
@@ -114,8 +123,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn open_task_diffs_branch_against_base() {
+    async fn open_task_diffs_working_tree_including_uncommitted_changes() {
         let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees.expect_exists().returning(|_| true);
+        worktrees
+            .expect_diff_live()
+            .withf(|path: &Path, base: &str| {
+                path == Path::new(test_support::WORKTREE) && base == "main"
+            })
+            .times(1)
+            .returning(|_, _| Ok(sample_diff()));
+        worktrees.expect_diff().never();
+        worktrees.expect_diff_range().never();
+
+        let result: TaskDiff = diff(test_support::task(TaskStatus::Running), worktrees)
+            .await
+            .expect("diff");
+
+        assert_eq!(result, sample_diff());
+    }
+
+    #[tokio::test]
+    async fn open_task_without_worktree_diffs_branch_against_base() {
+        let mut worktrees: MockWorktree = MockWorktree::new();
+        worktrees.expect_exists().returning(|_| false);
+        worktrees.expect_diff_live().never();
         worktrees
             .expect_diff()
             .withf(|_, base: &str, branch: &str| {

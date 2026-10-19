@@ -167,6 +167,11 @@ async fn build_diff(repo: &Path, diff_spec: &str, log_range: &str) -> Result<Tas
         .lines()
         .map(str::to_string)
         .collect();
+    Ok(truncate_diff(stat, full_patch, commits))
+}
+
+/// Recorta el parche a `MAX_PATCH_BYTES` marcando si hubo recorte.
+fn truncate_diff(stat: String, full_patch: String, commits: Vec<String>) -> TaskDiff {
     let truncated: bool = full_patch.len() > MAX_PATCH_BYTES;
     let patch: String = if truncated {
         let mut cut: usize = MAX_PATCH_BYTES;
@@ -177,12 +182,51 @@ async fn build_diff(repo: &Path, diff_spec: &str, log_range: &str) -> Result<Tas
     } else {
         full_patch
     };
-    Ok(TaskDiff {
+    TaskDiff {
         stat,
         patch,
         truncated,
         commits,
-    })
+    }
+}
+
+/// Parche de un fichero sin seguimiento, como si se añadiera (`git diff --no-index` sale con 1
+/// cuando hay diferencias, así que no se trata como error).
+async fn untracked_patch(worktree: &Path, file: &str, args: &[&str]) -> Result<String, TaskError> {
+    let mut full: Vec<&str> = vec!["diff", "--no-index"];
+    full.extend_from_slice(args);
+    full.extend(["--", "/dev/null", file]);
+    Ok(git_raw(worktree, &full).await?.stdout)
+}
+
+/// Diff en vivo de `worktree` contra el merge-base con `base_branch`: commits de la rama, cambios
+/// sin commitear y ficheros nuevos sin seguimiento. No toca el índice del agente.
+async fn build_live_diff(worktree: &Path, base_branch: &str) -> Result<TaskDiff, TaskError> {
+    let merge_base: String = git(worktree, &["merge-base", base_branch, "HEAD"]).await?;
+    let mut stat: String = git(worktree, &["diff", "--stat", &merge_base]).await?;
+    let mut full_patch: String = git(worktree, &["diff", &merge_base]).await?;
+    let untracked: String = git(
+        worktree,
+        &["ls-files", "--others", "--exclude-standard", "-z"],
+    )
+    .await?;
+    for file in untracked.split('\0').filter(|name: &&str| !name.is_empty()) {
+        // `git()` recorta la salida: se restituye el salto de línea final antes de concatenar.
+        for text in [&mut stat, &mut full_patch] {
+            if !text.is_empty() {
+                text.push('\n');
+            }
+        }
+        full_patch.push_str(&untracked_patch(worktree, file, &[]).await?);
+        stat.push_str(&untracked_patch(worktree, file, &["--stat"]).await?);
+    }
+    let log_range: String = format!("{merge_base}..HEAD");
+    let commits: Vec<String> = git(worktree, &["log", "--oneline", &log_range])
+        .await?
+        .lines()
+        .map(str::to_string)
+        .collect();
+    Ok(truncate_diff(stat, full_patch, commits))
 }
 
 /// Argumentos `-c user.*` si el repositorio no tiene identidad configurada.
@@ -450,6 +494,10 @@ impl WorktreePort for GitCliWorktreeAdapter {
         let diff_spec: String = format!("{base_branch}...{branch}");
         let log_range: String = format!("{base_branch}..{branch}");
         build_diff(repo, &diff_spec, &log_range).await
+    }
+
+    async fn diff_live(&self, worktree: &Path, base_branch: &str) -> Result<TaskDiff, TaskError> {
+        build_live_diff(worktree, base_branch).await
     }
 
     async fn diff_fingerprint(
