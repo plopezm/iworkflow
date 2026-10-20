@@ -1049,6 +1049,17 @@ Platform-specific code is confined to infrastructure:
 - `nix` is only compiled on Unix; per-task RAM/CPU limits (`systemd-run`) exist only on Linux.
 - The support has logic tests on Linux but has not yet been run on a real Windows. See "Prebuilt binaries" in the README.
 
+### macOS support
+
+macOS runs the Unix code paths, so the server needs almost nothing of its own:
+
+- `core/launch.rs`: the browser is opened with `open` (`opener_command`, `cfg(target_os = "macos")`).
+- Agents, terminal and model catalogs use the login shell (`$SHELL`, `zsh` by default on macOS) with `-l` and `exec`, exactly as on Linux; `nix` (signals, `getifaddrs` for the network interfaces) is compiled because `cfg(unix)` holds.
+- Per-task RAM/CPU limits (`systemd-run`) exist only on Linux, so they do not apply.
+- Desktop shell (`electron/`): the `dmg` target is built per architecture (`macos-arm64` and `macos-x86_64` runners in `release.yml`) and signed ad hoc (`identity: "-"`) because Apple Silicon rejects an app whose signature broke when the server was added to its resources; it is not notarized, so Gatekeeper blocks the first launch. `launcher.js` (`buildServerEnv`) appends `/opt/homebrew/bin` and `/usr/local/bin` to the server `PATH`, since apps opened from Finder do not inherit the shell one. `main.js` brings the window back on the Dock `activate` event and uses an 18 px menu bar icon.
+- `scripts/bump-version.sh` uses `perl` instead of GNU `sed`, which BSD `sed` does not match.
+- The support has logic tests on Linux but has not yet been run on a real Mac.
+
 ---
 
 ## 11. Testing strategy

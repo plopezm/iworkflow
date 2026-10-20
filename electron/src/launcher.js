@@ -8,6 +8,7 @@ const LOOPBACK_HOST = '127.0.0.1';
 const TOKEN_LENGTH = 64;
 const TOKEN_PATTERN = new RegExp(`[?&]token=([0-9a-fA-F]{${TOKEN_LENGTH}})(?![0-9a-zA-Z])`);
 const LISTEN_PATTERN = /escuchando en http:\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
+const MAC_EXTRA_PATHS = ['/opt/homebrew/bin', '/usr/local/bin'];
 const UNSPECIFIED_HOSTS = new Set(['0.0.0.0', '::', '']);
 
 /** Host and port the server will listen on, following the same default as the binary. */
@@ -35,8 +36,20 @@ function serverArgs() {
  * `IWF_DATABASE_URL` alone: the saved network-access choice decides the bind address and the
  * database stays where it always was.
  */
-function buildServerEnv(base) {
-  return { ...base, LEPTOS_ENV: 'PROD', NO_COLOR: '1' };
+function buildServerEnv(base, platform = process.platform) {
+  const env = { ...base, LEPTOS_ENV: 'PROD', NO_COLOR: '1' };
+  if (platform === 'darwin') env.PATH = withMacPaths(base.PATH);
+  return env;
+}
+
+/**
+ * Apps launched from Finder inherit a minimal `PATH` without Homebrew, so the server would not
+ * find `git` installed there. Append the standard locations that are missing.
+ */
+function withMacPaths(current) {
+  const entries = (current ?? '').split(':').filter(Boolean);
+  for (const dir of MAC_EXTRA_PATHS) if (!entries.includes(dir)) entries.push(dir);
+  return entries.join(':');
 }
 
 /**

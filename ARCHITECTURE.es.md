@@ -1051,6 +1051,17 @@ El código específico de plataforma está acotado a infraestructura:
 - `nix` solo se compila en Unix; los límites de RAM/CPU por tarea (`systemd-run`) solo existen en Linux.
 - El soporte tiene tests de lógica en Linux pero no se ha ejecutado aún sobre un Windows real. Ver «Binarios precompilados» en el README.
 
+### Soporte de macOS
+
+macOS usa las rutas de código Unix, así que el servidor apenas necesita nada propio:
+
+- `core/launch.rs`: el navegador se abre con `open` (`opener_command`, `cfg(target_os = "macos")`).
+- Los agentes, la terminal y los catálogos de modelos usan la shell de login (`$SHELL`, `zsh` por defecto en macOS) con `-l` y `exec`, igual que en Linux; `nix` (señales, `getifaddrs` para las interfaces de red) se compila porque se cumple `cfg(unix)`.
+- Los límites de RAM/CPU por tarea (`systemd-run`) solo existen en Linux, así que no aplican.
+- Shell de escritorio (`electron/`): el target `dmg` se compila por arquitectura (runners `macos-arm64` y `macos-x86_64` en `release.yml`) y se firma ad hoc (`identity: "-"`) porque Apple Silicon rechaza una app cuya firma se rompió al añadir el servidor a sus recursos; no está notarizada, así que Gatekeeper bloquea el primer arranque. `launcher.js` (`buildServerEnv`) añade `/opt/homebrew/bin` y `/usr/local/bin` al `PATH` del servidor, porque las apps abiertas desde Finder no heredan el de la shell. `main.js` recupera la ventana con el evento `activate` del Dock y usa un icono de 18 px en la barra de menús.
+- `scripts/bump-version.sh` usa `perl` en lugar de `sed` de GNU, que el `sed` de BSD no replica.
+- El soporte tiene tests de lógica en Linux pero no se ha ejecutado aún sobre un Mac real.
+
 ---
 
 ## 11. Estrategia de tests

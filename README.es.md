@@ -257,7 +257,7 @@ desde dentro de esa carpeta.
 
 ## Aplicación de escritorio (Electron)
 
-Para quien no quiera usar la terminal, `electron/` envuelve el mismo servidor en una ventana de escritorio y `scripts/electron.sh` construye un instalador para la plataforma en la que se ejecuta (Linux: AppImage, Windows: `.exe` NSIS). No hay un «servidor para el móvil» que compilar aparte: el instalador ya contiene el mismo binario `iworkflow`, así que el móvil se conecta al servidor que corre dentro de la app (ver [Usarlo desde el móvil](#usarlo-desde-el-móvil)).
+Para quien no quiera usar la terminal, `electron/` envuelve el mismo servidor en una ventana de escritorio y `scripts/electron.sh` construye un instalador para la plataforma en la que se ejecuta (Linux: AppImage, macOS: `.dmg`, Windows: `.exe` NSIS). No hay un «servidor para el móvil» que compilar aparte: el instalador ya contiene el mismo binario `iworkflow`, así que el móvil se conecta al servidor que corre dentro de la app (ver [Usarlo desde el móvil](#usarlo-desde-el-móvil)).
 
 ### Construir el instalador
 
@@ -272,7 +272,7 @@ Ejecuta, en orden:
 1. `scripts/prod.sh build`: `cargo leptos build --release`, dejando el binario y `site/` en `dist/`.
 2. Copia ambos a `electron/resources/server/` (fuera del archivo asar, para que el binario siga siendo ejecutable).
 3. `npm ci` y `electron-builder` para la plataforma actual.
-4. Escribe el instalador en `dist/electron/`: `iworkflow-<versión>-linux-x86_64.AppImage` o `iworkflow-<versión>-win-x64.exe`.
+4. Escribe el instalador en `dist/electron/`: `iworkflow-<versión>-linux-x86_64.AppImage`, `iworkflow-<versión>-mac-arm64.dmg` (o `mac-x64`) o `iworkflow-<versión>-win-x64.exe`.
 
 Otras formas:
 
@@ -282,7 +282,7 @@ DIST_DIR=/otra/ruta ./scripts/electron.sh build   # usa otro paquete de servidor
 ./scripts/electron.sh dev                         # abre la ventana sobre dist/ sin construir instalador
 ```
 
-En Windows ejecútalo desde **Git Bash** (con la toolchain MSVC de Rust). El build release del servidor tarda unos minutos; en máquinas pequeñas limita el paralelismo con `CARGO_BUILD_JOBS=2`.
+En macOS el `.dmg` se genera para la arquitectura del Mac que lo compila (Apple Silicon o Intel) y requiere las Xcode Command Line Tools. En Windows ejecútalo desde **Git Bash** (con la toolchain MSVC de Rust). El build release del servidor tarda unos minutos; en máquinas pequeñas limita el paralelismo con `CARGO_BUILD_JOBS=2`.
 
 ### Ejecutarlo
 
@@ -291,7 +291,7 @@ chmod +x dist/electron/iworkflow-*.AppImage
 ./dist/electron/iworkflow-*.AppImage          # añade --appimage-extract-and-run si falta FUSE
 ```
 
-En Windows ejecuta el instalador y abre **iworkflow** desde el menú Inicio.
+En macOS abre el `.dmg` y arrastra **iworkflow** a Aplicaciones. En Windows ejecuta el instalador y abre **iworkflow** desde el menú Inicio.
 
 ### Usarlo desde el móvil
 
@@ -307,14 +307,14 @@ También puedes fijar la dirección antes de lanzar, p. ej. `LEPTOS_SITE_ADDR=0.
 
 - La app arranca el servidor incluido (`--no-open`) y lo muestra en una ventana. El servidor no cambia: misma base de datos (`~/.iworkflow/workspaces.db`), mismo `LEPTOS_SITE_ADDR`, mismo token de acceso. La ventana entra sola cuando se exige token.
 - Por defecto el servidor escucha en `127.0.0.1:9000`; cambia el puerto en **Configuración → Acceso desde la red**. La app lee la dirección que el servidor anuncia al arrancar, así que sigue al puerto guardado. Si el puerto está ocupado la app muestra un error; libéralo o elige otro.
-- **Cerrar la ventana solo la oculta**, así que un móvil conectado por la red local o Tailscale sigue funcionando. Para detener el servidor usa el icono de la bandeja (**Quit and stop server**) o **File → Quit**. En un escritorio Linux sin bandeja, cerrar la ventana cierra la app.
+- **Cerrar la ventana solo la oculta**, así que un móvil conectado por la red local o Tailscale sigue funcionando. Para detener el servidor usa el icono de la bandeja (**Quit and stop server**) o **File → Quit**. En macOS el icono está en la barra de menús y pulsar el icono del Dock vuelve a mostrar la ventana (**iworkflow → Quit** o Cmd+Q detiene el servidor). En un escritorio Linux sin bandeja, cerrar la ventana cierra la app.
 - Los enlaces externos se abren en el navegador del sistema; la ventana solo muestra el servidor local.
-- `git` (y los CLI de agentes que uses) deben estar instalados y en el `PATH`; el instalador no los incluye. Con el acceso desde la red activo, Windows pide una vez permitir la app en el cortafuegos.
-- Los instaladores no están firmados, así que Windows SmartScreen avisa en la primera ejecución. Aún no incluyen actualizaciones automáticas.
+- `git` (y los CLI de agentes que uses) deben estar instalados y en el `PATH`; el instalador no los incluye. Con el acceso desde la red activo, Windows y macOS piden una vez permitir la app en el cortafuegos. En macOS la app añade `/opt/homebrew/bin` y `/usr/local/bin` a su `PATH`, porque las apps abiertas desde Finder no heredan el de tu shell.
+- Los instaladores no están firmados, así que Windows SmartScreen avisa en la primera ejecución. En macOS la app solo lleva firma ad hoc y no está notarizada: Gatekeeper bloquea el primer arranque, así que pulsa con el botón derecho → **Abrir** (o ejecuta `xattr -dr com.apple.quarantine /Applications/iworkflow.app`). Aún no incluyen actualizaciones automáticas.
 
 ### Workflow de release
 
-`.github/workflows/release.yml` construye los archivos del servidor y, en los mismos runners de Linux y Windows, los instaladores de escritorio: ejecuta los tests del lanzador (`npm test` en `electron/`), después `scripts/electron.sh build` sobre el servidor que acaba de compilar, y sube `iworkflow-desktop-<plataforma>`. Al subir un tag `v*` se publica todo en una release de GitHub; también puede lanzarse a mano (*Run workflow*). La versión del instalador sale de `electron/package.json`: mantenla igual que `Cargo.toml`.
+`.github/workflows/release.yml` construye los archivos del servidor y, en los mismos runners de Linux, macOS (Apple Silicon e Intel) y Windows, los instaladores de escritorio: ejecuta los tests del lanzador (`npm test` en `electron/`), después `scripts/electron.sh build` sobre el servidor que acaba de compilar, y sube `iworkflow-desktop-<plataforma>`. Al subir un tag `v*` se publica todo en una release de GitHub; también puede lanzarse a mano (*Run workflow*). La versión del instalador sale de `electron/package.json`: mantenla igual que `Cargo.toml`.
 
 ## Desarrollar desde el móvil con Tailscale
 
