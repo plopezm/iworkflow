@@ -129,7 +129,11 @@ impl FileSearchPort for GitCliFileSearchAdapter {
             return Ok(files);
         }
         let files: Vec<String> = list_files(root).await?;
-        self.remember(root, &files);
+        // An empty listing is what a failed or not-yet-initialised repository looks like: it is
+        // cheap to recompute and must not hide the files that appear right after.
+        if !files.is_empty() {
+            self.remember(root, &files);
+        }
         Ok(files)
     }
 }
@@ -140,6 +144,49 @@ mod tests {
 
     fn listing(items: &[&str]) -> Vec<String> {
         items.iter().map(|s: &&str| s.to_string()).collect()
+    }
+
+    fn git(root: &Path, args: &[&str]) {
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(args)
+            .status()
+            .expect("git available");
+        assert!(status.success(), "git {args:?} failed");
+    }
+
+    #[tokio::test]
+    async fn a_second_call_within_the_ttl_reuses_the_listing() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        git(dir.path(), &["init", "-q"]);
+        std::fs::write(dir.path().join("a.rs"), "").expect("write");
+        let adapter: GitCliFileSearchAdapter = GitCliFileSearchAdapter::new();
+
+        let first: Vec<String> = adapter.files(dir.path()).await.expect("files");
+        std::fs::write(dir.path().join("b.rs"), "").expect("write");
+        let second: Vec<String> = adapter.files(dir.path()).await.expect("files");
+
+        assert_eq!(first, listing(&["a.rs"]));
+        assert_eq!(
+            second, first,
+            "the new file is hidden until the TTL expires"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_empty_listing_is_not_cached() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let adapter: GitCliFileSearchAdapter = GitCliFileSearchAdapter::new();
+        assert!(adapter.files(dir.path()).await.expect("files").is_empty());
+
+        git(dir.path(), &["init", "-q"]);
+        std::fs::write(dir.path().join("a.rs"), "").expect("write");
+
+        assert_eq!(
+            adapter.files(dir.path()).await.expect("files"),
+            listing(&["a.rs"])
+        );
     }
 
     #[test]
