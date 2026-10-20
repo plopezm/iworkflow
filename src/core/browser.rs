@@ -44,6 +44,9 @@ export function pi_read_cookies() {
 export function pi_set_cookie(name, value, maxAge) {
   try { document.cookie = name + '=' + value + '; path=/; max-age=' + maxAge + '; SameSite=Lax'; } catch (_) {}
 }
+export function pi_is_narrow() {
+  return window.matchMedia('(max-width: 767px)').matches;
+}
 export function pi_reload() {
   try { window.location.reload(); } catch (_) {}
 }
@@ -63,6 +66,7 @@ export function pi_history_back() {
         pub fn pi_read_cookies() -> String;
         pub fn pi_set_cookie(name: &str, value: &str, max_age: u32);
         pub fn pi_reload();
+        pub fn pi_is_narrow() -> bool;
     }
 }
 
@@ -123,6 +127,19 @@ pub fn set_cookie(name: &str, value: &str, max_age_secs: u32) {
     #[cfg(not(feature = "hydrate"))]
     {
         let _args: (&str, &str, u32) = (name, value, max_age_secs);
+    }
+}
+
+/// Indica si el viewport es estrecho (móvil, bajo el breakpoint `md` de Tailwind).
+/// Fuera del navegador devuelve `false`.
+pub fn is_narrow_viewport() -> bool {
+    #[cfg(feature = "hydrate")]
+    {
+        theme_js::pi_is_narrow()
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        false
     }
 }
 

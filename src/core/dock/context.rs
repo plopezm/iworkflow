@@ -194,10 +194,13 @@ impl TabNav {
     }
 
     /// Abre `path` a la derecha del grupo actual (reutiliza el grupo vecino si lo hay).
+    /// En viewports estrechos no divide: abre una pestaña en el grupo actual.
     pub fn open_beside(&self, path: &str) {
         match self.group {
-            Some(group) => self.dock.open_beside(path, None, group),
-            None => self.dock.open(path, None, None),
+            Some(group) if !browser::is_narrow_viewport() => {
+                self.dock.open_beside(path, None, group);
+            }
+            _ => self.dock.open(path, None, self.group),
         }
     }
 
