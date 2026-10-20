@@ -36,6 +36,12 @@ pub enum CodeHostError {
     TaskNotFound(String),
     #[error("no se pudo publicar la rama {branch} en origin: {reason}")]
     BranchPublishFailed { branch: String, reason: String },
+    #[error(
+        "la rama base {0} no existe en origin: publícala o elige otra rama de partida para la tarea"
+    )]
+    BaseBranchNotPublished(String),
+    #[error("la rama de la tarea y la rama base son la misma ({0}): no hay nada que proponer")]
+    SameSourceAndTarget(String),
     #[error("no hay merge request abierto para la rama {0}")]
     MergeRequestNotFound(String),
     #[error("{} respondió {status}: {message}", .provider.label())]
