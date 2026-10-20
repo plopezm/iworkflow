@@ -6,6 +6,10 @@ globalThis.window = globalThis;
 await import('../public/terminal.js');
 const { sendKey } = window.iwfTerminal;
 
+function setNavigator(value) {
+  Object.defineProperty(globalThis, 'navigator', { value, configurable: true, writable: true });
+}
+
 function fakeHandle({ applicationCursorKeysMode = false } = {}) {
   const term = {
     modes: { applicationCursorKeysMode },
@@ -13,11 +17,13 @@ function fakeHandle({ applicationCursorKeysMode = false } = {}) {
     focused: 0,
     input(data, wasUserInput) { term.inputs.push([data, wasUserInput]); },
     focus() { term.focused += 1; },
+    pasted: [],
+    paste(text) { term.pasted.push(text); },
   };
   return { term };
 }
 
-const NORMAL = { tab: '\t', ctrl_c: '\x03', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D' };
+const NORMAL = { tab: '\t', esc: '\x1b', ctrl_c: '\x03', up: '\x1b[A', down: '\x1b[B', right: '\x1b[C', left: '\x1b[D' };
 const APPLICATION = { up: '\x1bOA', down: '\x1bOB', right: '\x1bOC', left: '\x1bOD' };
 
 for (const [key, seq] of Object.entries(NORMAL)) {
@@ -52,4 +58,24 @@ test('unknown keys and missing handles are ignored', () => {
   sendKey({}, 'tab');
   assert.deepEqual(handle.term.inputs, []);
   assert.equal(handle.term.focused, 0);
+});
+
+test('paste writes the clipboard text through term.paste and refocuses', async () => {
+  const handle = fakeHandle();
+  setNavigator({ clipboard: { readText: async () => 'ls -la\n' } });
+  sendKey(handle, 'paste');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(handle.term.pasted, ['ls -la\n']);
+  assert.deepEqual(handle.term.inputs, []);
+  assert.equal(handle.term.focused, 1);
+});
+
+test('paste is a no-op when the clipboard is unavailable or denied', async () => {
+  const handle = fakeHandle();
+  setNavigator({});
+  sendKey(handle, 'paste');
+  setNavigator({ clipboard: { readText: async () => { throw new Error('denied'); } } });
+  sendKey(handle, 'paste');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(handle.term.pasted, []);
 });
