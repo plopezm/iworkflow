@@ -41,7 +41,7 @@ test('the server is started without opening a browser', () => {
 });
 
 test('server env never pins the listen address, so the saved network setting still applies', () => {
-  const env = buildServerEnv({ PATH: '/usr/bin', HOME: '/home/u' });
+  const env = buildServerEnv({ PATH: '/usr/bin', HOME: '/home/u' }, 'linux');
   assert.equal(env.LEPTOS_SITE_ADDR, undefined);
   assert.equal(env.PATH, '/usr/bin');
   assert.equal(env.HOME, '/home/u');
@@ -50,10 +50,10 @@ test('server env never pins the listen address, so the saved network setting sti
 });
 
 test('server env keeps an address the user pinned and does not touch the database path', () => {
-  const env = buildServerEnv({ LEPTOS_SITE_ADDR: '0.0.0.0:9000', IWF_DATABASE_URL: '/data/x.db' });
+  const env = buildServerEnv({ LEPTOS_SITE_ADDR: '0.0.0.0:9000', IWF_DATABASE_URL: '/data/x.db' }, 'linux');
   assert.equal(env.LEPTOS_SITE_ADDR, '0.0.0.0:9000');
   assert.equal(env.IWF_DATABASE_URL, '/data/x.db');
-  const untouched = buildServerEnv({});
+  const untouched = buildServerEnv({}, 'linux');
   assert.equal(untouched.IWF_DATABASE_URL, undefined);
 });
 
