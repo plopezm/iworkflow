@@ -107,10 +107,14 @@
       lastTime = event.timeStamp;
     }
 
-    function onEnd() {
+    function onEnd(event) {
       if (!dragging) return;
       dragging = false;
-      if (scrolled && Math.abs(velocity) > 0.05) raf = requestAnimationFrame(fling);
+      // Sin inercia si el dedo estuvo quieto antes de soltar o el gesto se canceló.
+      var held = event.timeStamp - lastTime > 100;
+      if (event.type === "touchend" && scrolled && !held && Math.abs(velocity) > 0.05) {
+        raf = requestAnimationFrame(fling);
+      }
     }
 
     el.style.touchAction = "none";
@@ -307,5 +311,10 @@
     }
   }
 
-  window.iwfTerminal = { open: open, close: close, sendKey: sendKey };
+  window.iwfTerminal = {
+    open: open,
+    close: close,
+    sendKey: sendKey,
+    enableTouchScroll: enableTouchScroll,
+  };
 })();
