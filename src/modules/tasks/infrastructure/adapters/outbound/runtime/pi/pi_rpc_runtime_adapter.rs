@@ -17,7 +17,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_pr
     LaunchSpec, LineCodec, ProcessRuntime,
 };
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::rpc_protocol::{
-    decode, decode_subagent_tasks, encode,
+    decode, decode_subagent_tasks, encode_command,
 };
 
 /// Activa diálogos (`ask_user_*`) y widgets de actividad en gentle-shell.
@@ -81,7 +81,7 @@ impl LineCodec for PiCodec {
         command: &AgentCommand,
         request_id: &str,
     ) -> Result<Option<String>, TaskError> {
-        Ok(Some(encode(command, request_id)))
+        Ok(encode_command(command, request_id))
     }
 }
 
@@ -166,11 +166,17 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
     }
 
     fn capabilities(&self, _task_id: TaskId) -> AgentCapabilities {
-        AgentCapabilities::full()
+        AgentCapabilities {
+            modes: false,
+            ..AgentCapabilities::full()
+        }
     }
 
     fn runtime_capabilities(&self, _runtime: Option<&RuntimeId>) -> AgentCapabilities {
-        AgentCapabilities::full()
+        AgentCapabilities {
+            modes: false,
+            ..AgentCapabilities::full()
+        }
     }
 }
 

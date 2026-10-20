@@ -65,6 +65,7 @@ impl CursorAcpRuntimeAdapter {
             dialogs: true,
             model_selection: true,
             resume: true,
+            modes: true,
             ..AgentCapabilities::minimal()
         }
     }

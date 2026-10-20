@@ -678,6 +678,45 @@ body.dock-resizing .xterm {
   @apply w-full min-h-[4.5rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
 }
 
+/* ── Composer autocomplete ──────────────────────── */
+.composer-field {
+  @apply relative;
+}
+.composer-menu {
+  @apply absolute bottom-full left-0 z-20 mb-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-surface py-1 text-sm shadow-lg;
+}
+.composer-menu-item {
+  @apply flex min-h-8 cursor-pointer items-center justify-between gap-3 px-3 py-1 text-fg;
+}
+.composer-menu-item.is-active {
+  @apply bg-surface-2 text-accent;
+}
+.composer-menu-hint,
+.composer-menu-empty {
+  @apply text-xs text-muted;
+}
+.composer-menu-empty {
+  @apply px-3 py-2;
+}
+.composer-mode {
+  @apply inline-flex w-fit overflow-hidden rounded-md border border-border text-xs;
+}
+.composer-mode-option {
+  @apply min-h-7 cursor-pointer px-3 text-muted hover:text-fg;
+}
+.composer-mode-option.is-active {
+  @apply bg-surface-2 text-accent;
+}
+.composer-refs {
+  @apply flex flex-wrap gap-1.5;
+}
+.composer-ref {
+  @apply flex min-h-7 max-w-full items-center gap-1 rounded-md border border-border bg-surface px-2 text-xs text-fg;
+}
+.composer-ref-remove {
+  @apply cursor-pointer px-1 text-muted hover:text-fg;
+}
+
 /* ── Diff view ──────────────────────────────────── */
 .diff {
   @apply overflow-x-auto rounded-md border border-border bg-surface p-3 font-mono text-xs whitespace-pre;

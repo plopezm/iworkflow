@@ -8,6 +8,7 @@ use crate::modules::tasks::application::services::queued_agent_event_sink::{
 };
 use crate::modules::tasks::application::services::task_lifecycle::TaskLifecycle;
 use crate::modules::tasks::application::usecases::abort_task::AbortTask;
+use crate::modules::tasks::application::usecases::set_agent_mode::SetAgentMode;
 use crate::modules::tasks::application::usecases::add_task_dependency::AddTaskDependency;
 use crate::modules::tasks::application::usecases::get_task_graph::GetTaskGraph;
 use crate::modules::tasks::application::usecases::detach_task_from_graph::DetachTaskFromGraph;
@@ -104,6 +105,7 @@ pub struct TasksContext {
     pub delete_workspace_tasks: Arc<DeleteWorkspaceTasks>,
     pub send_message: Arc<SendMessage>,
     pub abort_task: Arc<AbortTask>,
+    pub set_agent_mode: Arc<SetAgentMode>,
     pub answer_dialog: Arc<AnswerDialog>,
     pub finish_task: Arc<FinishTask>,
     pub resume_task: Arc<ResumeTask>,
@@ -313,6 +315,7 @@ impl TasksContext {
             )),
             send_message: send_message.clone(),
             abort_task: Arc::new(AbortTask::new(lifecycle.clone(), runtime.clone())),
+            set_agent_mode: Arc::new(SetAgentMode::new(lifecycle.clone(), runtime.clone())),
             answer_dialog: Arc::new(AnswerDialog::new(lifecycle.clone(), runtime.clone())),
             finish_task: Arc::new(FinishTask::new(
                 lifecycle.clone(),
@@ -434,14 +437,22 @@ mod tests {
             .await
     }
 
+    /// gentle-shell y pi lo admiten todo salvo cambiar de modo.
+    fn pi_like_capabilities() -> AgentCapabilities {
+        AgentCapabilities {
+            modes: false,
+            ..AgentCapabilities::full()
+        }
+    }
+
     #[test]
-    fn registers_both_runtimes_with_full_capabilities() {
+    fn registers_both_runtimes_with_every_capability_but_modes() {
         let router: AgentRuntimeRouter = router();
         for raw in [GENTLE_SHELL_RUNTIME, PI_RUNTIME] {
             let id: RuntimeId = RuntimeId::parse(raw).expect("runtime válido");
             assert_eq!(
                 router.runtime_capabilities(Some(&id)),
-                AgentCapabilities::full()
+                pi_like_capabilities()
             );
         }
     }
@@ -456,11 +467,11 @@ mod tests {
     }
 
     #[test]
-    fn cursor_is_registered_with_dialogs_resume_and_model_selection_only() {
+    fn cursor_is_registered_with_dialogs_resume_model_selection_and_modes_only() {
         let cursor: RuntimeId = RuntimeId::parse(CURSOR_RUNTIME).expect("runtime válido");
         let caps: AgentCapabilities = router().runtime_capabilities(Some(&cursor));
 
-        assert!(caps.dialogs && caps.resume && caps.model_selection);
+        assert!(caps.dialogs && caps.resume && caps.model_selection && caps.modes);
         assert!(!caps.steer && !caps.follow_up && !caps.subagents && !caps.thinking_levels);
     }
 
@@ -479,10 +490,7 @@ mod tests {
             RuntimeId::parse(GENTLE_SHELL_RUNTIME).expect("runtime válido");
 
         assert_eq!(router().default_runtime(), &gentle_shell);
-        assert_eq!(
-            router().runtime_capabilities(None),
-            AgentCapabilities::full()
-        );
+        assert_eq!(router().runtime_capabilities(None), pi_like_capabilities());
     }
 
     #[tokio::test]

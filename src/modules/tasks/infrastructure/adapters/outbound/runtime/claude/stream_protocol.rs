@@ -13,6 +13,7 @@ use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogAnswer, DialogKind, DialogRequest, NoticeLevel,
 };
+use crate::modules::tasks::domain::models::agent_mode::AgentMode;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::usage_limit::looks_like_usage_limit;
 
@@ -95,6 +96,7 @@ impl ClaudeProtocol {
                 Vec::new()
             }
             "result" => self.decode_result(&record),
+            "system" => decode_system(&record),
             _ => Vec::new(),
         }
     }
@@ -114,6 +116,11 @@ impl ClaudeProtocol {
                 "type": "control_request",
                 "request_id": request_id,
                 "request": { "subtype": "interrupt" },
+            }),
+            AgentCommand::SetMode(mode) => json!({
+                "type": "control_request",
+                "request_id": request_id,
+                "request": { "subtype": "set_permission_mode", "mode": permission_mode(*mode) },
             }),
             AgentCommand::AnswerDialog { dialog_id, answer } => {
                 return self.answer_dialog(dialog_id, answer);
@@ -469,6 +476,40 @@ impl ClaudeProtocol {
 }
 
 /// Mensaje de usuario: texto simple, o bloques de contenido si lleva imágenes.
+/// Clave del estado que informa del modo actual del agente.
+pub const MODE_STATUS_KEY: &str = "mode";
+
+/// Valor de `--permission-mode` que corresponde a cada modo.
+fn permission_mode(mode: AgentMode) -> &'static str {
+    match mode {
+        AgentMode::Agent => "acceptEdits",
+        AgentMode::Plan => "plan",
+    }
+}
+
+/// Modo de dominio de un `permissionMode` de Claude; los demás se muestran tal cual.
+fn mode_label(permission: &str) -> &str {
+    match permission {
+        "acceptEdits" => AgentMode::Agent.as_str(),
+        "plan" => AgentMode::Plan.as_str(),
+        other => other,
+    }
+}
+
+/// `system/init` y `system/status` informan del modo de permisos vigente.
+fn decode_system(record: &Value) -> Vec<AgentEvent> {
+    if !matches!(str_field(record, "subtype"), Some("init" | "status")) {
+        return Vec::new();
+    }
+    match str_field(record, "permissionMode") {
+        Some(permission) => vec![AgentEvent::StatusChanged {
+            key: MODE_STATUS_KEY.to_string(),
+            text: Some(mode_label(permission).to_string()),
+        }],
+        None => Vec::new(),
+    }
+}
+
 fn user_message(message: &str, images: &[ImageAttachment]) -> Value {
     let content: Value = if images.is_empty() {
         json!(message)
@@ -1418,6 +1459,56 @@ mod tests {
                 {"type": "text", "text": "mira"},
                 {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "QUJD"}}
             ])
+        );
+    }
+
+    #[test]
+    fn set_mode_is_a_permission_mode_control_request() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let mut line = |mode: AgentMode| -> Value {
+            let raw: String = protocol
+                .encode(&AgentCommand::SetMode(mode), "req-3")
+                .expect("encode")
+                .expect("line");
+            serde_json::from_str(&raw).expect("json")
+        };
+        assert_eq!(
+            line(AgentMode::Plan),
+            json!({"type": "control_request", "request_id": "req-3",
+                "request": {"subtype": "set_permission_mode", "mode": "plan"}})
+        );
+        assert_eq!(
+            line(AgentMode::Agent)["request"]["mode"],
+            json!("acceptEdits")
+        );
+    }
+
+    #[test]
+    fn init_and_status_report_the_current_mode() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        let events: Vec<AgentEvent> = decode_all(
+            &mut protocol,
+            &[
+                json!({"type": "system", "subtype": "init", "permissionMode": "acceptEdits"}),
+                json!({"type": "system", "subtype": "status", "status": null, "permissionMode": "plan"}),
+                json!({"type": "system", "subtype": "status", "permissionMode": "bypassPermissions"}),
+                json!({"type": "system", "subtype": "hook_started"}),
+            ],
+        );
+        let modes: Vec<Option<String>> = events
+            .into_iter()
+            .map(|event: AgentEvent| match event {
+                AgentEvent::StatusChanged { key, text } if key == MODE_STATUS_KEY => text,
+                other => panic!("evento inesperado: {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            modes,
+            vec![
+                Some("agent".to_string()),
+                Some("plan".to_string()),
+                Some("bypassPermissions".to_string())
+            ]
         );
     }
 

@@ -76,6 +76,7 @@ impl ClaudeStreamRuntimeAdapter {
             model_selection: true,
             thinking_levels: true,
             resume: true,
+            modes: true,
             ..AgentCapabilities::minimal()
         }
     }

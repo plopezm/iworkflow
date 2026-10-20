@@ -6,22 +6,26 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachm
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    MessageModeDto, TaskDto, TaskStatusDto,
+    AgentModeDto, MessageModeDto, TaskDto, TaskStatusDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
     AgentEventDto, DialogAnswerDto, TaskEventKindDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::server_fns::{
     AbortTask, AnswerTaskDialog, DeleteTask, DiscardTask, FinishTask, MergeTask, ResetTask,
-    ResumeTask, SendTaskMessage, StartTask, get_task, get_task_diff, get_task_subagents,
-    list_task_attachments,
+    ResumeTask, SendTaskMessage, SetTaskMode, StartTask, get_task, get_task_diff,
+    get_task_subagents, list_task_attachments,
 };
 use crate::modules::tasks::presentation::components::subagents_panel::resolve_selection;
+use crate::modules::tasks::presentation::state::composer_completion::mode_command;
 use crate::modules::tasks::presentation::state::image_attachments::ImageAttachments;
 use crate::modules::tasks::presentation::state::transcript::Transcript;
 
 /// Los mensajes del usuario se encolan siempre como `Steer`.
 const SEND_MODE: MessageModeDto = MessageModeDto::Steer;
+
+/// Clave de estado con la que el runtime informa del modo actual del agente.
+const MODE_STATUS_KEY: &str = "mode";
 
 /// Espera antes de reabrir el stream SSE cuando el navegador lo da por cerrado.
 #[cfg(feature = "hydrate")]
@@ -52,6 +56,9 @@ pub struct TaskDetailState {
     /// Imágenes adjuntas al próximo mensaje.
     pub images: ImageAttachments,
     pub send: ServerAction<SendTaskMessage>,
+    pub set_mode: ServerAction<SetTaskMode>,
+    /// Modo actual del agente; `None` si el runtime no soporta modos.
+    pub current_mode: Memo<Option<String>>,
     pub answer: ServerAction<AnswerTaskDialog>,
     pub abort: ServerAction<AbortTask>,
     pub finish: ServerAction<FinishTask>,
@@ -85,6 +92,12 @@ pub fn build_send_message(
     })
 }
 
+/// Modo que pide un mensaje: solo si el runtime soporta modos (`current` es `Some`) y el
+/// mensaje es exactamente `/plan` o `/agent` (función pura).
+pub fn mode_to_apply(current: Option<&str>, message: &str) -> Option<AgentModeDto> {
+    current.and_then(|_: &str| mode_command(message))
+}
+
 /// El agente puede haber tocado ficheros: tras una herramienta o al cerrar un turno el diff
 /// en vivo se vuelve a pedir (función pura).
 pub fn changes_working_tree(kind: &TaskEventKindDto) -> bool {
@@ -102,6 +115,7 @@ impl TaskDetailState {
     pub fn new(task_id: String) -> Self {
         let status_version: RwSignal<u32> = RwSignal::new(0);
         let send: ServerAction<SendTaskMessage> = ServerAction::new();
+        let set_mode: ServerAction<SetTaskMode> = ServerAction::new();
         let answer: ServerAction<AnswerTaskDialog> = ServerAction::new();
         let abort: ServerAction<AbortTask> = ServerAction::new();
         let finish: ServerAction<FinishTask> = ServerAction::new();
@@ -191,6 +205,10 @@ impl TaskDetailState {
             move |_| list_task_attachments(id.get_value()),
         );
 
+        let current_mode: Memo<Option<String>> = Memo::new(move |_| {
+            transcript.with(|t: &Transcript| t.statuses.get(MODE_STATUS_KEY).cloned())
+        });
+
         let state: Self = Self {
             task_id: id,
             attachments,
@@ -207,6 +225,8 @@ impl TaskDetailState {
             message: RwSignal::new(String::new()),
             images: ImageAttachments::new(),
             send,
+            set_mode,
+            current_mode,
             answer,
             abort,
             finish,
@@ -231,6 +251,12 @@ impl TaskDetailState {
 
     pub fn send_message(&self) {
         let message: String = self.message.get_untracked();
+        let current: Option<String> = self.current_mode.get_untracked();
+        if let Some(mode) = mode_to_apply(current.as_deref(), &message) {
+            self.change_mode(mode);
+            self.message.set(String::new());
+            return;
+        }
         let images: Vec<ImageAttachmentDto> = self.images.images.get_untracked();
         let Some(action) = build_send_message(self.task_id.get_value(), message, images, SEND_MODE)
         else {
@@ -239,6 +265,13 @@ impl TaskDetailState {
         self.send.dispatch(action);
         self.message.set(String::new());
         self.images.clear();
+    }
+
+    pub fn change_mode(&self, mode: AgentModeDto) {
+        self.set_mode.dispatch(SetTaskMode {
+            id: self.task_id.get_value(),
+            mode,
+        });
     }
 
     pub fn answer_dialog(&self, dialog_id: String, answer: DialogAnswerDto) {
@@ -305,6 +338,7 @@ impl TaskDetailState {
                 .map(|e: ServerFnError| e.to_string())
         }
         error_of(self.send.value().get())
+            .or_else(|| error_of(self.set_mode.value().get()))
             .or_else(|| error_of(self.answer.value().get()))
             .or_else(|| error_of(self.abort.value().get()))
             .or_else(|| error_of(self.finish.value().get()))
@@ -528,6 +562,20 @@ mod tests {
             delta: "x".into()
         })));
         assert!(!changes_working_tree(&TaskEventKindDto::Changed));
+    }
+
+    #[test]
+    fn mode_commands_only_apply_when_the_runtime_supports_modes() {
+        assert_eq!(
+            mode_to_apply(Some("agent"), "/plan"),
+            Some(AgentModeDto::Plan)
+        );
+        assert_eq!(
+            mode_to_apply(Some("plan"), "/agent"),
+            Some(AgentModeDto::Agent)
+        );
+        assert_eq!(mode_to_apply(None, "/plan"), None);
+        assert_eq!(mode_to_apply(Some("agent"), "hello"), None);
     }
 
     #[test]

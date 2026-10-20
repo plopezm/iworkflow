@@ -29,7 +29,7 @@ fn with_images(mut record: Value, images: &[ImageAttachment]) -> Value {
 }
 
 /// Serializa una orden como un registro JSONL (sin salto de línea final).
-pub fn encode(command: &AgentCommand, request_id: &str) -> String {
+pub fn encode_command(command: &AgentCommand, request_id: &str) -> Option<String> {
     let record: Value = match command {
         AgentCommand::Prompt { message, images } => with_images(
             json!({
@@ -50,6 +50,8 @@ pub fn encode(command: &AgentCommand, request_id: &str) -> String {
             images,
         ),
         AgentCommand::Abort => json!({ "id": request_id, "type": "abort" }),
+        // Pi no expone modos: el caso de uso lo filtra por capacidad y aquí no hay nada que enviar.
+        AgentCommand::SetMode(_) => return None,
         AgentCommand::AnswerDialog { dialog_id, answer } => {
             let mut response: Map<String, Value> = Map::new();
             response.insert("type".into(), json!("extension_ui_response"));
@@ -64,7 +66,7 @@ pub fn encode(command: &AgentCommand, request_id: &str) -> String {
             Value::Object(response)
         }
     };
-    record.to_string()
+    Some(record.to_string())
 }
 
 /// Traduce un registro de stdout a eventos de dominio (vacío si no es relevante).
@@ -509,6 +511,20 @@ pub fn strip_ansi(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::modules::tasks::domain::models::agent_mode::AgentMode;
+
+    /// Como `encode_command` para las órdenes que siempre se envían.
+    fn encode(command: &AgentCommand, request_id: &str) -> String {
+        encode_command(command, request_id).expect("orden enviable")
+    }
+
+    #[test]
+    fn pi_has_nothing_to_send_for_a_mode_change() {
+        assert_eq!(
+            encode_command(&AgentCommand::SetMode(AgentMode::Plan), "r"),
+            None
+        );
+    }
 
     fn one(line: &str) -> AgentEvent {
         let mut events: Vec<AgentEvent> = decode(line);
