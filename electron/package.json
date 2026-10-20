@@ -1,6 +1,6 @@
 {
   "name": "iworkflow-desktop",
-  "version": "0.17.2",
+  "version": "0.17.3",
   "private": true,
   "description": "Desktop shell that runs the iworkflow server and shows it in a window",
   "author": "iworkflow",
