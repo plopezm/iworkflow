@@ -257,7 +257,9 @@ impl CodeHostClientPort for GitHubHttpClientAdapter {
             "base": new.target_branch,
             "body": new.description,
         }));
-        let response: Response = send(PROVIDER, request).await?;
+        let response: Response = send(PROVIDER, request).await.map_err(|e: CodeHostError| {
+            no_commits_error(e, &new.source_branch, &new.target_branch)
+        })?;
         Ok(json::<PullJson>(response).await?.into())
     }
 
@@ -328,6 +330,21 @@ impl CodeHostClientPort for GitHubHttpClientAdapter {
         send(PROVIDER, request).await?;
         // La respuesta del merge no es un PR: se relee para devolver su estado final.
         Ok(self.pull(settings, project, iid).await?.into())
+    }
+}
+
+/// GitHub rechaza con 422 «No commits between» un PR cuya rama no avanza sobre la base.
+fn no_commits_error(error: CodeHostError, branch: &str, base: &str) -> CodeHostError {
+    match error {
+        CodeHostError::Api {
+            status: 422,
+            ref message,
+            ..
+        } if message.contains("No commits between") => CodeHostError::NoCommitsToPropose {
+            branch: branch.to_string(),
+            base: base.to_string(),
+        },
+        other => other,
     }
 }
 
@@ -642,6 +659,35 @@ mod tests {
             body,
             json!({"title":"T","head":"pi/x","base":"main","body":"D"})
         );
+    }
+
+    #[tokio::test]
+    async fn create_merge_request_without_commits_is_a_clear_error() {
+        let (settings, _) = fake_github(vec![(
+            "POST /api/v3/repos/acme/app/pulls",
+            422,
+            r#"{"message":"Validation Failed","errors":[{"resource":"PullRequest","code":"custom","message":"No commits between main and pi/x"}]}"#,
+        )])
+        .await;
+
+        let result = GitHubHttpClientAdapter::new()
+            .create_merge_request(
+                &settings,
+                "acme/app",
+                &NewMergeRequest {
+                    source_branch: "pi/x".to_string(),
+                    target_branch: "main".to_string(),
+                    title: "T".to_string(),
+                    description: "D".to_string(),
+                },
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(CodeHostError::NoCommitsToPropose { ref branch, ref base })
+                if branch == "pi/x" && base == "main"
+        ));
     }
 
     #[tokio::test]
