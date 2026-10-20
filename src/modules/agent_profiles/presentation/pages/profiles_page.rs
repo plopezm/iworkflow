@@ -332,7 +332,7 @@ pub fn ProfilesPage() -> impl IntoView {
                         };
                         let Some(profile) = resolve_selected(&store, state.selected.get().as_deref())
                         else {
-                            return view! { <Loading text=CREATE_OR_IMPORT.get() /> }
+                            return view! { <p class="muted">{CREATE_OR_IMPORT.get()}</p> }
                                 .into_any();
                         };
                         let catalog_error = move || {

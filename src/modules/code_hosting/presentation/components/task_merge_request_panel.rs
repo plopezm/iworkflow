@@ -395,7 +395,7 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
             </div>
             {match status.pipeline {
                 Some(pipeline) => view! { <PipelineView pipeline provider=provider.clone() /> }.into_any(),
-                None => view! { <Loading text=NO_PIPELINE.get() /> }.into_any(),
+                None => view! { <p class="muted text-sm">{NO_PIPELINE.get()}</p> }.into_any(),
             }}
             {open
                 .then(|| {

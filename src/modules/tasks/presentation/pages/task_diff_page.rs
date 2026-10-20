@@ -110,7 +110,7 @@ fn TaskDiffContent(task_id: String) -> impl IntoView {
                         }
                         Some(Err(e)) => view! { <ErrorText message=e.to_string() /> }.into_any(),
                         None => {
-                            view! { <Loading text=NO_DIFF.get() /> }
+                            view! { <p class="muted">{NO_DIFF.get()}</p> }
                                 .into_any()
                         }
                     }

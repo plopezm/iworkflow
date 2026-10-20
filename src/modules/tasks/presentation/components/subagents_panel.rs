@@ -1,7 +1,5 @@
 use leptos::prelude::*;
 
-use crate::core::components::busy::Loading;
-
 use crate::core::i18n::Msg;
 
 use crate::core::components::layout::Badge;
@@ -254,7 +252,7 @@ pub fn SubagentsPanel(
     view! {
         <Show
             when=move || !subagents.with(Vec::is_empty)
-            fallback=|| view! { <Loading text=EMPTY_TEXT.get() /> }
+            fallback=|| view! { <p class="muted">{EMPTY_TEXT.get()}</p> }
         >
             <ul class="stack gap-1">
                 {move || {

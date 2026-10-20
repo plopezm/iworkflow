@@ -408,7 +408,7 @@ fn issue_view(state: JiraIssueState, issue: JiraIssueDto) -> impl IntoView {
 
 fn transition_form(state: JiraIssueState, transitions: Vec<JiraTransitionDto>) -> impl IntoView {
     if transitions.is_empty() {
-        return view! { <Loading text=NO_TRANSITIONS.get() /> }.into_any();
+        return view! { <p class="muted">{NO_TRANSITIONS.get()}</p> }.into_any();
     }
     let options: Vec<SelectOption> = transitions
         .into_iter()
@@ -444,7 +444,7 @@ fn transition_form(state: JiraIssueState, transitions: Vec<JiraTransitionDto>) -
 
 fn comment_list(comments: Vec<JiraCommentDto>) -> impl IntoView {
     if comments.is_empty() {
-        return view! { <Loading text=NO_COMMENTS.get() /> }.into_any();
+        return view! { <p class="muted">{NO_COMMENTS.get()}</p> }.into_any();
     }
     view! {
         <ul class="stack gap-3">

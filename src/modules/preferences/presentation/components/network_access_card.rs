@@ -244,7 +244,7 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
             />
             {TOGGLE_LABEL.get()}
         </label>
-        {locked.then(|| view! { <Loading text=LOCKED_BY_ENV.get() /> })}
+        {locked.then(|| view! { <p class="muted text-sm">{LOCKED_BY_ENV.get()}</p> })}
         <PortField state configured_port=access.configured_port locked />
         {reachable.then(|| view! {
             <label class="row items-center gap-2 text-sm text-fg">
@@ -396,7 +396,7 @@ fn AccessTargets(
                 ></div>
             })}
             <code class="break-all text-xs">{move || selected.get().access_url}</code>
-            {require_token.then(|| view! { <Loading text=TOKEN_SECRET_NOTE.get() /> })}
+            {require_token.then(|| view! { <p class="muted text-sm">{TOKEN_SECRET_NOTE.get()}</p> })}
         </div>
     }
 }
