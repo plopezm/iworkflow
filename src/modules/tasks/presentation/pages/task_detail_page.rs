@@ -573,22 +573,24 @@ fn TaskDetailContent(
                                 {LAST_MESSAGE.get()}
                             </button>
                         </div>
-                        <div class="stack max-h-[60vh] shrink-0 gap-2 overflow-y-auto border-t border-border bg-surface p-3">
-                            {move || {
-                                pending_dialog
-                                    .get()
-                                    .map(|request: DialogRequestDto| {
-                                        let dialog_id: String = request.id.clone();
-                                        view! {
-                                            <DialogPanel
-                                                request
-                                                on_answer=Callback::new(move |answer: DialogAnswerDto| {
-                                                    on_answer.run((dialog_id.clone(), answer))
-                                                })
-                                            />
-                                        }
-                                    })
-                            }}
+                        <div class="stack relative z-10 shrink-0 gap-2 border-t border-border bg-surface p-3">
+                            <div class="stack max-h-[40vh] gap-2 overflow-y-auto empty:hidden">
+                                {move || {
+                                    pending_dialog
+                                        .get()
+                                        .map(|request: DialogRequestDto| {
+                                            let dialog_id: String = request.id.clone();
+                                            view! {
+                                                <DialogPanel
+                                                    request
+                                                    on_answer=Callback::new(move |answer: DialogAnswerDto| {
+                                                        on_answer.run((dialog_id.clone(), answer))
+                                                    })
+                                                />
+                                            }
+                                        })
+                                }}
+                            </div>
                             <div class="flex items-center gap-2 rounded-full border border-border bg-bg px-3 py-1 text-xs text-muted">
                                 {move || {
                                     loaded_task
