@@ -1,5 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
+
+use crate::core::components::busy::BusyButton;
 use leptos::wasm_bindgen::JsCast;
 use leptos::web_sys::{FormData, HtmlFormElement};
 
@@ -81,9 +83,9 @@ pub fn AgentsFileUploadForm(
                 />
             </label>
             <div class="row">
-                <button type="submit" class="btn-primary" disabled=move || pending.get()>
+                <BusyButton r#type="submit" class="btn-primary" busy=pending>
                     {move || if pending.get() { UPLOADING.get() } else { UPLOAD.get() }}
-                </button>
+                </BusyButton>
             </div>
         </form>
     }

@@ -1,4 +1,6 @@
 use leptos::prelude::*;
+
+use crate::core::components::busy::Loading;
 use leptos::web_sys::FormData;
 
 use crate::core::components::form::ActionError;
@@ -76,7 +78,7 @@ pub fn AgentsFilesPage() -> impl IntoView {
                 <Card title=FILES.get()>
                     <ActionError result=state.apply.value().into() />
                     <ActionError result=state.delete.value().into() />
-                    <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                    <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                         {move || Suspend::new(async move {
                             let files: Result<Vec<AgentsFileDto>, ServerFnError> =
                                 state.agents_files.await;

@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::layout::Badge;
 use crate::core::components::modal::Modal;
 use crate::core::i18n::Msg;
@@ -114,7 +116,7 @@ pub fn DirectoryPicker(state: DirectoryPickerState, on_select: Callback<String>)
             open=state.open
             on_close=on_close
         >
-            <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                 {move || Suspend::new(async move {
                     match state.listing.await {
                         Ok(listing) => render_listing(listing, state, on_select).into_any(),
@@ -211,7 +213,12 @@ fn render_listing(
                     aria-label=NEW_FOLDER_NAME.get()
                     placeholder=NEW_FOLDER_HERE.get()
                 />
-                <button type="submit" class="btn-ghost">
+                <button
+                    type="submit"
+                    class="btn-ghost"
+                    disabled=move || state.create_folder.pending().get()
+                    class:is-busy=move || state.create_folder.pending().get()
+                >
                     {CREATE.get()}
                 </button>
             </form>

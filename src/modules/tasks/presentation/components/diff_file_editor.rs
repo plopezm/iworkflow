@@ -168,6 +168,7 @@ fn editor_body(
                     type="button"
                     class="btn-primary"
                     disabled=move || pending.get()
+                    class:is-busy=move || pending.get()
                     on:click=move |_| {
                         loaded.with_value(|l: &String| state.submit(&save_path, l));
                     }

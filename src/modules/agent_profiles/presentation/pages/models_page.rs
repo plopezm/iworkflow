@@ -2,6 +2,8 @@ use std::collections::BTreeMap;
 
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::SelectOption;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::components::toast::ToastStack;
@@ -107,7 +109,7 @@ pub fn ModelsPage() -> impl IntoView {
                         .next()
                         .map(|message: String| view! { <ErrorText message /> })
                 }}
-                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                     {move || Suspend::new(async move {
                         let routing: Result<BTreeMap<String, RoutingEntryDto>, ServerFnError> =
                             state.routing.await;

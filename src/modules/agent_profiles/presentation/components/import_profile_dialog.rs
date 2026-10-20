@@ -131,6 +131,7 @@ pub fn ImportProfileDialog(
                         disabled=move || {
                             pending.get() || raw.get().trim().is_empty() || rename_hint.get().is_some()
                         }
+                        class:is-busy=move || pending.get()
                     >
                         {move || if pending.get() { IMPORTING.get() } else { IMPORT.get() }}
                     </button>

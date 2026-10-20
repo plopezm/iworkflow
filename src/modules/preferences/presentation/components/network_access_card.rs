@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Badge, Card, ErrorText};
 use crate::core::i18n::Msg;
@@ -193,7 +195,7 @@ pub fn NetworkAccessCard() -> impl IntoView {
     view! {
         <Card title=CARD_TITLE.get()>
             <p class="muted text-sm">{CARD_HELP.get()}</p>
-            <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                 {move || Suspend::new(async move {
                     match state.access.await {
                         Ok(access) => view! { <NetworkAccessForm state access /> }.into_any(),
@@ -235,6 +237,7 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
                 class="h-4 w-4"
                 prop:checked=enabled
                 disabled=move || busy.get() || locked
+                class:is-busy=move || busy.get()
                 on:change=move |ev| {
                     state.save.dispatch(SaveNetworkAccess { enabled: event_target_checked(&ev) });
                 }
@@ -250,6 +253,7 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
                     class="h-4 w-4"
                     prop:checked=require_token
                     disabled=move || busy.get()
+                    class:is-busy=move || busy.get()
                     on:change=move |ev| {
                         state
                             .save_require_token
@@ -277,6 +281,7 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
                         type="button"
                         class="btn-secondary"
                         disabled=move || busy.get()
+                        class:is-busy=move || busy.get()
                         on:click=move |_| {
                             state.regenerate.dispatch(RegenerateAccessToken {});
                         }
@@ -310,6 +315,7 @@ fn PortField(state: NetworkAccessState, configured_port: u16, locked: bool) -> i
                     max="65535"
                     prop:value=move || draft.get()
                     disabled=move || busy.get() || locked
+                    class:is-busy=move || busy.get()
                     on:input=move |ev| draft.set(event_target_value(&ev))
                 />
             </label>
@@ -318,6 +324,7 @@ fn PortField(state: NetworkAccessState, configured_port: u16, locked: bool) -> i
                     type="button"
                     class="btn-secondary"
                     disabled=move || busy.get() || locked || parse_port(&draft.get()).is_none()
+                    class:is-busy=move || busy.get()
                     on:click=move |_| {
                         if let Some(port) = parse_port(&draft.get_untracked()) {
                             state.save_port.dispatch(SaveListenPort { port });

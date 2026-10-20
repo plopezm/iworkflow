@@ -27,6 +27,7 @@ pub fn ConfirmPanel(
                     type="button"
                     class="btn-primary"
                     disabled=move || pending.get()
+                    class:is-busy=move || pending.get()
                     on:click=move |_| on_confirm.run(())
                 >
                     {move || confirm_label.get()}

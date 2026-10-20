@@ -146,7 +146,12 @@ pub fn WorkspaceForm(
                 })}
             </Transition>
             <div class="row">
-                <button type="submit" class="btn-primary" disabled=move || pending.get()>
+                <button
+                    type="submit"
+                    class="btn-primary"
+                    disabled=move || pending.get()
+                    class:is-busy=move || pending.get()
+                >
                     {move || if pending.get() { REGISTERING.get() } else { REGISTER.get() }}
                 </button>
             </div>

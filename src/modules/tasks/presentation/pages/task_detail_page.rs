@@ -2,6 +2,8 @@ use crate::core::dock::context::{DockContext, use_dock, use_tab_nav, use_tab_par
 use crate::core::dock::link::TabLink;
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
 use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
@@ -349,6 +351,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                             <button
                                 class="btn-primary"
                                 disabled=move || busy.get()
+                                class:is-busy=move || busy.get()
                                 on:click=move |_| state.start()
                             >
                                 {START.get()}
@@ -373,6 +376,7 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
                             <button
                                 class="btn-danger"
                                 disabled=move || busy.get()
+                                class:is-busy=move || busy.get()
                                 on:click=move |_| {
                                     if confirm(CONFIRM_DELETE.get()) {
                                         state.delete();
@@ -534,7 +538,7 @@ fn TaskDetailContent(task_id: String, extra_tabs: Vec<TaskExtraTab>) -> impl Int
                 <div class="flex min-w-0 flex-1 flex-col">
                     <div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2.5">
                         <div class="min-w-0 flex-1">
-                            <Transition fallback=|| view! { <p class="muted">{LOADING_TASK.get()}</p> }>
+                            <Transition fallback=|| view! { <Loading text=LOADING_TASK.get() /> }>
                                 {move || Suspend::new(async move {
                                     match state.task.await {
                                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -668,7 +672,7 @@ fn TaskDetailContent(task_id: String, extra_tabs: Vec<TaskExtraTab>) -> impl Int
                         />
                         <div class="stack min-h-0 flex-1 overflow-y-auto p-3">
                             <Show when=move || active_tab.get() == TAB_ACTIONS>
-                                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                                <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                                     {move || Suspend::new(async move {
                                         match state.task.await {
                                             Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),

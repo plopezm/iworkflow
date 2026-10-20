@@ -1,4 +1,5 @@
 pub mod browser_notification;
+pub mod busy;
 pub mod code;
 pub mod collapsible_panel;
 pub mod confirm_panel;
