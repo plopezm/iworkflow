@@ -55,10 +55,20 @@ pub fn factory_for(client: MockCodeHostClient) -> MockCodeHostClientFactory {
 
 /// Resolver con ajustes, tarea y `origin` válidos sobre el cliente indicado.
 pub fn resolver(client: MockCodeHostClient) -> Arc<TaskProjectResolver> {
+    resolver_for_source(source(), client)
+}
+
+/// Igual que [`resolver`], pero con la tarea indicada.
+pub fn resolver_for_source(
+    task: TaskSource,
+    client: MockCodeHostClient,
+) -> Arc<TaskProjectResolver> {
     let mut repository: MockCodeHostSettingsRepository = MockCodeHostSettingsRepository::new();
     repository.expect_list().returning(|| Ok(vec![settings()]));
     let mut tasks: MockTaskSourceLookup = MockTaskSourceLookup::new();
-    tasks.expect_find().returning(|_| Ok(Some(source())));
+    tasks
+        .expect_find()
+        .returning(move |_| Ok(Some(task.clone())));
     let mut remote: MockGitRemote = MockGitRemote::new();
     remote
         .expect_origin_url()

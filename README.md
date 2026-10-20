@@ -127,7 +127,8 @@ From each task you can create a merge request (GitLab) or pull request (GitHub),
 3. In the task panel, **PR / MR** tab: create the MR/PR (task branch → base branch), see its status and the latest pipeline (GitLab) or workflow (GitHub) with its jobs, and **Merge** (asks for confirmation).
 
 Notes:
-- The app **never runs `git push`**: publish the branch yourself before creating the MR; if it is not on `origin`, you are warned.
+- Creating the MR/PR publishes the task branch to `origin` with `git push` if it is not there yet. The push goes to `<provider URL>/<project>.git` over HTTPS and authenticates with the token configured here (HTTP Basic, user `x-access-token` on GitHub and `oauth2` on GitLab), so it works even if `origin` is an SSH remote and needs no git credentials of your own. The token is handed to git through the process environment (never the command line), only for that instance, and any credential helper is ignored.
+- The target is the task's base branch **as named on the server**: a remote reference such as `origin/develop` is sent as `develop`. If that branch is not on `origin`, or it is the task's own branch, creation is rejected with an explicit message instead of the provider's raw error.
 - The token is stored in clear text in the local database (`~/.iworkflow/workspaces.db`) and is never sent to the browser. Leaving it empty when editing keeps the stored one, unless you change the URL: then it has to be entered again, so it is not sent to a different server.
 - HTTP redirects are disabled so the token does not leak to another host.
 

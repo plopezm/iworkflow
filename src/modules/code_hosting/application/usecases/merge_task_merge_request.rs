@@ -47,7 +47,12 @@ impl MergeTaskMergeRequest {
             return Ok(None);
         };
         self.remote
-            .publish_branch(&resolved.source.repo_path, branch)
+            .publish_branch(
+                &resolved.source.repo_path,
+                branch,
+                &resolved.settings,
+                &resolved.project,
+            )
             .await?;
         let merged: MergeRequest = resolved
             .client
@@ -73,12 +78,15 @@ impl MergeTaskMergeRequest {
 mod tests {
     use super::*;
     use crate::modules::code_hosting::application::test_support::{self, TASK_ID};
+    use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
     use crate::modules::code_hosting::domain::models::hosting_provider::HostingProvider;
     use crate::modules::code_hosting::mocks::{MockCodeHostClient, MockGitRemote};
 
     fn pushing_remote() -> Arc<dyn GitRemotePort> {
         let mut remote: MockGitRemote = MockGitRemote::new();
-        remote.expect_publish_branch().returning(|_, _| Ok(()));
+        remote
+            .expect_publish_branch()
+            .returning(|_, _, _, _| Ok(()));
         Arc::new(remote)
     }
 
@@ -192,11 +200,15 @@ mod tests {
         let mut remote: MockGitRemote = MockGitRemote::new();
         remote
             .expect_publish_branch()
-            .withf(|repo: &std::path::Path, branch: &str| {
-                repo == std::path::Path::new("/repo") && branch == "pi/feature"
-            })
+            .withf(
+                |repo: &std::path::Path, branch: &str, settings: &CodeHostSettings, _: &str| {
+                    repo == std::path::Path::new("/repo")
+                        && branch == "pi/feature"
+                        && settings.token() == "tok"
+                },
+            )
             .times(1)
-            .returning(|_, _| Ok(()));
+            .returning(|_, _, _, _| Ok(()));
 
         MergeTaskMergeRequest::new(test_support::resolver(client), Arc::new(remote))
             .execute(TASK_ID)
@@ -212,12 +224,14 @@ mod tests {
             .returning(|_, _, _| Ok(Some(test_support::merge_request(7, "opened"))));
         client.expect_merge_merge_request().never();
         let mut remote: MockGitRemote = MockGitRemote::new();
-        remote.expect_publish_branch().returning(|_, branch: &str| {
-            Err(CodeHostError::BranchPublishFailed {
-                branch: branch.to_string(),
-                reason: "rejected".to_string(),
-            })
-        });
+        remote
+            .expect_publish_branch()
+            .returning(|_, branch: &str, _, _| {
+                Err(CodeHostError::BranchPublishFailed {
+                    branch: branch.to_string(),
+                    reason: "rejected".to_string(),
+                })
+            });
 
         let result: Result<Option<MergeRequestStatus>, CodeHostError> =
             MergeTaskMergeRequest::new(test_support::resolver(client), Arc::new(remote))

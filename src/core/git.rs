@@ -28,11 +28,22 @@ pub struct GitOutput {
 
 /// Ejecuta `git -C <dir> <args>` y devuelve la salida sin tratar los fallos como error.
 pub async fn run_git_raw(dir: &Path, args: &[&str]) -> Result<GitOutput, GitCommandError> {
+    run_git_raw_env(dir, args, &[]).await
+}
+
+/// Como [`run_git_raw`], con variables de entorno extra solo para este proceso. Sirve para
+/// pasar configuración sensible (`GIT_CONFIG_*`) sin que aparezca en la línea de comandos.
+pub async fn run_git_raw_env(
+    dir: &Path,
+    args: &[&str],
+    envs: &[(String, String)],
+) -> Result<GitOutput, GitCommandError> {
     let output: Output = Command::new("git")
         .arg("-C")
         .arg(dir)
         .args(args)
         .env("GIT_TERMINAL_PROMPT", "0")
+        .envs(envs.iter().map(|(k, v): &(String, String)| (k, v)))
         .kill_on_drop(true)
         .output()
         .await?;

@@ -102,6 +102,20 @@ impl CodeHostSettings {
         }
     }
 
+    /// URL HTTP(S) de git del proyecto en esta instancia, sin credenciales:
+    /// `<base>/<proyecto>.git`. Con ella el push usa el token aunque `origin` sea SSH.
+    pub fn push_url(&self, project: &str) -> String {
+        format!("{}/{}.git", self.base_url, project.trim_matches('/'))
+    }
+
+    /// Usuario con el que el proveedor acepta el token como contraseña en git sobre HTTP.
+    pub fn git_username(&self) -> &'static str {
+        match self.provider {
+            HostingProvider::GitLab => "oauth2",
+            HostingProvider::GitHub => "x-access-token",
+        }
+    }
+
     fn authority_and_path(&self) -> (&str, &str) {
         let rest: &str = self
             .base_url
@@ -164,6 +178,27 @@ mod tests {
 
     fn github(url: &str) -> CodeHostSettings {
         CodeHostSettings::new(HostingProvider::GitHub, url, "tok", false).expect("ajustes válidos")
+    }
+
+    #[test]
+    fn push_url_joins_base_and_project_without_credentials() {
+        assert_eq!(
+            settings("https://git.corp/gitlab/").push_url("/grupo/sub/proyecto/"),
+            "https://git.corp/gitlab/grupo/sub/proyecto.git"
+        );
+        assert_eq!(
+            github("https://github.com").push_url("acme/app"),
+            "https://github.com/acme/app.git"
+        );
+    }
+
+    #[test]
+    fn git_username_depends_on_the_provider() {
+        assert_eq!(settings("https://git.corp").git_username(), "oauth2");
+        assert_eq!(
+            github("https://github.com").git_username(),
+            "x-access-token"
+        );
     }
 
     #[test]

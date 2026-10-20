@@ -1,7 +1,11 @@
 use std::path::Path;
 
-use crate::core::git::{GitOutput, run_git_raw};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
+
+use crate::core::git::{GitOutput, run_git_raw, run_git_raw_env};
 use crate::modules::code_hosting::domain::errors::code_host_error::CodeHostError;
+use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
 use crate::modules::code_hosting::domain::ports::outbound::git_remote_port::GitRemotePort;
 
 const ORIGIN: &str = "origin";
@@ -30,11 +34,19 @@ impl GitRemotePort for GitCliRemoteAdapter {
         }
     }
 
-    async fn publish_branch(&self, repo: &Path, branch: &str) -> Result<(), CodeHostError> {
+    async fn publish_branch(
+        &self,
+        repo: &Path,
+        branch: &str,
+        settings: &CodeHostSettings,
+        project: &str,
+    ) -> Result<(), CodeHostError> {
         let refspec: String = format!("refs/heads/{branch}:refs/heads/{branch}");
-        let output: GitOutput = run_git_raw(repo, &["push", ORIGIN, &refspec])
-            .await
-            .map_err(|e| CodeHostError::Git(e.to_string()))?;
+        let url: String = settings.push_url(project);
+        let output: GitOutput =
+            run_git_raw_env(repo, &["push", &url, &refspec], &token_config(settings))
+                .await
+                .map_err(|e| CodeHostError::Git(e.to_string()))?;
         if output.success {
             Ok(())
         } else {
@@ -44,4 +56,30 @@ impl GitRemotePort for GitCliRemoteAdapter {
             })
         }
     }
+}
+
+/// Configuración de git por entorno (`GIT_CONFIG_COUNT/KEY_n/VALUE_n`): a diferencia de `-c`,
+/// el token no queda en la línea de comandos. La cabecera solo se envía a la instancia
+/// configurada (`http.<url>.extraHeader`) y se anula cualquier credential helper del usuario.
+fn token_config(settings: &CodeHostSettings) -> Vec<(String, String)> {
+    let credentials: String =
+        STANDARD.encode(format!("{}:{}", settings.git_username(), settings.token()));
+    let scope: String = format!("http.{}/", settings.base_url());
+    let mut entries: Vec<(String, String)> = vec![
+        (
+            format!("{scope}.extraHeader"),
+            format!("Authorization: Basic {credentials}"),
+        ),
+        ("credential.helper".to_string(), String::new()),
+    ];
+    if settings.insecure_tls {
+        entries.push((format!("{scope}.sslVerify"), "false".to_string()));
+    }
+    let mut envs: Vec<(String, String)> =
+        vec![("GIT_CONFIG_COUNT".to_string(), entries.len().to_string())];
+    for (index, (key, value)) in entries.into_iter().enumerate() {
+        envs.push((format!("GIT_CONFIG_KEY_{index}"), key));
+        envs.push((format!("GIT_CONFIG_VALUE_{index}"), value));
+    }
+    envs
 }
