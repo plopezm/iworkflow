@@ -8,6 +8,8 @@ const LOOPBACK_HOST = '127.0.0.1';
 const TOKEN_LENGTH = 64;
 const TOKEN_PATTERN = new RegExp(`[?&]token=([0-9a-fA-F]{${TOKEN_LENGTH}})(?![0-9a-zA-Z])`);
 const LISTEN_PATTERN = /escuchando en http:\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
+/** Exit code with which the server asks its supervisor to start it again. */
+const RESTART_EXIT_CODE = 75;
 const MAC_EXTRA_PATHS = ['/opt/homebrew/bin', '/usr/local/bin'];
 const UNSPECIFIED_HOSTS = new Set(['0.0.0.0', '::', '']);
 
@@ -34,10 +36,11 @@ function serverArgs() {
 /**
  * Environment for the server process. It deliberately leaves `LEPTOS_SITE_ADDR` and
  * `IWF_DATABASE_URL` alone: the saved network-access choice decides the bind address and the
- * database stays where it always was.
+ * database stays where it always was. `IWF_SUPERVISED` tells it that the shell respawns it
+ * after a restart request, so it exits instead of starting a copy of itself.
  */
 function buildServerEnv(base, platform = process.platform) {
-  const env = { ...base, LEPTOS_ENV: 'PROD', NO_COLOR: '1' };
+  const env = { ...base, LEPTOS_ENV: 'PROD', NO_COLOR: '1', IWF_SUPERVISED: '1' };
   if (platform === 'darwin') env.PATH = withMacPaths(base.PATH);
   return env;
 }
@@ -69,6 +72,11 @@ function extractAccessToken(line) {
   return match ? match[1] : null;
 }
 
+/** Whether the server exited because the user asked to restart it. */
+function isRestartExit(code) {
+  return code === RESTART_EXIT_CODE;
+}
+
 function localHost(addr) {
   return UNSPECIFIED_HOSTS.has(addr.host) ? LOOPBACK_HOST : addr.host;
 }
@@ -94,6 +102,8 @@ function isTrustedUrl(url, addr) {
 
 module.exports = {
   DEFAULT_SITE_ADDR,
+  RESTART_EXIT_CODE,
+  isRestartExit,
   parseSiteAddr,
   serverBinaryName,
   serverArgs,
