@@ -411,7 +411,7 @@ fn TaskDetailContent(
     task_id: String,
     extra_tabs: Vec<TaskExtraTab>,
     file_search: Option<FileSearchFn>,
-) -> impl IntoView {
+) -> AnyView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
     // Several task tabs can be mounted at once, so the scroll container id is per task.
     let scroll_id: StoredValue<String> = StoredValue::new(format!(
@@ -545,38 +545,7 @@ fn TaskDetailContent(
                 <div class="flex min-w-0 flex-1 flex-col">
                     <div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2.5">
                         <div class="min-w-0 flex-1">
-                            <Transition fallback=|| view! { <Loading text=LOADING_TASK.get() /> }>
-                                {move || Suspend::new(async move {
-                                    match state.task.await {
-                                        Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
-                                        Ok(task) => {
-                                            let task: TaskDto = task;
-                                            let is_backlog: bool = task.stage == TaskStageDto::Backlog;
-                                            view! {
-                                                <h1 class="page-title truncate text-xl">{task.title.clone()}</h1>
-                                                {(!is_backlog)
-                                                    .then(|| {
-                                                        view! {
-                                                            <p class="truncate text-[11px] text-muted">
-                                                                {BRANCH_PREFIX.get()}
-                                                                <code class="font-mono" title=task.branch.clone()>
-                                                                    {short_branch(&task.branch)}
-                                                                </code>
-                                                                {BRANCH_FROM.get()}
-                                                                <code class="font-mono">{task.base_branch.clone()}</code>
-                                                            </p>
-                                                        }
-                                                    })}
-                                                {task.error.clone().map(|e: String| view! { <ErrorText message=e /> })}
-                                                {task
-                                                    .resume_notice()
-                                                    .map(|notice: String| view! { <p class="text-xs text-muted">{notice}</p> })}
-                                            }
-                                                .into_any()
-                                        }
-                                    }
-                                })}
-                            </Transition>
+                            <TaskHeader state />
                         </div>
                         <Show when=move || shows_workspace.get()>
                             <button
@@ -587,21 +556,7 @@ fn TaskDetailContent(
                             </button>
                         </Show>
                     </div>
-                    <Transition fallback=|| ()>
-                        {move || Suspend::new(async move {
-                            match state.task.await {
-                                Ok(task) if task.stage == TaskStageDto::Backlog => {
-                                    view! {
-                                        <div class="min-h-0 flex-1 overflow-y-auto p-4">
-                                            <BacklogView task state />
-                                        </div>
-                                    }
-                                        .into_any()
-                                }
-                                _ => ().into_any(),
-                            }
-                        })}
-                    </Transition>
+                    <BacklogSlot state />
                     <Show when=move || shows_workspace.get()>
                         <div class="group/scroll relative flex min-h-0 flex-1 flex-col" data-at-bottom="true">
                             <div
@@ -683,6 +638,113 @@ fn TaskDetailContent(
                         />
                         <div class="stack min-h-0 flex-1 overflow-y-auto p-3">
                             <Show when=move || active_tab.get() == TAB_ACTIONS>
+                                <ActionsTab state handlers busy subagents_active />
+                                <details class="card prompt">
+                                    <summary>{INITIAL_PROMPT.get()}</summary>
+                                    <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
+                                </details>
+                                <Suspense fallback=|| ()>
+                                    {move || Suspend::new(async move {
+                                        let items: Vec<TaskAttachmentDto> = state
+                                            .attachments
+                                            .await
+                                            .unwrap_or_default();
+                                        view! { <TaskAttachmentsList items /> }
+                                    })}
+                                </Suspense>
+                            </Show>
+                            {extra_tabs
+                                .get_value()
+                                .into_iter()
+                                .map(|tab: TaskExtraTab| {
+                                    view! {
+                                        <Show when=move || active_tab.get() == tab.id>
+                                            {move || tab.render.run(state.task_id.get_value())}
+                                        </Show>
+                                    }
+                                })
+                                .collect_view()}
+                        </div>
+                    </CollapsePanel>
+                </Show>
+            </div>
+        </Show>
+    }
+    .into_any()
+}
+
+/// Title, branch and notices of the task. Its own component keeps the page view type shallow.
+#[component]
+fn TaskHeader(state: TaskDetailState) -> AnyView {
+    view! {
+                            <Transition fallback=|| view! { <Loading text=LOADING_TASK.get() /> }>
+                                {move || Suspend::new(async move {
+                                    match state.task.await {
+                                        Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
+                                        Ok(task) => {
+                                            let task: TaskDto = task;
+                                            let is_backlog: bool = task.stage == TaskStageDto::Backlog;
+                                            view! {
+                                                <h1 class="page-title truncate text-xl">{task.title.clone()}</h1>
+                                                {(!is_backlog)
+                                                    .then(|| {
+                                                        view! {
+                                                            <p class="truncate text-[11px] text-muted">
+                                                                {BRANCH_PREFIX.get()}
+                                                                <code class="font-mono" title=task.branch.clone()>
+                                                                    {short_branch(&task.branch)}
+                                                                </code>
+                                                                {BRANCH_FROM.get()}
+                                                                <code class="font-mono">{task.base_branch.clone()}</code>
+                                                            </p>
+                                                        }
+                                                    })}
+                                                {task.error.clone().map(|e: String| view! { <ErrorText message=e /> })}
+                                                {task
+                                                    .resume_notice()
+                                                    .map(|notice: String| view! { <p class="text-xs text-muted">{notice}</p> })}
+                                            }
+                                                .into_any()
+                                        }
+                                    }
+                                })}
+                            </Transition>
+    }
+    .into_any()
+}
+
+/// Backlog placeholder body; empty for any other stage.
+#[component]
+fn BacklogSlot(state: TaskDetailState) -> AnyView {
+    view! {
+                    <Transition fallback=|| ()>
+                        {move || Suspend::new(async move {
+                            match state.task.await {
+                                Ok(task) if task.stage == TaskStageDto::Backlog => {
+                                    view! {
+                                        <div class="min-h-0 flex-1 overflow-y-auto p-4">
+                                            <BacklogView task state />
+                                        </div>
+                                    }
+                                        .into_any()
+                                }
+                                _ => ().into_any(),
+                            }
+                        })}
+                    </Transition>
+    }
+    .into_any()
+}
+
+/// Content of the `Actions` tab.
+#[component]
+fn ActionsTab(
+    state: TaskDetailState,
+    handlers: TaskActionHandlers,
+    busy: Signal<bool>,
+    subagents_active: Signal<u32>,
+) -> AnyView {
+    view! {
                                 <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                                     {move || Suspend::new(async move {
                                         match state.task.await {
@@ -746,37 +808,8 @@ fn TaskDetailContent(
                                         }
                                     })}
                                 </Transition>
-                                <details class="card prompt">
-                                    <summary>{INITIAL_PROMPT.get()}</summary>
-                                    <pre class="font-mono text-sm whitespace-pre-wrap">{move || prompt.get()}</pre>
-                                </details>
-                                <Suspense fallback=|| ()>
-                                    {move || Suspend::new(async move {
-                                        let items: Vec<TaskAttachmentDto> = state
-                                            .attachments
-                                            .await
-                                            .unwrap_or_default();
-                                        view! { <TaskAttachmentsList items /> }
-                                    })}
-                                </Suspense>
-                            </Show>
-                            {extra_tabs
-                                .get_value()
-                                .into_iter()
-                                .map(|tab: TaskExtraTab| {
-                                    view! {
-                                        <Show when=move || active_tab.get() == tab.id>
-                                            {move || tab.render.run(state.task_id.get_value())}
-                                        </Show>
-                                    }
-                                })
-                                .collect_view()}
-                        </div>
-                    </CollapsePanel>
-                </Show>
-            </div>
-        </Show>
     }
+    .into_any()
 }
 
 #[cfg(test)]
