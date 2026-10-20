@@ -636,8 +636,14 @@ fn DocumentTitle() -> impl IntoView {
     view! { <Title text=move || text.get() /> }
 }
 
+/// `true` si la ruta del navegador debe abrirse como pestaña al arrancar. La raíz `/` no: sin
+/// layout guardado el dock queda vacío en vez de abrir el tablero por defecto.
+fn opens_tab_on_boot(path: &str) -> bool {
+    path != "/"
+}
+
 /// Tras restaurar el layout guardado abre (o activa) la pestaña de la ruta del navegador:
-/// enlace directo, recarga o visita a `/` (tablero).
+/// enlace directo o recarga (la raíz `/` no abre nada).
 #[component]
 fn DockBootstrap() -> impl IntoView {
     let dock: DockContext = use_dock();
@@ -647,6 +653,9 @@ fn DockBootstrap() -> impl IntoView {
             return;
         }
         let path: String = pathname.get_untracked();
+        if !opens_tab_on_boot(&path) {
+            return;
+        }
         // Abrir una ruta ya abierta solo activa su pestaña.
         dock.open(&path, None, None);
     });
@@ -752,6 +761,8 @@ mod tests {
     #[cfg(not(feature = "hydrate"))]
     #[test]
     fn parse_maps_every_known_path_to_its_screen() {
+        assert!(!opens_tab_on_boot("/"));
+        assert!(opens_tab_on_boot("/board/w2"));
         assert!(is_board_path("/"));
         assert!(is_board_path("/board/w2"));
         assert!(!is_board_path("/workspaces"));
