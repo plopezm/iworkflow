@@ -11,8 +11,9 @@ PKG_JSON="$ROOT/electron/package.json"
 PKG_LOCK="$ROOT/electron/package-lock.json"
 SEMVER_RE='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
 
-cargo_version="$(sed -n '0,/^version *= *"\(.*\)"/s//\1/p' "$CARGO_TOML")"
-electron_version="$(sed -n '0,/^  "version": "\(.*\)",/s//\1/p' "$PKG_JSON")"
+# perl, not `sed -n '0,/re/...'`: BSD sed (macOS) does not support the `0,/re/` address.
+cargo_version="$(perl -0ne 'print $1 if /^version *= *"(.*)"/m' "$CARGO_TOML")"
+electron_version="$(perl -0ne 'print $1 if /^  "version": "(.*)",/m' "$PKG_JSON")"
 
 echo "Current versions:"
 echo "  Cargo.toml            $cargo_version"

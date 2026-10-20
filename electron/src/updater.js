@@ -6,17 +6,11 @@
 // update-policy.js. A private repository needs GH_TOKEN in the environment.
 
 const { app, dialog, shell } = require('electron');
-const {
-  UPDATE_REPO,
-  isNewerVersion,
-  latestReleaseApiUrl,
-  parseLatestRelease,
-  updateStrategy,
-} = require('./update-policy');
+const { UPDATE_REPO, updateStrategy } = require('./update-policy');
+const { createUpdateFlow } = require('./update-flow');
 
 const FIRST_CHECK_DELAY_MS = 15_000;
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const API_TIMEOUT_MS = 15_000;
 
 /**
  * Starts the periodic check and returns `{ enabled, checkNow }`.
@@ -27,100 +21,27 @@ function startUpdater({ getWindow, beforeInstall, recover }) {
   const strategy = updateStrategy({ platform: process.platform, packaged: app.isPackaged, env: process.env });
   if (strategy === 'off') return { enabled: false, checkNow: async () => {} };
 
-  let busy = false;
-  let declinedVersion = null;
-
   const ask = (options) => {
     const parent = getWindow();
     const shown = { type: 'info', noLink: true, ...options };
     return parent && parent.isVisible() ? dialog.showMessageBox(parent, shown) : dialog.showMessageBox(shown);
   };
 
-  // Automatic checks stay quiet; only a check asked by the user reports "up to date" or errors.
-  const report = (manual, message) => (manual ? ask({ message }) : Promise.resolve());
-
-  async function notifyOnly(manual) {
-    const headers = { Accept: 'application/vnd.github+json', 'User-Agent': 'iworkflow-desktop' };
-    if (process.env.GH_TOKEN) headers.Authorization = `Bearer ${process.env.GH_TOKEN}`;
-    const response = await fetch(latestReleaseApiUrl(UPDATE_REPO), {
-      headers,
-      signal: AbortSignal.timeout(API_TIMEOUT_MS),
-    });
-    if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
-    const release = parseLatestRelease(await response.json());
-    if (!release || !isNewerVersion(app.getVersion(), release.version)) {
-      return report(manual, `iworkflow ${app.getVersion()} is up to date.`);
-    }
-    if (!manual && declinedVersion === release.version) return;
-    declinedVersion = release.version;
-    const { response: choice } = await ask({
-      message: `iworkflow ${release.version} is available.`,
-      detail: 'Download the new installer from the release page and run it.',
-      buttons: ['Open release page', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (choice === 0) await shell.openExternal(release.url);
-  }
-
-  async function installAutomatically(manual) {
-    // Loaded here so a notify-only build never touches the module.
-    const { autoUpdater } = require('electron-updater');
-    autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = false;
-    const found = await autoUpdater.checkForUpdates();
-    if (!found || !found.isUpdateAvailable) {
-      return report(manual, `iworkflow ${app.getVersion()} is up to date.`);
-    }
-    const version = found.updateInfo.version;
-    if (!manual && declinedVersion === version) return;
-    declinedVersion = version;
-    const { response: download } = await ask({
-      message: `iworkflow ${version} is available.`,
-      detail: 'It downloads in the background and asks before restarting.',
-      buttons: ['Download', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (download !== 0) return;
-    try {
-      await autoUpdater.downloadUpdate();
-    } catch (error) {
-      // The user asked for this download, so a failure is never silent.
-      console.error(`[update] ${error instanceof Error ? error.message : error}`);
-      await ask({ type: 'error', message: `Could not download iworkflow ${version}.`, detail: 'Try again later.' });
-      return;
-    }
-    const { response: restart } = await ask({
-      message: `iworkflow ${version} is ready to install.`,
-      detail: 'The app restarts, and the server restarts with it.',
-      buttons: ['Restart now', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (restart !== 0) return;
-    await beforeInstall();
-    try {
-      autoUpdater.quitAndInstall(false, true);
-    } catch (error) {
-      // The server is already stopped: restart the app instead of leaving it half dead.
-      console.error(`[update] ${error instanceof Error ? error.message : error}`);
-      recover();
-    }
-  }
-
-  async function checkNow(manual = false) {
-    if (busy) return;
-    busy = true;
-    try {
-      await (strategy === 'auto' ? installAutomatically(manual) : notifyOnly(manual));
-    } catch (error) {
-      console.error(`[update] ${error instanceof Error ? error.message : error}`);
-      await report(manual, 'Could not check for updates. Try again later.');
-    } finally {
-      busy = false;
-    }
-  }
+  const flow = createUpdateFlow({
+    strategy,
+    repo: UPDATE_REPO,
+    appVersion: app.getVersion(),
+    ask,
+    openExternal: (url) => shell.openExternal(url),
+    fetchImpl: fetch,
+    ghToken: process.env.GH_TOKEN,
+    // Loaded lazily so a notify-only build never touches the module.
+    loadAutoUpdater: () => require('electron-updater').autoUpdater,
+    beforeInstall,
+    recover,
+    log: (message) => console.error(message),
+  });
+  const checkNow = flow.checkNow;
 
   setTimeout(() => void checkNow(false), FIRST_CHECK_DELAY_MS).unref();
   setInterval(() => void checkNow(false), CHECK_INTERVAL_MS).unref();
