@@ -37,6 +37,7 @@ use crate::modules::tasks::application::usecases::list_workspace_branches::ListW
 use crate::modules::tasks::application::usecases::list_workspace_options::ListWorkspaceOptions;
 use crate::modules::tasks::application::usecases::merge_task::MergeTask;
 use crate::modules::tasks::application::usecases::reconcile_tasks::ReconcileTasks;
+use crate::modules::tasks::application::usecases::sweep_orphan_worktrees::SweepOrphanWorktrees;
 use crate::modules::tasks::application::usecases::reset_task::ResetTask;
 use crate::modules::tasks::application::usecases::resume_rate_limited_tasks::ResumeRateLimitedTasks;
 use crate::modules::tasks::application::usecases::resume_task::ResumeTask;
@@ -125,6 +126,8 @@ pub struct TasksContext {
     pub list_workspace_options: Arc<ListWorkspaceOptions>,
     pub list_workspace_branches: Arc<ListWorkspaceBranches>,
     pub reconcile_tasks: Arc<ReconcileTasks>,
+    pub sweep_orphan_worktrees: Arc<SweepOrphanWorktrees>,
+    worktrees: Arc<dyn WorktreePort>,
     pub reset_task: Arc<ResetTask>,
     pub add_task_dependency: Arc<AddTaskDependency>,
     pub remove_task_dependency: Arc<RemoveTaskDependency>,
@@ -361,7 +364,7 @@ impl TasksContext {
                 worktrees.clone(),
             )),
             list_tasks: Arc::new(ListTasks::new(repository.clone())),
-            list_done_tasks: Arc::new(ListDoneTasks::new(repository)),
+            list_done_tasks: Arc::new(ListDoneTasks::new(repository.clone())),
             list_workspace_options: Arc::new(ListWorkspaceOptions::new(workspaces)),
             list_workspace_branches: Arc::new(ListWorkspaceBranches::new(
                 lifecycle.clone(),
@@ -380,11 +383,21 @@ impl TasksContext {
             set_task_position: Arc::new(SetTaskPosition::new(graph.clone())),
             get_task_graph: Arc::new(GetTaskGraph::new(graph)),
             trigger_successors,
-            reconcile_tasks: Arc::new(ReconcileTasks::new(lifecycle, worktrees)),
+            reconcile_tasks: Arc::new(ReconcileTasks::new(lifecycle, worktrees.clone())),
+            sweep_orphan_worktrees: Arc::new(SweepOrphanWorktrees::new(
+                repository,
+                worktrees.clone(),
+            )),
+            worktrees,
             event_bus,
             event_sink: sink,
             event_queue,
         }
+    }
+
+    /// Espera a que terminen los borrados de worktrees que siguen en segundo plano.
+    pub async fn wait_for_worktree_cleanup(&self) {
+        self.worktrees.wait_for_cleanup().await;
     }
 
     /// Espera a que se persistan todos los eventos de agente ya aceptados.

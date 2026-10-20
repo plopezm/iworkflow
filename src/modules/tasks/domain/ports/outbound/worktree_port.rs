@@ -77,4 +77,12 @@ pub trait WorktreePort: Send + Sync {
 
     /// Elimina el worktree (si existe) y la rama.
     async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError>;
+
+    /// Borra lo que la gestión normal dejó atrás: la papelera y las carpetas de tareas que ya no
+    /// existen (ni siquiera como worktree git) ni figuran en `keep`. Los worktrees vivos se
+    /// respetan aunque no pertenezcan a ninguna tarea. Devuelve cuántas carpetas se borraron.
+    async fn sweep_orphans(&self, keep: &[PathBuf]) -> Result<usize, TaskError>;
+
+    /// Espera a que terminen los borrados en segundo plano ya lanzados.
+    async fn wait_for_cleanup(&self);
 }

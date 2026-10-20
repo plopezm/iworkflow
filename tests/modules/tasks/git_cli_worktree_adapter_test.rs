@@ -740,3 +740,67 @@ async fn merges_a_task_based_on_a_remote_branch_into_a_local_tracking_branch() {
     );
     assert_eq!(common::git(&f.repo, &["branch", "--show-current"]), "main");
 }
+
+fn leftover_dir(adapter: &GitCliWorktreeAdapter, workspace: &str, name: &str) -> PathBuf {
+    let dir: PathBuf = adapter.worktree_path(workspace, name);
+    std::fs::create_dir_all(dir.join("target").join("debug")).expect("mkdir");
+    std::fs::write(dir.join("target").join("debug").join("big.bin"), "x").expect("write");
+    dir
+}
+
+#[tokio::test]
+async fn sweep_orphans_removes_unowned_folders_without_git_metadata() {
+    let f: Fixture = fixture_with_worktree().await;
+    let orphan: PathBuf = leftover_dir(&f.adapter, "demo", "gone-task");
+    let owned: PathBuf = leftover_dir(&f.adapter, "demo", "backlog-task");
+
+    let removed: usize = f
+        .adapter
+        .sweep_orphans(std::slice::from_ref(&owned))
+        .await
+        .expect("sweep");
+
+    assert_eq!(removed, 1);
+    assert!(!orphan.exists());
+    assert!(owned.exists(), "a folder owned by an open task is kept");
+    assert!(f.worktree.exists(), "a live worktree is never swept");
+}
+
+#[tokio::test]
+async fn sweep_orphans_keeps_unowned_live_worktrees() {
+    let f: Fixture = fixture_with_worktree().await;
+
+    let removed: usize = f.adapter.sweep_orphans(&[]).await.expect("sweep");
+
+    assert_eq!(removed, 0);
+    assert!(f.worktree.join(".git").exists());
+}
+
+#[tokio::test]
+async fn sweep_orphans_purges_the_trash_and_leaves_hidden_dirs_alone() {
+    let f: Fixture = fixture_with_worktree().await;
+    let root: &std::path::Path = f._worktrees_dir.path();
+    let parked: PathBuf = root.join(".trash").join("half-deleted").join("target");
+    std::fs::create_dir_all(&parked).expect("mkdir");
+    std::fs::write(parked.join("x.bin"), "x").expect("write");
+    let merge_dir: PathBuf = root.join(".merge").join("pending");
+    std::fs::create_dir_all(&merge_dir).expect("mkdir");
+
+    f.adapter.sweep_orphans(&[]).await.expect("sweep");
+
+    assert_eq!(
+        std::fs::read_dir(root.join(".trash"))
+            .expect("trash")
+            .count(),
+        0
+    );
+    assert!(merge_dir.exists());
+}
+
+#[tokio::test]
+async fn sweep_orphans_tolerates_a_missing_root() {
+    let adapter: GitCliWorktreeAdapter =
+        GitCliWorktreeAdapter::new(PathBuf::from("/nonexistent/iwf-worktrees-root"));
+
+    assert_eq!(adapter.sweep_orphans(&[]).await.expect("sweep"), 0);
+}

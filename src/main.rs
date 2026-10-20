@@ -73,6 +73,12 @@ async fn main() {
         tracing::info!("{interrupted} tareas marcadas como interrumpidas tras el reinicio");
     }
 
+    match state.tasks.sweep_orphan_worktrees.execute().await {
+        Ok(0) => {}
+        Ok(removed) => tracing::info!("{removed} carpetas de worktree huérfanas borradas"),
+        Err(error) => tracing::warn!(%error, "no se pudieron barrer los worktrees huérfanos"),
+    }
+
     let resume_loop: tokio::task::JoinHandle<()> = tokio::spawn(run_resume_loop(
         state.tasks.resume_rate_limited_tasks.clone(),
     ));
@@ -233,6 +239,19 @@ async fn main() {
         && !error.is_cancelled()
     {
         tracing::error!(%error, "el bucle de reanudación terminó con error");
+    }
+
+    if tokio::time::timeout(
+        SHUTDOWN_FLUSH_TIMEOUT,
+        state.tasks.wait_for_worktree_cleanup(),
+    )
+    .await
+    .is_err()
+    {
+        tracing::warn!(
+            "tiempo agotado ({SHUTDOWN_FLUSH_TIMEOUT:?}) borrando worktrees; el barrido del \
+             próximo arranque los terminará"
+        );
     }
 
     match tokio::time::timeout(SHUTDOWN_FLUSH_TIMEOUT, state.tasks.flush_events()).await {

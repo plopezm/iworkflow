@@ -605,6 +605,60 @@ impl WorktreePort for GitCliWorktreeAdapter {
         }
         Ok(())
     }
+
+    async fn sweep_orphans(&self, keep: &[PathBuf]) -> Result<usize, TaskError> {
+        let trash: PathBuf = self.root.join(TRASH_DIR);
+        if matches!(tokio::fs::try_exists(&trash).await, Ok(true)) {
+            purge_trash(trash).await;
+        }
+        let mut removed: usize = 0;
+        for workspace_dir in visible_subdirs(&self.root).await {
+            for candidate in visible_subdirs(&workspace_dir).await {
+                if keep.contains(&candidate) || is_live_worktree_dir(&candidate).await {
+                    continue;
+                }
+                if self.ensure_inside_root(&candidate).await.is_err() {
+                    continue;
+                }
+                match tokio::fs::remove_dir_all(&candidate).await {
+                    Ok(()) => {
+                        tracing::info!("carpeta huérfana borrada: {}", candidate.display());
+                        removed += 1;
+                    }
+                    Err(error) => tracing::warn!(
+                        "no se pudo borrar la carpeta huérfana {}: {error}",
+                        candidate.display()
+                    ),
+                }
+            }
+        }
+        Ok(removed)
+    }
+
+    async fn wait_for_cleanup(&self) {
+        GitCliWorktreeAdapter::wait_for_cleanup(self).await;
+    }
+}
+
+/// Subcarpetas reales (ni ocultas ni enlaces simbólicos) de `dir`; vacío si no se puede leer.
+async fn visible_subdirs(dir: &Path) -> Vec<PathBuf> {
+    let Ok(mut entries) = tokio::fs::read_dir(dir).await else {
+        return Vec::new();
+    };
+    let mut found: Vec<PathBuf> = Vec::new();
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let hidden: bool = entry.file_name().to_string_lossy().starts_with('.');
+        let is_dir: bool = entry.file_type().await.is_ok_and(|kind| kind.is_dir());
+        if !hidden && is_dir {
+            found.push(entry.path());
+        }
+    }
+    found
+}
+
+/// Un worktree git vivo tiene un `.git` propio; sin él la carpeta solo son restos.
+async fn is_live_worktree_dir(path: &Path) -> bool {
+    !matches!(tokio::fs::try_exists(path.join(".git")).await, Ok(false))
 }
 
 #[cfg(test)]

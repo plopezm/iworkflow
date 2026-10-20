@@ -31,5 +31,6 @@ pub mod send_message;
 pub mod set_agent_mode;
 pub mod set_task_position;
 pub mod start_task;
+pub mod sweep_orphan_worktrees;
 pub mod trigger_successors;
 pub mod update_task;

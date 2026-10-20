@@ -176,6 +176,14 @@ impl WorktreePort for CachingWorktree {
     async fn remove(&self, repo: &Path, path: &Path, branch: &str) -> Result<(), TaskError> {
         self.inner.remove(repo, path, branch).await
     }
+
+    async fn sweep_orphans(&self, keep: &[PathBuf]) -> Result<usize, TaskError> {
+        self.inner.sweep_orphans(keep).await
+    }
+
+    async fn wait_for_cleanup(&self) {
+        self.inner.wait_for_cleanup().await;
+    }
 }
 
 #[cfg(test)]
