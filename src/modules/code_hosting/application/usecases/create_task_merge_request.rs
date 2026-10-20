@@ -56,11 +56,15 @@ impl CreateTaskMergeRequest {
                 if !base_published {
                     return Err(CodeHostError::BaseBranchNotPublished(target));
                 }
+                let empty_commit_added: bool = self
+                    .remote
+                    .ensure_commits_ahead(&source.repo_path, &source.branch, &source.base_branch)
+                    .await?;
                 let published: bool = resolved
                     .client
                     .branch_exists(&resolved.settings, &resolved.project, &source.branch)
                     .await?;
-                if !published {
+                if !published || empty_commit_added {
                     self.remote
                         .publish_branch(
                             &source.repo_path,
@@ -124,6 +128,9 @@ mod tests {
     fn remote() -> Arc<dyn GitRemotePort> {
         let mut remote: MockGitRemote = MockGitRemote::new();
         remote.expect_publish_branch().never();
+        remote
+            .expect_ensure_commits_ahead()
+            .returning(|_, _, _| Ok(false));
         Arc::new(remote)
     }
 
@@ -214,6 +221,9 @@ mod tests {
             .returning(|_, _, _| Ok(test_support::merge_request(5, "opened")));
         let mut remote: MockGitRemote = MockGitRemote::new();
         remote
+            .expect_ensure_commits_ahead()
+            .returning(|_, _, _| Ok(false));
+        remote
             .expect_publish_branch()
             .withf(
                 |repo: &Path, branch: &str, settings: &CodeHostSettings, project: &str| {
@@ -235,12 +245,44 @@ mod tests {
         assert_eq!(status.merge_request.iid, 5);
     }
 
+    /// Rama ya publicada pero sin avance sobre la base: se añade el commit vacío y se empuja.
+    #[tokio::test]
+    async fn empty_branch_gets_an_empty_commit_pushed_before_creating_the_mr() {
+        let mut client: MockCodeHostClient = client_without_mr();
+        client.expect_branch_exists().returning(|_, _, _| Ok(true));
+        client
+            .expect_create_merge_request()
+            .times(1)
+            .returning(|_, _, _| Ok(test_support::merge_request(6, "opened")));
+        let mut remote: MockGitRemote = MockGitRemote::new();
+        remote
+            .expect_ensure_commits_ahead()
+            .withf(|_, branch: &str, base: &str| branch == "pi/feature" && base == "main")
+            .times(1)
+            .returning(|_, _, _| Ok(true));
+        remote
+            .expect_publish_branch()
+            .times(1)
+            .returning(|_, _, _, _| Ok(()));
+
+        let status: MergeRequestStatus =
+            CreateTaskMergeRequest::new(test_support::resolver(client), Arc::new(remote))
+                .execute(input(None))
+                .await
+                .expect("create");
+
+        assert_eq!(status.merge_request.iid, 6);
+    }
+
     #[tokio::test]
     async fn failed_push_is_reported_and_nothing_is_created() {
         let mut client: MockCodeHostClient = client_without_mr();
         only_base_is_published(&mut client);
         client.expect_create_merge_request().never();
         let mut remote: MockGitRemote = MockGitRemote::new();
+        remote
+            .expect_ensure_commits_ahead()
+            .returning(|_, _, _| Ok(false));
         remote
             .expect_publish_branch()
             .returning(|_, branch: &str, _, _| {

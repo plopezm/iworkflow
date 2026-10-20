@@ -150,3 +150,44 @@ async fn publish_branch_reports_failure_when_the_server_is_unreachable() {
         Err(CodeHostError::BranchPublishFailed { .. })
     ));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ensure_commits_ahead_adds_an_empty_commit_when_branch_has_none() {
+    let (_dir, repo) = common::git_repo();
+    common::git(&repo, &["branch", "pi/feature"]);
+    let tree_before: String = common::git(&repo, &["rev-parse", "pi/feature^{tree}"]);
+
+    let created: bool = GitCliRemoteAdapter::new()
+        .ensure_commits_ahead(&repo, "pi/feature", "HEAD")
+        .await
+        .expect("ensure");
+
+    assert!(created);
+    assert_eq!(
+        common::git(&repo, &["rev-list", "--count", "HEAD..pi/feature"]).trim(),
+        "1"
+    );
+    assert_eq!(
+        common::git(&repo, &["rev-parse", "pi/feature^{tree}"]),
+        tree_before
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn ensure_commits_ahead_leaves_a_branch_that_already_advances() {
+    let (_dir, repo) = common::git_repo();
+    common::git(&repo, &["checkout", "-b", "pi/feature"]);
+    common::git(&repo, &["commit", "--allow-empty", "-m", "work"]);
+    let head_before: String = common::git(&repo, &["rev-parse", "pi/feature"]);
+
+    let created: bool = GitCliRemoteAdapter::new()
+        .ensure_commits_ahead(&repo, "pi/feature", "HEAD~1")
+        .await
+        .expect("ensure");
+
+    assert!(!created);
+    assert_eq!(
+        common::git(&repo, &["rev-parse", "pi/feature"]),
+        head_before
+    );
+}

@@ -42,6 +42,10 @@ pub enum CodeHostError {
     BaseBranchNotPublished(String),
     #[error("la rama de la tarea y la rama base son la misma ({0}): no hay nada que proponer")]
     SameSourceAndTarget(String),
+    #[error(
+        "la rama {branch} no tiene commits respecto a {base}: confirma (commit) los cambios de la tarea antes de abrir el PR/MR"
+    )]
+    NoCommitsToPropose { branch: String, base: String },
     #[error("no hay merge request abierto para la rama {0}")]
     MergeRequestNotFound(String),
     #[error("{} respondió {status}: {message}", .provider.label())]

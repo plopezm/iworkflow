@@ -56,6 +56,87 @@ impl GitRemotePort for GitCliRemoteAdapter {
             })
         }
     }
+
+    async fn ensure_commits_ahead(
+        &self,
+        repo: &Path,
+        branch: &str,
+        base: &str,
+    ) -> Result<bool, CodeHostError> {
+        let range: String = format!("{base}..{branch}");
+        let count: GitOutput = run_git_raw(repo, &["rev-list", "--count", &range])
+            .await
+            .map_err(|e| CodeHostError::Git(e.to_string()))?;
+        // Si la base no se resuelve en local, que decida el proveedor.
+        if !count.success || count.stdout.trim() != "0" {
+            return Ok(false);
+        }
+        let head: String = rev_parse(repo, &format!("refs/heads/{branch}")).await?;
+        let tree: String = rev_parse(repo, &format!("refs/heads/{branch}^{{tree}}")).await?;
+        let commit: GitOutput = run_git_raw_env(
+            repo,
+            &[
+                "commit-tree",
+                &tree,
+                "-p",
+                &head,
+                "-m",
+                EMPTY_COMMIT_MESSAGE,
+            ],
+            &fallback_identity(repo).await?,
+        )
+        .await
+        .map_err(|e| CodeHostError::Git(e.to_string()))?;
+        let new_head: String = commit.stdout.trim().to_string();
+        if !commit.success || new_head.is_empty() {
+            return Err(CodeHostError::Git(commit.stderr));
+        }
+        let update_ref: String = format!("refs/heads/{branch}");
+        let moved: GitOutput = run_git_raw(repo, &["update-ref", &update_ref, &new_head, &head])
+            .await
+            .map_err(|e| CodeHostError::Git(e.to_string()))?;
+        if moved.success {
+            Ok(true)
+        } else {
+            Err(CodeHostError::Git(moved.stderr))
+        }
+    }
+}
+
+const EMPTY_COMMIT_MESSAGE: &str = "chore: empty commit to open the PR/MR";
+
+async fn rev_parse(repo: &Path, spec: &str) -> Result<String, CodeHostError> {
+    let output: GitOutput = run_git_raw(repo, &["rev-parse", "--verify", spec])
+        .await
+        .map_err(|e| CodeHostError::Git(e.to_string()))?;
+    let value: String = output.stdout.trim().to_string();
+    if output.success && !value.is_empty() {
+        Ok(value)
+    } else {
+        Err(CodeHostError::Git(output.stderr))
+    }
+}
+
+/// Identidad de respaldo solo si git no tiene una configurada (`commit-tree` la exige).
+async fn fallback_identity(repo: &Path) -> Result<Vec<(String, String)>, CodeHostError> {
+    let ident: GitOutput = run_git_raw(repo, &["var", "GIT_COMMITTER_IDENT"])
+        .await
+        .map_err(|e| CodeHostError::Git(e.to_string()))?;
+    if ident.success {
+        return Ok(Vec::new());
+    }
+    Ok(["AUTHOR", "COMMITTER"]
+        .iter()
+        .flat_map(|who: &&str| {
+            [
+                (format!("GIT_{who}_NAME"), "iworkflow".to_string()),
+                (
+                    format!("GIT_{who}_EMAIL"),
+                    "iworkflow@localhost".to_string(),
+                ),
+            ]
+        })
+        .collect())
 }
 
 /// Configuración de git por entorno (`GIT_CONFIG_COUNT/KEY_n/VALUE_n`): a diferencia de `-c`,

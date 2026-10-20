@@ -19,4 +19,14 @@ pub trait GitRemotePort: Send + Sync {
         settings: &CodeHostSettings,
         project: &str,
     ) -> Result<(), CodeHostError>;
+
+    /// Garantiza que `branch` tenga al menos un commit por delante de `base`: si no lo tiene,
+    /// le añade un commit vacío (sin tocar el árbol de trabajo) porque los proveedores no
+    /// aceptan un PR/MR sin commits. Devuelve `true` si creó ese commit.
+    async fn ensure_commits_ahead(
+        &self,
+        repo: &Path,
+        branch: &str,
+        base: &str,
+    ) -> Result<bool, CodeHostError>;
 }
