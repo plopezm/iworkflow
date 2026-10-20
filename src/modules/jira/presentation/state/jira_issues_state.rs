@@ -1,5 +1,7 @@
 use leptos::prelude::*;
+use serde::{Deserialize, Serialize};
 
+use crate::core::browser;
 use crate::core::i18n::Msg;
 use crate::core::refresh::current_epoch;
 use crate::modules::jira::infrastructure::adapters::inbound::dto::jira_dto::{
@@ -36,6 +38,29 @@ pub fn lane_sync_notice(saved: &SavedLaneDto) -> Option<String> {
     saved.sync_error.as_ref().map(|error: &String| {
         LANE_SYNC_FAILED.fmt(&[("lane", saved.lane.name.as_str()), ("error", error)])
     })
+}
+
+/// `localStorage` key of the issue filters, so they survive switching tabs.
+const FILTERS_STORAGE_KEY: &str = "iwf-jira-filters";
+
+/// Raw filter form values as kept in `localStorage`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct StoredFilters {
+    pub search: String,
+    pub status: String,
+    pub local_state: String,
+}
+
+impl StoredFilters {
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap_or_default()
+    }
+
+    /// `None` when the stored text is not a valid filter document.
+    pub fn from_json(json: &str) -> Option<Self> {
+        serde_json::from_str(json).ok()
+    }
 }
 
 /// Builds the server filter from the raw form values (blank = no filter).
@@ -107,6 +132,28 @@ impl JiraIssuesState {
                 list_jira_issues(build_filter(&search, &status, &local_state))
             },
         );
+        // Client only, after hydration: restore the saved filters and save every change.
+        let filters_restored: RwSignal<bool> = RwSignal::new(false);
+        Effect::new(move |_| {
+            if let Some(saved) = browser::read_local_storage(FILTERS_STORAGE_KEY)
+                .and_then(|json: String| StoredFilters::from_json(&json))
+            {
+                search.set(saved.search);
+                status.set(saved.status);
+                local_state.set(saved.local_state);
+            }
+            filters_restored.set(true);
+        });
+        Effect::new(move |_| {
+            let current: StoredFilters = StoredFilters {
+                search: search.get(),
+                status: status.get(),
+                local_state: local_state.get(),
+            };
+            if filters_restored.get() {
+                browser::write_local_storage(FILTERS_STORAGE_KEY, &current.to_json());
+            }
+        });
         let statuses: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
         Effect::new(move |_| {
             if let Some(Ok(list)) = issues.get()
@@ -197,6 +244,25 @@ impl JiraIssuesState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stored_filters_round_trip() {
+        let filters: StoredFilters = StoredFilters {
+            search: "login".into(),
+            status: "Done".into(),
+            local_state: "ignored".into(),
+        };
+        assert_eq!(StoredFilters::from_json(&filters.to_json()), Some(filters));
+    }
+
+    #[test]
+    fn stored_filters_tolerate_missing_fields_and_garbage() {
+        assert_eq!(
+            StoredFilters::from_json(r#"{"status":"Done"}"#).map(|f: StoredFilters| f.status),
+            Some("Done".to_string())
+        );
+        assert_eq!(StoredFilters::from_json("not json"), None);
+    }
 
     #[test]
     fn blank_values_mean_no_filter() {
