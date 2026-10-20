@@ -25,6 +25,112 @@
     );
   }
 
+  // xterm.js no desplaza con el dedo: su `.xterm-screen` tapa el viewport nativo. Se traduce
+  // el arrastre vertical a líneas (con inercia). En la pantalla alternativa (TUIs) se emite
+  // una rueda sintética para que xterm la convierta en ratón o flechas según el modo.
+  function enableTouchScroll(term, el) {
+    var lastY = 0;
+    var startY = 0;
+    var lastTime = 0;
+    var velocity = 0;
+    var remainder = 0;
+    var dragging = false;
+    var scrolled = false;
+    var raf = 0;
+
+    function lineHeight() {
+      var screen = el.querySelector(".xterm-screen");
+      var height = screen ? screen.clientHeight : 0;
+      return height > 0 && term.rows > 0 ? height / term.rows : 16;
+    }
+
+    function scrollBy(pixels) {
+      remainder += pixels / lineHeight();
+      var lines = Math.trunc(remainder);
+      if (lines === 0) return;
+      remainder -= lines;
+      if (term.buffer.active.type === "alternate") {
+        var target = el.querySelector(".xterm-screen") || el;
+        var rect = target.getBoundingClientRect();
+        target.dispatchEvent(
+          new WheelEvent("wheel", {
+            deltaY: lines,
+            deltaMode: 1,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2,
+            bubbles: true,
+            cancelable: true,
+          })
+        );
+      } else {
+        term.scrollLines(lines);
+      }
+    }
+
+    function stopFling() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    }
+
+    function fling() {
+      velocity *= 0.95;
+      if (Math.abs(velocity) < 0.02) {
+        raf = 0;
+        return;
+      }
+      scrollBy(velocity * 16);
+      raf = requestAnimationFrame(fling);
+    }
+
+    function onStart(event) {
+      if (event.touches.length !== 1) return;
+      stopFling();
+      dragging = true;
+      scrolled = false;
+      velocity = 0;
+      remainder = 0;
+      startY = lastY = event.touches[0].clientY;
+      lastTime = event.timeStamp;
+    }
+
+    function onMove(event) {
+      if (!dragging || event.touches.length !== 1) return;
+      var y = event.touches[0].clientY;
+      if (!scrolled && Math.abs(y - startY) < 6) return;
+      scrolled = true;
+      event.preventDefault();
+      var dt = Math.max(event.timeStamp - lastTime, 1);
+      // Arrastrar hacia abajo muestra líneas anteriores (desplazamiento negativo).
+      scrollBy(lastY - y);
+      velocity = 0.8 * velocity + 0.2 * ((lastY - y) / dt);
+      lastY = y;
+      lastTime = event.timeStamp;
+    }
+
+    function onEnd(event) {
+      if (!dragging) return;
+      dragging = false;
+      // Sin inercia si el dedo estuvo quieto antes de soltar o el gesto se canceló.
+      var held = event.timeStamp - lastTime > 100;
+      if (event.type === "touchend" && scrolled && !held && Math.abs(velocity) > 0.05) {
+        raf = requestAnimationFrame(fling);
+      }
+    }
+
+    el.style.touchAction = "none";
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    el.addEventListener("touchcancel", onEnd);
+    return function () {
+      stopFling();
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
+    };
+  }
+
   function open(el, sessionId) {
     var term = new window.Terminal({
       cursorBlink: true,
@@ -126,6 +232,7 @@
       } catch (_) {}
     });
     observer.observe(el);
+    var stopTouchScroll = enableTouchScroll(term, el);
 
     var themeObserver = new MutationObserver(function () {
       term.options.theme = theme();
@@ -145,6 +252,7 @@
         window.removeEventListener("online", ensureConnected);
         window.removeEventListener("pageshow", ensureConnected);
         observer.disconnect();
+        stopTouchScroll();
         themeObserver.disconnect();
         dataSub.dispose();
         resizeSub.dispose();
@@ -156,6 +264,7 @@
 
   var KEYS = {
     tab: "\t",
+    esc: "\x1b",
     ctrl_c: "\x03",
     up: "A",
     down: "B",
@@ -163,9 +272,29 @@
     left: "D",
   };
 
+  // Pega el portapapeles del sistema (requiere contexto seguro y permiso del navegador).
+  function pasteClipboard(handle) {
+    var clipboard = navigator.clipboard;
+    if (!clipboard || !clipboard.readText) return Promise.resolve();
+    return clipboard
+      .readText()
+      .then(function (text) {
+        if (text) handle.term.paste(text);
+        handle.term.focus();
+      })
+      .catch(function () {});
+  }
+
+  var ACTIONS = { paste: pasteClipboard };
+
   // Envía una tecla con nombre como si se hubiera pulsado en el teclado.
   function sendKey(handle, key) {
-    if (!handle || !handle.term || !Object.prototype.hasOwnProperty.call(KEYS, key)) return;
+    if (!handle || !handle.term) return;
+    if (Object.prototype.hasOwnProperty.call(ACTIONS, key)) {
+      ACTIONS[key](handle);
+      return;
+    }
+    if (!Object.prototype.hasOwnProperty.call(KEYS, key)) return;
     var seq = KEYS[key];
     if (seq.length === 1 && seq >= "A" && seq <= "D") {
       var app = handle.term.modes && handle.term.modes.applicationCursorKeysMode;
@@ -182,5 +311,10 @@
     }
   }
 
-  window.iwfTerminal = { open: open, close: close, sendKey: sendKey };
+  window.iwfTerminal = {
+    open: open,
+    close: close,
+    sendKey: sendKey,
+    enableTouchScroll: enableTouchScroll,
+  };
 })();
