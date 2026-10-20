@@ -15,6 +15,7 @@ use crate::modules::tasks::domain::models::agent_command::AgentCommand;
 use crate::modules::tasks::domain::models::agent_event::{
     AgentEvent, DialogAnswer, DialogKind, DialogRequest, NoticeLevel,
 };
+use crate::modules::tasks::domain::models::agent_mode::AgentMode;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 use crate::modules::tasks::domain::models::usage_limit::looks_like_usage_limit;
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_process::LineCodec;
@@ -56,6 +57,8 @@ enum Request {
     NewSession,
     LoadSession,
     SetModel,
+    /// Cambio de modo a la espera de confirmación; lleva el modo pedido.
+    SetMode(AgentMode),
     Prompt,
 }
 
@@ -216,6 +219,25 @@ impl AcpProtocol {
         }
     }
 
+    /// Pide a Cursor cambiar de modo; el estado se publica al confirmarlo.
+    fn set_mode(&mut self, mode: AgentMode) -> Result<(), TaskError> {
+        let Some(session_id) = self
+            .session_id
+            .clone()
+            .filter(|_: &String| self.phase == Phase::Ready)
+        else {
+            return Err(TaskError::Runtime(
+                "el agente de Cursor aún no tiene sesión abierta".to_string(),
+            ));
+        };
+        self.send_request(
+            Request::SetMode(mode),
+            "session/set_mode",
+            json!({ "sessionId": session_id, "modeId": mode.as_str() }),
+        );
+        Ok(())
+    }
+
     fn become_ready(&mut self) {
         self.phase = Phase::Ready;
         self.pump();
@@ -315,7 +337,7 @@ impl AcpProtocol {
             Request::NewSession => match (error, str_field(result, "sessionId")) {
                 (None, Some(session_id)) => {
                     self.session_opened(session_id.to_string());
-                    Vec::new()
+                    mode_status(result)
                 }
                 (Some(message), _) => self.fail(format!("no se pudo abrir la sesión: {message}")),
                 (None, None) => self.fail("la sesión de ACP no devolvió sessionId".to_string()),
@@ -323,7 +345,7 @@ impl AcpProtocol {
             Request::LoadSession => match (error, self.config.resume_session.clone()) {
                 (None, Some(session_id)) => {
                     self.session_opened(session_id);
-                    Vec::new()
+                    mode_status(result)
                 }
                 (error, _) => {
                     self.open_new_session();
@@ -348,6 +370,13 @@ impl AcpProtocol {
                 self.become_ready();
                 events
             }
+            Request::SetMode(mode) => match error {
+                Some(message) => vec![notice(
+                    NoticeLevel::Warning,
+                    format!("no se pudo cambiar el modo: {message}"),
+                )],
+                None => vec![mode_event(mode.as_str())],
+            },
             Request::Prompt => self.settle(error, result),
         }
     }
@@ -410,6 +439,9 @@ impl AcpProtocol {
                 events.push(AgentEvent::ThinkingDelta { delta });
                 events
             }
+            "current_mode_update" => str_field(update, "currentModeId")
+                .map(|mode: &str| vec![mode_event(mode)])
+                .unwrap_or_default(),
             "tool_call" => self.tool_call(update),
             "tool_call_update" => self.tool_call_update(update),
             _ => Vec::new(),
@@ -794,6 +826,7 @@ impl LineCodec for AcpProtocol {
                 ));
             }
             AgentCommand::Abort => self.abort(),
+            AgentCommand::SetMode(mode) => self.set_mode(*mode)?,
             AgentCommand::AnswerDialog { dialog_id, answer } => {
                 self.answer_dialog(dialog_id, answer)?;
             }
@@ -823,6 +856,26 @@ impl LineCodec for AcpProtocol {
 }
 
 // ---- utilidades ------------------------------------------------------------------------
+
+/// Clave del estado que informa del modo actual del agente.
+const MODE_STATUS_KEY: &str = "mode";
+
+/// Estado «modo actual» (los ids `agent` y `plan` de Cursor coinciden con los del dominio).
+fn mode_event(mode_id: &str) -> AgentEvent {
+    AgentEvent::StatusChanged {
+        key: MODE_STATUS_KEY.to_string(),
+        text: Some(mode_id.to_string()),
+    }
+}
+
+/// Modo inicial que Cursor declara al abrir la sesión (`modes.currentModeId`).
+fn mode_status(result: &Value) -> Vec<AgentEvent> {
+    result
+        .get("modes")
+        .and_then(|modes: &Value| str_field(modes, "currentModeId"))
+        .map(|mode: &str| vec![mode_event(mode)])
+        .unwrap_or_default()
+}
 
 fn prompt_blocks(message: &str, images: &[ImageAttachment]) -> Vec<Value> {
     std::iter::once(json!({ "type": "text", "text": message }))
@@ -1093,6 +1146,100 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    fn mode_status_event(mode: &str) -> AgentEvent {
+        AgentEvent::StatusChanged {
+            key: "mode".to_string(),
+            text: Some(mode.to_string()),
+        }
+    }
+
+    #[test]
+    fn opening_a_session_reports_the_current_mode() {
+        let mut protocol: AcpProtocol = protocol(AcpSessionConfig::default());
+        protocol.start();
+        feed(&mut protocol, respond(1, json!({})));
+        feed(&mut protocol, respond(2, json!({})));
+        let (events, _) = feed(
+            &mut protocol,
+            respond(
+                3,
+                json!({"sessionId": "s1", "modes": {"currentModeId": "agent",
+                    "availableModes": [{"id": "agent"}, {"id": "plan"}]}}),
+            ),
+        );
+        assert_eq!(events, vec![mode_status_event("agent")]);
+    }
+
+    #[test]
+    fn set_mode_is_confirmed_before_it_is_reported() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+
+        let out: Vec<Value> = command(&mut protocol, AgentCommand::SetMode(AgentMode::Plan));
+        assert_eq!(out[0]["method"], "session/set_mode");
+        assert_eq!(
+            out[0]["params"],
+            json!({"sessionId": "s1", "modeId": "plan"})
+        );
+
+        let id: u64 = out[0]["id"].as_u64().expect("id");
+        let (events, _) = feed(&mut protocol, respond(id, json!({})));
+        assert_eq!(events, vec![mode_status_event("plan")]);
+    }
+
+    #[test]
+    fn rejected_set_mode_warns_and_keeps_the_mode() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        let out: Vec<Value> = command(&mut protocol, AgentCommand::SetMode(AgentMode::Plan));
+        let id: u64 = out[0]["id"].as_u64().expect("id");
+
+        let (events, _) = feed(
+            &mut protocol,
+            json!({"jsonrpc": "2.0", "id": id, "error": {"code": -1, "message": "no"}}),
+        );
+
+        assert!(matches!(
+            events.as_slice(),
+            [AgentEvent::Notice {
+                level: NoticeLevel::Warning,
+                ..
+            }]
+        ));
+    }
+
+    #[test]
+    fn overlapping_mode_changes_are_confirmed_each_with_its_own_mode() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        let plan: Vec<Value> = command(&mut protocol, AgentCommand::SetMode(AgentMode::Plan));
+        let agent: Vec<Value> = command(&mut protocol, AgentCommand::SetMode(AgentMode::Agent));
+        let plan_id: u64 = plan[0]["id"].as_u64().expect("id");
+        let agent_id: u64 = agent[0]["id"].as_u64().expect("id");
+
+        let (first, _) = feed(&mut protocol, respond(plan_id, json!({})));
+        let (second, _) = feed(&mut protocol, respond(agent_id, json!({})));
+
+        assert_eq!(first, vec![mode_status_event("plan")]);
+        assert_eq!(second, vec![mode_status_event("agent")]);
+    }
+
+    #[test]
+    fn mode_updates_from_the_agent_are_reported() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        let (events, _) = feed(
+            &mut protocol,
+            update(json!({"sessionUpdate": "current_mode_update", "currentModeId": "ask"})),
+        );
+        assert_eq!(events, vec![mode_status_event("ask")]);
+    }
+
+    #[test]
+    fn set_mode_before_the_session_is_open_is_an_error() {
+        let mut protocol: AcpProtocol = protocol(AcpSessionConfig::default());
+        assert!(matches!(
+            protocol.encode(&AgentCommand::SetMode(AgentMode::Plan), "r"),
+            Err(TaskError::Runtime(_))
+        ));
     }
 
     #[test]
@@ -1817,13 +1964,15 @@ mod tests {
         let mut protocol: AcpProtocol = protocol(AcpSessionConfig::default());
         protocol.start();
         let mut events: Vec<AgentEvent> = Vec::new();
+        let mut prompted: bool = false;
         for line in recording
             .lines()
             .filter_map(|l: &str| l.strip_prefix("<< "))
         {
             events.extend(protocol.decode(TaskId::new(), line));
-            if protocol.phase == Phase::Ready && protocol.queued.is_empty() && events.is_empty() {
+            if protocol.phase == Phase::Ready && !prompted {
                 // Primer instante con la sesión abierta: llega el prompt del usuario.
+                prompted = true;
                 protocol
                     .encode(&prompt("crea hello.txt"), "r")
                     .expect("encode");
@@ -1831,8 +1980,17 @@ mod tests {
             protocol.take_outgoing();
         }
 
+        // Al abrir la sesión Cursor declara su modo actual.
+        assert_eq!(
+            events.first(),
+            Some(&AgentEvent::StatusChanged {
+                key: "mode".to_string(),
+                text: Some("agent".to_string()),
+            })
+        );
         let kinds: Vec<&str> = events
             .iter()
+            .filter(|e: &&AgentEvent| !matches!(e, AgentEvent::StatusChanged { .. }))
             .map(|e: &AgentEvent| match e {
                 AgentEvent::RunStarted => "run_started",
                 AgentEvent::ThinkingDelta { .. } => "thinking",

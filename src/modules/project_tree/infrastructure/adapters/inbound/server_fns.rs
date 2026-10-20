@@ -146,3 +146,16 @@ pub async fn read_project_file_base(
         .await
         .map_err(support::to_server_error)
 }
+
+/// Files of the project whose path matches `query`, best matches first (for `@` references).
+#[server]
+pub async fn search_project_files(
+    workspace_id: String,
+    query: String,
+) -> Result<Vec<String>, ServerFnError> {
+    support::context()?
+        .search_files
+        .execute(support::scope(&workspace_id)?, &query)
+        .await
+        .map_err(support::to_server_error)
+}

@@ -9,6 +9,7 @@ use crate::modules::project_tree::domain::models::git_change::GitChange;
 use crate::modules::project_tree::domain::models::project_file::ProjectFile;
 use crate::modules::project_tree::domain::models::workspace_root::WorkspaceRoot;
 use crate::modules::project_tree::domain::ports::outbound::directory_reader_port::DirectoryReaderPort;
+use crate::modules::project_tree::domain::ports::outbound::file_search_port::FileSearchPort;
 use crate::modules::project_tree::domain::ports::outbound::file_store_port::FileStorePort;
 use crate::modules::project_tree::domain::ports::outbound::git_status_port::GitStatusPort;
 use crate::modules::project_tree::domain::ports::outbound::workspace_root_port::WorkspaceRootPort;
@@ -48,5 +49,14 @@ mock! {
     impl GitStatusPort for GitStatus {
         async fn changes(&self, root: &Path) -> Result<Vec<GitChange>, ProjectTreeError>;
         async fn base_content(&self, root: &Path, relative: &str) -> Result<Option<String>, ProjectTreeError>;
+    }
+}
+
+mock! {
+    pub FileSearch {}
+
+    #[async_trait::async_trait]
+    impl FileSearchPort for FileSearch {
+        async fn files(&self, root: &Path) -> Result<Vec<String>, ProjectTreeError>;
     }
 }

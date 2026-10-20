@@ -12,12 +12,12 @@ use crate::core::i18n::Msg;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachment_dto::TaskAttachmentDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    MergeOutcomeDto, TaskDto, TaskStageDto,
+    AgentModeDto, MergeOutcomeDto, TaskDto, TaskStageDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::{
     DialogAnswerDto, DialogRequestDto,
 };
-use crate::modules::tasks::presentation::components::composer::Composer;
+use crate::modules::tasks::presentation::components::composer::{Composer, FileSearchFn};
 use crate::modules::tasks::presentation::components::dialog_panel::DialogPanel;
 use crate::modules::tasks::presentation::components::subagents_panel::SubagentsPanel;
 use crate::modules::tasks::presentation::components::task_actions::{
@@ -395,16 +395,23 @@ fn BacklogView(task: TaskDto, state: TaskDetailState) -> impl IntoView {
 /// Página de detalle. El router reutiliza este componente al pasar entre dos `/tasks/:id`
 /// (solo cambia el signal de parámetros), así que el contenido se reconstruye por cada id.
 #[component]
-pub fn TaskDetailPage(#[prop(optional)] extra_tabs: Vec<TaskExtraTab>) -> impl IntoView {
+pub fn TaskDetailPage(
+    #[prop(optional)] extra_tabs: Vec<TaskExtraTab>,
+    #[prop(optional)] file_search: Option<FileSearchFn>,
+) -> impl IntoView {
     let params = use_tab_params();
     let task_id: Memo<String> =
         Memo::new(move |_| params.with(|p| p.get("id").unwrap_or_default()));
 
-    view! { {move || view! { <TaskDetailContent task_id=task_id.get() extra_tabs=extra_tabs.clone() /> }} }
+    view! { {move || view! { <TaskDetailContent task_id=task_id.get() extra_tabs=extra_tabs.clone() file_search /> }} }
 }
 
 #[component]
-fn TaskDetailContent(task_id: String, extra_tabs: Vec<TaskExtraTab>) -> impl IntoView {
+fn TaskDetailContent(
+    task_id: String,
+    extra_tabs: Vec<TaskExtraTab>,
+    file_search: Option<FileSearchFn>,
+) -> impl IntoView {
     let state: TaskDetailState = TaskDetailState::new(task_id);
     // Several task tabs can be mounted at once, so the scroll container id is per task.
     let scroll_id: StoredValue<String> = StoredValue::new(format!(
@@ -643,6 +650,10 @@ fn TaskDetailContent(task_id: String, extra_tabs: Vec<TaskExtraTab>) -> impl Int
                                     attachments=state.images
                                     pending=state.send.pending()
                                     on_send
+                                    scope=state.task_id.get_value()
+                                    file_search=file_search
+                                    mode=Some(Signal::from(state.current_mode))
+                                    on_mode=Some(Callback::new(move |m: AgentModeDto| state.change_mode(m)))
                                 />
                             </Show>
                         </div>

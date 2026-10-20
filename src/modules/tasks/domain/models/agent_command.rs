@@ -1,4 +1,5 @@
 use crate::modules::tasks::domain::models::agent_event::DialogAnswer;
+use crate::modules::tasks::domain::models::agent_mode::AgentMode;
 use crate::modules::tasks::domain::models::image_attachment::ImageAttachment;
 
 /// Modo de entrega de un mensaje del usuario al agente.
@@ -26,6 +27,8 @@ pub enum AgentCommand {
         images: Vec<ImageAttachment>,
     },
     Abort,
+    /// Cambia el modo de trabajo del agente (solo si declara la capacidad `modes`).
+    SetMode(AgentMode),
     AnswerDialog {
         dialog_id: String,
         answer: DialogAnswer,

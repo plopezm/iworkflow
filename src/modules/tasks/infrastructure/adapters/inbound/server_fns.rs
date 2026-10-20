@@ -7,8 +7,8 @@ use crate::modules::tasks::infrastructure::adapters::inbound::dto::image_attachm
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::subagent_task_dto::SubagentTaskDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_diff_dto::TaskDiffDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_dto::{
-    BranchOptionDto, CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto, TaskDto,
-    UpdateTaskDto, WorkspaceOptionDto,
+    AgentModeDto, BranchOptionDto, CreateTaskDto, CreatedTaskDto, MergeOutcomeDto, MessageModeDto,
+    TaskDto, UpdateTaskDto, WorkspaceOptionDto,
 };
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_event_dto::DialogAnswerDto;
 use crate::modules::tasks::infrastructure::adapters::inbound::dto::task_file_dto::{
@@ -262,6 +262,15 @@ pub async fn abort_task(id: String) -> Result<(), ServerFnError> {
     support::context()?
         .abort_task
         .execute(support::task_id(&id)?)
+        .await
+        .map_err(support::to_server_error)
+}
+
+#[server]
+pub async fn set_task_mode(id: String, mode: AgentModeDto) -> Result<(), ServerFnError> {
+    support::context()?
+        .set_agent_mode
+        .execute(support::task_id(&id)?, mode.into())
         .await
         .map_err(support::to_server_error)
 }

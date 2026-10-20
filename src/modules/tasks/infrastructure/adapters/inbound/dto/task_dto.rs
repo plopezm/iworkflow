@@ -334,6 +334,24 @@ pub struct UpdateTaskDto {
     pub remove_attachment_ids: Vec<String>,
 }
 
+/// Modo de trabajo del agente que se puede cambiar en caliente.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentModeDto {
+    Agent,
+    Plan,
+}
+
+impl AgentModeDto {
+    /// Identificador con el que el agente informa de su modo (`StatusChanged`).
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AgentModeDto::Agent => "agent",
+            AgentModeDto::Plan => "plan",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum MessageModeDto {
@@ -353,6 +371,7 @@ mod mapping {
     use super::*;
     use crate::modules::tasks::domain::errors::task_error::TaskError;
     use crate::modules::tasks::domain::models::agent_command::MessageMode;
+    use crate::modules::tasks::domain::models::agent_mode::AgentMode;
     use chrono::{DateTime, Utc};
 
     use crate::modules::tasks::domain::models::resource_limits::ResourceLimits;
@@ -496,6 +515,15 @@ mod mapping {
         }
     }
 
+    impl From<AgentModeDto> for AgentMode {
+        fn from(mode: AgentModeDto) -> Self {
+            match mode {
+                AgentModeDto::Agent => AgentMode::Agent,
+                AgentModeDto::Plan => AgentMode::Plan,
+            }
+        }
+    }
+
     impl From<MessageModeDto> for MessageMode {
         fn from(mode: MessageModeDto) -> Self {
             match mode {
@@ -522,6 +550,15 @@ mod mapping {
 
         use super::*;
         use crate::modules::tasks::domain::models::task::TaskId;
+
+        #[test]
+        fn agent_mode_dto_maps_to_the_domain_mode() {
+            assert_eq!(AgentMode::from(AgentModeDto::Plan), AgentMode::Plan);
+            assert_eq!(AgentMode::from(AgentModeDto::Agent), AgentMode::Agent);
+            for dto in [AgentModeDto::Agent, AgentModeDto::Plan] {
+                assert_eq!(AgentMode::from(dto).as_str(), dto.as_str());
+            }
+        }
         use crate::modules::tasks::domain::models::worktree::DiffRange;
 
         fn task(status: TaskStatus) -> Task {

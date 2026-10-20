@@ -10,6 +10,8 @@ pub struct AgentCapabilities {
     pub resume: bool,
     /// Expone la actividad de los subagentes lanzados por el agente.
     pub subagents: bool,
+    /// Permite cambiar entre modo agente y modo plan con el agente en marcha.
+    pub modes: bool,
 }
 
 impl AgentCapabilities {
@@ -23,6 +25,7 @@ impl AgentCapabilities {
             thinking_levels: true,
             resume: true,
             subagents: true,
+            modes: true,
         }
     }
 
@@ -36,6 +39,7 @@ impl AgentCapabilities {
             thinking_levels: false,
             resume: false,
             subagents: false,
+            modes: false,
         }
     }
 }
@@ -55,6 +59,7 @@ mod tests {
                 && caps.thinking_levels
                 && caps.resume
                 && caps.subagents
+                && caps.modes
         );
     }
 
@@ -68,7 +73,8 @@ mod tests {
                 || caps.model_selection
                 || caps.thinking_levels
                 || caps.resume
-                || caps.subagents)
+                || caps.subagents
+                || caps.modes)
         );
     }
 }
