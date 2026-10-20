@@ -1,6 +1,8 @@
 use crate::core::dock::context::{use_tab_nav, use_tab_params};
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::{ActionError, NumberField, SelectField, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
 use crate::core::i18n::Msg;
@@ -177,7 +179,7 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
     view! {
         <div class="h-full min-h-0 overflow-y-auto">
             <div class="mx-auto w-full max-w-5xl p-4 pb-10 md:p-6 md:pb-12">
-            <Transition fallback=|| view! { <p class="muted">{LOADING_TASK.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING_TASK.get() /> }>
                 {move || Suspend::new(async move {
                     match state.task.await {
                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -265,6 +267,7 @@ fn TaskEditContent(task_id: String) -> impl IntoView {
                                             type="submit"
                                             class="btn-primary"
                                             disabled=move || state.update.pending().get()
+                                            class:is-busy=move || state.update.pending().get()
                                         >
                                             {move || {
                                                 if state.update.pending().get() {

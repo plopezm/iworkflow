@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::{ActionError, NumberInput};
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::components::segmented_control::{SegmentOption, SegmentedControl};
@@ -126,7 +128,7 @@ pub fn ResourceLimitsCard() -> impl IntoView {
     let pending: Signal<bool> = state.update.pending().into();
 
     view! {
-                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                     {move || Suspend::new(async move {
                         let settings: AgentSettingsDto = match state.settings.await {
                             Ok(settings) => settings,
@@ -156,6 +158,7 @@ pub fn ResourceLimitsCard() -> impl IntoView {
                                         class="h-4 w-4"
                                         prop:checked=enabled
                                         disabled=move || pending.get()
+                                        class:is-busy=move || pending.get()
                                         on:change=move |ev| {
                                             state
                                                 .set_limits_enabled(

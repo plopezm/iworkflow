@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::layout::ErrorText;
 use crate::core::dock::context::{DockContext, use_dock, use_tab_params};
 use crate::core::i18n::Msg;
@@ -93,7 +95,7 @@ fn TaskDiffContent(task_id: String) -> impl IntoView {
 
     view! {
         <div class="h-full min-h-0 overflow-y-auto p-3">
-            <Transition fallback=|| view! { <p class="muted">{CALCULATING_DIFF.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=CALCULATING_DIFF.get() /> }>
                 {move || Suspend::new(async move {
                     match state.diff.await {
                         Some(Ok(diff)) => {

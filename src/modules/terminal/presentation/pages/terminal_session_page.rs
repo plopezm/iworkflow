@@ -59,6 +59,7 @@ pub fn TerminalSessionPage() -> impl IntoView {
                             <button
                                 class="btn-danger min-h-8 px-2.5 py-1 text-xs"
                                 disabled=move || state.close.pending().get()
+                                class:is-busy=move || state.close.pending().get()
                                 on:click=move |_| state.close_session()
                             >
                                 {CLOSE_SESSION.get()}

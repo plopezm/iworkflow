@@ -110,6 +110,7 @@ pub fn JiraConnectionSummary(
                                 <button
                                     class="btn-danger"
                                     disabled=move || state.delete.pending().get()
+                                    class:is-busy=move || state.delete.pending().get()
                                     on:click=move |_| state.disconnect()
                                 >
                                     {DISCONNECT.get()}

@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::{ActionError, SelectField, SelectOption};
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::dock::context::{DockContext, use_dock, use_tab_params};
@@ -242,7 +244,7 @@ fn JiraIssueContent(key: String) -> impl IntoView {
     view! {
         <div class="h-full min-h-0 overflow-y-auto">
             <div class="mx-auto stack w-full max-w-5xl gap-4 p-4 pb-10 md:p-6 md:pb-12">
-                <Transition fallback=|| view! { <p class="muted">{LOADING_ISSUE.get()}</p> }>
+                <Transition fallback=|| view! { <Loading text=LOADING_ISSUE.get() /> }>
                     {move || Suspend::new(async move {
                         match state.issue.await {
                             Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -351,7 +353,7 @@ fn issue_view(state: JiraIssueState, issue: JiraIssueDto) -> impl IntoView {
             <pre class="whitespace-pre-wrap break-words text-sm">{description}</pre>
         </Card>
         <Card title=CHANGE_STATUS.get()>
-            <Transition fallback=|| view! { <p class="muted">{LOADING_TRANSITIONS.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING_TRANSITIONS.get() /> }>
                 {move || Suspend::new(async move {
                     match state.transitions.await {
                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -362,7 +364,7 @@ fn issue_view(state: JiraIssueState, issue: JiraIssueDto) -> impl IntoView {
             <ActionError result=state.transition.value().into() />
         </Card>
         <Card title=COMMENTS.get()>
-            <Transition fallback=|| view! { <p class="muted">{LOADING_COMMENTS.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING_COMMENTS.get() /> }>
                 {move || Suspend::new(async move {
                     match state.comments.await {
                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -392,6 +394,7 @@ fn issue_view(state: JiraIssueState, issue: JiraIssueDto) -> impl IntoView {
                             state.add_comment.pending().get()
                                 || state.comment_text.with(|t: &String| t.trim().is_empty())
                         }
+                        class:is-busy=move || state.add_comment.pending().get()
                     >
                         {move || {
                             if state.add_comment.pending().get() { SENDING.get() } else { COMMENT_IN_JIRA.get() }
@@ -429,6 +432,7 @@ fn transition_form(state: JiraIssueState, transitions: Vec<JiraTransitionDto>) -
                 disabled=move || {
                     state.transition.pending().get() || state.selected_transition.with(|t: &String| t.is_empty())
                 }
+                class:is-busy=move || state.transition.pending().get()
                 on:click=move |_| state.apply_transition()
             >
                 {move || if state.transition.pending().get() { APPLYING.get() } else { APPLY.get() }}

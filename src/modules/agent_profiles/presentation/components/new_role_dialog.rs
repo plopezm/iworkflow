@@ -111,6 +111,7 @@ pub fn NewRoleDialog(
                         type="submit"
                         class="btn-primary"
                         disabled=move || pending.get() || hint.get().is_some()
+                        class:is-busy=move || pending.get()
                     >
                         {move || if pending.get() { CREATING.get() } else { CREATE.get() }}
                     </button>

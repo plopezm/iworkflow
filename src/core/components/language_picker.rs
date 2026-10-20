@@ -1,5 +1,6 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::{BusyButton, use_hydrated};
 use crate::core::components::layout::Card;
 use crate::core::i18n::{Locale, LocaleState, Msg, current_locale};
 
@@ -43,6 +44,7 @@ pub fn LanguageCard(
     on_choose: Callback<Locale>,
 ) -> impl IntoView {
     let active: Locale = current_locale();
+    let choosing: RwSignal<Option<Locale>> = RwSignal::new(None);
     view! {
         <Card title=CARD_TITLE.get()>
             <p class="muted text-sm">{CARD_HELP.get()}</p>
@@ -51,22 +53,20 @@ pub fn LanguageCard(
                     .into_iter()
                     .map(|locale: Locale| {
                         view! {
-                            <button
-                                class=if locale == active {
-                                    "chip chip-selected"
-                                } else {
-                                    "chip"
-                                }
-                                aria-pressed=(locale == active).to_string()
+                            <BusyButton
+                                class=if locale == active { "chip chip-selected" } else { "chip" }
                                 lang=locale.code()
-                                on:click=move |_| {
-                                    if locale != active {
-                                        on_choose.run(locale);
-                                    }
-                                }
+                                busy=Signal::derive(move || choosing.get() == Some(locale))
+                                disabled=Signal::derive(move || {
+                                    choosing.get().is_some() || locale == active
+                                })
+                                on_click=Callback::new(move |()| {
+                                    choosing.set(Some(locale));
+                                    on_choose.run(locale);
+                                })
                             >
                                 {locale.native_name()}
-                            </button>
+                            </BusyButton>
                         }
                     })
                     .collect_view()}
@@ -83,6 +83,8 @@ pub fn LanguagePrompt(
     on_choose: Callback<Locale>,
 ) -> impl IntoView {
     let state: LocaleState = expect_context::<LocaleState>();
+    let choosing: RwSignal<Option<Locale>> = RwSignal::new(None);
+    let hydrated: Signal<bool> = use_hydrated();
     let other_languages: String = Locale::ALL
         .into_iter()
         .filter(|locale: &Locale| *locale != Locale::En)
@@ -107,13 +109,21 @@ pub fn LanguagePrompt(
                             .into_iter()
                             .map(|locale: Locale| {
                                 view! {
-                                    <button
+                                    // Inert until the page hydrates and while the choice is saved.
+                                    <BusyButton
                                         class="btn-secondary justify-center"
                                         lang=locale.code()
-                                        on:click=move |_| on_choose.run(locale)
+                                        busy=Signal::derive(move || {
+                                            !hydrated.get() || choosing.get() == Some(locale)
+                                        })
+                                        disabled=Signal::derive(move || choosing.get().is_some())
+                                        on_click=Callback::new(move |()| {
+                                            choosing.set(Some(locale));
+                                            on_choose.run(locale);
+                                        })
                                     >
                                         {locale.native_name()}
-                                    </button>
+                                    </BusyButton>
                                 }
                             })
                             .collect_view()}

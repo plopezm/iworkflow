@@ -137,6 +137,7 @@ pub fn LaneForm(state: JiraIssuesState) -> impl IntoView {
                     type="submit"
                     class="btn-primary"
                     disabled=move || pending.get() || !submittable.get()
+                    class:is-busy=move || pending.get()
                 >
                     {move || {
                         if pending.get() {

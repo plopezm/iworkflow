@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::confirm_panel::ConfirmPanel;
 use crate::core::components::form::SelectOption;
 use crate::core::components::layout::{Card, ErrorText};
@@ -265,7 +267,7 @@ pub fn ProfilesPage() -> impl IntoView {
                                 {IMPORT.get()}
                             </button>
                         </div>
-                        <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                        <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                             {move || Suspend::new(async move {
                                 let result: Result<ProfileStoreDto, ServerFnError> = state.store.await;
                                 match result {
@@ -308,7 +310,7 @@ pub fn ProfilesPage() -> impl IntoView {
                         >
                             {NEW_ROLE.get()}
                         </button>
-                        <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                        <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                             {move || Suspend::new(async move {
                                 let result: Result<Vec<AgentRoleDto>, ServerFnError> = state.roles.await;
                                 match result {
@@ -319,7 +321,7 @@ pub fn ProfilesPage() -> impl IntoView {
                         </Transition>
                     </Card>
                 </div>
-                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                     {move || Suspend::new(async move {
                         let store: Result<ProfileStoreDto, ServerFnError> = state.store.await;
                         let store: ProfileStoreDto = match store {
@@ -364,6 +366,7 @@ pub fn ProfilesPage() -> impl IntoView {
                                             type="button"
                                             class="btn-secondary"
                                             disabled=move || busy.get()
+                                            class:is-busy=move || busy.get()
                                             on:click=move |_| {
                                                 state
                                                     .open_name_dialog(
@@ -378,6 +381,7 @@ pub fn ProfilesPage() -> impl IntoView {
                                             type="button"
                                             class="btn-secondary"
                                             disabled=move || busy.get()
+                                            class:is-busy=move || busy.get()
                                             on:click=move |_| {
                                                 state
                                                     .open_name_dialog(
@@ -392,6 +396,7 @@ pub fn ProfilesPage() -> impl IntoView {
                                             type="button"
                                             class="btn-secondary"
                                             disabled=move || busy.get()
+                                            class:is-busy=move || busy.get()
                                             on:click=move |_| {
                                                 state
                                                     .export_profile(
@@ -406,6 +411,7 @@ pub fn ProfilesPage() -> impl IntoView {
                                             type="button"
                                             class="btn-secondary"
                                             disabled=move || busy.get()
+                                            class:is-busy=move || busy.get()
                                             on:click=move |_| {
                                                 state
                                                     .export_profile(
@@ -420,6 +426,7 @@ pub fn ProfilesPage() -> impl IntoView {
                                             type="button"
                                             class="btn-danger"
                                             disabled=move || busy.get()
+                                            class:is-busy=move || busy.get()
                                             on:click=move |_| state.confirming_delete.set(true)
                                         >
                                             {DELETE.get()}

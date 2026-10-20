@@ -404,6 +404,7 @@ pub fn TaskModal(state: BoardState, workspaces: Signal<Vec<WorkspaceOptionDto>>)
                         type="submit"
                         class="btn-primary"
                         disabled=move || pending.get() || !has_workspaces.get()
+                        class:is-busy=move || pending.get()
                     >
                         {move || {
                             if pending.get() { SAVING.get() } else { CREATE_TASK.get() }

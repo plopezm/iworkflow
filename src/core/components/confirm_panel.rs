@@ -1,6 +1,8 @@
 use crate::core::i18n::Msg;
 use leptos::prelude::*;
 
+use crate::core::components::busy::BusyButton;
+
 const CANCEL: Msg = Msg {
     en: "Cancel",
     es: "Cancelar",
@@ -22,14 +24,9 @@ pub fn ConfirmPanel(
         <div class="stack gap-2 rounded-xl border border-border/60 bg-surface/80 p-3 backdrop-blur-sm">
             <p class="text-sm text-fg">{move || message.get()}</p>
             <div class="row gap-2">
-                <button
-                    type="button"
-                    class="btn-primary"
-                    disabled=move || pending.get()
-                    on:click=move |_| on_confirm.run(())
-                >
+                <BusyButton class="btn-primary" busy=pending on_click=on_confirm>
                     {move || confirm_label.get()}
-                </button>
+                </BusyButton>
                 <button
                     type="button"
                     class="btn-secondary"
