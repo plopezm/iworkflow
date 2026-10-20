@@ -13,7 +13,10 @@ async fn main() {
     use iworkflow::core::listen::{
         ListenInfo, SITE_ADDR_VAR, local_network_ip, resolve_listen_addr,
     };
-    use iworkflow::core::restart::{RESTART_EXIT_CODE, RestartHandle, is_supervised, respawn_self};
+    use iworkflow::core::restart::{
+        AfterShutdown, RESTART_EXIT_CODE, RestartHandle, after_shutdown, is_supervised,
+        respawn_self,
+    };
     use iworkflow::modules::preferences::domain::models::access_token::AccessToken;
     use iworkflow::modules::preferences::infrastructure::adapters::inbound::access_guard::{
         AccessGuard, access_router, require_access,
@@ -241,14 +244,15 @@ async fn main() {
     }
 
     // Everything is flushed and the port is free: hand over to the supervisor or start again.
-    if restart.is_requested() {
-        if is_supervised() {
-            std::process::exit(RESTART_EXIT_CODE);
-        }
-        let args: Vec<String> = std::env::args().skip(1).collect();
-        if let Err(error) = respawn_self(&args) {
-            tracing::error!(%error, "no se pudo reiniciar el servidor; inícialo manualmente");
-            std::process::exit(1);
+    match after_shutdown(restart.is_requested(), is_supervised()) {
+        AfterShutdown::Stop => {}
+        AfterShutdown::HandOver => std::process::exit(RESTART_EXIT_CODE),
+        AfterShutdown::Respawn => {
+            let args: Vec<String> = std::env::args().skip(1).collect();
+            if let Err(error) = respawn_self(&args) {
+                tracing::error!(%error, "no se pudo reiniciar el servidor; inícialo manualmente");
+                std::process::exit(1);
+            }
         }
     }
 }

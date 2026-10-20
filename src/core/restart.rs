@@ -12,6 +12,8 @@ use tokio::sync::Notify;
 pub const RESTART_EXIT_CODE: i32 = 75;
 /// Set by a supervisor that respawns the server when it exits with [`RESTART_EXIT_CODE`].
 pub const SUPERVISED_VAR: &str = "IWF_SUPERVISED";
+/// Value the desktop shell gives [`SUPERVISED_VAR`].
+const SUPERVISED_VALUE: &str = "1";
 const NO_OPEN_FLAG: &str = "--no-open";
 
 /// Shared flag between the server function that asks for a restart and `main`, which owns the
@@ -41,7 +43,31 @@ impl RestartHandle {
 
 /// Whether a supervisor will respawn the server after it exits with [`RESTART_EXIT_CODE`].
 pub fn is_supervised() -> bool {
-    std::env::var_os(SUPERVISED_VAR).is_some()
+    supervised_from(std::env::var(SUPERVISED_VAR).ok().as_deref())
+}
+
+/// Only the value the shell sets counts, so `IWF_SUPERVISED=0` or an empty value does not.
+fn supervised_from(value: Option<&str>) -> bool {
+    value == Some(SUPERVISED_VALUE)
+}
+
+/// What `main` does once the server has shut down.
+#[derive(Debug, PartialEq, Eq)]
+pub enum AfterShutdown {
+    /// Plain shutdown.
+    Stop,
+    /// Exit with [`RESTART_EXIT_CODE`] so the supervisor starts the server again.
+    HandOver,
+    /// Start a fresh copy of this executable.
+    Respawn,
+}
+
+pub fn after_shutdown(restart_requested: bool, supervised: bool) -> AfterShutdown {
+    match (restart_requested, supervised) {
+        (false, _) => AfterShutdown::Stop,
+        (true, true) => AfterShutdown::HandOver,
+        (true, false) => AfterShutdown::Respawn,
+    }
 }
 
 /// Arguments for the new process: the current ones, never reopening the browser tab.
@@ -64,6 +90,22 @@ pub fn respawn_self(args: &[String]) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_shell_value_marks_the_server_as_supervised() {
+        assert!(supervised_from(Some("1")));
+        assert!(!supervised_from(Some("0")));
+        assert!(!supervised_from(Some("")));
+        assert!(!supervised_from(None));
+    }
+
+    #[test]
+    fn shutdown_outcome_depends_on_the_request_and_the_supervisor() {
+        assert_eq!(after_shutdown(false, true), AfterShutdown::Stop);
+        assert_eq!(after_shutdown(false, false), AfterShutdown::Stop);
+        assert_eq!(after_shutdown(true, true), AfterShutdown::HandOver);
+        assert_eq!(after_shutdown(true, false), AfterShutdown::Respawn);
+    }
 
     #[test]
     fn respawn_never_reopens_the_browser() {

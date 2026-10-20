@@ -278,7 +278,10 @@ export function pi_read_first_file(input, on_done) {
 }
 export function pi_reload_when_server_returns(port) {
   const target = location.protocol + '//' + location.hostname + ':' + port + '/';
+  let attempts = 0;
   const probe = () => {
+    // Give up after a minute: the browser then shows its own error for the address.
+    if (++attempts > 60) { location.href = target; return; }
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 2000);
     fetch(target, { mode: 'no-cors', cache: 'no-store', signal: abort.signal })

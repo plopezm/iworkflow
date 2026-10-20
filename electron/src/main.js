@@ -115,14 +115,15 @@ function startServer(onListening) {
   });
 }
 
-/** The server exited on purpose (settings changed): start it again and reload the window. */
+/**
+ * The server exited on purpose (settings changed): start it again. The page reloads itself
+ * once the server answers, so the shell only has to trust the new address before that happens.
+ */
 async function restartServer() {
   try {
     accessToken = null;
-    const addr = await startAndFindAddr();
-    await waitUntilReady(addr);
-    serverAddr = addr;
-    if (mainWindow) await mainWindow.loadURL(windowUrl(addr, accessToken));
+    serverAddr = await startAndFindAddr();
+    await waitUntilReady(serverAddr);
   } catch (error) {
     fatal(error instanceof Error ? error.message : String(error));
   }
