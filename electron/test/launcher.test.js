@@ -4,6 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
   DEFAULT_SITE_ADDR,
+  RESTART_EXIT_CODE,
+  isRestartExit,
   parseSiteAddr,
   serverBinaryName,
   buildServerEnv,
@@ -104,4 +106,16 @@ test('ignores log lines that are not the listen announcement', () => {
   assert.equal(extractListenAddr('INFO iworkflow: acceso desde la red; enlace: http://192.168.1.5:9000/?token=abc'), null);
   assert.equal(extractListenAddr('escuchando en http://127.0.0.1:99999'), null);
   assert.equal(extractListenAddr('hello'), null);
+});
+
+test('the server is told that the shell respawns it', () => {
+  assert.equal(buildServerEnv({}, 'linux').IWF_SUPERVISED, '1');
+});
+
+test('only the restart exit code asks for a respawn', () => {
+  assert.equal(RESTART_EXIT_CODE, 75);
+  assert.equal(isRestartExit(75), true);
+  assert.equal(isRestartExit(0), false);
+  assert.equal(isRestartExit(1), false);
+  assert.equal(isRestartExit(null), false);
 });

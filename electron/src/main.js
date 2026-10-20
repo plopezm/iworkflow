@@ -14,6 +14,7 @@ const {
   buildServerEnv,
   extractAccessToken,
   extractListenAddr,
+  isRestartExit,
   isTrustedUrl,
   parseSiteAddr,
   serverArgs,
@@ -36,6 +37,8 @@ let mainWindow = null;
 let tray = null;
 let quitting = false;
 let accessToken = null;
+// Address the window may show; it changes when a restart moves the server to another port.
+let serverAddr = null;
 const logTail = [];
 
 /** Directory holding the server binary and its `site/` folder. */
@@ -104,10 +107,26 @@ function startServer(onListening) {
   child.once('error', (error) => rememberLog(String(error)));
   child.once('exit', (code, signal) => {
     server = null;
-    if (!quitting) {
+    if (!quitting && isRestartExit(code)) {
+      void restartServer();
+    } else if (!quitting) {
       fatal(`The server stopped unexpectedly (${signal ?? `code ${code}`}).`);
     }
   });
+}
+
+/**
+ * The server exited on purpose (settings changed): start it again. The page reloads itself
+ * once the server answers, so the shell only has to trust the new address before that happens.
+ */
+async function restartServer() {
+  try {
+    accessToken = null;
+    serverAddr = await startAndFindAddr();
+    await waitUntilReady(serverAddr);
+  } catch (error) {
+    fatal(error instanceof Error ? error.message : String(error));
+  }
 }
 
 function stopServer() {
@@ -138,6 +157,7 @@ function showWindow() {
 }
 
 function createWindow(addr) {
+  serverAddr = addr;
   mainWindow = new BrowserWindow({
     title: APP_TITLE,
     width: 1400,
@@ -158,14 +178,14 @@ function createWindow(addr) {
     mainWindow = null;
   });
   const keepLocal = (event, url) => {
-    if (!isTrustedUrl(url, addr)) {
+    if (!isTrustedUrl(url, serverAddr)) {
       event.preventDefault();
       if (/^https?:\/\//.test(url)) shell.openExternal(url);
     }
   };
   mainWindow.webContents.on('will-navigate', keepLocal);
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:\/\//.test(url) && !isTrustedUrl(url, addr)) shell.openExternal(url);
+    if (/^https?:\/\//.test(url) && !isTrustedUrl(url, serverAddr)) shell.openExternal(url);
     return { action: 'deny' };
   });
   return mainWindow.loadURL(windowUrl(addr, accessToken));

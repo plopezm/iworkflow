@@ -276,11 +276,26 @@ export function pi_read_first_file(input, on_done) {
   if (!file) { on_done(false, ''); return; }
   file.text().then((text) => on_done(true, text), (error) => on_done(false, String(error)));
 }
+export function pi_reload_when_server_returns(port) {
+  const target = location.protocol + '//' + location.hostname + ':' + port + '/';
+  let attempts = 0;
+  const probe = () => {
+    // Give up after a minute: the browser then shows its own error for the address.
+    if (++attempts > 60) { location.href = target; return; }
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), 2000);
+    fetch(target, { mode: 'no-cors', cache: 'no-store', signal: abort.signal })
+      .then(() => { location.href = target; }, () => setTimeout(probe, 1000))
+      .finally(() => clearTimeout(timer));
+  };
+  setTimeout(probe, 1500);
+}
 "#)]
     extern "C" {
         pub fn pi_download_text(filename: &str, content: &str, mime: &str);
         pub fn pi_copy_text(text: &str, on_done: &JsValue);
         pub fn pi_read_first_file(input: &JsValue, on_done: &JsValue);
+        pub fn pi_reload_when_server_returns(port: u16);
     }
 }
 
@@ -308,6 +323,19 @@ pub fn copy_text_to_clipboard(text: &str, on_done: impl FnOnce(bool) + 'static) 
     {
         let _text: &str = text;
         on_done(false);
+    }
+}
+
+/// Tras pedir un reinicio del servidor: espera a que vuelva a responder en `port` (mismo
+/// host que la página) y abre ahí la web. Fuera del navegador no hace nada.
+pub fn reload_when_server_returns(port: u16) {
+    #[cfg(feature = "hydrate")]
+    {
+        file_js::pi_reload_when_server_returns(port);
+    }
+    #[cfg(not(feature = "hydrate"))]
+    {
+        let _port: u16 = port;
     }
 }
 

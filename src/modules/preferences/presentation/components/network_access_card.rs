@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::browser::reload_when_server_returns;
 use crate::core::components::busy::Loading;
-
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Badge, Card, ErrorText};
 use crate::core::i18n::Msg;
@@ -9,7 +9,7 @@ use crate::modules::preferences::infrastructure::adapters::inbound::dto::network
     AccessTargetDto, NetworkAccessDto,
 };
 use crate::modules::preferences::infrastructure::adapters::inbound::server_fns::{
-    RegenerateAccessToken, SaveListenPort, SaveNetworkAccess, SaveRequireAccessToken,
+    RegenerateAccessToken, RestartServer, SaveListenPort, SaveNetworkAccess, SaveRequireAccessToken,
 };
 use crate::modules::preferences::presentation::state::network_access_state::NetworkAccessState;
 
@@ -61,6 +61,20 @@ const RESTART_PENDING: Msg = Msg {
     zh: "请重启服务器以应用更改。",
     de: "Starte den Server neu, um die Änderung zu übernehmen.",
     fr: "Redémarrez le serveur pour appliquer le changement.",
+};
+const RESTART_NOW: Msg = Msg {
+    en: "Restart now",
+    es: "Reiniciar ahora",
+    zh: "立即重启",
+    de: "Jetzt neu starten",
+    fr: "Redémarrer maintenant",
+};
+const RESTARTING: Msg = Msg {
+    en: "Restarting… this page will reload when the server is back.",
+    es: "Reiniciando… esta página se recargará cuando el servidor vuelva.",
+    zh: "正在重启…服务器恢复后此页面将重新加载。",
+    de: "Neustart läuft… Diese Seite wird neu geladen, sobald der Server wieder da ist.",
+    fr: "Redémarrage… cette page se rechargera quand le serveur sera de retour.",
 };
 const STATUS_EXPOSED: Msg = Msg {
     en: "Reachable from the network",
@@ -267,7 +281,7 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
         })}
         {(reachable && !require_token)
             .then(|| view! { <p class="text-sm text-error" role="alert">{TOKEN_OFF_WARNING.get()}</p> })}
-        {pending_restart.then(|| view! { <p class="text-sm text-warn">{RESTART_PENDING.get()}</p> })}
+        {pending_restart.then(|| view! { <RestartPrompt state port=access.configured_port /> })}
         {(!targets.is_empty()).then(|| view! { <AccessTargets state targets require_token /> })}
         {plain_url.map(|url: String| view! {
             <p class="text-sm text-fg">{OPEN_FROM_PHONE.get()} " " <code>{url}</code></p>
@@ -296,6 +310,41 @@ fn NetworkAccessForm(state: NetworkAccessState, access: NetworkAccessDto) -> imp
         <ActionError result=state.save_require_token.value().into() />
         <ActionError result=state.save_port.value().into() />
         <ActionError result=state.regenerate.value().into() />
+        <ActionError result=state.restart.value().into() />
+    }
+}
+
+/// Tells the user the saved change needs a restart and offers to do it right away.
+#[component]
+fn RestartPrompt(state: NetworkAccessState, port: u16) -> impl IntoView {
+    let busy: Signal<bool> = state.busy();
+    let accepted: Signal<bool> =
+        Signal::derive(move || matches!(state.restart.value().get(), Some(Ok(()))));
+    // Once the server accepted the restart, wait for it (on the saved port) and reopen the page.
+    Effect::new(move |_| {
+        if accepted.get() {
+            reload_when_server_returns(port);
+        }
+    });
+    view! {
+        <div class="stack gap-1">
+            <p class="text-sm text-warn" role="status">
+                {move || if accepted.get() { RESTARTING.get() } else { RESTART_PENDING.get() }}
+            </p>
+            <div class="row items-center gap-2">
+                <button
+                    type="button"
+                    class="btn-secondary"
+                    disabled=move || busy.get() || accepted.get()
+                    class:is-busy=move || busy.get()
+                    on:click=move |_| {
+                        state.restart.dispatch(RestartServer {});
+                    }
+                >
+                    {RESTART_NOW.get()}
+                </button>
+            </div>
+        </div>
     }
 }
 

@@ -13,6 +13,10 @@ async fn main() {
     use iworkflow::core::listen::{
         ListenInfo, SITE_ADDR_VAR, local_network_ip, resolve_listen_addr,
     };
+    use iworkflow::core::restart::{
+        AfterShutdown, RESTART_EXIT_CODE, RestartHandle, after_shutdown, is_supervised,
+        respawn_self,
+    };
     use iworkflow::modules::preferences::domain::models::access_token::AccessToken;
     use iworkflow::modules::preferences::infrastructure::adapters::inbound::access_guard::{
         AccessGuard, access_router, require_access,
@@ -136,6 +140,7 @@ async fn main() {
         tracing::warn!("el servidor es accesible desde la red SIN token de acceso");
     }
     let routes: Vec<AxumRouteListing> = generate_route_list(App);
+    let restart: RestartHandle = RestartHandle::default();
 
     let context_state: AppState = state.clone();
     // Las server functions cuelgan del router de Leptos: solo ahí se eleva el límite de
@@ -147,9 +152,11 @@ async fn main() {
                 routes,
                 {
                     let guard: AccessGuard = access_guard.clone();
+                    let restart: RestartHandle = restart.clone();
                     move || {
                         context_state.provide();
                         provide_context(listen_info);
+                        provide_context(restart.clone());
                         provide_context(guard.clone());
                     }
                 },
@@ -191,9 +198,13 @@ async fn main() {
     let signal_received: std::sync::Arc<tokio::sync::Notify> =
         std::sync::Arc::new(tokio::sync::Notify::new());
     let notifier: std::sync::Arc<tokio::sync::Notify> = signal_received.clone();
+    let restart_wait: RestartHandle = restart.clone();
     let server = axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(async move {
-            shutdown_signal().await;
+            tokio::select! {
+                () = shutdown_signal() => {},
+                () = restart_wait.requested() => tracing::info!("reinicio solicitado desde la interfaz"),
+            }
             notifier.notify_one();
         })
         .into_future();
@@ -230,6 +241,19 @@ async fn main() {
             "tiempo agotado ({SHUTDOWN_FLUSH_TIMEOUT:?}) vaciando eventos de agente: \
              los eventos pendientes se pierden"
         ),
+    }
+
+    // Everything is flushed and the port is free: hand over to the supervisor or start again.
+    match after_shutdown(restart.is_requested(), is_supervised()) {
+        AfterShutdown::Stop => {}
+        AfterShutdown::HandOver => std::process::exit(RESTART_EXIT_CODE),
+        AfterShutdown::Respawn => {
+            let args: Vec<String> = std::env::args().skip(1).collect();
+            if let Err(error) = respawn_self(&args) {
+                tracing::error!(%error, "no se pudo reiniciar el servidor; inícialo manualmente");
+                std::process::exit(1);
+            }
+        }
     }
 }
 

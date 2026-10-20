@@ -188,3 +188,15 @@ pub async fn regenerate_access_token() -> Result<(), ServerFnError> {
     }
     Ok(())
 }
+
+/// Restarts the server so saved network settings apply. The response is sent before it stops;
+/// the desktop shell or the server itself brings it back up.
+#[server]
+pub async fn restart_server() -> Result<(), ServerFnError> {
+    use crate::core::restart::RestartHandle;
+
+    use_context::<RestartHandle>()
+        .ok_or_else(|| ServerFnError::new("RestartHandle no disponible"))?
+        .request();
+    Ok(())
+}
