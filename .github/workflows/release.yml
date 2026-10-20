@@ -148,3 +148,6 @@ jobs:
         with:
           files: artifacts/*
           generate_release_notes: true
+          # electron-updater resolves /releases/latest, which GitHub only serves for a non-prerelease.
+          prerelease: false
+          make_latest: true
