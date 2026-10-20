@@ -8,12 +8,15 @@ const { isNewerVersion, latestReleaseApiUrl, parseLatestRelease } = require('./u
 const API_TIMEOUT_MS = 15_000;
 const CHECK_TIMEOUT_MS = 60_000;
 
-/** Rejects when `promise` does not settle within `ms`; the timer never keeps the process alive. */
+/**
+ * Rejects when `promise` does not settle within `ms`. The timer is cleared as soon as either side
+ * settles, and it must stay ref'd: an unref'd timer lets the event loop drain while the promise is
+ * pending, which Node 22's test runner reports as a cancelled test.
+ */
 function withTimeout(promise, ms, label) {
   let timer;
   const timeout = new Promise((_, reject) => {
     timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms} ms`)), ms);
-    timer.unref?.();
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
