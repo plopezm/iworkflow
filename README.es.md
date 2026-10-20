@@ -310,11 +310,19 @@ También puedes fijar la dirección antes de lanzar, p. ej. `LEPTOS_SITE_ADDR=0.
 - **Cerrar la ventana solo la oculta**, así que un móvil conectado por la red local o Tailscale sigue funcionando. Para detener el servidor usa el icono de la bandeja (**Quit and stop server**) o **File → Quit**. En macOS el icono está en la barra de menús y pulsar el icono del Dock vuelve a mostrar la ventana (**iworkflow → Quit** o Cmd+Q detiene el servidor). En un escritorio Linux sin bandeja, cerrar la ventana cierra la app.
 - Los enlaces externos se abren en el navegador del sistema; la ventana solo muestra el servidor local.
 - `git` (y los CLI de agentes que uses) deben estar instalados y en el `PATH`; el instalador no los incluye. Con el acceso desde la red activo, Windows y macOS piden una vez permitir la app en el cortafuegos. En macOS la app añade `/opt/homebrew/bin` y `/usr/local/bin` a su `PATH`, porque las apps abiertas desde Finder no heredan el de tu shell.
-- Los instaladores no están firmados, así que Windows SmartScreen avisa en la primera ejecución. En macOS la app solo lleva firma ad hoc y no está notarizada: Gatekeeper bloquea el primer arranque, así que pulsa con el botón derecho → **Abrir** (o ejecuta `xattr -dr com.apple.quarantine /Applications/iworkflow.app`). Aún no incluyen actualizaciones automáticas.
+- Los instaladores no están firmados, así que Windows SmartScreen avisa en la primera ejecución. En macOS la app solo lleva firma ad hoc y no está notarizada: Gatekeeper bloquea el primer arranque, así que pulsa con el botón derecho → **Abrir** (o ejecuta `xattr -dr com.apple.quarantine /Applications/iworkflow.app`).
+
+### Actualizaciones
+
+La app consulta el último release de GitHub 15 segundos después de arrancar, cada 6 horas y desde el menú de la bandeja (**Check for updates**). No instala nada sin preguntar:
+
+- **Windows (NSIS) y Linux (AppImage)**: ofrece la nueva versión, la descarga (solo los bloques cambiados cuando es posible), verifica el sha512 de `latest*.yml` y, tras aceptar, para el servidor, reemplaza la app y la vuelve a abrir (`electron-updater`). Un build de Linux que no sea AppImage solo avisa.
+- **macOS**: solo avisa y abre la página del release, porque macOS no autoinstala una app sin firma de código válida y la app solo lleva firma ad hoc. Descarga el nuevo `.dmg` y reemplaza la app.
+- `IWF_UPDATE_CHECK=off` desactiva la comprobación. Un repositorio privado necesita `GH_TOKEN` en el entorno; uno público no necesita nada. Las ejecuciones de desarrollo (`electron .`) nunca comprueban.
 
 ### Workflow de release
 
-`.github/workflows/release.yml` construye los archivos del servidor y, en los mismos runners de Linux, macOS (Apple Silicon e Intel) y Windows, los instaladores de escritorio: ejecuta los tests del lanzador (`npm test` en `electron/`), después `scripts/electron.sh build` sobre el servidor que acaba de compilar, y sube `iworkflow-desktop-<plataforma>`. Al subir un tag `v*` se publica todo en una release de GitHub; también puede lanzarse a mano (*Run workflow*). La versión del instalador sale de `electron/package.json`: mantenla igual que `Cargo.toml`.
+`.github/workflows/release.yml` construye los archivos del servidor y, en los mismos runners de Linux, macOS (Apple Silicon e Intel) y Windows, los instaladores de escritorio: ejecuta los tests del lanzador (`npm test` en `electron/`), después `scripts/electron.sh build` sobre el servidor que acaba de compilar, y sube `iworkflow-desktop-<plataforma>`. Al subir un tag `v*` se publica todo en una release de GitHub; también puede lanzarse a mano (*Run workflow*). La versión del instalador sale de `electron/package.json`: mantenla igual que `Cargo.toml`. El workflow sube también `latest-linux.yml` / `latest.yml` (y los `.blockmap`) junto a los instaladores: son lo que lee `electron-updater`, así que un release sin ellos no puede actualizar instalaciones de Windows ni Linux. macOS no tiene.
 
 ## Desarrollar desde el móvil con Tailscale
 

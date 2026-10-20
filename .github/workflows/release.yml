@@ -27,11 +27,13 @@ jobs:
             bin: iworkflow
             archive: tar.gz
             installer: AppImage
+            update_meta: server-dist/electron/latest-linux.yml
           - name: windows-x86_64
             os: windows-latest
             bin: iworkflow.exe
             archive: zip
             installer: exe
+            update_meta: server-dist/electron/latest.yml
             # Statically link the MSVC runtime so no VC++ redistributable is needed.
             # Scoped to the host target so the wasm build is unaffected.
             rustflags: "-C target-feature=+crt-static"
@@ -115,12 +117,15 @@ jobs:
           cp "target/release/${{ matrix.bin }}" server-dist/
           cp -r target/site server-dist/site
           DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1 ./scripts/electron.sh build
-          echo "glob=server-dist/electron/iworkflow-*.${{ matrix.installer }}" >> "$GITHUB_OUTPUT"
+          echo "glob=server-dist/electron/iworkflow-*.${{ matrix.installer }}*" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: iworkflow-desktop-${{ matrix.name }}
-          path: ${{ steps.installer.outputs.glob }}
+          # latest*.yml (+ .blockmap) feed electron-updater. macOS has none: it only notifies.
+          path: |
+            ${{ steps.installer.outputs.glob }}
+            ${{ matrix.update_meta }}
           if-no-files-found: error
 
   release:
