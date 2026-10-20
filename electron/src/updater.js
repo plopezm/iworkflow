@@ -20,9 +20,10 @@ const API_TIMEOUT_MS = 15_000;
 
 /**
  * Starts the periodic check and returns `{ enabled, checkNow }`.
- * `beforeInstall` must stop everything that would block the installer (the server process).
+ * `beforeInstall` must stop everything that would block the installer (the server process);
+ * `recover` brings the app back (server included) when the installer could not be started.
  */
-function startUpdater({ getWindow, beforeInstall }) {
+function startUpdater({ getWindow, beforeInstall, recover }) {
   const strategy = updateStrategy({ platform: process.platform, packaged: app.isPackaged, env: process.env });
   if (strategy === 'off') return { enabled: false, checkNow: async () => {} };
 
@@ -82,7 +83,14 @@ function startUpdater({ getWindow, beforeInstall }) {
       cancelId: 1,
     });
     if (download !== 0) return;
-    await autoUpdater.downloadUpdate();
+    try {
+      await autoUpdater.downloadUpdate();
+    } catch (error) {
+      // The user asked for this download, so a failure is never silent.
+      console.error(`[update] ${error instanceof Error ? error.message : error}`);
+      await ask({ type: 'error', message: `Could not download iworkflow ${version}.`, detail: 'Try again later.' });
+      return;
+    }
     const { response: restart } = await ask({
       message: `iworkflow ${version} is ready to install.`,
       detail: 'The app restarts, and the server restarts with it.',
@@ -92,7 +100,13 @@ function startUpdater({ getWindow, beforeInstall }) {
     });
     if (restart !== 0) return;
     await beforeInstall();
-    autoUpdater.quitAndInstall(false, true);
+    try {
+      autoUpdater.quitAndInstall(false, true);
+    } catch (error) {
+      // The server is already stopped: restart the app instead of leaving it half dead.
+      console.error(`[update] ${error instanceof Error ? error.message : error}`);
+      recover();
+    }
   }
 
   async function checkNow(manual = false) {

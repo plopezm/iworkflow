@@ -227,6 +227,10 @@ async function main() {
       quitting = true;
       await stopServer();
     },
+    recover: () => {
+      app.relaunch();
+      app.exit(0);
+    },
   });
   createTray(updater);
   await createWindow(addr);

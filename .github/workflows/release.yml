@@ -18,6 +18,9 @@ jobs:
   build:
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    # The macOS legs have not run on a real Mac yet: their failure must not block the Linux and
+    # Windows release. A failed leg stays visible as a red job and its installer is simply absent.
+    continue-on-error: ${{ startsWith(matrix.name, 'macos') }}
     strategy:
       fail-fast: false
       matrix:
