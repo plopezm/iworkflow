@@ -257,7 +257,7 @@ from inside that folder.
 
 ## Desktop app (Electron)
 
-For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `scripts/electron.sh` builds an installer for the platform it runs on (Linux: AppImage, Windows: NSIS `.exe`). There is no separate "mobile server" to build: the installer already contains the same `iworkflow` binary, so a phone connects to the server running inside the app (see [Using it from your phone](#using-it-from-your-phone)).
+For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `scripts/electron.sh` builds an installer for the platform it runs on (Linux: AppImage, macOS: `.dmg`, Windows: NSIS `.exe`). There is no separate "mobile server" to build: the installer already contains the same `iworkflow` binary, so a phone connects to the server running inside the app (see [Using it from your phone](#using-it-from-your-phone)).
 
 ### Build the installer
 
@@ -272,7 +272,7 @@ It runs, in order:
 1. `scripts/prod.sh build`: `cargo leptos build --release`, leaving the binary and `site/` in `dist/`.
 2. Copies both into `electron/resources/server/` (outside the asar archive, so the binary stays executable).
 3. `npm ci` and `electron-builder` for the current platform.
-4. Writes the installer to `dist/electron/`: `iworkflow-<version>-linux-x86_64.AppImage` or `iworkflow-<version>-win-x64.exe`.
+4. Writes the installer to `dist/electron/`: `iworkflow-<version>-linux-x86_64.AppImage`, `iworkflow-<version>-mac-arm64.dmg` (or `mac-x64`) or `iworkflow-<version>-win-x64.exe`.
 
 Other forms:
 
@@ -282,7 +282,7 @@ DIST_DIR=/some/dir ./scripts/electron.sh build    # use another server package /
 ./scripts/electron.sh dev                         # open the window on dist/ without building an installer
 ```
 
-On Windows run it from **Git Bash** (with the MSVC Rust toolchain). The release build of the server takes a few minutes; limit parallelism with `CARGO_BUILD_JOBS=2` on small machines.
+On macOS the `.dmg` is built for the architecture of the Mac that builds it (Apple Silicon or Intel); it needs the Xcode Command Line Tools. On Windows run it from **Git Bash** (with the MSVC Rust toolchain). The release build of the server takes a few minutes; limit parallelism with `CARGO_BUILD_JOBS=2` on small machines.
 
 ### Run it
 
@@ -291,7 +291,7 @@ chmod +x dist/electron/iworkflow-*.AppImage
 ./dist/electron/iworkflow-*.AppImage          # add --appimage-extract-and-run if FUSE is missing
 ```
 
-On Windows run the installer and start **iworkflow** from the Start menu.
+On macOS open the `.dmg` and drag **iworkflow** to Applications. On Windows run the installer and start **iworkflow** from the Start menu.
 
 ### Using it from your phone
 
@@ -307,14 +307,14 @@ You can also pin the address before launching, e.g. `LEPTOS_SITE_ADDR=0.0.0.0:90
 
 - The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `LEPTOS_SITE_ADDR`, same access token. The window signs itself in when a token is required.
 - The server listens on `127.0.0.1:9000` by default; change the port in **Settings → Network access**. The app reads the address the server announces at startup, so it follows the saved port. If the port is busy the app shows an error; free it or choose another one.
-- **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On a Linux desktop without tray support, closing the window quits the app.
+- **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On macOS the icon lives in the menu bar and clicking the Dock icon shows the window again (**iworkflow → Quit** or Cmd+Q stops the server). On a Linux desktop without tray support, closing the window quits the app.
 - External links open in the system browser; the window itself only shows the local server.
-- `git` (and the agent CLIs you use) must be installed and on the `PATH`; the installer does not bundle them. With network access on, Windows asks once to allow the app through the firewall.
-- The installers are not code-signed, so Windows SmartScreen warns on first run. Automatic updates are not included yet.
+- `git` (and the agent CLIs you use) must be installed and on the `PATH`; the installer does not bundle them. With network access on, Windows and macOS ask once to allow the app through the firewall. On macOS the app adds `/opt/homebrew/bin` and `/usr/local/bin` to its `PATH`, since apps opened from Finder do not inherit your shell's.
+- The installers are not code-signed, so Windows SmartScreen warns on first run. On macOS the app is only ad-hoc signed and not notarized: Gatekeeper blocks the first launch, so right-click the app → **Open** (or run `xattr -dr com.apple.quarantine /Applications/iworkflow.app`). Automatic updates are not included yet.
 
 ### Release workflow
 
-`.github/workflows/release.yml` builds the server archives and, on the same Linux and Windows runners, the desktop installers: it runs the launcher tests (`npm test` in `electron/`), then `scripts/electron.sh build` over the server it just compiled, and uploads `iworkflow-desktop-<platform>`. Pushing a `v*` tag publishes everything in a GitHub release; it can also be started by hand (*Run workflow*). The installer version comes from `electron/package.json`: keep it equal to `Cargo.toml`.
+`.github/workflows/release.yml` builds the server archives and, on the same Linux, macOS (Apple Silicon and Intel) and Windows runners, the desktop installers: it runs the launcher tests (`npm test` in `electron/`), then `scripts/electron.sh build` over the server it just compiled, and uploads `iworkflow-desktop-<platform>`. Pushing a `v*` tag publishes everything in a GitHub release; it can also be started by hand (*Run workflow*). The installer version comes from `electron/package.json`: keep it equal to `Cargo.toml`.
 
 ## Developing from your phone with Tailscale
 

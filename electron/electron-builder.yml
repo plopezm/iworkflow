@@ -16,6 +16,14 @@ linux:
   target: [AppImage]
   category: Development
   icon: build/icon.png
+mac:
+  target: [dmg]
+  category: public.app-category.developer-tools
+  icon: build/icon.png
+  # No Apple certificate: sign ad hoc ("-"). Apple Silicon refuses an app whose signature
+  # became invalid after adding the server to its resources.
+  identity: "-"
+  hardenedRuntime: false
 win:
   target: [nsis]
   icon: build/icon.png

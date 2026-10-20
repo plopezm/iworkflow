@@ -55,6 +55,19 @@ test('server env keeps an address the user pinned and does not touch the databas
   assert.equal(untouched.IWF_DATABASE_URL, undefined);
 });
 
+test('on macOS the server PATH gains the Homebrew directories a Finder launch lacks', () => {
+  const env = buildServerEnv({ PATH: '/usr/bin:/bin' }, 'darwin');
+  assert.equal(env.PATH, '/usr/bin:/bin:/opt/homebrew/bin:/usr/local/bin');
+  const present = buildServerEnv({ PATH: '/opt/homebrew/bin:/usr/bin' }, 'darwin');
+  assert.equal(present.PATH, '/opt/homebrew/bin:/usr/bin:/usr/local/bin');
+  assert.equal(buildServerEnv({}, 'darwin').PATH, '/opt/homebrew/bin:/usr/local/bin');
+});
+
+test('other platforms keep PATH untouched', () => {
+  assert.equal(buildServerEnv({ PATH: '/usr/bin' }, 'linux').PATH, '/usr/bin');
+  assert.equal(buildServerEnv({ PATH: 'C:\\bin' }, 'win32').PATH, 'C:\\bin');
+});
+
 test('extracts the access token from the startup link', () => {
   const token = 'a'.repeat(64);
   const line = `INFO iworkflow: acceso desde la red protegido con token; enlace: http://192.168.1.5:3000/?token=${token}`;

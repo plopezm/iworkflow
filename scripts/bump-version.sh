@@ -27,16 +27,17 @@ if [[ ! "$new_version" =~ $SEMVER_RE ]]; then
   exit 1
 fi
 
+# perl instead of `sed -i`: BSD sed (macOS) has no `0,/re/` address and a different `-i`.
+# Without /g, `s///` replaces only the first match, which is what each file needs.
 # Cargo.toml: first `version` line, which belongs to [package].
-sed -i '0,/^version *= *".*"/s//version = "'"$new_version"'"/' "$CARGO_TOML"
+NEW="$new_version" perl -0pi -e 's/^version *= *".*"/version = "$ENV{NEW}"/m' "$CARGO_TOML"
 # Cargo.lock: the entry of this crate only.
-sed -i '/^name = "iworkflow"$/{n;s/^version = ".*"/version = "'"$new_version"'"/}' "$CARGO_LOCK"
+NEW="$new_version" perl -0pi -e 's/^(name = "iworkflow"\n)version = ".*"/$1version = "$ENV{NEW}"/m' "$CARGO_LOCK"
 # electron/package.json: top-level version (2-space indent).
-sed -i '0,/^  "version": ".*",/s//  "version": "'"$new_version"'",/' "$PKG_JSON"
+NEW="$new_version" perl -0pi -e 's/^  "version": ".*",/  "version": "$ENV{NEW}",/m' "$PKG_JSON"
 # electron/package-lock.json: root version and the root package entry.
 if [[ -f "$PKG_LOCK" ]]; then
-  sed -i '0,/^  "version": ".*",/s//  "version": "'"$new_version"'",/' "$PKG_LOCK"
-  sed -i '0,/^      "version": ".*",/s//      "version": "'"$new_version"'",/' "$PKG_LOCK"
+  NEW="$new_version" perl -0pi -e 's/^  "version": ".*",/  "version": "$ENV{NEW}",/m; s/^      "version": ".*",/      "version": "$ENV{NEW}",/m' "$PKG_LOCK"
 fi
 
 echo "Bumped to $new_version:"

@@ -27,6 +27,8 @@ const STOP_GRACE_MS = 5_000;
 const LOG_TAIL_LINES = 20;
 const ICON_PATH = path.join(__dirname, '..', 'build', 'icon.png');
 const APP_TITLE = 'iworkflow';
+// The macOS menu bar is shorter than a Linux/Windows tray.
+const TRAY_ICON_SIZE = process.platform === 'darwin' ? 18 : 22;
 
 let server = null;
 let mainWindow = null;
@@ -170,7 +172,7 @@ function createWindow(addr) {
 
 function createTray() {
   try {
-    tray = new Tray(nativeImage.createFromPath(ICON_PATH).resize({ width: 22, height: 22 }));
+    tray = new Tray(nativeImage.createFromPath(ICON_PATH).resize({ width: TRAY_ICON_SIZE, height: TRAY_ICON_SIZE }));
   } catch {
     tray = null;
     return;
@@ -222,6 +224,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', showWindow);
+  // macOS: clicking the Dock icon while the window is hidden brings it back.
+  app.on('activate', showWindow);
   // A plain SIGTERM/SIGINT skips `before-quit`; route it there so the server never outlives us.
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => app.quit());
   // Last resort if the process exits some other way.

@@ -35,6 +35,16 @@ jobs:
             # Statically link the MSVC runtime so no VC++ redistributable is needed.
             # Scoped to the host target so the wasm build is unaffected.
             rustflags: "-C target-feature=+crt-static"
+          - name: macos-arm64
+            os: macos-latest
+            bin: iworkflow
+            archive: tar.gz
+            installer: dmg
+          - name: macos-x86_64
+            os: macos-15-intel
+            bin: iworkflow
+            archive: tar.gz
+            installer: dmg
     env:
       CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: ${{ matrix.rustflags }}
     defaults:

@@ -25,9 +25,10 @@ server_binary() {
 builder_platform() {
   case "$(uname -s)" in
     Linux) echo "--linux" ;;
+    Darwin) echo "--mac" ;;
     MINGW* | MSYS* | CYGWIN*) echo "--win" ;;
     *)
-      echo "Unsupported platform: $(uname -s) (Linux and Windows only)." >&2
+      echo "Unsupported platform: $(uname -s) (Linux, macOS and Windows only)." >&2
       exit 1
       ;;
   esac
