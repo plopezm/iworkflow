@@ -58,6 +58,7 @@ pub fn Composer(
                             || (message.with(|m: &String| m.trim().is_empty())
                                 && attachments.is_empty())
                     }
+                    class:is-busy=move || pending.get()
                     on:click=move |_| on_send.run(())
                 >
                     {SEND.get()}

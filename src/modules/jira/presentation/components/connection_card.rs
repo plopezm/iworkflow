@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::i18n::Msg;
@@ -30,7 +32,7 @@ const LOADING: Msg = Msg {
 pub fn JiraConnectionCard(state: JiraConnectionState) -> impl IntoView {
     view! {
         <Card title=CARD_TITLE.get()>
-            <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                 {move || Suspend::new(async move {
                     match state.connection.await {
                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),

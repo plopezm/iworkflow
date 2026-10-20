@@ -378,6 +378,7 @@ pub fn RoutingEditor(
                     type="button"
                     class="btn-primary ml-auto"
                     disabled=move || saving.get()
+                    class:is-busy=move || saving.get()
                     on:click=move |_| on_save.run(rows.get_untracked())
                 >
                     {move || if saving.get() { SAVING.get() } else { SAVE_ROUTING.get() }}

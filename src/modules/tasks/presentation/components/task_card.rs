@@ -148,6 +148,7 @@ pub fn TaskCardActions(
                         <button
                             class="btn-primary min-h-8 px-2.5 py-1 text-xs"
                             disabled=move || start_busy.get()
+                            class:is-busy=move || start_busy.get()
                             on:click=move |_| handlers.start.run(start_id.clone())
                         >
                             {START.get()}
@@ -173,6 +174,7 @@ pub fn TaskCardActions(
                         <button
                             class="btn-ghost min-h-8 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
                             disabled=move || delete_busy.get()
+                            class:is-busy=move || delete_busy.get()
                             on:click=move |_| {
                                 if confirm(CONFIRM_DELETE.get()) {
                                     handlers.delete.run(delete_id.clone());
@@ -211,6 +213,7 @@ pub fn TaskCardActions(
                         <button
                             class="btn-primary min-h-8 px-2.5 py-1 text-xs"
                             disabled=move || finish_busy.get()
+                            class:is-busy=move || finish_busy.get()
                             on:click=move |_| handlers.finish.run(finish_id.clone())
                         >
                             {FINISH.get()}
@@ -225,6 +228,7 @@ pub fn TaskCardActions(
                         <button
                             class="btn-primary min-h-8 px-2.5 py-1 text-xs"
                             disabled=move || merge_busy.get()
+                            class:is-busy=move || merge_busy.get()
                             on:click=move |_| handlers.merge.run(merge_id.clone())
                         >
                             {MERGE.get()}

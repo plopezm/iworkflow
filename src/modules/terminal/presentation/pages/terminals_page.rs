@@ -1,6 +1,8 @@
 use crate::core::dock::link::TabRedirect;
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::i18n::Msg;
 
 use crate::core::components::form::ActionError;
@@ -60,6 +62,7 @@ pub fn TerminalsPage() -> impl IntoView {
                     <button
                         class="btn-primary min-h-8 px-2.5 py-1 text-xs"
                         disabled=move || state.open_home.pending().get()
+                        class:is-busy=move || state.open_home.pending().get()
                         on:click=move |_| state.open_home_session()
                     >
                         {NEW_HOME_TERMINAL.get()}
@@ -86,7 +89,7 @@ pub fn TerminalsPage() -> impl IntoView {
                 }}
                 <Card title=SESSIONS.get()>
                     <ActionError result=state.close.value().into() />
-                    <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                    <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                         {move || Suspend::new(async move {
                             match state.sessions.await {
                                 Ok(list) => {

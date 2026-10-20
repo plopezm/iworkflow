@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::i18n::Msg;
@@ -128,6 +130,7 @@ fn issues_panel(state: JiraIssuesState, on_ignore: Callback<(String, bool)>) -> 
                 <button
                     class="btn-primary"
                     disabled=move || syncing.get()
+                    class:is-busy=move || syncing.get()
                     on:click=move |_| state.start_sync()
                 >
                     {move || if syncing.get() { SYNCING.get() } else { SYNC.get() }}
@@ -155,7 +158,7 @@ fn issues_panel(state: JiraIssuesState, on_ignore: Callback<(String, bool)>) -> 
             <IssueFilters state />
         </Card>
         {move || (state.lane_form.get() != LaneFormMode::Closed).then(|| view! { <LaneForm state /> })}
-        <Transition fallback=|| view! { <p class="muted">{LOADING_ISSUES.get()}</p> }>
+        <Transition fallback=|| view! { <Loading text=LOADING_ISSUES.get() /> }>
             {move || Suspend::new(async move {
                 match state.issues.await {
                     Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),

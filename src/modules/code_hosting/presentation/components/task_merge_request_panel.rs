@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::confirm_panel::ConfirmPanel;
 use crate::core::components::form::{ActionError, TextField};
 use crate::core::components::layout::{Badge, ErrorText};
@@ -393,7 +395,7 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
             </div>
             {match status.pipeline {
                 Some(pipeline) => view! { <PipelineView pipeline provider=provider.clone() /> }.into_any(),
-                None => view! { <p class="muted text-sm">{NO_PIPELINE.get()}</p> }.into_any(),
+                None => view! { <Loading text=NO_PIPELINE.get() /> }.into_any(),
             }}
             {open
                 .then(|| {
@@ -406,6 +408,7 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
                                         type="button"
                                         class="btn-primary"
                                         disabled=move || busy.get()
+                                        class:is-busy=move || busy.get()
                                         on:click=move |_| confirming.set(true)
                                     >
                                         {merge_label.clone()}
@@ -454,6 +457,7 @@ fn CreateMergeRequestView(state: TaskMergeRequestState) -> impl IntoView {
                     type="button"
                     class="btn-primary"
                     disabled=move || busy.get()
+                    class:is-busy=move || busy.get()
                     on:click=on_create
                 >
                     {CREATE_MR.get()}
@@ -480,7 +484,7 @@ pub fn TaskMergeRequestPanel(#[prop(into)] task_id: String) -> impl IntoView {
                     {REFRESH.get()}
                 </button>
             </div>
-            <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                 {move || Suspend::new(async move {
                     match state.status.await {
                         Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),

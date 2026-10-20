@@ -108,6 +108,7 @@ pub fn TerminalList(
                                             <button
                                                 class="btn-danger min-h-8 px-2.5 py-1 text-xs"
                                                 disabled=move || closing.get()
+                                                class:is-busy=move || closing.get()
                                                 on:click=move |_| on_close.run(id.clone())
                                             >
                                                 {CLOSE.get()}

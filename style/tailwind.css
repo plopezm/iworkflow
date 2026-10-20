@@ -233,6 +233,27 @@ body {
 }
 }
 
+/* ── Busy state ─────────────────────────────────── */
+/* Any control marked `.is-busy` (see `BusyButton`) shows a spinner and ignores clicks. */
+.spinner {
+  @apply inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 border-current border-t-transparent;
+  animation: spin 0.7s linear infinite;
+}
+.is-busy {
+  @apply pointer-events-none opacity-70;
+}
+.is-busy::before {
+  content: '';
+  @apply inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 border-current border-t-transparent;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .is-busy::before { animation-duration: 2s; }
+}
+
 /* ── Flat bordered surfaces ─────────────────────── */
 /* In the components layer so utilities (e.g. stage rails) can override the border. */
 @layer components {

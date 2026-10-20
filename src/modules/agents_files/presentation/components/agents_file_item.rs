@@ -133,6 +133,7 @@ pub fn AgentsFileItem(
                             type="button"
                             class="btn-secondary"
                             disabled=move || project_id.get().is_empty() || applying.get()
+                            class:is-busy=move || applying.get()
                             on:click=move |_| {
                                 on_apply.run((apply_id.clone(), project_id.get_untracked()));
                             }

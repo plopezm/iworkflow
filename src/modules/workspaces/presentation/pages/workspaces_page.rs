@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::ActionError;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::i18n::Msg;
@@ -161,7 +163,7 @@ pub fn WorkspacesPage() -> impl IntoView {
             <DirectoryPicker state=state.directory_picker on_select=on_select_directory />
             <Card title=REGISTERED.get()>
                 <ActionError result=state.delete.value().into() />
-                <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+                <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                     {move || Suspend::new(async move {
                         match state.workspaces.await {
                             Ok(list) => {

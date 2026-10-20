@@ -133,6 +133,7 @@ fn file_body(file: ProjectFileDto, state: ProjectFileState) -> impl IntoView {
                 type="button"
                 class="btn-primary"
                 disabled=move || saving.get() || !dirty.get()
+                class:is-busy=move || saving.get()
                 on:click=move |_| save.run(())
             >
                 {move || if saving.get() { SAVING.get() } else { SAVE.get() }}

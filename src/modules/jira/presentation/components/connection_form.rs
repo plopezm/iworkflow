@@ -1,6 +1,8 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 
+use crate::core::components::busy::BusyButton;
+
 use crate::core::components::form::{ActionError, TextField};
 use crate::core::i18n::Msg;
 use crate::modules::jira::presentation::state::jira_connection_state::{
@@ -147,13 +149,14 @@ pub fn JiraConnectionForm(
                 >
                     {CANCEL.get()}
                 </button>
-                <button
-                    type="submit"
+                <BusyButton
+                    r#type="submit"
                     class="btn-primary"
-                    disabled=move || pending.get() || !submittable.get()
+                    busy=pending
+                    disabled=Signal::derive(move || !submittable.get())
                 >
                     {move || if pending.get() { CHECKING.get() } else { CONNECT.get() }}
-                </button>
+                </BusyButton>
             </div>
         </form>
     }

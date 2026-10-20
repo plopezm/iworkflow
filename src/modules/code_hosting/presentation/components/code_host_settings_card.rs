@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::{ActionError, TextField};
 use crate::core::components::layout::{Badge, Card, ErrorText};
 use crate::core::i18n::Msg;
@@ -82,7 +84,7 @@ pub fn CodeHostSettingsCard(provider: &'static str) -> impl IntoView {
     view! {
         <Card title=provider_text::label(provider)>
             <p class="muted text-sm">{provider_text::help(provider)}</p>
-            <Transition fallback=|| view! { <p class="muted">{LOADING.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING.get() /> }>
                 {move || Suspend::new(async move {
                     match state.settings.await {
                         Ok(settings) => view! { <CodeHostSettingsForm state provider settings /> }.into_any(),
@@ -160,13 +162,20 @@ fn CodeHostSettingsForm(
             {INSECURE_TLS.get()}
         </label>
         <div class="row gap-2">
-            <button type="button" class="btn-primary" disabled=move || saving.get() on:click=on_save>
+            <button
+                type="button"
+                class="btn-primary"
+                disabled=move || saving.get()
+                class:is-busy=move || saving.get()
+                on:click=on_save
+            >
                 {SAVE.get()}
             </button>
             <button
                 type="button"
                 class="btn-secondary"
                 disabled=move || testing.get() || saving.get() || !token_configured
+                class:is-busy=move || testing.get()
                 on:click=on_test
             >
                 {TEST_CONNECTION.get()}

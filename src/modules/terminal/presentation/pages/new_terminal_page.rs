@@ -1,6 +1,8 @@
 use crate::core::dock::link::{TabLink, TabRedirect};
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::i18n::Msg;
 
 use crate::core::components::layout::{Card, ErrorText};
@@ -38,7 +40,7 @@ pub fn NewTerminalPage() -> impl IntoView {
     view! {
         <section class="stack p-4 animate-slide-up">
             <Card title=OPENING_TERMINAL.get()>
-                <Suspense fallback=|| view! { <p class="muted">{OPENING_TERMINAL_LOADING.get()}</p> }>
+                <Suspense fallback=|| view! { <Loading text=OPENING_TERMINAL_LOADING.get() /> }>
                     {move || Suspend::new(async move {
                         match state.opened.await {
                             Ok(session) => {

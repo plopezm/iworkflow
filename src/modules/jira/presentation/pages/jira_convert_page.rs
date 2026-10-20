@@ -1,5 +1,7 @@
 use leptos::prelude::*;
 
+use crate::core::components::busy::Loading;
+
 use crate::core::components::form::{ActionError, SelectField, SelectOption, TextArea, TextField};
 use crate::core::components::layout::ErrorText;
 use crate::core::dock::context::{use_tab_nav, use_tab_params};
@@ -257,7 +259,7 @@ fn JiraConvertContent(key: String) -> impl IntoView {
     view! {
         <div class="h-full min-h-0 overflow-y-auto">
             <div class="mx-auto w-full max-w-5xl p-4 pb-10 md:p-6 md:pb-12">
-                <Transition fallback=|| view! { <p class="muted">{PREPARING.get()}</p> }>
+                <Transition fallback=|| view! { <Loading text=PREPARING.get() /> }>
                     {move || Suspend::new(async move {
                         match state.preparation.await {
                             Err(e) => view! { <ErrorText message=e.to_string() /> }.into_any(),
@@ -317,7 +319,7 @@ fn convert_form(state: JiraConvertState, prepared: ConversionPreparationDto) -> 
                 }
                     .into_any()
             }}
-            <Transition fallback=|| view! { <p class="muted text-sm">{LOADING_BRANCHES.get()}</p> }>
+            <Transition fallback=|| view! { <Loading text=LOADING_BRANCHES.get() /> }>
                 {move || Suspend::new(async move {
                     let branches: Vec<ConversionBranchDto> = state
                         .branches
@@ -379,6 +381,7 @@ fn convert_form(state: JiraConvertState, prepared: ConversionPreparationDto) -> 
                     type="submit"
                     class="btn-primary"
                     disabled=move || pending.get() || !has_workspaces
+                    class:is-busy=move || pending.get()
                 >
                     {move || if pending.get() { CREATING.get() } else { CREATE_TASK.get() }}
                 </button>
