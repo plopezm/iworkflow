@@ -1048,6 +1048,7 @@ Platform-specific code is confined to infrastructure:
 - `agent_process.rs` and the PTY (`portable_pty_adapter.rs`): on Unix, agents and the terminal are launched with the login shell and `exec`; on Windows with `powershell.exe` (no `exec`, inherited `PATH`). `core/process.rs` kills the process tree with `taskkill /T` on Windows.
 - `nix` is only compiled on Unix; per-task RAM/CPU limits (`systemd-run`) exist only on Linux.
 - The support has logic tests on Linux but has not yet been run on a real Windows. See "Prebuilt binaries" in the README.
+- Desktop updates (`electron/`): `update-policy.js` (pure, tested) decides `auto` / `notify` / `off`; `updater.js` wires it to Electron. Windows (NSIS) and Linux (AppImage) use `electron-updater` against the GitHub release (`publish` in `electron-builder.yml`; `release.yml` must upload `latest*.yml`). macOS only notifies through the GitHub API because Squirrel.Mac needs a valid signature and the app is signed ad hoc, so its `latest-mac.yml` (it would also collide between arm64 and x86_64) is not published. Before `quitAndInstall` the shell stops the server, since the installer cannot replace a running binary.
 
 ### macOS support
 

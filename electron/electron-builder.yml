@@ -1,6 +1,11 @@
 appId: dev.iworkflow.desktop
 productName: iworkflow
 artifactName: iworkflow-${version}-${os}-${arch}.${ext}
+# Where electron-updater looks for latest*.yml; release.yml uploads those files with the installers.
+publish:
+  provider: github
+  owner: plopezm
+  repo: iworkflow
 directories:
   output: ../dist/electron
 files:

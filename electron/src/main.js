@@ -20,6 +20,7 @@ const {
   serverBinaryName,
   windowUrl,
 } = require('./launcher');
+const { startUpdater } = require('./updater');
 
 const READY_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 200;
@@ -170,7 +171,7 @@ function createWindow(addr) {
   return mainWindow.loadURL(windowUrl(addr, accessToken));
 }
 
-function createTray() {
+function createTray(updater) {
   try {
     tray = new Tray(nativeImage.createFromPath(ICON_PATH).resize({ width: TRAY_ICON_SIZE, height: TRAY_ICON_SIZE }));
   } catch {
@@ -181,6 +182,9 @@ function createTray() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Open iworkflow', click: showWindow },
+      ...(updater.enabled
+        ? [{ label: 'Check for updates', click: () => void updater.checkNow() }]
+        : []),
       { type: 'separator' },
       { label: 'Quit and stop server', click: () => app.quit() },
     ]),
@@ -216,7 +220,19 @@ async function startAndFindAddr() {
 async function main() {
   const addr = await startAndFindAddr();
   await waitUntilReady(addr);
-  createTray();
+  const updater = startUpdater({
+    getWindow: () => mainWindow,
+    // The installer cannot replace files while the server binary is running.
+    beforeInstall: async () => {
+      quitting = true;
+      await stopServer();
+    },
+    recover: () => {
+      app.relaunch();
+      app.exit(0);
+    },
+  });
+  createTray(updater);
   await createWindow(addr);
 }
 

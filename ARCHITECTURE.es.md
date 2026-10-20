@@ -1061,6 +1061,7 @@ macOS usa las rutas de código Unix, así que el servidor apenas necesita nada p
 - Shell de escritorio (`electron/`): el target `dmg` se compila por arquitectura (runners `macos-arm64` y `macos-x86_64` en `release.yml`) y se firma ad hoc (`identity: "-"`) porque Apple Silicon rechaza una app cuya firma se rompió al añadir el servidor a sus recursos; no está notarizada, así que Gatekeeper bloquea el primer arranque. `launcher.js` (`buildServerEnv`) añade `/opt/homebrew/bin` y `/usr/local/bin` al `PATH` del servidor, porque las apps abiertas desde Finder no heredan el de la shell. `main.js` recupera la ventana con el evento `activate` del Dock y usa un icono de 18 px en la barra de menús.
 - `scripts/bump-version.sh` usa `perl` en lugar de `sed` de GNU, que el `sed` de BSD no replica.
 - El soporte tiene tests de lógica en Linux pero no se ha ejecutado aún sobre un Mac real.
+- Actualizaciones del escritorio (`electron/`): `update-policy.js` (puro, con tests) decide `auto` / `notify` / `off`; `updater.js` lo conecta con Electron. Windows (NSIS) y Linux (AppImage) usan `electron-updater` contra el release de GitHub (`publish` en `electron-builder.yml`; `release.yml` debe subir `latest*.yml`). macOS solo avisa vía API de GitHub porque Squirrel.Mac exige una firma válida y la app lleva firma ad hoc; su `latest-mac.yml` (además chocaría entre arm64 y x86_64) no se publica. Antes de `quitAndInstall` el shell detiene el servidor, porque el instalador no puede reemplazar un binario en ejecución.
 
 ---
 
