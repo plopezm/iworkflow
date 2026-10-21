@@ -128,6 +128,8 @@ pub struct AcpProtocol {
     thinking: String,
     tools: HashMap<String, ToolState>,
     dialogs: HashMap<String, PendingDialog>,
+    /// Ids de diálogos ya cancelados que la UI aún muestra; se resuelven al cerrar el turno.
+    abandoned_dialogs: Vec<String>,
     todos: Vec<Todo>,
 }
 
@@ -148,6 +150,7 @@ impl AcpProtocol {
             thinking: String::new(),
             tools: HashMap::new(),
             dialogs: HashMap::new(),
+            abandoned_dialogs: Vec::new(),
             todos: Vec::new(),
         }
     }
@@ -404,7 +407,17 @@ impl AcpProtocol {
         self.running = false;
         self.prompt_in_flight = false;
         self.tools.clear();
-        self.dialogs.clear();
+        // Un diálogo que sobrevive al turno ya no tiene petición RPC que responder: hay que
+        // cerrarlo en la UI o quedaría pendiente para siempre.
+        let mut stale: Vec<String> = std::mem::take(&mut self.abandoned_dialogs);
+        for (key, dialog) in self.dialogs.drain() {
+            stale.extend(dialog_ids(&key, &dialog));
+        }
+        events.extend(
+            stale
+                .into_iter()
+                .map(|dialog_id: String| AgentEvent::DialogResolved { dialog_id }),
+        );
         self.pump();
         events
     }
@@ -776,8 +789,13 @@ impl AcpProtocol {
     /// Cancela el turno y responde «cancelado» a las peticiones que esperan al usuario.
     fn abort(&mut self) {
         self.queued.clear();
-        let pending: Vec<PendingDialog> = self.dialogs.drain().map(|(_, d)| d).collect();
-        for dialog in pending {
+        let pending: Vec<(String, PendingDialog)> = self.dialogs.drain().collect();
+        for (key, dialog) in pending {
+            // Solo un turno en vuelo garantiza un `settle` que los resuelva; sin turno la lista
+            // quedaría viva hasta un turno ajeno.
+            if self.prompt_in_flight {
+                self.abandoned_dialogs.extend(dialog_ids(&key, &dialog));
+            }
             match dialog {
                 PendingDialog::Permission { rpc_id, .. } => self.reply(&rpc_id, cancelled()),
                 PendingDialog::Plan { rpc_id } | PendingDialog::Questions { rpc_id, .. } => {
@@ -790,6 +808,16 @@ impl AcpProtocol {
         {
             self.send_notification("session/cancel", json!({ "sessionId": session_id }));
         }
+    }
+}
+
+/// Ids de diálogo que la UI conoce para una petición pendiente (uno por pregunta).
+fn dialog_ids(key: &str, dialog: &PendingDialog) -> Vec<String> {
+    match dialog {
+        PendingDialog::Questions { questions, .. } => (0..questions.len())
+            .map(|index: usize| format!("{key}{QUESTION_ID_SEPARATOR}{index}"))
+            .collect(),
+        PendingDialog::Permission { .. } | PendingDialog::Plan { .. } => vec![key.to_string()],
     }
 }
 
@@ -1752,6 +1780,96 @@ mod tests {
         );
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn settling_the_turn_resolves_dialogs_the_agent_no_longer_awaits() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        command(&mut protocol, prompt("hola"));
+        feed(
+            &mut protocol,
+            permission(8, "execute", json!({ "command": "ls" })),
+        );
+
+        let (events, _) = feed(
+            &mut protocol,
+            respond(4, json!({ "stopReason": "end_turn" })),
+        );
+
+        assert!(events.contains(&AgentEvent::DialogResolved {
+            dialog_id: "perm-8".into()
+        }));
+    }
+
+    #[test]
+    fn settling_the_turn_resolves_every_question_of_a_pending_request() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        command(&mut protocol, prompt("hola"));
+        feed(
+            &mut protocol,
+            json!({ "jsonrpc": "2.0", "id": 5, "method": "cursor/ask_question", "params": {
+                "questions": [
+                    { "id": "q1", "prompt": "?", "options": [{ "id": "a", "label": "A" }] },
+                    { "id": "q2", "prompt": "??", "options": [{ "id": "b", "label": "B" }] }] } }),
+        );
+
+        let (events, _) = feed(
+            &mut protocol,
+            respond(4, json!({ "stopReason": "end_turn" })),
+        );
+
+        let mut resolved: Vec<String> = events
+            .iter()
+            .filter_map(|event: &AgentEvent| match event {
+                AgentEvent::DialogResolved { dialog_id } => Some(dialog_id.clone()),
+                _ => None,
+            })
+            .collect();
+        resolved.sort();
+        assert_eq!(resolved, vec!["ask-5#0".to_string(), "ask-5#1".to_string()]);
+    }
+
+    #[test]
+    fn aborting_without_a_turn_in_flight_does_not_leak_into_the_next_turn() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        feed(
+            &mut protocol,
+            json!({ "jsonrpc": "2.0", "id": 5, "method": "cursor/ask_question", "params": {
+                "questions": [{ "id": "q1", "prompt": "?", "options": [{ "id": "a", "label": "A" }] }] } }),
+        );
+        command(&mut protocol, AgentCommand::Abort);
+        command(&mut protocol, prompt("hola"));
+
+        let (events, _) = feed(
+            &mut protocol,
+            respond(4, json!({ "stopReason": "end_turn" })),
+        );
+
+        assert!(
+            !events
+                .iter()
+                .any(|event: &AgentEvent| matches!(event, AgentEvent::DialogResolved { .. }))
+        );
+    }
+
+    #[test]
+    fn abort_resolves_the_cancelled_dialogs_when_the_turn_settles() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        command(&mut protocol, prompt("hola"));
+        feed(
+            &mut protocol,
+            permission(8, "execute", json!({ "command": "ls" })),
+        );
+        command(&mut protocol, AgentCommand::Abort);
+
+        let (events, _) = feed(
+            &mut protocol,
+            respond(4, json!({ "stopReason": "cancelled" })),
+        );
+
+        assert!(events.contains(&AgentEvent::DialogResolved {
+            dialog_id: "perm-8".into()
+        }));
     }
 
     #[test]
