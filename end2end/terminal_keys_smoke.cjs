@@ -1,4 +1,4 @@
-// Smoke de las teclas especiales bajo la terminal (Tab, flechas, Ctrl+C) contra un servidor real.
+// Smoke de las teclas especiales bajo la terminal (Tab, flechas, Ctrl+C; botones con icono y nombre accesible) contra un servidor real.
 // Registra su propio workspace (SMOKE_REPO, un repo con README.md) y abre su terminal.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
@@ -32,9 +32,9 @@ let page;
   };
 
   const toolbar = page.getByRole('toolbar', { name: 'Teclas especiales' });
-  const labels = await toolbar.getByRole('button').allTextContents();
-  if (labels.join('|') !== 'Tab|↑|←|→|↓|Ctrl+C') throw new Error('botones inesperados: ' + labels);
-  step('hilera con los seis botones bajo la terminal');
+  const labels = await toolbar.getByRole('button').evaluateAll(els => els.map(el => el.getAttribute('aria-label')));
+  if (labels.join('|') !== 'Esc|Tab|Up|Left|Right|Down|Ctrl+C|Copy|Paste') throw new Error('botones inesperados: ' + labels);
+  step('hilera con los nueve botones bajo la terminal');
 
   await page.locator('.xterm').click();
   await run('echo marca-inicial');
@@ -48,14 +48,14 @@ let page;
   step('Tab completa en la shell');
 
   // ↑ recupera el último comando.
-  await key('↑');
+  await key('Up');
   await until(async () => (await count('echo marca-inicial')) >= 2, '↑ recupera el historial');
   await page.keyboard.press('Control+U');
   step('↑ recupera el historial');
 
   // ← y →: `ab` -> cursor antes de `a`, tras `a`, y se inserta X entre ambas.
   await page.keyboard.type('echo ab');
-  await key('←'); await key('←'); await key('→');
+  await key('Left'); await key('Left'); await key('Right');
   await page.keyboard.type('X');
   await page.keyboard.press('Enter');
   await until(async () => (await count('aXb')) >= 2, '← y → mueven el cursor');
@@ -64,7 +64,7 @@ let page;
   // ↓ tras ↑↑ vuelve al comando más reciente.
   await run('echo uno-fin');
   await run('echo dos-fin');
-  await key('↑'); await key('↑'); await key('↓');
+  await key('Up'); await key('Up'); await key('Down');
   await page.keyboard.press('Enter');
   await until(async () => (await count('dos-fin')) >= 4, '↓ avanza en el historial');
   step('↓ avanza en el historial');
