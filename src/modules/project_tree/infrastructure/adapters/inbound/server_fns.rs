@@ -134,6 +134,32 @@ pub async fn list_project_git_changes(
     Ok(changes.into_iter().map(GitChangeDto::from).collect())
 }
 
+/// Adds `paths` to the git index; an empty list stages everything.
+#[server]
+pub async fn stage_project_paths(
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<(), ServerFnError> {
+    support::context()?
+        .stage_paths
+        .execute(support::scope(&workspace_id)?, &paths)
+        .await
+        .map_err(support::to_server_error)
+}
+
+/// Removes `paths` from the git index; an empty list unstages everything.
+#[server]
+pub async fn unstage_project_paths(
+    workspace_id: String,
+    paths: Vec<String>,
+) -> Result<(), ServerFnError> {
+    support::context()?
+        .unstage_paths
+        .execute(support::scope(&workspace_id)?, &paths)
+        .await
+        .map_err(support::to_server_error)
+}
+
 /// Content of the file at git `HEAD`; `None` when git does not know it yet.
 #[server]
 pub async fn read_project_file_base(

@@ -32,6 +32,7 @@ use crate::modules::jira::presentation::pages::jira_page::JiraPage;
 use crate::modules::preferences::presentation::choose_language::choose_language;
 use crate::modules::preferences::presentation::components::network_access_card::NetworkAccessCard;
 use crate::modules::project_tree::infrastructure::adapters::inbound::server_fns::search_project_files;
+use crate::modules::project_tree::presentation::components::git_changes_panel::GitChangesPanel;
 use crate::modules::project_tree::presentation::pages::project_file_page::ProjectFilePage;
 use crate::modules::project_tree::presentation::pages::project_tree_page::{
     ProjectTreeContent, ProjectTreePage,
@@ -116,6 +117,14 @@ const TITLE_FILES: Msg = Msg {
     zh: "文件",
     de: "Dateien",
     fr: "Fichiers",
+};
+
+const TITLE_CHANGES: Msg = Msg {
+    en: "Changes",
+    es: "Cambios",
+    zh: "更改",
+    de: "Änderungen",
+    fr: "Modifications",
 };
 
 const TITLE_EDIT_WORKSPACE: Msg = Msg {
@@ -400,7 +409,7 @@ impl TabRoute {
             Self::Models => view! { <ModelsPage /> }.into_any(),
             Self::Settings => view! { <SettingsPage sections=settings_sections() /> }.into_any(),
             Self::Task(_) => view! { <TaskDetailPage
-                extra_tabs=vec![files_task_tab(), code_host_task_tab()]
+                extra_tabs=vec![files_task_tab(), changes_task_tab(), code_host_task_tab()]
                 file_search=search_task_files as FileSearchFn
             /> }
             .into_any(),
@@ -737,6 +746,17 @@ fn files_task_tab() -> TaskExtraTab {
         label: TITLE_FILES.get(),
         render: Callback::new(|task_id: String| {
             view! { <ProjectTreeContent workspace_id=task_scope(&task_id) /> }.into_any()
+        }),
+    }
+}
+
+/// Pestaña de cambios git (stage/unstage) del worktree de la tarea: se compone aquí para que `tasks` no importe `project_tree`.
+fn changes_task_tab() -> TaskExtraTab {
+    TaskExtraTab {
+        id: "changes",
+        label: TITLE_CHANGES.get(),
+        render: Callback::new(|task_id: String| {
+            view! { <GitChangesPanel workspace_id=task_scope(&task_id) /> }.into_any()
         }),
     }
 }

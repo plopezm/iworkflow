@@ -14,4 +14,11 @@ pub trait GitStatusPort: Send + Sync {
         root: &Path,
         relative: &str,
     ) -> Result<Option<String>, ProjectTreeError>;
+
+    /// Adds `paths` (relative to `root`; empty means everything) to the index.
+    async fn stage(&self, root: &Path, paths: &[String]) -> Result<(), ProjectTreeError>;
+
+    /// Removes `paths` (relative to `root`; empty means everything) from the index, keeping the
+    /// working tree untouched.
+    async fn unstage(&self, root: &Path, paths: &[String]) -> Result<(), ProjectTreeError>;
 }

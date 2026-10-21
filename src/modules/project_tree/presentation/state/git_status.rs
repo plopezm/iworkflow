@@ -54,6 +54,8 @@ mod tests {
         GitChangeDto {
             path: path.to_string(),
             kind,
+            staged: false,
+            unstaged: true,
         }
     }
 

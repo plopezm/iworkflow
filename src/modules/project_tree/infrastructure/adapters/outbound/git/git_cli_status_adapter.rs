@@ -58,6 +58,8 @@ pub fn parse_status(output: &str, prefix: &str) -> Vec<GitChange> {
             changes.push(GitChange {
                 path: relative.trim_end_matches('/').to_string(),
                 kind,
+                staged: !matches!(index, ' ' | '?' | '!'),
+                unstaged: worktree != ' ',
             });
         }
     }
@@ -97,6 +99,48 @@ impl GitStatusPort for GitCliStatusAdapter {
             .map_err(git_error)?;
         Ok(shown.success.then_some(shown.stdout))
     }
+
+    async fn stage(&self, root: &Path, paths: &[String]) -> Result<(), ProjectTreeError> {
+        let args: Vec<&str> = pathspec_command(&["add", "-A"], paths)?;
+        run_index_command(root, &args).await
+    }
+
+    async fn unstage(&self, root: &Path, paths: &[String]) -> Result<(), ProjectTreeError> {
+        let args: Vec<&str> = pathspec_command(&["reset", "-q"], paths)?;
+        run_index_command(root, &args).await
+    }
+}
+
+/// Builds `git --literal-pathspecs <command> -- <paths>`; no paths means the whole project (`.`).
+///
+/// Literal pathspecs stop names such as `:(exclude)x` or `*.rs` from being read as git magic.
+fn pathspec_command<'a>(
+    command: &[&'a str],
+    paths: &'a [String],
+) -> Result<Vec<&'a str>, ProjectTreeError> {
+    let mut args: Vec<&str> = vec!["--literal-pathspecs"];
+    args.extend_from_slice(command);
+    args.push("--");
+    if paths.is_empty() {
+        args.push(".");
+    }
+    for path in paths {
+        if path.is_empty() {
+            return Err(ProjectTreeError::InvalidPath(path.clone()));
+        }
+        validate_relative(path)?;
+        args.push(path);
+    }
+    Ok(args)
+}
+
+async fn run_index_command(root: &Path, args: &[&str]) -> Result<(), ProjectTreeError> {
+    let output: GitOutput = run_git_raw(root, args).await.map_err(git_error)?;
+    if output.success {
+        Ok(())
+    } else {
+        Err(ProjectTreeError::Io(output.stderr))
+    }
 }
 
 #[cfg(test)]
@@ -132,6 +176,40 @@ mod tests {
     }
 
     #[test]
+    fn index_and_worktree_columns_set_the_staged_flags() {
+        let out: String = ["M  a", " M b", "MM c", "?? d", "A  e", " D f"].join("\0");
+        let flags: Vec<(String, bool, bool)> = parse_status(&out, "")
+            .into_iter()
+            .map(|c: GitChange| (c.path, c.staged, c.unstaged))
+            .collect();
+        let expected: Vec<(&str, bool, bool)> = vec![
+            ("a", true, false),
+            ("b", false, true),
+            ("c", true, true),
+            ("d", false, true),
+            ("e", true, false),
+            ("f", false, true),
+        ];
+        let expected: Vec<(String, bool, bool)> = expected
+            .into_iter()
+            .map(|(p, s, u)| (p.to_string(), s, u))
+            .collect();
+        assert_eq!(flags, expected);
+    }
+
+    #[test]
+    fn pathspec_command_defaults_to_the_whole_project() {
+        let args: Vec<&str> = pathspec_command(&["add", "-A"], &[]).unwrap();
+        assert_eq!(args, vec!["--literal-pathspecs", "add", "-A", "--", "."]);
+    }
+
+    #[test]
+    fn pathspec_command_rejects_escaping_paths() {
+        let paths: Vec<String> = vec!["../x".to_string()];
+        assert!(pathspec_command(&["add", "-A"], &paths).is_err());
+    }
+
+    #[test]
     fn rename_consumes_the_original_path_field() {
         let out: String = ["R  new.rs", "old.rs", " M other.rs"].join("\0");
         let changes: Vec<GitChange> = parse_status(&out, "");
@@ -149,7 +227,9 @@ mod tests {
             changes,
             vec![GitChange {
                 path: "src/a.rs".to_string(),
-                kind: GitChangeKind::Modified
+                kind: GitChangeKind::Modified,
+                staged: false,
+                unstaged: true,
             }]
         );
     }

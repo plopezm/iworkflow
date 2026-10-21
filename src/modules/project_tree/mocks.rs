@@ -49,6 +49,8 @@ mock! {
     impl GitStatusPort for GitStatus {
         async fn changes(&self, root: &Path) -> Result<Vec<GitChange>, ProjectTreeError>;
         async fn base_content(&self, root: &Path, relative: &str) -> Result<Option<String>, ProjectTreeError>;
+        async fn stage(&self, root: &Path, paths: &[String]) -> Result<(), ProjectTreeError>;
+        async fn unstage(&self, root: &Path, paths: &[String]) -> Result<(), ProjectTreeError>;
     }
 }
 

@@ -5,6 +5,8 @@ use crate::modules::project_tree::application::usecases::list_project_git_change
 use crate::modules::project_tree::application::usecases::read_project_file::ReadProjectFile;
 use crate::modules::project_tree::application::usecases::read_project_file_base::ReadProjectFileBase;
 use crate::modules::project_tree::application::usecases::search_project_files::SearchProjectFiles;
+use crate::modules::project_tree::application::usecases::stage_project_paths::StageProjectPaths;
+use crate::modules::project_tree::application::usecases::unstage_project_paths::UnstageProjectPaths;
 use crate::modules::project_tree::application::usecases::write_project_file::WriteProjectFile;
 use crate::modules::project_tree::domain::ports::outbound::file_search_port::FileSearchPort;
 use crate::modules::project_tree::infrastructure::adapters::outbound::git::git_cli_file_search_adapter::GitCliFileSearchAdapter;
@@ -26,6 +28,8 @@ pub struct ProjectTreeContext {
     pub write_file: Arc<WriteProjectFile>,
     pub git_changes: Arc<ListProjectGitChanges>,
     pub file_base: Arc<ReadProjectFileBase>,
+    pub stage_paths: Arc<StageProjectPaths>,
+    pub unstage_paths: Arc<UnstageProjectPaths>,
     pub search_files: Arc<SearchProjectFiles>,
 }
 
@@ -42,7 +46,9 @@ impl ProjectTreeContext {
             read_file: Arc::new(ReadProjectFile::new(roots.clone(), files.clone())),
             write_file: Arc::new(WriteProjectFile::new(roots.clone(), files)),
             git_changes: Arc::new(ListProjectGitChanges::new(roots.clone(), git.clone())),
-            file_base: Arc::new(ReadProjectFileBase::new(roots.clone(), git)),
+            file_base: Arc::new(ReadProjectFileBase::new(roots.clone(), git.clone())),
+            stage_paths: Arc::new(StageProjectPaths::new(roots.clone(), git.clone())),
+            unstage_paths: Arc::new(UnstageProjectPaths::new(roots.clone(), git)),
             search_files: Arc::new(SearchProjectFiles::new(roots, search)),
         }
     }
