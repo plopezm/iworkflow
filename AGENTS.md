@@ -195,6 +195,7 @@ end2end/                              # Tests e2e (Playwright vía cargo-leptos)
   - Adaptadores Diesel: tests de integración en `tests/modules/[feature_name]/` contra un fichero SQLite temporal (`tempfile`) por test, con las migraciones embebidas aplicadas.
   - Server functions y DTOs: tests de mapeo (DTO ↔ dominio, error de dominio → `ServerFnError`).
   - Estado de UI / componentes: `wasm-bindgen-test` o e2e con Playwright (`end2end/`) solo cuando aporten valor real.
+  - La UI necesitará tests Playwright por feature para asegurar que el caso de uso funciona en navegador
 - Se deberá crear un fichero `mocks.rs` para cada feature (`src/modules/[feature_name]/mocks.rs`, bajo `#[cfg(test)]`), donde se definirán los mocks con `mockall::mock!`.
 
 ## 6. Reglas Estrictas de Código (Strict Rules)
