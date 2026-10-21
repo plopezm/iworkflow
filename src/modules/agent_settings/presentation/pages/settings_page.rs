@@ -3,6 +3,7 @@ use leptos::prelude::*;
 use crate::core::components::busy::Loading;
 
 use crate::core::components::form::{ActionError, NumberInput};
+use crate::core::components::keep_alive::KeepAlive;
 use crate::core::components::layout::{Card, ErrorText};
 use crate::core::components::segmented_control::{SegmentOption, SegmentedControl};
 use crate::core::i18n::Msg;
@@ -109,13 +110,18 @@ pub fn SettingsPage(sections: Vec<SettingsSection>) -> impl IntoView {
                 />
             </div>
             <div class="stack min-h-0 flex-1 overflow-y-auto p-4">
-                {move || {
-                    let current: String = active.get();
-                    sections
-                        .iter()
-                        .find(|section: &&SettingsSection| section.id == current)
-                        .map(|section: &SettingsSection| section.view.run())
-                }}
+                {sections
+                    .iter()
+                    .map(|section: &SettingsSection| {
+                        let id: &'static str = section.id;
+                        let view: ViewFn = section.view.clone();
+                        view! {
+                            <KeepAlive active=Signal::derive(move || active.get() == id)>
+                                {view.run()}
+                            </KeepAlive>
+                        }
+                    })
+                    .collect_view()}
             </div>
         </div>
     }
