@@ -4,6 +4,7 @@ pub mod code;
 pub mod collapsible_panel;
 pub mod confirm_panel;
 pub mod form;
+pub mod keep_alive;
 pub mod language_picker;
 pub mod layout;
 pub mod modal;

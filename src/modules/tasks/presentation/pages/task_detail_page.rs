@@ -5,6 +5,7 @@ use leptos::prelude::*;
 use crate::core::components::busy::Loading;
 
 use crate::core::browser::{confirm, follow_bottom, scroll_to_bottom};
+use crate::core::components::keep_alive::KeepAlive;
 use crate::core::components::layout::ErrorText;
 use crate::core::components::modal::Modal;
 use crate::core::components::shell::{CollapsePanel, PanelSide, TabBar, TabItem};
@@ -639,7 +640,7 @@ fn TaskDetailContent(
                             on_select=on_select_tab
                         />
                         <div class="stack min-h-0 flex-1 overflow-y-auto p-3">
-                            <Show when=move || active_tab.get() == TAB_ACTIONS>
+                            <KeepAlive active=Signal::derive(move || active_tab.get() == TAB_ACTIONS)>
                                 <ActionsTab state handlers busy subagents_active />
                                 <details class="card prompt">
                                     <summary>{INITIAL_PROMPT.get()}</summary>
@@ -654,15 +655,15 @@ fn TaskDetailContent(
                                         view! { <TaskAttachmentsList items /> }
                                     })}
                                 </Suspense>
-                            </Show>
+                            </KeepAlive>
                             {extra_tabs
                                 .get_value()
                                 .into_iter()
                                 .map(|tab: TaskExtraTab| {
                                     view! {
-                                        <Show when=move || active_tab.get() == tab.id>
+                                        <KeepAlive active=Signal::derive(move || active_tab.get() == tab.id)>
                                             {move || tab.render.run(state.task_id.get_value())}
-                                        </Show>
+                                        </KeepAlive>
                                     }
                                 })
                                 .collect_view()}

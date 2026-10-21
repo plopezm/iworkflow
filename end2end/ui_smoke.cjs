@@ -10,13 +10,18 @@ let page;
   const browser = await chromium.launch(
     process.env.SMOKE_CHROMIUM_PATH ? { executablePath: process.env.SMOKE_CHROMIUM_PATH } : {},
   );
-  page = await browser.newPage();
+  const context = await browser.newContext();
+  // Sin cookie de idioma la app pide elegirlo; los textos de este smoke están en español.
+  await context.addCookies([{ name: 'iw-lang', value: 'es', url: BASE }]);
+  page = await context.newPage();
   const problems = [];
-  page.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') problems.push(`${m.type()}: ${m.text()}`); });
+  page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/reading a resource in `hydrate`/.test(m.text())) problems.push(`${m.type()}: ${m.text()}`); });
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   page.on('dialog', d => d.accept());
   page.on('response', r => { if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${r.url()}`); });
   const step = (s) => console.log('✔', s);
+  // Los smokes comparten BD: se abre el tablero de este workspace, no el primero de la lista.
+  const showDemoBoard = () => page.locator('aside').getByRole('link', { name: /ui-demo/ }).first().click();
 
   await page.goto(BASE + '/workspaces');
   await page.waitForLoadState('networkidle');
@@ -28,6 +33,8 @@ let page;
 
   await page.goto(BASE + '/');
   await page.waitForLoadState('networkidle');
+  // El dock arranca vacío: el tablero se abre desde la barra lateral.
+  await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
   const runtime = page.getByLabel(/^Agente/);
   const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
   await runtime.selectOption('pi');
@@ -43,7 +50,8 @@ let page;
   await page.getByLabel(/^Workspace/).selectOption({ label: 'ui-demo (main)' });
   await page.getByLabel('Prompt').fill('Tarea en backlog');
   await page.getByRole('button', { name: 'Crear tarea' }).click();
-  await page.getByText('Tarea en backlog').first().waitFor();
+  await showDemoBoard();
+  await page.getByText('Tarea en backlog').locator('visible=true').first().waitFor();
   await page.getByRole('button', { name: 'Editar' }).first().click();
   await page.waitForURL(/\/tasks\/[^/]+\/edit$/);
   if (await page.getByRole('dialog').count()) throw new Error('la edición no debe abrir un diálogo');
@@ -53,7 +61,7 @@ let page;
   await page.getByLabel('Prompt').fill('Prompt editado');
   await page.getByRole('button', { name: 'Guardar cambios' }).click();
   await page.waitForURL(url => !url.pathname.endsWith('/edit'));
-  await page.getByText('Tarea en backlog editada').first().waitFor();
+  await page.getByText('Tarea en backlog editada').locator('visible=true').first().waitFor();
   step('edición en pantalla propia: precarga, guardado y vuelta');
 
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
@@ -61,6 +69,7 @@ let page;
   await page.getByLabel('Prompt').fill('Tarea desde el navegador');
   await page.getByLabel('Iniciar ahora').check();
   await page.getByRole('button', { name: 'Crear tarea' }).click();
+  await showDemoBoard();
   await page.getByRole('link', { name: /Tarea desde el navegador/ }).first().click();
   await page.waitForURL(/\/tasks\//);
   step('tarea creada desde el tablero y navegación al detalle');
@@ -78,6 +87,22 @@ let page;
   await page.getByRole('button', { name: 'Enviar' }).click();
   await page.getByText('eco: otra cosa').waitFor();
   step('mensaje de seguimiento');
+
+  // Las pestañas internas del panel de la tarea conservan su estado al cambiar de una a otra.
+  const panes = () => page.getByRole('tablist').filter({ has: page.getByRole('tab', { name: 'Archivos' }) })
+    .locator('xpath=following-sibling::div[1]').locator('> div');
+  await page.locator('details.prompt summary').click();
+  await page.getByRole('tab', { name: 'Archivos' }).click();
+  await panes().nth(1).locator('> *').first().waitFor();
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(500);
+  await panes().nth(1).locator('> *').first().evaluate(el => { el.dataset.keep = '1'; });
+  await page.getByRole('tab', { name: 'Acciones' }).click();
+  if (!(await page.locator('details.prompt').evaluate(el => el.open))) throw new Error('la pestaña Acciones pierde su estado al cambiar');
+  await page.getByRole('tab', { name: 'Archivos' }).click();
+  if ((await panes().nth(1).locator('> [data-keep="1"]').count()) !== 1) throw new Error('la pestaña Archivos se reconstruye al cambiar');
+  await page.getByRole('tab', { name: 'Acciones' }).click();
+  step('las pestañas del panel de la tarea conservan su estado');
 
   await page.getByRole('button', { name: 'Finalizar y revisar' }).click();
   await page.getByText('Pendiente de revisión').first().waitFor();
@@ -109,7 +134,10 @@ let page;
 
   await page.goto(BASE + '/');
   await page.waitForLoadState('networkidle');
-  await page.getByLabel('Mostrar terminadas').check();
+  // El dock arranca vacío: el tablero se abre desde la barra lateral.
+  await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
+  await showDemoBoard();
+  await page.getByRole('button', { name: /Mostrar terminadas/ }).click();
   await page.getByText('Hecho', { exact: true }).first().waitFor();
   step('el tablero muestra la tarea integrada');
 

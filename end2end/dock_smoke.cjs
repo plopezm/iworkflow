@@ -8,7 +8,10 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   const browser = await chromium.launch(
     process.env.SMOKE_CHROMIUM_PATH ? { executablePath: process.env.SMOKE_CHROMIUM_PATH } : {},
   );
-  page = await browser.newPage({ viewport: { width: 1440, height: 860 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 860 } });
+  // Sin cookie de idioma la app pide elegirlo; los textos de este smoke están en español.
+  await context.addCookies([{ name: 'iw-lang', value: 'es', url: BASE }]);
+  page = await context.newPage();
   const problems = [];
   // Ruido ajeno al dock: favicon, avisos de recursos de páginas heredadas y el catálogo de
   // modelos (necesita el binario del agente, ausente en el servidor del smoke).
@@ -23,9 +26,11 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 
   await page.goto(BASE + '/');
   await page.waitForLoadState('networkidle');
+  assert((await tabs().count()) === 0, 'el dock arranca vacío, sin abrir el tablero');
+  await nav('Tablero').click();
   await page.locator('.dock-tab', { hasText: 'Tablero' }).waitFor();
-  assert((await tabs().count()) === 1, 'debe abrirse una única pestaña inicial');
-  step('pestaña inicial: Tablero');
+  assert((await tabs().count()) === 1, 'abrir el tablero crea una única pestaña');
+  step('el dock arranca vacío y el Tablero se abre desde la barra lateral');
 
   await nav('Workspaces').click();
   await page.locator('.dock-tab', { hasText: 'Workspaces' }).waitFor();
