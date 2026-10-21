@@ -50,6 +50,8 @@ mod tests {
         let change: GitChange = GitChange {
             path: "a.rs".to_string(),
             kind: GitChangeKind::Modified,
+            staged: false,
+            unstaged: true,
         };
         let expected: Vec<GitChange> = vec![change.clone()];
         let mut git: MockGitStatus = MockGitStatus::new();

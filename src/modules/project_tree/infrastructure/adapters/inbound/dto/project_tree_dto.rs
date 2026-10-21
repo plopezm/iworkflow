@@ -40,6 +40,10 @@ pub struct GitChangeDto {
     /// Path relative to the project root, `/`-separated.
     pub path: String,
     pub kind: GitChangeKindDto,
+    /// Part of the next commit.
+    pub staged: bool,
+    /// Differs from the index (or is untracked).
+    pub unstaged: bool,
 }
 
 #[cfg(feature = "ssr")]
@@ -47,6 +51,8 @@ impl From<GitChange> for GitChangeDto {
     fn from(change: GitChange) -> Self {
         Self {
             path: change.path,
+            staged: change.staged,
+            unstaged: change.unstaged,
             kind: match change.kind {
                 GitChangeKind::Modified => GitChangeKindDto::Modified,
                 GitChangeKind::Added => GitChangeKindDto::Added,
@@ -115,12 +121,16 @@ mod tests {
         let dto: GitChangeDto = GitChangeDto::from(GitChange {
             path: "a.rs".to_string(),
             kind: GitChangeKind::Untracked,
+            staged: false,
+            unstaged: true,
         });
         assert_eq!(
             dto,
             GitChangeDto {
                 path: "a.rs".to_string(),
                 kind: GitChangeKindDto::Untracked,
+                staged: false,
+                unstaged: true,
             }
         );
     }

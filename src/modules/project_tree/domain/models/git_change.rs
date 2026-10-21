@@ -14,4 +14,8 @@ pub enum GitChangeKind {
 pub struct GitChange {
     pub path: String,
     pub kind: GitChangeKind,
+    /// The index holds a change for this path (it will be part of the next commit).
+    pub staged: bool,
+    /// The working tree differs from the index (including untracked files).
+    pub unstaged: bool,
 }
