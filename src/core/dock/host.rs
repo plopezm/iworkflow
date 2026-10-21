@@ -3,6 +3,7 @@
 use leptos::prelude::*;
 use leptos_router::params::ParamsMap;
 
+use crate::core::components::keep_alive::KeepAlive;
 use crate::core::components::shell::DropdownMenu;
 use crate::core::dock::context::{DockContext, GroupContext, TabContext, use_dock};
 use crate::core::dock::js;
@@ -294,13 +295,7 @@ fn TabPane(
     active: Memo<Option<TabId>>,
     hooks: DockHooks,
 ) -> impl IntoView {
-    let seen: RwSignal<bool> = RwSignal::new(false);
     let is_active: Memo<bool> = Memo::new(move |_| active.get() == Some(tab_id));
-    Effect::new(move |_| {
-        if is_active.get() {
-            seen.set(true);
-        }
-    });
     provide_context(TabContext {
         tab_id,
         group_id,
@@ -309,7 +304,7 @@ fn TabPane(
     });
     view! {
         <div class=move || if is_active.get() { "absolute inset-0 overflow-hidden" } else { "hidden" }>
-            {move || seen.get().then(|| hooks.render.run(path.clone()))}
+            <KeepAlive active=is_active>{hooks.render.run(path.clone())}</KeepAlive>
         </div>
     }
 }
