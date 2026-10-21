@@ -95,14 +95,20 @@ function touchRig({ type = 'normal', rows = 10, lineHeight = 20 } = {}) {
     querySelector: () => screen,
   };
   const scrolled = [];
-  const term = { rows, buffer: { active: { type } }, scrollLines: (n) => scrolled.push(n) };
+  const selections = [];
+  const term = {
+    rows, cols: 10, buffer: { active: { type, viewportY: 0 } }, scrollLines: (n) => scrolled.push(n),
+    select: (col, row, len) => selections.push([col, row, len]),
+    hasSelection: () => selections.length > 0,
+    clearSelection: () => { selections.length = 0; },
+  };
   globalThis.WheelEvent = class { constructor(name, init) { this.name = name; Object.assign(this, init); } };
   const frames = [];
   globalThis.requestAnimationFrame = (fn) => frames.push(fn) && frames.length;
   globalThis.cancelAnimationFrame = () => {};
   const stop = window.iwfTerminal.enableTouchScroll(term, el);
-  const touch = (y, timeStamp, type) => ({ touches: [{ clientY: y }], timeStamp, type, preventDefault() { this.prevented = true; } });
-  return { listeners, scrolled, wheels, frames, stop, el, touch };
+  const touch = (y, timeStamp, type, x = 0) => ({ touches: [{ clientY: y, clientX: x }], timeStamp, type, preventDefault() { this.prevented = true; } });
+  return { listeners, scrolled, wheels, frames, stop, el, touch, selections };
 }
 
 test('dragging up scrolls the normal buffer down by whole lines and blocks page scroll', () => {
@@ -158,4 +164,88 @@ test('the returned disposer removes every touch listener', () => {
   const rig = touchRig();
   rig.stop();
   assert.deepEqual(Object.keys(rig.listeners), []);
+});
+
+function copyTerm(selection) {
+  return { hasSelection: () => selection !== '', getSelection: () => selection };
+}
+function keyEvent(over) {
+  return { type: 'keydown', key: 'c', ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, preventDefault() { this.prevented = true; }, ...over };
+}
+
+test('ctrl+c with a selection copies it and is consumed', () => {
+  const written = [];
+  setNavigator({ clipboard: { writeText: (t) => { written.push(t); return Promise.resolve(); } } });
+  const ev = keyEvent();
+  assert.equal(window.iwfTerminal.handleCopyKey(copyTerm('hola'), ev), true);
+  assert.deepEqual(written, ['hola']);
+  assert.equal(ev.prevented, true);
+});
+
+test('ctrl+c without a selection passes through to the shell', () => {
+  setNavigator({ clipboard: { writeText: () => assert.fail('must not copy') } });
+  assert.equal(window.iwfTerminal.handleCopyKey(copyTerm(''), keyEvent()), false);
+});
+
+test('ctrl+shift+c without a selection is consumed and never reaches the shell', () => {
+  setNavigator({ clipboard: { writeText: () => assert.fail('must not copy') } });
+  assert.equal(window.iwfTerminal.handleCopyKey(copyTerm(''), keyEvent({ shiftKey: true })), true);
+});
+
+test('other keys and keyup events are ignored', () => {
+  assert.equal(window.iwfTerminal.handleCopyKey(copyTerm('x'), keyEvent({ key: 'v' })), false);
+  assert.equal(window.iwfTerminal.handleCopyKey(copyTerm('x'), keyEvent({ type: 'keyup' })), false);
+  assert.equal(window.iwfTerminal.handleCopyKey(copyTerm('x'), keyEvent({ ctrlKey: false })), false);
+});
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test('long press without moving starts a selection that dragging extends', async () => {
+  const rig = touchRig();
+  rig.listeners.touchstart(rig.touch(5, 0, undefined, 5));
+  await sleep(500);
+  assert.deepEqual(rig.selections.at(-1), [0, 0, 1]);
+  const move = rig.touch(5, 600, undefined, 35);
+  rig.listeners.touchmove(move);
+  assert.equal(move.prevented, true);
+  assert.deepEqual(rig.selections.at(-1), [0, 0, 4]);
+  assert.deepEqual(rig.scrolled, []);
+  rig.listeners.touchend(rig.touch(5, 650, 'touchend', 35));
+  assert.equal(rig.selections.length > 0, true);
+});
+
+test('moving before the long press scrolls and never selects', async () => {
+  const rig = touchRig();
+  rig.listeners.touchstart(rig.touch(200, 0));
+  rig.listeners.touchmove(rig.touch(140, 16));
+  await sleep(500);
+  assert.deepEqual(rig.selections, []);
+});
+
+test('a short tap clears an existing selection', () => {
+  const rig = touchRig();
+  rig.selections.push([0, 0, 3]);
+  rig.listeners.touchstart(rig.touch(5, 0));
+  rig.listeners.touchend(rig.touch(5, 50, 'touchend'));
+  assert.deepEqual(rig.selections, []);
+});
+
+test('copy action writes the selection to the clipboard and refocuses', async () => {
+  const written = [];
+  setNavigator({ clipboard: { writeText: (t) => { written.push(t); return Promise.resolve(); } } });
+  const handle = fakeHandle();
+  handle.term.hasSelection = () => true;
+  handle.term.getSelection = () => 'texto';
+  sendKey(handle, 'copy');
+  await sleep(0);
+  assert.deepEqual(written, ['texto']);
+  assert.equal(handle.term.focused, 1);
+});
+
+test('copy action without a selection does nothing', async () => {
+  setNavigator({ clipboard: { writeText: () => assert.fail('must not copy') } });
+  const handle = fakeHandle();
+  handle.term.hasSelection = () => false;
+  sendKey(handle, 'copy');
+  await sleep(0);
 });

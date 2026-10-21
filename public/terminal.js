@@ -28,6 +28,8 @@
   // xterm.js no desplaza con el dedo: su `.xterm-screen` tapa el viewport nativo. Se traduce
   // el arrastre vertical a líneas (con inercia). En la pantalla alternativa (TUIs) se emite
   // una rueda sintética para que xterm la convierta en ratón o flechas según el modo.
+  var LONG_PRESS_MS = 450;
+
   function enableTouchScroll(term, el) {
     var lastY = 0;
     var startY = 0;
@@ -37,6 +39,30 @@
     var dragging = false;
     var scrolled = false;
     var raf = 0;
+    var pressTimer = null;
+    var selecting = false;
+    var anchor = 0;
+
+    // Celda (índice lineal en el buffer) bajo un punto de la pantalla.
+    function cellAt(touch) {
+      var screen = el.querySelector(".xterm-screen") || el;
+      var rect = screen.getBoundingClientRect();
+      var col = Math.floor(((touch.clientX - rect.left) / (rect.width || 1)) * term.cols);
+      var row = Math.floor(((touch.clientY - rect.top) / (rect.height || 1)) * term.rows);
+      col = Math.min(Math.max(col, 0), term.cols - 1);
+      row = Math.min(Math.max(row, 0), term.rows - 1);
+      return (term.buffer.active.viewportY + row) * term.cols + col;
+    }
+
+    function selectRange(a, b) {
+      var from = Math.min(a, b);
+      term.select(from % term.cols, Math.floor(from / term.cols), Math.abs(a - b) + 1);
+    }
+
+    function cancelPress() {
+      if (pressTimer !== null) clearTimeout(pressTimer);
+      pressTimer = null;
+    }
 
     function lineHeight() {
       var screen = el.querySelector(".xterm-screen");
@@ -91,13 +117,31 @@
       remainder = 0;
       startY = lastY = event.touches[0].clientY;
       lastTime = event.timeStamp;
+      selecting = false;
+      cancelPress();
+      var touch = event.touches[0];
+      // Pulsación larga sin mover el dedo: empieza una selección que el arrastre amplía.
+      pressTimer = setTimeout(function () {
+        pressTimer = null;
+        if (!dragging || scrolled) return;
+        selecting = true;
+        anchor = cellAt(touch);
+        selectRange(anchor, anchor);
+        if (navigator.vibrate) navigator.vibrate(15);
+      }, LONG_PRESS_MS);
     }
 
     function onMove(event) {
       if (!dragging || event.touches.length !== 1) return;
+      if (selecting) {
+        event.preventDefault();
+        selectRange(anchor, cellAt(event.touches[0]));
+        return;
+      }
       var y = event.touches[0].clientY;
       if (!scrolled && Math.abs(y - startY) < 6) return;
       scrolled = true;
+      cancelPress();
       event.preventDefault();
       var dt = Math.max(event.timeStamp - lastTime, 1);
       // Arrastrar hacia abajo muestra líneas anteriores (desplazamiento negativo).
@@ -110,6 +154,15 @@
     function onEnd(event) {
       if (!dragging) return;
       dragging = false;
+      cancelPress();
+      if (selecting) {
+        selecting = false;
+        return;
+      }
+      // Un toque corto limpia la selección anterior.
+      if (!scrolled && event.type === "touchend" && term.hasSelection && term.hasSelection()) {
+        term.clearSelection();
+      }
       // Sin inercia si el dedo estuvo quieto antes de soltar o el gesto se canceló.
       var held = event.timeStamp - lastTime > 100;
       if (event.type === "touchend" && scrolled && !held && Math.abs(velocity) > 0.05) {
@@ -123,12 +176,29 @@
     el.addEventListener("touchend", onEnd);
     el.addEventListener("touchcancel", onEnd);
     return function () {
+      cancelPress();
       stopFling();
       el.removeEventListener("touchstart", onStart);
       el.removeEventListener("touchmove", onMove);
       el.removeEventListener("touchend", onEnd);
       el.removeEventListener("touchcancel", onEnd);
     };
+  }
+
+  // Copia la selección al portapapeles. Devuelve true si el evento se consumió.
+  // Ctrl/Cmd+Shift+C siempre copia; Ctrl/Cmd+C solo copia si hay selección (si no, llega
+  // al shell como SIGINT). Cmd+C en macOS también.
+  function handleCopyKey(term, event) {
+    if (event.type !== "keydown") return false;
+    if (!(event.ctrlKey || event.metaKey) || event.altKey) return false;
+    if (String(event.key).toLowerCase() !== "c") return false;
+    var selection = term.hasSelection() ? term.getSelection() : "";
+    if (!selection && !(event.shiftKey || event.metaKey)) return false;
+    if (selection && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(selection).catch(function () {});
+    }
+    if (event.preventDefault) event.preventDefault();
+    return true;
   }
 
   function open(el, sessionId) {
@@ -141,6 +211,10 @@
     var fit = new window.FitAddon.FitAddon();
     term.loadAddon(fit);
     term.open(el);
+    term.attachCustomKeyEventHandler(function (event) {
+      // false = xterm no procesa la tecla (no llega al shell).
+      return !handleCopyKey(term, event);
+    });
     fit.fit();
 
     var encoder = new TextEncoder();
@@ -285,7 +359,21 @@
       .catch(function () {});
   }
 
-  var ACTIONS = { paste: pasteClipboard };
+  // Copia la selección actual (botón de la barra, útil en táctil).
+  function copyClipboard(handle) {
+    var term = handle.term;
+    var text = term.hasSelection && term.hasSelection() ? term.getSelection() : "";
+    var clipboard = navigator.clipboard;
+    if (!text || !clipboard || !clipboard.writeText) return Promise.resolve();
+    return clipboard
+      .writeText(text)
+      .then(function () {
+        term.focus();
+      })
+      .catch(function () {});
+  }
+
+  var ACTIONS = { paste: pasteClipboard, copy: copyClipboard };
 
   // Envía una tecla con nombre como si se hubiera pulsado en el teclado.
   function sendKey(handle, key) {
@@ -316,5 +404,6 @@
     close: close,
     sendKey: sendKey,
     enableTouchScroll: enableTouchScroll,
+    handleCopyKey: handleCopyKey,
   };
 })();
