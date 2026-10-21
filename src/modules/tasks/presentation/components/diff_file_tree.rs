@@ -60,9 +60,10 @@ pub fn DiffTreeNode(node: TreeNode, depth: usize, state: DiffViewState) -> impl 
     let style: String = indent_style(depth);
     match kind {
         TreeNodeKind::File(index) => {
+            // Read once while building the row: the parent rebuilds the tree when files change.
             let file: Option<FileDiff> = state
                 .files
-                .with(|files: &Vec<FileDiff>| files.get(index).cloned());
+                .with_untracked(|files: &Vec<FileDiff>| files.get(index).cloned());
             let Some(file) = file else {
                 return ().into_any();
             };
