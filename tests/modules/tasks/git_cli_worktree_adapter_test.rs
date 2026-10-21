@@ -707,6 +707,30 @@ async fn creates_worktree_from_a_remote_branch() {
 }
 
 #[tokio::test]
+async fn task_branch_does_not_track_the_remote_base_branch() {
+    let f: RemoteFixture = fixture_with_remote_develop();
+    let worktree: PathBuf = f.adapter.worktree_path("demo", "1234-remote");
+
+    f.adapter
+        .create(&f.repo, "origin/develop", BRANCH, &worktree)
+        .await
+        .expect("create");
+
+    for key in ["remote", "merge"] {
+        let setting: String = format!("branch.{BRANCH}.{key}");
+        let output: std::process::Output = std::process::Command::new("git")
+            .current_dir(&f.repo)
+            .args(["config", "--get", &setting])
+            .output()
+            .expect("git config");
+        assert!(
+            !output.status.success(),
+            "{setting} must be unset so a push never reaches the base branch"
+        );
+    }
+}
+
+#[tokio::test]
 async fn merges_a_task_based_on_a_remote_branch_into_a_local_tracking_branch() {
     let f: RemoteFixture = fixture_with_remote_develop();
     let worktree: PathBuf = f.adapter.worktree_path("demo", "1234-remote");
