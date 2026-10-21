@@ -791,7 +791,11 @@ impl AcpProtocol {
         self.queued.clear();
         let pending: Vec<(String, PendingDialog)> = self.dialogs.drain().collect();
         for (key, dialog) in pending {
-            self.abandoned_dialogs.extend(dialog_ids(&key, &dialog));
+            // Solo un turno en vuelo garantiza un `settle` que los resuelva; sin turno la lista
+            // quedaría viva hasta un turno ajeno.
+            if self.prompt_in_flight {
+                self.abandoned_dialogs.extend(dialog_ids(&key, &dialog));
+            }
             match dialog {
                 PendingDialog::Permission { rpc_id, .. } => self.reply(&rpc_id, cancelled()),
                 PendingDialog::Plan { rpc_id } | PendingDialog::Questions { rpc_id, .. } => {
@@ -1795,6 +1799,57 @@ mod tests {
         assert!(events.contains(&AgentEvent::DialogResolved {
             dialog_id: "perm-8".into()
         }));
+    }
+
+    #[test]
+    fn settling_the_turn_resolves_every_question_of_a_pending_request() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        command(&mut protocol, prompt("hola"));
+        feed(
+            &mut protocol,
+            json!({ "jsonrpc": "2.0", "id": 5, "method": "cursor/ask_question", "params": {
+                "questions": [
+                    { "id": "q1", "prompt": "?", "options": [{ "id": "a", "label": "A" }] },
+                    { "id": "q2", "prompt": "??", "options": [{ "id": "b", "label": "B" }] }] } }),
+        );
+
+        let (events, _) = feed(
+            &mut protocol,
+            respond(4, json!({ "stopReason": "end_turn" })),
+        );
+
+        let mut resolved: Vec<String> = events
+            .iter()
+            .filter_map(|event: &AgentEvent| match event {
+                AgentEvent::DialogResolved { dialog_id } => Some(dialog_id.clone()),
+                _ => None,
+            })
+            .collect();
+        resolved.sort();
+        assert_eq!(resolved, vec!["ask-5#0".to_string(), "ask-5#1".to_string()]);
+    }
+
+    #[test]
+    fn aborting_without_a_turn_in_flight_does_not_leak_into_the_next_turn() {
+        let mut protocol: AcpProtocol = ready(AcpSessionConfig::default());
+        feed(
+            &mut protocol,
+            json!({ "jsonrpc": "2.0", "id": 5, "method": "cursor/ask_question", "params": {
+                "questions": [{ "id": "q1", "prompt": "?", "options": [{ "id": "a", "label": "A" }] }] } }),
+        );
+        command(&mut protocol, AgentCommand::Abort);
+        command(&mut protocol, prompt("hola"));
+
+        let (events, _) = feed(
+            &mut protocol,
+            respond(4, json!({ "stopReason": "end_turn" })),
+        );
+
+        assert!(
+            !events
+                .iter()
+                .any(|event: &AgentEvent| matches!(event, AgentEvent::DialogResolved { .. }))
+        );
     }
 
     #[test]
