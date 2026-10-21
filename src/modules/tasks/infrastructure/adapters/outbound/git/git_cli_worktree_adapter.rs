@@ -466,7 +466,15 @@ impl WorktreePort for GitCliWorktreeAdapter {
         let path_arg: String = path.to_string_lossy().into_owned();
         git(
             repo,
-            &["worktree", "add", "-b", branch, &path_arg, base_branch],
+            &[
+                "worktree",
+                "add",
+                "--no-track",
+                "-b",
+                branch,
+                &path_arg,
+                base_branch,
+            ],
         )
         .await?;
         Ok(())
