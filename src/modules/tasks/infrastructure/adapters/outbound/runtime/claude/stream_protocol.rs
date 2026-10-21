@@ -53,6 +53,16 @@ struct Question {
     options: Vec<(String, String)>,
 }
 
+/// Ids de diálogo que la UI conoce para una petición pendiente (uno por pregunta).
+fn pending_dialog_ids(key: &str, pending: &Pending) -> Vec<String> {
+    match pending {
+        Pending::Questions { questions, .. } => (0..questions.len())
+            .map(|index: usize| format!("{key}{QUESTION_ID_SEPARATOR}{index}"))
+            .collect(),
+        _ => vec![key.to_string()],
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ClaudeProtocol {
     running: bool,
@@ -442,8 +452,15 @@ impl ClaudeProtocol {
         self.running = false;
         self.thinking.clear();
         self.tool_names.clear();
-        self.pending.clear();
         self.settled.clear();
+        // Los diálogos que sobreviven al turno ya no tienen petición que responder: se cierran
+        // en la UI o quedarían pendientes para siempre.
+        let mut events: Vec<AgentEvent> = self
+            .pending
+            .drain()
+            .flat_map(|(key, pending): (String, Pending)| pending_dialog_ids(&key, &pending))
+            .map(|dialog_id: String| AgentEvent::DialogResolved { dialog_id })
+            .collect();
         let failed: bool = record
             .get("is_error")
             .and_then(Value::as_bool)
@@ -451,7 +468,6 @@ impl ClaudeProtocol {
             || str_field(record, "subtype").is_some_and(|s: &str| s != "success");
         let limit_rejected: bool = std::mem::take(&mut self.limit_rejected);
         let limit_resets_at: Option<i64> = self.limit_resets_at.take();
-        let mut events: Vec<AgentEvent> = Vec::new();
         if failed {
             let message: String = str_field(record, "result")
                 .or_else(|| str_field(record, "subtype"))
@@ -883,6 +899,24 @@ mod tests {
                 thinking: None,
                 error: None
             }
+        );
+    }
+
+    #[test]
+    fn a_finished_run_resolves_the_dialogs_the_agent_no_longer_awaits() {
+        let mut protocol: ClaudeProtocol = ClaudeProtocol::new();
+        request_permission(&mut protocol);
+
+        let events: Vec<AgentEvent> = decode_all(&mut protocol, &[result_line("success", false)]);
+
+        assert_eq!(
+            events,
+            vec![
+                AgentEvent::DialogResolved {
+                    dialog_id: "r1".into()
+                },
+                AgentEvent::RunSettled
+            ]
         );
     }
 

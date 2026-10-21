@@ -65,6 +65,16 @@ for raw in sys.stdin:
             answer = read()
             chunk("chose=" + answer["result"]["outcome"]["optionId"])
             respond(request_id, {"stopReason": "end_turn"})
+        elif text == "abandoned":
+            # Pide permiso y cierra el turno sin esperar la respuesta (el usuario tardó).
+            emit({"jsonrpc": "2.0", "id": 78, "method": "session/request_permission",
+                  "params": {"sessionId": session["id"],
+                             "toolCall": {"toolCallId": "c2", "title": "Run", "kind": "execute",
+                                          "rawInput": {"command": "flutter pub get"}},
+                             "options": [{"optionId": "allow-once", "kind": "allow_once", "name": "Allow"},
+                                         {"optionId": "reject-once", "kind": "reject_once", "name": "Reject"}]}})
+            chunk("turno cerrado")
+            respond(request_id, {"stopReason": "end_turn"})
         elif text == "info":
             chunk("args=" + " ".join(sys.argv[1:]) + " cwd=" + os.getcwd()
                   + " model=" + str(session["model"]) + " loaded=" + str(session["loaded"]))

@@ -34,6 +34,13 @@ for raw in sys.stdin:
                 "subtype": "can_use_tool", "tool_name": "Bash", "display_name": "Bash",
                 "description": "Lista", "input": {"command": "ls"}}})
             tool_id = "t1"
+        elif text == "abandoned":
+            # Pide permiso y cierra el turno sin esperar la respuesta (el usuario tardó).
+            emit({"type": "control_request", "request_id": "r9", "request": {
+                "subtype": "can_use_tool", "tool_name": "Bash", "display_name": "Bash",
+                "description": "Lista", "input": {"command": "flutter pub get"}}})
+            emit({"type": "assistant", "message": {"content": [{"type": "text", "text": "turno cerrado"}]}})
+            settle()
         elif text == "ask":
             emit({"type": "assistant", "message": {"content": [{
                 "type": "tool_use", "id": "t2", "name": "AskUserQuestion", "input": {}}]}})

@@ -25,14 +25,20 @@ make_repo() {
 REPO="$WORK/repo"
 REPO_KEYS="$WORK/keys/project"
 REPO_RECONNECT="$WORK/reconnect/project"
+REPO_STALE_CURSOR="$WORK/stale-cursor/project"
+REPO_STALE_CLAUDE="$WORK/stale-claude/project"
 make_repo "$REPO"
 make_repo "$REPO_KEYS"
 make_repo "$REPO_RECONNECT"
+make_repo "$REPO_STALE_CURSOR"
+make_repo "$REPO_STALE_CLAUDE"
 
 IWF_DATABASE_URL="$WORK/db.sqlite" \
 IWF_WORKTREES_DIR="$WORK/worktrees" \
 IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
 IWF_PI_BIN="$ROOT/tests/fixtures/smoke_pi.sh" \
+IWF_CURSOR_BIN="$ROOT/tests/fixtures/smoke_cursor.sh" \
+IWF_CLAUDE_BIN="$ROOT/tests/fixtures/smoke_claude.sh" \
 LEPTOS_SITE_ROOT=target/site \
 LEPTOS_SITE_ADDR="127.0.0.1:$PORT" \
   ./target/debug/iworkflow > "$WORK/server.log" 2>&1 &
@@ -45,5 +51,7 @@ done
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_SCREENSHOT="$WORK/dock-review.png" node end2end/dock_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO_KEYS" node end2end/terminal_keys_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO_RECONNECT" node end2end/terminal_reconnect_smoke.cjs
+SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_RUNTIME=cursor SMOKE_REPO="$REPO_STALE_CURSOR" node end2end/stale_dialog_smoke.cjs
+SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_RUNTIME=claude SMOKE_REPO="$REPO_STALE_CLAUDE" node end2end/stale_dialog_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" SMOKE_SCREENSHOT="$WORK/ui-review.png" node end2end/ui_smoke.cjs
 git -C "$REPO" log --oneline -1 | grep -q "Merge tarea pi:" && echo "merge verificado en $REPO"
