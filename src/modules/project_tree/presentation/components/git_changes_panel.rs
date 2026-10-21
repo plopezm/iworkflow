@@ -185,7 +185,7 @@ fn ChangeSection(
 pub fn GitChangesPanel(workspace_id: String) -> impl IntoView {
     let state: GitChangesState = GitChangesState::new(workspace_id);
     view! {
-        <div class="flex h-full min-h-0 flex-col bg-surface" data-testid="git-changes">
+        <div class="flex h-full min-h-0 flex-col bg-surface" data-testid="git-changes" node_ref=state.root>
             <div class="tree-panel-header">
                 <h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{CHANGES.get()}</h1>
                 <button

@@ -90,6 +90,10 @@ pub struct GitChangesState {
     pub changes: LocalResource<Result<Vec<GitChangeDto>, ServerFnError>>,
     pub stage: Action<Vec<String>, Result<(), ServerFnError>>,
     pub unstage: Action<Vec<String>, Result<(), ServerFnError>>,
+    /// Attach to the panel root: the poll only runs while it is displayed.
+    pub root: NodeRef<leptos::html::Div>,
+    /// Outcome of the latest stage/unstage request; `None` once one succeeds.
+    error: RwSignal<Option<String>>,
     reload: RwSignal<u32>,
 }
 
@@ -97,6 +101,8 @@ impl GitChangesState {
     pub fn new(workspace_id: String) -> Self {
         let id: StoredValue<String> = StoredValue::new(workspace_id);
         let reload: RwSignal<u32> = RwSignal::new(0);
+        let error: RwSignal<Option<String>> = RwSignal::new(None);
+        let root: NodeRef<leptos::html::Div> = NodeRef::new();
         let changes: LocalResource<Result<Vec<GitChangeDto>, ServerFnError>> =
             LocalResource::new(move || {
                 reload.track();
@@ -109,6 +115,7 @@ impl GitChangesState {
                 async move {
                     let result: Result<(), ServerFnError> =
                         stage_project_paths(id.get_value(), paths).await;
+                    error.set(error_of(&result));
                     reload.update(|n: &mut u32| *n = n.wrapping_add(1));
                     result
                 }
@@ -119,6 +126,7 @@ impl GitChangesState {
                 async move {
                     let result: Result<(), ServerFnError> =
                         unstage_project_paths(id.get_value(), paths).await;
+                    error.set(error_of(&result));
                     reload.update(|n: &mut u32| *n = n.wrapping_add(1));
                     result
                 }
@@ -127,7 +135,11 @@ impl GitChangesState {
         Effect::new(move |_| {
             let period: std::time::Duration = std::time::Duration::from_secs(GIT_POLL_SECONDS);
             let handle = leptos::leptos_dom::helpers::set_interval_with_handle(
-                move || reload.update(|n: &mut u32| *n = n.wrapping_add(1)),
+                move || {
+                    if is_displayed(root) {
+                        reload.update(|n: &mut u32| *n = n.wrapping_add(1));
+                    }
+                },
                 period,
             );
             if let Ok(handle) = handle {
@@ -138,6 +150,8 @@ impl GitChangesState {
             changes,
             stage,
             unstage,
+            root,
+            error,
             reload,
         }
     }
@@ -147,14 +161,22 @@ impl GitChangesState {
         self.reload.update(|n: &mut u32| *n = n.wrapping_add(1));
     }
 
-    /// The last failed stage/unstage request, if any.
+    /// The message of the latest stage/unstage request when it failed.
     pub fn error(&self) -> Option<String> {
-        let failed = |value: Option<Result<(), ServerFnError>>| match value {
-            Some(Err(e)) => Some(e.to_string()),
-            _ => None,
-        };
-        failed(self.stage.value().get()).or_else(|| failed(self.unstage.value().get()))
+        self.error.get()
     }
+}
+
+/// Message to show for a stage/unstage outcome: a success clears a previous failure (pure).
+pub fn error_of(result: &Result<(), ServerFnError>) -> Option<String> {
+    result.as_ref().err().map(|e: &ServerFnError| e.to_string())
+}
+
+/// Whether the panel is on screen: a tab hidden by `KeepAlive` has no layout parent.
+#[cfg(feature = "hydrate")]
+fn is_displayed(root: NodeRef<leptos::html::Div>) -> bool {
+    root.get_untracked()
+        .is_some_and(|el: leptos::web_sys::HtmlDivElement| el.offset_parent().is_some())
 }
 
 #[cfg(test)]
@@ -201,6 +223,16 @@ mod tests {
         assert_eq!(parent_dir("src/a/b.rs"), "src/a");
         assert_eq!(file_name("b.rs"), "b.rs");
         assert_eq!(parent_dir("b.rs"), "");
+    }
+
+    #[test]
+    fn a_success_clears_the_previous_failure() {
+        let failed: Result<(), ServerFnError> = Err(ServerFnError::new("boom"));
+        assert_eq!(
+            error_of(&failed),
+            Some(ServerFnError::new("boom").to_string())
+        );
+        assert_eq!(error_of(&Ok(())), None);
     }
 
     #[test]
