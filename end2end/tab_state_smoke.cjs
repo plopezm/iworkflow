@@ -76,19 +76,19 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await saved;
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await visible(page.getByLabel(/^Workspace/)).selectOption({ label: 'tab-state-demo (main)' });
-  await visible(page.getByLabel('Prompt')).fill('Tarea en vivo');
+  await visible(page.getByLabel('Prompt')).fill('Tarea del smoke de pestañas');
   await visible(page.getByLabel('Iniciar ahora')).check();
   await page.getByRole('button', { name: 'Crear tarea' }).click();
   await page.locator('aside').getByRole('link', { name: /tab-state-demo/ }).first().click();
-  await page.getByRole('link', { name: /Tarea en vivo/ }).first().click();
+  await page.getByRole('link', { name: /Tarea del smoke de pestañas/ }).first().click();
   await page.waitForURL(/\/tasks\/[^/]+$/);
-  await page.getByText('eco: Tarea en vivo').waitFor();
+  await page.getByText('eco: Tarea del smoke de pestañas').waitFor();
   const composer = () => visible(page.getByPlaceholder(/Escribe un mensaje/));
   await composer().fill('mensaje sin enviar');
   for (let i = 0; i < 3; i++) {
     await tab('Workspaces').click();
     await visible(page.getByLabel('Nombre')).waitFor();
-    await page.locator('.dock-tab[aria-selected="false"]', { hasText: 'Tarea en vivo' }).first().click();
+    await page.locator('.dock-tab[aria-selected="false"]', { hasText: 'Tarea del smoke de pestañas' }).first().click();
   }
   assert((await composer().inputValue()) === 'mensaje sin enviar',
     'el mensaje del composer se reinició al cambiar de pestaña');
