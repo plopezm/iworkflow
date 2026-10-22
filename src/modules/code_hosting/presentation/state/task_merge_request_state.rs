@@ -26,7 +26,14 @@ impl TaskMergeRequestState {
         let push: ServerAction<PushTaskBranch> = ServerAction::new();
         let refresh: RwSignal<u32> = RwSignal::new(0);
         let status: Resource<Result<Option<MergeRequestStatusDto>, ServerFnError>> = Resource::new(
-            move || (refresh.get(), create.version().get(), merge.version().get()),
+            move || {
+                (
+                    refresh.get(),
+                    create.version().get(),
+                    merge.version().get(),
+                    push.version().get(),
+                )
+            },
             move |_| get_task_merge_request(id.get_value()),
         );
         Self {

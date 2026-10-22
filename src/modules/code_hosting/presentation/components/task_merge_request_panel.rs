@@ -395,8 +395,11 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
             task_id: state.task_id.get_value(),
         });
     };
-    let pushed: Signal<bool> =
-        Signal::derive(move || matches!(state.push.value().get(), Some(Ok(()))));
+    // El aviso solo vale para el último push terminado: se oculta mientras hay uno en curso o
+    // el usuario lanza otra acción.
+    let pushed: Signal<bool> = Signal::derive(move || {
+        !state.busy().get() && matches!(state.push.value().get(), Some(Ok(())))
+    });
     view! {
         <div class="stack gap-3">
             <div class="stack gap-1">
