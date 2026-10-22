@@ -4,7 +4,7 @@ use crate::modules::project_tree::infrastructure::adapters::inbound::dto::projec
     GitChangeDto, GitChangeKindDto,
 };
 use crate::modules::project_tree::infrastructure::adapters::inbound::server_fns::{
-    list_project_git_changes, stage_project_paths, unstage_project_paths,
+    commit_project_changes, list_project_git_changes, stage_project_paths, unstage_project_paths,
 };
 
 #[cfg(feature = "hydrate")]
@@ -90,9 +90,15 @@ pub struct GitChangesState {
     pub changes: LocalResource<Result<Vec<GitChangeDto>, ServerFnError>>,
     pub stage: Action<Vec<String>, Result<(), ServerFnError>>,
     pub unstage: Action<Vec<String>, Result<(), ServerFnError>>,
+    /// Commits the staged changes with the given message.
+    pub commit: Action<String, Result<(), ServerFnError>>,
+    /// Commit message being typed; cleared once a commit succeeds.
+    pub message: RwSignal<String>,
     /// Attach to the panel root: the poll only runs while it is displayed.
     pub root: NodeRef<leptos::html::Div>,
-    /// Outcome of the latest stage/unstage request; `None` once one succeeds.
+    /// Scope (workspace id or `task:<id>`) the changes belong to.
+    pub workspace_id: StoredValue<String>,
+    /// Outcome of the latest stage/unstage/commit request; `None` once one succeeds.
     error: RwSignal<Option<String>>,
     reload: RwSignal<u32>,
 }
@@ -131,6 +137,21 @@ impl GitChangesState {
                     result
                 }
             });
+        let message: RwSignal<String> = RwSignal::new(String::new());
+        let commit: Action<String, Result<(), ServerFnError>> =
+            Action::new(move |text: &String| {
+                let text: String = text.clone();
+                async move {
+                    let result: Result<(), ServerFnError> =
+                        commit_project_changes(id.get_value(), text).await;
+                    error.set(error_of(&result));
+                    if result.is_ok() {
+                        message.set(String::new());
+                    }
+                    reload.update(|n: &mut u32| *n = n.wrapping_add(1));
+                    result
+                }
+            });
         #[cfg(feature = "hydrate")]
         Effect::new(move |_| {
             let period: std::time::Duration = std::time::Duration::from_secs(GIT_POLL_SECONDS);
@@ -150,9 +171,28 @@ impl GitChangesState {
             changes,
             stage,
             unstage,
+            commit,
+            message,
             root,
+            workspace_id: id,
             error,
             reload,
+        }
+    }
+
+    /// Whether a commit can be sent now: the message has text and none is in flight.
+    pub fn can_commit(&self) -> bool {
+        let pending: bool = self.commit.pending().get();
+        self.message
+            .with(|message: &String| commit_allowed(message, pending))
+    }
+
+    /// Sends the commit when [`Self::can_commit`] allows it.
+    pub fn submit_commit(&self) {
+        let pending: bool = self.commit.pending().get_untracked();
+        let message: String = self.message.get_untracked();
+        if commit_allowed(&message, pending) {
+            self.commit.dispatch(message);
         }
     }
 
@@ -161,13 +201,18 @@ impl GitChangesState {
         self.reload.update(|n: &mut u32| *n = n.wrapping_add(1));
     }
 
-    /// The message of the latest stage/unstage request when it failed.
+    /// The message of the latest stage/unstage/commit request when it failed.
     pub fn error(&self) -> Option<String> {
         self.error.get()
     }
 }
 
-/// Message to show for a stage/unstage outcome: a success clears a previous failure (pure).
+/// Whether a commit may be sent: a non-blank message and no commit in flight (pure).
+pub fn commit_allowed(message: &str, pending: bool) -> bool {
+    !pending && !message.trim().is_empty()
+}
+
+/// Message to show for a stage/unstage/commit outcome: a success clears a previous failure (pure).
 pub fn error_of(result: &Result<(), ServerFnError>) -> Option<String> {
     result.as_ref().err().map(|e: &ServerFnError| e.to_string())
 }
@@ -181,6 +226,13 @@ fn is_displayed(root: NodeRef<leptos::html::Div>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn commit_needs_a_message_and_no_commit_in_flight() {
+        assert!(super::commit_allowed("fix: x", false));
+        assert!(!super::commit_allowed("  \n", false));
+        assert!(!super::commit_allowed("fix: x", true));
+    }
+
     use super::*;
 
     fn change(path: &str, kind: GitChangeKindDto, staged: bool, unstaged: bool) -> GitChangeDto {

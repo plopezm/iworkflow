@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 
+use iworkflow::modules::project_tree::domain::errors::project_tree_error::ProjectTreeError;
 use iworkflow::modules::project_tree::domain::models::git_change::{GitChange, GitChangeKind};
 use iworkflow::modules::project_tree::domain::ports::outbound::git_status_port::GitStatusPort;
 use iworkflow::modules::project_tree::infrastructure::adapters::outbound::git::git_cli_status_adapter::GitCliStatusAdapter;
@@ -15,6 +16,17 @@ fn git(dir: &Path, args: &[&str]) {
         .status()
         .expect("git");
     assert!(status.success(), "git {args:?}");
+}
+
+fn git_output(dir: &Path, args: &[&str]) -> String {
+    let output: std::process::Output = Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .output()
+        .expect("git");
+    assert!(output.status.success(), "git {args:?}");
+    String::from_utf8_lossy(&output.stdout).trim().to_string()
 }
 
 fn repo() -> TempDir {
@@ -213,4 +225,56 @@ async fn special_and_escaping_paths_are_never_treated_as_pathspec_magic() {
     // A glob is a literal file name, so it matches nothing and must not stage `edited.txt`.
     let _ = adapter.stage(dir.path(), &["*.txt".to_string()]).await;
     assert_eq!(cached(dir.path()), "");
+}
+
+#[tokio::test]
+async fn commit_records_only_the_staged_changes() {
+    let dir: TempDir = repo();
+    std::fs::write(dir.path().join("edited.txt"), "a\nB\n").expect("edit");
+    std::fs::write(dir.path().join("other.txt"), "z\n").expect("file");
+    git(dir.path(), &["add", "edited.txt"]);
+    let before: String = git_output(dir.path(), &["rev-list", "--count", "HEAD"]);
+
+    GitCliStatusAdapter::new()
+        .commit(dir.path(), "feat: edit")
+        .await
+        .expect("commit");
+
+    let changes: Vec<GitChange> = GitCliStatusAdapter::new()
+        .changes(dir.path())
+        .await
+        .expect("changes");
+    assert_eq!(
+        sorted(changes),
+        vec![("other.txt".to_string(), GitChangeKind::Untracked)]
+    );
+    assert_eq!(
+        git_output(dir.path(), &["log", "-1", "--format=%s"]),
+        "feat: edit"
+    );
+    let after: usize = git_output(dir.path(), &["rev-list", "--count", "HEAD"])
+        .parse()
+        .expect("count");
+    assert_eq!(after, before.parse::<usize>().expect("count") + 1);
+    assert_eq!(
+        git_output(dir.path(), &["show", "--name-only", "--format=", "HEAD"]),
+        "edited.txt"
+    );
+}
+
+#[tokio::test]
+async fn commit_without_staged_changes_fails() {
+    let dir: TempDir = repo();
+    std::fs::write(dir.path().join("edited.txt"), "a\nB\n").expect("edit");
+
+    let result: Result<(), ProjectTreeError> = GitCliStatusAdapter::new()
+        .commit(dir.path(), "nothing")
+        .await;
+
+    // The wording is git's (and locale dependent): only its presence is pinned.
+    assert!(matches!(result, Err(ProjectTreeError::CommitFailed(reason)) if !reason.is_empty()));
+    assert_eq!(
+        git_output(dir.path(), &["rev-list", "--count", "HEAD"]),
+        "1"
+    );
 }

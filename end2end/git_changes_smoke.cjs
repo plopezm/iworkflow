@@ -12,6 +12,8 @@ const sameList = (actual, expected, what) => assert(
   JSON.stringify(actual) === JSON.stringify(expected),
   `${what}: esperado ${JSON.stringify(expected)}, obtenido ${JSON.stringify(actual)}`,
 );
+// Un poco más que el periodo de sondeo del panel (GIT_POLL_SECONDS = 5 s).
+const POLL_WAIT_MS = 6500;
 let page;
 
 // Directorio (hasta 4 niveles) bajo `root` que contiene `marker`: el worktree de la tarea.
@@ -142,6 +144,41 @@ function findWorktree(root, marker, depth = 4) {
   await until('unstaged', ['README.md'], 'README.md modificado sin stage');
   await until('untracked', ['CAMBIO.md', 'nuevo.txt'], 'sin seguimiento tras quitar todo');
   step('quitar todo del stage deja el índice vacío y el contenido intacto');
+
+  // Clic en una fila: abre el fichero (editor) en su propia pestaña.
+  await row('unstaged', 'README.md').locator('a').click();
+  await page.locator('.dock-tab', { hasText: 'README.md' }).first().waitFor({ timeout: 15000 });
+  await page.getByText('cambiado', { exact: false }).first().waitFor({ timeout: 15000 });
+  step('clic en una fila abre el fichero en una pestaña');
+  await page.getByRole('tab', { name: 'Cambios', exact: true }).click();
+  await until('unstaged', ['README.md'], 'el panel sigue mostrando README.md tras volver');
+
+  // Commit: solo con algo en stage y con mensaje; registra únicamente lo que está en stage.
+  const form = () => panel().locator('[data-testid="git-commit-form"]');
+  assert((await form().count()) === 0, 'sin nada en stage no hay formulario de commit');
+  await row('unstaged', 'README.md').locator('[data-testid="git-toggle"]').click();
+  await until('staged', ['README.md'], 'README.md con stage para el commit');
+  const message = () => form().locator('[data-testid="git-commit-message"]');
+  const commitButton = () => form().locator('[data-testid="git-commit"]');
+  await message().waitFor();
+  assert(await commitButton().isDisabled(), 'sin mensaje el botón Commit está desactivado');
+  await message().fill('docs: actualizar README');
+  await message().focus();
+  // Un sondeo no debe reconstruir el formulario: se conservan texto y foco.
+  await page.waitForTimeout(POLL_WAIT_MS);
+  assert((await message().inputValue()) === 'docs: actualizar README', 'el sondeo no borra el mensaje');
+  assert(await message().evaluate(el => el === document.activeElement), 'el sondeo no quita el foco al mensaje');
+  assert(!(await commitButton().isDisabled()), 'con mensaje el botón Commit está activo');
+  const before = git(worktree, 'rev-list', '--count', 'HEAD');
+  await commitButton().click();
+  await until('staged', [], 'el commit vacía «Con stage»');
+  await until('unstaged', [], 'README.md ya no está modificado');
+  assert(git(worktree, 'log', '-1', '--format=%s') === 'docs: actualizar README', 'el commit lleva el mensaje escrito');
+  assert(Number(git(worktree, 'rev-list', '--count', 'HEAD')) === Number(before) + 1, 'se crea exactamente un commit');
+  sameList(git(worktree, 'show', '--name-only', '--format=', 'HEAD').split('\n').filter(Boolean), ['README.md'], 'ficheros del commit');
+  await until('untracked', ['CAMBIO.md', 'nuevo.txt'], 'lo que no estaba en stage queda sin tocar');
+  assert((await form().count()) === 0, 'tras el commit desaparece el formulario');
+  step('commit: solo lo que estaba en stage, con su mensaje, y el formulario conserva foco entre sondeos');
 
   // Un worktree limpio muestra el estado vacío.
   git(worktree, 'checkout', '--', 'README.md');

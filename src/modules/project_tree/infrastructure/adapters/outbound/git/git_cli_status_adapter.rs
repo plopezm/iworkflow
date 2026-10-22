@@ -109,6 +109,30 @@ impl GitStatusPort for GitCliStatusAdapter {
         let args: Vec<&str> = pathspec_command(&["reset", "-q"], paths)?;
         run_index_command(root, &args).await
     }
+
+    async fn commit(&self, root: &Path, message: &str) -> Result<(), ProjectTreeError> {
+        let output: GitOutput = run_git_raw(root, &["commit", "-q", "-m", message])
+            .await
+            .map_err(git_error)?;
+        if output.success {
+            return Ok(());
+        }
+        Err(ProjectTreeError::CommitFailed(commit_failure_reason(
+            &output.stderr,
+            &output.stdout,
+        )))
+    }
+}
+
+/// Why `git commit` failed (pure): git reports "nothing to commit" on stdout, other
+/// failures on stderr.
+fn commit_failure_reason(stderr: &str, stdout: &str) -> String {
+    [stderr, stdout]
+        .into_iter()
+        .map(str::trim)
+        .find(|text: &&str| !text.is_empty())
+        .unwrap_or("git commit failed without output")
+        .to_string()
 }
 
 /// Builds `git --literal-pathspecs <command> -- <paths>`; no paths means the whole project (`.`).
@@ -195,6 +219,19 @@ mod tests {
             .map(|(p, s, u)| (p.to_string(), s, u))
             .collect();
         assert_eq!(flags, expected);
+    }
+
+    #[test]
+    fn commit_failure_reason_prefers_stderr_then_stdout() {
+        assert_eq!(commit_failure_reason(" boom \n", "out"), "boom");
+        assert_eq!(
+            commit_failure_reason("", "nothing to commit\n"),
+            "nothing to commit"
+        );
+        assert_eq!(
+            commit_failure_reason("", " "),
+            "git commit failed without output"
+        );
     }
 
     #[test]

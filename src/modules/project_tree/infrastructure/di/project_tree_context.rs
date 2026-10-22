@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::modules::project_tree::application::usecases::commit_project_changes::CommitProjectChanges;
 use crate::modules::project_tree::application::usecases::list_project_directory::ListProjectDirectory;
 use crate::modules::project_tree::application::usecases::list_project_git_changes::ListProjectGitChanges;
 use crate::modules::project_tree::application::usecases::read_project_file::ReadProjectFile;
@@ -30,6 +31,7 @@ pub struct ProjectTreeContext {
     pub file_base: Arc<ReadProjectFileBase>,
     pub stage_paths: Arc<StageProjectPaths>,
     pub unstage_paths: Arc<UnstageProjectPaths>,
+    pub commit_changes: Arc<CommitProjectChanges>,
     pub search_files: Arc<SearchProjectFiles>,
 }
 
@@ -48,7 +50,8 @@ impl ProjectTreeContext {
             git_changes: Arc::new(ListProjectGitChanges::new(roots.clone(), git.clone())),
             file_base: Arc::new(ReadProjectFileBase::new(roots.clone(), git.clone())),
             stage_paths: Arc::new(StageProjectPaths::new(roots.clone(), git.clone())),
-            unstage_paths: Arc::new(UnstageProjectPaths::new(roots.clone(), git)),
+            unstage_paths: Arc::new(UnstageProjectPaths::new(roots.clone(), git.clone())),
+            commit_changes: Arc::new(CommitProjectChanges::new(roots.clone(), git)),
             search_files: Arc::new(SearchProjectFiles::new(roots, search)),
         }
     }
