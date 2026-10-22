@@ -156,6 +156,10 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
         self.runtime.stop(task_id).await
     }
 
+    async fn stop_all(&self) {
+        self.runtime.stop_all().await;
+    }
+
     async fn is_running(&self, task_id: TaskId) -> bool {
         self.runtime.is_running(task_id)
     }

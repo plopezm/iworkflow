@@ -17,8 +17,9 @@ use crate::modules::agent_settings::infrastructure::adapters::outbound::cli::cur
 
 const LIST_MODELS_TIMEOUT: Duration = Duration::from_secs(10);
 const LIST_MODELS_FLAG: &str = "--list-models";
-/// Abrir una sesión ACP para listar modelos es lento: el resultado se reutiliza este tiempo.
-const CURSOR_CACHE_TTL: Duration = Duration::from_secs(300);
+/// Listar modelos lanza un proceso del agente (y, con él, sus servidores MCP): el resultado se
+/// reutiliza este tiempo en lugar de lanzar uno por consulta.
+const MODELS_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// Claude Code no tiene `--list-models`: sus modelos se eligen por alias (`claude --model`).
 const CLAUDE_PROVIDER: &str = "anthropic";
@@ -29,7 +30,7 @@ const CLAUDE_MODEL_ALIASES: [&str; 4] = ["fable", "opus", "sonnet", "haiku"];
 pub struct AgentCliModelCatalogAdapter {
     bins: HashMap<AgentRuntime, String>,
     timeout: Duration,
-    cursor_models: Mutex<Option<(Instant, Vec<ModelRef>)>>,
+    cache: Mutex<HashMap<AgentRuntime, (Instant, Vec<ModelRef>)>>,
 }
 
 impl AgentCliModelCatalogAdapter {
@@ -37,7 +38,7 @@ impl AgentCliModelCatalogAdapter {
         Self {
             bins,
             timeout: LIST_MODELS_TIMEOUT,
-            cursor_models: Mutex::new(None),
+            cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -47,32 +48,43 @@ impl AgentCliModelCatalogAdapter {
 
     /// Modelos de Cursor (ids de ACP), cacheados; un fallo no se cachea.
     async fn cursor_models(&self, bin: &str) -> Result<Vec<ModelRef>, AgentSettingsError> {
-        // The lock is only held to read and to store: holding it while the CLI runs would make
-        // every other caller wait for the whole spawn (up to the catalog timeout).
-        if let Some((fetched, models)) = self.cursor_models.lock().await.as_ref()
-            && fetched.elapsed() < CURSOR_CACHE_TTL
+        self.cached(AgentRuntime::Cursor, async {
+            list_cursor_models(bin, std::env::vars_os().collect(), CURSOR_CATALOG_TIMEOUT).await
+        })
+        .await
+    }
+
+    /// Modelos de `<bin> --list-models`, cacheados; un fallo no se cachea.
+    async fn cli_models(
+        &self,
+        runtime: AgentRuntime,
+        bin: &str,
+    ) -> Result<Vec<ModelRef>, AgentSettingsError> {
+        self.cached(runtime, self.run_list_models(bin)).await
+    }
+
+    /// Devuelve la lista cacheada de `runtime` si no ha caducado; si no, ejecuta `fetch` y la
+    /// guarda. El bloqueo solo se mantiene para leer y para guardar: retenerlo mientras corre
+    /// la CLI haría esperar a los demás todo el lanzamiento (hasta el plazo del catálogo).
+    async fn cached(
+        &self,
+        runtime: AgentRuntime,
+        fetch: impl std::future::Future<Output = Result<Vec<ModelRef>, AgentSettingsError>>,
+    ) -> Result<Vec<ModelRef>, AgentSettingsError> {
+        if let Some((fetched, models)) = self.cache.lock().await.get(&runtime)
+            && fetched.elapsed() < MODELS_CACHE_TTL
         {
             return Ok(models.clone());
         }
-        let models: Vec<ModelRef> =
-            list_cursor_models(bin, std::env::vars_os().collect(), CURSOR_CATALOG_TIMEOUT).await?;
-        *self.cursor_models.lock().await = Some((Instant::now(), models.clone()));
+        let models: Vec<ModelRef> = fetch.await?;
+        self.cache
+            .lock()
+            .await
+            .insert(runtime, (Instant::now(), models.clone()));
         Ok(models)
     }
-}
 
-#[async_trait::async_trait]
-impl ModelCatalogPort for AgentCliModelCatalogAdapter {
-    async fn list(&self, runtime: AgentRuntime) -> Result<Vec<ModelRef>, AgentSettingsError> {
-        if runtime == AgentRuntime::Claude {
-            return Ok(claude_models());
-        }
-        let Some(bin) = self.bin_for(runtime) else {
-            return Ok(Vec::new());
-        };
-        if runtime == AgentRuntime::Cursor {
-            return self.cursor_models(bin).await;
-        }
+    async fn run_list_models(&self, bin: &str) -> Result<Vec<ModelRef>, AgentSettingsError> {
         let output: Output = tokio::time::timeout(
             self.timeout,
             list_models_command(bin, std::env::vars_os()).output(),
@@ -90,6 +102,22 @@ impl ModelCatalogPort for AgentCliModelCatalogAdapter {
             )));
         }
         Ok(parse_model_table(&String::from_utf8_lossy(&output.stdout)))
+    }
+}
+
+#[async_trait::async_trait]
+impl ModelCatalogPort for AgentCliModelCatalogAdapter {
+    async fn list(&self, runtime: AgentRuntime) -> Result<Vec<ModelRef>, AgentSettingsError> {
+        if runtime == AgentRuntime::Claude {
+            return Ok(claude_models());
+        }
+        let Some(bin) = self.bin_for(runtime) else {
+            return Ok(Vec::new());
+        };
+        if runtime == AgentRuntime::Cursor {
+            return self.cursor_models(bin).await;
+        }
+        self.cli_models(runtime, bin).await
     }
 }
 
@@ -112,7 +140,9 @@ fn list_models_command(bin: &str, vars: impl Iterator<Item = (OsString, OsString
     command
         .env_clear()
         .envs(invocation.env)
-        .args(invocation.args);
+        .args(invocation.args)
+        // Si vence el plazo se descarta el future; sin esto el proceso seguiría vivo.
+        .kill_on_drop(true);
     command
 }
 
@@ -262,6 +292,74 @@ mod tests {
         assert!(
             matches!(result, Err(AgentSettingsError::Catalog(message)) if message.contains("boom"))
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn repeated_listing_reuses_the_cached_models_instead_of_spawning_again() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let counter: std::path::PathBuf = dir.path().join("runs");
+        let bin: String = fake_bin(
+            &dir,
+            &format!(
+                "echo run >> '{}'\necho 'provider model context max-out thinking images'\n\
+                 echo 'anthropic claude-5 200000 8192 yes yes'",
+                counter.display()
+            ),
+        );
+        let adapter: AgentCliModelCatalogAdapter = both_runtimes(&bin, &bin);
+
+        let first: Vec<ModelRef> = adapter.list(AgentRuntime::Pi).await.expect("first");
+        let second: Vec<ModelRef> = adapter.list(AgentRuntime::Pi).await.expect("second");
+
+        assert_eq!(first, second);
+        let runs: String = std::fs::read_to_string(&counter).expect("counter");
+        assert_eq!(runs.lines().count(), 1);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn failures_are_not_cached() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let counter: std::path::PathBuf = dir.path().join("runs");
+        let bin: String = fake_bin(
+            &dir,
+            &format!("echo run >> '{}'; echo boom >&2; exit 2", counter.display()),
+        );
+        let adapter: AgentCliModelCatalogAdapter = both_runtimes(&bin, &bin);
+
+        assert!(adapter.list(AgentRuntime::Pi).await.is_err());
+        assert!(adapter.list(AgentRuntime::Pi).await.is_err());
+
+        let runs: String = std::fs::read_to_string(&counter).expect("counter");
+        assert_eq!(runs.lines().count(), 2);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn each_runtime_has_its_own_cache_entry() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let bin: String = fake_bin(
+            &dir,
+            "echo 'provider model context max-out thinking images'\n\
+             echo 'anthropic claude-5 200000 8192 yes yes'",
+        );
+        let other: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let other_bin: String = fake_bin(
+            &other,
+            "echo 'provider model context max-out thinking images'\n\
+             echo 'openai gpt-5 128000 4096 no yes'",
+        );
+        let adapter: AgentCliModelCatalogAdapter = both_runtimes(&bin, &other_bin);
+
+        let shell: Vec<ModelRef> = adapter
+            .list(AgentRuntime::GentleShell)
+            .await
+            .expect("shell");
+        let pi: Vec<ModelRef> = adapter.list(AgentRuntime::Pi).await.expect("pi");
+
+        assert_eq!(shell[0].provider, "anthropic");
+        assert_eq!(pi[0].provider, "openai");
     }
 
     #[test]

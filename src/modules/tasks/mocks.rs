@@ -194,6 +194,7 @@ mock! {
         ) -> Result<(), TaskError>;
         async fn send(&self, task_id: TaskId, command: AgentCommand) -> Result<(), TaskError>;
         async fn stop(&self, task_id: TaskId) -> Result<(), TaskError>;
+        async fn stop_all(&self);
         async fn is_running(&self, task_id: TaskId) -> bool;
         async fn subagents(&self, task_id: TaskId) -> Vec<SubagentTask>;
         fn capabilities(&self, task_id: TaskId) -> AgentCapabilities;

@@ -208,6 +208,28 @@ impl ProcessRuntime {
         Ok(())
     }
 
+    /// Detiene todos los agentes vivos a la vez. De mejor esfuerzo: los fallos se registran.
+    pub async fn stop_all(&self) {
+        let task_ids: Vec<TaskId> = match self.registry() {
+            Ok(registry) => registry.keys().copied().collect(),
+            Err(error) => {
+                tracing::warn!(%error, "no se pudo leer el registro de agentes");
+                return;
+            }
+        };
+        let results = futures::future::join_all(
+            task_ids
+                .iter()
+                .map(|task_id: &TaskId| async move { (*task_id, self.stop(*task_id).await) }),
+        )
+        .await;
+        for (task_id, result) in results {
+            if let Err(error) = result {
+                tracing::warn!(%task_id, %error, "no se pudo detener el agente");
+            }
+        }
+    }
+
     pub async fn stop(&self, task_id: TaskId) -> Result<(), TaskError> {
         let process: Option<AgentProcess> = self.registry()?.remove(&task_id);
         let Some(AgentProcess {
@@ -269,6 +291,12 @@ fn build_command(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    // Grupo propio: el agente y los servidores MCP que lanza se pueden matar juntos. Sin esto,
+    // matar al agente deja huérfanos a sus hijos (node, npx...). Al no compartir grupo con el
+    // terminal, ya no reciben su Ctrl+C: los para `stop_all` en el apagado, y si el servidor
+    // muere de golpe el agente sale solo al cerrarse su stdin.
+    #[cfg(unix)]
+    command.process_group(0);
     command
 }
 
@@ -318,10 +346,43 @@ fn live_pid(child: &mut Child) -> Option<u32> {
     }
 }
 
-/// Mata el agente. En Windows no hay `exec`: el hijo directo es PowerShell, así que se mata el
-/// árbol entero para no dejar al agente huérfano. `taskkill` es bloqueante, por lo que corre en
-/// un hilo aparte para no frenar el runtime asíncrono.
+/// Mata el grupo de procesos `pgid` (el agente lidera el suyo, ver `build_command`). El grupo
+/// puede haber desaparecido ya: se ignora el fallo. Mientras quede algún miembro, el pid del
+/// líder no se reasigna, así que no se alcanza a procesos ajenos.
+#[cfg(unix)]
+fn kill_group(pgid: u32) {
+    use nix::sys::signal::{Signal, killpg};
+    use nix::unistd::Pid;
+
+    if let Ok(raw) = i32::try_from(pgid) {
+        let _ = killpg(Pid::from_raw(raw), Signal::SIGKILL);
+    }
+}
+
+/// Barre el grupo `pgid` después de que el agente (su líder) haya salido y se haya recogido.
+/// Sin líder que reserve el pid, un grupo vacío podría coincidir con un pid reasignado, así que
+/// solo se mata si la señal 0 confirma que aún quedan miembros (los servidores MCP huérfanos).
+/// Queda una ventana de microsegundos entre la comprobación y la señal.
+#[cfg(unix)]
+fn sweep_group(pgid: u32) {
+    use nix::sys::signal::killpg;
+    use nix::unistd::Pid;
+
+    if let Ok(raw) = i32::try_from(pgid)
+        && killpg(Pid::from_raw(raw), None).is_ok()
+    {
+        kill_group(pgid);
+    }
+}
+
+/// Mata el agente y todo lo que lanzó. En Unix se mata el grupo de procesos; en Windows no hay
+/// `exec`: el hijo directo es PowerShell, así que se mata el árbol entero. `taskkill` es
+/// bloqueante, por lo que corre en un hilo aparte para no frenar el runtime asíncrono.
 async fn kill_agent(child: &mut Child) -> std::io::Result<()> {
+    #[cfg(unix)]
+    if let Some(pid) = child.id() {
+        kill_group(pid);
+    }
     #[cfg(windows)]
     if let Some(pid) = live_pid(child) {
         let _ = tokio::task::spawn_blocking(move || crate::core::process::kill_tree(pid)).await;
@@ -360,6 +421,7 @@ async fn supervise(
         command_rx,
         mut kill_rx,
     } = io;
+    let pgid: Option<u32> = child.id();
     let writer = write_commands(stdin, command_rx);
     let reader = read_events(task_id, stdout, codec, outgoing, sink.clone());
     let logger: JoinHandle<()> = tokio::spawn(log_stderr(task_id, stderr));
@@ -399,6 +461,13 @@ async fn supervise(
                 .and_then(|status: ExitStatus| status.code())
         }
     };
+    // El agente ya salió, pero sus servidores MCP pueden seguir vivos en el grupo.
+    #[cfg(unix)]
+    if let Some(pgid) = pgid {
+        sweep_group(pgid);
+    }
+    #[cfg(not(unix))]
+    let _ = pgid;
     if let Err(error) = logger.await {
         tracing::warn!(%task_id, %error, "lector de stderr terminó con error");
     }
@@ -495,6 +564,181 @@ mod tests {
         child.start_kill().expect("kill");
         child.wait().await.expect("wait");
         assert_eq!(live_pid(&mut child), None);
+    }
+
+    struct SilentCodec;
+
+    impl LineCodec for SilentCodec {
+        fn decode(&mut self, _task_id: TaskId, _line: &str) -> Vec<AgentEvent> {
+            Vec::new()
+        }
+
+        fn encode(
+            &mut self,
+            _command: &AgentCommand,
+            _request_id: &str,
+        ) -> Result<Option<String>, TaskError> {
+            Ok(None)
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn pid_is_alive(pid: i32) -> bool {
+        // Un zombi aún figura en /proc hasta que init lo recoge; su estado `Z` no cuenta.
+        std::fs::read_to_string(format!("/proc/{pid}/stat"))
+            .map(|stat: String| {
+                stat.rsplit(')')
+                    .next()
+                    .and_then(|rest: &str| rest.split_whitespace().next().map(str::to_string))
+                    .is_some_and(|state: String| state != "Z")
+            })
+            .unwrap_or(false)
+    }
+
+    /// Solo Linux: comprobar que un pid murió lee `/proc`.
+    /// Lanza un «agente» que deja un hijo en segundo plano (como un servidor MCP) y no sale al
+    /// cerrar stdin, de modo que `stop` tiene que forzar su cierre.
+    #[cfg(target_os = "linux")]
+    async fn start_agent_with_background_child(
+        runtime: &ProcessRuntime,
+        dir: &tempfile::TempDir,
+    ) -> (TaskId, i32) {
+        let pid_file: std::path::PathBuf = dir.path().join("child.pid");
+        let script: String = format!("sleep 300 & echo $! > '{}'; wait", pid_file.display());
+        let spec: LaunchSpec = LaunchSpec {
+            agent_args: vec!["-c".to_string(), script],
+            extra_env: Vec::new(),
+        };
+        let sink: Arc<dyn AgentEventSink> = Arc::new({
+            let mut sink: crate::modules::tasks::mocks::MockAgentEventSink =
+                crate::modules::tasks::mocks::MockAgentEventSink::new();
+            sink.expect_handle().returning(|_, _| ());
+            sink
+        });
+        let task_id: TaskId = TaskId::new();
+        runtime
+            .start(
+                task_id,
+                dir.path(),
+                &spec,
+                &ResourceLimits::default(),
+                Box::new(SilentCodec),
+                sink,
+            )
+            .expect("start");
+        for _ in 0..100 {
+            if let Ok(text) = std::fs::read_to_string(&pid_file)
+                && let Ok(pid) = text.trim().parse::<i32>()
+            {
+                return (task_id, pid);
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!("el hijo en segundo plano no arrancó");
+    }
+
+    #[cfg(target_os = "linux")]
+    async fn wait_until_dead(pid: i32) -> bool {
+        for _ in 0..100 {
+            if !pid_is_alive(pid) {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        false
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn forced_stop_also_kills_the_processes_the_agent_launched() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let runtime: ProcessRuntime =
+            ProcessRuntime::new("sh").with_stop_timeout(Duration::from_millis(200));
+        let (task_id, child_pid): (TaskId, i32) =
+            start_agent_with_background_child(&runtime, &dir).await;
+        assert!(pid_is_alive(child_pid));
+
+        runtime.stop(task_id).await.expect("stop");
+
+        assert!(
+            wait_until_dead(child_pid).await,
+            "el hijo del agente sigue vivo"
+        );
+        assert!(!runtime.is_running(task_id));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn stop_all_stops_every_running_agent_and_their_children() {
+        let first_dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let second_dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let runtime: ProcessRuntime =
+            ProcessRuntime::new("sh").with_stop_timeout(Duration::from_millis(200));
+        let (first, first_child): (TaskId, i32) =
+            start_agent_with_background_child(&runtime, &first_dir).await;
+        let (second, second_child): (TaskId, i32) =
+            start_agent_with_background_child(&runtime, &second_dir).await;
+
+        runtime.stop_all().await;
+
+        assert!(!runtime.is_running(first));
+        assert!(!runtime.is_running(second));
+        assert!(wait_until_dead(first_child).await);
+        assert!(wait_until_dead(second_child).await);
+    }
+
+    /// Un agente que sale solo deja atrás un hijo desvinculado de sus pipes (como un servidor MCP).
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn an_agent_that_exits_on_its_own_does_not_leave_its_children_behind() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let pid_file: std::path::PathBuf = dir.path().join("child.pid");
+        let script: String = format!(
+            "sleep 300 </dev/null >/dev/null 2>&1 & echo $! > '{}'",
+            pid_file.display()
+        );
+        let spec: LaunchSpec = LaunchSpec {
+            agent_args: vec!["-c".to_string(), script],
+            extra_env: Vec::new(),
+        };
+        let mut sink: crate::modules::tasks::mocks::MockAgentEventSink =
+            crate::modules::tasks::mocks::MockAgentEventSink::new();
+        sink.expect_handle().returning(|_, _| ());
+        let runtime: ProcessRuntime = ProcessRuntime::new("sh");
+        let task_id: TaskId = TaskId::new();
+        runtime
+            .start(
+                task_id,
+                dir.path(),
+                &spec,
+                &ResourceLimits::default(),
+                Box::new(SilentCodec),
+                Arc::new(sink),
+            )
+            .expect("start");
+
+        for _ in 0..100 {
+            if !runtime.is_running(task_id) && pid_file.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let child_pid: i32 = std::fs::read_to_string(&pid_file)
+            .expect("pid file")
+            .trim()
+            .parse()
+            .expect("pid");
+
+        assert!(!runtime.is_running(task_id));
+        assert!(
+            wait_until_dead(child_pid).await,
+            "el hijo del agente sigue vivo"
+        );
+    }
+
+    #[tokio::test]
+    async fn stop_all_without_agents_is_a_no_op() {
+        ProcessRuntime::new("sh").stop_all().await;
     }
 
     fn pairs(entries: &[(&str, &str)]) -> Vec<(OsString, OsString)> {

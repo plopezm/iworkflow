@@ -141,6 +141,8 @@ pub struct TasksContext {
     pub event_sink: Arc<dyn AgentEventSink>,
     /// Misma instancia que `event_sink`, para poder vaciarla en el apagado.
     event_queue: Arc<QueuedAgentEventSink>,
+    /// Mismo runtime que usan los casos de uso, para detener todos los agentes en el apagado.
+    runtime: Arc<dyn AgentRuntimePort>,
 }
 
 impl TasksContext {
@@ -350,7 +352,7 @@ impl TasksContext {
                 worktrees.clone(),
                 runtime.clone(),
             )),
-            get_task_subagents: Arc::new(GetTaskSubagents::new(lifecycle.clone(), runtime)),
+            get_task_subagents: Arc::new(GetTaskSubagents::new(lifecycle.clone(), runtime.clone())),
             get_task: Arc::new(GetTask::new(lifecycle.clone())),
             list_task_attachments: Arc::new(ListTaskAttachments::new(attachments.clone())),
             get_task_attachment: Arc::new(GetTaskAttachment::new(attachments, storage)),
@@ -392,12 +394,18 @@ impl TasksContext {
             event_bus,
             event_sink: sink,
             event_queue,
+            runtime,
         }
     }
 
     /// Espera a que terminen los borrados de worktrees que siguen en segundo plano.
     pub async fn wait_for_worktree_cleanup(&self) {
         self.worktrees.wait_for_cleanup().await;
+    }
+
+    /// Detiene todos los agentes vivos y los procesos que lanzaron (servidores MCP incluidos).
+    pub async fn stop_agents(&self) {
+        self.runtime.stop_all().await;
     }
 
     /// Espera a que se persistan todos los eventos de agente ya aceptados.
