@@ -6,6 +6,7 @@ use crate::modules::code_hosting::application::usecases::create_task_merge_reque
 use crate::modules::code_hosting::application::usecases::get_code_host_settings::GetCodeHostSettings;
 use crate::modules::code_hosting::application::usecases::get_task_merge_request::GetTaskMergeRequest;
 use crate::modules::code_hosting::application::usecases::merge_task_merge_request::MergeTaskMergeRequest;
+use crate::modules::code_hosting::application::usecases::push_task_branch::PushTaskBranch;
 use crate::modules::code_hosting::application::usecases::save_code_host_settings::SaveCodeHostSettings;
 use crate::modules::code_hosting::application::usecases::test_code_host_connection::TestCodeHostConnection;
 use crate::modules::code_hosting::domain::ports::outbound::git_remote_port::GitRemotePort;
@@ -25,6 +26,7 @@ pub struct CodeHostContext {
     pub get_task_merge_request: Arc<GetTaskMergeRequest>,
     pub create_task_merge_request: Arc<CreateTaskMergeRequest>,
     pub merge_task_merge_request: Arc<MergeTaskMergeRequest>,
+    pub push_task_branch: Arc<PushTaskBranch>,
 }
 
 impl CodeHostContext {
@@ -51,7 +53,11 @@ impl CodeHostContext {
                 resolver.clone(),
                 remote.clone(),
             )),
-            merge_task_merge_request: Arc::new(MergeTaskMergeRequest::new(resolver, remote)),
+            merge_task_merge_request: Arc::new(MergeTaskMergeRequest::new(
+                resolver.clone(),
+                remote.clone(),
+            )),
+            push_task_branch: Arc::new(PushTaskBranch::new(resolver, remote)),
         }
     }
 }

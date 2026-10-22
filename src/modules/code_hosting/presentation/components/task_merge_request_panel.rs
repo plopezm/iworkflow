@@ -10,7 +10,7 @@ use crate::modules::code_hosting::infrastructure::adapters::inbound::dto::code_h
     CreateMergeRequestDto, MergeRequestDto, MergeRequestStatusDto, PipelineDto, PipelineJobDto,
 };
 use crate::modules::code_hosting::infrastructure::adapters::inbound::server_fns::{
-    CreateTaskMergeRequest, MergeTaskMergeRequest,
+    CreateTaskMergeRequest, MergeTaskMergeRequest, PushTaskBranch,
 };
 use crate::modules::code_hosting::presentation::provider_text;
 use crate::modules::code_hosting::presentation::state::task_merge_request_state::TaskMergeRequestState;
@@ -189,6 +189,20 @@ const MERGE_CONFIRM: Msg = Msg {
     zh: "要将 {abbrev} 合并到 {provider} 吗？目标分支将在服务器上更新。",
     de: "{abbrev} in {provider} mergen? Der Zielbranch wird auf dem Server aktualisiert.",
     fr: "Fusionner la {abbrev} dans {provider} ? La branche cible sera mise à jour sur le serveur.",
+};
+const PUSH_BRANCH: Msg = Msg {
+    en: "Push branch",
+    es: "Subir rama (push)",
+    zh: "推送分支",
+    de: "Branch pushen",
+    fr: "Pousser la branche",
+};
+const PUSH_DONE: Msg = Msg {
+    en: "Branch pushed to origin.",
+    es: "Rama subida a origin.",
+    zh: "分支已推送到 origin。",
+    de: "Branch wurde zu origin gepusht.",
+    fr: "Branche poussée vers origin.",
 };
 const NO_PIPELINE: Msg = Msg {
     en: "No CI pipeline.",
@@ -376,6 +390,13 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
         });
     });
     let on_cancel: Callback<()> = Callback::new(move |_| confirming.set(false));
+    let on_push = move |_| {
+        state.push.dispatch(PushTaskBranch {
+            task_id: state.task_id.get_value(),
+        });
+    };
+    let pushed: Signal<bool> =
+        Signal::derive(move || matches!(state.push.value().get(), Some(Ok(()))));
     view! {
         <div class="stack gap-3">
             <div class="stack gap-1">
@@ -426,6 +447,26 @@ fn MergeRequestView(state: TaskMergeRequestState, status: MergeRequestStatusDto)
                         </Show>
                     }
                 })}
+            {open
+                .then(|| {
+                    view! {
+                        <div class="row items-center gap-2">
+                            <button
+                                type="button"
+                                class="btn-secondary"
+                                disabled=move || busy.get()
+                                class:is-busy=move || state.push.pending().get()
+                                on:click=on_push
+                            >
+                                {PUSH_BRANCH.get()}
+                            </button>
+                            <Show when=move || pushed.get()>
+                                <span class="text-sm text-ok">{PUSH_DONE.get()}</span>
+                            </Show>
+                        </div>
+                    }
+                })}
+            <ActionError result=state.push.value().into() />
             <ActionError result=state.merge.value().into() />
         </div>
     }
