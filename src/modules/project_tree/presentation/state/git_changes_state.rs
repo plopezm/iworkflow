@@ -98,7 +98,7 @@ pub struct GitChangesState {
     pub root: NodeRef<leptos::html::Div>,
     /// Scope (workspace id or `task:<id>`) the changes belong to.
     pub workspace_id: StoredValue<String>,
-    /// Outcome of the latest stage/unstage request; `None` once one succeeds.
+    /// Outcome of the latest stage/unstage/commit request; `None` once one succeeds.
     error: RwSignal<Option<String>>,
     reload: RwSignal<u32>,
 }
@@ -180,6 +180,22 @@ impl GitChangesState {
         }
     }
 
+    /// Whether a commit can be sent now: the message has text and none is in flight.
+    pub fn can_commit(&self) -> bool {
+        let pending: bool = self.commit.pending().get();
+        self.message
+            .with(|message: &String| commit_allowed(message, pending))
+    }
+
+    /// Sends the commit when [`Self::can_commit`] allows it.
+    pub fn submit_commit(&self) {
+        let pending: bool = self.commit.pending().get_untracked();
+        let message: String = self.message.get_untracked();
+        if commit_allowed(&message, pending) {
+            self.commit.dispatch(message);
+        }
+    }
+
     /// Refetches the changes now.
     pub fn refresh(&self) {
         self.reload.update(|n: &mut u32| *n = n.wrapping_add(1));
@@ -189,6 +205,11 @@ impl GitChangesState {
     pub fn error(&self) -> Option<String> {
         self.error.get()
     }
+}
+
+/// Whether a commit may be sent: a non-blank message and no commit in flight (pure).
+pub fn commit_allowed(message: &str, pending: bool) -> bool {
+    !pending && !message.trim().is_empty()
 }
 
 /// Message to show for a stage/unstage/commit outcome: a success clears a previous failure (pure).
@@ -205,6 +226,13 @@ fn is_displayed(root: NodeRef<leptos::html::Div>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn commit_needs_a_message_and_no_commit_in_flight() {
+        assert!(super::commit_allowed("fix: x", false));
+        assert!(!super::commit_allowed("  \n", false));
+        assert!(!super::commit_allowed("fix: x", true));
+    }
+
     use super::*;
 
     fn change(path: &str, kind: GitChangeKindDto, staged: bool, unstaged: bool) -> GitChangeDto {

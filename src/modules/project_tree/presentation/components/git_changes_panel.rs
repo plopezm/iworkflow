@@ -172,13 +172,6 @@ fn ChangeRow(change: GitChangeDto, toggle: Toggle, state: GitChangesState) -> im
 #[component]
 fn CommitForm(state: GitChangesState) -> impl IntoView {
     let pending: Memo<bool> = state.commit.pending();
-    let blank: Memo<bool> =
-        Memo::new(move |_| state.message.with(|m: &String| m.trim().is_empty()));
-    let submit = move || {
-        if !blank.get_untracked() && !pending.get_untracked() {
-            state.commit.dispatch(state.message.get_untracked());
-        }
-    };
     view! {
         <div class="stack px-3 py-2" data-testid="git-commit-form">
             <textarea
@@ -193,7 +186,7 @@ fn CommitForm(state: GitChangesState) -> impl IntoView {
                 on:keydown=move |ev: leptos::ev::KeyboardEvent| {
                     if ev.key() == "Enter" && (ev.ctrl_key() || ev.meta_key()) {
                         ev.prevent_default();
-                        submit();
+                        state.submit_commit();
                     }
                 }
             ></textarea>
@@ -202,9 +195,9 @@ fn CommitForm(state: GitChangesState) -> impl IntoView {
                     type="button"
                     class="btn-primary"
                     data-testid="git-commit"
-                    disabled=move || pending.get() || blank.get()
+                    disabled=move || !state.can_commit()
                     class:is-busy=move || pending.get()
-                    on:click=move |_| submit()
+                    on:click=move |_| state.submit_commit()
                 >
                     {COMMIT.get()}
                 </button>
