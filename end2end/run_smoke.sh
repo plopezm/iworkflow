@@ -29,6 +29,7 @@ REPO_STALE_CURSOR="$WORK/stale-cursor/project"
 REPO_STALE_CLAUDE="$WORK/stale-claude/project"
 REPO_GIT_CHANGES="$WORK/git-changes/project"
 REPO_TAB_STATE="$WORK/tab-state/project"
+REPO_BG_JOBS="$WORK/bg-jobs/project"
 make_repo "$REPO"
 make_repo "$REPO_KEYS"
 make_repo "$REPO_RECONNECT"
@@ -36,6 +37,7 @@ make_repo "$REPO_STALE_CURSOR"
 make_repo "$REPO_STALE_CLAUDE"
 make_repo "$REPO_GIT_CHANGES"
 make_repo "$REPO_TAB_STATE"
+make_repo "$REPO_BG_JOBS"
 
 IWF_DATABASE_URL="$WORK/db.sqlite" \
 IWF_WORKTREES_DIR="$WORK/worktrees" \
@@ -59,5 +61,6 @@ SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_RUNTIME=cursor SMOKE_REPO="$REPO_S
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_RUNTIME=claude SMOKE_REPO="$REPO_STALE_CLAUDE" node end2end/stale_dialog_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO_GIT_CHANGES" SMOKE_WORKTREES="$WORK/worktrees" SMOKE_SCREENSHOT="$WORK/git-changes.png" node end2end/git_changes_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO_TAB_STATE" node end2end/tab_state_smoke.cjs
+SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO_BG_JOBS" node end2end/background_jobs_smoke.cjs
 SMOKE_BASE_URL="http://127.0.0.1:$PORT" SMOKE_REPO="$REPO" SMOKE_SCREENSHOT="$WORK/ui-review.png" node end2end/ui_smoke.cjs
 git -C "$REPO" log --oneline -1 | grep -q "Merge tarea pi:" && echo "merge verificado en $REPO"

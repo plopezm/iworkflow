@@ -17,7 +17,7 @@ use crate::modules::tasks::infrastructure::adapters::outbound::runtime::agent_pr
     LaunchSpec, LineCodec, ProcessRuntime,
 };
 use crate::modules::tasks::infrastructure::adapters::outbound::runtime::pi::rpc_protocol::{
-    decode, decode_subagent_tasks, encode_command,
+    ActivityTracker, decode, decode_subagent_tasks, encode_command,
 };
 
 /// Activa diálogos (`ask_user_*`) y widgets de actividad en gentle-shell.
@@ -60,6 +60,7 @@ impl PiRpcRuntimeAdapter {
 /// subagentes de la tarea.
 struct PiCodec {
     subagent_tasks: SubagentStore,
+    activity: ActivityTracker,
 }
 
 impl LineCodec for PiCodec {
@@ -73,7 +74,7 @@ impl LineCodec for PiCodec {
                 Err(_) => tracing::warn!(%task_id, "subagentes corruptos; se descarta"),
             }
         }
-        decode(line)
+        self.activity.fold(decode(line))
     }
 
     fn encode(
@@ -141,6 +142,7 @@ impl AgentRuntimePort for PiRpcRuntimeAdapter {
         };
         let codec: Box<dyn LineCodec> = Box::new(PiCodec {
             subagent_tasks: self.subagent_tasks.clone(),
+            activity: ActivityTracker::default(),
         });
         self.runtime
             .start(task_id, cwd, &spec, &options.limits, codec, sink)
