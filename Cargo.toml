@@ -1,6 +1,6 @@
 [package]
 name = "iworkflow"
-version = "0.17.9"
+version = "0.17.10"
 edition = "2024"
 license-file = "LICENSE"
 
