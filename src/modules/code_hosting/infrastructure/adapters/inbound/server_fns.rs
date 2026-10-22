@@ -144,3 +144,12 @@ pub async fn merge_task_merge_request(
         .map_err(support::to_server_error)?;
     Ok(MergeRequestStatusDto::from(status))
 }
+
+#[server]
+pub async fn push_task_branch(task_id: String) -> Result<(), ServerFnError> {
+    support::context()?
+        .push_task_branch
+        .execute(&task_id)
+        .await
+        .map_err(support::to_server_error)
+}
