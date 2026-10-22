@@ -1,3 +1,4 @@
+pub mod commit_project_changes;
 pub mod list_project_directory;
 pub mod list_project_git_changes;
 pub mod read_project_file;

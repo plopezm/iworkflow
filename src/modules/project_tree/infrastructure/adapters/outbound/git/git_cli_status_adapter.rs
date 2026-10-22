@@ -109,6 +109,22 @@ impl GitStatusPort for GitCliStatusAdapter {
         let args: Vec<&str> = pathspec_command(&["reset", "-q"], paths)?;
         run_index_command(root, &args).await
     }
+
+    async fn commit(&self, root: &Path, message: &str) -> Result<(), ProjectTreeError> {
+        let output: GitOutput = run_git_raw(root, &["commit", "-q", "-m", message])
+            .await
+            .map_err(git_error)?;
+        if output.success {
+            return Ok(());
+        }
+        // `git commit` reports "nothing to commit" on stdout, not stderr.
+        let reason: String = if output.stderr.is_empty() {
+            output.stdout.trim().to_string()
+        } else {
+            output.stderr
+        };
+        Err(ProjectTreeError::Io(reason))
+    }
 }
 
 /// Builds `git --literal-pathspecs <command> -- <paths>`; no paths means the whole project (`.`).

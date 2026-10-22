@@ -214,3 +214,37 @@ async fn special_and_escaping_paths_are_never_treated_as_pathspec_magic() {
     let _ = adapter.stage(dir.path(), &["*.txt".to_string()]).await;
     assert_eq!(cached(dir.path()), "");
 }
+
+#[tokio::test]
+async fn commit_records_only_the_staged_changes() {
+    let dir: TempDir = repo();
+    std::fs::write(dir.path().join("edited.txt"), "a\nB\n").expect("edit");
+    std::fs::write(dir.path().join("other.txt"), "z\n").expect("file");
+    git(dir.path(), &["add", "edited.txt"]);
+
+    GitCliStatusAdapter::new()
+        .commit(dir.path(), "feat: edit")
+        .await
+        .expect("commit");
+
+    let changes: Vec<GitChange> = GitCliStatusAdapter::new()
+        .changes(dir.path())
+        .await
+        .expect("changes");
+    assert_eq!(
+        sorted(changes),
+        vec![("other.txt".to_string(), GitChangeKind::Untracked)]
+    );
+}
+
+#[tokio::test]
+async fn commit_without_staged_changes_fails() {
+    let dir: TempDir = repo();
+    std::fs::write(dir.path().join("edited.txt"), "a\nB\n").expect("edit");
+
+    let result = GitCliStatusAdapter::new()
+        .commit(dir.path(), "nothing")
+        .await;
+
+    assert!(result.is_err());
+}

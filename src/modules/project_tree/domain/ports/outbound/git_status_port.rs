@@ -21,4 +21,7 @@ pub trait GitStatusPort: Send + Sync {
     /// Removes `paths` (relative to `root`; empty means everything) from the index, keeping the
     /// working tree untouched.
     async fn unstage(&self, root: &Path, paths: &[String]) -> Result<(), ProjectTreeError>;
+
+    /// Commits what is staged in the index with `message`; fails when nothing is staged.
+    async fn commit(&self, root: &Path, message: &str) -> Result<(), ProjectTreeError>;
 }

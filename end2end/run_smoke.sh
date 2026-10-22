@@ -37,16 +37,21 @@ make_repo "$REPO_STALE_CLAUDE"
 make_repo "$REPO_GIT_CHANGES"
 make_repo "$REPO_TAB_STATE"
 
+# The server runs from the scratch dir: fake agents write to their cwd, never into the checkout.
+cd "$WORK"
+GIT_AUTHOR_NAME=smoke GIT_AUTHOR_EMAIL=smoke@localhost \
+GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
 IWF_DATABASE_URL="$WORK/db.sqlite" \
 IWF_WORKTREES_DIR="$WORK/worktrees" \
 IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
 IWF_PI_BIN="$ROOT/tests/fixtures/smoke_pi.sh" \
 IWF_CURSOR_BIN="$ROOT/tests/fixtures/smoke_cursor.sh" \
 IWF_CLAUDE_BIN="$ROOT/tests/fixtures/smoke_claude.sh" \
-LEPTOS_SITE_ROOT=target/site \
+LEPTOS_SITE_ROOT="$ROOT/target/site" \
 LEPTOS_SITE_ADDR="127.0.0.1:$PORT" \
-  ./target/debug/iworkflow > "$WORK/server.log" 2>&1 &
+  "$ROOT/target/debug/iworkflow" > "$WORK/server.log" 2>&1 &
 SERVER_PID=$!
+cd "$ROOT"
 for _ in $(seq 1 50); do
   curl -fs "http://127.0.0.1:$PORT/" > /dev/null && break
   sleep 0.2

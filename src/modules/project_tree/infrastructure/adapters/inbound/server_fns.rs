@@ -160,6 +160,19 @@ pub async fn unstage_project_paths(
         .map_err(support::to_server_error)
 }
 
+/// Commits what is staged with `message`.
+#[server]
+pub async fn commit_project_changes(
+    workspace_id: String,
+    message: String,
+) -> Result<(), ServerFnError> {
+    support::context()?
+        .commit_changes
+        .execute(support::scope(&workspace_id)?, &message)
+        .await
+        .map_err(support::to_server_error)
+}
+
 /// Content of the file at git `HEAD`; `None` when git does not know it yet.
 #[server]
 pub async fn read_project_file_base(

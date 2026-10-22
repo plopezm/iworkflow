@@ -2,12 +2,16 @@ use leptos::prelude::*;
 
 use crate::core::components::layout::ErrorText;
 use crate::core::components::tree::TreeIcon;
+use crate::core::dock::link::TabLink;
 use crate::core::i18n::Msg;
-use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::GitChangeDto;
+use crate::modules::project_tree::infrastructure::adapters::inbound::dto::project_tree_dto::{
+    GitChangeDto, GitChangeKindDto,
+};
 use crate::modules::project_tree::presentation::state::git_changes_state::{
     ChangeGroups, GitChangesState, file_name, group_changes, kind_letter, parent_dir, paths_of,
 };
 use crate::modules::project_tree::presentation::state::git_status::status_class;
+use crate::modules::project_tree::presentation::state::project_file_state::file_href;
 
 const CHANGES: Msg = Msg {
     en: "Changes",
@@ -72,6 +76,20 @@ const LOADING: Msg = Msg {
     de: "Änderungen werden geladen…",
     fr: "Chargement des modifications…",
 };
+const COMMIT: Msg = Msg {
+    en: "Commit",
+    es: "Commit",
+    zh: "提交",
+    de: "Commit",
+    fr: "Commit",
+};
+const COMMIT_MESSAGE: Msg = Msg {
+    en: "Commit message",
+    es: "Mensaje del commit",
+    zh: "提交信息",
+    de: "Commit-Nachricht",
+    fr: "Message de commit",
+};
 const RELOAD: Msg = Msg {
     en: "Reload",
     es: "Recargar",
@@ -108,14 +126,30 @@ fn ChangeRow(change: GitChangeDto, toggle: Toggle, state: GitChangesState) -> im
     let dir: String = parent_dir(&path).to_string();
     let class: String = format!("tree-row gap-2 pl-3 {}", status_class(Some(kind)));
     let target: Vec<String> = vec![path.clone()];
+    let openable: bool = kind != GitChangeKindDto::Deleted;
+    let href: String = file_href(&state.workspace_id.get_value(), &path);
+    let summary = view! {
+        <TreeIcon />
+        <span class="truncate" title=path.clone()>
+            {name}
+        </span>
+        <span class="min-w-0 flex-1 truncate text-xs text-muted">{dir}</span>
+    };
+    // A deleted file has nothing left to open, so its row stays inert.
+    let body = if openable {
+        view! {
+            <TabLink href=href class="flex min-w-0 flex-1 items-center gap-2" beside=true>
+                {summary}
+            </TabLink>
+        }
+        .into_any()
+    } else {
+        view! { <div class="flex min-w-0 flex-1 items-center gap-2">{summary}</div> }.into_any()
+    };
     view! {
         <li data-testid="git-row" data-path=path.clone()>
             <div class=class>
-                <TreeIcon />
-                <span class="truncate" title=path.clone()>
-                    {name}
-                </span>
-                <span class="min-w-0 flex-1 truncate text-xs text-muted">{dir}</span>
+                {body}
                 <span class="text-xs font-semibold" aria-hidden="true">
                     {kind_letter(kind)}
                 </span>
@@ -131,6 +165,51 @@ fn ChangeRow(change: GitChangeDto, toggle: Toggle, state: GitChangesState) -> im
                 </button>
             </div>
         </li>
+    }
+}
+
+/// Message box and button that commit what is staged.
+#[component]
+fn CommitForm(state: GitChangesState) -> impl IntoView {
+    let pending: Memo<bool> = state.commit.pending();
+    let blank: Memo<bool> =
+        Memo::new(move |_| state.message.with(|m: &String| m.trim().is_empty()));
+    let submit = move || {
+        if !blank.get_untracked() && !pending.get_untracked() {
+            state.commit.dispatch(state.message.get_untracked());
+        }
+    };
+    view! {
+        <div class="stack px-3 py-2" data-testid="git-commit-form">
+            <textarea
+                class="input"
+                rows="2"
+                data-testid="git-commit-message"
+                placeholder=COMMIT_MESSAGE.get()
+                aria-label=COMMIT_MESSAGE.get()
+                prop:value=move || state.message.get()
+                prop:disabled=move || pending.get()
+                on:input=move |ev| state.message.set(event_target_value(&ev))
+                on:keydown=move |ev: leptos::ev::KeyboardEvent| {
+                    if ev.key() == "Enter" && (ev.ctrl_key() || ev.meta_key()) {
+                        ev.prevent_default();
+                        submit();
+                    }
+                }
+            ></textarea>
+            <div>
+                <button
+                    type="button"
+                    class="btn-primary"
+                    data-testid="git-commit"
+                    disabled=move || pending.get() || blank.get()
+                    class:is-busy=move || pending.get()
+                    on:click=move |_| submit()
+                >
+                    {COMMIT.get()}
+                </button>
+            </div>
+        </div>
     }
 }
 
@@ -184,6 +263,13 @@ fn ChangeSection(
 #[component]
 pub fn GitChangesPanel(workspace_id: String) -> impl IntoView {
     let state: GitChangesState = GitChangesState::new(workspace_id);
+    // Lives outside the `Transition`, which rebuilds its children on every poll and would
+    // drop the focus of a message being typed.
+    let has_staged: Memo<bool> = Memo::new(move |_| {
+        state.changes.with(|loaded: &Option<Result<Vec<GitChangeDto>, ServerFnError>>| {
+            matches!(loaded, Some(Ok(changes)) if changes.iter().any(|c: &GitChangeDto| c.staged))
+        })
+    });
     view! {
         <div class="flex h-full min-h-0 flex-col bg-surface" data-testid="git-changes" node_ref=state.root>
             <div class="tree-panel-header">
@@ -201,6 +287,9 @@ pub fn GitChangesPanel(workspace_id: String) -> impl IntoView {
             {move || {
                 state.error().map(|message: String| view! { <div class="px-3 py-2"><ErrorText message /></div> })
             }}
+            <Show when=move || has_staged.get()>
+                <CommitForm state />
+            </Show>
             <div class="min-h-0 flex-1 overflow-y-auto py-1">
                 <Transition fallback=|| {
                     view! { <p class="px-3 py-2 text-xs text-muted">{LOADING.get()}</p> }
