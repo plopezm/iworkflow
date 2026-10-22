@@ -292,7 +292,9 @@ fn build_command(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     // Grupo propio: el agente y los servidores MCP que lanza se pueden matar juntos. Sin esto,
-    // matar al agente deja huérfanos a sus hijos (node, npx...).
+    // matar al agente deja huérfanos a sus hijos (node, npx...). Al no compartir grupo con el
+    // terminal, ya no reciben su Ctrl+C: los para `stop_all` en el apagado, y si el servidor
+    // muere de golpe el agente sale solo al cerrarse su stdin.
     #[cfg(unix)]
     command.process_group(0);
     command
@@ -354,6 +356,22 @@ fn kill_group(pgid: u32) {
 
     if let Ok(raw) = i32::try_from(pgid) {
         let _ = killpg(Pid::from_raw(raw), Signal::SIGKILL);
+    }
+}
+
+/// Barre el grupo `pgid` después de que el agente (su líder) haya salido y se haya recogido.
+/// Sin líder que reserve el pid, un grupo vacío podría coincidir con un pid reasignado, así que
+/// solo se mata si la señal 0 confirma que aún quedan miembros (los servidores MCP huérfanos).
+/// Queda una ventana de microsegundos entre la comprobación y la señal.
+#[cfg(unix)]
+fn sweep_group(pgid: u32) {
+    use nix::sys::signal::killpg;
+    use nix::unistd::Pid;
+
+    if let Ok(raw) = i32::try_from(pgid)
+        && killpg(Pid::from_raw(raw), None).is_ok()
+    {
+        kill_group(pgid);
     }
 }
 
@@ -446,7 +464,7 @@ async fn supervise(
     // El agente ya salió, pero sus servidores MCP pueden seguir vivos en el grupo.
     #[cfg(unix)]
     if let Some(pgid) = pgid {
-        kill_group(pgid);
+        sweep_group(pgid);
     }
     #[cfg(not(unix))]
     let _ = pgid;
@@ -564,7 +582,7 @@ mod tests {
         }
     }
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     fn pid_is_alive(pid: i32) -> bool {
         // Un zombi aún figura en /proc hasta que init lo recoge; su estado `Z` no cuenta.
         std::fs::read_to_string(format!("/proc/{pid}/stat"))
@@ -577,9 +595,10 @@ mod tests {
             .unwrap_or(false)
     }
 
+    /// Solo Linux: comprobar que un pid murió lee `/proc`.
     /// Lanza un «agente» que deja un hijo en segundo plano (como un servidor MCP) y no sale al
     /// cerrar stdin, de modo que `stop` tiene que forzar su cierre.
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     async fn start_agent_with_background_child(
         runtime: &ProcessRuntime,
         dir: &tempfile::TempDir,
@@ -618,7 +637,7 @@ mod tests {
         panic!("el hijo en segundo plano no arrancó");
     }
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     async fn wait_until_dead(pid: i32) -> bool {
         for _ in 0..100 {
             if !pid_is_alive(pid) {
@@ -629,7 +648,7 @@ mod tests {
         false
     }
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn forced_stop_also_kills_the_processes_the_agent_launched() {
         let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
@@ -648,7 +667,7 @@ mod tests {
         assert!(!runtime.is_running(task_id));
     }
 
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     #[tokio::test]
     async fn stop_all_stops_every_running_agent_and_their_children() {
         let first_dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
@@ -666,6 +685,55 @@ mod tests {
         assert!(!runtime.is_running(second));
         assert!(wait_until_dead(first_child).await);
         assert!(wait_until_dead(second_child).await);
+    }
+
+    /// Un agente que sale solo deja atrás un hijo desvinculado de sus pipes (como un servidor MCP).
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn an_agent_that_exits_on_its_own_does_not_leave_its_children_behind() {
+        let dir: tempfile::TempDir = tempfile::tempdir().expect("tempdir");
+        let pid_file: std::path::PathBuf = dir.path().join("child.pid");
+        let script: String = format!(
+            "sleep 300 </dev/null >/dev/null 2>&1 & echo $! > '{}'",
+            pid_file.display()
+        );
+        let spec: LaunchSpec = LaunchSpec {
+            agent_args: vec!["-c".to_string(), script],
+            extra_env: Vec::new(),
+        };
+        let mut sink: crate::modules::tasks::mocks::MockAgentEventSink =
+            crate::modules::tasks::mocks::MockAgentEventSink::new();
+        sink.expect_handle().returning(|_, _| ());
+        let runtime: ProcessRuntime = ProcessRuntime::new("sh");
+        let task_id: TaskId = TaskId::new();
+        runtime
+            .start(
+                task_id,
+                dir.path(),
+                &spec,
+                &ResourceLimits::default(),
+                Box::new(SilentCodec),
+                Arc::new(sink),
+            )
+            .expect("start");
+
+        for _ in 0..100 {
+            if !runtime.is_running(task_id) && pid_file.exists() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        let child_pid: i32 = std::fs::read_to_string(&pid_file)
+            .expect("pid file")
+            .trim()
+            .parse()
+            .expect("pid");
+
+        assert!(!runtime.is_running(task_id));
+        assert!(
+            wait_until_dead(child_pid).await,
+            "el hijo del agente sigue vivo"
+        );
     }
 
     #[tokio::test]

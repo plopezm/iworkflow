@@ -19,7 +19,7 @@ const LIST_MODELS_TIMEOUT: Duration = Duration::from_secs(10);
 const LIST_MODELS_FLAG: &str = "--list-models";
 /// Listar modelos lanza un proceso del agente (y, con él, sus servidores MCP): el resultado se
 /// reutiliza este tiempo en lugar de lanzar uno por consulta.
-const MODELS_CACHE_TTL: Duration = Duration::from_secs(300);
+const MODELS_CACHE_TTL: Duration = Duration::from_secs(60);
 
 /// Claude Code no tiene `--list-models`: sus modelos se eligen por alias (`claude --model`).
 const CLAUDE_PROVIDER: &str = "anthropic";

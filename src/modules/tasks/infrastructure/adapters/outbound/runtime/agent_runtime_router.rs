@@ -177,9 +177,12 @@ impl AgentRuntimePort for AgentRuntimeRouter {
     /// Cada adaptador conoce sus procesos: se delega en todos, no solo en los elegidos, y se
     /// vacía el registro de elecciones porque ya no queda ningún agente.
     async fn stop_all(&self) {
-        for adapter in self.runtimes.values() {
-            adapter.stop_all().await;
-        }
+        futures::future::join_all(
+            self.runtimes
+                .values()
+                .map(|adapter: &Arc<dyn AgentRuntimePort>| adapter.stop_all()),
+        )
+        .await;
         if let Ok(mut chosen) = self.chosen.lock() {
             chosen.clear();
         }

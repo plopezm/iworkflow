@@ -242,7 +242,8 @@ async fn main() {
     }
 
     // Sin esto los agentes (node) y sus servidores MCP sobreviven al servidor, sobre todo en un
-    // reinicio, que sale con `exit` y no ejecuta ningún `drop`.
+    // reinicio, que sale con `exit` y no ejecuta ningún `drop`. Va antes del vaciado de eventos:
+    // los `ProcessExited` que provoca (tareas a `Interrupted`) se persisten en `flush_events`.
     if tokio::time::timeout(SHUTDOWN_FLUSH_TIMEOUT, state.tasks.stop_agents())
         .await
         .is_err()
