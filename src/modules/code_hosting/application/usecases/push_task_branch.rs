@@ -35,9 +35,12 @@ mod tests {
     use std::path::Path;
 
     use super::*;
+    use crate::modules::code_hosting::application::services::task_project_resolver::TaskProjectResolver;
     use crate::modules::code_hosting::application::test_support::{self, TASK_ID};
     use crate::modules::code_hosting::domain::models::code_host_settings::CodeHostSettings;
-    use crate::modules::code_hosting::mocks::{MockCodeHostClient, MockGitRemote};
+    use crate::modules::code_hosting::mocks::{
+        MockCodeHostClient, MockCodeHostSettingsRepository, MockGitRemote, MockTaskSourceLookup,
+    };
 
     #[tokio::test]
     async fn pushes_the_task_branch_to_its_project() {
@@ -89,6 +92,29 @@ mod tests {
                 branch: "pi/feature".to_string(),
                 reason: "rejected".to_string()
             }
+        );
+    }
+
+    #[tokio::test]
+    async fn unknown_task_is_reported_and_nothing_is_pushed() {
+        let mut tasks: MockTaskSourceLookup = MockTaskSourceLookup::new();
+        tasks.expect_find().returning(|_| Ok(None));
+        let resolver: Arc<TaskProjectResolver> = Arc::new(TaskProjectResolver::new(
+            Arc::new(MockCodeHostSettingsRepository::new()),
+            Arc::new(tasks),
+            Arc::new(MockGitRemote::new()),
+            Arc::new(test_support::factory_for(MockCodeHostClient::new())),
+        ));
+        let mut remote: MockGitRemote = MockGitRemote::new();
+        remote.expect_publish_branch().never();
+
+        let result: Result<(), CodeHostError> = PushTaskBranch::new(resolver, Arc::new(remote))
+            .execute(TASK_ID)
+            .await;
+
+        assert_eq!(
+            result.unwrap_err(),
+            CodeHostError::TaskNotFound(TASK_ID.to_string())
         );
     }
 }
