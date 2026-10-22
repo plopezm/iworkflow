@@ -174,6 +174,17 @@ impl AgentRuntimePort for AgentRuntimeRouter {
         Ok(())
     }
 
+    /// Cada adaptador conoce sus procesos: se delega en todos, no solo en los elegidos, y se
+    /// vacía el registro de elecciones porque ya no queda ningún agente.
+    async fn stop_all(&self) {
+        for adapter in self.runtimes.values() {
+            adapter.stop_all().await;
+        }
+        if let Ok(mut chosen) = self.chosen.lock() {
+            chosen.clear();
+        }
+    }
+
     /// No poda al devolver `false`: un agente terminado sigue consultando sus capacidades, y
     /// podar aquí podría borrar la entrada de un `start` concurrente (p. ej. al reanudar).
     /// El mapa queda acotado porque `stop` (finalizar/descartar/reiniciar) lo limpia.
@@ -371,6 +382,26 @@ mod tests {
             router(untouched_mock(), untouched_mock()).expect("router");
 
         assert!(router.subagents(TaskId::new()).await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn stop_all_reaches_every_registered_runtime() {
+        let mut default: MockAgentRuntime = untouched_mock();
+        default.expect_stop_all().times(1).returning(|| ());
+        let mut pi: MockAgentRuntime = started_mock();
+        pi.expect_stop_all().times(1).returning(|| ());
+        let router: AgentRuntimeRouter = router(default, pi).expect("router");
+        let task_id: TaskId = TaskId::new();
+        start_with(&router, task_id, Some("pi"))
+            .await
+            .expect("start");
+
+        router.stop_all().await;
+
+        assert_eq!(
+            router.send(task_id, AgentCommand::Abort).await,
+            Err(TaskError::AgentNotRunning)
+        );
     }
 
     #[tokio::test]

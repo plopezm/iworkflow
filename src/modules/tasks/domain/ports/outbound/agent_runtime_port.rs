@@ -35,6 +35,10 @@ pub trait AgentRuntimePort: Send + Sync {
     /// que termine. Cuando devuelve, el evento `ProcessExited` ya se ha entregado al sink.
     async fn stop(&self, task_id: TaskId) -> Result<(), TaskError>;
 
+    /// Detiene todos los agentes vivos (apagado de la aplicación). Es de mejor esfuerzo: un
+    /// fallo al parar uno no impide parar los demás. Por defecto no hace nada.
+    async fn stop_all(&self) {}
+
     async fn is_running(&self, task_id: TaskId) -> bool;
 
     /// Último estado conocido de los subagentes de la tarea (se conserva tras terminar el

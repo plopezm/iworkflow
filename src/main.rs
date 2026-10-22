@@ -241,6 +241,15 @@ async fn main() {
         tracing::error!(%error, "el bucle de reanudación terminó con error");
     }
 
+    // Sin esto los agentes (node) y sus servidores MCP sobreviven al servidor, sobre todo en un
+    // reinicio, que sale con `exit` y no ejecuta ningún `drop`.
+    if tokio::time::timeout(SHUTDOWN_FLUSH_TIMEOUT, state.tasks.stop_agents())
+        .await
+        .is_err()
+    {
+        tracing::warn!("tiempo agotado ({SHUTDOWN_FLUSH_TIMEOUT:?}) deteniendo agentes");
+    }
+
     if tokio::time::timeout(
         SHUTDOWN_FLUSH_TIMEOUT,
         state.tasks.wait_for_worktree_cleanup(),
