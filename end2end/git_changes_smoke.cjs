@@ -12,6 +12,8 @@ const sameList = (actual, expected, what) => assert(
   JSON.stringify(actual) === JSON.stringify(expected),
   `${what}: esperado ${JSON.stringify(expected)}, obtenido ${JSON.stringify(actual)}`,
 );
+// Un poco más que el periodo de sondeo del panel (GIT_POLL_SECONDS = 5 s).
+const POLL_WAIT_MS = 6500;
 let page;
 
 // Directorio (hasta 4 niveles) bajo `root` que contiene `marker`: el worktree de la tarea.
@@ -162,8 +164,8 @@ function findWorktree(root, marker, depth = 4) {
   assert(await commitButton().isDisabled(), 'sin mensaje el botón Commit está desactivado');
   await message().fill('docs: actualizar README');
   await message().focus();
-  // Un sondeo (5 s) no debe reconstruir el formulario: se conservan texto y foco.
-  await page.waitForTimeout(6500);
+  // Un sondeo no debe reconstruir el formulario: se conservan texto y foco.
+  await page.waitForTimeout(POLL_WAIT_MS);
   assert((await message().inputValue()) === 'docs: actualizar README', 'el sondeo no borra el mensaje');
   assert(await message().evaluate(el => el === document.activeElement), 'el sondeo no quita el foco al mensaje');
   assert(!(await commitButton().isDisabled()), 'con mensaje el botón Commit está activo');

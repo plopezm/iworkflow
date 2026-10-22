@@ -18,6 +18,8 @@ pub enum ProjectTreeError {
     PathOutsideRoot(String),
     #[error("el mensaje del commit no puede estar vacío")]
     EmptyCommitMessage,
+    #[error("no se pudo hacer commit: {0}")]
+    CommitFailed(String),
     #[error("error de lectura del directorio: {0}")]
     Io(String),
     #[error("error al buscar el workspace: {0}")]
