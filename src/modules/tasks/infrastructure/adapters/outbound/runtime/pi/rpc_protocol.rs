@@ -414,6 +414,56 @@ fn decode_ui_request(record: &Value) -> Option<AgentEvent> {
     }
 }
 
+/// Clave de estado con la que pi publica los jobs en background (`⧗ 2 jobs`).
+const JOBS_STATUS_KEY: &str = "gentle-jobs";
+
+/// Trabajo pendiente del agente que no requiere al usuario: subagentes y jobs en background.
+/// Mientras haya alguno, la tarea sigue en marcha aunque el agente esté esperando.
+#[derive(Debug, Default)]
+pub struct ActivityTracker {
+    subagents: u32,
+    waiting: u32,
+    jobs: u32,
+}
+
+impl ActivityTracker {
+    /// Recuerda los contadores de los eventos y, tras cada cambio, emite un único
+    /// `SubagentsChanged` que suma los jobs en background a los subagentes activos.
+    pub fn fold(&mut self, events: Vec<AgentEvent>) -> Vec<AgentEvent> {
+        let mut out: Vec<AgentEvent> = Vec::with_capacity(events.len());
+        for event in events {
+            match event {
+                AgentEvent::SubagentsChanged { active, waiting } => {
+                    self.subagents = active;
+                    self.waiting = waiting;
+                    out.push(self.combined());
+                }
+                AgentEvent::StatusChanged { key, text } if key == JOBS_STATUS_KEY => {
+                    self.jobs = text.as_deref().map(jobs_in_status).unwrap_or(0);
+                    out.push(AgentEvent::StatusChanged { key, text });
+                    out.push(self.combined());
+                }
+                other => out.push(other),
+            }
+        }
+        out
+    }
+
+    fn combined(&self) -> AgentEvent {
+        AgentEvent::SubagentsChanged {
+            active: self.subagents.saturating_add(self.jobs),
+            waiting: self.waiting,
+        }
+    }
+}
+
+/// Primer entero del texto de estado de jobs (`⧗ 2 jobs` → 2); 0 si no hay ninguno.
+fn jobs_in_status(text: &str) -> u32 {
+    text.split_whitespace()
+        .find_map(|word: &str| word.parse::<u32>().ok())
+        .unwrap_or(0)
+}
+
 fn notice(level: NoticeLevel, message: String) -> AgentEvent {
     AgentEvent::Notice { level, message }
 }
@@ -795,6 +845,56 @@ mod tests {
             decode(r#"{"type":"extension_ui_request","id":"u3","method":"setTitle","title":"x"}"#)
                 .is_empty()
         );
+    }
+
+    fn status(text: Option<&str>) -> AgentEvent {
+        AgentEvent::StatusChanged {
+            key: "gentle-jobs".into(),
+            text: text.map(str::to_string),
+        }
+    }
+
+    fn last_activity(events: &[AgentEvent]) -> Option<(u32, u32)> {
+        events.iter().rev().find_map(|e: &AgentEvent| match e {
+            AgentEvent::SubagentsChanged { active, waiting } => Some((*active, *waiting)),
+            _ => None,
+        })
+    }
+
+    #[test]
+    fn background_jobs_count_as_active_work() {
+        let mut tracker: ActivityTracker = ActivityTracker::default();
+        let events: Vec<AgentEvent> = tracker.fold(vec![status(Some("\u{29d7} 2 jobs"))]);
+        assert_eq!(events[0], status(Some("\u{29d7} 2 jobs")));
+        assert_eq!(last_activity(&events), Some((2, 0)));
+        let cleared: Vec<AgentEvent> = tracker.fold(vec![status(None)]);
+        assert_eq!(last_activity(&cleared), Some((0, 0)));
+    }
+
+    #[test]
+    fn jobs_and_subagents_are_summed_and_survive_each_other() {
+        let mut tracker: ActivityTracker = ActivityTracker::default();
+        tracker.fold(vec![status(Some("\u{29d7} 1 job"))]);
+        let events: Vec<AgentEvent> = tracker.fold(vec![AgentEvent::SubagentsChanged {
+            active: 2,
+            waiting: 1,
+        }]);
+        assert_eq!(last_activity(&events), Some((3, 1)));
+        let events: Vec<AgentEvent> = tracker.fold(vec![AgentEvent::SubagentsChanged {
+            active: 0,
+            waiting: 0,
+        }]);
+        assert_eq!(last_activity(&events), Some((1, 0)));
+    }
+
+    #[test]
+    fn other_events_pass_through_untouched() {
+        let mut tracker: ActivityTracker = ActivityTracker::default();
+        let other: AgentEvent = AgentEvent::StatusChanged {
+            key: "mcp".into(),
+            text: Some("ok".into()),
+        };
+        assert_eq!(tracker.fold(vec![other.clone()]), vec![other]);
     }
 
     #[test]
