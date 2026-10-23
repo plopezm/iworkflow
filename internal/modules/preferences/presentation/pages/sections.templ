@@ -1,0 +1,33 @@
+// Package pages holds the sections the settings screen composes. The parent application places them
+// in the /settings page; this package only renders their markup.
+package pages
+
+import (
+	corecomponents "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/preferences/presentation/components"
+)
+
+// LanguageChoiceAttrs is the behaviour of one language button: it stores the choice and the
+// server reloads the page in that language. The code comes from the closed list of locales.
+func LanguageChoiceAttrs(locale i18n.Locale) templ.Attributes {
+	return templ.Attributes{
+		"hx-post":         "/preferences/language/" + locale.Code(),
+		"hx-disabled-elt": "this",
+	}
+}
+
+// LanguageSection is the language settings card, with the language in force highlighted.
+templ LanguageSection(active i18n.Locale) {
+	@corecomponents.LanguageCard(active, LanguageChoiceAttrs)
+}
+
+// LanguagePromptSection is the first-run prompt. It renders only while no language was chosen.
+templ LanguagePromptSection(chosen bool) {
+	@corecomponents.LanguagePrompt(chosen, LanguageChoiceAttrs)
+}
+
+// NetworkSection is the network access card, loaded lazily by the settings page.
+templ NetworkSection() {
+	@components.NetworkAccessPlaceholder()
+}

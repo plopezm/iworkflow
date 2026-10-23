@@ -89,3 +89,36 @@ func (f *fakeRepository) SaveAccessToken(_ context.Context, token models.AccessT
 	}
 	return f.writeErr
 }
+
+// fakeNetwork is an in-memory outbound.NetworkDetector.
+type fakeNetwork struct {
+	interfaces []models.NetworkInterface
+	preferred  string
+	hasPrefer  bool
+}
+
+func (f *fakeNetwork) Interfaces(context.Context) []models.NetworkInterface {
+	return f.interfaces
+}
+
+func (f *fakeNetwork) PreferredAddress(context.Context) (string, bool) {
+	return f.preferred, f.hasPrefer
+}
+
+// fakeRuntime is an in-memory outbound.ServerRuntime.
+type fakeRuntime struct {
+	status models.ServerStatus
+}
+
+func (f *fakeRuntime) Status() models.ServerStatus {
+	return f.status
+}
+
+// fakeRestarter counts restart requests.
+type fakeRestarter struct {
+	requests int
+}
+
+func (f *fakeRestarter) RequestRestart() {
+	f.requests++
+}

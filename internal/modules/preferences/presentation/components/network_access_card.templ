@@ -1,0 +1,172 @@
+package components
+
+import (
+	"strconv"
+
+	corecomponents "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/preferences/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/preferences/presentation/state"
+)
+
+// NetworkAccessPlaceholder is the card before its data arrives. It loads the card once the page
+// is shown; the card then replaces the placeholder in place (same id).
+templ NetworkAccessPlaceholder() {
+	<div id={ cardID } hx-get={ networkPath } hx-trigger="load" hx-swap="outerHTML">
+		@corecomponents.Card(cardTitle.T(ctx)) {
+			@corecomponents.Loading(loadingText.T(ctx))
+		}
+	</div>
+}
+
+// NetworkAccessCard is the network access settings card. Every action posts to the module and
+// gets the whole card back, so the card always shows the server state after the change.
+templ NetworkAccessCard(view state.NetworkAccessView) {
+	<div id={ cardID } { networkRootAttrs(view)... }>
+		@corecomponents.Card(cardTitle.T(ctx)) {
+			<p class="muted text-sm">{ cardHelp.T(ctx) }</p>
+			<div class="row items-center gap-2">
+				if view.StatusExposed() {
+					@corecomponents.Badge(statusExposed.T(ctx), "warn")
+				} else {
+					@corecomponents.Badge(statusPrivate.T(ctx), "ok")
+				}
+			</div>
+			<p class="text-sm text-warn" role="note">{ warning.T(ctx) }</p>
+			<label class="row items-center gap-2 text-sm text-fg">
+				<input
+					type="checkbox"
+					class="h-4 w-4"
+					checked?={ view.Access.Enabled }
+					disabled?={ view.Access.LockedByEnv || view.Restarting }
+					hx-trigger="change"
+					hx-vals={ postValues("enabled", !view.Access.Enabled) }
+					{ actionAttrs(networkPath)... }
+				/>
+				{ toggleLabel.T(ctx) }
+			</label>
+			if view.Access.LockedByEnv {
+				<p class="muted text-sm">{ lockedByEnv.T(ctx) }</p>
+			}
+			<div class="stack gap-1">
+				<label class="row items-center gap-2 text-sm text-fg">
+					{ portLabel.T(ctx) }
+					<input
+						id="network-port"
+						type="number"
+						name="port"
+						class="input w-28"
+						min="1024"
+						max="65535"
+						value={ strconv.FormatUint(uint64(view.Access.ConfiguredPort), 10) }
+						disabled?={ view.Access.LockedByEnv || view.Restarting }
+					/>
+				</label>
+				<div class="row items-center gap-2">
+					<button
+						type="button"
+						class="btn-secondary"
+						disabled?={ view.Access.LockedByEnv || view.Restarting }
+						hx-include="#network-port"
+						{ actionAttrs(portPath)... }
+					>{ portSave.T(ctx) }</button>
+					<span class="muted text-sm">{ portHelp.T(ctx) }</span>
+				</div>
+			</div>
+			if view.Reachable() {
+				<label class="row items-center gap-2 text-sm text-fg">
+					<input
+						type="checkbox"
+						class="h-4 w-4"
+						checked?={ view.Access.RequireToken }
+						disabled?={ view.Restarting }
+						hx-trigger="change"
+						hx-vals={ postValues("required", !view.Access.RequireToken) }
+						{ actionAttrs(requireTokenPath)... }
+					/>
+					{ requireTokenLabel.T(ctx) }
+				</label>
+				if !view.Access.RequireToken {
+					<p class="text-sm text-error" role="alert">{ tokenOffWarning.T(ctx) }</p>
+				}
+			}
+			if view.Restarting {
+				<p class="text-sm text-warn" role="status">{ restarting.T(ctx) }</p>
+			} else if view.RestartPending() {
+				<div class="stack gap-1">
+					<p class="text-sm text-warn" role="status">{ restartPending.T(ctx) }</p>
+					<div class="row items-center gap-2">
+						<button type="button" class="btn-secondary" { actionAttrs(restartPath)... }>{ restartNow.T(ctx) }</button>
+					</div>
+				</div>
+			}
+			if len(view.Access.Targets) > 0 {
+				<div class="stack gap-2">
+					<label class="row items-center gap-2 text-sm text-fg">
+						{ interfaceLabel.T(ctx) }
+						<select
+							class="input"
+							name="address"
+							hx-get={ networkTargetPath }
+							hx-trigger="change"
+							hx-target={ "#" + targetID }
+							hx-swap="outerHTML"
+						>
+							for i, target := range view.Access.Targets {
+								<option value={ target.Address } selected?={ i == 0 }>{ target.Interface + " — " + target.Address }</option>
+							}
+						</select>
+					</label>
+					@NetworkTarget(firstTarget(view), view.Access.RequireToken)
+				</div>
+			}
+			if view.PlainURL() != "" {
+				<p class="text-sm text-fg">{ openFromPhone.T(ctx) } " " <code>{ view.PlainURL() }</code></p>
+			}
+			if view.Access.Token != nil {
+				<div class="stack gap-1">
+					<span class="text-sm font-medium text-fg">{ tokenLabel.T(ctx) }</span>
+					<code class="break-all text-xs">{ *view.Access.Token }</code>
+					<div class="row items-center gap-2">
+						<button type="button" class="btn-secondary" { actionAttrs(regeneratePath)... }>{ regenerate.T(ctx) }</button>
+						<span class="muted text-sm">{ regenerateNote.T(ctx) }</span>
+					</div>
+				</div>
+			}
+			if view.Error != "" {
+				@corecomponents.ErrorText(view.Error)
+			}
+		}
+	</div>
+}
+
+// NetworkTarget is the link and QR code of one interface. A nil target renders an empty swap
+// target, so the selector never shows stale data.
+templ NetworkTarget(target *dto.AccessTargetDTO, requireToken bool) {
+	<div id={ targetID } class="stack gap-2">
+		if target != nil {
+			if requireToken {
+				<p class="text-sm text-fg">{ scanSignedIn.T(ctx) }</p>
+			} else {
+				<p class="text-sm text-fg">{ scanPlain.T(ctx) }</p>
+			}
+			if target.QRSVG != nil {
+				<div class="w-48 max-w-full rounded bg-white p-2" role="img" aria-label={ qrLabel.T(ctx) }>
+					@templ.Raw(*target.QRSVG)
+				</div>
+			}
+			<code class="break-all text-xs">{ target.AccessURL }</code>
+			if requireToken {
+				<p class="muted text-sm">{ tokenSecretNote.T(ctx) }</p>
+			}
+		}
+	</div>
+}
+
+// NetworkAccessError replaces the card when its data could not be read.
+templ NetworkAccessError(message string) {
+	<div id={ cardID }>
+		@corecomponents.Card(cardTitle.T(ctx)) {
+			@corecomponents.ErrorText(message)
+		}
+	</div>
+}
