@@ -1,0 +1,41 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "../../../../../../core/db/migrations"
+    queries: "queries"
+    gen:
+      go:
+        package: "gen"
+        out: "gen"
+        emit_json_tags: false
+        emit_interface: false
+        emit_empty_slices: true
+        overrides:
+          - column: "agent_settings.model_provider"
+            go_type:
+              import: "database/sql"
+              type: "NullString"
+          - column: "agent_settings.model_id"
+            go_type:
+              import: "database/sql"
+              type: "NullString"
+          - column: "agent_settings.profile"
+            go_type:
+              import: "database/sql"
+              type: "NullString"
+          - column: "agent_settings.thinking"
+            go_type:
+              import: "database/sql"
+              type: "NullString"
+          - column: "agent_settings.runtime"
+            go_type:
+              import: "database/sql"
+              type: "NullString"
+          - column: "agent_settings.memory_limit_mb"
+            go_type:
+              import: "database/sql"
+              type: "NullInt64"
+          - column: "agent_settings.cpu_limit_percent"
+            go_type:
+              import: "database/sql"
+              type: "NullInt64"
