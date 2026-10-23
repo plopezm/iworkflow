@@ -1,0 +1,36 @@
+package components
+
+import "iworkflow/internal/core/i18n"
+
+// LanguageCard is the settings card with one button per language. Each button carries the behaviour
+// that stores the choice (see LanguageChoices).
+templ LanguageCard(active i18n.Locale, attrs func(locale i18n.Locale) templ.Attributes) {
+	<section class="card stack">
+		<h2 class="card-title">{ msgLanguageTitle.T(ctx) }</h2>
+		<p class="muted text-sm">{ msgLanguageHelp.T(ctx) }</p>
+		<div class="row flex-wrap gap-2" role="group" aria-label={ msgLanguageTitle.T(ctx) }>
+			for _, choice := range LanguageChoices(attrs) {
+				<button type="button" class={ LanguageChoiceClass(choice.Locale == active) } lang={ choice.Locale.Code() } aria-pressed={ ariaBool(choice.Locale == active) } disabled?={ choice.Locale == active } { choice.Attrs... }>{ choice.Locale.NativeName() }</button>
+			}
+		</div>
+	</section>
+}
+
+// LanguagePrompt is the first-run dialog that asks for the language until the user has picked one.
+// It is rendered only while no language has been chosen.
+templ LanguagePrompt(chosen bool, attrs func(locale i18n.Locale) templ.Attributes) {
+	if !chosen {
+		<div class="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
+			<div class="stack w-full rounded-3xl border border-border/60 bg-surface/95 p-6 animate-scale-in sm:max-w-md" role="dialog" aria-modal="true" aria-labelledby="language-prompt-title">
+				<h2 id="language-prompt-title" class="text-lg font-semibold text-fg">{ msgPromptTitle.In(i18n.En) }</h2>
+				<p class="muted text-sm">{ PromptOtherLanguages() }</p>
+				<div class="stack gap-2">
+					for _, choice := range LanguageChoices(attrs) {
+						<button type="button" class="btn-secondary justify-center" lang={ choice.Locale.Code() } { choice.Attrs... }>{ choice.Locale.NativeName() }</button>
+					}
+				</div>
+				<p class="muted text-xs">{ msgPromptHelp.In(i18n.En) }</p>
+			</div>
+		</div>
+	}
+}

@@ -1,0 +1,42 @@
+package components
+
+
+// ModalProps configures a dialog. A closed modal is rendered hidden; the close behaviour is
+// handled by web/static/js/ui.js through the data-modal-close attribute.
+type ModalProps struct {
+	Title      string
+	Open       bool
+	CloseAttrs templ.Attributes
+}
+
+// Modal is a generic dialog: a bottom sheet on mobile and a centred dialog on desktop. Escape and
+// clicks on the backdrop close it; the header close button carries data-modal-close.
+templ Modal(p ModalProps) {
+	<div
+		class="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-md sm:items-center"
+		data-modal
+		style={ hiddenStyle(!p.Open) }
+		{ p.CloseAttrs... }
+	>
+		<div
+			id="modal-panel"
+			class="stack max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-border/60 bg-surface/95 p-4 sm:max-w-lg sm:rounded-3xl sm:p-6 animate-scale-in backdrop-blur-xl"
+			role="dialog"
+			tabindex="-1"
+			aria-modal="true"
+			aria-labelledby="modal-title"
+			data-modal-panel
+		>
+			<div class="row justify-between">
+				<h2 id="modal-title" class="text-lg font-semibold text-fg">{ p.Title }</h2>
+				<button
+					type="button"
+					class="btn-ghost min-h-10 min-w-10 rounded-full px-2 transition-colors hover:bg-surface-2"
+					aria-label={ msgClose.T(ctx) }
+					data-modal-close
+				>✕</button>
+			</div>
+			{ children... }
+		</div>
+	</div>
+}

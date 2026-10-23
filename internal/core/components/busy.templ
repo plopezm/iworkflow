@@ -1,0 +1,29 @@
+package components
+
+// Spinner is a rotating ring that tells the user something is in progress.
+templ Spinner() {
+	<span class="spinner" role="status" aria-label={ msgLoading.T(ctx) }></span>
+}
+
+// Loading is the placeholder for content that is still loading: spinner plus a short message.
+templ Loading(text string) {
+	<p class="muted row gap-2" aria-live="polite">
+		<span class="spinner" aria-hidden="true"></span>
+		{ text }
+	</p>
+}
+
+// BusyButton shows a spinner and ignores clicks while Busy is true. Use it for any control whose
+// action waits for the server or the disk, so every wait looks the same.
+templ BusyButton(p BusyButtonProps) {
+	<button
+		type={ p.buttonType() }
+		lang={ p.Lang }
+		class={ BusyClass(p.class(), p.Busy) }
+		aria-busy={ ariaBool(p.Busy) }
+		disabled?={ p.Busy || p.Disabled }
+		{ p.Attrs... }
+	>
+		{ children... }
+	</button>
+}

@@ -1,0 +1,31 @@
+package components
+
+// CollapsiblePanel is a side panel with a header and a body that folds away. The toggle is handled
+// by web/static/js/ui.js; the body is hidden through its `hidden` attribute.
+templ CollapsiblePanel(p CollapsiblePanelProps) {
+	<aside class={ collapsiblePanelClass(p.Collapsed) } data-collapsible>
+		<header class="side-panel-header">
+			<button
+				type="button"
+				class="side-panel-toggle"
+				aria-expanded={ ariaBool(!p.Collapsed) }
+				title={ toggleLabel(p.Collapsed, p.ExpandLabel, p.CollapseLabel) }
+				aria-label={ toggleLabel(p.Collapsed, p.ExpandLabel, p.CollapseLabel) + ": " + p.Title }
+				data-collapsible-toggle
+				data-label-open={ p.CollapseLabel }
+				data-label-closed={ p.ExpandLabel }
+			>
+				if p.Collapsed {
+					<span aria-hidden="true">▸</span>
+				} else {
+					<span aria-hidden="true">▾</span>
+				}
+			</button>
+			<h2 class="side-panel-title">{ p.Title }</h2>
+			<span class="badge badge-muted" aria-live="polite">{ fmtCount(p.Count) }</span>
+		</header>
+		<div class="side-panel-body" hidden?={ p.Collapsed } data-collapsible-body>
+			{ children... }
+		</div>
+	</aside>
+}

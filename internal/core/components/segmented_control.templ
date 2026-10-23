@@ -1,0 +1,16 @@
+package components
+
+// SegmentedControl is a row of mutually exclusive segments; each option carries its own behaviour.
+templ SegmentedControl(p SegmentedControlProps) {
+	<div class={ "segmented", p.Class } role="tablist" aria-label={ p.AriaLabel }>
+		for _, option := range p.Options {
+			<button
+				type="button"
+				role="tab"
+				class={ segmentClass(option.Value == p.Selected) }
+				aria-selected={ ariaBool(option.Value == p.Selected) }
+				{ option.Attrs... }
+			>{ option.Label }</button>
+		}
+	</div>
+}

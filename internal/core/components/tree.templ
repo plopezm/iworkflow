@@ -1,0 +1,22 @@
+package components
+
+// TreeChevron points right when a row is folded and down when it is expanded.
+templ TreeChevron(open bool) {
+	<svg class={ treeChevronClass(open) } viewBox="0 0 16 16" fill="none" aria-hidden="true">
+		<path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+	</svg>
+}
+
+// TreeIcon is the icon of a file (a sheet with a folded corner) or of a folder.
+templ TreeIcon(isDir bool, open bool) {
+	if isDir {
+		<svg class="tree-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+			<path d={ folderPath(open) } stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path>
+		</svg>
+	} else {
+		<svg class="tree-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+			<path d="M4 2.5h5l3 3v7a1 1 0 01-1 1H4a1 1 0 01-1-1v-9a1 1 0 011-1z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path>
+			<path d="M9 2.5v3h3" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"></path>
+		</svg>
+	}
+}

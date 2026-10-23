@@ -1,0 +1,16 @@
+package components
+
+// ThemeToggle is the light / dark / system selector. web/static/js/ui.js stores the choice and
+// applies data-theme to the document; the chip carrying the stored mode is marked selected.
+templ ThemeToggle(p ThemeToggleProps) {
+	<div class="flex gap-1.5" role="group" aria-label={ msgTheme.T(ctx) }>
+		for _, option := range ThemeToggleOptions(msgThemeLight.T(ctx), msgThemeDark.T(ctx), msgThemeAuto.T(ctx)) {
+			<button
+				type="button"
+				class={ themeChipClass(option.Mode == p.Selected) }
+				aria-pressed={ ariaBool(option.Mode == p.Selected) }
+				data-theme-choice={ string(option.Mode) }
+			>{ option.Label }</button>
+		}
+	</div>
+}

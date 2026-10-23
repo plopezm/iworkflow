@@ -1,0 +1,11 @@
+package components
+
+// ZoomControls is the floating pill with zoom out, the current level and zoom in. The buttons carry
+// their behaviour in ZoomOutAttrs / ZoomInAttrs.
+templ ZoomControls(p ZoomControlsProps) {
+	<div class="zoom-controls" data-zoom-controls>
+		<button type="button" class="zoom-control" title={ p.ZoomOutLabel } aria-label={ p.ZoomOutLabel } { p.ZoomOutAttrs... }>−</button>
+		<span class="zoom-readout" aria-live="polite">{ ZoomPercentLabel(p.Zoom) }</span>
+		<button type="button" class="zoom-control" title={ p.ZoomInLabel } aria-label={ p.ZoomInLabel } { p.ZoomInAttrs... }>+</button>
+	</div>
+}

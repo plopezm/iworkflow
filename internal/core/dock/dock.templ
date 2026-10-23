@@ -1,0 +1,128 @@
+package dock
+
+import (
+	"iworkflow/internal/core/components"
+)
+
+// Placeholder is the empty dock the page starts with. web/static/js/dock.js replaces it with the
+// saved layout on load.
+templ Placeholder() {
+	<div id="dock" class="flex h-full min-h-0 w-full min-w-0" data-layout="" data-focused-path=""></div>
+}
+
+// Root is the dock fragment: the whole tree of groups. htmx replaces #dock with it after every
+// action; the panes it references are re-attached by web/static/js/dock.js.
+templ Root(v View) {
+	<div id="dock" class="flex h-full min-h-0 w-full min-w-0" data-layout={ v.Data } data-focused-path={ v.focusedPath() }>
+		@nodeComponent(v, v.Layout.Root)
+	</div>
+}
+
+// nodeComponent renders a node of the tree: a split or a group.
+func nodeComponent(v View, node Node) templ.Component {
+	switch n := node.(type) {
+	case Leaf:
+		return group(v, v.Layout.Group(n.Group))
+	case *Split:
+		return split(v, n)
+	default:
+		return templ.NopComponent
+	}
+}
+
+templ split(v View, s *Split) {
+	<div class={ splitContainerClass(s.Dir) }>
+		<div class="flex min-h-0 min-w-0 overflow-hidden" style={ ratioStyle(s.Ratio) }>
+			@nodeComponent(v, s.First)
+		</div>
+		<div class={ dividerClass(s.Dir) } data-dock-divider data-dock-split={ id(s.ID) } role="separator" aria-orientation={ orientation(s.Dir) }></div>
+		<div class="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+			@nodeComponent(v, s.Second)
+		</div>
+	</div>
+}
+
+// group is a group of tabs: its tab bar (tabs, "+" and "⋯") and its body with the kept-alive panes.
+templ group(v View, g *Group) {
+	if g != nil {
+		<section class={ groupClass(v.Layout.Focused == g.ID) } data-dock-group={ id(g.ID) }>
+			<div class="dock-tabbar">
+				<div class="dock-tabs" role="tablist">
+					for _, tab := range g.Tabs {
+						@tabButton(v, g, tab)
+					}
+				</div>
+				@components.DropdownMenu(components.DropdownMenuProps{Label: "+", AriaLabel: msgNewTab.T(ctx), TriggerClass: "dock-icon-btn", MenuClass: "min-w-52"}) {
+					if v.launcher != nil {
+						@v.launcher
+					}
+				}
+				@components.DropdownMenu(components.DropdownMenuProps{Label: "⋯", AriaLabel: msgGroupOptions.T(ctx), TriggerClass: "dock-icon-btn", MenuClass: "min-w-52"}) {
+					<button type="button" class="menu-item" data-dock-action="split_group" data-dock-group={ id(g.ID) } data-dock-dir="Row">{ msgSplitRight.T(ctx) }</button>
+					<button type="button" class="menu-item" data-dock-action="split_group" data-dock-group={ id(g.ID) } data-dock-dir="Column">{ msgSplitDown.T(ctx) }</button>
+					<button type="button" class="menu-item" disabled?={ activeTab(g) == 0 } data-dock-action="move_to_new_split" data-dock-tab={ id(activeTab(g)) } data-dock-dir="Row">{ msgMoveRight.T(ctx) }</button>
+					<button type="button" class="menu-item" disabled?={ activeTab(g) == 0 } data-dock-action="move_to_new_split" data-dock-tab={ id(activeTab(g)) } data-dock-dir="Column">{ msgMoveDown.T(ctx) }</button>
+					<button type="button" class="menu-item" disabled?={ len(g.Tabs) < 2 } data-dock-action="close_others" data-dock-tab={ id(activeTab(g)) }>{ msgCloseOthers.T(ctx) }</button>
+					<button type="button" class="menu-item" disabled?={ len(v.Layout.Groups) <= 1 } data-dock-action="close_group" data-dock-group={ id(g.ID) }>{ msgCloseSplit.T(ctx) }</button>
+				}
+			</div>
+			<div class="relative min-h-0 flex-1 bg-bg" data-dock-body={ id(g.ID) }>
+				for _, tab := range g.Tabs {
+					@components.KeepAlive(components.KeepAliveProps{
+						Active:      tab.ID == g.Active,
+						Src:         paneSrc(tab.Path),
+						ActiveClass: "absolute inset-0 overflow-hidden",
+						Attrs:       templ.Attributes{"data-dock-pane": "", "data-tab-id": id(tab.ID), "data-path": tab.Path},
+					})
+				}
+				if len(g.Tabs) == 0 {
+					if v.empty != nil {
+						@v.empty
+					}
+					if len(v.Layout.Groups) > 1 {
+						<button type="button" class="btn-secondary absolute right-3 bottom-3 min-h-8 px-3 py-1 text-xs" data-dock-action="close_group" data-dock-group={ id(g.ID) }>{ msgCloseSplit.T(ctx) }</button>
+					}
+				}
+				<div class="absolute inset-0 z-30" hidden data-dock-overlay data-dock-group={ id(g.ID) }>
+					for _, zone := range dropZones {
+						<div class={ zoneClass(zone.position) } data-dock-zone={ zone.name } data-dock-group={ id(g.ID) }></div>
+					}
+				</div>
+			</div>
+		</section>
+	}
+}
+
+// tabButton is a tab of the bar: a click activates it, × closes it, and it can be dragged to reorder
+// or to another group.
+templ tabButton(v View, g *Group, tab Tab) {
+	<div
+		role="tab"
+		draggable="true"
+		class={ tabButtonClass(tab.ID == g.Active) }
+		aria-selected={ ariaBool(tab.ID == g.Active) }
+		title={ tab.Title }
+		data-dock-tab-button
+		data-dock-tab={ id(tab.ID) }
+		data-dock-group={ id(g.ID) }
+		data-dock-path={ tab.Path }
+		data-dock-title={ tab.Title }
+		data-dock-action="activate"
+	>
+		<span class="dock-tab-icon" aria-hidden="true">{ v.icon(tab.Path) }</span>
+		<span class="min-w-0 flex-1 truncate">{ tab.Title }</span>
+		<button type="button" class="dock-tab-close" aria-label={ msgCloseTab.T(ctx) } data-dock-action="close_tab" data-dock-tab={ id(tab.ID) }>×</button>
+	</div>
+}
+
+// notFoundPage is the page of a path no route serves.
+templ notFoundPage() {
+	<p class="muted p-4">{ msgNotFoundText.T(ctx) }</p>
+}
+
+func ariaBool(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
