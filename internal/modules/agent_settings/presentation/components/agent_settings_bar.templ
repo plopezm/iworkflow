@@ -1,0 +1,49 @@
+package components
+
+import ui "iworkflow/internal/core/components"
+
+// BarPath is the URL that loads the bar. The shell places AgentSettingsBarPlaceholder where the bar
+// goes; the placeholder fetches the bar once the page has loaded.
+const BarPath = "/agent-settings/bar"
+
+// AgentSettingsBarPlaceholder is the element that loads the bar with htmx on page load. The shell
+// renders it in the sidebar footer (or anywhere the bar belongs).
+templ AgentSettingsBarPlaceholder() {
+	<div id={ BarID } class="flex flex-col gap-1.5" hx-get={ BarPath } hx-trigger="load" hx-swap="outerHTML">
+		<span class="select-pill-skeleton" aria-hidden="true"></span>
+	</div>
+}
+
+// AgentSettingsBar is the bar with the four selectors. Each change is posted by its own selector and
+// the response replaces the whole bar, so the bar always shows the stored values.
+templ AgentSettingsBar(p AgentSettingsBarProps) {
+	<div id={ BarID } class="flex flex-col gap-1.5" title={ p.Tooltip }>
+		if p.Error != "" {
+			@ui.ErrorText(p.Error)
+		} else {
+			@barSlot(p.Runtime)
+			@barSlot(p.Model)
+			@barSlot(p.Thinking)
+			@barSlot(p.Profile)
+		}
+		<p class="text-[11px] text-muted">{ p.Footer }</p>
+	</div>
+}
+
+// BarResponse is what a change returns: the bar, and when the change failed, an out-of-band
+// notification with its message. The notification is appended to the shell's toast stack.
+templ BarResponse(p AgentSettingsBarProps, notice string, noticeID string) {
+	@AgentSettingsBar(p)
+	if notice != "" {
+		@ui.Toast(ui.ToastProps{ID: noticeID, Text: notice, OutOfBand: true})
+	}
+}
+
+// barSlot shows one selector, or its error when its options could not be loaded.
+templ barSlot(s BarSlot) {
+	if s.Err != "" {
+		@ui.ErrorText(s.Err)
+	} else {
+		@ui.OptionSelect(s.Select)
+	}
+}
