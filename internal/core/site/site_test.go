@@ -1,0 +1,78 @@
+package site
+
+import (
+	"net/netip"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func base() Options {
+	return Options{
+		SiteRoot:   "target/site",
+		OutputName: "other",
+		SiteAddr:   netip.MustParseAddrPort("127.0.0.1:3000"),
+	}
+}
+
+func TestSiteDirNextToTheExecutableIsUsed(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "site"), 0o750))
+
+	got := ApplyPackagedDefaults(base(), dir, false, true)
+
+	assert.Equal(t, filepath.Join(dir, "site"), got.SiteRoot)
+	assert.Equal(t, "other", got.OutputName)
+}
+
+func TestExplicitSiteRootWins(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "site"), 0o750))
+
+	got := ApplyPackagedDefaults(base(), dir, true, true)
+
+	assert.Equal(t, "target/site", got.SiteRoot)
+}
+
+func TestMissingSiteDirKeepsDefaultRoot(t *testing.T) {
+	got := ApplyPackagedDefaults(base(), t.TempDir(), false, true)
+
+	assert.Equal(t, "target/site", got.SiteRoot)
+}
+
+func TestNoExecutableDirKeepsDefaultRoot(t *testing.T) {
+	got := ApplyPackagedDefaults(base(), "", false, true)
+
+	assert.Equal(t, "target/site", got.SiteRoot)
+}
+
+func TestOutputNameDefaultsToTheBinaryName(t *testing.T) {
+	got := ApplyPackagedDefaults(base(), "", true, false)
+
+	assert.Equal(t, "iworkflow", got.OutputName)
+}
+
+func TestPackagedPortIsUsedWhenTheAddressIsNotPinned(t *testing.T) {
+	got := ApplyPackagedPort(base(), false)
+
+	assert.Equal(t, uint16(9000), got.SiteAddr.Port())
+	assert.True(t, got.SiteAddr.Addr().IsLoopback())
+}
+
+func TestPinnedAddressKeepsItsPort(t *testing.T) {
+	got := ApplyPackagedPort(base(), true)
+
+	assert.Equal(t, uint16(3000), got.SiteAddr.Port())
+}
+
+func TestBundledSiteRootReportsOnlyExistingDirectories(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "site"), []byte("not a dir"), 0o600))
+
+	_, ok := BundledSiteRoot(dir)
+
+	assert.False(t, ok)
+}
