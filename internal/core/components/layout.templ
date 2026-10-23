@@ -1,0 +1,21 @@
+package components
+
+// Card is a generic panel with an optional title.
+templ Card(title string) {
+	<section class="card stack">
+		if title != "" {
+			<h2 class="card-title">{ title }</h2>
+		}
+		{ children... }
+	</section>
+}
+
+// Badge is a status label; variant is one of ok, warn, error, info, muted.
+templ Badge(text, variant string) {
+	<span class={ "badge badge-" + variant }>{ text }</span>
+}
+
+// ErrorText is the standard error message.
+templ ErrorText(message string) {
+	<p class="text-sm text-error">{ message }</p>
+}

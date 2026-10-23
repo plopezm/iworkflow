@@ -13,3 +13,7 @@ end2end/test-results
 
 # Internal ODD working notes (kept locally, not published)
 /odd/
+
+# Go
+/bin
+/web/static/app.css

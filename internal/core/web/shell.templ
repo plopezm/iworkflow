@@ -1,0 +1,27 @@
+package web
+
+import "iworkflow/internal/core/i18n"
+
+// themeInitScript applies the saved theme before first paint to avoid a flash.
+const themeInitScript = `(function(){try{var m=localStorage.getItem('pi-theme');` +
+	`if(m!=='light'&&m!=='dark'){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}` +
+	`document.documentElement.setAttribute('data-theme',m);}catch(e){}})();`
+
+// Shell is the HTML document every full-page response is rendered into.
+templ Shell(title string) {
+	<!DOCTYPE html>
+	<html lang={ i18n.StateFrom(ctx).Locale.Code() }>
+		<head>
+			<meta charset="utf-8"/>
+			@templ.Raw("<script>" + themeInitScript + "</script>")
+			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+			<title>{ title }</title>
+			<link rel="stylesheet" href="/static/app.css"/>
+			<script src="/static/vendor/htmx.min.js"></script>
+			<script src="/static/vendor/htmx-ext-sse.js"></script>
+		</head>
+		<body hx-ext="sse">
+			{ children... }
+		</body>
+	</html>
+}
