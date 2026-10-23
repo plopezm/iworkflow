@@ -372,6 +372,7 @@ cargo clippy --features ssr --all-targets -- -D warnings
 cargo clippy --features hydrate --target wasm32-unknown-unknown --lib -- -D warnings
 cargo test --features ssr
 PLAYWRIGHT_MODULE=/path/to/node_modules/playwright ./end2end/run_smoke.sh   # UI with a fake agent
+PLAYWRIGHT_MODULE=/path/to/node_modules/playwright ./end2end/run_tests.sh [module]   # e2e use-case suite (Jira and GitLab mocks, fake agents)
 ```
 
 ## License
