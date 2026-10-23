@@ -1,0 +1,10 @@
+package components
+
+import "iworkflow/internal/modules/agents_files/presentation/state"
+
+// UploadDone is the response of a successful upload: an empty form (the browser file input is reset
+// with it) and the refreshed list, swapped out of band.
+templ UploadDone(list state.FileList) {
+	@UploadSection(state.UploadForm{})
+	@FileListOOB(list)
+}

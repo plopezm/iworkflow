@@ -1,0 +1,41 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/agents_files/presentation/state"
+)
+
+// UploadSection is the "Upload file" card. It is the swap target of the upload form, so a failed
+// upload re-renders it with the typed description and the error.
+templ UploadSection(form state.UploadForm) {
+	<div id="agents-files-upload">
+		@coreui.Card(msgUploadFile.T(ctx)) {
+			<form class="stack" hx-post="/agents-files/upload" hx-encoding="multipart/form-data" hx-target="#agents-files-upload" hx-swap="outerHTML">
+				@coreui.TextField(coreui.FieldProps{
+					Label:       msgDescription.T(ctx),
+					Name:        "description",
+					Value:       form.Description,
+					Placeholder: msgDescriptionPlaceholder.T(ctx),
+					Required:    true,
+				})
+				<label class="stack gap-1.5">
+					<span class="text-sm font-medium text-fg">{ msgFileLabel.T(ctx) }</span>
+					<input type="file" name="file" accept=".md,text/markdown,text/plain" required class="input"/>
+				</label>
+				<div class="row">
+					@coreui.BusyButton(coreui.BusyButtonProps{
+						Class: "btn-primary",
+						Type:  "submit",
+						Attrs: templ.Attributes{"hx-indicator": "this", "hx-disabled-elt": "this"},
+					}) {
+						<span class="spinner htmx-indicator" aria-hidden="true"></span>
+						{ msgUpload.T(ctx) }
+					}
+				</div>
+				if form.Error != "" {
+					@coreui.ErrorText(form.Error)
+				}
+			</form>
+		}
+	</div>
+}
