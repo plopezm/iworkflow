@@ -129,3 +129,19 @@ func evalSymlinks(t *testing.T, path string) string {
 	require.NoError(t, err)
 	return resolved
 }
+
+func TestGitInspectReportsGitFailuresThatAreNotNotARepositoryAsGitErrors(t *testing.T) {
+	dir := t.TempDir()
+	// A malformed global config makes every git command fail with a message that is not
+	// "not a git repository". Such a failure must not be reported as a missing repository, because
+	// the register flow would then offer to initialize a folder that may already be one.
+	broken := filepath.Join(t.TempDir(), "broken-gitconfig")
+	require.NoError(t, os.WriteFile(broken, []byte("[core\n"), 0o600))
+	t.Setenv("GIT_CONFIG_GLOBAL", broken)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+
+	_, err := git.NewRepositoryAdapter().Inspect(context.Background(), dir)
+
+	require.ErrorIs(t, err, werrors.Git(""))
+	assert.NotErrorIs(t, err, werrors.NotAGitRepository(""))
+}

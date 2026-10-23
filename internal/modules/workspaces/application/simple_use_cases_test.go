@@ -112,3 +112,16 @@ func TestListAgentsFileOptionsPropagatesPortErrors(t *testing.T) {
 
 	assert.EqualError(t, err, "error al instalar AGENTS.md: boom")
 }
+
+func TestDeleteWorkspaceDoesNotTouchTasksOfMissingWorkspace(t *testing.T) {
+	id, err := models.NewWorkspaceID()
+	require.NoError(t, err)
+	repository := newFakeRepository()
+	tasks := &fakeWorkspaceTasks{}
+	useCase := application.NewDeleteWorkspace(repository, tasks)
+
+	err = useCase.Execute(context.Background(), id)
+
+	require.ErrorIs(t, err, werrors.NotFound(""))
+	assert.Empty(t, tasks.deleted, "tasks of a workspace that does not exist must not be deleted")
+}

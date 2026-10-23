@@ -5,7 +5,6 @@ package git
 
 import (
 	"context"
-	"errors"
 	"os"
 	"strings"
 
@@ -14,6 +13,9 @@ import (
 	"iworkflow/internal/modules/workspaces/domain/models"
 	"iworkflow/internal/modules/workspaces/domain/ports/outbound"
 )
+
+// notARepositoryMessage is the git message for a folder outside any repository (English, see LC_ALL=C).
+const notARepositoryMessage = "not a git repository"
 
 // initialCommitIdentity is used only when the repository has no git identity configured.
 var initialCommitIdentity = []string{"-c", "user.name=iworkflow", "-c", "user.email=iworkflow@localhost"}
@@ -34,14 +36,20 @@ func (a *RepositoryAdapter) Inspect(ctx context.Context, path string) (models.Gi
 	if info, err := os.Stat(path); err != nil || !info.IsDir() {
 		return models.GitRepositoryInfo{}, werrors.PathNotFound(path)
 	}
-	root, err := gitx.Run(ctx, path, "rev-parse", "--show-toplevel")
+	// LC_ALL=C keeps git's message in English, so the match below does not depend on the locale.
+	toplevel, err := gitx.RunRawEnv(ctx, path, []string{"LC_ALL=C"}, "rev-parse", "--show-toplevel")
 	if err != nil {
-		var failed *gitx.FailedError
-		if errors.As(err, &failed) {
-			return models.GitRepositoryInfo{}, werrors.NotAGitRepository(path)
-		}
 		return models.GitRepositoryInfo{}, werrors.Git(err.Error())
 	}
+	if !toplevel.Success {
+		// Only the "not a repository" failure means the folder is not one. Any other failure (corrupt
+		// repository, unreadable config, ownership checks) is reported as-is so nothing re-initializes it.
+		if strings.Contains(strings.ToLower(toplevel.Stderr), notARepositoryMessage) {
+			return models.GitRepositoryInfo{}, werrors.NotAGitRepository(path)
+		}
+		return models.GitRepositoryInfo{}, werrors.Git(toplevel.Stderr)
+	}
+	root := strings.TrimSpace(toplevel.Stdout)
 
 	hasCommits, err := runSucceeds(ctx, root, "rev-parse", "--verify", "--quiet", "HEAD")
 	if err != nil {

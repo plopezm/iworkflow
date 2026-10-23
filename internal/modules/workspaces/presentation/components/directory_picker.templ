@@ -1,0 +1,68 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/workspaces/presentation/state"
+)
+
+// DirectoryPicker is the folder picker. It is always present (empty when closed) so that a request
+// can open it by swapping the container. Every path action swaps the container again.
+templ DirectoryPicker(picker state.DirectoryPicker) {
+	<div id="workspace-picker">
+		if picker.Open {
+			@shared.Modal(shared.ModalProps{Title: msgChooseFolder.T(ctx), Open: true}) {
+				@pickerBody(picker)
+			}
+		}
+	</div>
+}
+
+templ pickerBody(picker state.DirectoryPicker) {
+	<div class="stack">
+		<form class="row gap-2" hx-get="/workspaces/directories" hx-target="#workspace-picker" hx-swap="outerHTML">
+			<input class="input min-w-0 flex-1" type="text" name="path" aria-label={ msgPath.T(ctx) } placeholder={ msgFolderPathPlaceholder.T(ctx) } value={ picker.Path }/>
+			<button type="submit" class="btn-ghost">{ msgGo.T(ctx) }</button>
+		</form>
+		<div class="row gap-2">
+			<button type="button" class="btn-ghost" disabled?={ picker.Parent == "" } hx-get="/workspaces/directories" hx-vals={ pathValues(picker.Parent) } hx-target="#workspace-picker" hx-swap="outerHTML">{ msgUp.T(ctx) }</button>
+			<button type="button" class="btn-primary" hx-get="/workspaces/directories/select" hx-vals={ pathValues(picker.Path) } hx-target="#workspace-picker" hx-swap="outerHTML">{ msgUseThisFolder.T(ctx) }</button>
+		</div>
+		<form class="row gap-2" hx-post="/workspaces/directories/create" hx-target="#workspace-picker" hx-swap="outerHTML">
+			<input type="hidden" name="parent" value={ picker.Path }/>
+			<input class="input min-w-0 flex-1" type="text" name="name" aria-label={ msgNewFolderName.T(ctx) } placeholder={ msgNewFolderHere.T(ctx) }/>
+			<button type="submit" class="btn-ghost">{ msgCreate.T(ctx) }</button>
+		</form>
+		if picker.Error != "" {
+			<p class="text-sm text-error">{ picker.Error }</p>
+		}
+		<input class="input" type="search" name="filter" aria-label={ msgFilterFoldersLabel.T(ctx) } placeholder={ msgFilterFolders.T(ctx) } value={ picker.Filter } hx-get="/workspaces/directories/entries" hx-trigger="input changed delay:150ms, search" hx-vals={ pathValues(picker.Path) } hx-target="#picker-entries" hx-swap="outerHTML"/>
+		@PickerEntries(picker)
+	</div>
+}
+
+// PickerEntries is the list of sub-folders. The filter request replaces only this list, so the
+// filter input keeps the focus while the user types.
+templ PickerEntries(picker state.DirectoryPicker) {
+	<ul id="picker-entries" class="stack max-h-72 gap-1 overflow-y-auto">
+		if len(picker.Entries) == 0 {
+			<li class="muted px-3 py-2 text-sm">{ msgNoSubfolders.T(ctx) }</li>
+		}
+		for _, entry := range picker.Entries {
+			<li>
+				<button
+					type="button"
+					class="btn-ghost row w-full justify-start gap-2 rounded-lg px-3 py-2 transition-colors hover:bg-surface-2"
+					hx-get="/workspaces/directories"
+					hx-vals={ pathValues(entry.Path) }
+					hx-target="#workspace-picker"
+					hx-swap="outerHTML"
+				>
+					<span>{ entry.Name }</span>
+					if entry.IsGitRepo {
+						@shared.Badge("git", "info")
+					}
+				</button>
+			</li>
+		}
+	</ul>
+}

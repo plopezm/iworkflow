@@ -1,0 +1,58 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/workspaces/presentation/state"
+)
+
+// WorkspaceRegister is the registration form and its notices. The form swaps the whole slot, so the
+// response of a successful registration is a fresh, empty form.
+templ WorkspaceRegister(form state.RegisterForm) {
+	<div id="workspace-register-slot" class="stack">
+		<form class="stack" hx-post="/workspaces/register" hx-target="#workspace-register-slot" hx-swap="outerHTML">
+			@shared.TextField(shared.FieldProps{Label: msgName.T(ctx), Name: "name", Value: form.Name, Placeholder: msgNamePlaceholder.T(ctx), Required: true})
+			<div class="stack gap-1.5">
+				<label for="workspace-path" class="text-sm font-medium text-fg">{ msgAbsolutePath.T(ctx) }</label>
+				<div class="row gap-2">
+					@PathInput(form.Path, false)
+					<button type="button" class="btn-ghost" hx-get="/workspaces/directories" hx-include="#workspace-path" hx-target="#workspace-picker" hx-swap="outerHTML">{ msgChoose.T(ctx) }</button>
+				</div>
+			</div>
+			@shared.TextField(shared.FieldProps{Label: msgBaseBranch.T(ctx), Name: "base_branch", Value: form.BaseBranch, Placeholder: "main"})
+			if len(form.Options) > 0 {
+				@shared.SelectField(shared.SelectFieldProps{Label: msgInitialAgents.T(ctx), Name: "agents_file_id", Value: form.AgentsFileID, Placeholder: msgNoAgents.T(ctx), Options: formOptions(form.Options)})
+			}
+			<div class="row">
+				<button type="submit" class="btn-primary">{ msgRegister.T(ctx) }</button>
+			</div>
+		</form>
+		<div id="workspace-register-result">
+			if form.Error != "" {
+				@shared.ErrorText(form.Error)
+			}
+		</div>
+		if form.Prompt != nil {
+			@registerPrompt(*form.Prompt)
+		}
+	</div>
+}
+
+// registerPrompt asks for confirmation before the folder is initialized. Confirming sends the same
+// registration again with initialize=true; cancelling removes the prompt.
+templ registerPrompt(prompt state.InitializationPrompt) {
+	<div id="workspace-register-prompt">
+		@shared.ConfirmPanel(initializationMessage(ctx, prompt), initializationLabel(ctx, prompt.Reason), false,
+			templ.Attributes{"hx-post": "/workspaces/register", "hx-vals": prompt.ResubmitJSON(), "hx-target": "#workspace-register-slot", "hx-swap": "outerHTML"},
+			templ.Attributes{"hx-get": "/workspaces/register/dismiss", "hx-target": "#workspace-register-prompt", "hx-swap": "outerHTML"})
+	</div>
+}
+
+// PathInput is the absolute path field. The folder picker swaps it out of band with the chosen path.
+templ PathInput(value string, swapOutOfBand bool) {
+	<input id="workspace-path" type="text" name="path" class="input min-w-0 flex-1" placeholder={ msgProjectPathPlaceholder.T(ctx) } required value={ value } { oobAttributes(swapOutOfBand)... }/>
+}
+
+// EmptyRegisterPrompt is the prompt slot with nothing in it: what dismissing the prompt answers.
+templ EmptyRegisterPrompt() {
+	<div id="workspace-register-prompt"></div>
+}
