@@ -39,13 +39,18 @@ export function ratioAt(clientPosition, start, size) {
   return clampRatio((clientPosition - start) / size);
 }
 
-// The ids of the panes a fresh dock fragment asks for, and which kept panes can be re-used.
-// `placeholders` are the tab ids of the new fragment, `kept` the ids of panes still in memory.
-// Returns the ids to re-attach and the ids to discard (their tab was closed).
+// Decides which kept panes can be re-attached after a dock swap. `placeholders` and `kept` are
+// arrays of { id, path }: the tabs of the new fragment and the panes still in memory. A kept pane
+// is reused only while its tab shows the same path. A tab whose path changed (replace) or that was
+// closed gets its pane discarded, so the new placeholder loads its own content.
 export function reconcilePanes(placeholders, kept) {
-  const wanted = new Set(placeholders);
-  const reattach = [...kept].filter((id) => wanted.has(id));
-  const discard = [...kept].filter((id) => !wanted.has(id));
+  const wanted = new Map(placeholders.map((tab) => [tab.id, tab.path]));
+  const reattach = [];
+  const discard = [];
+  for (const pane of kept) {
+    if (wanted.get(pane.id) === pane.path) reattach.push(pane.id);
+    else discard.push(pane.id);
+  }
   return { reattach, discard };
 }
 
@@ -105,8 +110,8 @@ function keepPanes(dock) {
 function attachPanes(dock) {
   const placeholders = [...dock.querySelectorAll('[data-dock-pane][data-tab-id]')];
   const { reattach, discard } = reconcilePanes(
-    placeholders.map((el) => el.dataset.tabId),
-    [...kept.keys()],
+    placeholders.map((el) => ({ id: el.dataset.tabId, path: el.dataset.path })),
+    [...kept].map(([id, pane]) => ({ id, path: pane.dataset.path })),
   );
   for (const placeholder of placeholders) {
     const id = placeholder.dataset.tabId;

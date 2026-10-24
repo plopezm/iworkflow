@@ -30,14 +30,27 @@ test('a divider position becomes a clamped fraction of its container', () => {
   assert.equal(ratioAt(10, 100, 200), 0.12, 'dragged past the start');
 });
 
-test('kept panes are re-attached when their tab is still open, and discarded otherwise', () => {
-  const { reattach, discard } = reconcilePanes(['1', '3'], ['1', '2']);
+test('a kept pane is re-attached when its tab still shows the same path (keep-alive)', () => {
+  const { reattach, discard } = reconcilePanes(
+    [{ id: '1', path: '/terminals' }, { id: '3', path: '/jira' }],
+    [{ id: '1', path: '/terminals' }, { id: '2', path: '/models' }],
+  );
   assert.deepEqual(reattach, ['1']);
   assert.deepEqual(discard, ['2']);
 });
 
+test('a replaced tab gets a fresh pane that loads its new content, not the old pane', () => {
+  // replace keeps the tab id but changes its path: the old pane still shows the list.
+  const { reattach, discard } = reconcilePanes(
+    [{ id: '1', path: '/terminals/s1' }],
+    [{ id: '1', path: '/terminals' }],
+  );
+  assert.deepEqual(reattach, []);
+  assert.deepEqual(discard, ['1']);
+});
+
 test('no kept panes means nothing to re-attach', () => {
-  assert.deepEqual(reconcilePanes(['1'], []), { reattach: [], discard: [] });
+  assert.deepEqual(reconcilePanes([{ id: '1', path: '/a' }], []), { reattach: [], discard: [] });
 });
 
 test('the address bar shows the focused tab path, and nothing for an empty group', () => {

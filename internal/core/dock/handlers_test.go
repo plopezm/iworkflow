@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -97,4 +98,25 @@ func TestPaneOfAnUnknownPathRendersNotFound(t *testing.T) {
 	rec := httptest.NewRecorder()
 	testRouter(t).ServeHTTP(rec, req)
 	require.Contains(t, rec.Body.String(), "Page not found.")
+}
+
+func TestReplaceRendersThePaneOfTheNewPath(t *testing.T) {
+	router := testRouter(t)
+	saved := New()
+	tab := saved.Open("/jira", "Jira", 0)
+	savedJSON, err := saved.ToJSON()
+	require.NoError(t, err)
+
+	rec := post(t, router, "/dock/action/replace", url.Values{
+		"layout": {savedJSON},
+		"tab":    {strconv.FormatUint(uint64(tab), 10)},
+		"path":   {"/"},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, `data-path="/"`, "the pane of the tab now points at the new path")
+	require.Contains(t, body, `data-src="/dock/pane?path=%2F"`)
+	require.NotContains(t, body, `data-path="/jira"`, "the old pane is not rendered again")
+	require.Contains(t, body, `data-tab-id="`+strconv.FormatUint(uint64(tab), 10)+`"`, "the tab keeps its id, so its pane can be matched")
 }
