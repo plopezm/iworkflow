@@ -41,3 +41,5 @@ sql:
               pointer: true
           - column: "task_events.created_at"
             go_type: "string"
+          - column: "task_attachments.created_at"
+            go_type: "string"

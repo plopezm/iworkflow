@@ -50,38 +50,9 @@ func dbError(err error) error {
 	return werrors.Repository(err.Error())
 }
 
-// withImmediateTx runs fn in a BEGIN IMMEDIATE transaction on one dedicated connection. IMMEDIATE takes
-// the write lock up front, so a read-then-write sequence cannot fail with a lock upgrade error.
-// Transaction control statements are the only raw SQL here, and they carry no parameters.
-func (r *TaskRepository) withImmediateTx(ctx context.Context, fn func(queries *gen.Queries) error) (err error) {
-	conn, err := r.db.Conn(ctx)
-	if err != nil {
-		return dbError(err)
-	}
-	defer func() {
-		if closeErr := conn.Close(); closeErr != nil && err == nil {
-			err = dbError(closeErr)
-		}
-	}()
-	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return dbError(err)
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			// The rollback runs even when ctx is cancelled; its failure cannot improve the returned error.
-			_, rollbackErr := conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
-			_ = rollbackErr
-		}
-	}()
-	if err := fn(gen.New(conn)); err != nil {
-		return err
-	}
-	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return dbError(err)
-	}
-	committed = true
-	return nil
+// withImmediateTx runs fn in a BEGIN IMMEDIATE transaction on this repository's database.
+func (r *TaskRepository) withImmediateTx(ctx context.Context, fn func(queries *gen.Queries) error) error {
+	return withImmediateTx(ctx, r.db, fn)
 }
 
 func nullableWorkspace(workspaceID *string) any {
@@ -173,7 +144,7 @@ func (r *TaskRepository) List(ctx context.Context, workspaceID *string) ([]model
 // ListActive returns the unfinished tasks, newest first (ties by id, descending).
 func (r *TaskRepository) ListActive(ctx context.Context, workspaceID *string) ([]models.Task, error) {
 	rows, err := r.queries.ListActiveTasks(ctx, gen.ListActiveTasksParams{
-		ClosedStatuses: statusList(closedStatusNames()),
+		ClosedStatuses: jsonArray(closedStatusNames()),
 		WorkspaceID:    nullableWorkspace(workspaceID),
 	})
 	if err != nil {
@@ -185,7 +156,7 @@ func (r *TaskRepository) ListActive(ctx context.Context, workspaceID *string) ([
 // ListDonePage returns a page of finished tasks ordered by completion, newest first, ties by id.
 func (r *TaskRepository) ListDonePage(ctx context.Context, workspaceID *string, limit int64, offset int64) ([]models.Task, error) {
 	rows, err := r.queries.ListDoneTasksPage(ctx, gen.ListDoneTasksPageParams{
-		ClosedStatuses: statusList(closedStatusNames()),
+		ClosedStatuses: jsonArray(closedStatusNames()),
 		WorkspaceID:    nullableWorkspace(workspaceID),
 		PageOffset:     offset,
 		PageLimit:      limit,
@@ -202,7 +173,7 @@ func (r *TaskRepository) ListByStatus(ctx context.Context, statuses []models.Tas
 	for _, status := range statuses {
 		names = append(names, status.String())
 	}
-	rows, err := r.queries.ListTasksByStatus(ctx, statusList(names))
+	rows, err := r.queries.ListTasksByStatus(ctx, jsonArray(names))
 	if err != nil {
 		return nil, dbError(err)
 	}
@@ -245,7 +216,7 @@ func (r *TaskRepository) SetSubagentActivity(ctx context.Context, id models.Task
 		SubagentsActive:  clampCount(activity.Active),
 		SubagentsWaiting: clampCount(activity.Waiting),
 		ID:               id.String(),
-		LiveStatuses:     statusList(liveStatusNames()),
+		LiveStatuses:     jsonArray(liveStatusNames()),
 	})
 	if err != nil {
 		return dbError(err)
@@ -329,7 +300,7 @@ func (r *TaskRepository) ResetToBacklog(ctx context.Context, id models.TaskID) (
 		updated, err := queries.ResetTaskToBacklog(ctx, gen.ResetTaskToBacklogParams{
 			UpdatedAt:          formatTimestamp(r.clock()),
 			ID:                 id.String(),
-			ResettableStatuses: statusList(resettableStatusNames()),
+			ResettableStatuses: jsonArray(resettableStatusNames()),
 		})
 		if err != nil {
 			return dbError(err)
@@ -523,9 +494,9 @@ func eventFromRow(row gen.TaskEvent) (models.TaskEvent, error) {
 	}, nil
 }
 
-// statusList encodes status names as one JSON array. The queries expand it with json_each, so every
-// status filter is a single bound parameter and cannot shift the numbering of the other arguments.
-func statusList(names []string) string {
+// jsonArray encodes a list of strings as one JSON array. The queries expand it with json_each, so every
+// list filter is a single bound parameter and cannot shift the numbering of the other arguments.
+func jsonArray(names []string) string {
 	// json.Marshal cannot fail for a slice of strings, so its error is not checked.
 	data, _ := json.Marshal(names)
 	return string(data)

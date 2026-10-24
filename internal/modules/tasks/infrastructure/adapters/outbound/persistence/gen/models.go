@@ -114,7 +114,7 @@ type TaskAttachment struct {
 	MimeType  string
 	Path      string
 	SizeBytes int64
-	CreatedAt time.Time
+	CreatedAt string
 }
 
 type TaskDependency struct {
