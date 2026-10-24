@@ -429,3 +429,19 @@ func TestTabsExposeProfilesAndModelsScreens(t *testing.T) {
 	require.Contains(t, page.String(), `id="models-dialog"`)
 	require.Contains(t, page.String(), `id="models-routing"`)
 }
+
+// The hint request sent by a field that was bound late carries the value typed before the binding. A
+// valid name enables the submit button out of band; an invalid one keeps it disabled.
+func TestNameHintLoadRequestEnablesSubmitForTypedValue(t *testing.T) {
+	f := newFixture(t)
+
+	valid := f.get("/agent-profiles/name-hint?name=ap-typed-early")
+	invalid := f.get("/agent-profiles/name-hint?name=ap%20typed")
+
+	require.Equal(t, http.StatusOK, valid.Code)
+	require.Contains(t, valid.Body.String(), `id="profiles-name-submit"`)
+	require.Contains(t, valid.Body.String(), `hx-swap-oob="true"`)
+	require.NotContains(t, valid.Body.String(), "disabled")
+	require.Contains(t, invalid.Body.String(), "Solo letras, dígitos")
+	require.Contains(t, invalid.Body.String(), "disabled")
+}
