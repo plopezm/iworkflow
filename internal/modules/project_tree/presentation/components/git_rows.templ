@@ -1,0 +1,118 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/project_tree/domain/models"
+	"iworkflow/internal/modules/project_tree/presentation/state"
+)
+
+// ChangeSection is one titled group of changes with its bulk toggle. Empty groups render nothing.
+templ ChangeSection(v state.GitView, testid string, title i18n.Msg, changes []models.GitChange, t toggle, staged bool) {
+	if len(changes) > 0 {
+		<section data-testid={ testid } { stagedAttrs(staged)... }>
+			<div class="flex h-8 items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted">
+				<span class="flex-1 truncate">{ sectionTitle(ctx, title, len(changes)) }</span>
+				<form hx-post={ t.url } hx-target={ "#" + gitBodyID(v) } hx-swap="innerHTML" class="contents">
+					<input type="hidden" name="scope" value={ wireOf(v) }/>
+					for _, change := range changes {
+						<input type="hidden" name="paths" value={ change.Path }/>
+					}
+					<button
+						type="submit"
+						class="icon-btn"
+						data-testid="git-section-toggle"
+						title={ t.bulk.T(ctx) }
+						aria-label={ t.bulk.T(ctx) }
+					>{ t.symbol }</button>
+				</form>
+			</div>
+			<ul>
+				for _, change := range changes {
+					@ChangeRow(v, change, t)
+				}
+			</ul>
+		</section>
+	}
+}
+
+// ChangeRow is one file: its name and directory (a link to the file when it still exists), its status
+// letter, and the toggle that stages or unstages it.
+templ ChangeRow(v state.GitView, change models.GitChange, t toggle) {
+	<li data-testid="git-row" data-path={ change.Path }>
+		<div class={ "tree-row gap-2 pl-3 " + statusOf(change.Kind) }>
+			if state.Openable(change.Kind) {
+				<a
+					href={ templ.SafeURL(state.FileHref(v.Scope, change.Path)) }
+					class="flex min-w-0 flex-1 items-center gap-2"
+					{ link.Props{Href: state.FileHref(v.Scope, change.Path), Beside: true}.Attributes()... }
+				>
+					@changeSummary(change)
+				</a>
+			} else {
+				<div class="flex min-w-0 flex-1 items-center gap-2">
+					@changeSummary(change)
+				</div>
+			}
+			<span class="text-xs font-semibold" aria-hidden="true">{ state.KindLetter(change.Kind) }</span>
+			<form hx-post={ t.url } hx-target={ "#" + gitBodyID(v) } hx-swap="innerHTML" class="contents">
+				<input type="hidden" name="scope" value={ wireOf(v) }/>
+				<input type="hidden" name="paths" value={ change.Path }/>
+				<button
+					type="submit"
+					class="icon-btn"
+					data-testid="git-toggle"
+					title={ rowLabel(ctx, t, change.Path) }
+					aria-label={ rowLabel(ctx, t, change.Path) }
+				>{ t.symbol }</button>
+			</form>
+		</div>
+	</li>
+}
+
+templ changeSummary(change models.GitChange) {
+	@coreui.TreeIcon(false, false)
+	<span class="truncate" title={ change.Path }>{ state.FileName(change.Path) }</span>
+	<span class="min-w-0 flex-1 truncate text-xs text-muted">{ state.ParentDir(change.Path) }</span>
+}
+
+// CommitForm sends the staged changes with the typed message. The form is hidden by CSS while nothing
+// is staged.
+templ CommitForm(v state.GitView) {
+	<div data-git-commit class="stack px-3 py-2" data-testid="git-commit-form">
+		<form class="stack" hx-post={ state.PathGitCommit } hx-target={ "#" + gitBodyID(v) } hx-swap="innerHTML" hx-disabled-elt="find button">
+			<input type="hidden" name="scope" value={ wireOf(v) }/>
+			@CommitMessageField(v, "", false)
+			<div>
+				<button type="submit" class="btn-primary" data-testid="git-commit">{ msgCommit.T(ctx) }</button>
+			</div>
+		</form>
+	</div>
+}
+
+// CommitMessageField is the commit message. A successful commit replaces it out of band, which clears it.
+templ CommitMessageField(v state.GitView, value string, oob bool) {
+	<textarea
+		id={ gitMessageID(v) }
+		name="message"
+		class="input"
+		rows="2"
+		required
+		data-testid="git-commit-message"
+		placeholder={ msgCommitMessage.T(ctx) }
+		aria-label={ msgCommitMessage.T(ctx) }
+		{ oobAttrs(oob)... }
+	>{ value }</textarea>
+}
+
+// GitActionResponse is the answer of a stage, unstage or commit: the refreshed list, the action error
+// slot, and, after a successful commit, the cleared message. All three are swapped out of band or into
+// the list, so the message typed by the user survives a failed action.
+templ GitActionResponse(v state.GitView, cleared bool) {
+	@GitChangesBody(v)
+	@GitErrorSlot(v, true)
+	if cleared {
+		@CommitMessageField(v, "", true)
+	}
+}
