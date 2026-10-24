@@ -54,3 +54,11 @@ func activeNames() []string {
 	}
 	return names
 }
+
+// Rust: task_repository_adapter::is_transient_only_for_busy
+func TestOnlyBusyErrorsAreTransient(t *testing.T) {
+	t.Parallel()
+	assert.True(t, werrors.IsTransient(werrors.Busy("database is locked")))
+	assert.False(t, werrors.IsTransient(werrors.Repository("x")))
+	assert.False(t, werrors.IsTransient(werrors.EmptyPrompt()))
+}

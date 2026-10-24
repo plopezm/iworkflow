@@ -35,11 +35,22 @@ func (c *testClock) Now() time.Time {
 	return *c.now.Load()
 }
 
+// advance moves the clock forward, so that a write which changes updated_at is visible in tests.
+func (c *testClock) advance(d time.Duration) {
+	next := c.Now().Add(d)
+	c.now.Store(&next)
+}
+
 // Repo bundles a migrated database with the repository built on it.
 type Repo struct {
 	DB    *sql.DB
 	Tasks *persistence.TaskRepository
 	clock *testClock
+}
+
+// advance moves the repository clock forward.
+func (r *Repo) advance(d time.Duration) {
+	r.clock.advance(d)
 }
 
 func newRepo(t *testing.T) *Repo {

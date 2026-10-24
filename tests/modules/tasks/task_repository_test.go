@@ -657,3 +657,48 @@ func titles(tasks []models.Task) []string {
 	}
 	return result
 }
+
+// Rust: task_repository_adapter_test::list_done_page_orders_by_completion_instead_of_creation
+func TestListDonePageOrdersByCompletionInsteadOfCreation(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, "/repos/a")
+	base := fixedClock.Truncate(time.Microsecond)
+	at := func(seconds int) time.Time { return base.Add(time.Duration(seconds) * time.Second) }
+
+	createdFirst := newTask(t, workspaceID, "created-first", models.StatusMerged)
+	createdFirst.CreatedAt = at(1)
+	createdFirst.UpdatedAt = at(30)
+	createdLast := newTask(t, workspaceID, "created-last", models.StatusMerged)
+	createdLast.CreatedAt = at(10)
+	createdLast.UpdatedAt = at(20)
+	insertTask(t, repo, createdFirst)
+	insertTask(t, repo, createdLast)
+
+	page, err := repo.Tasks.ListDonePage(bg(), nil, 10, 0)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"created-first", "created-last"}, titles(page))
+}
+
+// Rust: task_repository_adapter_test::updated_at_is_frozen_after_closing_so_done_order_is_stable
+// The clock advances between the steps, so a write that wrongly touches updated_at is visible.
+func TestUpdatedAtIsFrozenAfterClosingSoDoneOrderIsStable(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, "/repos/a")
+	open := newTask(t, workspaceID, "open", models.StatusRunning)
+	insertTask(t, repo, open)
+
+	require.NoError(t, repo.Tasks.UpdateStatus(bg(), open.ID, models.StatusMerged, nil))
+	closedAt := found(t, repo, open.ID).UpdatedAt
+
+	repo.advance(time.Minute)
+	require.NoError(t, repo.Tasks.RecordDiffRange(bg(), open.ID, models.DiffRange{BaseSHA: "aaa111", HeadSHA: "bbb222"}))
+	repo.advance(time.Minute)
+	require.NoError(t, repo.Tasks.SetSubagentActivity(bg(), open.ID, models.NewSubagentActivity(1, 0)))
+	repo.advance(time.Minute)
+	_, err := repo.Tasks.AppendEvent(bg(), open.ID, models.StatusKind(models.StatusMerged, nil))
+	require.NoError(t, err)
+
+	assert.True(t, closedAt.Equal(found(t, repo, open.ID).UpdatedAt), "closing sets updated_at; later writes must not move it")
+}
