@@ -1,0 +1,100 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/agent_profiles/presentation/state"
+)
+
+// NameDialog asks for a profile name: new, duplicate or rename. The dialog host is always present so
+// that a request can open the dialog, or close it by sending an empty host.
+templ NameDialog(dialog state.NameDialogView) {
+	<div id={ dialog.ID }>
+		if dialog.Title != "" {
+			@coreui.Modal(coreui.ModalProps{Title: dialog.Title, Open: true}) {
+				<form class="stack" hx-post={ dialog.Action } hx-target={ hashID(dialog.ID) } hx-swap="outerHTML">
+					<input type="hidden" name="selected" value={ dialog.Selected }/>
+					@coreui.TextField(coreui.FieldProps{
+						Label:    msgProfileName.T(ctx),
+						Name:     "name",
+						Value:    dialog.Value,
+						Required: true,
+						Attrs:    templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": "input changed delay:150ms", "hx-target": hashID(nameHintID("profiles")), "hx-swap": "outerHTML"},
+					})
+					@NameHintText("profiles", dialog.Hint)
+					if dialog.Error != "" {
+						@coreui.ErrorText(dialog.Error)
+					}
+					<div class="row gap-2">
+						@NameSubmit("profiles", dialog.SubmitLabel, dialog.Invalid, false)
+						<button type="button" class="btn-secondary" data-modal-close>{ msgCancel.T(ctx) }</button>
+					</div>
+				</form>
+			}
+		}
+	</div>
+}
+
+// NameHintText is the hint line under a name field. The live hint request swaps it by id.
+templ NameHintText(prefix string, hint string) {
+	<p id={ nameHintID(prefix) } class="text-sm text-error">{ hint }</p>
+}
+
+// NameSubmit is the submit button of a name form. It is disabled while the name breaks a rule, as in
+// the Rust dialog. The live hint reply sends it out of band (oob), so it updates without a reload.
+templ NameSubmit(prefix string, label string, invalid bool, oob bool) {
+	<button type="submit" id={ nameSubmitID(prefix) } class="btn-primary" disabled?={ invalid } { oobAttrs(oob)... }>{ label }</button>
+}
+
+// ImportDialog imports a profile from an uploaded file or from pasted JSON, with an optional new name.
+templ ImportDialog(dialog state.ImportDialogView) {
+	<div id={ dialog.ID }>
+		@coreui.Modal(coreui.ModalProps{Title: msgImportTitle.T(ctx), Open: true}) {
+			<form class="stack" hx-post={ dialog.Action } hx-encoding="multipart/form-data" hx-target={ hashID(dialog.ID) } hx-swap="outerHTML">
+				<label class="stack gap-1.5">
+					<span class="text-sm font-medium text-fg">{ msgImportFile.T(ctx) }</span>
+					<input type="file" name="file" accept=".json,application/json" class="input"/>
+				</label>
+				@coreui.TextArea(coreui.FieldProps{Label: msgPasteJSON.T(ctx), Name: "raw", Value: dialog.Raw, Placeholder: "{ \"kind\": … }"})
+				@coreui.TextField(coreui.FieldProps{Label: msgRenameLabel.T(ctx), Name: "rename_to", Value: dialog.RenameTo, Placeholder: msgRenameHint.T(ctx)})
+				if dialog.Error != "" {
+					@coreui.ErrorText(dialog.Error)
+				}
+				<div class="row gap-2">
+					<button type="submit" class="btn-primary">{ msgImportAction.T(ctx) }</button>
+					<button type="button" class="btn-secondary" data-modal-close>{ msgCancel.T(ctx) }</button>
+				</div>
+			</form>
+		}
+	</div>
+}
+
+// RoleDialog creates an agent role. Scope says which screen opened it, so the reply refreshes that
+// screen and not the other one.
+templ RoleDialog(dialog state.RoleDialogView) {
+	<div id={ dialog.ID }>
+		@coreui.Modal(coreui.ModalProps{Title: msgNewRoleTitle.T(ctx), Open: true}) {
+			<form class="stack" hx-post={ dialog.Action } hx-target={ hashID(dialog.ID) } hx-swap="outerHTML">
+				<input type="hidden" name="scope" value={ dialog.Scope }/>
+				<input type="hidden" name="selected" value={ dialog.Selected }/>
+				@coreui.TextField(coreui.FieldProps{
+					Label:       msgRoleName.T(ctx),
+					Name:        "name",
+					Value:       dialog.Name,
+					Placeholder: "sdd-review",
+					Required:    true,
+					Attrs:       templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": "input changed delay:150ms", "hx-vals": valsJSON(map[string]string{"scope": dialog.Scope}), "hx-target": hashID(nameHintID(dialog.Scope + "-role")), "hx-swap": "outerHTML"},
+				})
+				@NameHintText(dialog.Scope+"-role", dialog.Hint)
+				@NameSubmit(dialog.Scope+"-role", dialog.SubmitLabel, dialog.Invalid, false)
+				@coreui.TextField(coreui.FieldProps{Label: msgRoleDescription.T(ctx), Name: "description", Value: dialog.Description, Placeholder: msgRoleDescHint.T(ctx), Required: true})
+				@coreui.TextArea(coreui.FieldProps{Label: "Prompt", Name: "prompt", Value: dialog.Prompt, Placeholder: msgRolePromptHint.T(ctx), Required: true})
+				if dialog.Error != "" {
+					@coreui.ErrorText(dialog.Error)
+				}
+				<div class="row gap-2">
+					<button type="button" class="btn-secondary" data-modal-close>{ msgCancel.T(ctx) }</button>
+				</div>
+			</form>
+		}
+	</div>
+}
