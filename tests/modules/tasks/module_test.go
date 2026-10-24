@@ -12,11 +12,6 @@ import (
 	"iworkflow/internal/modules/tasks/infrastructure/di"
 )
 
-// nopPublisher drops the events; the live bus belongs to slice B.
-type nopPublisher struct{}
-
-func (nopPublisher) Publish(models.TaskEvent) {}
-
 // nopStarter is the start use case of slices E and F; the create tests here never ask to start a task.
 type nopStarter struct{}
 
@@ -68,13 +63,13 @@ func newModule(t *testing.T, repo *Repo) *di.Module {
 	module, err := di.NewModule(di.Deps{
 		DB:          repo.DB,
 		Workspaces:  workspaceLookup{repo: repo},
-		Publisher:   nopPublisher{},
 		Attachments: nopAttachments{},
 		Storage:     nopStorage{},
 		Worktrees:   nopLayout{},
 		Start:       nopStarter{},
 	})
 	require.NoError(t, err)
+	t.Cleanup(module.ShutdownEvents)
 	return module
 }
 

@@ -14,6 +14,8 @@ import (
 	"iworkflow/internal/modules/tasks/application"
 	"iworkflow/internal/modules/tasks/domain/ports/inbound"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
+	httpinbound "iworkflow/internal/modules/tasks/infrastructure/adapters/inbound"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/events"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
 )
 
@@ -23,8 +25,6 @@ type Deps struct {
 	DB *sql.DB
 	// Workspaces reads the workspaces the tasks belong to; provided by the workspaces module.
 	Workspaces outbound.WorkspaceLookup
-	// Publisher broadcasts task events live; provided by the event bus (slice B).
-	Publisher outbound.TaskEventPublisher
 	// Attachments stores the image metadata and Storage the image files (slice D).
 	Attachments outbound.TaskAttachmentRepository
 	Storage     outbound.AttachmentStorage
@@ -34,7 +34,9 @@ type Deps struct {
 	Start inbound.StartTaskUseCase
 }
 
-// Module exposes the slice A use cases and the agent event sink.
+// Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
+// the stream handlers. The event queue starts a worker goroutine: call ShutdownEvents when the
+// application stops.
 type Module struct {
 	Get             *application.GetTask
 	List            *application.ListTasks
@@ -47,6 +49,15 @@ type Module struct {
 	DeleteWorkspace *application.DeleteWorkspaceTasks
 	AgentEvents     *application.HandleAgentEvent
 	Lifecycle       *application.TaskLifecycle
+	// GetEvents reads the persisted history of a task after a cursor.
+	GetEvents *application.GetTaskEvents
+	// EventSink is what the agent runtimes report their events to: queued, so that a slow database
+	// never blocks a runtime reader. Flush and ShutdownEvents belong to it.
+	EventSink *application.QueuedAgentEventSink
+	// Subscriber gives the live observers a subscription to the published events.
+	Subscriber outbound.TaskEventSubscriber
+	// Streams serves the task and board event streams; the composition root mounts them.
+	Streams *httpinbound.TaskStreams
 }
 
 // NewModule wires the adapters into the use cases. It fails when a required dependency is missing,
@@ -65,10 +76,15 @@ func NewModule(deps Deps) (*Module, error) {
 		persistence.Clock(clock),
 		persistence.ContextSleep,
 	)
-	lifecycle := application.NewTaskLifecycle(repository, deps.Publisher, deps.Workspaces, clock)
+	// The bus is owned by the module: the lifecycle publishes to it and the streams subscribe to it.
+	bus := events.NewEventBus(events.DefaultCapacity)
+	lifecycle := application.NewTaskLifecycle(repository, bus, deps.Workspaces, clock)
+	agentEvents := application.NewHandleAgentEvent(lifecycle, clock)
+	getTask := application.NewGetTask(lifecycle)
+	getEvents := application.NewGetTaskEvents(repository)
 
 	return &Module{
-		Get:             application.NewGetTask(lifecycle),
+		Get:             getTask,
 		List:            application.NewListTasks(repository),
 		ListDone:        application.NewListDoneTasks(repository),
 		Create:          application.NewCreateTask(lifecycle, deps.Worktrees, deps.Start, deps.Attachments, deps.Storage, newUUID, clock),
@@ -76,7 +92,11 @@ func NewModule(deps Deps) (*Module, error) {
 		Delete:          application.NewDeleteTask(lifecycle, deps.Storage),
 		DeleteWorkspace: application.NewDeleteWorkspaceTasks(lifecycle, deps.Storage),
 		Lifecycle:       lifecycle,
-		AgentEvents:     application.NewHandleAgentEvent(lifecycle, clock),
+		AgentEvents:     agentEvents,
+		GetEvents:       getEvents,
+		EventSink:       application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity),
+		Subscriber:      bus,
+		Streams:         httpinbound.NewTaskStreams(getTask, getEvents, bus),
 	}, nil
 }
 
@@ -91,7 +111,6 @@ func (d Deps) validate() error {
 	}{
 		{"DB", d.DB == nil},
 		{"Workspaces", d.Workspaces == nil},
-		{"Publisher", d.Publisher == nil},
 		{"Attachments", d.Attachments == nil},
 		{"Storage", d.Storage == nil},
 		{"Worktrees", d.Worktrees == nil},
@@ -103,4 +122,15 @@ func (d Deps) validate() error {
 		}
 	}
 	return nil
+}
+
+// FlushEvents waits until every event the runtimes reported so far is processed and persisted.
+func (m *Module) FlushEvents() {
+	m.EventSink.Flush()
+}
+
+// ShutdownEvents stops the event queue after processing what it holds. Call it once, when the
+// application stops; events reported afterwards are processed inline.
+func (m *Module) ShutdownEvents() {
+	m.EventSink.Shutdown()
 }
