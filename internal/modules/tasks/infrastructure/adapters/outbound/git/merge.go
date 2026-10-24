@@ -18,6 +18,9 @@ import (
 // checked out somewhere, the merge happens there, and only if that checkout is clean. Otherwise the merge
 // runs in a temporary worktree that is removed afterwards. On conflict the base branch is left as it was.
 func (a *WorktreeAdapter) Merge(ctx context.Context, repo string, baseBranch string, branch string, message string) (models.MergeOutcome, error) {
+	if err := checkRefArguments(baseBranch, branch); err != nil {
+		return models.MergeOutcome{}, err
+	}
 	if err := a.lockMerges(ctx); err != nil {
 		return models.MergeOutcome{}, err
 	}

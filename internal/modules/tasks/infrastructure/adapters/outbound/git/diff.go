@@ -45,6 +45,9 @@ func truncateDiff(stat string, patch string, commits []string) models.TaskDiff {
 // the uncommitted changes and the new untracked files. It reads the worktree and does not touch the
 // index the agent uses.
 func (a *WorktreeAdapter) DiffLive(ctx context.Context, worktree string, baseBranch string) (models.TaskDiff, error) {
+	if err := checkRefArgument(baseBranch); err != nil {
+		return models.TaskDiff{}, err
+	}
 	mergeBase, err := git(ctx, worktree, "merge-base", baseBranch, "HEAD")
 	if err != nil {
 		return models.TaskDiff{}, err

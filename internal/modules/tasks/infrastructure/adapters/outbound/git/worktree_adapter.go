@@ -124,6 +124,9 @@ func (a *WorktreeAdapter) CommitAll(ctx context.Context, path string, message st
 
 // Diff returns the changes of branch against baseBranch: the commits of the branch and their diff.
 func (a *WorktreeAdapter) Diff(ctx context.Context, repo string, baseBranch string, branch string) (models.TaskDiff, error) {
+	if err := checkRefArguments(baseBranch, branch); err != nil {
+		return models.TaskDiff{}, err
+	}
 	return buildDiff(ctx, repo, baseBranch+"..."+branch, baseBranch+".."+branch)
 }
 
@@ -136,6 +139,9 @@ func (a *WorktreeAdapter) DiffRange(ctx context.Context, repo string, diffRange 
 // DiffFingerprint is the tips of both branches. base...branch depends on them and on nothing else, so
 // the fingerprint changes exactly when the diff can change.
 func (a *WorktreeAdapter) DiffFingerprint(ctx context.Context, repo string, baseBranch string, branch string) (string, error) {
+	if err := checkRefArguments(baseBranch, branch); err != nil {
+		return "", err
+	}
 	shas, err := git(ctx, repo, "rev-parse", baseBranch, branch)
 	if err != nil {
 		return "", err
@@ -147,6 +153,9 @@ func (a *WorktreeAdapter) DiffFingerprint(ctx context.Context, repo string, base
 // that keeps the commits after the branch is deleted. It must run before the merge, which moves the
 // merge base to the tip.
 func (a *WorktreeAdapter) PinRange(ctx context.Context, repo string, baseBranch string, branch string, pinRef string) (models.DiffRange, error) {
+	if err := checkRefArguments(baseBranch, branch, pinRef); err != nil {
+		return models.DiffRange{}, err
+	}
 	baseSHA, err := git(ctx, repo, "merge-base", baseBranch, branch)
 	if err != nil {
 		return models.DiffRange{}, err
@@ -168,6 +177,12 @@ func (a *WorktreeAdapter) PinRange(ctx context.Context, repo string, baseBranch 
 func (a *WorktreeAdapter) Remove(ctx context.Context, repo string, path string, branch string) error {
 	if branch != "" && !models.IsTaskBranch(branch) {
 		return werrors.Git("la rama " + branch + " no es de una tarea; no se borra")
+	}
+	if a.Exists(ctx, path) {
+		// git removes any registered worktree it is given, so containment is checked before git runs.
+		if err := a.ensureInsideRoot(path); err != nil {
+			return err
+		}
 	}
 	if a.Exists(ctx, path) && !a.deferRemoval(ctx, repo, path) {
 		if err := a.removeNow(ctx, repo, path); err != nil {
@@ -286,6 +301,16 @@ func isStrictlyInside(root string, path string) bool {
 		return false
 	}
 	return rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+// checkRefArguments applies checkRefArgument to each ref.
+func checkRefArguments(refs ...string) error {
+	for _, ref := range refs {
+		if err := checkRefArgument(ref); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // checkRefArgument rejects a ref name that git would read as an option, or that is empty.
