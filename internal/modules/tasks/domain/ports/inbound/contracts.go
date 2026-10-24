@@ -3,6 +3,7 @@ package inbound
 
 import (
 	"context"
+	"time"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 )
@@ -22,4 +23,11 @@ type StartTaskUseCase interface {
 type SuccessorTrigger interface {
 	// Trigger returns how many tasks were started.
 	Trigger(ctx context.Context) (int, error)
+}
+
+// RateLimitedResumer resumes the tasks stopped by a provider usage limit whose retry time has come. The resume
+// loop calls it on every tick; now is the instant the schedule is compared against.
+type RateLimitedResumer interface {
+	// Execute returns how many tasks were resumed.
+	Execute(ctx context.Context, now time.Time) (int, error)
 }
