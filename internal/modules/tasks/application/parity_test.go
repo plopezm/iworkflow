@@ -60,6 +60,7 @@ func TestCreateTaskFailsWhenInsertFails(t *testing.T) {
 
 	assert.ErrorIs(t, err, werrors.Repository("boom"))
 	assert.Empty(t, starter.started, "a task that was not stored is never started")
+	assert.Empty(t, repo.tasks, "no task is stored when the insert fails")
 }
 
 // Rust: create_task::keeps_requested_priority_on_the_created_task
@@ -137,11 +138,13 @@ func TestUpdateDerivesTheTitleFromThePromptWhenBlank(t *testing.T) {
 func TestUpdateRejectsEmptyPrompt(t *testing.T) {
 	t.Parallel()
 	task := newTask(models.StatusBacklog)
-	useCase := updateUseCase(newFakeRepository(task), &fakeAttachments{}, &fakeStorage{})
+	repo := newFakeRepository(task)
+	useCase := updateUseCase(repo, &fakeAttachments{}, &fakeStorage{})
 
 	_, err := useCase.Execute(context.Background(), task.ID, baseUpdate("x", " \n "))
 
 	assert.ErrorIs(t, err, werrors.EmptyPrompt())
+	assert.Equal(t, "Arregla el login", repo.tasks[task.ID].Title, "the stored task is unchanged")
 }
 
 // Rust: update_task::stores_new_images_after_updating_details
@@ -232,6 +235,8 @@ func TestUpdateRejectsWhenRemainingPlusNewExceedTheLimit(t *testing.T) {
 	_, err := useCase.Execute(context.Background(), task.ID, input)
 
 	assert.ErrorIs(t, err, werrors.InvalidAttachment(""))
+	assert.Empty(t, attachments.inserted, "no metadata is written for a rejected update")
+	assert.Empty(t, attachments.removed, "no stored attachment is removed for a rejected update")
 }
 
 // Rust: update_task::rejects_removal_when_task_is_not_editable
@@ -264,7 +269,7 @@ func TestGetTaskMissingIsNotFound(t *testing.T) {
 // Rust: get_task_subagents::existing_task_without_subagents_yields_empty
 func TestGetTaskSubagentsOfTaskWithoutSubagentsIsEmpty(t *testing.T) {
 	t.Parallel()
-	task := newTask(models.StatusRunning)
+	task := newTask(models.StatusMerged)
 	lifecycle, _ := newLifecycle(newFakeRepository(task))
 	runtime := &fakeRuntime{}
 

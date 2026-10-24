@@ -12,6 +12,7 @@ import (
 	"iworkflow/internal/modules/tasks/domain/models"
 )
 
+// Rust: task_repository_adapter_test::inserts_finds_and_updates_status
 func TestInsertsFindsAndUpdatesStatus(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -36,6 +37,7 @@ func TestUpdateStatusOfMissingTaskIsNotFound(t *testing.T) {
 	assert.ErrorContains(t, err, "tarea no encontrada")
 }
 
+// Rust: task_repository_adapter_test::lists_newest_first_filtered_by_workspace_and_status
 func TestListsNewestFirstFilteredByWorkspaceAndStatus(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -63,6 +65,7 @@ func TestListsNewestFirstFilteredByWorkspaceAndStatus(t *testing.T) {
 	assert.Len(t, byStatus, 3)
 }
 
+// Rust: task_repository_adapter_test::appends_events_with_increasing_seq_and_reads_after_cursor
 func TestAppendsEventsWithIncreasingSeqAndReadsAfterCursor(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -89,6 +92,7 @@ func TestAppendsEventsWithIncreasingSeqAndReadsAfterCursor(t *testing.T) {
 	assert.Equal(t, *second.Seq, *after[0].Seq)
 }
 
+// Rust: task_repository_adapter_test::updates_details_only_while_in_backlog
 func TestUpdatesDetailsOnlyWhileInBacklog(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -118,6 +122,7 @@ func TestUpdatesDetailsOnlyWhileInBacklog(t *testing.T) {
 	assert.False(t, updated)
 }
 
+// Rust: task_repository_adapter_test::claim_for_start_sets_plan_and_is_exclusive
 func TestClaimForStartSetsPlanAndIsExclusive(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -175,6 +180,7 @@ func TestConcurrentClaimsOfOneTaskHaveExactlyOneWinner(t *testing.T) {
 	assert.Equal(t, models.StatusStarting, found(t, repo, task.ID).Status)
 }
 
+// Rust: task_repository_adapter_test::claim_for_start_rejects_missing_task
 func TestClaimForStartRejectsMissingTask(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -183,6 +189,7 @@ func TestClaimForStartRejectsMissingTask(t *testing.T) {
 	assert.False(t, claimed)
 }
 
+// Rust: task_repository_adapter_test::revert_start_claim_returns_starting_task_to_backlog
 func TestRevertStartClaimReturnsStartingTaskToBacklog(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -201,6 +208,7 @@ func TestRevertStartClaimReturnsStartingTaskToBacklog(t *testing.T) {
 	assert.Equal(t, models.StatusBacklog, found(t, repo, original.ID).Status)
 }
 
+// Rust: task_repository_adapter_test::revert_start_claim_ignores_tasks_not_in_starting
 func TestRevertStartClaimIgnoresTasksNotInStarting(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -214,6 +222,7 @@ func TestRevertStartClaimIgnoresTasksNotInStarting(t *testing.T) {
 	assert.Equal(t, models.StatusRunning, found(t, repo, running.ID).Status)
 }
 
+// Rust: task_repository_adapter_test::reset_to_backlog_deletes_events_and_clears_fields
 func TestResetToBacklogDeletesEventsAndClearsFields(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -242,6 +251,7 @@ func TestResetToBacklogDeletesEventsAndClearsFields(t *testing.T) {
 	assert.Empty(t, events)
 }
 
+// Rust: task_repository_adapter_test::reset_to_backlog_ignores_backlog_merged_finishing_and_missing_tasks
 func TestResetToBacklogIgnoresBacklogMergedFinishingAndMissingTasks(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -259,6 +269,7 @@ func TestResetToBacklogIgnoresBacklogMergedFinishingAndMissingTasks(t *testing.T
 	assert.False(t, reset)
 }
 
+// Rust: task_repository_adapter_test::pending_dialogs_add_remove_clear_and_ignore_duplicates
 func TestPendingDialogsAddRemoveClearAndIgnoreDuplicates(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -283,6 +294,7 @@ func TestPendingDialogsAddRemoveClearAndIgnoreDuplicates(t *testing.T) {
 	assert.Empty(t, found(t, repo, task.ID).PendingDialogs)
 }
 
+// Rust: task_repository_adapter_test::add_pending_dialog_ignored_for_missing_or_dead_task
 func TestAddPendingDialogIgnoredForMissingOrDeadTask(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -295,6 +307,7 @@ func TestAddPendingDialogIgnoredForMissingOrDeadTask(t *testing.T) {
 	assert.Empty(t, found(t, repo, idle.ID).PendingDialogs)
 }
 
+// Rust: task_repository_adapter_test::deletes_backlog_task_and_cascades_events
 func TestDeleteIfBacklogCascadesEvents(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -315,6 +328,7 @@ func TestDeleteIfBacklogCascadesEvents(t *testing.T) {
 	assert.Empty(t, events)
 }
 
+// Rust: task_repository_adapter_test::delete_if_backlog_keeps_tasks_in_other_states
 func TestDeleteIfBacklogKeepsTasksInOtherStates(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -328,6 +342,7 @@ func TestDeleteIfBacklogKeepsTasksInOtherStates(t *testing.T) {
 	assert.Equal(t, models.StatusRunning, found(t, repo, running.ID).Status)
 }
 
+// Rust: task_repository_adapter_test::delete_inactive_by_workspace_deletes_all_inactive_tasks_and_their_events
 func TestDeleteInactiveByWorkspaceDeletesEveryInactiveTaskAndItsEvents(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -348,6 +363,7 @@ func TestDeleteInactiveByWorkspaceDeletesEveryInactiveTaskAndItsEvents(t *testin
 	assert.Empty(t, remaining)
 }
 
+// Rust: task_repository_adapter_test::delete_inactive_by_workspace_returns_none_and_deletes_nothing_when_one_task_is_active
 func TestDeleteInactiveByWorkspaceDeletesNothingWhenOneTaskIsActive(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -366,21 +382,29 @@ func TestDeleteInactiveByWorkspaceDeletesNothingWhenOneTaskIsActive(t *testing.T
 	assert.Len(t, remaining, 2)
 }
 
+// Rust: task_repository_adapter_test::delete_inactive_by_workspace_does_not_touch_other_workspaces
 func TestDeleteInactiveByWorkspaceDoesNotTouchOtherWorkspaces(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	target := insertWorkspace(t, repo.DB, "/repos/target")
 	other := insertWorkspace(t, repo.DB, "/repos/other")
-	insertTask(t, repo, newTask(t, target, "t", models.StatusBacklog))
+	doomed := newTask(t, target, "t", models.StatusBacklog)
+	insertTask(t, repo, doomed)
 	survivor := newTask(t, other, "o", models.StatusBacklog)
 	insertTask(t, repo, survivor)
 
-	_, deleted, err := repo.Tasks.DeleteInactiveByWorkspace(bg(), target)
+	ids, deleted, err := repo.Tasks.DeleteInactiveByWorkspace(bg(), target)
 	require.NoError(t, err)
 	assert.True(t, deleted)
+	assert.Equal(t, []models.TaskID{doomed.ID}, ids)
+	gone, err := repo.Tasks.Find(bg(), doomed.ID)
+	require.NoError(t, err)
+	assert.Nil(t, gone)
 	assert.Equal(t, survivor.ID, found(t, repo, survivor.ID).ID)
 }
 
+// Rust: task_repository_adapter_test::workspace_with_tasks_cannot_be_deleted
+// The Rust test asserts the workspaces port answers InUse; this one pins the FK that backs it.
 func TestWorkspaceWithTasksCannotBeDeleted(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -391,6 +415,7 @@ func TestWorkspaceWithTasksCannotBeDeleted(t *testing.T) {
 	assert.ErrorContains(t, err, "FOREIGN KEY constraint failed")
 }
 
+// Rust: task_repository_adapter_test::subagent_activity_persists_while_live_and_resets_when_agent_is_gone
 func TestSubagentActivityPersistsWhileLiveAndResetsWhenAgentIsGone(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -408,6 +433,7 @@ func TestSubagentActivityPersistsWhileLiveAndResetsWhenAgentIsGone(t *testing.T)
 	assert.Equal(t, models.SubagentActivity{}, found(t, repo, task.ID).Subagents, "a task without a live agent keeps no counters")
 }
 
+// Rust: task_repository_adapter_test::priority_persists_on_insert_and_defaults_to_normal
 func TestPriorityPersistsOnInsertAndDefaultsToNormal(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -424,6 +450,7 @@ func TestPriorityPersistsOnInsertAndDefaultsToNormal(t *testing.T) {
 
 // TestConcurrentWritersNeverFailNorLoseUpdates runs dialog, event and subagent writes from many
 // goroutines against the same tasks, as the agent event stream does.
+// Rust: task_repository_adapter_test::concurrent_writers_never_fail_nor_lose_updates
 func TestConcurrentWritersNeverFailNorLoseUpdates(t *testing.T) {
 	t.Parallel()
 	const tasksCount = 4
@@ -493,6 +520,7 @@ func TestConcurrentWritersNeverFailNorLoseUpdates(t *testing.T) {
 
 // TestDeleteInactiveByWorkspaceSurvivesConcurrentWrites checks that the transactional workspace cleanup
 // does not fail while other tasks are being written.
+// Rust: task_repository_adapter_test::delete_inactive_by_workspace_survives_concurrent_writes
 func TestDeleteInactiveByWorkspaceSurvivesConcurrentWrites(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -525,6 +553,7 @@ func TestDeleteInactiveByWorkspaceSurvivesConcurrentWrites(t *testing.T) {
 	}
 }
 
+// Rust: task_repository_adapter_test::records_diff_range_and_returns_it_on_find
 func TestRecordsDiffRangeAndReturnsItOnFind(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -536,6 +565,7 @@ func TestRecordsDiffRangeAndReturnsItOnFind(t *testing.T) {
 	assert.Equal(t, &models.DiffRange{BaseSHA: "aaa", HeadSHA: "bbb"}, found(t, repo, merged.ID).DiffRange)
 }
 
+// Rust: task_repository_adapter_test::task_without_recorded_range_has_none
 func TestTaskWithoutRecordedRangeHasNone(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -545,12 +575,14 @@ func TestTaskWithoutRecordedRangeHasNone(t *testing.T) {
 	assert.Nil(t, found(t, repo, task.ID).DiffRange)
 }
 
+// Rust: task_repository_adapter_test::recording_diff_range_for_missing_task_is_not_an_error
 func TestRecordingDiffRangeForMissingTaskIsNotAnError(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	require.NoError(t, repo.Tasks.RecordDiffRange(bg(), newTaskID(t), models.DiffRange{BaseSHA: "a", HeadSHA: "b"}))
 }
 
+// Rust: task_repository_adapter_test::list_active_excludes_done_orders_newest_first_and_filters_workspace
 func TestListActiveExcludesDoneOrdersNewestFirstAndFiltersWorkspace(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -576,6 +608,7 @@ func TestListActiveExcludesDoneOrdersNewestFirstAndFiltersWorkspace(t *testing.T
 	assert.Len(t, all, 3)
 }
 
+// Rust: task_repository_adapter_test::list_done_page_pages_newest_first_with_id_tiebreak_and_workspace_filter
 func TestListDonePagePagesNewestFirstWithIDTiebreak(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -587,6 +620,23 @@ func TestListDonePagePagesNewestFirstWithIDTiebreak(t *testing.T) {
 	}
 	open := newTask(t, workspaceID, "open", models.StatusRunning)
 	insertTask(t, repo, open)
+	// Two tasks finished at the same instant: the larger id comes first, as in the Rust query.
+	tieAt := fixedClock.Add(-time.Hour)
+	tieA := newTask(t, workspaceID, "tie-a", models.StatusDiscarded)
+	tieA.UpdatedAt = tieAt
+	tieB := newTask(t, workspaceID, "tie-b", models.StatusMerged)
+	tieB.UpdatedAt = tieAt
+	insertTask(t, repo, tieA)
+	insertTask(t, repo, tieB)
+	tieFirst, tieSecond := tieA, tieB
+	if tieA.ID.String() < tieB.ID.String() {
+		tieFirst, tieSecond = tieB, tieA
+	}
+	// A finished task of another workspace, newer than everything, must not show up in this workspace.
+	other := insertWorkspace(t, repo.DB, "/repos/b")
+	foreign := newTask(t, other, "foreign", models.StatusMerged)
+	foreign.UpdatedAt = fixedClock.Add(time.Hour)
+	insertTask(t, repo, foreign)
 
 	firstPage, err := repo.Tasks.ListDonePage(bg(), &workspaceID, 2, 0)
 	require.NoError(t, err)
@@ -594,8 +644,17 @@ func TestListDonePagePagesNewestFirstWithIDTiebreak(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"donea", "doneb"}, titles(firstPage))
 	assert.Equal(t, []string{"donec", "doned"}, titles(secondPage))
+
+	all, err := repo.Tasks.ListDonePage(bg(), &workspaceID, 10, 0)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"donea", "doneb", "donec", "doned", "donee", tieFirst.Title, tieSecond.Title}, titles(all))
+
+	everyone, err := repo.Tasks.ListDonePage(bg(), nil, 1, 0)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"foreign"}, titles(everyone))
 }
 
+// Rust: task_repository_adapter_test::limits_persist_on_insert_and_update
 func TestLimitsPersistOnInsertAndUpdate(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -611,6 +670,7 @@ func TestLimitsPersistOnInsertAndUpdate(t *testing.T) {
 	assert.Equal(t, models.ResourceLimits{CPUPercent: ptr(uint32(200))}, found(t, repo, task.ID).Limits)
 }
 
+// Rust: task_repository_adapter_test::usage_limit_schedule_round_trips_and_is_cleared_when_leaving_rate_limited
 func TestUsageLimitScheduleRoundTripsAndIsClearedWhenLeavingRateLimited(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)

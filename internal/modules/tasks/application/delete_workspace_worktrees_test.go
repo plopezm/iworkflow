@@ -20,11 +20,14 @@ func TestDeleteWorkspaceTasksRemovesTheWorktreeOfClosedTasksWithABranch(t *testi
 	backlog := newTask(models.StatusBacklog)
 	repo := newFakeRepository(merged, discarded, backlog)
 	remover := &fakeRemover{}
-	lifecycle, _ := newLifecycle(repo)
+	storage := &fakeStorage{}
+	lifecycle, publisher := newLifecycle(repo)
 
-	require.NoError(t, application.NewDeleteWorkspaceTasks(lifecycle, remover, &fakeStorage{}).DeleteAll(context.Background(), "ws-1"))
+	require.NoError(t, application.NewDeleteWorkspaceTasks(lifecycle, remover, storage).DeleteAll(context.Background(), "ws-1"))
 
 	require.Len(t, remover.removed, 2)
+	assert.Len(t, storage.deletedDirs, 3, "every deleted task folder is removed")
+	assert.Len(t, publisher.published, 3, "every deleted task is announced")
 	assert.Contains(t, remover.removed, "/repos/demo|"+merged.WorktreePath+"|"+merged.Branch)
 	assert.Contains(t, remover.removed, "/repos/demo|"+discarded.WorktreePath+"|"+discarded.Branch)
 	assert.Empty(t, repo.tasks)
@@ -44,17 +47,21 @@ func TestDeleteWorkspaceTasksWorktreeCleanupFailureDoesNotBlockDeletion(t *testi
 	assert.Len(t, publisher.published, 1)
 }
 
+// Rust: delete_workspace_tasks::rejects_when_any_task_is_active_without_cleaning
 // A refused deletion (an active task) cleans nothing: no worktree is removed for a workspace that stays.
 func TestDeleteWorkspaceTasksRefusalRemovesNoWorktree(t *testing.T) {
 	merged := newTask(models.StatusMerged)
 	running := newTask(models.StatusRunning)
 	repo := newFakeRepository(merged, running)
 	remover := &fakeRemover{}
-	lifecycle, _ := newLifecycle(repo)
+	storage := &fakeStorage{}
+	lifecycle, publisher := newLifecycle(repo)
 
-	err := application.NewDeleteWorkspaceTasks(lifecycle, remover, &fakeStorage{}).DeleteAll(context.Background(), "ws-1")
+	err := application.NewDeleteWorkspaceTasks(lifecycle, remover, storage).DeleteAll(context.Background(), "ws-1")
 
 	assert.ErrorIs(t, err, werrors.WorkspaceHasActiveTasks())
 	assert.Empty(t, remover.removed)
+	assert.Empty(t, storage.deletedDirs)
+	assert.Empty(t, publisher.published)
 	assert.Len(t, repo.tasks, 2)
 }

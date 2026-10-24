@@ -352,10 +352,11 @@ func (s *fakeStarter) Start(_ context.Context, id models.TaskID) (models.Task, e
 // fakeRuntime is the agent runtime seen by the use cases that answer dialogs or list subagents.
 type fakeRuntime struct {
 	outbound.AgentRuntime
-	running      bool
-	capabilities models.AgentCapabilities
-	sent         []models.AgentCommand
-	subagents    []models.SubagentTask
+	running       bool
+	capabilities  models.AgentCapabilities
+	sent          []models.AgentCommand
+	subagents     []models.SubagentTask
+	subagentCalls int
 }
 
 func (r *fakeRuntime) IsRunning(_ context.Context, _ models.TaskID) bool { return r.running }
@@ -370,6 +371,7 @@ func (r *fakeRuntime) Send(_ context.Context, _ models.TaskID, command models.Ag
 }
 
 func (r *fakeRuntime) Subagents(_ context.Context, _ models.TaskID) []models.SubagentTask {
+	r.subagentCalls++
 	return r.subagents
 }
 
