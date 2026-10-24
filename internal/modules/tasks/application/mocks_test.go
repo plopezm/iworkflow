@@ -66,6 +66,9 @@ type fakeRepository struct {
 	deleteResult  *bool
 	activeFilter  *string
 	donePage      [2]int64
+	doneWorkspace *string
+	eventsTask    models.TaskID
+	eventsAfter   *int64
 	insertErr     error
 	appendErr     error
 }
@@ -177,8 +180,15 @@ func (r *fakeRepository) ListActive(_ context.Context, workspaceID *string) ([]m
 	return tasks, nil
 }
 
-func (r *fakeRepository) ListDonePage(_ context.Context, _ *string, limit int64, offset int64) ([]models.Task, error) {
+func (r *fakeRepository) Events(_ context.Context, id models.TaskID, afterSeq *int64) ([]models.TaskEvent, error) {
+	r.eventsTask = id
+	r.eventsAfter = afterSeq
+	return nil, nil
+}
+
+func (r *fakeRepository) ListDonePage(_ context.Context, workspaceID *string, limit int64, offset int64) ([]models.Task, error) {
 	r.donePage = [2]int64{limit, offset}
+	r.doneWorkspace = workspaceID
 	return nil, nil
 }
 
@@ -225,15 +235,22 @@ func (fakeWorkspaces) List(_ context.Context) ([]models.WorkspaceRef, error) {
 // fakeStorage records saved and deleted files. The failure fields inject errors.
 type fakeStorage struct {
 	outbound.AttachmentStorage
-	saved         []string
-	deleted       []string
-	deletedDirs   []models.TaskID
-	failSave      bool
+	saved       []string
+	deleted     []string
+	deletedDirs []models.TaskID
+	failSave    bool
+	// failSaveFrom makes Save fail from its N-th call (1-based) on; zero means never.
+	failSaveFrom  int
+	saveCalls     int
 	failDelete    bool
 	failDeleteDir bool
 }
 
 func (s *fakeStorage) Save(_ context.Context, taskID models.TaskID, attachmentID string, _ models.ImageAttachment) (string, error) {
+	s.saveCalls++
+	if s.failSaveFrom > 0 && s.saveCalls >= s.failSaveFrom {
+		return "", werrors.Storage("sin espacio")
+	}
 	if s.failSave {
 		return "", werrors.Storage("disco lleno")
 	}
