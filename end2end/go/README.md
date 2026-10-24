@@ -41,9 +41,9 @@ Every run keeps its evidence in a run directory, printed on exit as `▶ run log
 The default is `/tmp/iwf-e2e-go-runs/<timestamp>-<pid>`. Set `IWF_E2E_RUN_DIR` to choose another
 directory. Logs are copied before the scratch directory is removed, so failing runs keep them.
 
-The server does not log requests. `server.log` only has the start and shutdown lines, so it cannot
-explain an HTTP status on its own. A request-level log needs a request-logging middleware in
-`internal/app` (app-side follow-up; the harness does not change the app).
+The runner starts the server with `IWF_LOG_LEVEL=debug`, so `server.log` has one `request` line per
+HTTP request (method, path, status, duration; the query string is left out because it can carry the
+access token). Without that variable the server logs at info level and prints no request lines.
 
 ## Standalone smokes
 
@@ -121,7 +121,6 @@ Two notes on the measurements:
 
 ## Open items
 
-- App-side: no request logging in the Go server (see Run directory and logs).
 - Module-side: the `tasks` and `jira` modules, and the board. They are needed for the 42 failing tests
   and for the 6 standalone smokes listed above.
 - Test-side: `end2end/follow_bottom_test.mjs` targets the legacy `src/core` copy and needs its

@@ -108,6 +108,7 @@ GITLAB_MOCK_PORT="$(free_port)"
     IWF_GENTLE_PI_CONFIG_HOME="$WORK/home/.config/gentle-pi" \
     IWF_PI_AGENTS_DIR="$WORK/home/.pi/agent/agents" \
     IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
+    IWF_LOG_LEVEL=debug \
     IWF_PI_BIN="$ROOT/tests/fixtures/smoke_pi.sh" \
     IWF_CURSOR_BIN="$ROOT/tests/fixtures/smoke_cursor.sh" \
     IWF_CLAUDE_BIN="$ROOT/tests/fixtures/smoke_claude.sh" \

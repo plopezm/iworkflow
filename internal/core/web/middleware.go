@@ -3,6 +3,9 @@ package web
 import (
 	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
 
 	"iworkflow/internal/core/i18n"
 )
@@ -43,6 +46,24 @@ func Recover(logger *slog.Logger) func(http.Handler) http.Handler {
 				}
 			}()
 			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// RequestLog logs every request at debug level: method, path, status and duration. The query string is
+// left out because it can carry the access token. The writer keeps its Flusher and Hijacker, which the
+// event stream and the terminal socket need.
+func RequestLog(logger *slog.Logger) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			started := time.Now()
+			wrapped := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+			next.ServeHTTP(wrapped, r)
+			status := wrapped.Status()
+			if status == 0 {
+				status = http.StatusOK
+			}
+			logger.Debug("request", "method", r.Method, "path", r.URL.Path, "status", status, "duration", time.Since(started))
 		})
 	}
 }

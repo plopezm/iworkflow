@@ -170,6 +170,7 @@ func (a *App) Router() http.Handler {
 	r.Use(prefsinbound.RejectCrossSiteWrites, prefsinbound.RequireAccess(a.guard))
 	r.Use(
 		middleware.RequestID,
+		web.RequestLog(a.logger),
 		web.Recover(a.logger),
 		web.BodyLimit(web.DefaultBodyBytes),
 		web.Locale,

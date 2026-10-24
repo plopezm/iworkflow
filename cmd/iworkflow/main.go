@@ -34,11 +34,40 @@ const (
 	readHeaderLimit        = 10 * time.Second
 	shutdownTimeout        = 10 * time.Second
 	exitUsage              = 2
+	logLevelVar     string = "IWF_LOG_LEVEL"
 )
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// Loaded first, like the Rust server: the file can set the log level and every IWF_* variable.
+	dotEnvPath, dotEnvErr := loadDotEnv()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel(os.Getenv(logLevelVar))}))
+	if dotEnvErr != nil {
+		logger.Warn("could not read the .env file", "error", dotEnvErr)
+	} else if dotEnvPath != "" {
+		logger.Debug("loaded the .env file", "path", dotEnvPath)
+	}
 	os.Exit(run(logger, os.Args[1:]))
+}
+
+// loadDotEnv loads the .env of the working folder or its ancestors. A missing folder is not fatal.
+func loadDotEnv() (string, error) {
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("working directory: %w", err)
+	}
+	path, err := config.LoadDotEnv(dir)
+	if err != nil {
+		return "", fmt.Errorf("dotenv: %w", err)
+	}
+	return path, nil
+}
+
+// logLevel reads the log level: "debug" turns on the request log, anything else keeps info.
+func logLevel(value string) slog.Level {
+	if value == "debug" {
+		return slog.LevelDebug
+	}
+	return slog.LevelInfo
 }
 
 // run returns the process exit code.

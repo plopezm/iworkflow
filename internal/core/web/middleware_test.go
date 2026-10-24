@@ -76,3 +76,31 @@ func TestSSESendFailsAfterContextCancel(t *testing.T) {
 
 	require.Error(t, stream.Send(canceled, "", "e", "d"))
 }
+
+func TestRequestLogRecordsMethodPathStatusWithoutTheQuery(t *testing.T) {
+	var out strings.Builder
+	logger := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	handler := web.RequestLog(logger)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTeapot)
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/agent-settings/thinking?token=secret", nil))
+
+	line := out.String()
+	require.Contains(t, line, "method=POST")
+	require.Contains(t, line, "path=/agent-settings/thinking")
+	require.Contains(t, line, "status=418")
+	require.NotContains(t, line, "secret")
+}
+
+func TestRequestLogDefaultsTheStatusToOK(t *testing.T) {
+	var out strings.Builder
+	logger := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	handler := web.RequestLog(logger)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("ok"))
+	}))
+
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+
+	require.Contains(t, out.String(), "status=200")
+}
