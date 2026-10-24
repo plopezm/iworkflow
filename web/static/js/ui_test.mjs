@@ -29,12 +29,17 @@ test('a toast arms its timer once', () => {
 });
 
 test('a keep-alive pane loads once, when it is visible, and dock panes are left to the dock', () => {
-  const visible = { dataset: {}, classList: { contains: () => false } };
-  const hidden = { dataset: {}, classList: { contains: (name) => name === 'hidden' } };
+  const visible = { dataset: { src: '/dock/pane?path=%2Fsettings' }, classList: { contains: () => false } };
+  const hidden = { dataset: { src: '/x' }, classList: { contains: (name) => name === 'hidden' } };
   const loaded = { dataset: { loaded: 'true' }, classList: { contains: () => false } };
   const dockPane = { dataset: { dockPane: '' }, classList: { contains: () => false } };
   assert.equal(shouldLoadPane(visible), true);
   assert.equal(shouldLoadPane(hidden), false);
   assert.equal(shouldLoadPane(loaded), false);
   assert.equal(shouldLoadPane(dockPane), false);
+});
+
+test('a keep-alive pane without a src renders inline and never fetches the page URL', () => {
+  const inline = { dataset: { src: '' }, classList: { contains: () => false } };
+  assert.equal(shouldLoadPane(inline), false);
 });

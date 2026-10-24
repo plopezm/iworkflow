@@ -23,9 +23,10 @@ export function shouldArmToast(toast) {
   return toast.dataset.toastArmed === undefined;
 }
 
-// Whether a keep-alive pane should fetch its content now: never fetched, and not hidden.
+// Whether a keep-alive pane should fetch its content now: it has a src (an empty one means the content
+// is rendered inline), it was never fetched, it is not hidden, and it is not a dock pane.
 export function shouldLoadPane(pane) {
-  return pane.dataset.loaded === undefined && !pane.classList.contains('hidden') && pane.dataset.dockPane === undefined;
+  return Boolean(pane.dataset.src) && pane.dataset.loaded === undefined && !pane.classList.contains('hidden') && pane.dataset.dockPane === undefined;
 }
 
 // ----- browser wiring -------------------------------------------------------------------------
@@ -195,7 +196,19 @@ function onKeyDown(event) {
   }
 }
 
+// Error fragments (4xx and 5xx) are swapped in, so the message the server rendered reaches the user.
+// 204 means "nothing to swap". Without this htmx ignores error responses and the user sees nothing.
+function configureHtmx() {
+  if (typeof htmx === 'undefined') return;
+  htmx.config.responseHandling = [
+    { code: '204', swap: false },
+    { code: '[23]..', swap: true },
+    { code: '[45]..', swap: true, error: false },
+  ];
+}
+
 function init() {
+  configureHtmx();
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', onKeyDown);
   document.body.addEventListener('htmx:afterSettle', (event) => {
