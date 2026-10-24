@@ -62,15 +62,17 @@ type fakeRepository struct {
 	subagents     []models.SubagentActivity
 	usageLimits   []models.UsageLimitState
 	// detailsResult, when set, is returned by UpdateDetailsIfBacklog instead of the real check.
-	detailsResult *bool
-	deleteResult  *bool
-	activeFilter  *string
-	donePage      [2]int64
-	doneWorkspace *string
-	eventsTask    models.TaskID
-	eventsAfter   *int64
-	insertErr     error
-	appendErr     error
+	detailsResult  *bool
+	deleteResult   *bool
+	activeFilter   *string
+	donePage       [2]int64
+	doneWorkspace  *string
+	eventsTask     models.TaskID
+	diffRanges     []models.DiffRange
+	recordRangeErr error
+	eventsAfter    *int64
+	insertErr      error
+	appendErr      error
 }
 
 func newFakeRepository(tasks ...models.Task) *fakeRepository {
@@ -391,4 +393,49 @@ func newTaskIDValue(t *testing.T) models.TaskID {
 	id, err := models.NewTaskID()
 	require.NoError(t, err)
 	return id
+}
+
+// fakeRemover records the worktree removals it is asked for and answers with failure when set.
+type fakeRemover struct {
+	removed []string
+	err     error
+}
+
+func (r *fakeRemover) Remove(_ context.Context, repo string, path string, branch string) error {
+	r.removed = append(r.removed, repo+"|"+path+"|"+branch)
+	return r.err
+}
+
+// ListByStatus returns the stored tasks whose status is one of the given ones.
+func (r *fakeRepository) ListByStatus(_ context.Context, statuses []models.TaskStatus) ([]models.Task, error) {
+	var tasks []models.Task
+	for _, task := range r.tasks {
+		for _, status := range statuses {
+			if task.Status == status {
+				tasks = append(tasks, task)
+				break
+			}
+		}
+	}
+	return tasks, nil
+}
+
+// RecordDiffRange stores the range for the assertions of the merge tests.
+func (r *fakeRepository) RecordDiffRange(_ context.Context, _ models.TaskID, diffRange models.DiffRange) error {
+	if r.recordRangeErr != nil {
+		return r.recordRangeErr
+	}
+	r.diffRanges = append(r.diffRanges, diffRange)
+	return nil
+}
+
+// List returns the stored tasks of one workspace, or of all of them when the filter is nil.
+func (r *fakeRepository) List(_ context.Context, workspaceID *string) ([]models.Task, error) {
+	var tasks []models.Task
+	for _, task := range r.tasks {
+		if workspaceID == nil || task.WorkspaceID == *workspaceID {
+			tasks = append(tasks, task)
+		}
+	}
+	return tasks, nil
 }

@@ -406,7 +406,7 @@ func TestDeleteWorkspaceTasksDeletesInactiveTasksAndNotifies(t *testing.T) {
 	storage := &fakeStorage{}
 	lifecycle, publisher := newLifecycle(repo)
 
-	require.NoError(t, application.NewDeleteWorkspaceTasks(lifecycle, storage).DeleteAll(context.Background(), "ws-1"))
+	require.NoError(t, application.NewDeleteWorkspaceTasks(lifecycle, &fakeRemover{}, storage).DeleteAll(context.Background(), "ws-1"))
 
 	assert.Empty(t, repo.tasks)
 	assert.Len(t, storage.deletedDirs, 2)
@@ -420,7 +420,7 @@ func TestDeleteWorkspaceTasksRefusesWhenATaskIsActive(t *testing.T) {
 	repo := newFakeRepository(backlog, running)
 	lifecycle, _ := newLifecycle(repo)
 
-	err := application.NewDeleteWorkspaceTasks(lifecycle, &fakeStorage{}).DeleteAll(context.Background(), "ws-1")
+	err := application.NewDeleteWorkspaceTasks(lifecycle, &fakeRemover{}, &fakeStorage{}).DeleteAll(context.Background(), "ws-1")
 
 	assert.True(t, errors.Is(err, werrors.WorkspaceHasActiveTasks()))
 	assert.Len(t, repo.tasks, 2, "nothing is deleted")

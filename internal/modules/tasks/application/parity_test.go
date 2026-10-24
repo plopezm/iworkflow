@@ -308,7 +308,7 @@ func TestDeleteWorkspaceTasksAttachmentCleanupFailureDoesNotBlockDeletion(t *tes
 	repo := newFakeRepository(backlog)
 	lifecycle, publisher := newLifecycle(repo)
 
-	err := application.NewDeleteWorkspaceTasks(lifecycle, &fakeStorage{failDeleteDir: true}).DeleteAll(context.Background(), "ws-1")
+	err := application.NewDeleteWorkspaceTasks(lifecycle, &fakeRemover{}, &fakeStorage{failDeleteDir: true}).DeleteAll(context.Background(), "ws-1")
 
 	require.NoError(t, err)
 	assert.Empty(t, repo.tasks)
