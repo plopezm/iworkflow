@@ -1,0 +1,48 @@
+package components
+
+import ui "iworkflow/internal/core/components"
+
+// CodeHostSettingsCard is the settings section of one provider: the URL, the token and the TLS option,
+// the save action and the connection test. The token is never rendered back: the field is empty and
+// only its placeholder says that one is stored.
+templ CodeHostSettingsCard(p CodeHostSettingsCardProps) {
+	<div id={ p.ID }>
+		@ui.Card(p.Title) {
+			<p class="muted text-sm">{ p.Help }</p>
+			if p.LoadError != "" {
+				@ui.ErrorText(p.LoadError)
+			} else {
+				<form hx-post={ p.SaveURL } hx-target={ "#" + p.ID } hx-swap="outerHTML" class="stack gap-3">
+					@ui.TextField(ui.FieldProps{Label: p.BaseURLLabel, Name: "base_url", Value: p.BaseURL, Placeholder: p.BaseURLPlaceholder})
+					<label class="stack gap-1.5">
+						<span class="text-sm font-medium text-fg">{ p.TokenLabel }</span>
+						<input type="password" name="token" class="input" autocomplete="off" placeholder={ p.TokenPlaceholder }/>
+					</label>
+					<label class="row items-center gap-2 text-sm text-fg">
+						<input type="checkbox" name="insecure_tls" value="on" class="h-4 w-4" checked?={ p.InsecureTLS }/>
+						{ p.InsecureTLSLabel }
+					</label>
+					if p.SaveError != "" {
+						@ui.ErrorText(p.SaveError)
+					}
+					<div class="row gap-2">
+						<button type="submit" class="btn-primary">{ p.SaveLabel }</button>
+					</div>
+				</form>
+				<div class="row items-center gap-2">
+					<button type="button" class="btn-secondary" disabled?={ !p.TokenConfigured } hx-post={ p.TestURL } hx-target={ "#" + p.TestResultID } hx-swap="innerHTML">{ p.TestLabel }</button>
+				</div>
+				<div id={ p.TestResultID }></div>
+			}
+		}
+	</div>
+}
+
+// ConnectionResult is the answer of the connection test: a badge with the user, or the error.
+templ ConnectionResult(p ConnectionResultProps) {
+	if p.OK {
+		@ui.Badge(p.Text, "ok")
+	} else {
+		@ui.ErrorText(p.Text)
+	}
+}
