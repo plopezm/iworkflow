@@ -24,6 +24,9 @@ import (
 	"iworkflow/internal/modules/terminal/infrastructure/adapters/inbound/dto"
 )
 
+// WebSocketPath is the route of the WebSocket that attaches to a session.
+const WebSocketPath string = "/terminal/ws/session/{session_id}"
+
 // SessionIDParam is the chi route parameter that carries the session id.
 const SessionIDParam string = "session_id"
 
