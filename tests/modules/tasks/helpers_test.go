@@ -43,9 +43,10 @@ func (c *testClock) advance(d time.Duration) {
 
 // Repo bundles a migrated database with the repository built on it.
 type Repo struct {
-	DB    *sql.DB
-	Tasks *persistence.TaskRepository
-	clock *testClock
+	DB          *sql.DB
+	Tasks       *persistence.TaskRepository
+	Attachments *persistence.TaskAttachmentRepository
+	clock       *testClock
 }
 
 // advance moves the repository clock forward.
@@ -57,7 +58,12 @@ func newRepo(t *testing.T) *Repo {
 	t.Helper()
 	db := dbtest.New(t)
 	clock := newTestClock()
-	return &Repo{DB: db, Tasks: persistence.NewTaskRepository(db, clock.Now), clock: clock}
+	return &Repo{
+		DB:          db,
+		Tasks:       persistence.NewTaskRepository(db, clock.Now),
+		Attachments: persistence.NewTaskAttachmentRepository(db, clock.Now),
+		clock:       clock,
+	}
 }
 
 // insertWorkspace stores a workspace row. The tasks table references workspaces, so the tests need one.

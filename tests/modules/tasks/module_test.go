@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/modules/tasks/domain/models"
-	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/di"
 )
 
@@ -26,17 +25,11 @@ func (nopLayout) WorktreePath(workspaceName string, dirName string) string {
 	return "/worktrees/" + workspaceName + "/" + dirName
 }
 
-// nopStorage is the attachment storage of slice D. These tests store no images, so only the
-// task-folder cleanup of a deletion reaches it.
-type nopStorage struct {
-	outbound.AttachmentStorage
-}
+// nopCommitter is the git port of slice E. The attachment tests here do not commit, so it is never asked to.
+type nopCommitter struct{}
 
-func (nopStorage) DeleteTaskDir(context.Context, models.TaskID) error { return nil }
-
-// nopAttachments is the attachment metadata repository of slice D, unused here.
-type nopAttachments struct {
-	outbound.TaskAttachmentRepository
+func (nopCommitter) CommitAll(context.Context, string, string) (bool, error) {
+	return false, nil
 }
 
 // workspaceLookup reads the workspaces table through the fixture row inserted by insertWorkspace.
@@ -60,13 +53,19 @@ func (w workspaceLookup) List(context.Context) ([]models.WorkspaceRef, error) {
 
 func newModule(t *testing.T, repo *Repo) *di.Module {
 	t.Helper()
+	return newModuleIn(t, repo, t.TempDir())
+}
+
+// newModuleIn builds the module with the attachments stored in attachmentsDir.
+func newModuleIn(t *testing.T, repo *Repo, attachmentsDir string) *di.Module {
+	t.Helper()
 	module, err := di.NewModule(di.Deps{
-		DB:          repo.DB,
-		Workspaces:  workspaceLookup{repo: repo},
-		Attachments: nopAttachments{},
-		Storage:     nopStorage{},
-		Worktrees:   nopLayout{},
-		Start:       nopStarter{},
+		DB:             repo.DB,
+		Workspaces:     workspaceLookup{repo: repo},
+		AttachmentsDir: attachmentsDir,
+		Git:            nopCommitter{},
+		Worktrees:      nopLayout{},
+		Start:          nopStarter{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(module.ShutdownEvents)

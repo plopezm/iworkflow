@@ -16,7 +16,9 @@ import (
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	httpinbound "iworkflow/internal/modules/tasks/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/events"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/files"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/storage"
 )
 
 // Deps are the resources the module needs from the composition root. Every field is required: the
@@ -25,9 +27,10 @@ type Deps struct {
 	DB *sql.DB
 	// Workspaces reads the workspaces the tasks belong to; provided by the workspaces module.
 	Workspaces outbound.WorkspaceLookup
-	// Attachments stores the image metadata and Storage the image files (slice D).
-	Attachments outbound.TaskAttachmentRepository
-	Storage     outbound.AttachmentStorage
+	// AttachmentsDir is the folder the images of the tasks are stored in. The module creates it when missing.
+	AttachmentsDir string
+	// Git commits the changes saved from the diff view; the git port of slice E provides it.
+	Git application.WorktreeCommitter
 	// Worktrees tells where a task worktree goes (slice E).
 	Worktrees application.WorktreeLayout
 	// Start starts a backlog task; CreateTask uses it when a task is created with start_now (slices E and F).
@@ -49,6 +52,15 @@ type Module struct {
 	DeleteWorkspace *application.DeleteWorkspaceTasks
 	AgentEvents     *application.HandleAgentEvent
 	Lifecycle       *application.TaskLifecycle
+	// The attachments of a task: create, update, delete and the download of the stored images.
+	ListAttachments *application.ListTaskAttachments
+	GetAttachment   *application.GetTaskAttachment
+	Cleanup         *application.AttachmentCleanup
+	// Attachments serves the content of the stored images; the composition root mounts AttachmentRoute.
+	Attachments *httpinbound.AttachmentHandler
+	// The files of the worktrees, read and saved from the diff view.
+	GetFile  *application.GetTaskFile
+	SaveFile *application.SaveTaskFile
 	// GetEvents reads the persisted history of a task after a cursor.
 	GetEvents *application.GetTaskEvents
 	// EventSink is what the agent runtimes report their events to: queued, so that a slow database
@@ -66,6 +78,10 @@ func NewModule(deps Deps) (*Module, error) {
 	if err := deps.validate(); err != nil {
 		return nil, err
 	}
+	attachmentStorage, err := storage.NewFsAttachmentStorage(deps.AttachmentsDir)
+	if err != nil {
+		return nil, fmt.Errorf("tasks module: %w", err)
+	}
 	clock := application.Clock(func() time.Time { return time.Now().UTC() })
 	newUUID := application.UUIDGenerator(uuid.NewRandom)
 
@@ -82,15 +98,24 @@ func NewModule(deps Deps) (*Module, error) {
 	agentEvents := application.NewHandleAgentEvent(lifecycle, clock)
 	getTask := application.NewGetTask(lifecycle)
 	getEvents := application.NewGetTaskEvents(repository)
+	attachments := persistence.NewTaskAttachmentRepository(deps.DB, persistence.Clock(clock))
+	taskFiles := files.NewFsTaskFile()
+	getAttachment := application.NewGetTaskAttachment(attachments, attachmentStorage)
 
 	return &Module{
 		Get:             getTask,
 		List:            application.NewListTasks(repository),
 		ListDone:        application.NewListDoneTasks(repository),
-		Create:          application.NewCreateTask(lifecycle, deps.Worktrees, deps.Start, deps.Attachments, deps.Storage, newUUID, clock),
-		Update:          application.NewUpdateTask(lifecycle, deps.Attachments, deps.Storage, newUUID),
-		Delete:          application.NewDeleteTask(lifecycle, deps.Storage),
-		DeleteWorkspace: application.NewDeleteWorkspaceTasks(lifecycle, deps.Storage),
+		Create:          application.NewCreateTask(lifecycle, deps.Worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
+		Update:          application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
+		Delete:          application.NewDeleteTask(lifecycle, attachmentStorage),
+		DeleteWorkspace: application.NewDeleteWorkspaceTasks(lifecycle, attachmentStorage),
+		ListAttachments: application.NewListTaskAttachments(attachments),
+		GetAttachment:   getAttachment,
+		Cleanup:         application.NewAttachmentCleanup(attachments, attachmentStorage),
+		Attachments:     httpinbound.NewAttachmentHandler(getAttachment),
+		GetFile:         application.NewGetTaskFile(lifecycle, taskFiles),
+		SaveFile:        application.NewSaveTaskFile(lifecycle, taskFiles, deps.Git),
 		Lifecycle:       lifecycle,
 		AgentEvents:     agentEvents,
 		GetEvents:       getEvents,
@@ -111,8 +136,8 @@ func (d Deps) validate() error {
 	}{
 		{"DB", d.DB == nil},
 		{"Workspaces", d.Workspaces == nil},
-		{"Attachments", d.Attachments == nil},
-		{"Storage", d.Storage == nil},
+		{"AttachmentsDir", d.AttachmentsDir == ""},
+		{"Git", d.Git == nil},
 		{"Worktrees", d.Worktrees == nil},
 		{"Start", d.Start == nil},
 	}
