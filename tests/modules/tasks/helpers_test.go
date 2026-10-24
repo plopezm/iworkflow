@@ -46,6 +46,7 @@ type Repo struct {
 	DB          *sql.DB
 	Tasks       *persistence.TaskRepository
 	Attachments *persistence.TaskAttachmentRepository
+	Graph       *persistence.TaskGraphRepository
 	clock       *testClock
 }
 
@@ -62,6 +63,7 @@ func newRepo(t *testing.T) *Repo {
 		DB:          db,
 		Tasks:       persistence.NewTaskRepository(db, clock.Now),
 		Attachments: persistence.NewTaskAttachmentRepository(db, clock.Now),
+		Graph:       persistence.NewTaskGraphRepository(db, clock.Now),
 		clock:       clock,
 	}
 }

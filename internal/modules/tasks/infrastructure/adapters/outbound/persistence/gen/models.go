@@ -122,7 +122,7 @@ type TaskDependency struct {
 	SuccessorID   string
 	WorkspaceID   string
 	TriggerEvent  string
-	CreatedAt     time.Time
+	CreatedAt     string
 }
 
 type TaskEvent struct {

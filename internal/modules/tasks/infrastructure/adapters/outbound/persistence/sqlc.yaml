@@ -43,3 +43,5 @@ sql:
             go_type: "string"
           - column: "task_attachments.created_at"
             go_type: "string"
+          - column: "task_dependencies.created_at"
+            go_type: "string"

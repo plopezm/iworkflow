@@ -39,8 +39,6 @@ type Deps struct {
 	// Remote merges a task through its open merge request in the provider (code_hosting). Optional: nil
 	// means every task is merged locally.
 	Remote outbound.RemoteMerge
-	// Successors starts the graph successors of a task that was merged (slice C). Optional: nil skips it.
-	Successors inbound.SuccessorTrigger
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -82,6 +80,15 @@ type Module struct {
 	Subscriber outbound.TaskEventSubscriber
 	// Streams serves the task and board event streams; the composition root mounts them.
 	Streams *httpinbound.TaskStreams
+	// The dependency graph of the board (slice C): the edges, the node positions and the successor trigger.
+	// Successors starts the tasks whose predecessors met their trigger. The composition root runs
+	// background.RunGraphLoop with it in a goroutine it owns, and stops that loop through its context.
+	AddDependency    *application.AddTaskDependency
+	RemoveDependency *application.RemoveTaskDependency
+	DetachFromGraph  *application.DetachTaskFromGraph
+	GetGraph         *application.GetTaskGraph
+	SetPosition      *application.SetTaskPosition
+	Successors       *application.TriggerSuccessors
 }
 
 // NewModule wires the adapters into the use cases. It fails when a required dependency is missing,
@@ -116,35 +123,44 @@ func NewModule(deps Deps) (*Module, error) {
 	agentEvents := application.NewHandleAgentEvent(lifecycle, clock)
 	getTask := application.NewGetTask(lifecycle)
 	getEvents := application.NewGetTaskEvents(repository)
+	graph := persistence.NewTaskGraphRepository(deps.DB, persistence.Clock(clock))
+	// The graph trigger starts the successors through the same start use case as the UI.
+	successors := application.NewTriggerSuccessors(repository, graph, deps.Start, clock)
 	attachments := persistence.NewTaskAttachmentRepository(deps.DB, persistence.Clock(clock))
 	taskFiles := files.NewFsTaskFile()
 	getAttachment := application.NewGetTaskAttachment(attachments, attachmentStorage)
 
 	return &Module{
-		Get:             getTask,
-		List:            application.NewListTasks(repository),
-		ListDone:        application.NewListDoneTasks(repository),
-		Create:          application.NewCreateTask(lifecycle, worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
-		Update:          application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
-		Delete:          application.NewDeleteTask(lifecycle, attachmentStorage),
-		DeleteWorkspace: application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
-		ListAttachments: application.NewListTaskAttachments(attachments),
-		GetAttachment:   getAttachment,
-		Cleanup:         application.NewAttachmentCleanup(attachments, attachmentStorage),
-		Attachments:     httpinbound.NewAttachmentHandler(getAttachment),
-		GetFile:         application.NewGetTaskFile(lifecycle, taskFiles),
-		SaveFile:        application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
-		Worktrees:       worktrees,
-		GetDiff:         application.NewGetTaskDiff(lifecycle, worktrees),
-		Merge:           application.NewMergeTask(lifecycle, worktrees, deps.Successors, deps.Remote),
-		SweepWorktrees:  application.NewSweepOrphanWorktrees(repository, worktrees),
-		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
-		Lifecycle:       lifecycle,
-		AgentEvents:     agentEvents,
-		GetEvents:       getEvents,
-		EventSink:       application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity),
-		Subscriber:      bus,
-		Streams:         httpinbound.NewTaskStreams(getTask, getEvents, bus),
+		Get:              getTask,
+		List:             application.NewListTasks(repository),
+		ListDone:         application.NewListDoneTasks(repository),
+		Create:           application.NewCreateTask(lifecycle, worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
+		Update:           application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
+		Delete:           application.NewDeleteTask(lifecycle, attachmentStorage),
+		DeleteWorkspace:  application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
+		ListAttachments:  application.NewListTaskAttachments(attachments),
+		GetAttachment:    getAttachment,
+		Cleanup:          application.NewAttachmentCleanup(attachments, attachmentStorage),
+		Attachments:      httpinbound.NewAttachmentHandler(getAttachment),
+		GetFile:          application.NewGetTaskFile(lifecycle, taskFiles),
+		SaveFile:         application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
+		Worktrees:        worktrees,
+		GetDiff:          application.NewGetTaskDiff(lifecycle, worktrees),
+		Merge:            application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote),
+		SweepWorktrees:   application.NewSweepOrphanWorktrees(repository, worktrees),
+		ListBranches:     application.NewListWorkspaceBranches(lifecycle, worktrees),
+		Lifecycle:        lifecycle,
+		AgentEvents:      agentEvents,
+		GetEvents:        getEvents,
+		EventSink:        application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity),
+		Subscriber:       bus,
+		Streams:          httpinbound.NewTaskStreams(getTask, getEvents, bus),
+		AddDependency:    application.NewAddTaskDependency(lifecycle, graph, successors),
+		RemoveDependency: application.NewRemoveTaskDependency(graph, successors),
+		DetachFromGraph:  application.NewDetachTaskFromGraph(graph, successors),
+		GetGraph:         application.NewGetTaskGraph(graph),
+		SetPosition:      application.NewSetTaskPosition(graph),
+		Successors:       successors,
 	}, nil
 }
 
