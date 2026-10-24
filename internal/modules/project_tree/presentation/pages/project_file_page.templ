@@ -1,0 +1,25 @@
+package pages
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/project_tree/presentation/components"
+	"iworkflow/internal/modules/project_tree/presentation/state"
+)
+
+// ProjectFilePage is the tab of one file: its path, and the editor, or the message when it could not be
+// read.
+templ ProjectFilePage(v state.FileView) {
+	<div class="flex h-full min-h-0 flex-col bg-surface">
+		<div class="tree-panel-header">
+			<h1 class="min-w-0 flex-1 truncate font-mono text-xs font-semibold" title={ v.Path }>{ v.Path }</h1>
+		</div>
+		if v.LoadError != "" {
+			<div class="px-3 py-2">
+				@coreui.ErrorText(v.LoadError)
+				<p class="mt-1 font-mono text-xs text-muted">{ v.Path }</p>
+			</div>
+		} else {
+			@components.FileEditor(v)
+		}
+	</div>
+}

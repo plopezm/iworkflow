@@ -1,0 +1,40 @@
+package pages
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/project_tree/presentation/components"
+	"iworkflow/internal/modules/project_tree/presentation/state"
+)
+
+// ProjectTreePage is the tab of a project root: its name, the reload button, the ⋯ menu (terminal and
+// edit page) and the tree of the root.
+templ ProjectTreePage(v state.TreePage) {
+	<div class="flex h-full min-h-0 flex-col bg-surface">
+		<div class="tree-panel-header">
+			<h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{ rootTitle(ctx, v) }</h1>
+			<button
+				type="button"
+				class="icon-btn"
+				title={ msgReload.T(ctx) }
+				aria-label={ msgReload.T(ctx) }
+				hx-get={ state.TreeURL(v.View.Scope.Wire()) }
+				hx-target={ "#" + state.ID("pt-tree", v.View.Scope.Wire()) }
+				hx-swap="innerHTML"
+			>↻</button>
+			@coreui.DropdownMenu(coreui.DropdownMenuProps{Label: "⋯", AriaLabel: msgProjectActions.T(ctx), TriggerClass: "icon-btn", MenuClass: "min-w-44"}) {
+				@link.Tab(link.Props{Href: v.Terminal, Class: "menu-item"}) {
+					{ msgOpenTerminal.T(ctx) }
+				}
+				if v.HasEdit {
+					@link.Tab(link.Props{Href: v.Edit, Class: "menu-item"}) {
+						{ msgEditWorkspace.T(ctx) }
+					}
+				}
+			}
+		</div>
+		<div id={ state.ID("pt-tree", v.View.Scope.Wire()) } class="min-h-0 flex-1 overflow-y-auto py-1">
+			@components.TreeBody(v.View)
+		</div>
+	</div>
+}
