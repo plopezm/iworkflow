@@ -1,6 +1,7 @@
 package app_test
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -75,6 +76,9 @@ func TestShellRendersDockAndMigratedNavigation(t *testing.T) {
 	require.Contains(t, body, `aria-label="Navegación"`)
 	require.Contains(t, body, `href="/workspaces"`)
 	require.Contains(t, body, `href="/agents-files"`)
+	require.Contains(t, body, `href="/profiles"`)
+	require.Contains(t, body, `href="/models"`)
+	require.Contains(t, body, `href="/terminals"`)
 	require.Contains(t, body, `href="/settings"`)
 }
 
@@ -88,7 +92,7 @@ func TestDeepLinkServesTheShellForAnyPage(t *testing.T) {
 func TestMigratedTabsRenderThroughTheDockPane(t *testing.T) {
 	handler := newRouter(t)
 
-	for _, path := range []string{"/workspaces", "/agents-files"} {
+	for _, path := range []string{"/workspaces", "/agents-files", "/profiles", "/models", "/terminals"} {
 		rec := get(t, handler, "/dock/pane?path="+path)
 		require.Equal(t, http.StatusOK, rec.Code, path)
 		require.NotContains(t, rec.Body.String(), "todavía no se ha migrado", path)
@@ -97,6 +101,20 @@ func TestMigratedTabsRenderThroughTheDockPane(t *testing.T) {
 	settings := get(t, handler, "/dock/pane?path=/settings")
 	require.Equal(t, http.StatusOK, settings.Code)
 	require.Contains(t, settings.Body.String(), "Límites de recursos")
+}
+
+func TestShutdownReleasesTheModules(t *testing.T) {
+	application, err := app.New(app.Deps{
+		DB:        dbtest.New(t),
+		Config:    config.Config{},
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		StaticDir: t.TempDir(),
+		Listen:    listen.Info{Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), 3000)},
+		Restart:   restart.NewHandle(),
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, application.Shutdown(context.Background()))
 }
 
 func TestUnmigratedTabsExplainTheirState(t *testing.T) {
@@ -113,4 +131,8 @@ func TestSettingsSectionsAreRoutable(t *testing.T) {
 		rec := get(t, handler, "/dock/pane?path=/settings/"+section)
 		require.Equal(t, http.StatusOK, rec.Code, section)
 	}
+	// GitLab and GitHub are migrated: the settings screen renders their provider cards.
+	settings := get(t, handler, "/dock/pane?path=/settings")
+	require.Contains(t, settings.Body.String(), `id="code-host-settings-gitlab"`)
+	require.Contains(t, settings.Body.String(), `id="code-host-settings-github"`)
 }

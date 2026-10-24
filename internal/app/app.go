@@ -19,14 +19,22 @@ import (
 	"iworkflow/internal/core/listen"
 	"iworkflow/internal/core/restart"
 	"iworkflow/internal/core/web"
+	agentprofilesdi "iworkflow/internal/modules/agent_profiles/infrastructure/di"
+	agentprofilespages "iworkflow/internal/modules/agent_profiles/presentation/pages"
 	agentsettingsdi "iworkflow/internal/modules/agent_settings/infrastructure/di"
 	agentsettingspages "iworkflow/internal/modules/agent_settings/presentation/pages"
 	agentsfilesdi "iworkflow/internal/modules/agents_files/infrastructure/di"
 	agentsfilespages "iworkflow/internal/modules/agents_files/presentation/pages"
+	codehostingapp "iworkflow/internal/modules/code_hosting/application"
+	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
+	codehostingdi "iworkflow/internal/modules/code_hosting/infrastructure/di"
 	prefsinbound "iworkflow/internal/modules/preferences/infrastructure/adapters/inbound"
 	prefssystem "iworkflow/internal/modules/preferences/infrastructure/adapters/outbound/system"
 	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
+	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
+	terminaldi "iworkflow/internal/modules/terminal/infrastructure/di"
+	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
 	workspacespersistence "iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/persistence"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
 	workspacespages "iworkflow/internal/modules/workspaces/presentation/pages"
@@ -53,6 +61,7 @@ type App struct {
 	staticDir string
 	guard     *prefsinbound.AccessGuard
 	prefs     *prefsdi.Module
+	terminal  *terminaldi.Module
 	modules   []web.Module
 	dock      *dock.Handlers
 }
@@ -61,8 +70,9 @@ type App struct {
 // and agents_files modules need each other, so the project lookup is bound after both are built.
 //
 // TODO(tasks): the tasks module is not migrated yet. Its startup steps (reconcile interrupted tasks,
-// sweep orphan worktrees, start the graph and resume loops) and its routes (events, attachments,
-// terminal) are not wired; the workspaces module uses a temporary WorkspaceTasks adapter meanwhile.
+// sweep orphan worktrees, start the graph and resume loops) and its routes (events, attachments) are
+// not wired; the workspaces module uses a temporary WorkspaceTasks adapter meanwhile, and the task
+// lookups of project_tree, terminal and code_hosting resolve to nothing (see bridges.go).
 func New(deps Deps) (*App, error) {
 	guard := prefsinbound.NewAccessGuard(deps.Preferences.Token, deps.Listen.TokenRequired)
 
@@ -98,10 +108,35 @@ func New(deps Deps) (*App, error) {
 		GentlePiConfigHome: deps.Config.GentlePiConfigHome,
 	})
 
-	routes := make([]dock.Route, 0, 16)
+	projectTree := projecttreedi.NewModule(projecttreedi.Deps{
+		Workspaces: &workspaceRoots{get: workspaces.Get},
+		Tasks:      taskRootsPending{}, // TODO(tasks): no task worktree resolves until the tasks module lands.
+	})
+	profiles := agentprofilesdi.NewModule(agentprofilesdi.Deps{
+		ProfilesDir:  deps.Config.GentlePiConfigHome,
+		AgentsDir:    deps.Config.PiAgentsDir,
+		ModelOptions: &modelOptions{listModels: settings.ListModels},
+	})
+	codeHosting := codehostingdi.NewModule(codehostingdi.Deps{
+		DB:          deps.DB,
+		Tasks:       taskSourcesPending{}, // TODO(tasks): no task merge request resolves until the tasks module lands.
+		RemoteMerge: codehostingapp.NewRemoteMerge(),
+	})
+	terminal := terminaldi.NewModule(terminaldi.Dependencies{
+		WorkspaceResolver: workspaceTargets(workspaces.Get),
+		TaskResolver:      taskTargetsPending, // TODO(tasks): no task terminal opens until the tasks module lands.
+		HomeDir:           deps.Config.HomeDir,
+		Logger:            deps.Logger,
+	})
+
+	routes := make([]dock.Route, 0, 24)
 	routes = append(routes, agentsFiles.Tabs()...)
 	routes = append(routes, workspaces.Tabs()...)
-	routes = append(routes, settings.Tabs(settingsSections(settings))...)
+	routes = append(routes, projectTree.Tabs()...)
+	routes = append(routes, profiles.Tabs()...)
+	routes = append(routes, settings.Tabs(settingsSections(settings, codeHosting))...)
+	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
+	routes = append(routes, terminal.Tabs()...)
 	routes = append(routes, notMigratedRoutes()...)
 	registry, err := dock.NewRegistry(routes...)
 	if err != nil {
@@ -113,9 +148,19 @@ func New(deps Deps) (*App, error) {
 		staticDir: deps.StaticDir,
 		guard:     guard,
 		prefs:     prefs,
-		modules:   []web.Module{prefs, agentsFiles, workspaces, settings},
+		terminal:  terminal,
+		modules:   []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal},
 		dock:      dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
+}
+
+// Shutdown releases the resources the modules hold while the server runs: it kills the live terminal
+// sessions, so no shell outlives the process. The caller stops the HTTP server first.
+func (a *App) Shutdown(ctx context.Context) error {
+	if err := a.terminal.Shutdown(ctx); err != nil {
+		return fmt.Errorf("shutdown terminals: %w", err)
+	}
+	return nil
 }
 
 // Router builds the HTTP router. Middlewares run in the order of the Rust server: the cross-site
@@ -149,7 +194,7 @@ func (a *App) page(w http.ResponseWriter, r *http.Request) {
 }
 
 // settingsSections are the sections of the settings screen, in display order.
-func settingsSections(settings *agentsettingsdi.Module) []agentsettingspages.SettingsSection {
+func settingsSections(settings *agentsettingsdi.Module, codeHosting *codehostingdi.Module) []agentsettingspages.SettingsSection {
 	return []agentsettingspages.SettingsSection{
 		{
 			ID:    "language",
@@ -167,8 +212,16 @@ func settingsSections(settings *agentsettingsdi.Module) []agentsettingspages.Set
 			},
 		},
 		notMigratedSection("jira", "Jira"),
-		notMigratedSection("gitlab", "GitLab"),
-		notMigratedSection("github", "GitHub"),
+		{
+			ID:      "gitlab",
+			Label:   func(context.Context) string { return "GitLab" },
+			Content: codeHosting.SettingsContent(codehostingmodels.GitLab),
+		},
+		{
+			ID:      "github",
+			Label:   func(context.Context) string { return "GitHub" },
+			Content: codeHosting.SettingsContent(codehostingmodels.GitHub),
+		},
 	}
 }
 
@@ -185,6 +238,9 @@ func notMigratedSection(id string, label string) agentsettingspages.SettingsSect
 const (
 	workspacesPath  = "/workspaces"
 	agentsFilesPath = "/agents-files"
+	profilesPath    = "/profiles"
+	modelsPath      = "/models"
+	terminalsPath   = "/terminals"
 )
 
 // navEntry is a top-level destination of the sidebar and of the "+" launcher. Only migrated screens
@@ -199,6 +255,9 @@ type navEntry struct {
 var navEntries = []navEntry{
 	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
 	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
+	{Href: profilesPath, Icon: "☰", Title: agentprofilespages.TabTitle.T},
+	{Href: modelsPath, Icon: "◇", Title: agentprofilespages.ModelsTitle.T},
+	{Href: terminalsPath, Icon: "❯", Title: terminalpages.TerminalsTitle},
 	{Href: agentsettingspages.SettingsPath, Icon: "⚙", Title: agentsettingspages.SettingsTitle},
 }
 
@@ -208,12 +267,8 @@ func notMigratedRoutes() []dock.Route {
 	return []dock.Route{
 		notMigratedRoute("/", "▦", msgTitleBoard),
 		notMigratedRoute("/board/{rest...}", "▦", msgTitleBoard),
-		notMigratedRoute("/terminals", "❯", msgTitleTerminals),
-		notMigratedRoute("/terminals/{rest...}", "❯", msgTitleTerminals),
 		notMigratedRoute("/jira", "◈", msgTitleJira),
 		notMigratedRoute("/jira/{rest...}", "◈", msgTitleJira),
-		notMigratedRoute("/profiles", "☰", msgTitleProfiles),
-		notMigratedRoute("/models", "◇", msgTitleModels),
 		notMigratedRoute("/tasks/{rest...}", "●", msgTitleTasks),
 	}
 }

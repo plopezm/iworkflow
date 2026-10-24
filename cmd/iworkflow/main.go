@@ -153,7 +153,14 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		Handler:           application.Router(),
 		ReadHeaderTimeout: readHeaderLimit,
 	}
-	return serveUntilStopped(ctx, logger, server, listener, restartHandle)
+	serveErr := serveUntilStopped(ctx, logger, server, listener, restartHandle)
+	// The HTTP server has stopped; the modules now release what they hold (live terminal shells).
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+	defer cancel()
+	if err := application.Shutdown(stopCtx); err != nil {
+		logger.Warn("cannot release the modules on shutdown", "error", err)
+	}
+	return serveErr
 }
 
 // siteOptionsFromEnv returns the site settings: the environment wins, then the packaged defaults.
