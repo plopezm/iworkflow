@@ -240,10 +240,13 @@ type fakeStorage struct {
 	deletedDirs []models.TaskID
 	failSave    bool
 	// failSaveFrom makes Save fail from its N-th call (1-based) on; zero means never.
-	failSaveFrom  int
-	saveCalls     int
-	failDelete    bool
-	failDeleteDir bool
+	failSaveFrom    int
+	saveCalls       int
+	failDelete      bool
+	failDeleteDir   bool
+	readBytesResult []byte
+	readBytesErr    error
+	readPaths       []string
 }
 
 func (s *fakeStorage) Save(_ context.Context, taskID models.TaskID, attachmentID string, _ models.ImageAttachment) (string, error) {
@@ -267,6 +270,12 @@ func (s *fakeStorage) Delete(_ context.Context, path string) error {
 	return nil
 }
 
+// ReadBytes records the path it was asked for and answers with the configured content.
+func (s *fakeStorage) ReadBytes(_ context.Context, path string) ([]byte, error) {
+	s.readPaths = append(s.readPaths, path)
+	return s.readBytesResult, s.readBytesErr
+}
+
 func (s *fakeStorage) DeleteTaskDir(_ context.Context, taskID models.TaskID) error {
 	s.deletedDirs = append(s.deletedDirs, taskID)
 	if s.failDeleteDir {
@@ -278,10 +287,12 @@ func (s *fakeStorage) DeleteTaskDir(_ context.Context, taskID models.TaskID) err
 // fakeAttachments records the metadata written for a task.
 type fakeAttachments struct {
 	outbound.TaskAttachmentRepository
-	inserted   [][]models.StoredAttachment
-	listed     []models.StoredAttachment
-	removed    []models.StoredAttachment
-	failInsert bool
+	inserted         [][]models.StoredAttachment
+	listed           []models.StoredAttachment
+	removed          []models.StoredAttachment
+	failInsert       bool
+	deletedByTask    int
+	failDeleteByTask error
 }
 
 func (a *fakeAttachments) InsertMany(_ context.Context, _ models.TaskID, attachments []models.StoredAttachment) error {
@@ -290,6 +301,12 @@ func (a *fakeAttachments) InsertMany(_ context.Context, _ models.TaskID, attachm
 	}
 	a.inserted = append(a.inserted, attachments)
 	return nil
+}
+
+// DeleteByTask records the call; failDeleteByTask injects a repository failure.
+func (a *fakeAttachments) DeleteByTask(_ context.Context, _ models.TaskID) error {
+	a.deletedByTask++
+	return a.failDeleteByTask
 }
 
 func (a *fakeAttachments) ListByTask(_ context.Context, _ models.TaskID) ([]models.StoredAttachment, error) {

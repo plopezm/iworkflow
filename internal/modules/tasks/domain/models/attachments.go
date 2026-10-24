@@ -20,3 +20,6 @@ type TaskFileContent struct {
 	Path    string
 	Content string
 }
+
+// MaxTaskFileBytes is the largest worktree file that can be read or saved from the diff view: 1 MiB.
+const MaxTaskFileBytes = 1024 * 1024

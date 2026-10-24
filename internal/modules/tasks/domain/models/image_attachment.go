@@ -26,7 +26,7 @@ type ImageAttachment struct {
 
 // ValidatedImage checks one image and returns it normalized.
 func (i ImageAttachment) ValidatedImage() (ImageAttachment, error) {
-	if !isAllowedMimeType(i.MimeType) {
+	if !IsAllowedImageMimeType(i.MimeType) {
 		return ImageAttachment{}, werrors.InvalidAttachment(fmt.Sprintf("%s: tipo de imagen no admitido (%s)", i.Name, i.MimeType))
 	}
 	if i.Data == "" {
@@ -65,7 +65,8 @@ func (i ImageAttachment) DecodedLen() int {
 	return decoded - padding
 }
 
-func isAllowedMimeType(mimeType string) bool {
+// IsAllowedImageMimeType reports whether the MIME type is one of the accepted image types.
+func IsAllowedImageMimeType(mimeType string) bool {
 	for _, allowed := range AllowedImageMimeTypes {
 		if allowed == mimeType {
 			return true
