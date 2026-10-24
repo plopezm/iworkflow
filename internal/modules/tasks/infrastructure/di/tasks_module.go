@@ -39,6 +39,11 @@ type Deps struct {
 	// Remote merges a task through its open merge request in the provider (code_hosting). Optional: nil
 	// means every task is merged locally.
 	Remote outbound.RemoteMerge
+	// Runtime restarts the agents of the stopped tasks (slice F). Optional: nil means the module has no resume
+	// use cases. It must be provided together with LaunchSettings.
+	Runtime outbound.AgentRuntime
+	// LaunchSettings prepares the launch options of a resume from the agent settings. Required with Runtime.
+	LaunchSettings outbound.LaunchSettings
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -89,6 +94,11 @@ type Module struct {
 	GetGraph         *application.GetTaskGraph
 	SetPosition      *application.SetTaskPosition
 	Successors       *application.TriggerSuccessors
+	// The resume of the tasks stopped by a usage limit (slice G). ResumeTask is the manual resume and
+	// ResumeRateLimited is the sweep the resume loop runs (background.RunResumeLoop). Both are nil when
+	// Deps has no Runtime; the composition root must not run the loop then.
+	ResumeTask        *application.ResumeTask
+	ResumeRateLimited *application.ResumeRateLimitedTasks
 }
 
 // NewModule wires the adapters into the use cases. It fails when a required dependency is missing,
@@ -129,39 +139,53 @@ func NewModule(deps Deps) (*Module, error) {
 	attachments := persistence.NewTaskAttachmentRepository(deps.DB, persistence.Clock(clock))
 	taskFiles := files.NewFsTaskFile()
 	getAttachment := application.NewGetTaskAttachment(attachments, attachmentStorage)
+	eventSink := application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity)
+	resumeTask, resumeRateLimited := wireResume(deps, lifecycle, worktrees, eventSink)
 
 	return &Module{
-		Get:              getTask,
-		List:             application.NewListTasks(repository),
-		ListDone:         application.NewListDoneTasks(repository),
-		Create:           application.NewCreateTask(lifecycle, worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
-		Update:           application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
-		Delete:           application.NewDeleteTask(lifecycle, attachmentStorage),
-		DeleteWorkspace:  application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
-		ListAttachments:  application.NewListTaskAttachments(attachments),
-		GetAttachment:    getAttachment,
-		Cleanup:          application.NewAttachmentCleanup(attachments, attachmentStorage),
-		Attachments:      httpinbound.NewAttachmentHandler(getAttachment),
-		GetFile:          application.NewGetTaskFile(lifecycle, taskFiles),
-		SaveFile:         application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
-		Worktrees:        worktrees,
-		GetDiff:          application.NewGetTaskDiff(lifecycle, worktrees),
-		Merge:            application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote),
-		SweepWorktrees:   application.NewSweepOrphanWorktrees(repository, worktrees),
-		ListBranches:     application.NewListWorkspaceBranches(lifecycle, worktrees),
-		Lifecycle:        lifecycle,
-		AgentEvents:      agentEvents,
-		GetEvents:        getEvents,
-		EventSink:        application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity),
-		Subscriber:       bus,
-		Streams:          httpinbound.NewTaskStreams(getTask, getEvents, bus),
-		AddDependency:    application.NewAddTaskDependency(lifecycle, graph, successors),
-		RemoveDependency: application.NewRemoveTaskDependency(graph, successors),
-		DetachFromGraph:  application.NewDetachTaskFromGraph(graph, successors),
-		GetGraph:         application.NewGetTaskGraph(graph),
-		SetPosition:      application.NewSetTaskPosition(graph),
-		Successors:       successors,
+		Get:               getTask,
+		List:              application.NewListTasks(repository),
+		ListDone:          application.NewListDoneTasks(repository),
+		Create:            application.NewCreateTask(lifecycle, worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
+		Update:            application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
+		Delete:            application.NewDeleteTask(lifecycle, attachmentStorage),
+		DeleteWorkspace:   application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
+		ListAttachments:   application.NewListTaskAttachments(attachments),
+		GetAttachment:     getAttachment,
+		Cleanup:           application.NewAttachmentCleanup(attachments, attachmentStorage),
+		Attachments:       httpinbound.NewAttachmentHandler(getAttachment),
+		GetFile:           application.NewGetTaskFile(lifecycle, taskFiles),
+		SaveFile:          application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
+		Worktrees:         worktrees,
+		GetDiff:           application.NewGetTaskDiff(lifecycle, worktrees),
+		Merge:             application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote),
+		SweepWorktrees:    application.NewSweepOrphanWorktrees(repository, worktrees),
+		ListBranches:      application.NewListWorkspaceBranches(lifecycle, worktrees),
+		Lifecycle:         lifecycle,
+		AgentEvents:       agentEvents,
+		GetEvents:         getEvents,
+		EventSink:         eventSink,
+		Subscriber:        bus,
+		Streams:           httpinbound.NewTaskStreams(getTask, getEvents, bus),
+		AddDependency:     application.NewAddTaskDependency(lifecycle, graph, successors),
+		RemoveDependency:  application.NewRemoveTaskDependency(graph, successors),
+		DetachFromGraph:   application.NewDetachTaskFromGraph(graph, successors),
+		GetGraph:          application.NewGetTaskGraph(graph),
+		SetPosition:       application.NewSetTaskPosition(graph),
+		Successors:        successors,
+		ResumeTask:        resumeTask,
+		ResumeRateLimited: resumeRateLimited,
 	}, nil
+}
+
+// wireResume builds the resume use cases when the composition provides an agent runtime. Without one it returns
+// nil for both, and the module is built exactly as before the resume existed.
+func wireResume(deps Deps, lifecycle *application.TaskLifecycle, worktrees outbound.Worktree, sink inbound.AgentEventSink) (*application.ResumeTask, *application.ResumeRateLimitedTasks) {
+	if deps.Runtime == nil {
+		return nil, nil
+	}
+	resumeTask := application.NewResumeTask(lifecycle, worktrees, deps.Runtime, deps.LaunchSettings, sink)
+	return resumeTask, application.NewResumeRateLimitedTasks(lifecycle, deps.Runtime, resumeTask)
 }
 
 // errMissingDependency is returned when a required dependency of the module is nil.
@@ -183,6 +207,9 @@ func (d Deps) validate() error {
 		if dependency.missing {
 			return fmt.Errorf("%w: %s", errMissingDependency, dependency.name)
 		}
+	}
+	if (d.Runtime == nil) != (d.LaunchSettings == nil) {
+		return fmt.Errorf("%w: Runtime and LaunchSettings must be provided together", errMissingDependency)
 	}
 	return nil
 }
