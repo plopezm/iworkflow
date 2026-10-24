@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/a-h/templ"
@@ -28,6 +29,10 @@ type Handlers struct {
 	update       *application.UpdateAgentSettings
 	listModels   *application.ListModels
 	listProfiles *application.ListProfiles
+	// changeMu serializes the read-modify-write of applyChange. Each save writes the whole settings
+	// row, so two overlapping changes (two selectors) would otherwise both start from the same row and
+	// the later save would drop the earlier change.
+	changeMu sync.Mutex
 }
 
 // NewHandlers builds the handlers over the use cases of the module.
@@ -129,6 +134,8 @@ func (h *Handlers) changeBar(apply func(dto.AgentSettingsDTO, string) dto.AgentS
 // applyChange saves the settings produced by patch from the current ones. It returns the message
 // of the failure, or "" when the change was saved.
 func (h *Handlers) applyChange(ctx context.Context, patch func(dto.AgentSettingsDTO) dto.AgentSettingsDTO) string {
+	h.changeMu.Lock()
+	defer h.changeMu.Unlock()
 	current, err := h.getSettings.Execute(ctx)
 	if err != nil {
 		return err.Error()

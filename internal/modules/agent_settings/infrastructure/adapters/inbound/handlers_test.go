@@ -8,7 +8,9 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
@@ -21,20 +23,38 @@ import (
 	"iworkflow/internal/modules/agent_settings/infrastructure/adapters/inbound/dto"
 )
 
-// fakeRepository keeps the settings in memory; saveErr makes every save fail.
+// fakeRepository keeps the settings in memory; saveErr makes every save fail. getDelay holds a read
+// for a while after it took its snapshot, so a concurrent change can save before the read returns.
 type fakeRepository struct {
+	mu       sync.Mutex
 	settings models.AgentSettings
 	saveErr  error
+	getDelay time.Duration
 }
 
-func (f *fakeRepository) Get(context.Context) (models.AgentSettings, error) { return f.settings, nil }
+func (f *fakeRepository) Get(context.Context) (models.AgentSettings, error) {
+	f.mu.Lock()
+	snapshot := f.settings
+	f.mu.Unlock()
+	time.Sleep(f.getDelay)
+	return snapshot, nil
+}
 
 func (f *fakeRepository) Save(_ context.Context, settings models.AgentSettings) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	if f.saveErr != nil {
 		return f.saveErr
 	}
 	f.settings = settings
 	return nil
+}
+
+// snapshot returns the stored settings.
+func (f *fakeRepository) snapshot() models.AgentSettings {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.settings
 }
 
 // fakeModels offers a fixed list for every runtime.
@@ -335,4 +355,41 @@ func TestJSONListsReplaceTheRustServerFunctions(t *testing.T) {
 
 	profiles := h.get(t, "/api/agent-settings/profiles")
 	require.JSONEq(t, `{"active":"Claude","names":["Claude","Gentleman"]}`, profiles.Body.String())
+}
+
+func TestEmptyThinkingValueClearsTheSavedLevelAndShowsTheDefaultLabel(t *testing.T) {
+	off := models.ThinkingOff
+	repository := &fakeRepository{settings: models.AgentSettings{Thinking: &off}}
+	h := newHarness(t, repository)
+
+	rec := h.post(t, "/agent-settings/thinking", url.Values{"value": {""}})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Nil(t, repository.snapshot().Thinking, "an empty value means the runtime default")
+	require.Contains(t, rec.Body.String(), `<option value="" selected>Default</option>`)
+	require.Contains(t, rec.Body.String(), `title="Default"`)
+}
+
+// Two changes sent at the same time (two selectors) both read the row before either saves. Each save
+// writes the whole row, so without serialization the second save drops the first change.
+func TestOverlappingChangesDoNotLoseEachOther(t *testing.T) {
+	repository := &fakeRepository{getDelay: 50 * time.Millisecond}
+	h := newHarness(t, repository)
+
+	var wg sync.WaitGroup
+	for _, change := range []struct{ path, value string }{
+		{"/agent-settings/runtime", "pi"},
+		{"/agent-settings/thinking", "high"},
+	} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			h.post(t, change.path, url.Values{"value": {change.value}})
+		}()
+	}
+	wg.Wait()
+
+	stored := repository.snapshot()
+	require.NotNil(t, stored.Runtime, "the runtime change was lost")
+	require.NotNil(t, stored.Thinking, "the thinking change was lost")
 }
