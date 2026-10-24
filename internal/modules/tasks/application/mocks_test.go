@@ -2,6 +2,9 @@ package application_test
 
 import (
 	"context"
+	"slices"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -51,6 +54,8 @@ func newTask(status models.TaskStatus, dialogIDs ...string) models.Task {
 // embedded nil interface, so an unexpected call fails loudly.
 type fakeRepository struct {
 	outbound.TaskRepository
+	// finds counts the lookups; it is atomic because the trigger tests look tasks up concurrently.
+	finds atomic.Int64
 
 	tasks         map[models.TaskID]models.Task
 	statuses      []models.TaskStatus
@@ -92,6 +97,7 @@ func (r *fakeRepository) Insert(_ context.Context, task models.Task) error {
 }
 
 func (r *fakeRepository) Find(_ context.Context, id models.TaskID) (*models.Task, error) {
+	r.finds.Add(1)
 	task, ok := r.tasks[id]
 	if !ok {
 		return nil, nil
@@ -347,6 +353,151 @@ func (s *fakeStarter) Start(_ context.Context, id models.TaskID) (models.Task, e
 		return models.Task{}, s.err
 	}
 	return newTask(models.StatusStarting), nil
+}
+
+// edgeOf is a merged-trigger edge of workspace "ws-1", the workspace of newTask.
+func edgeOf(predecessor models.TaskID, successor models.TaskID) models.TaskDependency {
+	return models.TaskDependency{Predecessor: predecessor, Successor: successor, WorkspaceID: "ws-1", Trigger: models.DependencyTriggerMerged}
+}
+
+// fakeGraph is an in-memory TaskGraphRepository. Like the adapter, InsertDependency validates the edge
+// against the edges of its workspace and stores nothing when it is rejected. Positions are not scoped by
+// workspace here: the use cases pass the workspace, and the tests check that argument. It is safe for
+// concurrent use because the trigger tests evaluate the graph from several goroutines.
+type fakeGraph struct {
+	mu sync.Mutex
+
+	edges     []models.TaskDependency
+	positions []models.TaskPosition
+	// The errors are returned instead of the real work; nothing is stored then.
+	insertErr error
+	removeErr error
+	listErr   error
+	setErr    error
+	detachErr error
+	// inserts and sets count the writes that reached the graph, including the rejected ones.
+	inserts int
+	sets    int
+	// dependencyQueries and positionQueries record the workspace argument of every read.
+	dependencyQueries []*string
+	positionQueries   []string
+}
+
+var _ outbound.TaskGraphRepository = (*fakeGraph)(nil)
+
+func (g *fakeGraph) InsertDependency(_ context.Context, dependency models.TaskDependency) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.inserts++
+	if g.insertErr != nil {
+		return g.insertErr
+	}
+	if err := models.ValidateNewDependency(edgesOf(g.edges, dependency.WorkspaceID), dependency); err != nil {
+		return err
+	}
+	g.edges = append(g.edges, dependency)
+	return nil
+}
+
+func (g *fakeGraph) RemoveDependency(_ context.Context, predecessor models.TaskID, successor models.TaskID) (bool, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.removeErr != nil {
+		return false, g.removeErr
+	}
+	for index, edge := range g.edges {
+		if edge.Predecessor == predecessor && edge.Successor == successor {
+			g.edges = append(g.edges[:index:index], g.edges[index+1:]...)
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (g *fakeGraph) ListDependencies(_ context.Context, workspaceID *string) ([]models.TaskDependency, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.dependencyQueries = append(g.dependencyQueries, workspaceID)
+	if g.listErr != nil {
+		return nil, g.listErr
+	}
+	if workspaceID == nil {
+		return slices.Clone(g.edges), nil
+	}
+	return edgesOf(g.edges, *workspaceID), nil
+}
+
+func (g *fakeGraph) SetPosition(_ context.Context, taskID models.TaskID, position models.NodePosition) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.sets++
+	if g.setErr != nil {
+		return g.setErr
+	}
+	for index, stored := range g.positions {
+		if stored.TaskID == taskID {
+			g.positions[index].Position = position
+			return nil
+		}
+	}
+	g.positions = append(g.positions, models.TaskPosition{TaskID: taskID, Position: position})
+	return nil
+}
+
+func (g *fakeGraph) DetachTask(_ context.Context, taskID models.TaskID) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.detachErr != nil {
+		return g.detachErr
+	}
+	var edges []models.TaskDependency
+	for _, edge := range g.edges {
+		if edge.Predecessor != taskID && edge.Successor != taskID {
+			edges = append(edges, edge)
+		}
+	}
+	g.edges = edges
+	var positions []models.TaskPosition
+	for _, stored := range g.positions {
+		if stored.TaskID != taskID {
+			positions = append(positions, stored)
+		}
+	}
+	g.positions = positions
+	return nil
+}
+
+func (g *fakeGraph) ListPositions(_ context.Context, workspaceID string) ([]models.TaskPosition, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.positionQueries = append(g.positionQueries, workspaceID)
+	if g.listErr != nil {
+		return nil, g.listErr
+	}
+	return slices.Clone(g.positions), nil
+}
+
+// edgesOf returns the edges of one workspace, in stored order.
+func edgesOf(edges []models.TaskDependency, workspaceID string) []models.TaskDependency {
+	var result []models.TaskDependency
+	for _, edge := range edges {
+		if edge.WorkspaceID == workspaceID {
+			result = append(result, edge)
+		}
+	}
+	return result
+}
+
+// graphTrigger counts the graph evaluations and answers with a fixed result.
+type graphTrigger struct {
+	calls  int
+	result int
+	err    error
+}
+
+func (f *graphTrigger) Trigger(_ context.Context) (int, error) {
+	f.calls++
+	return f.result, f.err
 }
 
 // fakeRuntime is the agent runtime seen by the use cases that answer dialogs or list subagents.
