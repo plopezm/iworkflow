@@ -1,15 +1,22 @@
-// Package di is the composition root of the code_hosting module: it builds the adapters and the use
-// cases. Routes and presentation are added in the presentation phase.
+// Package di is the composition root of the code_hosting module: it builds the adapters, the use cases
+// and the handlers, and exposes the routes and the components that other screens embed.
 package di
 
 import (
+	"context"
 	"database/sql"
 
+	"github.com/a-h/templ"
+	"github.com/go-chi/chi/v5"
+
 	"iworkflow/internal/modules/code_hosting/application"
+	"iworkflow/internal/modules/code_hosting/domain/models"
 	"iworkflow/internal/modules/code_hosting/domain/ports/outbound"
+	"iworkflow/internal/modules/code_hosting/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/code_hosting/infrastructure/adapters/outbound/api"
 	"iworkflow/internal/modules/code_hosting/infrastructure/adapters/outbound/git"
 	"iworkflow/internal/modules/code_hosting/infrastructure/adapters/outbound/persistence"
+	"iworkflow/internal/modules/code_hosting/presentation/components"
 )
 
 // Deps are the resources the module needs from the composition root.
@@ -23,7 +30,8 @@ type Deps struct {
 	RemoteMerge *application.RemoteMerge
 }
 
-// Module exposes the use cases of the code_hosting module and the remote merge port.
+// Module exposes the use cases of the code_hosting module, its remote merge port, its routes and the
+// components the settings and task screens embed.
 type Module struct {
 	GetSettings            *application.GetCodeHostSettings
 	SaveSettings           *application.SaveCodeHostSettings
@@ -34,9 +42,28 @@ type Module struct {
 	PushTaskBranch         *application.PushTaskBranch
 	// RemoteMerge is bound to MergeTaskMergeRequest; the tasks module consumes it.
 	RemoteMerge *application.RemoteMerge
+
+	handlers *inbound.Handlers
 }
 
-// NewModule wires the adapters into the use cases.
+// Routes mounts the fragment endpoints of the module. It satisfies web.Module.
+func (m *Module) Routes(r chi.Router) {
+	m.handlers.Mount(r)
+}
+
+// SettingsContent returns the settings card of a provider, for a settings section. The settings
+// screen calls it on every render.
+func (m *Module) SettingsContent(provider models.HostingProvider) func(context.Context) templ.Component {
+	return m.handlers.SettingsContent(provider)
+}
+
+// TaskPanel returns the merge request panel of a task, for the task screen to embed. The panel loads
+// its own content, so the screen passes only the task id.
+func (m *Module) TaskPanel(taskID string) templ.Component {
+	return components.TaskMergeRequestPanel(components.TaskMergeRequestPanelProps{TaskID: taskID})
+}
+
+// NewModule wires the adapters into the use cases and the use cases into the handlers.
 func NewModule(deps Deps) *Module {
 	repository := persistence.NewCodeHostSettingsRepository(deps.DB)
 	clients := api.NewClientFactory(api.NewClientManager())
@@ -48,14 +75,29 @@ func NewModule(deps Deps) *Module {
 		remoteMerge = application.NewRemoteMerge()
 	}
 	remoteMerge.Bind(merge)
+	getSettings := application.NewGetCodeHostSettings(repository)
+	saveSettings := application.NewSaveCodeHostSettings(repository)
+	testConnection := application.NewTestCodeHostConnection(repository, clients)
+	getMergeRequest := application.NewGetTaskMergeRequest(resolver)
+	createMergeRequest := application.NewCreateTaskMergeRequest(resolver, gitRemote)
+	pushTaskBranch := application.NewPushTaskBranch(resolver, gitRemote)
 	return &Module{
-		GetSettings:            application.NewGetCodeHostSettings(repository),
-		SaveSettings:           application.NewSaveCodeHostSettings(repository),
-		TestConnection:         application.NewTestCodeHostConnection(repository, clients),
-		GetTaskMergeRequest:    application.NewGetTaskMergeRequest(resolver),
-		CreateTaskMergeRequest: application.NewCreateTaskMergeRequest(resolver, gitRemote),
+		GetSettings:            getSettings,
+		SaveSettings:           saveSettings,
+		TestConnection:         testConnection,
+		GetTaskMergeRequest:    getMergeRequest,
+		CreateTaskMergeRequest: createMergeRequest,
 		MergeTaskMergeRequest:  merge,
-		PushTaskBranch:         application.NewPushTaskBranch(resolver, gitRemote),
+		PushTaskBranch:         pushTaskBranch,
 		RemoteMerge:            remoteMerge,
+		handlers: inbound.NewHandlers(
+			getSettings,
+			saveSettings,
+			testConnection,
+			getMergeRequest,
+			createMergeRequest,
+			merge,
+			pushTaskBranch,
+		),
 	}
 }
