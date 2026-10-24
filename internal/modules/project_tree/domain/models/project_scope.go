@@ -58,3 +58,12 @@ func (s ProjectScope) ID() uuid.UUID {
 func (s ProjectScope) IsTask() bool {
 	return s.kind == scopeTask
 }
+
+// Wire returns the wire form of the scope: a bare uuid for a workspace, `task:<uuid>` for a task.
+// It is the value the scope travels as in URLs and forms, and ParseProjectScope reads it back.
+func (s ProjectScope) Wire() string {
+	if s.kind == scopeTask {
+		return taskPrefix + s.id.String()
+	}
+	return s.id.String()
+}
