@@ -1,42 +1,242 @@
-// Package app is the composition root: it groups the feature modules and builds the router.
+// Package app is the composition root: it builds the feature modules, wires their ports to each other
+// and assembles the HTTP router (the dock shell, every module's routes and the shared middlewares).
 package app
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"net/http"
 
+	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
 	"iworkflow/internal/core/config"
+	"iworkflow/internal/core/dock"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/core/listen"
+	"iworkflow/internal/core/restart"
 	"iworkflow/internal/core/web"
+	agentsettingsdi "iworkflow/internal/modules/agent_settings/infrastructure/di"
+	agentsettingspages "iworkflow/internal/modules/agent_settings/presentation/pages"
+	agentsfilesdi "iworkflow/internal/modules/agents_files/infrastructure/di"
+	agentsfilespages "iworkflow/internal/modules/agents_files/presentation/pages"
+	prefsinbound "iworkflow/internal/modules/preferences/infrastructure/adapters/inbound"
+	prefssystem "iworkflow/internal/modules/preferences/infrastructure/adapters/outbound/system"
+	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
+	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
+	workspacespersistence "iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/persistence"
+	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
+	workspacespages "iworkflow/internal/modules/workspaces/presentation/pages"
 )
 
-// App holds the composed feature modules.
+// Deps are the process-level inputs of the composition root.
+type Deps struct {
+	DB     *sql.DB
+	Config config.Config
+	Logger *slog.Logger
+	// StaticDir holds the built assets served under /static/.
+	StaticDir string
+	// Listen describes the address the server listens on and whether it demands the token.
+	Listen listen.Info
+	// Preferences are the saved settings read before the server starts (see LoadPreferences).
+	Preferences Preferences
+	// Restart is the handle the settings screen uses to ask for a restart.
+	Restart *restart.Handle
+}
+
+// App is the assembled server: the router and the modules it mounts.
 type App struct {
-	modules   []web.Module
 	logger    *slog.Logger
 	staticDir string
+	guard     *prefsinbound.AccessGuard
+	prefs     *prefsdi.Module
+	modules   []web.Module
+	dock      *dock.Handlers
 }
 
-// New composes every feature module. Add each new module to the list below (and only here).
-func New(_ *sql.DB, _ config.Config, logger *slog.Logger, staticDir string) *App {
-	return &App{
-		modules:   []web.Module{},
-		logger:    logger,
-		staticDir: staticDir,
+// New composes the modules. The order matters only for the ports the modules share: the workspaces
+// and agents_files modules need each other, so the project lookup is bound after both are built.
+//
+// TODO(tasks): the tasks module is not migrated yet. Its startup steps (reconcile interrupted tasks,
+// sweep orphan worktrees, start the graph and resume loops) and its routes (events, attachments,
+// terminal) are not wired; the workspaces module uses a temporary WorkspaceTasks adapter meanwhile.
+func New(deps Deps) (*App, error) {
+	guard := prefsinbound.NewAccessGuard(deps.Preferences.Token, deps.Listen.TokenRequired)
+
+	projects := &projectLookup{}
+	agentsFiles := agentsfilesdi.NewModule(agentsfilesdi.Deps{
+		DB:         deps.DB,
+		StorageDir: deps.Config.AgentsFilesDir,
+		Projects:   projects,
+		Logger:     deps.Logger,
+	})
+	workspaces := workspacesdi.NewModule(workspacesdi.Deps{
+		DB:          deps.DB,
+		HomeDir:     deps.Config.HomeDir,
+		Tasks:       workspacespersistence.NewTemporaryWorkspaceTasks(deps.DB),
+		AgentsFiles: &agentsFilesBridge{module: agentsFiles},
+	})
+	projects.list = workspaces.List
+	projects.get = workspaces.Get
+
+	prefs := prefsdi.NewModule(prefsdi.Deps{
+		DB:        deps.DB,
+		Logger:    deps.Logger,
+		Guard:     guard,
+		Network:   prefssystem.NewNetworkDetector(deps.Logger),
+		Runtime:   prefssystem.NewServerRuntime(deps.Listen),
+		Restarter: prefssystem.NewServerRestarter(deps.Restart),
+	})
+	settings := agentsettingsdi.NewModule(agentsettingsdi.Dependencies{
+		DB:                 deps.DB,
+		GentleShellBin:     deps.Config.GentleShellBin,
+		PiBin:              deps.Config.PiBin,
+		CursorBin:          deps.Config.CursorBin,
+		GentlePiConfigHome: deps.Config.GentlePiConfigHome,
+	})
+
+	routes := make([]dock.Route, 0, 16)
+	routes = append(routes, agentsFiles.Tabs()...)
+	routes = append(routes, workspaces.Tabs()...)
+	routes = append(routes, settings.Tabs(settingsSections(settings))...)
+	routes = append(routes, notMigratedRoutes()...)
+	registry, err := dock.NewRegistry(routes...)
+	if err != nil {
+		return nil, fmt.Errorf("register dock tabs: %w", err)
 	}
+
+	return &App{
+		logger:    deps.Logger,
+		staticDir: deps.StaticDir,
+		guard:     guard,
+		prefs:     prefs,
+		modules:   []web.Module{prefs, agentsFiles, workspaces, settings},
+		dock:      dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
+	}, nil
 }
 
-// Router builds the HTTP router with the shared middlewares and every module's routes.
+// Router builds the HTTP router. Middlewares run in the order of the Rust server: the cross-site
+// guard and the access check wrap everything, including the login route and the static assets.
 func (a *App) Router() http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, web.Recover(a.logger), web.Locale, web.BodyLimit(web.DefaultBodyBytes))
+	r.Use(prefsinbound.RejectCrossSiteWrites, prefsinbound.RequireAccess(a.guard))
+	r.Use(
+		middleware.RequestID,
+		web.Recover(a.logger),
+		web.BodyLimit(web.DefaultBodyBytes),
+		web.Locale,
+		prefsinbound.SyncLanguageCookie(a.logger, a.prefs.GetLanguage, a.prefs.SaveLanguage),
+	)
 	r.Handle("/static/*", web.StaticHandler(a.staticDir))
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	r.Handle(prefsinbound.LoginPath, prefsinbound.AccessRouter(a.guard))
+	a.dock.Routes(r)
 	for _, module := range a.modules {
 		module.Routes(r)
 	}
+	// Every other GET is a page visit: the shell loads, and dock.js opens the path as a tab.
+	r.Get("/", a.page)
+	r.NotFound(a.page)
 	return r
+}
+
+// page renders the shell document. Pages are fragments the dock loads; the shell only hosts them.
+func (a *App) page(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, http.StatusOK, shellPage())
+}
+
+// settingsSections are the sections of the settings screen, in display order.
+func settingsSections(settings *agentsettingsdi.Module) []agentsettingspages.SettingsSection {
+	return []agentsettingspages.SettingsSection{
+		{
+			ID:    "language",
+			Label: msgSettingsLang.T,
+			Content: func(ctx context.Context) templ.Component {
+				return prefspages.LanguageSection(i18n.StateFrom(ctx).Locale)
+			},
+		},
+		settings.ResourcesSection(msgResources.T),
+		{
+			ID:    "network",
+			Label: msgSettingsNet.T,
+			Content: func(context.Context) templ.Component {
+				return prefspages.NetworkSection()
+			},
+		},
+		notMigratedSection("jira", "Jira"),
+		notMigratedSection("gitlab", "GitLab"),
+		notMigratedSection("github", "GitHub"),
+	}
+}
+
+// notMigratedSection is a settings section whose module is not migrated yet.
+func notMigratedSection(id string, label string) agentsettingspages.SettingsSection {
+	return agentsettingspages.SettingsSection{
+		ID:      id,
+		Label:   func(context.Context) string { return label },
+		Content: func(context.Context) templ.Component { return notMigratedPane() },
+	}
+}
+
+// Dock paths of the migrated screens. The modules own the same paths for their tabs.
+const (
+	workspacesPath  = "/workspaces"
+	agentsFilesPath = "/agents-files"
+)
+
+// navEntry is a top-level destination of the sidebar and of the "+" launcher. Only migrated screens
+// are listed; the others are reachable by address and show the not-migrated pane.
+type navEntry struct {
+	Href  string
+	Icon  string
+	Title func(ctx context.Context) string
+}
+
+// navEntries are the migrated top-level destinations, in display order.
+var navEntries = []navEntry{
+	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
+	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
+	{Href: agentsettingspages.SettingsPath, Icon: "⚙", Title: agentsettingspages.SettingsTitle},
+}
+
+// notMigratedRoutes are the screens that still belong to the Rust version. They keep their addresses
+// (so a bookmark opens a tab) and explain the state instead of a 404.
+func notMigratedRoutes() []dock.Route {
+	return []dock.Route{
+		notMigratedRoute("/", "▦", msgTitleBoard),
+		notMigratedRoute("/board/{rest...}", "▦", msgTitleBoard),
+		notMigratedRoute("/terminals", "❯", msgTitleTerminals),
+		notMigratedRoute("/terminals/{rest...}", "❯", msgTitleTerminals),
+		notMigratedRoute("/jira", "◈", msgTitleJira),
+		notMigratedRoute("/jira/{rest...}", "◈", msgTitleJira),
+		notMigratedRoute("/profiles", "☰", msgTitleProfiles),
+		notMigratedRoute("/models", "◇", msgTitleModels),
+		notMigratedRoute("/tasks/{rest...}", "●", msgTitleTasks),
+	}
+}
+
+func notMigratedRoute(pattern string, icon string, title i18n.Msg) dock.Route {
+	return dock.Route{
+		Pattern: pattern,
+		Icon:    icon,
+		Title: func(ctx context.Context, _ dock.Params) string {
+			return title.T(ctx)
+		},
+		Render: func(context.Context, dock.Params) templ.Component {
+			return notMigratedPane()
+		},
+	}
+}
+
+// launcherMenu is the entry list of the "+" menu: the migrated destinations.
+func launcherMenu() templ.Component {
+	return launcherEntries()
+}
+
+// emptyGroup is the body of a group without tabs.
+func emptyGroup() templ.Component {
+	return emptyGroupBody()
 }
