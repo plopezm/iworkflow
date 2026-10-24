@@ -14,6 +14,28 @@
 
 // ---- helpers ----
 
+// Counts the htmx swaps of the bar and their settles. htmx binds the controls of a swapped-in bar only
+// when it settles it (a short delay after the swap), so a change made in that gap is not sent.
+const BAR_SETTLE_SCRIPT = `
+  window.__iwfBarSwaps = 0;
+  window.__iwfBarSettles = 0;
+  const inBar = (e) => {
+    const el = (e.detail && e.detail.elt) || e.target;
+    return !!(el && el.closest && el.closest('#agent-settings-bar'));
+  };
+  document.addEventListener('htmx:afterSwap', (e) => { if (inBar(e)) window.__iwfBarSwaps++; }, true);
+  document.addEventListener('htmx:afterSettle', (e) => { if (inBar(e)) window.__iwfBarSettles++; }, true);
+`;
+
+// Waits until htmx has settled every swap of the bar, so its controls accept changes.
+async function waitForBarSettled(page, { timeout = 10000 } = {}) {
+  await page.waitForFunction(
+    () => window.__iwfBarSwaps > 0 && window.__iwfBarSwaps === window.__iwfBarSettles,
+    null,
+    { timeout }
+  );
+}
+
 // Waits for the title attribute of a pill to contain `needle`; returns the last value read.
 async function waitForTitle(pill, needle, { timeout = 10000 } = {}) {
   const start = Date.now();
@@ -48,8 +70,10 @@ async function pillTitle(ctx, label) {
 // Navigates to /settings and waits for the bar. "Se aplica a las tareas nuevas" only appears once the
 // htmx request that loads the bar has swapped it in.
 async function goToSettingsBar(ctx) {
+  await ctx.page.addInitScript(BAR_SETTLE_SCRIPT);
   await ctx.goto('/settings');
   await ctx.page.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 15000 });
+  await waitForBarSettled(ctx.page);
 }
 
 // ---- tests ----
@@ -104,6 +128,7 @@ module.exports = {
         );
         ctx.assert(despues !== antes, `la barra no reflejó el cambio (antes="${antes}")`);
         // Restaura el valor original para no dejar el estado modificado.
+        await waitForBarSettled(ctx.page);
         await pillSelect(ctx, 'Razonamiento').selectOption({ value: original });
         const restaurado = await waitForTitle(pillLabel(ctx, 'Razonamiento'), antes, { timeout: 15000 });
         ctx.assert(
