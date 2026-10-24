@@ -39,6 +39,15 @@ func FromTerminalSession(session models.TerminalSession) TerminalSessionDTO {
 	}
 }
 
+// FromTerminalSessions maps a list of domain sessions, keeping their order.
+func FromTerminalSessions(sessions []models.TerminalSession) []TerminalSessionDTO {
+	dtos := make([]TerminalSessionDTO, 0, len(sessions))
+	for _, session := range sessions {
+		dtos = append(dtos, FromTerminalSession(session))
+	}
+	return dtos
+}
+
 // statusToDTO maps the domain status to its wire value.
 func statusToDTO(status models.TerminalStatus) TerminalStatusDTO {
 	if status == models.TerminalStatusExited {
