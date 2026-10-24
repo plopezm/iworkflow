@@ -1,0 +1,10 @@
+package components
+
+// SearchResults lists the files the composer offers for an `@` reference, one item per path.
+templ SearchResults(paths []string) {
+	<ul>
+		for _, path := range paths {
+			<li class="composer-menu-item" data-path={ path }>{ path }</li>
+		}
+	</ul>
+}
