@@ -9,6 +9,34 @@ import (
 	"context"
 )
 
+const countActiveTasksByWorkspace = `-- name: CountActiveTasksByWorkspace :one
+SELECT COUNT(*) AS active
+FROM tasks
+WHERE workspace_id = ?1
+  AND status NOT IN ('backlog', 'merged', 'discarded')
+`
+
+// Active means any status other than backlog, merged or discarded (the Rust TaskStatus::is_inactive).
+func (q *Queries) CountActiveTasksByWorkspace(ctx context.Context, workspaceID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveTasksByWorkspace, workspaceID)
+	var active int64
+	err := row.Scan(&active)
+	return active, err
+}
+
+const deleteTasksByWorkspace = `-- name: DeleteTasksByWorkspace :execrows
+DELETE FROM tasks
+WHERE workspace_id = ?1
+`
+
+func (q *Queries) DeleteTasksByWorkspace(ctx context.Context, workspaceID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteTasksByWorkspace, workspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteWorkspace = `-- name: DeleteWorkspace :execrows
 DELETE FROM workspaces
 WHERE id = ?1

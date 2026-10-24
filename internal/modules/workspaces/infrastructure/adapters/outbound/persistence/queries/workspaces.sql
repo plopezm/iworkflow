@@ -25,3 +25,14 @@ WHERE path = sqlc.arg(path);
 -- name: DeleteWorkspace :execrows
 DELETE FROM workspaces
 WHERE id = sqlc.arg(id);
+
+-- name: CountActiveTasksByWorkspace :one
+-- Active means any status other than backlog, merged or discarded (the Rust TaskStatus::is_inactive).
+SELECT COUNT(*) AS active
+FROM tasks
+WHERE workspace_id = sqlc.arg(workspace_id)
+  AND status NOT IN ('backlog', 'merged', 'discarded');
+
+-- name: DeleteTasksByWorkspace :execrows
+DELETE FROM tasks
+WHERE workspace_id = sqlc.arg(workspace_id);
