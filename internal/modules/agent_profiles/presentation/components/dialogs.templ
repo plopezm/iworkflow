@@ -18,7 +18,7 @@ templ NameDialog(dialog state.NameDialogView) {
 						Name:     "name",
 						Value:    dialog.Value,
 						Required: true,
-						Attrs:    templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": "input changed delay:150ms", "hx-target": hashID(nameHintID("profiles")), "hx-swap": "outerHTML"},
+						Attrs:    templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": nameHintTrigger, "hx-target": hashID(nameHintID("profiles")), "hx-swap": "outerHTML"},
 					})
 					@NameHintText("profiles", dialog.Hint)
 					if dialog.Error != "" {
@@ -82,7 +82,7 @@ templ RoleDialog(dialog state.RoleDialogView) {
 					Value:       dialog.Name,
 					Placeholder: "sdd-review",
 					Required:    true,
-					Attrs:       templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": "input changed delay:150ms", "hx-vals": valsJSON(map[string]string{"scope": dialog.Scope}), "hx-target": hashID(nameHintID(dialog.Scope + "-role")), "hx-swap": "outerHTML"},
+					Attrs:       templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": nameHintTrigger, "hx-vals": valsJSON(map[string]string{"scope": dialog.Scope}), "hx-target": hashID(nameHintID(dialog.Scope + "-role")), "hx-swap": "outerHTML"},
 				})
 				@NameHintText(dialog.Scope+"-role", dialog.Hint)
 				@NameSubmit(dialog.Scope+"-role", dialog.SubmitLabel, dialog.Invalid, false)

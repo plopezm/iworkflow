@@ -152,3 +152,29 @@ func TestJSONPanelIsReadOnly(t *testing.T) {
 	require.Contains(t, html, "readonly")
 	require.Contains(t, html, `{&#34;kind&#34;:&#34;x&#34;}`)
 }
+
+// The live hint must fire once when htmx binds the field (trigger "load"), not only on "input": a fast
+// fill right after the dialog appears happens before htmx is bound, and its input event is lost.
+func TestNameHintFieldFiresOnLoadAndOnInput(t *testing.T) {
+	profile := render(t, components.NameDialog(state.NameDialogView{
+		ID: "profiles-dialog", Title: "Nuevo perfil", SubmitLabel: "Aceptar", Action: "/p", HintURL: "/agent-profiles/name-hint",
+	}))
+	role := render(t, components.RoleDialog(state.RoleDialogView{
+		ID: "profiles-dialog", Scope: "profiles", SubmitLabel: "Crear rol", Action: "/r", HintURL: "/agent-profiles/role-hint",
+	}))
+
+	for name, html := range map[string]string{"profile": profile, "role": role} {
+		require.Contains(t, html, `hx-trigger="input changed delay:150ms, load"`, name)
+		require.Contains(t, html, `hx-get="/agent-profiles/`, name)
+	}
+}
+
+// The submit button is rendered disabled for an empty name and stays enabled for a valid one; the hint
+// reply swaps it out of band with the same rule.
+func TestNameSubmitRendersDisabledOnlyWhenInvalid(t *testing.T) {
+	empty := render(t, components.NameSubmit("profiles", "Aceptar", true, false))
+	typed := render(t, components.NameSubmit("profiles", "Aceptar", false, false))
+
+	require.Contains(t, empty, "disabled")
+	require.NotContains(t, typed, "disabled")
+}

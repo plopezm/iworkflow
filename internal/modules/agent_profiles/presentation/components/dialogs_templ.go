@@ -114,7 +114,7 @@ func NameDialog(dialog state.NameDialogView) templ.Component {
 					Name:     "name",
 					Value:    dialog.Value,
 					Required: true,
-					Attrs:    templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": "input changed delay:150ms", "hx-target": hashID(nameHintID("profiles")), "hx-swap": "outerHTML"},
+					Attrs:    templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": nameHintTrigger, "hx-target": hashID(nameHintID("profiles")), "hx-swap": "outerHTML"},
 				}).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -562,7 +562,7 @@ func RoleDialog(dialog state.RoleDialogView) templ.Component {
 				Value:       dialog.Name,
 				Placeholder: "sdd-review",
 				Required:    true,
-				Attrs:       templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": "input changed delay:150ms", "hx-vals": valsJSON(map[string]string{"scope": dialog.Scope}), "hx-target": hashID(nameHintID(dialog.Scope + "-role")), "hx-swap": "outerHTML"},
+				Attrs:       templ.Attributes{"hx-get": dialog.HintURL, "hx-trigger": nameHintTrigger, "hx-vals": valsJSON(map[string]string{"scope": dialog.Scope}), "hx-target": hashID(nameHintID(dialog.Scope + "-role")), "hx-swap": "outerHTML"},
 			}).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

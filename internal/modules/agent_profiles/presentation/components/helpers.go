@@ -40,6 +40,12 @@ func deleteURLWithSelection(deleteURL string, selected string) string {
 	return deleteURL + "?" + url.Values{"selected": {selected}}.Encode()
 }
 
+// nameHintTrigger is the trigger of a live name hint. "load" fires once when htmx binds the field: htmx
+// binds a swapped-in dialog a few milliseconds after the swap, so an input that arrives in that window
+// (a fast fill or paste) fires no "input" event. The load request reads the current value and fixes the
+// hint and the submit state. Without it, such a value leaves the submit button disabled.
+const nameHintTrigger = "input changed delay:150ms, load"
+
 // hashID is the htmx selector of an element id.
 func hashID(id string) string { return "#" + id }
 
