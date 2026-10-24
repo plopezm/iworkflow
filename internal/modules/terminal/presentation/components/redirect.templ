@@ -1,0 +1,7 @@
+package components
+
+// DockRedirect asks the dock to replace the tab that holds the pane with path. dock.js reads it after
+// the swap, so the tab turns into the destination.
+templ DockRedirect(path string) {
+	<span data-dock-redirect={ path }></span>
+}

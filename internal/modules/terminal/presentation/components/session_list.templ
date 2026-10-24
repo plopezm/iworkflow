@@ -1,0 +1,65 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/terminal/presentation/state"
+)
+
+// SessionsList renders the sessions table. Closing a session swaps the whole list, so the response
+// carries the new rows and the error of the attempt, if any.
+templ SessionsList(view state.ListView) {
+	<div id="terminal-sessions" class="stack">
+		if view.ActionError != "" {
+			@shared.ErrorText(view.ActionError)
+		}
+		if view.LoadError != "" {
+			@shared.ErrorText(view.LoadError)
+		} else if len(view.Rows) == 0 {
+			<p class="muted">{ msgNoTerminals.T(ctx) }</p>
+		} else {
+			<div class="overflow-x-auto">
+				<table class="data-table">
+					<thead>
+						<tr>
+							<th>{ msgWorkspace.T(ctx) }</th>
+							<th>{ msgSession.T(ctx) }</th>
+							<th>{ msgStarted.T(ctx) }</th>
+							<th>{ msgStatus.T(ctx) }</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, row := range view.Rows {
+							<tr>
+								<td class="font-medium text-fg">{ row.WorkspaceName }</td>
+								<td>
+									<code class="font-mono text-xs text-muted">{ row.ShortID }</code>
+								</td>
+								<td class="text-muted">{ row.StartedAt }</td>
+								<td>
+									<span class={ row.StatusClass }>{ row.StatusLabel }</span>
+								</td>
+								<td>
+									<div class="row justify-end gap-1.5">
+										@link.Tab(link.Props{Href: row.Href, Class: "btn-secondary min-h-8 px-2.5 py-1 text-xs"}) {
+											{ msgOpen.T(ctx) }
+										}
+										<button
+											type="button"
+											class="btn-danger min-h-8 px-2.5 py-1 text-xs"
+											hx-post={ "/terminal/sessions/" + row.ID + "/close" }
+											hx-target="#terminal-sessions"
+											hx-swap="outerHTML"
+											hx-disabled-elt="#terminal-sessions button"
+										>{ msgClose.T(ctx) }</button>
+									</div>
+								</td>
+							</tr>
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
