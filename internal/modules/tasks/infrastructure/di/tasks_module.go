@@ -4,6 +4,7 @@
 package di
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -17,24 +18,29 @@ import (
 	httpinbound "iworkflow/internal/modules/tasks/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/events"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/files"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/git"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/storage"
 )
 
-// Deps are the resources the module needs from the composition root. Every field is required: the
-// use cases call them unconditionally.
+// Deps are the resources the module needs from the composition root. The fields marked optional may be
+// nil; every other field is required, because the use cases call it unconditionally.
 type Deps struct {
 	DB *sql.DB
 	// Workspaces reads the workspaces the tasks belong to; provided by the workspaces module.
 	Workspaces outbound.WorkspaceLookup
 	// AttachmentsDir is the folder the images of the tasks are stored in. The module creates it when missing.
 	AttachmentsDir string
-	// Git commits the changes saved from the diff view; the git port of slice E provides it.
-	Git application.WorktreeCommitter
-	// Worktrees tells where a task worktree goes (slice E).
-	Worktrees application.WorktreeLayout
-	// Start starts a backlog task; CreateTask uses it when a task is created with start_now (slices E and F).
+	// WorktreesDir is the root of the task worktrees. Every worktree the module creates or removes lives
+	// under it. The module creates the git adapter over it.
+	WorktreesDir string
+	// Start starts a backlog task; CreateTask uses it when a task is created with start_now (slice F).
 	Start inbound.StartTaskUseCase
+	// Remote merges a task through its open merge request in the provider (code_hosting). Optional: nil
+	// means every task is merged locally.
+	Remote outbound.RemoteMerge
+	// Successors starts the graph successors of a task that was merged (slice C). Optional: nil skips it.
+	Successors inbound.SuccessorTrigger
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -52,6 +58,12 @@ type Module struct {
 	DeleteWorkspace *application.DeleteWorkspaceTasks
 	AgentEvents     *application.HandleAgentEvent
 	Lifecycle       *application.TaskLifecycle
+	// The git side: the worktree port (cached diffs) and the use cases over it.
+	Worktrees      outbound.Worktree
+	GetDiff        *application.GetTaskDiff
+	Merge          *application.MergeTask
+	SweepWorktrees *application.SweepOrphanWorktrees
+	ListBranches   *application.ListWorkspaceBranches
 	// The attachments of a task: create, update, delete and the download of the stored images.
 	ListAttachments *application.ListTaskAttachments
 	GetAttachment   *application.GetTaskAttachment
@@ -82,6 +94,12 @@ func NewModule(deps Deps) (*Module, error) {
 	if err != nil {
 		return nil, fmt.Errorf("tasks module: %w", err)
 	}
+	gitAdapter, err := git.NewWorktreeAdapter(deps.WorktreesDir)
+	if err != nil {
+		return nil, fmt.Errorf("tasks module: %w", err)
+	}
+	// Diffs are read through the cache; every other git call goes to the adapter underneath.
+	worktrees := git.NewCachingWorktree(gitAdapter)
 	clock := application.Clock(func() time.Time { return time.Now().UTC() })
 	newUUID := application.UUIDGenerator(uuid.NewRandom)
 
@@ -106,16 +124,21 @@ func NewModule(deps Deps) (*Module, error) {
 		Get:             getTask,
 		List:            application.NewListTasks(repository),
 		ListDone:        application.NewListDoneTasks(repository),
-		Create:          application.NewCreateTask(lifecycle, deps.Worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
+		Create:          application.NewCreateTask(lifecycle, worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
 		Update:          application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
 		Delete:          application.NewDeleteTask(lifecycle, attachmentStorage),
-		DeleteWorkspace: application.NewDeleteWorkspaceTasks(lifecycle, attachmentStorage),
+		DeleteWorkspace: application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
 		ListAttachments: application.NewListTaskAttachments(attachments),
 		GetAttachment:   getAttachment,
 		Cleanup:         application.NewAttachmentCleanup(attachments, attachmentStorage),
 		Attachments:     httpinbound.NewAttachmentHandler(getAttachment),
 		GetFile:         application.NewGetTaskFile(lifecycle, taskFiles),
-		SaveFile:        application.NewSaveTaskFile(lifecycle, taskFiles, deps.Git),
+		SaveFile:        application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
+		Worktrees:       worktrees,
+		GetDiff:         application.NewGetTaskDiff(lifecycle, worktrees),
+		Merge:           application.NewMergeTask(lifecycle, worktrees, deps.Successors, deps.Remote),
+		SweepWorktrees:  application.NewSweepOrphanWorktrees(repository, worktrees),
+		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
 		Lifecycle:       lifecycle,
 		AgentEvents:     agentEvents,
 		GetEvents:       getEvents,
@@ -137,8 +160,7 @@ func (d Deps) validate() error {
 		{"DB", d.DB == nil},
 		{"Workspaces", d.Workspaces == nil},
 		{"AttachmentsDir", d.AttachmentsDir == ""},
-		{"Git", d.Git == nil},
-		{"Worktrees", d.Worktrees == nil},
+		{"WorktreesDir", d.WorktreesDir == ""},
 		{"Start", d.Start == nil},
 	}
 	for _, dependency := range required {
@@ -147,6 +169,12 @@ func (d Deps) validate() error {
 		}
 	}
 	return nil
+}
+
+// WaitWorktreeCleanup waits for the background removals of worktrees started so far. Call it on shutdown,
+// after the worktree removals are done, so that no trashed folder is left behind.
+func (m *Module) WaitWorktreeCleanup(ctx context.Context) {
+	m.Worktrees.WaitForCleanup(ctx)
 }
 
 // FlushEvents waits until every event the runtimes reported so far is processed and persisted.

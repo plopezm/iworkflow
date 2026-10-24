@@ -18,20 +18,6 @@ func (nopStarter) Start(context.Context, models.TaskID) (models.Task, error) {
 	return models.Task{}, nil
 }
 
-// nopLayout places worktrees under /worktrees; no worktree is created here.
-type nopLayout struct{}
-
-func (nopLayout) WorktreePath(workspaceName string, dirName string) string {
-	return "/worktrees/" + workspaceName + "/" + dirName
-}
-
-// nopCommitter is the git port of slice E. The attachment tests here do not commit, so it is never asked to.
-type nopCommitter struct{}
-
-func (nopCommitter) CommitAll(context.Context, string, string) (bool, error) {
-	return false, nil
-}
-
 // workspaceLookup reads the workspaces table through the fixture row inserted by insertWorkspace.
 type workspaceLookup struct {
 	repo *Repo
@@ -63,8 +49,7 @@ func newModuleIn(t *testing.T, repo *Repo, attachmentsDir string) *di.Module {
 		DB:             repo.DB,
 		Workspaces:     workspaceLookup{repo: repo},
 		AttachmentsDir: attachmentsDir,
-		Git:            nopCommitter{},
-		Worktrees:      nopLayout{},
+		WorktreesDir:   t.TempDir(),
 		Start:          nopStarter{},
 	})
 	require.NoError(t, err)
@@ -75,8 +60,32 @@ func newModuleIn(t *testing.T, repo *Repo, attachmentsDir string) *di.Module {
 func TestModuleRejectsMissingDependencies(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
-	_, err := di.NewModule(di.Deps{DB: repo.DB})
-	assert.ErrorContains(t, err, "missing dependency: Workspaces")
+	complete := func() di.Deps {
+		return di.Deps{
+			DB:             repo.DB,
+			Workspaces:     workspaceLookup{repo: repo},
+			AttachmentsDir: t.TempDir(),
+			WorktreesDir:   t.TempDir(),
+			Start:          nopStarter{},
+		}
+	}
+	// Each required field, cleared on its own, must be reported by its own name.
+	cases := map[string]func(*di.Deps){
+		"DB":             func(d *di.Deps) { d.DB = nil },
+		"Workspaces":     func(d *di.Deps) { d.Workspaces = nil },
+		"AttachmentsDir": func(d *di.Deps) { d.AttachmentsDir = "" },
+		"WorktreesDir":   func(d *di.Deps) { d.WorktreesDir = "" },
+		"Start":          func(d *di.Deps) { d.Start = nil },
+	}
+	for field, clear := range cases {
+		deps := complete()
+		clear(&deps)
+		_, err := di.NewModule(deps)
+		assert.ErrorContains(t, err, "missing dependency: "+field, field)
+	}
+	// Remote and Successors are optional: the module builds without them.
+	_, err := di.NewModule(complete())
+	assert.NoError(t, err)
 }
 
 func TestModuleCreatesListsEditsAndDeletesABacklogTask(t *testing.T) {

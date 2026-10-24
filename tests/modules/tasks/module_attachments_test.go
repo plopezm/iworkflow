@@ -47,24 +47,27 @@ func TestModuleStoresServesAndRemovesAttachments(t *testing.T) {
 	assert.NoFileExists(t, filepath.Join(attachmentsDir, listed[0].Path), "the image file goes with the task")
 }
 
-// The file editor reads and saves a file of the worktree of an open task; the commit goes to the git port.
+// The file editor reads and saves a file of the worktree of an open task; the change is committed in it.
 func TestModuleReadsAndSavesWorktreeFilesOfAnOpenTask(t *testing.T) {
-	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, "/repos/files")
 	module := newModule(t, repo)
 	ctx := context.Background()
-	worktree := t.TempDir()
+	worktree := newGitRepository(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(worktree, "src"), 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(worktree, "src", "a.rs"), []byte("fn a() {}\n"), 0o644))
+	gitCmd(t, worktree, "add", ".")
+	gitCmd(t, worktree, "commit", "-q", "-m", "add a.rs")
 	task := newTask(t, workspaceID, "abierta", models.StatusIdle)
 	task.WorktreePath = worktree
 	insertTask(t, repo, task)
 
-	_, err := module.SaveFile.Execute(ctx, task.ID, "src/a.rs", "fn b() {}\n")
+	committed, err := module.SaveFile.Execute(ctx, task.ID, "src/a.rs", "fn b() {}\n")
 	require.NoError(t, err)
 	file, err := module.GetFile.Execute(ctx, task.ID, "src/a.rs")
 
 	require.NoError(t, err)
+	assert.True(t, committed)
 	assert.Equal(t, "fn b() {}\n", file.Content)
+	assert.Equal(t, "edit src/a.rs from diff view", gitCmd(t, worktree, "log", "-1", "--format=%s"))
 }
