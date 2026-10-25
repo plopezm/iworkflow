@@ -238,3 +238,18 @@ func saturatingAdd(left uint32, right uint32) uint32 {
 	}
 	return left + right
 }
+
+// FoldTranscript builds the transcript of a history, in order. It also returns the cursor of the live stream: the last
+// sequence number that was persisted, nil when there is none.
+func FoldTranscript(history []dto.TranscriptEventDTO) (Transcript, *int64) {
+	var transcript Transcript
+	var cursor *int64
+	for _, event := range history {
+		transcript.Apply(event)
+		if event.Seq != nil {
+			seq := *event.Seq
+			cursor = &seq
+		}
+	}
+	return transcript, cursor
+}
