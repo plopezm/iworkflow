@@ -14,15 +14,18 @@ import (
 // notifications and the first-run language prompt. boardSidebar is the board part of the sidebar.
 templ shellPage(boardSidebar templ.Component) {
 	@web.Shell(msgBrand.T(ctx)) {
-		@components.AppShell(components.AppShellProps{
-			Brand:   msgBrand.T(ctx),
-			Sidebar: sidebar(boardSidebar),
-			Content: dock.Placeholder(),
-		})
+		<div hx-ext="sse" sse-connect="/api/tasks/events" class="contents">
+			@components.AppShell(components.AppShellProps{
+				Brand:   msgBrand.T(ctx),
+				Sidebar: sidebar(boardSidebar),
+				Content: dock.Placeholder(),
+			})
+		</div>
 		@components.ToastStack()
 		@prefspages.LanguagePromptSection(i18n.StateFrom(ctx).Chosen)
 		<script type="module" src="/static/js/ui.js"></script>
 		<script type="module" src="/static/js/dock.js"></script>
+		<script type="module" src="/static/js/task_form.js"></script>
 		<script type="module" src="/static/js/code.js"></script>
 	}
 }
@@ -36,9 +39,7 @@ templ sidebar(boardSidebar templ.Component) {
 		}
 		@components.SidebarToggle(components.SidebarToggleProps{Class: "hidden md:flex"})
 	</div>
-	<div hx-ext="sse" sse-connect="/api/tasks/events" class="contents">
-		@boardSidebar
-	</div>
+	@boardSidebar
 	@components.SidebarSection(components.SidebarSectionProps{Title: msgMenu.T(ctx), Count: len(navEntries)}) {
 		<nav class="flex flex-col gap-0.5" aria-label={ msgNavigation.T(ctx) }>
 			for _, entry := range navEntries {

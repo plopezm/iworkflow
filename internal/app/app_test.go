@@ -9,6 +9,7 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -134,4 +135,30 @@ func TestSettingsSectionsAreRoutable(t *testing.T) {
 	settings := get(t, handler, "/dock/pane?path=/settings")
 	require.Contains(t, settings.Body.String(), `id="code-host-settings-gitlab"`)
 	require.Contains(t, settings.Body.String(), `id="code-host-settings-github"`)
+}
+
+func TestTheShellOpensOneTaskStreamAndTheBoardTabOpensNone(t *testing.T) {
+	handler := newRouter(t)
+
+	shell := get(t, handler, "/")
+	require.Equal(t, http.StatusOK, shell.Code)
+	require.Equal(t, 1, strings.Count(shell.Body.String(), `sse-connect="/api/tasks/events"`), "the sidebar stream serves the whole page")
+
+	board := get(t, handler, "/dock/pane?path=/")
+	require.Equal(t, http.StatusOK, board.Code)
+	require.NotContains(t, board.Body.String(), `sse-connect=`, "a second stream on the board doubles every refresh")
+}
+
+func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
+	handler := newRouter(t)
+
+	for _, path := range []string{"/jira", "/jira/some-id", "/tasks/some-id"} {
+		rec := get(t, handler, "/dock/pane?path="+path)
+		require.Equal(t, http.StatusOK, rec.Code, path)
+		require.Contains(t, rec.Body.String(), "todavía no se ha migrado", "%s keeps its not-migrated explanation", path)
+	}
+	home := get(t, handler, "/dock/pane?path=/")
+	require.Equal(t, http.StatusOK, home.Code)
+	require.Contains(t, home.Body.String(), `id="board-list"`, "the home address is the board")
+	require.NotContains(t, home.Body.String(), "todavía no se ha migrado")
 }

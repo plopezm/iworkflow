@@ -190,20 +190,32 @@ func NewModule(deps Deps) (*Module, error) {
 	send := application.NewSendMessage(lifecycle, agentRuntime)
 	resumeTask := application.NewResumeTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink)
 	resumeRateLimited := application.NewResumeRateLimitedTasks(lifecycle, agentRuntime, resumeTask, send)
+	// The create, edit and delete of the board are the same use cases the module exposes; each is built once.
+	createTask := application.NewCreateTask(lifecycle, worktrees, start, attachments, attachmentStorage, newUUID, clock)
+	updateTask := application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID)
+	deleteTask := application.NewDeleteTask(lifecycle, attachmentStorage)
+	addDependency := application.NewAddTaskDependency(lifecycle, graph, successors)
+	listAttachments := application.NewListTaskAttachments(attachments)
 	board := httpinbound.NewBoardHandlers(httpinbound.BoardUseCases{
-		List:       application.NewListTasks(repository),
-		ListDone:   application.NewListDoneTasks(repository),
-		Create:     application.NewCreateTask(lifecycle, worktrees, start, attachments, attachmentStorage, newUUID, clock),
-		Workspaces: deps.Workspaces,
+		List:            application.NewListTasks(repository),
+		ListDone:        application.NewListDoneTasks(repository),
+		Get:             getTask,
+		CreateLinked:    application.NewCreateLinkedTask(createTask, addDependency, application.NewGetTaskGraph(graph)),
+		Update:          updateTask,
+		Start:           start,
+		Delete:          deleteTask,
+		ListAttachments: listAttachments,
+		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
+		Workspaces:      deps.Workspaces,
 	}, clock)
 
 	return &Module{
 		Get:               getTask,
 		List:              application.NewListTasks(repository),
 		ListDone:          application.NewListDoneTasks(repository),
-		Create:            application.NewCreateTask(lifecycle, worktrees, start, attachments, attachmentStorage, newUUID, clock),
-		Update:            application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
-		Delete:            application.NewDeleteTask(lifecycle, attachmentStorage),
+		Create:            createTask,
+		Update:            updateTask,
+		Delete:            deleteTask,
 		AnswerDialog:      application.NewAnswerDialog(lifecycle, agentRuntime),
 		GetSubagents:      application.NewGetTaskSubagents(lifecycle, agentRuntime),
 		DeleteWorkspace:   application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
@@ -215,7 +227,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Reset:             application.NewResetTask(lifecycle, worktrees, agentRuntime),
 		Discard:           application.NewDiscardTask(lifecycle, worktrees, agentRuntime),
 		Reconcile:         application.NewReconcileTasks(lifecycle, worktrees),
-		ListAttachments:   application.NewListTaskAttachments(attachments),
+		ListAttachments:   listAttachments,
 		GetAttachment:     getAttachment,
 		Cleanup:           cleanup,
 		Attachments:       httpinbound.NewAttachmentHandler(getAttachment),
@@ -233,7 +245,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Subscriber:        bus,
 		Streams:           httpinbound.NewTaskStreams(getTask, getEvents, bus),
 		Board:             board,
-		AddDependency:     application.NewAddTaskDependency(lifecycle, graph, successors),
+		AddDependency:     addDependency,
 		RemoveDependency:  application.NewRemoveTaskDependency(graph, successors),
 		DetachFromGraph:   application.NewDetachTaskFromGraph(graph, successors),
 		GetGraph:          application.NewGetTaskGraph(graph),

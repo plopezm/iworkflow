@@ -35,6 +35,7 @@ import (
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
 	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
 	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
+	taskscomponents "iworkflow/internal/modules/tasks/presentation/components"
 	terminaldi "iworkflow/internal/modules/terminal/infrastructure/di"
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
@@ -305,7 +306,7 @@ type navEntry struct {
 
 // navEntries are the migrated top-level destinations, in display order.
 var navEntries = []navEntry{
-	{Href: boardPath, Icon: "▦", Title: msgTitleBoard.T},
+	{Href: boardPath, Icon: "▦", Title: func(ctx context.Context) string { return taskscomponents.BoardTitle(ctx, "") }},
 	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
 	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
 	{Href: profilesPath, Icon: "☰", Title: agentprofilespages.TabTitle.T},
