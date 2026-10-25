@@ -14,6 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"iworkflow/internal/core/i18n"
+
 	"iworkflow/internal/modules/tasks/application"
 	"iworkflow/internal/modules/tasks/domain/models"
 )
@@ -61,7 +63,7 @@ type FormImage struct {
 }
 
 // ErrFormTooLarge is returned when the form body is bigger than the upload limit.
-var ErrFormTooLarge = errors.New("las imágenes superan el tamaño máximo del formulario")
+var ErrFormTooLarge = formErr(msgFormTooLarge, nil)
 
 // ParseTaskForm reads a multipart task form. The body is capped before parsing, and every image is read up to
 // its limit: an image over the limit is refused with its name.
@@ -104,11 +106,11 @@ func readFormValues(r *http.Request) (url.Values, map[string][]*multipart.FileHe
 		return nil, nil, ErrFormTooLarge
 	}
 	if !errors.Is(err, http.ErrNotMultipart) {
-		return nil, nil, fmt.Errorf("leer el formulario: %w", err)
+		return nil, nil, &FormError{Message: msgFormUnreadable, Cause: err}
 	}
 	mediaType, _, parseErr := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if parseErr != nil || mediaType != "application/x-www-form-urlencoded" {
-		return nil, nil, errors.New("el formulario no es válido")
+		return nil, nil, formErr(msgFormInvalid, nil)
 	}
 	if err := r.ParseForm(); err != nil {
 		return nil, nil, fmt.Errorf("leer el formulario: %w", err)
@@ -133,7 +135,7 @@ func readImages(headers []*multipart.FileHeader) ([]FormImage, error) {
 			continue
 		}
 		if header.Size > models.MaxImageBytes {
-			return nil, fmt.Errorf("%s: la imagen supera los 4 MiB", header.Filename)
+			return nil, imageTooBig(header.Filename)
 		}
 		data, err := readImage(header)
 		if err != nil {
@@ -144,11 +146,16 @@ func readImages(headers []*multipart.FileHeader) ([]FormImage, error) {
 	return images, nil
 }
 
+// imageTooBig is the refusal of an image over the image limit.
+func imageTooBig(name string) *FormError {
+	return formErr(msgImageTooBig, map[string]string{"name": name, "mib": strconv.Itoa(models.MaxImageBytes >> 20)})
+}
+
 // readImage reads one uploaded image, up to its limit: a file that grew past the limit is refused.
 func readImage(header *multipart.FileHeader) ([]byte, error) {
 	file, err := header.Open()
 	if err != nil {
-		return nil, fmt.Errorf("%s: no se pudo leer la imagen: %w", header.Filename, err)
+		return nil, &FormError{Message: msgImageUnreadable, Args: map[string]string{"name": header.Filename}, Cause: err}
 	}
 	defer func() { _ = file.Close() }()
 	data, err := io.ReadAll(io.LimitReader(file, models.MaxImageBytes+1))
@@ -156,7 +163,7 @@ func readImage(header *multipart.FileHeader) ([]byte, error) {
 		return nil, fmt.Errorf("%s: no se pudo leer la imagen: %w", header.Filename, err)
 	}
 	if len(data) > models.MaxImageBytes {
-		return nil, fmt.Errorf("%s: la imagen supera los 4 MiB", header.Filename)
+		return nil, imageTooBig(header.Filename)
 	}
 	return data, nil
 }
@@ -165,7 +172,7 @@ func readImage(header *multipart.FileHeader) ([]byte, error) {
 // start request is left to the use case, which never starts a linked task.
 func (f TaskForm) ToNewTask() (models.NewTask, *application.TaskLink, error) {
 	if _, err := uuid.Parse(f.WorkspaceID); err != nil {
-		return models.NewTask{}, nil, errors.New("el workspace no es válido")
+		return models.NewTask{}, nil, formErr(msgWorkspaceInvalid, nil)
 	}
 	input, err := f.baseTask()
 	if err != nil {
@@ -199,7 +206,7 @@ func (f TaskForm) ToUpdate(kept int) (application.UpdateInput, error) {
 	removed := make([]string, 0, len(f.RemoveIDs))
 	for _, id := range f.RemoveIDs {
 		if _, parseErr := uuid.Parse(id); parseErr != nil {
-			return application.UpdateInput{}, errors.New("una imagen a quitar no es válida")
+			return application.UpdateInput{}, formErr(msgRemovedImageInvalid, nil)
 		}
 		removed = append(removed, id)
 	}
@@ -228,11 +235,11 @@ func (f TaskForm) baseTask() (models.NewTask, error) {
 	}
 	var memory, cpu *uint32
 	if f.ShowAdvanced {
-		memory, err = parseLimit(f.MemoryLimit, "la RAM máxima")
+		memory, err = parseLimit(f.MemoryLimit, msgRAMLimitInvalid)
 		if err != nil {
 			return models.NewTask{}, err
 		}
-		cpu, err = parseLimit(f.CPULimit, "la CPU máxima")
+		cpu, err = parseLimit(f.CPULimit, msgCPULimitInvalid)
 		if err != nil {
 			return models.NewTask{}, err
 		}
@@ -251,13 +258,13 @@ func (f TaskForm) baseTask() (models.NewTask, error) {
 }
 
 // parseLimit reads an optional positive whole number. Empty means the default from the settings.
-func parseLimit(raw string, label string) (*uint32, error) {
+func parseLimit(raw string, invalid i18n.Msg) (*uint32, error) {
 	if raw == "" {
 		return nil, nil
 	}
 	value, err := strconv.ParseUint(raw, 10, 32)
 	if err != nil || value == 0 {
-		return nil, fmt.Errorf("%s debe ser un número entero mayor que cero", label)
+		return nil, formErr(invalid, nil)
 	}
 	limit := uint32(value)
 	return &limit, nil
@@ -271,10 +278,10 @@ func parseBaseBranch(raw string) (*string, error) {
 		return nil, nil
 	}
 	if len(branch) > MaxBaseBranchLength {
-		return nil, fmt.Errorf("la rama base supera los %d caracteres", MaxBaseBranchLength)
+		return nil, formErr(msgBranchTooLong, map[string]string{"max": strconv.Itoa(MaxBaseBranchLength)})
 	}
 	if strings.HasPrefix(branch, "-") {
-		return nil, errors.New("la rama base no es válida")
+		return nil, formErr(msgBranchInvalid, nil)
 	}
 	return &branch, nil
 }
@@ -286,7 +293,7 @@ func (f TaskForm) parseLink() (*application.TaskLink, error) {
 	}
 	anchor, err := models.ParseTaskID(f.LinkAnchor)
 	if err != nil {
-		return nil, errors.New("la tarea enlazada no es válida")
+		return nil, formErr(msgLinkedTaskInvalid, nil)
 	}
 	switch f.LinkKind {
 	case linkKindNext:
@@ -294,7 +301,7 @@ func (f TaskForm) parseLink() (*application.TaskLink, error) {
 	case linkKindParallel:
 		return &application.TaskLink{Kind: application.LinkParallel, Anchor: anchor}, nil
 	default:
-		return nil, errors.New("el tipo de vínculo no es válido")
+		return nil, formErr(msgLinkKindInvalid, nil)
 	}
 }
 
@@ -302,7 +309,7 @@ func (f TaskForm) parseLink() (*application.TaskLink, error) {
 // images the task keeps; the total must stay within models.MaxImagesPerMessage.
 func (f TaskForm) imagesToDomain(kept int) ([]models.ImageAttachment, error) {
 	if kept+len(f.Images) > models.MaxImagesPerMessage {
-		return nil, fmt.Errorf("un mensaje admite como máximo %d imágenes", models.MaxImagesPerMessage)
+		return nil, formErr(msgTooManyImages, map[string]string{"max": strconv.Itoa(models.MaxImagesPerMessage)})
 	}
 	images := make([]models.ImageAttachment, 0, len(f.Images))
 	for _, image := range f.Images {
