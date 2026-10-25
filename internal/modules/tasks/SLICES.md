@@ -301,3 +301,18 @@ the glue is `mod.rs`, `test_support.rs`, `mocks.rs` and `tasks_context.rs`.
   and use-case wiring into `infrastructure/di/tasks_module.go`; the rest is wired per slice.
 - Rust tests: `task_repository_adapter_test.rs` is A; the others follow the slice of their adapter.
 - No Rust unit test in `src/modules/tasks` was reassigned from its file; tests are ported with their file.
+
+## Go status of slice F (F5 use cases)
+
+| Rust file | Go file | Tests (Rust parity + rule tests) |
+|---|---|---|
+| `usecases/start_task.rs` | `application/start_task.go` | 17 + 5 |
+| `usecases/send_message.rs` | `application/send_message.go` | 9 + 3 |
+| `usecases/set_agent_mode.rs` | `application/set_agent_mode.go` | 3 + 1 |
+| `usecases/abort_task.rs` | `application/abort_task.go` | 2 + 1 |
+| `usecases/reconcile_tasks.rs` | `application/reconcile_tasks.go` | 4 + 2 |
+
+- `finish_task.rs` is not in F: the table above puts `finish`, with reset and discard, in slice E. It is not ported here.
+- Rule tests are the Go-only or Rust-untested rules; each is marked `Rule from source:` in its test file.
+- `MessageMode` lives in `domain/models/agent_command.go` (Rust `agent_command.rs`). Its zero value is not a mode.
+- The Rust `resume_task` continuation is still a direct `runtime.Send` in `resume_rate_limited_tasks.go` (L26): switching it to `SendMessage` changes the constructor, which the DI module calls, so it is left for the wiring step.
