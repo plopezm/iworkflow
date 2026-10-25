@@ -127,6 +127,15 @@ func TestOptionSelectGroupsAndLabelsTheCurrentChoice(t *testing.T) {
 	require.Contains(t, html, `<option value="opus" selected>Opus</option>`)
 }
 
+// The accessible name of the select is its label text: whitespace before the sr-only label makes the name
+// start with a space, and a name matched from its start (getByLabel(/^Agente/)) finds nothing.
+func TestOptionSelectLabelStartsTheAccessibleNameWithoutWhitespace(t *testing.T) {
+	html := renderHTML(t, components.OptionSelect(components.OptionSelectProps{
+		Label: "Agente", Icon: "<svg></svg>", DefaultLabel: "Default",
+	}))
+	require.Contains(t, html, `<label class="select-pill" title="Default"><span class="sr-only">Agente</span>`)
+}
+
 func TestSegmentedControlSelectsOneSegment(t *testing.T) {
 	html := renderHTML(t, components.SegmentedControl(components.SegmentedControlProps{
 		Options: []components.SegmentOption{

@@ -34,7 +34,7 @@ templ SelectField(p SelectFieldProps) {
 // NumberField is an optional numeric input with its unit, e.g. "Memory (MiB)".
 templ NumberField(p NumberFieldProps) {
 	<label class="stack gap-1.5">
-		<span class="text-sm font-medium text-fg">{ p.Label } " (" { p.Unit } ")"</span>
+		<span class="text-sm font-medium text-fg">{ p.Label + " (" + p.Unit + ")" }</span>
 		<input type="number" min="1" name={ p.Name } class="input" placeholder={ p.Placeholder } value={ p.Value } { p.Attrs... }/>
 	</label>
 }
