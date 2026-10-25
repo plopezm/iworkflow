@@ -240,3 +240,26 @@ func TestPathsOfTheBoardAndTheTask(t *testing.T) {
 	assert.Equal(t, "/board/w1", state.BoardPath("w1"))
 	assert.Equal(t, "/tasks/t1", state.TaskPath("t1"))
 }
+
+func TestGroupByStageKeepsATaskWithAnUnknownStageInAVisibleFallbackGroup(t *testing.T) {
+	tasks := []dto.TaskDTO{
+		task("known", "working", "normal", "2026-01-01T00:00:00+00:00"),
+		task("mystery", "archived", "normal", "2026-01-01T00:00:00+00:00"),
+	}
+
+	groups := state.GroupByStage(tasks)
+
+	require.Len(t, groups, len(state.StageOrder)+1, "an unknown stage adds one fallback group after the known ones")
+	fallback := groups[len(groups)-1]
+	assert.Equal(t, "unknown", fallback.Stage)
+	require.Len(t, fallback.Tasks, 1, "the task is shown, not dropped")
+	assert.Equal(t, "mystery", fallback.Tasks[0].ID)
+	assert.Equal(t, "unknown", fallback.Tasks[0].Stage, "the card reads the group it is shown in")
+	assert.Len(t, groups[1].Tasks, 1, "the known task keeps its stage")
+}
+
+func TestGroupByStageAddsNoFallbackGroupWhenEveryStageIsKnown(t *testing.T) {
+	groups := state.GroupByStage([]dto.TaskDTO{task("a", "review", "normal", "2026-01-01T00:00:00+00:00")})
+
+	assert.Len(t, groups, len(state.StageOrder))
+}

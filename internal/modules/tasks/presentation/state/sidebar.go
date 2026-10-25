@@ -24,6 +24,8 @@ type SidebarTask struct {
 type SidebarRows struct {
 	Workspaces []SidebarWorkspace
 	Attention  []SidebarTask
+	// LoadError is the message of a failed read of the sidebar data; empty when the data is fresh.
+	LoadError string
 }
 
 // BuildSidebar derives the sidebar lists (function pura). Workspaces keep the order they are given in. The

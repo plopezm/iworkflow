@@ -35,15 +35,24 @@ func ListPath(workspaceID string, showCompleted bool, pages int) string {
 	return "/board/list?" + values.Encode()
 }
 
-// CreateForm is the state of the create dialog: what the user typed and the error to show.
+// CreateForm is the state of the create dialog: what the user typed and the error to show. A linked create
+// carries the link (LinkKind is "next" or "parallel", LinkAnchor the task it is linked to).
 type CreateForm struct {
-	Workspaces  []dto.WorkspaceOptionDTO
-	WorkspaceID string
-	Title       string
-	Prompt      string
-	Priority    string
-	StartNow    bool
-	Error       string
+	Workspaces    []dto.WorkspaceOptionDTO
+	WorkspaceID   string
+	Title         string
+	Prompt        string
+	Priority      string
+	BaseBranch    string
+	DefaultBranch string
+	Branches      []dto.BranchOptionDTO
+	MemoryLimit   string
+	CPULimit      string
+	ShowAdvanced  bool
+	StartNow      bool
+	LinkKind      string
+	LinkAnchor    string
+	Error         string
 }
 
 // DefaultPriority is the priority the create dialog selects first.

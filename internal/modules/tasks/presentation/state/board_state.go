@@ -4,6 +4,7 @@ package state
 
 import (
 	"context"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -14,13 +15,15 @@ import (
 // DonePageSize is the number of completed tasks the server returns per page.
 const DonePageSize = 50
 
-// Stage names, as the DTOs carry them.
+// Stage names, as the DTOs carry them. StageUnknown is the fallback group of a task whose stage is not one
+// of the board stages: it is shown at the end instead of being dropped.
 const (
 	StageBacklog   = "backlog"
 	StageWorking   = "working"
 	StageAttention = "attention"
 	StageReview    = "review"
 	StageDone      = "done"
+	StageUnknown   = "unknown"
 )
 
 // StageOrder is the top-to-bottom order of the board stages.
@@ -36,10 +39,11 @@ type StageGroup struct {
 }
 
 // GroupByStage groups the tasks by stage in StageOrder. Empty stages are kept, so the page can show
-// every column. Inside a stage the tasks go by priority (urgent first), then by the most recent update,
-// then by identifier, so the order is stable across refreshes.
+// every column. A task whose stage is unknown goes to a StageUnknown group after the known ones, and that
+// group exists only when there is such a task. Inside a group the tasks go by priority (urgent first), then
+// by the most recent update, then by identifier, so the order is stable across refreshes.
 func GroupByStage(tasks []dto.TaskDTO) []StageGroup {
-	groups := make([]StageGroup, 0, len(StageOrder))
+	groups := make([]StageGroup, 0, len(StageOrder)+1)
 	for _, stage := range StageOrder {
 		members := make([]dto.TaskDTO, 0)
 		for _, task := range tasks {
@@ -50,7 +54,25 @@ func GroupByStage(tasks []dto.TaskDTO) []StageGroup {
 		sortForBoard(members)
 		groups = append(groups, StageGroup{Stage: stage, Tasks: members})
 	}
+	if unknown := unknownStageTasks(tasks); len(unknown) > 0 {
+		sortForBoard(unknown)
+		groups = append(groups, StageGroup{Stage: StageUnknown, Tasks: unknown})
+	}
 	return groups
+}
+
+// unknownStageTasks copies the tasks whose stage is not in StageOrder, relabelled with StageUnknown so the
+// card shows the group it is in.
+func unknownStageTasks(tasks []dto.TaskDTO) []dto.TaskDTO {
+	unknown := make([]dto.TaskDTO, 0)
+	for _, task := range tasks {
+		if slices.Contains(StageOrder[:], task.Stage) {
+			continue
+		}
+		task.Stage = StageUnknown
+		unknown = append(unknown, task)
+	}
+	return unknown
 }
 
 // sortForBoard orders tasks as GroupByStage documents.
@@ -205,6 +227,11 @@ func BoardPath(workspaceID string) string {
 // TaskPath is the address of the detail of a task.
 func TaskPath(taskID string) string {
 	return "/tasks/" + taskID
+}
+
+// BoardTaskPath is the address of the board actions of a task (start, delete).
+func BoardTaskPath(taskID string) string {
+	return "/board/tasks/" + taskID
 }
 
 // ClampPages keeps the number of completed pages the list may load within [1, 20].
