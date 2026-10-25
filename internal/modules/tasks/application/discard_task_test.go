@@ -135,6 +135,35 @@ func TestDiscardTaskStopFailureLeavesWorktreeInPlace(t *testing.T) {
 	assert.Empty(t, fixture.repo.statuses)
 }
 
+// failingWorkspaces is a workspace lookup whose every query fails with err.
+type failingWorkspaces struct {
+	err error
+}
+
+func (f failingWorkspaces) Find(_ context.Context, _ string) (*models.WorkspaceRef, error) {
+	return nil, f.err
+}
+
+func (f failingWorkspaces) List(_ context.Context) ([]models.WorkspaceRef, error) {
+	return nil, f.err
+}
+
+// Intentional improvement over Rust: the workspace is resolved before the agent is stopped, so a failed lookup
+// leaves the agent running and the task untouched.
+func TestDiscardTaskWorkspaceLookupFailureDoesNotStopAgent(t *testing.T) {
+	task, fixture := newDiscardFixture(models.StatusRunning)
+	fixture.runtime.running = true
+	lifecycle := application.NewTaskLifecycle(fixture.repo, fixture.publisher, failingWorkspaces{err: werrors.Repository("workspaces no disponibles")}, clock)
+	useCase := application.NewDiscardTask(lifecycle, fixture.worktrees, fixture.runtime)
+
+	err := useCase.Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Repository("workspaces no disponibles"))
+	assert.Empty(t, fixture.runtime.stopped)
+	assert.Empty(t, fixture.worktrees.removed)
+	assert.Empty(t, fixture.repo.statuses)
+}
+
 // Rule from source: a successful discard publishes exactly one Discarded status event, persisted in the history.
 func TestDiscardTaskPublishesOneDiscardedEvent(t *testing.T) {
 	task, fixture := newDiscardFixture(models.StatusIdle)

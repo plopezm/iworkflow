@@ -172,6 +172,19 @@ func TestFinishTaskKeepsAttachmentsWhenConsolidationFails(t *testing.T) {
 	assert.Empty(t, fixture.storage.deletedDirs)
 }
 
+// Intentional improvement over Rust: when the task cannot be marked failed either, both errors are returned, so the
+// consolidation error that explains the failure is not masked by the transition error.
+func TestFinishTaskReturnsBothErrorsWhenFailedTransitionAlsoFails(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	fixture.worktrees.commitErr = werrors.Git("index.lock")
+	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusFailed: werrors.Repository("db bloqueada")}
+
+	err := fixture.useCase().Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Git("index.lock"))
+	assert.ErrorIs(t, err, werrors.Repository("db bloqueada"))
+}
+
 // Rule from source: a successful finish publishes the Finishing and AwaitingReview status events, persisted in order.
 func TestFinishTaskPublishesTheStatusEventsInOrder(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)

@@ -106,6 +106,12 @@ func (u *StartTask) Execute(ctx context.Context, id models.TaskID) (models.Task,
 	}
 
 	if err = u.lifecycle.NotifyStatus(ctx, id, models.StatusStarting, nil); err != nil {
+		// Intentional improvement over Rust: the claimed task is marked failed, best effort, instead of being left
+		// claimed with no agent. The worktree is kept, as for a failed launch.
+		message := err.Error()
+		if transitionErr := u.lifecycle.Transition(ctx, id, models.StatusFailed, &message); transitionErr != nil {
+			slog.Warn("could not mark the task failed after its starting status failed", "task_id", id.String(), "transition_error", transitionErr, "notify_error", err)
+		}
 		return models.Task{}, err
 	}
 	task.Status = models.StatusStarting
@@ -139,8 +145,10 @@ func (u *StartTask) abandonClaim(ctx context.Context, id models.TaskID, createEr
 		}
 		return createErr
 	}
+	// Intentional improvement over Rust: the creation error is the one the caller needs, so a failed backlog notice is
+	// only logged.
 	if err := u.lifecycle.NotifyStatus(ctx, id, models.StatusBacklog, nil); err != nil {
-		return err
+		slog.Warn("could not notify the backlog status after the start claim was reverted", "task_id", id.String(), "notify_error", err, "create_error", createErr)
 	}
 	return createErr
 }

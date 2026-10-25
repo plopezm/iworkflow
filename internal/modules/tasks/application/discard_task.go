@@ -31,14 +31,16 @@ func (u *DiscardTask) Execute(ctx context.Context, id models.TaskID) error {
 	if !task.Status.CanDiscard() {
 		return invalidState("descartar", task.Status)
 	}
+	// Intentional improvement over Rust: the workspace is resolved before the agent is stopped, so a failed lookup
+	// leaves the agent running and the task untouched.
+	workspace, err := u.lifecycle.Workspace(ctx, task.WorkspaceID)
+	if err != nil {
+		return err
+	}
 	if u.runtime.IsRunning(ctx, id) {
 		if err := u.runtime.Stop(ctx, id); err != nil {
 			return err
 		}
-	}
-	workspace, err := u.lifecycle.Workspace(ctx, task.WorkspaceID)
-	if err != nil {
-		return err
 	}
 	if err := u.worktrees.Remove(ctx, workspace.Path, task.WorktreePath, task.Branch); err != nil {
 		return err

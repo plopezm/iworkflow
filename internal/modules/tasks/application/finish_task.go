@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"errors"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
@@ -38,8 +39,10 @@ func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
 	}
 	if err := u.consolidate(ctx, task); err != nil {
 		message := err.Error()
+		// Intentional improvement over Rust: when marking the task failed fails too, both errors are returned, so the
+		// consolidation error is not masked. errors.Join keeps errors.Is and errors.As working on each of them.
 		if transitionErr := u.lifecycle.Transition(ctx, id, models.StatusFailed, &message); transitionErr != nil {
-			return transitionErr
+			return errors.Join(err, transitionErr)
 		}
 		return err
 	}

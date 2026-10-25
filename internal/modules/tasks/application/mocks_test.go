@@ -90,6 +90,8 @@ type fakeRepository struct {
 	resetResult *bool
 	resetErr    error
 	resets      int
+	// updateStatusErrs fails the status updates to the listed statuses, before anything is recorded.
+	updateStatusErrs map[models.TaskStatus]error
 }
 
 func newFakeRepository(tasks ...models.Task) *fakeRepository {
@@ -118,6 +120,9 @@ func (r *fakeRepository) Find(_ context.Context, id models.TaskID) (*models.Task
 }
 
 func (r *fakeRepository) UpdateStatus(_ context.Context, id models.TaskID, status models.TaskStatus, errorText *string) error {
+	if err := r.updateStatusErrs[status]; err != nil {
+		return err
+	}
 	task, ok := r.tasks[id]
 	if !ok {
 		return werrors.NotFound(id.String())

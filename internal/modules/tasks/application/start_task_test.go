@@ -210,6 +210,40 @@ func TestStartTaskReturnsCreateErrorAndMarksFailedWhenRevertAlsoFails(t *testing
 	assert.Contains(t, *fx.repo.errorTexts[0], "no space left")
 }
 
+// Intentional improvement over Rust: when the backlog notice fails after the claim was reverted, the creation error is
+// returned and the notice error is only logged.
+func TestStartTaskReturnsCreateErrorWhenBacklogNoticeFails(t *testing.T) {
+	t.Parallel()
+	task := newTask(models.StatusBacklog)
+	fx := newStartFixture(task)
+	fx.worktrees.createErr = werrors.Git("no space left")
+	fx.repo.appendErr = werrors.Repository("db bloqueada")
+
+	_, err := fx.start(newUUID).Execute(context.Background(), task.ID)
+
+	require.ErrorIs(t, err, werrors.Git("no space left"))
+	assert.NotErrorIs(t, err, werrors.Repository("db bloqueada"))
+	assert.Equal(t, 1, fx.repo.reverts)
+}
+
+// Intentional improvement over Rust: when the starting notice fails after the claim and the worktree, the task is
+// marked failed instead of being left claimed with no agent. The transition fails too here, so only the error returns.
+func TestStartTaskStartingNoticeFailureMarksTaskFailed(t *testing.T) {
+	t.Parallel()
+	task := newTask(models.StatusBacklog)
+	fx := newStartFixture(task)
+	fx.repo.appendErr = werrors.Repository("db bloqueada")
+
+	_, err := fx.start(newUUID).Execute(context.Background(), task.ID)
+
+	require.ErrorIs(t, err, werrors.Repository("db bloqueada"))
+	assert.Equal(t, []models.TaskStatus{models.StatusFailed}, fx.repo.statuses)
+	require.NotEmpty(t, fx.repo.errorTexts)
+	require.NotNil(t, fx.repo.errorTexts[0])
+	assert.Equal(t, err.Error(), *fx.repo.errorTexts[0])
+	assert.Empty(t, fx.runtime.started)
+}
+
 // Rust: start_task::stops_runtime_when_prompt_send_fails_after_start
 func TestStartTaskStopsRuntimeWhenPromptSendFailsAfterStart(t *testing.T) {
 	t.Parallel()
