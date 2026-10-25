@@ -116,3 +116,14 @@ func TestShutdownBudgetLeavesSlackAboveTheStepBudgets(t *testing.T) {
 	assert.Greater(t, application.ShutdownBudget(), steps)
 	assert.GreaterOrEqual(t, application.ShutdownBudget()-steps, shutdownSlack)
 }
+
+// Rule from the S7 verification (H5): a step must outlast what an agent needs to stop. The runtime waits 15s for a
+// graceful exit and 5s more after the forced kill, so a 10s step could be abandoned at the instant the kill fell
+// back, and the process could exit before the kill landed. Rust gives every step 30s (SHUTDOWN_FLUSH_TIMEOUT).
+func TestShutdownStepBudgetOutlastsAnAgentStopAndMatchesRust(t *testing.T) {
+	t.Parallel()
+	const agentGracefulStop, agentExitWait = 15 * time.Second, 5 * time.Second
+
+	assert.Greater(t, shutdownStepTimeout, agentGracefulStop+agentExitWait)
+	assert.Equal(t, 30*time.Second, shutdownStepTimeout)
+}

@@ -12,10 +12,11 @@ import (
 	"iworkflow/internal/modules/tasks/infrastructure/background"
 )
 
-// shutdownStepTimeout is the budget of each shutdown step. The steps do not share one deadline: a slow step must not
+// shutdownStepTimeout is the budget of each shutdown step, 30s as in the Rust main (SHUTDOWN_FLUSH_TIMEOUT): it must
+// outlast the stop of an agent (15s graceful plus the forced kill). The steps do not share one deadline: a slow step must not
 // leave the next one, such as the agent event flush, without time to persist.
 const (
-	shutdownStepTimeout = 10 * time.Second
+	shutdownStepTimeout = 30 * time.Second
 	// shutdownSlack is added to the sum of the step budgets to form the global shutdown bound.
 	shutdownSlack = 5 * time.Second
 )
