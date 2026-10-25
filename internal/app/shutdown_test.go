@@ -104,3 +104,15 @@ func TestBoundedStepNeverReportsAnUnfinishedStepAsFinished(t *testing.T) {
 	}
 	assert.True(t, err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
 }
+
+// Rule from source (review R4-shutdown-budget-no-slack): the global shutdown budget must leave slack above the sum of
+// the step budgets, so that the last step (terminals) can still run when every earlier step used its whole budget.
+func TestShutdownBudgetLeavesSlackAboveTheStepBudgets(t *testing.T) {
+	t.Parallel()
+	application := composeWithTasks(t)
+
+	steps := time.Duration(len(application.shutdownSteps())) * shutdownStepTimeout
+
+	assert.Greater(t, application.ShutdownBudget(), steps)
+	assert.GreaterOrEqual(t, application.ShutdownBudget()-steps, shutdownSlack)
+}

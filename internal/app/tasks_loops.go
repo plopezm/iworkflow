@@ -14,7 +14,11 @@ import (
 
 // shutdownStepTimeout is the budget of each shutdown step. The steps do not share one deadline: a slow step must not
 // leave the next one, such as the agent event flush, without time to persist.
-const shutdownStepTimeout = 10 * time.Second
+const (
+	shutdownStepTimeout = 10 * time.Second
+	// shutdownSlack is added to the sum of the step budgets to form the global shutdown bound.
+	shutdownSlack = 5 * time.Second
+)
 
 // taskLoops are the background loops of the tasks module: the dependency graph and the usage-limit resume. They run
 // in goroutines the application owns, on a context that outlives the HTTP server's drain, and Shutdown cancels them

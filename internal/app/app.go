@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
@@ -187,14 +188,25 @@ func New(deps Deps) (*App, error) {
 // so a slow step cannot starve the ones after it; ctx is the global upper bound. A step that runs out of its budget is
 // reported and the next one still runs.
 func (a *App) Shutdown(ctx context.Context) error {
-	return runShutdownSteps(ctx, shutdownStepTimeout, []shutdownStep{
+	return runShutdownSteps(ctx, shutdownStepTimeout, a.shutdownSteps())
+}
+
+// shutdownSteps are the steps of Shutdown, in order.
+func (a *App) shutdownSteps() []shutdownStep {
+	return []shutdownStep{
 		{name: "stop the background loops", run: a.stopLoops},
 		{name: "stop the agents", run: func(ctx context.Context) error { a.tasks.StopAgents(ctx); return nil }},
 		{name: "wait for the worktree removals", run: func(ctx context.Context) error { a.tasks.WaitWorktreeCleanup(ctx); return nil }},
 		{name: "persist the agent events", run: func(context.Context) error { a.tasks.FlushEvents(); return nil }},
 		{name: "close the agent event queue", run: func(context.Context) error { a.tasks.ShutdownEvents(); return nil }},
 		{name: "shutdown terminals", run: a.terminal.Shutdown},
-	})
+	}
+}
+
+// ShutdownBudget is the global upper bound the caller gives Shutdown: every step may use its whole budget and there
+// is still slack for the last one, so a run of slow steps never cuts the terminals short.
+func (a *App) ShutdownBudget() time.Duration {
+	return time.Duration(len(a.shutdownSteps()))*shutdownStepTimeout + shutdownSlack
 }
 
 // Router builds the HTTP router. Middlewares run in the order of the Rust server: the cross-site

@@ -33,10 +33,8 @@ const (
 	siteRootVar     string = "LEPTOS_SITE_ROOT"
 	readHeaderLimit        = 10 * time.Second
 	shutdownTimeout        = 10 * time.Second
-	// applicationShutdownTimeout bounds app.Shutdown: six steps, each with its own 10s budget (see internal/app).
-	applicationShutdownTimeout        = 60 * time.Second
-	exitUsage                         = 2
-	logLevelVar                string = "IWF_LOG_LEVEL"
+	exitUsage              = 2
+	logLevelVar     string = "IWF_LOG_LEVEL"
 )
 
 func main() {
@@ -218,10 +216,10 @@ func bindThenStart(ctx context.Context, addr string, bind bindFunc, start startF
 	return listener, nil
 }
 
-// shutdownApplication releases the modules within applicationShutdownTimeout. The signal context is already done when
+// shutdownApplication releases the modules within the application's shutdown budget. The signal context is already done when
 // it runs, so the deadline starts from its values without its cancellation.
 func shutdownApplication(ctx context.Context, logger *slog.Logger, application *app.App) {
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), applicationShutdownTimeout)
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), application.ShutdownBudget())
 	defer cancel()
 	if err := application.Shutdown(stopCtx); err != nil {
 		logger.Warn("cannot release the modules on shutdown", "error", err)
