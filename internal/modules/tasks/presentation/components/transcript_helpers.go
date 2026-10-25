@@ -10,8 +10,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/a-h/templ"
+
 	"iworkflow/internal/core/markdown"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
 // argsPreviewChars is the longest summary of the arguments of a tool.
@@ -37,13 +40,73 @@ func imagesLabel(ctx context.Context, count uint32) string {
 	return msgTranscriptManyImages.Fmt(ctx, map[string]string{"n": strconv.FormatUint(uint64(count), 10)})
 }
 
-// launchNoticeSummary is the summary of a startup notice that dumps the launch details (args= or cwd=). Those notices
-// are collapsed by default. The boolean is false for ordinary notices.
-func launchNoticeSummary(ctx context.Context, message string) (string, bool) {
-	if strings.Contains(message, "args=") || strings.Contains(message, "cwd=") {
-		return msgTranscriptLaunchDetails.T(ctx), true
+// isLaunchNotice reports whether a notice dumps the launch details (args= or cwd=). Those notices are collapsed by
+// default under the launch details label.
+func isLaunchNotice(message string) bool {
+	return strings.Contains(message, "args=") || strings.Contains(message, "cwd=")
+}
+
+// transcriptItem is the view of one closed item of the transcript.
+func transcriptItem(item state.TranscriptItem) templ.Component {
+	switch typed := item.(type) {
+	case state.UserItem:
+		return transcriptUser(typed)
+	case state.AssistantItem:
+		return transcriptAssistant(typed)
+	case state.ToolItem:
+		return transcriptTool(typed)
+	case state.NoticeItem:
+		return transcriptNotice(typed)
+	case state.StatusItem:
+		return transcriptStatus(typed)
+	case state.DialogItem:
+		return transcriptDialog(typed)
+	case state.ExitItem:
+		return transcriptExit(typed)
+	default:
+		return templ.NopComponent
 	}
-	return "", false
+}
+
+// toolState is the readable state of a tool call and the CSS class that shows it.
+func toolState(ctx context.Context, item state.ToolItem) (string, string) {
+	switch {
+	case item.IsError == nil:
+		return msgTranscriptToolRunning.T(ctx), "tool tool-running"
+	case *item.IsError:
+		return msgTranscriptToolError.T(ctx), "tool tool-error"
+	default:
+		return msgTranscriptToolOK.T(ctx), "tool tool-ok"
+	}
+}
+
+// toolClass is the CSS class of a tool call.
+func toolClass(ctx context.Context, item state.ToolItem) string {
+	_, class := toolState(ctx, item)
+	return class
+}
+
+// toolSummary is the line that names a tool call: its name, its state and the summary of its arguments.
+func toolSummary(ctx context.Context, item state.ToolItem) string {
+	label, _ := toolState(ctx, item)
+	return "🔧 " + item.Name + " · " + label + " · " + argsSummary(item.Args)
+}
+
+// dialogText is the line of a dialog, with whether it is still pending.
+func dialogText(ctx context.Context, item state.DialogItem) string {
+	label := msgTranscriptDialogPending.T(ctx)
+	if item.Resolved {
+		label = msgTranscriptDialogAnswered.T(ctx)
+	}
+	return "❓ " + item.Request.Title + " (" + label + ")"
+}
+
+// exitText says how the agent process ended.
+func exitText(ctx context.Context, item state.ExitItem) string {
+	if item.Code == nil {
+		return msgTranscriptStoppedNoCode.T(ctx)
+	}
+	return msgTranscriptStoppedCode.Fmt(ctx, map[string]string{"code": strconv.FormatInt(int64(*item.Code), 10)})
 }
 
 // noticeClass is the CSS class of a notice of the given level.

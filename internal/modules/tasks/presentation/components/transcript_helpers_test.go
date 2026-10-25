@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/core/i18n"
 )
@@ -26,15 +25,12 @@ func TestImagesLabelIsSingularForOneImageAndPluralOtherwise(t *testing.T) {
 	assert.Equal(t, "📎 2 images", imagesLabel(ctx, 2))
 }
 
-func TestLaunchNoticesWithArgsOrCwdAreCollapsedUnderALocalizedSummary(t *testing.T) {
+func TestLaunchNoticesWithArgsOrCwdAreCollapsed(t *testing.T) {
 	t.Parallel()
-	summary, collapsed := launchNoticeSummary(transcriptCtx(i18n.Es), "Arrancando agente args=[--x] cwd=/wt")
 
-	require.True(t, collapsed)
-	assert.Equal(t, "Detalles de arranque", summary)
-
-	_, collapsed = launchNoticeSummary(transcriptCtx(i18n.Es), "Conflictos en a.rs")
-	assert.False(t, collapsed)
+	assert.True(t, isLaunchNotice("Arrancando agente args=[--x] cwd=/wt"))
+	assert.True(t, isLaunchNotice("cwd=/wt"))
+	assert.False(t, isLaunchNotice("Conflictos en a.rs"))
 }
 
 func TestArgsSummaryPrefersThePathOverTheRawJSON(t *testing.T) {

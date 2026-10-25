@@ -16,6 +16,11 @@ type TaskDetailView struct {
 	// Attachments are the images of the task; AttachmentsError says why they could not be read.
 	Attachments      []dto.TaskAttachmentDTO
 	AttachmentsError string
+	// Transcript is the conversation of the task. TranscriptCursor is the last sequence number it holds, and
+	// TranscriptError says why the history could not be read.
+	Transcript       Transcript
+	TranscriptCursor *int64
+	TranscriptError  string
 }
 
 // branchMaxChars is the longest branch the header shows; a longer one is cut in the middle.
