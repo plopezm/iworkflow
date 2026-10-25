@@ -210,7 +210,7 @@ func NewModule(deps Deps) (*Module, error) {
 		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
 		Workspaces:      deps.Workspaces,
 	}, clock)
-	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{Get: getTask}, clock)
+	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{Get: getTask, Start: start, Delete: deleteTask}, clock)
 
 	return &Module{
 		Get:               getTask,
@@ -337,6 +337,7 @@ func (m *Module) Routes(r chi.Router) {
 	r.Get(httpinbound.BoardEventsRoute, m.Streams.BoardEvents)
 	r.Get(httpinbound.AttachmentRoute, m.Attachments.Serve)
 	m.Board.Mount(r)
+	m.Detail.Mount(r)
 }
 
 // Sidebar returns the board part of the sidebar: the workspaces and the tasks that need the user.

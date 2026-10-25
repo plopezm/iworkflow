@@ -1,0 +1,8 @@
+package components
+
+import shared "iworkflow/internal/core/components"
+
+// TaskStatusBadge is the status of a task, labelled in the request language and coloured by its status.
+templ TaskStatusBadge(status string) {
+	@shared.Badge(statusText(ctx, status), statusVariant(status))
+}

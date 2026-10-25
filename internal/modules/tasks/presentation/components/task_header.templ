@@ -1,0 +1,27 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TaskHeader is the title of a task with its status, the branch it works on once it left backlog, its failure and
+// the time of its automatic resume. The notice of the last action of the page comes last.
+templ TaskHeader(view state.TaskDetailView) {
+	<div class="row justify-between gap-2">
+		<h1 class="page-title min-w-0 truncate text-xl">{ view.Task.Title }</h1>
+		@TaskStatusBadge(view.Task.Status)
+	</div>
+	if view.Task.Stage != state.StageBacklog {
+		<p class="truncate text-[11px] text-muted">{ msgBranchPrefix.T(ctx) }<code class="font-mono" title={ view.Task.Branch }>{ state.ShortBranch(view.Task.Branch) }</code>{ msgBranchFrom.T(ctx) }<code class="font-mono">{ view.Task.BaseBranch }</code></p>
+	}
+	if view.Task.Error != nil {
+		@shared.ErrorText(*view.Task.Error)
+	}
+	if view.Task.Status == "rate_limited" && view.Task.ResumeAt != nil {
+		<p class="text-xs text-muted">{ resumeNotice(ctx, view.Task.ResumeAt) }</p>
+	}
+	if view.Notice != "" {
+		@shared.ErrorText(view.Notice)
+	}
+}
