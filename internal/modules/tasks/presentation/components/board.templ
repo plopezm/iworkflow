@@ -2,6 +2,7 @@ package components
 
 import (
 	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
@@ -31,7 +32,41 @@ templ TaskCard(task dto.TaskDTO) {
 				}
 			</div>
 		</a>
+		if task.Stage == state.StageBacklog {
+			@backlogActions(task)
+		}
 	</li>
+}
+
+// backlogActions are the card buttons of a backlog task, each shown only when its action is allowed: start,
+// edit (opens the edit tab) and delete (asks first, as the Rust card does).
+templ backlogActions(task dto.TaskDTO) {
+	<div class="row justify-end gap-2">
+		if task.Actions.CanStart {
+			<button
+				type="button"
+				class="btn-primary min-h-8 px-2.5 py-1 text-xs"
+				hx-post={ state.BoardTaskPath(task.ID) + "/start" }
+				hx-swap="none"
+				hx-disabled-elt="this"
+			>{ msgStart.T(ctx) }</button>
+		}
+		if task.Actions.CanEdit {
+			@link.Tab(link.Props{Href: state.TaskPath(task.ID) + "/edit", Class: "btn-ghost min-h-8 px-2.5 py-1 text-xs", Role: "button"}) {
+				{ msgEdit.T(ctx) }
+			}
+		}
+		if task.Actions.CanDelete {
+			<button
+				type="button"
+				class="btn-ghost min-h-8 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
+				hx-post={ state.BoardTaskPath(task.ID) + "/delete" }
+				hx-confirm={ msgConfirmDelete.T(ctx) }
+				hx-swap="none"
+				hx-disabled-elt="this"
+			>{ msgDelete.T(ctx) }</button>
+		}
+	</div>
 }
 
 // WorkspaceSwitcher is the workspace select of the toolbar, labelled by its title as the Rust switcher is.
@@ -84,6 +119,14 @@ templ BoardToolbar(view state.BoardView) {
 	</form>
 }
 
+// LoadFailed is the list of a board whose data could not be read. The error replaces the empty state, so a
+// failed read never looks like a board with no tasks.
+templ LoadFailed(message string) {
+	<div class="stack items-center gap-3 p-8 text-center" role="alert">
+		@shared.ErrorText(message)
+	</div>
+}
+
 // BoardList is the list of the board, grouped by stage. It refreshes itself when the task stream says a
 // task changed or was removed, and when a create dialog reports a new task (board:refresh). Its own
 // attributes carry the address of the list, so the refresh keeps the workspace and the completed toggle.
@@ -96,102 +139,81 @@ templ BoardList(view state.BoardView) {
 		hx-target="this"
 		hx-swap="outerHTML"
 	>
-		switch view.Choice.Kind {
-			case state.ChoiceEmpty:
-				<div class="stack items-center gap-3 p-8 text-center">
-					<p class="muted">{ msgNoWorkspaces.T(ctx) }</p>
-					<a href="/workspaces" class="btn-secondary">{ msgGoWorkspaces.T(ctx) }</a>
-				</div>
-			case state.ChoiceMissing:
-				<p class="muted p-8 text-center">{ msgWorkspaceGone.T(ctx) }</p>
-			case state.ChoiceSelected:
-				if view.Total == 0 {
-					<div class="stack items-center gap-3 p-8 text-center">
-						<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
-						<p class="muted max-w-sm">{ msgEmptyHint.T(ctx) }</p>
-						<button type="button" class="btn-primary" hx-get="/board/tasks/new" hx-include="[name='workspace']" hx-target="#board-create-slot" hx-swap="innerHTML">
-							{ msgCreateFirst.T(ctx) }
-						</button>
-					</div>
-				}
-				<div class="stack gap-4 p-4">
-					for _, group := range view.Groups {
-						if group.Stage != state.StageDone || view.ShowCompleted {
-							<section class="stack gap-2" data-stage={ group.Stage }>
-								<h2 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-									@StageBadge(group.Stage)
-									<span>{ count(len(group.Tasks)) }</span>
-								</h2>
-								if len(group.Tasks) > 0 {
-									<ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-										for _, task := range group.Tasks {
-											@TaskCard(task)
-										}
-									</ul>
-								}
-							</section>
-						}
-					}
-					if view.HasMore {
-						<button
-							type="button"
-							class="btn-secondary self-center"
-							hx-get={ state.ListPath(view.Choice.ID, true, view.Pages+1) }
-							hx-target="#board-list"
-							hx-swap="outerHTML"
-						>
-							{ msgLoadMoreDone.T(ctx) }
-						</button>
-					}
-				</div>
-		}
 		if view.LoadError != "" {
-			@shared.ErrorText(view.LoadError)
+			@LoadFailed(view.LoadError)
+		} else {
+			switch view.Choice.Kind {
+				case state.ChoiceEmpty:
+					<div class="stack items-center gap-3 p-8 text-center">
+						<p class="muted">{ msgNoWorkspaces.T(ctx) }</p>
+						<a href="/workspaces" class="btn-secondary">{ msgGoWorkspaces.T(ctx) }</a>
+					</div>
+				case state.ChoiceMissing:
+					<p class="muted p-8 text-center">{ msgWorkspaceGone.T(ctx) }</p>
+				case state.ChoiceSelected:
+					if view.Total == 0 {
+						<div class="stack items-center gap-3 p-8 text-center">
+							<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
+							<p class="muted max-w-sm">{ msgEmptyHint.T(ctx) }</p>
+							<button type="button" class="btn-primary" hx-get="/board/tasks/new" hx-include="[name='workspace']" hx-target="#board-create-slot" hx-swap="innerHTML">
+								{ msgCreateFirst.T(ctx) }
+							</button>
+						</div>
+					}
+					<div class="stack gap-4 p-4">
+						for _, group := range view.Groups {
+							if group.Stage != state.StageDone || view.ShowCompleted {
+								<section class="stack gap-2" data-stage={ group.Stage }>
+									<h2 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+										@StageBadge(group.Stage)
+										<span>{ count(len(group.Tasks)) }</span>
+									</h2>
+									if len(group.Tasks) > 0 {
+										<ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+											for _, task := range group.Tasks {
+												@TaskCard(task)
+											}
+										</ul>
+									}
+								</section>
+							}
+						}
+						if view.HasMore {
+							<button
+								type="button"
+								class="btn-secondary self-center"
+								hx-get={ state.ListPath(view.Choice.ID, true, view.Pages+1) }
+								hx-target="#board-list"
+								hx-swap="outerHTML"
+							>
+								{ msgLoadMoreDone.T(ctx) }
+							</button>
+						}
+					</div>
+			}
 		}
 	</div>
 }
 
-// CreateTaskDialog is the create dialog: workspace, optional title, prompt, priority and the start toggle.
-// Submitting it replaces the slot with CreateTaskResult; an error keeps the dialog open with the message.
-templ CreateTaskDialog(form state.CreateForm) {
-	@shared.Modal(shared.ModalProps{Title: msgNewTask.T(ctx), Open: true}) {
-		<form class="stack gap-3" hx-post="/board/tasks" hx-target="#board-create-slot" hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
-			<label class="stack gap-1.5">
-				<span class="text-sm font-medium text-fg">{ msgWorkspace.T(ctx) }</span>
-				<select class="input" name="workspace_id" required aria-label={ msgWorkspace.T(ctx) }>
-					if form.WorkspaceID == "" {
-						<option value="" selected>{ msgSelectWorkspace.T(ctx) }</option>
-					}
-					for _, workspace := range form.Workspaces {
-						<option value={ workspace.ID } selected?={ workspace.ID == form.WorkspaceID }>{ workspace.Name + " (" + workspace.BaseBranch + ")" }</option>
-					}
-				</select>
-			</label>
-			@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title})
-			@shared.TextArea(shared.FieldProps{Label: msgPrompt.T(ctx), Name: "prompt", Value: form.Prompt, Placeholder: msgPromptHint.T(ctx), Required: true, Large: true})
-			@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
-			<label class="row min-h-10 items-center gap-2 text-sm text-fg">
-				<input type="checkbox" name="start_now" value="on" checked?={ form.StartNow }/>
-				<span>{ msgStartNow.T(ctx) }</span>
-			</label>
-			if form.Error != "" {
-				@shared.ErrorText(form.Error)
-			}
-			<div class="row justify-end gap-2">
-				<button type="button" class="btn-ghost" hx-get="/board/tasks/new/close" hx-target="#board-create-slot" hx-swap="innerHTML">{ msgCancel.T(ctx) }</button>
-				<button type="submit" class="btn-primary">{ msgCreateTask.T(ctx) }</button>
-			</div>
-		</form>
-	}
-}
-
-// CreateTaskResult is the answer of a create: the dialog slot is emptied (the dialog closes) and, when
-// the task was created but its start failed (startError), the notice is shown in the board's notice slot.
-templ CreateTaskResult(startError string) {
-	<div id="board-create-slot"></div>
+// CreateTaskResult is the answer of a create. It is swapped into the dialog slot, which it empties (the dialog
+// closes), so it must not repeat the slot id. The failures that happened after the task was created (its start,
+// its dependencies) go to the board's notice slot, which the response clears out of band.
+templ CreateTaskResult(startError string, linkErrors []string) {
 	<div id="board-notice" hx-swap-oob="true">
 		if startError != "" {
 			@shared.ErrorText(msgStartFailed.Fmt(ctx, map[string]string{"error": startError}))
+		}
+		for _, linkError := range linkErrors {
+			@shared.ErrorText(msgLinkFailedCreate.Fmt(ctx, map[string]string{"error": linkError}))
+		}
+	</div>
+}
+
+// BoardNotice is an out-of-band answer that shows one failure in the board's notice slot (empty clears it).
+templ BoardNotice(message string) {
+	<div id="board-notice" hx-swap-oob="true">
+		if message != "" {
+			@shared.ErrorText(message)
 		}
 	</div>
 }

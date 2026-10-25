@@ -14,7 +14,8 @@ import (
 )
 
 // BoardPage is the board tab: the toolbar, the list of the workspace, the notice of the last create and
-// the slot of the create dialog. The task stream is connected here, and the list refreshes on its events.
+// the slot of the create dialog. The list refreshes on the task stream, which the shell connects once for
+// the whole page (see the sidebar), so the board does not open a second stream.
 func BoardPage(view state.BoardView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -36,7 +37,7 @@ func BoardPage(view state.BoardView) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex h-full min-h-0 flex-col\" hx-ext=\"sse\" sse-connect=\"/api/tasks/events\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"flex h-full min-h-0 flex-col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

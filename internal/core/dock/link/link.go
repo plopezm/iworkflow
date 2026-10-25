@@ -26,6 +26,8 @@ type Props struct {
 	// Reuse is the name of a route: if a tab of that route is open, it is activated instead of
 	// opening Href (e.g. returning to the board whatever its workspace).
 	Reuse string
+	// Role is the ARIA role of the anchor, for a link that acts as a button ("button").
+	Role string
 }
 
 // Path returns href without its fragment: `/#lane-1` becomes `/`.
@@ -48,6 +50,9 @@ func (p Props) Attributes() templ.Attributes {
 	}
 	if p.Reuse != "" {
 		attrs["data-dock-reuse"] = p.Reuse
+	}
+	if p.Role != "" {
+		attrs["role"] = p.Role
 	}
 	return attrs
 }

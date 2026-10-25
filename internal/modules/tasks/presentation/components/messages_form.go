@@ -1,0 +1,29 @@
+package components
+
+import "iworkflow/internal/core/i18n"
+
+// Texts of the create dialog and the edit page, copied from the Rust Msg constants they replace
+// (src/modules/tasks/presentation/components/task_modal.rs, pages/task_edit_page.rs, components/image_picker.rs,
+// components/existing_attachments.rs).
+var (
+	msgRemoteBranch      = i18n.Msg{En: "{name} (remote)", Es: "{name} (remota)", Zh: "{name}（远程）", De: "{name} (remote)", Fr: "{name} (distante)"}
+	msgBaseBranch        = i18n.Msg{En: "Base branch", Es: "Rama base", Zh: "基础分支", De: "Basis-Branch", Fr: "Branche de base"}
+	msgWorkspaceBranch   = i18n.Msg{En: "Workspace branch ({branch})", Es: "Rama del workspace ({branch})", Zh: "工作区分支（{branch}）", De: "Branch des Workspace ({branch})", Fr: "Branche de l’espace de travail ({branch})"}
+	msgDerivedFromPrompt = i18n.Msg{En: "Derived from the prompt", Es: "Se deriva del prompt", Zh: "由提示词生成", De: "Wird aus dem Prompt abgeleitet", Fr: "Déduit du prompt"}
+	msgAdvancedOptions   = i18n.Msg{En: "Advanced options", Es: "Opciones avanzadas", Zh: "高级选项", De: "Erweiterte Optionen", Fr: "Options avancées"}
+	msgMaxRAM            = i18n.Msg{En: "Max. RAM", Es: "Memoria RAM máx.", Zh: "最大内存", De: "Max. RAM", Fr: "RAM max."}
+	msgMaxCPU            = i18n.Msg{En: "Max. CPU", Es: "CPU máx.", Zh: "最大 CPU", De: "Max. CPU", Fr: "CPU max."}
+	msgPercentOfCore     = i18n.Msg{En: "% of one core", Es: "% de un núcleo", Zh: "占一个核心的百分比", De: "% eines Kerns", Fr: "% d’un cœur"}
+	msgDefaultFromSet    = i18n.Msg{En: "Default (settings)", Es: "Por defecto (ajustes)", Zh: "默认（设置）", De: "Standard (Einstellungen)", Fr: "Par défaut (paramètres)"}
+	msgLinkFailedCreate  = i18n.Msg{En: "Task created, but its dependency could not be added: {error}", Es: "Tarea creada, pero no se pudo añadir su dependencia: {error}", Zh: "任务已创建，但无法添加其依赖：{error}", De: "Aufgabe erstellt, aber die Abhängigkeit konnte nicht hinzugefügt werden: {error}", Fr: "Tâche créée, mais sa dépendance n'a pas pu être ajoutée : {error}"}
+	msgEditTask          = i18n.Msg{En: "Edit task", Es: "Editar tarea", Zh: "编辑任务", De: "Aufgabe bearbeiten", Fr: "Modifier la tâche"}
+	msgTaskNotEditable   = i18n.Msg{En: "This task can no longer be edited.", Es: "Esta tarea ya no se puede editar.", Zh: "此任务无法再编辑。", De: "Diese Aufgabe kann nicht mehr bearbeitet werden.", Fr: "Cette tâche ne peut plus être modifiée."}
+	msgAttachImages      = i18n.Msg{En: "Attach images (max. {mib} MiB each)", Es: "Adjuntar imágenes (máx. {mib} MiB cada una)", Zh: "附加图片（每张最大 {mib} MiB）", De: "Bilder anhängen (max. {mib} MiB pro Bild)", Fr: "Joindre des images ({mib} Mio max. chacune)"}
+	msgAttach            = i18n.Msg{En: "Attach", Es: "Adjuntar", Zh: "附加", De: "Anhängen", Fr: "Joindre"}
+	msgAttachedImages    = i18n.Msg{En: "Attached images", Es: "Imágenes adjuntas", Zh: "已附加的图片", De: "Angehängte Bilder", Fr: "Images jointes"}
+	msgRemoveImage       = i18n.Msg{En: "Remove image {name}", Es: "Quitar imagen {name}", Zh: "移除图片 {name}", De: "Bild {name} entfernen", Fr: "Retirer l’image {name}"}
+	msgStart             = i18n.Msg{En: "Start", Es: "Iniciar", Zh: "开始", De: "Starten", Fr: "Démarrer"}
+	msgEdit              = i18n.Msg{En: "Edit", Es: "Editar", Zh: "编辑", De: "Bearbeiten", Fr: "Modifier"}
+	msgDelete            = i18n.Msg{En: "Delete", Es: "Borrar", Zh: "删除", De: "Löschen", Fr: "Supprimer"}
+	msgConfirmDelete     = i18n.Msg{En: "Delete this task from the pending list?", Es: "¿Borrar esta tarea de la lista de pendientes?", Zh: "要从待办列表中删除此任务吗？", De: "Diese Aufgabe aus der Liste der offenen Aufgaben löschen?", Fr: "Supprimer cette tâche de la liste des tâches en attente ?"}
+)

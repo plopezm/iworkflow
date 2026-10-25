@@ -60,6 +60,8 @@ var (
 	msgStageAttention = i18n.Msg{En: "Needs attention", Es: "Necesita atención", Zh: "需要关注", De: "Braucht Aufmerksamkeit", Fr: "Nécessite une attention"}
 	msgStageReview    = i18n.Msg{En: "In review", Es: "En revisión", Zh: "待审阅", De: "In Prüfung", Fr: "En revue"}
 	msgStageDone      = i18n.Msg{En: "Done", Es: "Hecho", Zh: "完成", De: "Erledigt", Fr: "Terminé"}
+	// The fallback group of a task whose stage is not a board stage. It has no Rust counterpart.
+	msgStageUnknown = i18n.Msg{En: "Unknown status", Es: "Estado desconocido", Zh: "未知状态", De: "Unbekannter Status", Fr: "Statut inconnu"}
 )
 
 // stageLabel is the text of a stage. An unknown stage reads as done, as the Rust mapping does.
@@ -73,6 +75,8 @@ func stageLabel(stage string) i18n.Msg {
 		return msgStageAttention
 	case state.StageReview:
 		return msgStageReview
+	case state.StageUnknown:
+		return msgStageUnknown
 	default:
 		return msgStageDone
 	}

@@ -20,6 +20,9 @@ templ BoardSidebar(rows state.SidebarRows) {
 		hx-swap="outerHTML"
 	>
 	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgWorkspaces.T(ctx), Count: len(rows.Workspaces)}) {
+		if rows.LoadError != "" {
+			@shared.ErrorText(rows.LoadError)
+		}
 		for _, workspace := range rows.Workspaces {
 			@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle}, workspaceMenu(workspace.ID))
 		}

@@ -6,9 +6,10 @@ import (
 )
 
 // BoardPage is the board tab: the toolbar, the list of the workspace, the notice of the last create and
-// the slot of the create dialog. The task stream is connected here, and the list refreshes on its events.
+// the slot of the create dialog. The list refreshes on the task stream, which the shell connects once for
+// the whole page (see the sidebar), so the board does not open a second stream.
 templ BoardPage(view state.BoardView) {
-	<div class="flex h-full min-h-0 flex-col" hx-ext="sse" sse-connect="/api/tasks/events">
+	<div class="flex h-full min-h-0 flex-col">
 		@components.BoardToolbar(view)
 		<div id="board-notice"></div>
 		<div class="board-body min-h-0 flex-1 overflow-y-auto">
