@@ -44,7 +44,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(gitRootID(p.View))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 12, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 12, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -57,7 +57,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(msgGitChanges.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 15, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 15, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -70,7 +70,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgReload.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 19, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 19, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -83,7 +83,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgReload.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 20, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 20, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -96,7 +96,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.ChangesURL(wireOf(p.View)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 21, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 21, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -109,7 +109,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + gitBodyID(p.View))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 22, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 22, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -134,7 +134,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(gitBodyID(p.View))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 29, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 29, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -147,7 +147,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.ChangesURL(wireOf(p.View)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 31, Col: 44}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 31, Col: 44}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -160,7 +160,7 @@ func GitChangesPanel(p GitChangesPanelProps) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(pollTrigger())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 32, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 32, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
@@ -226,7 +226,7 @@ func GitChangesBody(v state.GitView) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoChanges.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 46, Col: 87}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 46, Col: 87}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -284,7 +284,7 @@ func GitErrorSlot(v state.GitView, oob bool) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(gitErrorID(v))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/git_panel.templ`, Line: 57, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/git_panel.templ`, Line: 57, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {

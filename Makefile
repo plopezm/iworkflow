@@ -5,8 +5,11 @@ export GOFLAGS
 
 generate: templ sqlc css
 
+# One generation per .templ file, run from the root: `-f` keeps the file names recorded in the generated code
+# relative to the root, as they are committed. A root-level `templ generate` (or `-path <dir>`) records them
+# relative to the directory it reads and rewrites the *_templ.go files of every module.
 templ:
-	templ generate
+	@for f in $$(find . -name '*.templ' -not -path './.atl/*' -not -path './node_modules/*' | sed 's|^\./||' | sort); do templ generate -f $$f || exit 1; done
 
 # Each module owns its sqlc.yaml (internal/modules/<x>/infrastructure/adapters/outbound/persistence/sqlc.yaml).
 sqlc:

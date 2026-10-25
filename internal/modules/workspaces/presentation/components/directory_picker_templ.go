@@ -100,7 +100,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgPath.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 23, Col: 90}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 23, Col: 90}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -113,7 +113,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgFolderPathPlaceholder.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 23, Col: 138}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 23, Col: 138}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -126,7 +126,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(picker.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 23, Col: 160}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 23, Col: 160}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -139,7 +139,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(msgGo.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 24, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 24, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -162,7 +162,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(pathValues(picker.Parent))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 27, Col: 145}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 27, Col: 145}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -175,7 +175,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(msgUp.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 27, Col: 212}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 27, Col: 212}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -188,7 +188,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(pathValues(picker.Path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 28, Col: 118}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 28, Col: 118}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
@@ -201,7 +201,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(msgUseThisFolder.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 28, Col: 196}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 28, Col: 196}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -214,7 +214,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(picker.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 31, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 31, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
@@ -227,7 +227,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgNewFolderName.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 32, Col: 99}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 32, Col: 99}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 		if templ_7745c5c3_Err != nil {
@@ -240,7 +240,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgNewFolderHere.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 32, Col: 139}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 32, Col: 139}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -253,7 +253,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(msgCreate.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 33, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 33, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -271,7 +271,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(picker.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 36, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 36, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -289,7 +289,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgFilterFoldersLabel.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 38, Col: 92}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 38, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 		if templ_7745c5c3_Err != nil {
@@ -302,7 +302,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgFilterFolders.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 38, Col: 132}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 38, Col: 132}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
@@ -315,7 +315,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(picker.Filter)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 38, Col: 156}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 38, Col: 156}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 		if templ_7745c5c3_Err != nil {
@@ -328,7 +328,7 @@ func pickerBody(picker state.DirectoryPicker) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(pathValues(picker.Path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 38, Col: 280}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 38, Col: 280}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 		if templ_7745c5c3_Err != nil {
@@ -385,7 +385,7 @@ func PickerEntries(picker state.DirectoryPicker) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoSubfolders.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 48, Col: 63}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 48, Col: 63}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -404,7 +404,7 @@ func PickerEntries(picker state.DirectoryPicker) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(pathValues(entry.Path))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 56, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 56, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 			if templ_7745c5c3_Err != nil {
@@ -417,7 +417,7 @@ func PickerEntries(picker state.DirectoryPicker) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Name)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/directory_picker.templ`, Line: 60, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/directory_picker.templ`, Line: 60, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {

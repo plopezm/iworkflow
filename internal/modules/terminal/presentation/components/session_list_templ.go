@@ -60,7 +60,7 @@ func SessionsList(view state.ListView) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoTerminals.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 19, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 19, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -78,7 +78,7 @@ func SessionsList(view state.ListView) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(msgWorkspace.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 25, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 25, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -91,7 +91,7 @@ func SessionsList(view state.ListView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msgSession.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 26, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 26, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -104,7 +104,7 @@ func SessionsList(view state.ListView) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(msgStarted.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 27, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 27, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -117,7 +117,7 @@ func SessionsList(view state.ListView) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(msgStatus.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 28, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 28, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -135,7 +135,7 @@ func SessionsList(view state.ListView) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(row.WorkspaceName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 35, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 35, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -148,7 +148,7 @@ func SessionsList(view state.ListView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(row.ShortID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 37, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 37, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -161,7 +161,7 @@ func SessionsList(view state.ListView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(row.StartedAt)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 39, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 39, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -183,7 +183,7 @@ func SessionsList(view state.ListView) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var10).String())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 1, Col: 0}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 1, Col: 0}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 				if templ_7745c5c3_Err != nil {
@@ -196,7 +196,7 @@ func SessionsList(view state.ListView) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(row.StatusLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 41, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 41, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -221,7 +221,7 @@ func SessionsList(view state.ListView) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(msgOpen.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 46, Col: 27}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 46, Col: 27}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 					if templ_7745c5c3_Err != nil {
@@ -240,7 +240,7 @@ func SessionsList(view state.ListView) templ.Component {
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue("/terminal/sessions/" + row.ID + "/close")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 51, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 51, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 				if templ_7745c5c3_Err != nil {
@@ -253,7 +253,7 @@ func SessionsList(view state.ListView) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(msgClose.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/session_list.templ`, Line: 55, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/components/session_list.templ`, Line: 55, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {

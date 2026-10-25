@@ -44,7 +44,7 @@ func ProjectFilePage(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_file_page.templ`, Line: 14, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_file_page.templ`, Line: 14, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -57,7 +57,7 @@ func ProjectFilePage(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(v.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_file_page.templ`, Line: 14, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_file_page.templ`, Line: 14, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -83,7 +83,7 @@ func ProjectFilePage(v state.FileView) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(v.Path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_file_page.templ`, Line: 19, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_file_page.templ`, Line: 19, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {

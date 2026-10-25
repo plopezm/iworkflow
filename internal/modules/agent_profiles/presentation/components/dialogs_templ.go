@@ -43,7 +43,7 @@ func NameDialog(dialog state.NameDialogView) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 11, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 11, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -73,7 +73,7 @@ func NameDialog(dialog state.NameDialogView) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.Action)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 14, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 14, Col: 47}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {
@@ -86,7 +86,7 @@ func NameDialog(dialog state.NameDialogView) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(hashID(dialog.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 14, Col: 79}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 14, Col: 79}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -99,7 +99,7 @@ func NameDialog(dialog state.NameDialogView) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.Selected)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 15, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 15, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -144,7 +144,7 @@ func NameDialog(dialog state.NameDialogView) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(msgCancel.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 29, Col: 85}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 29, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -198,7 +198,7 @@ func NameHintText(prefix string, hint string) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(nameHintID(prefix))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 39, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 39, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -211,7 +211,7 @@ func NameHintText(prefix string, hint string) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(hint)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 39, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 39, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -255,7 +255,7 @@ func NameSubmit(prefix string, label string, invalid bool, oob bool) templ.Compo
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(nameSubmitID(prefix))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 45, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 45, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
@@ -282,7 +282,7 @@ func NameSubmit(prefix string, label string, invalid bool, oob bool) templ.Compo
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 45, Col: 121}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 45, Col: 121}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -325,7 +325,7 @@ func ImportDialog(dialog state.ImportDialogView) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 50, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 50, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -354,7 +354,7 @@ func ImportDialog(dialog state.ImportDialogView) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.Action)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 52, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 52, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 			if templ_7745c5c3_Err != nil {
@@ -367,7 +367,7 @@ func ImportDialog(dialog state.ImportDialogView) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(hashID(dialog.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 52, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 52, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 			if templ_7745c5c3_Err != nil {
@@ -380,7 +380,7 @@ func ImportDialog(dialog state.ImportDialogView) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(msgImportFile.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 54, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 54, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -411,7 +411,7 @@ func ImportDialog(dialog state.ImportDialogView) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(msgImportAction.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 63, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 63, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -424,7 +424,7 @@ func ImportDialog(dialog state.ImportDialogView) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(msgCancel.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 64, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 64, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -478,7 +478,7 @@ func RoleDialog(dialog state.RoleDialogView) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 74, Col: 20}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 74, Col: 20}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 		if templ_7745c5c3_Err != nil {
@@ -507,7 +507,7 @@ func RoleDialog(dialog state.RoleDialogView) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.Action)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 76, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 76, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 			if templ_7745c5c3_Err != nil {
@@ -520,7 +520,7 @@ func RoleDialog(dialog state.RoleDialogView) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.ResolveAttributeValue(hashID(dialog.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 76, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 76, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 			if templ_7745c5c3_Err != nil {
@@ -533,7 +533,7 @@ func RoleDialog(dialog state.RoleDialogView) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.Scope)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 77, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 77, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 			if templ_7745c5c3_Err != nil {
@@ -546,7 +546,7 @@ func RoleDialog(dialog state.RoleDialogView) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.ResolveAttributeValue(dialog.Selected)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 78, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 78, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 			if templ_7745c5c3_Err != nil {
@@ -596,7 +596,7 @@ func RoleDialog(dialog state.RoleDialogView) templ.Component {
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(msgCancel.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/dialogs.templ`, Line: 95, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/dialogs.templ`, Line: 95, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {

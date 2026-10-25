@@ -41,7 +41,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 9, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 9, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -70,7 +70,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(p.Help)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 11, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 11, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -93,7 +93,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.SaveURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 15, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 15, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -106,7 +106,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + p.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 15, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 15, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -127,7 +127,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(p.TokenLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 18, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 18, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -140,7 +140,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.TokenPlaceholder)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 19, Col: 107}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 19, Col: 107}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(p.InsecureTLSLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 23, Col: 26}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 23, Col: 26}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -186,7 +186,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(p.SaveLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 29, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 29, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -209,7 +209,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.TestURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 33, Col: 101}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 33, Col: 101}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 				if templ_7745c5c3_Err != nil {
@@ -222,7 +222,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + p.TestResultID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 33, Col: 136}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 33, Col: 136}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 				if templ_7745c5c3_Err != nil {
@@ -235,7 +235,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(p.TestLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 33, Col: 172}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 33, Col: 172}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -248,7 +248,7 @@ func CodeHostSettingsCard(p CodeHostSettingsCardProps) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.TestResultID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/code_host_settings_card.templ`, Line: 35, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/code_hosting/presentation/components/code_host_settings_card.templ`, Line: 35, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 				if templ_7745c5c3_Err != nil {

@@ -44,7 +44,7 @@ func ModelsPage(view state.ModelsView) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(ModelsTitle.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/models_page.templ`, Line: 14, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/pages/models_page.templ`, Line: 14, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -57,7 +57,7 @@ func ModelsPage(view state.ModelsView) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(view.NewRoleURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/models_page.templ`, Line: 15, Col: 71}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/pages/models_page.templ`, Line: 15, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -70,7 +70,7 @@ func ModelsPage(view state.ModelsView) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(CreateRole.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/models_page.templ`, Line: 15, Col: 140}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/pages/models_page.templ`, Line: 15, Col: 140}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -83,7 +83,7 @@ func ModelsPage(view state.ModelsView) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(ModelsHelp.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/models_page.templ`, Line: 18, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/pages/models_page.templ`, Line: 18, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 		if templ_7745c5c3_Err != nil {

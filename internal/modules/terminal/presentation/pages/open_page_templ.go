@@ -89,7 +89,7 @@ func openingTerminal(title string, loadingText string, postPath string) templ.Co
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(postPath)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/open_page.templ`, Line: 43, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/open_page.templ`, Line: 43, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -165,7 +165,7 @@ func openFailed(message string, backHref string, backLabel string) templ.Compone
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(backLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/open_page.templ`, Line: 54, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/open_page.templ`, Line: 54, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {

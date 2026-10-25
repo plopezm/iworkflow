@@ -42,7 +42,7 @@ func SearchResults(paths []string) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/search.templ`, Line: 7, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/search.templ`, Line: 7, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 			if templ_7745c5c3_Err != nil {
@@ -55,7 +55,7 @@ func SearchResults(paths []string) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/search.templ`, Line: 7, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/search.templ`, Line: 7, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {

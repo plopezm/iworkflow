@@ -73,7 +73,7 @@ func UploadSection(form state.UploadForm) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(msgFileLabel.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/upload.templ`, Line: 22, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agents_files/presentation/components/upload.templ`, Line: 22, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -102,7 +102,7 @@ func UploadSection(form state.UploadForm) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(msgUpload.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/upload.templ`, Line: 32, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agents_files/presentation/components/upload.templ`, Line: 32, Col: 24}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {

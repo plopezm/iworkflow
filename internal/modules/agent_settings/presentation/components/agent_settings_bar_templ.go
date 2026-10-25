@@ -44,7 +44,7 @@ func AgentSettingsBarPlaceholder() templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(BarID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/agent_settings_bar.templ`, Line: 12, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/agent_settings_bar.templ`, Line: 12, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -57,7 +57,7 @@ func AgentSettingsBarPlaceholder() templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(BarPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/agent_settings_bar.templ`, Line: 12, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/agent_settings_bar.templ`, Line: 12, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -101,7 +101,7 @@ func AgentSettingsBar(p AgentSettingsBarProps) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(BarID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/agent_settings_bar.templ`, Line: 20, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/agent_settings_bar.templ`, Line: 20, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -114,7 +114,7 @@ func AgentSettingsBar(p AgentSettingsBarProps) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(p.Tooltip)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/agent_settings_bar.templ`, Line: 20, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/agent_settings_bar.templ`, Line: 20, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -154,7 +154,7 @@ func AgentSettingsBar(p AgentSettingsBarProps) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(p.Footer)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/agent_settings_bar.templ`, Line: 29, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/agent_settings_bar.templ`, Line: 29, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {

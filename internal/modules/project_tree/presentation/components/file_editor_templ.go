@@ -44,7 +44,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Key())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 12, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 12, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -57,7 +57,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.PathFile)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 12, Col: 83}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 12, Col: 83}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -70,7 +70,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + v.Key())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 12, Col: 111}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 12, Col: 111}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -83,7 +83,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.ScopeWire())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 13, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 13, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -96,7 +96,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 14, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 14, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -131,7 +131,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(gutterID(v))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 20, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 20, Col: 24}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -152,7 +152,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Draft)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 22, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 22, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 		if templ_7745c5c3_Err != nil {
@@ -165,7 +165,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(v.Name())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 22, Col: 135}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 22, Col: 135}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -178,7 +178,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgFileContent.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 30, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 30, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
@@ -191,7 +191,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.PathFileState)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 32, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 32, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
@@ -204,7 +204,7 @@ func FileEditor(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(v.Draft)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 36, Col: 14}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 36, Col: 14}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -248,7 +248,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(toolbarID(v))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 45, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 45, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -279,7 +279,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(msgSave.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 46, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 46, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -302,7 +302,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.FileBodyURL(v.ScopeWire(), v.Path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 51, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 51, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {
@@ -315,7 +315,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + v.Key())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 52, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 52, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 		if templ_7745c5c3_Err != nil {
@@ -328,7 +328,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(msgDiscard.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 54, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 54, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -341,7 +341,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgReloadFromDisk.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 58, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 58, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 		if templ_7745c5c3_Err != nil {
@@ -354,7 +354,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgReloadFromDisk.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 59, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 59, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 		if templ_7745c5c3_Err != nil {
@@ -367,7 +367,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.FileBodyURL(v.ScopeWire(), v.Path))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 60, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 60, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 		if templ_7745c5c3_Err != nil {
@@ -380,7 +380,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + v.Key())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 61, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 61, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 		if templ_7745c5c3_Err != nil {
@@ -398,7 +398,7 @@ func FileToolbar(v state.FileView, oob bool) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(msgUnsavedChanges.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 65, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 65, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -444,7 +444,7 @@ func GutterSpans(v state.FileView) templ.Component {
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs("\n")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 74, Col: 9}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 74, Col: 9}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -467,7 +467,7 @@ func GutterSpans(v state.FileView) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var26).String())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 1, Col: 0}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 1, Col: 0}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 			if templ_7745c5c3_Err != nil {
@@ -480,7 +480,7 @@ func GutterSpans(v state.FileView) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(number)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 76, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 76, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -528,7 +528,7 @@ func FileStateUpdate(v state.FileView) templ.Component {
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.ResolveAttributeValue("innerHTML:#" + gutterID(v))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/file_editor.templ`, Line: 83, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/components/file_editor.templ`, Line: 83, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 		if templ_7745c5c3_Err != nil {

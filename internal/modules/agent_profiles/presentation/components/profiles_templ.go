@@ -48,7 +48,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(list.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 16, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 16, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -85,7 +85,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(list.NewURL)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 19, Col: 66}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 19, Col: 66}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -98,7 +98,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(hashID(list.DialogID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 19, Col: 102}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 19, Col: 102}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -111,7 +111,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(msgNew.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 19, Col: 140}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 19, Col: 140}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -124,7 +124,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(list.ImportURL)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 20, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 20, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 			if templ_7745c5c3_Err != nil {
@@ -137,7 +137,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue(hashID(list.DialogID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 20, Col: 107}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 20, Col: 107}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 			if templ_7745c5c3_Err != nil {
@@ -150,7 +150,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(msgImport.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 20, Col: 148}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 20, Col: 148}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -173,7 +173,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoProfiles.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 25, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 25, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -205,7 +205,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(templ.CSSClasses(templ_7745c5c3_Var11).String())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 1, Col: 0}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 1, Col: 0}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 					if templ_7745c5c3_Err != nil {
@@ -218,7 +218,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 					var templ_7745c5c3_Var13 string
 					templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(list.SelectURL)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 30, Col: 87}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 30, Col: 87}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 					if templ_7745c5c3_Err != nil {
@@ -231,7 +231,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 					var templ_7745c5c3_Var14 string
 					templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.ResolveAttributeValue(valsJSON(map[string]string{"selected": item.Name}))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 30, Col: 150}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 30, Col: 150}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 					if templ_7745c5c3_Err != nil {
@@ -244,7 +244,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 					var templ_7745c5c3_Var15 string
 					templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(hashID(list.ID))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 30, Col: 180}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 30, Col: 180}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 					if templ_7745c5c3_Err != nil {
@@ -257,7 +257,7 @@ func ProfilesList(list state.ListView, oob bool) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(item.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 31, Col: 42}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 31, Col: 42}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -326,7 +326,7 @@ func DialogHost(id string) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 46, Col: 13}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 46, Col: 13}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
@@ -369,7 +369,7 @@ func JSONPanel(text string) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(text)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 51, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 51, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -436,7 +436,7 @@ func RolesCard(roles state.RolesView, oob bool) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.ResolveAttributeValue(roles.NewRoleURL)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 58, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 58, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 			if templ_7745c5c3_Err != nil {
@@ -449,7 +449,7 @@ func RolesCard(roles state.RolesView, oob bool) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(msgNewRole.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 58, Col: 143}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 58, Col: 143}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -472,7 +472,7 @@ func RolesCard(roles state.RolesView, oob bool) templ.Component {
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoRoles.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 62, Col: 40}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 62, Col: 40}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -495,7 +495,7 @@ func RolesCard(roles state.RolesView, oob bool) templ.Component {
 					var templ_7745c5c3_Var26 string
 					templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(role.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 67, Col: 60}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 67, Col: 60}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 					if templ_7745c5c3_Err != nil {
@@ -508,7 +508,7 @@ func RolesCard(roles state.RolesView, oob bool) templ.Component {
 					var templ_7745c5c3_Var27 string
 					templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(role.Description)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profiles.templ`, Line: 68, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profiles.templ`, Line: 68, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 					if templ_7745c5c3_Err != nil {

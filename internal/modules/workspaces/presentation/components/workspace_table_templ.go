@@ -63,7 +63,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoWorkspaces.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 17, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 17, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -86,7 +86,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(row.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 25, Col: 18}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 25, Col: 18}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -111,7 +111,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 					var templ_7745c5c3_Var5 string
 					templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(msgEdit.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 29, Col: 25}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 29, Col: 25}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 					if templ_7745c5c3_Err != nil {
@@ -138,7 +138,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 					var templ_7745c5c3_Var7 string
 					templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(msgOpenTerminal.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 32, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 32, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 					if templ_7745c5c3_Err != nil {
@@ -157,7 +157,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.ResolveAttributeValue("/workspaces/" + row.ID + "/delete")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 37, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 37, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
@@ -170,7 +170,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgConfirmRemove.Fmt(ctx, map[string]string{"name": row.Name}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 38, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 38, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 				if templ_7745c5c3_Err != nil {
@@ -183,7 +183,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(msgRemove.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 41, Col: 27}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 41, Col: 27}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -196,7 +196,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(row.Path)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 44, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 44, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -209,7 +209,7 @@ func WorkspaceTable(table state.TableView) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(row.BaseBranch)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `presentation/components/workspace_table.templ`, Line: 45, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_table.templ`, Line: 45, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {

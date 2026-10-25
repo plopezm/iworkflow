@@ -56,7 +56,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(msgCreateOrImport.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 13, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 13, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -86,7 +86,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(detail.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 17, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 17, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -99,7 +99,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(detail.DuplicateURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 19, Col: 78}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 19, Col: 78}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -112,7 +112,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(msgDuplicate.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 19, Col: 151}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 19, Col: 151}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -125,7 +125,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.ResolveAttributeValue(detail.RenameURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 20, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 20, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 				if templ_7745c5c3_Err != nil {
@@ -138,7 +138,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(msgRename.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 20, Col: 145}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 20, Col: 145}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -151,7 +151,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.ResolveAttributeValue(detail.ExportNoticeURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 21, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 21, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 				if templ_7745c5c3_Err != nil {
@@ -164,7 +164,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var10 templ.SafeURL
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(detail.ExportURL))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 22, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 22, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -177,7 +177,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.ResolveAttributeValue(detail.Filename)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 22, Col: 113}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 22, Col: 113}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 				if templ_7745c5c3_Err != nil {
@@ -190,7 +190,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(msgExport.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 22, Col: 134}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 22, Col: 134}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -203,7 +203,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.ResolveAttributeValue(detail.JSONURL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 24, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 24, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 				if templ_7745c5c3_Err != nil {
@@ -216,7 +216,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(msgCopyJSON.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 24, Col: 143}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 24, Col: 143}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -229,7 +229,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.ResolveAttributeValue(detail.DetailURL + "?confirm=delete")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 25, Col: 92}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 25, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 				if templ_7745c5c3_Err != nil {
@@ -242,7 +242,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(msgDelete.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 25, Col: 162}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 25, Col: 162}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -260,7 +260,7 @@ func ProfileDetail(detail state.DetailView, oob bool) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(msgIsActive.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/profile_detail.templ`, Line: 29, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_profiles/presentation/components/profile_detail.templ`, Line: 29, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {

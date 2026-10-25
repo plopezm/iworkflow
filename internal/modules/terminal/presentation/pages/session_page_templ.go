@@ -44,7 +44,7 @@ func SessionPage(view state.SessionPage) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(view.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/session_page.templ`, Line: 14, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/session_page.templ`, Line: 14, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -69,7 +69,7 @@ func SessionPage(view state.SessionPage) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msgAllTerminals.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/session_page.templ`, Line: 17, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/session_page.templ`, Line: 17, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -88,7 +88,7 @@ func SessionPage(view state.SessionPage) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue("/terminal/sessions/" + view.ID + "/close/page")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/session_page.templ`, Line: 22, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/session_page.templ`, Line: 22, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -101,7 +101,7 @@ func SessionPage(view state.SessionPage) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(msgCloseSession.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/session_page.templ`, Line: 26, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/session_page.templ`, Line: 26, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 		if templ_7745c5c3_Err != nil {

@@ -45,7 +45,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(rootTitle(ctx, v))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 15, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 15, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -58,7 +58,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgReload.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 19, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 19, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -71,7 +71,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgReload.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 20, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 20, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 		if templ_7745c5c3_Err != nil {
@@ -84,7 +84,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.TreeURL(v.View.Scope.Wire()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 21, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 21, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -97,7 +97,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + state.ID("pt-tree", v.View.Scope.Wire()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 22, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 22, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -134,7 +134,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(msgOpenTerminal.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 27, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 27, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -162,7 +162,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(msgEditWorkspace.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 31, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 31, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -188,7 +188,7 @@ func ProjectTreePage(v state.TreePage) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.ID("pt-tree", v.View.Scope.Wire()))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/project_tree_page.templ`, Line: 36, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/project_tree/presentation/pages/project_tree_page.templ`, Line: 36, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
