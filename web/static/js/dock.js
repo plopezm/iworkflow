@@ -336,6 +336,10 @@ function init() {
     if (target.id === 'dock') onDockSettled(target);
     const pane = target.closest('[data-dock-pane]');
     if (pane && pane.childElementCount > 0) onPaneSettled(pane);
+    // A response that marks [data-dock-leave] ends its tab: the tab closes and the named path opens (the save of
+    // the task edit page returns to its board this way).
+    const leave = target.matches?.('[data-dock-leave]') ? target : target.querySelector?.('[data-dock-leave]');
+    if (leave && pane) dockAction('close_and_open', { tab: pane.dataset.tabId, path: leave.dataset.dockLeave });
   });
   // Restore the saved layout; the root path opens nothing, any other path opens its tab.
   const path = location.pathname;
