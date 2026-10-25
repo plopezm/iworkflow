@@ -210,7 +210,7 @@ func (f *resumeFixture) resumeTask() *application.ResumeTask {
 }
 
 func (f *resumeFixture) rateLimited() *application.ResumeRateLimitedTasks {
-	return application.NewResumeRateLimitedTasks(f.lifecycle, f.runtime, f.resumeTask())
+	return application.NewResumeRateLimitedTasks(f.lifecycle, f.runtime, f.resumeTask(), application.NewSendMessage(f.lifecycle, f.runtime))
 }
 
 // parkedTask is a task stopped by a usage limit with the given schedule.

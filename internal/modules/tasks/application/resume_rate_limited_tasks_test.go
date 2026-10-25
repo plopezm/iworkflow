@@ -49,7 +49,10 @@ func TestResumeRateLimitedResumesDueTaskAndSendsContinuation(t *testing.T) {
 	require.Len(t, fx.runtime.started, 1)
 	require.Len(t, fx.runtime.sent, 1)
 	assert.Equal(t, task.ID, fx.runtime.sent[0].id)
-	assert.Equal(t, models.PromptCommand{Message: resumeContinueMessage}, fx.runtime.sent[0].command)
+	command, isPrompt := fx.runtime.sent[0].command.(models.PromptCommand)
+	require.True(t, isPrompt)
+	assert.Equal(t, resumeContinueMessage, command.Message)
+	assert.Empty(t, command.Images)
 	assert.Equal(t, []models.TaskStatus{models.StatusIdle}, fx.repo.statuses)
 	assert.Empty(t, fx.repo.usageWrites)
 }

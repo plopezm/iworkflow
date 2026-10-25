@@ -22,14 +22,16 @@ type ResumeRateLimitedTasks struct {
 	lifecycle *TaskLifecycle
 	runtime   outbound.AgentRuntime
 	resume    *ResumeTask
+	send      *SendMessage
 
 	// mu serializes the sweeps. It is held for the whole sweep.
 	mu sync.Mutex
 }
 
-// NewResumeRateLimitedTasks builds the sweep on its ports and on the manual resume it reuses.
-func NewResumeRateLimitedTasks(lifecycle *TaskLifecycle, runtime outbound.AgentRuntime, resume *ResumeTask) *ResumeRateLimitedTasks {
-	return &ResumeRateLimitedTasks{lifecycle: lifecycle, runtime: runtime, resume: resume}
+// NewResumeRateLimitedTasks builds the sweep on its ports, on the manual resume it reuses and on the
+// message use case that sends the continuation.
+func NewResumeRateLimitedTasks(lifecycle *TaskLifecycle, runtime outbound.AgentRuntime, resume *ResumeTask, send *SendMessage) *ResumeRateLimitedTasks {
+	return &ResumeRateLimitedTasks{lifecycle: lifecycle, runtime: runtime, resume: resume, send: send}
 }
 
 // Execute resumes the due tasks and returns how many resumed. It is the RateLimitedResumer port.
@@ -73,17 +75,10 @@ func (u *ResumeRateLimitedTasks) resumeOne(ctx context.Context, id models.TaskID
 	return u.sendContinuation(ctx, id)
 }
 
-// sendContinuation sends the continuation prompt, after checking that the task accepts messages. The task is
-// idle after a resume, so the agent receives a prompt (the same command SendMessage builds for an idle agent).
+// sendContinuation sends the continuation through SendMessage in follow-up mode, as the Rust version does. The
+// task is idle after a resume, so the agent receives it as a prompt.
 func (u *ResumeRateLimitedTasks) sendContinuation(ctx context.Context, id models.TaskID) error {
-	task, err := u.lifecycle.Load(ctx, id)
-	if err != nil {
-		return err
-	}
-	if !task.Status.AcceptsMessages() {
-		return invalidState("enviar mensaje", task.Status)
-	}
-	return u.runtime.Send(ctx, id, models.PromptCommand{Message: continueMessage})
+	return u.send.Execute(ctx, id, continueMessage, nil, models.MessageModeFollowUp)
 }
 
 // reschedule delays the next attempt with the probe backoff. A failed write is logged, never returned, so one
