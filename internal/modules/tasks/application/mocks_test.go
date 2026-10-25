@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -78,6 +79,13 @@ type fakeRepository struct {
 	eventsAfter    *int64
 	insertErr      error
 	appendErr      error
+	// claimResult and revertResult, when set, are returned instead of the real conditional check.
+	claimResult  *bool
+	claimErr     error
+	revertResult *bool
+	revertErr    error
+	claims       int
+	reverts      int
 }
 
 func newFakeRepository(tasks ...models.Task) *fakeRepository {
@@ -116,6 +124,42 @@ func (r *fakeRepository) UpdateStatus(_ context.Context, id models.TaskID, statu
 	r.statuses = append(r.statuses, status)
 	r.errorTexts = append(r.errorTexts, errorText)
 	return nil
+}
+
+// ClaimForStart moves a backlog task to starting and fixes its plan, like the conditional update does.
+func (r *fakeRepository) ClaimForStart(_ context.Context, id models.TaskID, branch string, worktreePath string, baseBranch string) (bool, error) {
+	r.claims++
+	if r.claimErr != nil {
+		return false, r.claimErr
+	}
+	if r.claimResult != nil {
+		return *r.claimResult, nil
+	}
+	task, ok := r.tasks[id]
+	if !ok || task.Status != models.StatusBacklog {
+		return false, nil
+	}
+	task.Status, task.Branch, task.WorktreePath, task.BaseBranch = models.StatusStarting, branch, worktreePath, baseBranch
+	r.tasks[id] = task
+	return true, nil
+}
+
+// RevertStartClaim moves a starting task back to backlog.
+func (r *fakeRepository) RevertStartClaim(_ context.Context, id models.TaskID) (bool, error) {
+	r.reverts++
+	if r.revertErr != nil {
+		return false, r.revertErr
+	}
+	if r.revertResult != nil {
+		return *r.revertResult, nil
+	}
+	task, ok := r.tasks[id]
+	if !ok || task.Status != models.StatusStarting {
+		return false, nil
+	}
+	task.Status = models.StatusBacklog
+	r.tasks[id] = task
+	return true, nil
 }
 
 func (r *fakeRepository) UpdateDetailsIfBacklog(_ context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string) (bool, error) {
@@ -254,6 +298,7 @@ type fakeStorage struct {
 	failDeleteDir   bool
 	readBytesResult []byte
 	readBytesErr    error
+	readErr         error
 	readPaths       []string
 }
 
@@ -276,6 +321,14 @@ func (s *fakeStorage) Delete(_ context.Context, path string) error {
 		return werrors.Storage("no se pudo borrar")
 	}
 	return nil
+}
+
+// Read answers with the base64 content the adapter would return: "data-<file name>" for the test paths.
+func (s *fakeStorage) Read(_ context.Context, path string) (string, error) {
+	if s.readErr != nil {
+		return "", s.readErr
+	}
+	return "data-" + strings.TrimPrefix(path, "t/"), nil
 }
 
 // ReadBytes records the path it was asked for and answers with the configured content.
@@ -301,6 +354,8 @@ type fakeAttachments struct {
 	failInsert       bool
 	deletedByTask    int
 	failDeleteByTask error
+	// listErr fails ListByTask, as the start tests need.
+	listErr error
 }
 
 func (a *fakeAttachments) InsertMany(_ context.Context, _ models.TaskID, attachments []models.StoredAttachment) error {
@@ -318,6 +373,9 @@ func (a *fakeAttachments) DeleteByTask(_ context.Context, _ models.TaskID) error
 }
 
 func (a *fakeAttachments) ListByTask(_ context.Context, _ models.TaskID) ([]models.StoredAttachment, error) {
+	if a.listErr != nil {
+		return nil, a.listErr
+	}
 	return a.listed, nil
 }
 
@@ -508,11 +566,18 @@ type fakeRuntime struct {
 	sent          []models.AgentCommand
 	subagents     []models.SubagentTask
 	subagentCalls int
+	// runningCalls and capabilityCalls count the questions asked, so tests can prove a check was skipped.
+	runningCalls    int
+	capabilityCalls int
 }
 
-func (r *fakeRuntime) IsRunning(_ context.Context, _ models.TaskID) bool { return r.running }
+func (r *fakeRuntime) IsRunning(_ context.Context, _ models.TaskID) bool {
+	r.runningCalls++
+	return r.running
+}
 
 func (r *fakeRuntime) Capabilities(_ models.TaskID) models.AgentCapabilities {
+	r.capabilityCalls++
 	return r.capabilities
 }
 

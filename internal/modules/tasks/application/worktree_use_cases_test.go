@@ -34,9 +34,34 @@ type fakeWorktree struct {
 	branches      []models.BranchOption
 	branchesErr   error
 	branchesAsked []string
+	// created records the Create calls of the start tests; createErr fails them.
+	created     []worktreeCreate
+	createErr   error
+	existsCalls int
 }
 
-func (w *fakeWorktree) Exists(context.Context, string) bool { return w.exists }
+// worktreeCreate is one Create call the start tests observe.
+type worktreeCreate struct {
+	repo   string
+	base   string
+	branch string
+	path   string
+}
+
+func (w *fakeWorktree) Exists(context.Context, string) bool {
+	w.existsCalls++
+	return w.exists
+}
+
+// WorktreePath places the worktree under "/wt", the way the test fixtures expect.
+func (w *fakeWorktree) WorktreePath(workspaceName string, dirName string) string {
+	return "/wt/" + workspaceName + "/" + dirName
+}
+
+func (w *fakeWorktree) Create(_ context.Context, repo string, base string, branch string, path string) error {
+	w.created = append(w.created, worktreeCreate{repo: repo, base: base, branch: branch, path: path})
+	return w.createErr
+}
 
 func (w *fakeWorktree) PinRange(_ context.Context, repo string, base string, branch string, pinRef string) (models.DiffRange, error) {
 	w.pinned = append(w.pinned, repo+"|"+base+"|"+branch+"|"+pinRef)

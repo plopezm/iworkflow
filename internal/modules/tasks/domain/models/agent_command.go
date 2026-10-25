@@ -5,6 +5,16 @@ type AgentCommand interface {
 	isAgentCommand()
 }
 
+// MessageMode says how a message of the user reaches an agent that is already working: it steers the running
+// turn or queues behind it. An idle agent always receives a plain prompt, whatever the mode.
+type MessageMode uint8
+
+// Message modes. The zero value is not a mode.
+const (
+	MessageModeSteer MessageMode = iota + 1
+	MessageModeFollowUp
+)
+
 // PromptCommand starts a new turn with a message.
 type PromptCommand struct {
 	Message string
