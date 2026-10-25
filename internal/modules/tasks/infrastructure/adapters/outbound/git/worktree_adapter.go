@@ -132,6 +132,9 @@ func (a *WorktreeAdapter) Diff(ctx context.Context, repo string, baseBranch stri
 
 // DiffRange returns the diff of a fixed range, even when the branch no longer exists.
 func (a *WorktreeAdapter) DiffRange(ctx context.Context, repo string, diffRange models.DiffRange) (models.TaskDiff, error) {
+	if err := checkRefArguments(diffRange.BaseSHA, diffRange.HeadSHA); err != nil {
+		return models.TaskDiff{}, err
+	}
 	spec := diffRange.BaseSHA + ".." + diffRange.HeadSHA
 	return buildDiff(ctx, repo, spec, spec)
 }

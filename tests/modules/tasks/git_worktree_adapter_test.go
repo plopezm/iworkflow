@@ -458,6 +458,21 @@ func TestCreateRefusesBaseReferencesThatLookLikeOptions(t *testing.T) {
 	assert.NoDirExists(t, target)
 }
 
+// Argument safety: the stored range of a merged task reaches git as one argument, so a corrupt value that reads as an
+// option must be refused before git runs (git diff --output=<file> would write a file).
+func TestDiffRangeRefusesBoundsThatLookLikeOptions(t *testing.T) {
+	f := newWorktreeFixture(t)
+	written := filepath.Join(t.TempDir(), "owned")
+
+	_, baseErr := f.adapter.DiffRange(bg(), f.repo, models.DiffRange{BaseSHA: "--output=" + written, HeadSHA: "HEAD"})
+	_, headErr := f.adapter.DiffRange(bg(), f.repo, models.DiffRange{BaseSHA: "HEAD", HeadSHA: "--output=" + written})
+
+	assert.Error(t, baseErr)
+	assert.Error(t, headErr)
+	assert.NoFileExists(t, written+"..HEAD", "git must not have run with the option")
+	assert.NoFileExists(t, written)
+}
+
 // Cancellation: a context that is already done stops git before it changes anything.
 func TestCancelledContextStopsGitBeforeItChangesAnything(t *testing.T) {
 	f := newWorktreeFixture(t)
