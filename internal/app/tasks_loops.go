@@ -12,6 +12,10 @@ import (
 	"iworkflow/internal/modules/tasks/infrastructure/background"
 )
 
+// shutdownStepTimeout is the budget of each shutdown step. The steps do not share one deadline: a slow step must not
+// leave the next one, such as the agent event flush, without time to persist.
+const shutdownStepTimeout = 10 * time.Second
+
 // taskLoops are the background loops of the tasks module: the dependency graph and the usage-limit resume. They run
 // in goroutines the application owns, on a context that outlives the HTTP server's drain, and Shutdown cancels them
 // and waits for every one.
@@ -110,27 +114,69 @@ func (a *App) runResumeLoop(ctx context.Context) {
 	}
 }
 
-// stopLoops cancels both loops and waits for them to return, within ctx. Before Start it does nothing.
-func (a *App) stopLoops(ctx context.Context) error {
+// stopLoops cancels both loops and waits for them to return. Before Start it does nothing. The wait is bounded by the
+// shutdown step that runs it.
+func (a *App) stopLoops(context.Context) error {
 	if a.loops.cancel == nil {
 		return nil
 	}
 	a.loops.cancel()
-	return boundedStep(ctx, "stop the background loops", a.loops.wg.Wait)
+	a.loops.wg.Wait()
+	return nil
 }
 
-// boundedStep runs step and waits for it until ctx ends. A step still running at the deadline is abandoned and
-// reported: its goroutine ends when the step returns, and the caller moves on to the next shutdown step.
-func boundedStep(ctx context.Context, name string, step func()) error {
-	done := make(chan struct{})
+// shutdownStep is one step of Shutdown. Its name is the one the error of a step that runs out of time reports.
+type shutdownStep struct {
+	name string
+	run  func(ctx context.Context) error
+}
+
+// runShutdownSteps runs the steps in order, each bounded by boundedStep, and returns their errors joined.
+func runShutdownSteps(ctx context.Context, timeout time.Duration, steps []shutdownStep) error {
+	errs := make([]error, 0, len(steps))
+	for _, step := range steps {
+		errs = append(errs, boundedStep(ctx, step.name, timeout, step.run))
+	}
+	return errors.Join(errs...)
+}
+
+// boundedStep runs step with a budget of its own: a context that keeps the values of ctx but not its deadline, expiring
+// after timeout. It waits for the step until the step finishes, its budget ends, or ctx ends. ctx is the global upper
+// bound of the whole shutdown, so an explicit cancel or an expired deadline of the caller stops the wait too. A step
+// still running then is abandoned: its goroutine ends when the step returns, and the caller moves on.
+//
+// The result is nil only when the step has returned. A step that finished at the same moment the wait ends counts as
+// finished, so a result never reports an unfinished step as done.
+func boundedStep(ctx context.Context, name string, timeout time.Duration, step func(context.Context) error) error {
+	stepCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	finished := make(chan error, 1)
+	// The budget is released only once the step returns, so an abandoned step keeps running on a live context.
 	go func() {
-		defer close(done)
-		step()
+		defer cancel()
+		finished <- step(stepCtx)
 	}()
 	select {
-	case <-done:
-		return nil
+	case err := <-finished:
+		return stepResult(name, err)
+	case <-stepCtx.Done():
 	case <-ctx.Done():
-		return fmt.Errorf("%s did not finish before the shutdown deadline: %w", name, ctx.Err())
 	}
+	select {
+	case err := <-finished:
+		return stepResult(name, err)
+	default:
+	}
+	reason := ctx.Err()
+	if reason == nil {
+		reason = stepCtx.Err()
+	}
+	return fmt.Errorf("%s did not finish before its deadline: %w", name, reason)
+}
+
+// stepResult names the error of a step that returned one.
+func stepResult(name string, err error) error {
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	return nil
 }

@@ -15,7 +15,6 @@ import (
 	agentsfilesmodels "iworkflow/internal/modules/agents_files/domain/models"
 	agentsfilesoutbound "iworkflow/internal/modules/agents_files/domain/ports/outbound"
 	agentsfilesdi "iworkflow/internal/modules/agents_files/infrastructure/di"
-	codehostingapp "iworkflow/internal/modules/code_hosting/application"
 	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
 	codehostingoutbound "iworkflow/internal/modules/code_hosting/domain/ports/outbound"
@@ -388,7 +387,7 @@ func (m *modelOptions) List(ctx context.Context) ([]agentprofilesoutbound.ModelO
 // remoteMergeBridge adapts the code_hosting remote merge to the port the tasks module consumes. The two modules name
 // the outcome differently, so the composition root maps it, as the Rust CodeHostRemoteMergeBridge does.
 type remoteMergeBridge struct {
-	inner *codehostingapp.RemoteMerge
+	inner codehostinginbound.RemoteMergePort
 }
 
 var _ tasksoutbound.RemoteMerge = (*remoteMergeBridge)(nil)

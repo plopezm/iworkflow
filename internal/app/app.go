@@ -5,7 +5,6 @@ package app
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -58,15 +57,16 @@ type Deps struct {
 
 // App is the assembled server: the router and the modules it mounts.
 type App struct {
-	logger    *slog.Logger
-	staticDir string
-	guard     *prefsinbound.AccessGuard
-	prefs     *prefsdi.Module
-	terminal  *terminaldi.Module
-	tasks     *tasksdi.Module
-	loops     *taskLoops
-	modules   []web.Module
-	dock      *dock.Handlers
+	logger     *slog.Logger
+	staticDir  string
+	guard      *prefsinbound.AccessGuard
+	prefs      *prefsdi.Module
+	workspaces *workspacesdi.Module
+	terminal   *terminaldi.Module
+	tasks      *tasksdi.Module
+	loops      *taskLoops
+	modules    []web.Module
+	dock       *dock.Handlers
 }
 
 // New composes the modules. The order matters only for the ports the modules share: the workspaces
@@ -167,34 +167,34 @@ func New(deps Deps) (*App, error) {
 	}
 
 	return &App{
-		logger:    deps.Logger,
-		staticDir: deps.StaticDir,
-		guard:     guard,
-		prefs:     prefs,
-		terminal:  terminal,
-		tasks:     tasks,
-		loops:     newTaskLoops(),
-		modules:   []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks},
-		dock:      dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
+		logger:     deps.Logger,
+		staticDir:  deps.StaticDir,
+		guard:      guard,
+		prefs:      prefs,
+		workspaces: workspaces,
+		terminal:   terminal,
+		tasks:      tasks,
+		loops:      newTaskLoops(),
+		modules:    []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks},
+		dock:       dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }
 
 // Shutdown releases what the modules hold while the server runs, in the order of the Rust main. The caller
 // stops the HTTP server first, so no request starts work meanwhile. It stops the background loops and waits for
 // them, stops every live agent, waits for the worktree removals, persists the pending agent events, and last kills
-// the live terminal sessions, so no shell outlives the process. A step that runs out of the deadline is reported
-// and the next one still runs.
+// the live terminal sessions, so no shell outlives the process. Each step has its own budget of shutdownStepTimeout,
+// so a slow step cannot starve the ones after it; ctx is the global upper bound. A step that runs out of its budget is
+// reported and the next one still runs.
 func (a *App) Shutdown(ctx context.Context) error {
-	var errs []error
-	errs = append(errs, a.stopLoops(ctx))
-	errs = append(errs, boundedStep(ctx, "stop the agents", func() { a.tasks.StopAgents(ctx) }))
-	errs = append(errs, boundedStep(ctx, "wait for the worktree removals", func() { a.tasks.WaitWorktreeCleanup(ctx) }))
-	errs = append(errs, boundedStep(ctx, "persist the agent events", a.tasks.FlushEvents))
-	errs = append(errs, boundedStep(ctx, "close the agent event queue", a.tasks.ShutdownEvents))
-	if err := a.terminal.Shutdown(ctx); err != nil {
-		errs = append(errs, fmt.Errorf("shutdown terminals: %w", err))
-	}
-	return errors.Join(errs...)
+	return runShutdownSteps(ctx, shutdownStepTimeout, []shutdownStep{
+		{name: "stop the background loops", run: a.stopLoops},
+		{name: "stop the agents", run: func(ctx context.Context) error { a.tasks.StopAgents(ctx); return nil }},
+		{name: "wait for the worktree removals", run: func(ctx context.Context) error { a.tasks.WaitWorktreeCleanup(ctx); return nil }},
+		{name: "persist the agent events", run: func(context.Context) error { a.tasks.FlushEvents(); return nil }},
+		{name: "close the agent event queue", run: func(context.Context) error { a.tasks.ShutdownEvents(); return nil }},
+		{name: "shutdown terminals", run: a.terminal.Shutdown},
+	})
 }
 
 // Router builds the HTTP router. Middlewares run in the order of the Rust server: the cross-site

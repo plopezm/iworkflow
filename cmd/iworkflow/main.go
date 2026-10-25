@@ -33,8 +33,10 @@ const (
 	siteRootVar     string = "LEPTOS_SITE_ROOT"
 	readHeaderLimit        = 10 * time.Second
 	shutdownTimeout        = 10 * time.Second
-	exitUsage              = 2
-	logLevelVar     string = "IWF_LOG_LEVEL"
+	// applicationShutdownTimeout bounds app.Shutdown: six steps, each with its own 10s budget (see internal/app).
+	applicationShutdownTimeout        = 60 * time.Second
+	exitUsage                         = 2
+	logLevelVar                string = "IWF_LOG_LEVEL"
 )
 
 func main() {
@@ -160,18 +162,15 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	if err != nil {
 		return fmt.Errorf("compose application: %w", err)
 	}
-	// The modules release what they hold however serving ends. It is deferred before the start-up, so that a failed
-	// start-up or bind still stops the loops it began; it runs after the HTTP server has stopped.
-	defer shutdownApplication(ctx, logger, application)
-	if err := application.Start(ctx); err != nil {
-		return fmt.Errorf("start application: %w", err)
-	}
-	logAccess(ctx, logger, info, prefs)
-
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr.String())
+	// The modules release what they hold once serving has ended. The release is registered only after the bind has
+	// succeeded: a failed bind has started nothing, and a failed start releases inside bindThenStart.
+	release := func() { shutdownApplication(ctx, logger, application) }
+	listener, err := bindThenStart(ctx, addr.String(), listenOn, application.Start, release)
 	if err != nil {
-		return fmt.Errorf("bind %s: %w", addr, err)
+		return err
 	}
+	defer release()
+	logAccess(ctx, logger, info, prefs)
 	logger.Info("listening", "url", "http://"+addr.String())
 	if options.OpenBrowser {
 		url := launch.BrowserURL(addr)
@@ -187,10 +186,42 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	return serveUntilStopped(ctx, logger, server, listener, restartHandle)
 }
 
-// shutdownApplication releases the modules within shutdownTimeout. The signal context is already done when it runs,
-// so the deadline starts from its values without its cancellation.
+// bindFunc opens the listener of the server, startFunc starts the application.
+type (
+	bindFunc  func(ctx context.Context, addr string) (net.Listener, error)
+	startFunc func(ctx context.Context) error
+)
+
+// listenOn opens the TCP listener of the server.
+func listenOn(ctx context.Context, addr string) (net.Listener, error) {
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("open listener: %w", err)
+	}
+	return listener, nil
+}
+
+// bindThenStart binds the address and then starts the application. The bind comes first, so a second instance on a
+// taken address fails before it reconciles or sweeps the data the live instance owns: a failed bind starts nothing and
+// has nothing to stop. A failed start closes the listener and calls stop, which releases what the application began;
+// after a successful start the caller owns the release.
+func bindThenStart(ctx context.Context, addr string, bind bindFunc, start startFunc, stop func()) (net.Listener, error) {
+	listener, err := bind(ctx, addr)
+	if err != nil {
+		return nil, fmt.Errorf("bind %s: %w", addr, err)
+	}
+	if err := start(ctx); err != nil {
+		_ = listener.Close()
+		stop()
+		return nil, fmt.Errorf("start application: %w", err)
+	}
+	return listener, nil
+}
+
+// shutdownApplication releases the modules within applicationShutdownTimeout. The signal context is already done when
+// it runs, so the deadline starts from its values without its cancellation.
 func shutdownApplication(ctx context.Context, logger *slog.Logger, application *app.App) {
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), applicationShutdownTimeout)
 	defer cancel()
 	if err := application.Shutdown(stopCtx); err != nil {
 		logger.Warn("cannot release the modules on shutdown", "error", err)
