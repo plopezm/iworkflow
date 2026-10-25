@@ -49,3 +49,9 @@ test('the sidebar toggle offers to show the sidebar while it is hidden and to hi
   assert.equal(sidebarToggleLabel(dataset, true), 'Mostrar barra lateral');
   assert.equal(sidebarToggleLabel(dataset, false), 'Ocultar barra lateral');
 });
+
+test('a sidebar toggle without translated labels offers no label instead of the text "undefined"', () => {
+  assert.equal(sidebarToggleLabel({}, true), undefined);
+  assert.equal(sidebarToggleLabel({ labelHide: 'Ocultar' }, true), undefined);
+  assert.equal(sidebarToggleLabel({ labelShow: 'Mostrar' }, false), undefined);
+});

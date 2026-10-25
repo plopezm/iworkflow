@@ -85,3 +85,55 @@ test('a pointer down on a menu of the group does not focus it, so the open menu 
 test('a pointer down on a dock action does not focus the group', () => {
   assert.equal(dock.focusesGroup(pointerTarget({ action: {} })), false);
 });
+
+// ----- hardening of the request queue (advisories of the native review of 079844b) -----
+
+test('a request that throws when it is sent does not wedge the queue', () => {
+  const sent = [];
+  const queue = dock.createRequestQueue({ onError: () => {} });
+  queue.enqueue(() => {
+    throw new Error('htmx is not ready');
+  });
+  queue.enqueue(() => sent.push('next'));
+  assert.deepEqual(sent, ['next'], 'the next request must run after the failed one');
+});
+
+test('a request whose dock never settles is released by the timeout', () => {
+  const sent = [];
+  const timers = [];
+  const queue = dock.createRequestQueue({
+    timeoutMs: 5000,
+    setTimer: (fn, ms) => timers.push({ fn, ms }) - 1,
+    clearTimer: (id) => {
+      timers[id] = null;
+    },
+  });
+  queue.enqueue(() => sent.push('lost response'));
+  queue.enqueue(() => sent.push('after'));
+  assert.deepEqual(sent, ['lost response']);
+  assert.equal(timers[0].ms, 5000);
+  timers[0].fn();
+  assert.deepEqual(sent, ['lost response', 'after'], 'the timeout releases the next request');
+});
+
+test('settling in time cancels the timeout of that request', () => {
+  const timers = [];
+  const queue = dock.createRequestQueue({
+    setTimer: (fn, ms) => timers.push({ fn, ms }) - 1,
+    clearTimer: (id) => {
+      timers[id] = null;
+    },
+  });
+  queue.enqueue(() => {});
+  queue.settle();
+  assert.equal(timers[0], null, 'the pending timer is cleared');
+});
+
+test('only a failed dock request releases the queue', () => {
+  assert.equal(dock.isDockRequest({ pathInfo: { requestPath: '/dock/action/open' } }), true);
+  assert.equal(dock.isDockRequest({ pathInfo: { requestPath: '/dock/layout' } }), true);
+  assert.equal(dock.isDockRequest({ pathInfo: { requestPath: '/board/list?scope=x' } }), false);
+  assert.equal(dock.isDockRequest({ pathInfo: { requestPath: '/agent-settings/model' } }), false);
+  assert.equal(dock.isDockRequest({}), false);
+  assert.equal(dock.isDockRequest(undefined), false);
+});

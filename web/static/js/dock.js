@@ -72,13 +72,41 @@ export function addressFor(focusedPath) {
 
 // Runs requests one at a time: a request runs when enqueued if nothing is in flight, otherwise when the
 // current one calls settle(). Each run is a function, so the request reads its state when it is sent.
-export function createRequestQueue() {
+// The queue never wedges: a run that throws releases the next request, and a request whose dock never settles
+// (a lost response) is released after timeoutMs.
+export function createRequestQueue({
+  timeoutMs = 10000,
+  setTimer = (fn, ms) => setTimeout(fn, ms),
+  clearTimer = (id) => clearTimeout(id),
+  onError = (error) => console.error('dock request failed to send', error),
+} = {}) {
   const pending = [];
   let busy = false;
+  let generation = 0;
+  let timer = null;
+  const release = () => {
+    if (timer !== null) clearTimer(timer);
+    timer = null;
+    busy = false;
+  };
   const next = () => {
-    if (busy || pending.length === 0) return;
-    busy = true;
-    pending.shift()();
+    while (!busy && pending.length > 0) {
+      const run = pending.shift();
+      busy = true;
+      const mine = ++generation;
+      timer = setTimer(() => {
+        if (generation !== mine) return;
+        timer = null;
+        busy = false;
+        next();
+      }, timeoutMs);
+      try {
+        run();
+      } catch (error) {
+        release();
+        onError(error);
+      }
+    }
   };
   return {
     enqueue(run) {
@@ -86,10 +114,17 @@ export function createRequestQueue() {
       next();
     },
     settle() {
-      busy = false;
+      release();
       next();
     },
   };
+}
+
+// True for the request config of a dock request (/dock/action/*, /dock/layout): only those release the queue
+// when they fail, so an unrelated htmx request cannot let the next dock request overtake the one in flight.
+export function isDockRequest(detail) {
+  const path = detail?.pathInfo?.requestPath ?? detail?.requestConfig?.path ?? '';
+  return typeof path === 'string' && path.startsWith('/dock/');
 }
 
 // ----- browser wiring -------------------------------------------------------------------------
@@ -346,11 +381,14 @@ function loadActivePanes(dock) {
 }
 
 function onDockSettled(dock) {
-  attachPanes(dock);
-  loadActivePanes(dock);
-  writeLayout(dock.dataset.layout || '');
-  // The layout is stored: the next queued request may read it now.
-  requests.settle();
+  try {
+    attachPanes(dock);
+    loadActivePanes(dock);
+    writeLayout(dock.dataset.layout || '');
+  } finally {
+    // The layout is stored (or storing failed): the next queued request may go now, never stay blocked.
+    requests.settle();
+  }
   const address = addressFor(dock.dataset.focusedPath);
   if (address && address !== location.pathname) history.replaceState(null, '', address);
   const active = dock.querySelector('[data-dock-tab-button][aria-selected="true"]');
@@ -386,9 +424,11 @@ function init() {
   document.body.addEventListener('htmx:afterSettle', (event) => handleAfterSettle(event));
   // A failed request never settles: release the queue so the dock does not stop accepting actions.
   document.body.addEventListener('htmx:afterRequest', (event) => {
-    if (event.detail?.successful === false) requests.settle();
+    if (event.detail?.successful === false && isDockRequest(event.detail)) requests.settle();
   });
-  document.body.addEventListener('htmx:swapError', () => requests.settle());
+  document.body.addEventListener('htmx:swapError', (event) => {
+    if (isDockRequest(event.detail)) requests.settle();
+  });
   // Restore the saved layout; the root path opens nothing, any other path opens its tab.
   const path = location.pathname;
   restore(path === '/' ? '' : path);

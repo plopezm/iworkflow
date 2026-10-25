@@ -19,8 +19,10 @@ export function sidebarIsOpen(stored) {
 }
 
 // The label of the sidebar toggle: it offers the action the click will do.
+// It is undefined when the toggle carries no translated label, and then the caller leaves the attributes alone.
 export function sidebarToggleLabel(dataset, collapsed) {
-  return collapsed ? dataset.labelShow : dataset.labelHide;
+  const label = collapsed ? dataset.labelShow : dataset.labelHide;
+  return label || undefined;
 }
 
 // Only the first call of a toast arms the timer; a toast that already has one is left alone.
@@ -75,6 +77,7 @@ function setCollapsed(root, collapsed) {
   }
   for (const toggle of document.querySelectorAll('[data-sidebar-toggle]')) {
     const label = sidebarToggleLabel(toggle.dataset, collapsed);
+    if (label === undefined) continue;
     toggle.setAttribute('aria-label', label);
     toggle.setAttribute('title', label);
   }
