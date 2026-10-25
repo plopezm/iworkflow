@@ -25,10 +25,20 @@ type BoardView struct {
 	LoadError string
 }
 
-// ListPath is the address of the list of one board instance for a workspace, the completed toggle and the number of
-// loaded pages. The list keeps this address in its own attributes, so a refresh repeats what the user chose and
-// answers to the same instance.
+// ListPath is the address of the content of the list of one board instance for a workspace, the completed toggle
+// and the number of loaded pages. The listening element keeps this address in its own attributes, so a refresh
+// repeats what the user chose and answers to the same instance.
 func ListPath(scope string, workspaceID string, showCompleted bool, pages int) string {
+	return listAddress("/board/list", scope, workspaceID, showCompleted, pages)
+}
+
+// FramePath is the address of the whole listening element for the same choice as ListPath. The controls that change
+// the address swap the element whole, so the element keeps the address the user chose.
+func FramePath(scope string, workspaceID string, showCompleted bool, pages int) string {
+	return listAddress("/board/frame", scope, workspaceID, showCompleted, pages)
+}
+
+func listAddress(base string, scope string, workspaceID string, showCompleted bool, pages int) string {
 	values := url.Values{}
 	if scope != "" {
 		values.Set("scope", scope)
@@ -38,7 +48,7 @@ func ListPath(scope string, workspaceID string, showCompleted bool, pages int) s
 		values.Set("completed", "1")
 		values.Set("pages", strconv.Itoa(ClampPages(pages)))
 	}
-	return "/board/list?" + values.Encode()
+	return base + "?" + values.Encode()
 }
 
 // CreateForm is the state of the create dialog: what the user typed and the error to show. A linked create

@@ -93,7 +93,7 @@ templ BoardToolbar(view state.BoardView) {
 	<form
 		id={ state.Scoped("board-controls", view.Scope) }
 		class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-2.5"
-		hx-get="/board/list"
+		hx-get="/board/frame"
 		hx-target={ "#" + state.Scoped("board-list", view.Scope) }
 		hx-swap="outerHTML"
 		hx-trigger="change"
@@ -135,76 +135,85 @@ templ LoadFailed(message string) {
 // broadcast: every open board reloads its own list from its own address, so the refresh is harmless for the boards
 // that are not shown. Its own attributes carry the address of the list, so the refresh keeps the workspace, the
 // completed toggle and the instance.
+// The element stays in the page: a refresh swaps only its content (innerHTML). Replacing the element would drop the
+// task-stream events that arrive while the new one is not listening yet.
 templ BoardList(view state.BoardView) {
 	<div
 		id={ state.Scoped("board-list", view.Scope) }
 		class="board-list"
 		hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages) }
 		hx-trigger="sse:changed, sse:removed, board:refresh from:body"
+		hx-sync="this:replace"
 		hx-target="this"
-		hx-swap="outerHTML"
+		hx-swap="innerHTML"
 	>
-		if view.LoadError != "" {
-			@LoadFailed(view.LoadError)
-		} else {
-			switch view.Choice.Kind {
-				case state.ChoiceEmpty:
-					<div class="stack items-center gap-3 p-8 text-center">
-						<p class="muted">{ msgNoWorkspaces.T(ctx) }</p>
-						<a href="/workspaces" class="btn-secondary">{ msgGoWorkspaces.T(ctx) }</a>
-					</div>
-				case state.ChoiceMissing:
-					<p class="muted p-8 text-center">{ msgWorkspaceGone.T(ctx) }</p>
-				case state.ChoiceSelected:
-					if view.Total == 0 {
-						<div class="stack items-center gap-3 p-8 text-center">
-							<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
-							<p class="muted max-w-sm">{ msgEmptyHint.T(ctx) }</p>
-							<button
-								type="button"
-								class="btn-primary"
-								hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
-								hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
-								hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
-								hx-swap="innerHTML"
-							>
-								{ msgCreateFirst.T(ctx) }
-							</button>
-						</div>
-					}
-					<div class="stack gap-4 p-4">
-						for _, group := range view.Groups {
-							if group.Stage != state.StageDone || view.ShowCompleted {
-								<section class="stack gap-2" data-stage={ group.Stage }>
-									<h2 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-										@StageBadge(group.Stage)
-										<span>{ count(len(group.Tasks)) }</span>
-									</h2>
-									if len(group.Tasks) > 0 {
-										<ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-											for _, task := range group.Tasks {
-												@TaskCard(task, view.Scope)
-											}
-										</ul>
-									}
-								</section>
-							}
-						}
-						if view.HasMore {
-							<button
-								type="button"
-								class="btn-secondary self-center"
-								hx-get={ state.ListPath(view.Scope, view.Choice.ID, true, view.Pages+1) }
-								hx-target={ "#" + state.Scoped("board-list", view.Scope) }
-								hx-swap="outerHTML"
-							>
-								{ msgLoadMoreDone.T(ctx) }
-							</button>
-						}
-					</div>
-			}
-		}
+		@BoardListBody(view)
 	</div>
+}
+
+// BoardListBody is the content of the list: the stages, the empty state or the load error. It is what the list
+// address answers.
+templ BoardListBody(view state.BoardView) {
+	if view.LoadError != "" {
+		@LoadFailed(view.LoadError)
+	} else {
+		switch view.Choice.Kind {
+			case state.ChoiceEmpty:
+				<div class="stack items-center gap-3 p-8 text-center">
+					<p class="muted">{ msgNoWorkspaces.T(ctx) }</p>
+					<a href="/workspaces" class="btn-secondary">{ msgGoWorkspaces.T(ctx) }</a>
+				</div>
+			case state.ChoiceMissing:
+				<p class="muted p-8 text-center">{ msgWorkspaceGone.T(ctx) }</p>
+			case state.ChoiceSelected:
+				if view.Total == 0 {
+					<div class="stack items-center gap-3 p-8 text-center">
+						<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
+						<p class="muted max-w-sm">{ msgEmptyHint.T(ctx) }</p>
+						<button
+							type="button"
+							class="btn-primary"
+							hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
+							hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
+							hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
+							hx-swap="innerHTML"
+						>
+							{ msgCreateFirst.T(ctx) }
+						</button>
+					</div>
+				}
+				<div class="stack gap-4 p-4">
+					for _, group := range view.Groups {
+						if group.Stage != state.StageDone || view.ShowCompleted {
+							<section class="stack gap-2" data-stage={ group.Stage }>
+								<h2 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
+									@StageBadge(group.Stage)
+									<span>{ count(len(group.Tasks)) }</span>
+								</h2>
+								if len(group.Tasks) > 0 {
+									<ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+										for _, task := range group.Tasks {
+											@TaskCard(task, view.Scope)
+										}
+									</ul>
+								}
+							</section>
+						}
+					}
+					if view.HasMore {
+						<button
+							type="button"
+							class="btn-secondary self-center"
+							hx-get={ state.FramePath(view.Scope, view.Choice.ID, true, view.Pages+1) }
+							hx-target={ "#" + state.Scoped("board-list", view.Scope) }
+							hx-swap="outerHTML"
+						>
+							{ msgLoadMoreDone.T(ctx) }
+						</button>
+					}
+				</div>
+		}
+	}
 }
 
 // CreateTaskResult is the answer of a create. It is swapped into the dialog slot, which it empties (the dialog

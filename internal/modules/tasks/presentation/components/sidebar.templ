@@ -16,9 +16,17 @@ templ BoardSidebar(rows state.SidebarRows) {
 		class="contents"
 		hx-get="/board/sidebar"
 		hx-trigger="sse:changed, sse:removed, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body"
+		hx-sync="this:replace"
 		hx-target="this"
-		hx-swap="outerHTML"
+		hx-swap="innerHTML"
 	>
+		@SidebarBody(rows)
+	</div>
+}
+
+// SidebarBody is the content of the board part of the sidebar. It is what /board/sidebar answers; the element that
+// listens to the task stream stays in the page and swaps only this content.
+templ SidebarBody(rows state.SidebarRows) {
 	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgWorkspaces.T(ctx), Count: len(rows.Workspaces)}) {
 		if rows.LoadError != "" {
 			@shared.ErrorText(rows.LoadError)
@@ -43,7 +51,6 @@ templ BoardSidebar(rows state.SidebarRows) {
 			<p class="muted">{ msgNothingNeedsAttention.T(ctx) }</p>
 		}
 	}
-	</div>
 }
 
 // workspaceMenu is the "…" menu of a workspace row: its files, its terminal and the workspaces screen.

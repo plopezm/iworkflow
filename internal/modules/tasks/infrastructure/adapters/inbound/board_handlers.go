@@ -105,6 +105,7 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 // a backlog card, and the save of the edit page.
 func (h *BoardHandlers) Mount(r chi.Router) {
 	r.Get("/board/list", h.list)
+	r.Get("/board/frame", h.frame)
 	r.Get("/board/sidebar", h.sidebar)
 	r.Get("/board/tasks/new", h.newTask)
 	r.Get("/board/tasks/new/close", h.closeNewTask)
@@ -142,20 +143,33 @@ func newScope() string {
 	return strings.ToLower(rand.Text()[:12])
 }
 
-// list serves the list fragment for the address in the query: the workspace, the completed toggle and the
-// number of loaded pages. It is what the controls, the load-more button and the task stream request.
+// list serves the content of the list for the address in the query: the workspace, the completed toggle and the
+// number of loaded pages. The listening element stays in the page and swaps only this content (see
+// components.BoardList).
 func (h *BoardHandlers) list(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, http.StatusOK, components.BoardListBody(h.listView(r)))
+}
+
+// frame serves the whole listening element for the same address as list. The controls that change the address (the
+// workspace, the completed toggle, the load more) swap it, so the element keeps the address the user chose.
+func (h *BoardHandlers) frame(w http.ResponseWriter, r *http.Request) {
+	web.Render(w, r, http.StatusOK, components.BoardList(h.listView(r)))
+}
+
+// listView builds the view of the list for the address in the query.
+func (h *BoardHandlers) listView(r *http.Request) state.BoardView {
 	query := r.URL.Query()
 	showCompleted := query.Get("completed") == "1"
 	donePages := state.ClampPages(parseInt(query.Get("pages"), 1))
 	view := h.view(r.Context(), query.Get("workspace"), showCompleted, donePages)
 	view.Scope = state.SanitizeScope(query.Get("scope"))
-	web.Render(w, r, http.StatusOK, components.BoardList(view))
+	return view
 }
 
-// sidebar serves the board part of the sidebar, which refreshes itself (see components.BoardSidebar).
+// sidebar serves the content of the board part of the sidebar, which stays in the page and swaps only this content
+// (see components.BoardSidebar).
 func (h *BoardHandlers) sidebar(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, http.StatusOK, h.Sidebar(r.Context()))
+	web.Render(w, r, http.StatusOK, components.SidebarBody(h.sidebarRows(r.Context())))
 }
 
 // newTask opens the create dialog, with the workspace the board shows selected. A link in the address (link_kind
@@ -341,6 +355,11 @@ func parseInt(raw string, fallback int) int {
 // Sidebar builds the board part of the sidebar: the workspaces and the tasks that need the user. A failed
 // read is shown in the sidebar, and the rows that could be read are still listed.
 func (h *BoardHandlers) Sidebar(ctx context.Context) templ.Component {
+	return components.BoardSidebar(h.sidebarRows(ctx))
+}
+
+// sidebarRows reads the rows of the board part of the sidebar.
+func (h *BoardHandlers) sidebarRows(ctx context.Context) state.SidebarRows {
 	workspaces, workspaceErr := h.workspaceOptions(ctx)
 	active, taskErr := h.uc.List.Execute(ctx, nil)
 	if taskErr != nil {
@@ -349,7 +368,7 @@ func (h *BoardHandlers) Sidebar(ctx context.Context) templ.Component {
 	}
 	rows := state.BuildSidebar(workspaces, tasksToDTO(active, h.now()))
 	rows.LoadError = firstErrorText(workspaceErr, taskErr)
-	return components.BoardSidebar(rows)
+	return rows
 }
 
 // firstErrorText is the message of the first error that is set, or empty when none is.

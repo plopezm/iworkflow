@@ -34,3 +34,9 @@ func TestListPathEscapesTheWorkspace(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "/board/list?workspace=a+b%26c", state.ListPath("", "a b&c", false, 1))
 }
+
+func TestFramePathAnswersTheWholeListElementForTheSameAddress(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "/board/frame?workspace=w1", state.FramePath("", "w1", false, 3))
+	assert.Equal(t, "/board/frame?completed=1&pages=3&scope=k3&workspace=w1", state.FramePath("k3", "w1", true, 3))
+}

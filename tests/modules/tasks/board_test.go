@@ -225,18 +225,55 @@ func TestBoardListFiltersByWorkspaceAndCompletedToggle(t *testing.T) {
 	assert.NotContains(t, completed, "in-second")
 }
 
-func TestBoardListKeepsItsAddressForTheRefreshAndTheTaskStream(t *testing.T) {
+// The list element listens to the task stream, so it stays in the page: a refresh swaps only its content. The
+// endpoint /board/list answers that content alone; the element itself comes from the page or from /board/frame.
+func TestBoardListEndpointAnswersOnlyTheListContent(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	insertTask(t, repo, newTask(t, workspaceID, "listed-only", models.StatusRunning))
+	_, router := boardRouter(t, repo)
+
+	recorder, body := doRequest(t, router, http.MethodGet, "/board/list?workspace="+workspaceID+"&completed=1&pages=2", nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, "listed-only", "the content of the list is answered")
+	assert.NotContains(t, body, `id="board-list"`, "the listening element is not replaced by its own response")
+	assert.NotContains(t, body, `hx-trigger=`, "the triggers stay on the element that stays in the page")
+}
+
+// The frame is the listening element with its address. The controls that change the address (the workspace, the
+// completed toggle and the load more) swap it whole, so the next refresh repeats what the user chose.
+func TestBoardFrameKeepsItsAddressForTheRefreshAndTheTaskStream(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
 	_, router := boardRouter(t, repo)
 
-	_, body := doRequest(t, router, http.MethodGet, "/board/list?workspace="+workspaceID+"&completed=1&pages=2", nil)
+	recorder, body := doRequest(t, router, http.MethodGet, "/board/frame?workspace="+workspaceID+"&completed=1&pages=2", nil)
 
+	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, body, `id="board-list"`)
 	assert.Contains(t, body, `hx-trigger="sse:changed, sse:removed, board:refresh from:body"`)
+	assert.Contains(t, body, `hx-swap="innerHTML"`, "a refresh swaps the content and keeps the element")
+	assert.Contains(t, body, `hx-sync="this:replace"`)
 	assert.Contains(t, body, "/board/list?completed=1&amp;pages=2&amp;workspace="+workspaceID,
 		"the refresh repeats the workspace and the completed toggle")
+}
+
+func TestBoardPageRendersTheStableListWithItsAddress(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	module, _ := boardRouter(t, repo)
+
+	body := renderTab(t, module, "board_workspace", dock.Params{"id": workspaceID})
+
+	assert.Contains(t, body, `id="board-list-`, "the page carries the list of its own instance")
+	assert.Contains(t, body, `hx-trigger="sse:changed, sse:removed, board:refresh from:body"`)
+	assert.Contains(t, body, `hx-get="/board/list?`, "the refresh asks for the content, not for the element")
+	assert.Contains(t, body, `hx-swap="innerHTML"`)
+	assert.Contains(t, body, `hx-get="/board/frame"`, "the toolbar swaps the whole element because it changes its address")
 }
 
 func TestBoardPageLeavesTheTaskStreamToTheShell(t *testing.T) {
@@ -334,6 +371,8 @@ func TestSidebarLinksEachWorkspaceToItsBoardAndListsTheTasksThatNeedTheUser(t *t
 	assert.Contains(t, sidebar, `hx-get="/board/sidebar"`)
 	assert.Contains(t, sidebar, `hx-trigger="sse:changed, sse:removed, board:refresh from:body, htmx:afterRequest[`, "the sidebar refreshes on task changes and removals only, not on every stream event")
 	assert.Contains(t, sidebar, `htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')]`, "a registration on the workspaces screen refreshes the sidebar")
+	assert.Contains(t, sidebar, `hx-sync="this:replace"`, "a burst of stream events must end with a refetch that sees the last change, not be dropped while one is in flight")
+	assert.Contains(t, sidebar, `hx-swap="innerHTML"`, "the listening element stays in the page and only its content is swapped")
 	assert.Contains(t, sidebar, `href="/board/`+workspaceID+`"`)
 	assert.Contains(t, sidebar, `href="/tasks/`+failed.ID.String()+`"`, "a failed task needs the user")
 	assert.Contains(t, sidebar, "needs-you")
@@ -349,7 +388,7 @@ func TestSidebarEndpointAnswersItsOwnRefresh(t *testing.T) {
 	recorder, body := doRequest(t, router, http.MethodGet, "/board/sidebar", nil)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.Contains(t, body, `id="board-sidebar"`)
+	assert.NotContains(t, body, `id="board-sidebar"`, "the listening element is not replaced by its own response")
 	assert.Contains(t, body, `href="/board/`+workspaceID+`"`, "a workspace registered since the page loaded is listed")
 }
 

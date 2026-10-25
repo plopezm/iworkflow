@@ -70,8 +70,12 @@ func TestScopedRequestsRenderTheIdsOfTheirOwnInstance(t *testing.T) {
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
 	_, router := boardRouter(t, repo)
 
+	_, frame := doRequest(t, router, http.MethodGet, "/board/frame?workspace="+workspaceID+"&scope=k3", nil)
+	assert.Contains(t, frame, `id="board-list-k3"`, "the list element answers to its own instance")
+	assert.NotContains(t, frame, `id="board-list"`)
+
 	_, list := doRequest(t, router, http.MethodGet, "/board/list?workspace="+workspaceID+"&scope=k3", nil)
-	assert.Contains(t, list, `id="board-list-k3"`, "the list answers to its own instance")
+	assert.Contains(t, list, `hx-target="#board-create-slot-k3"`, "the content of the list answers to its own instance")
 	assert.NotContains(t, list, `id="board-list"`)
 
 	_, dialog := doRequest(t, router, http.MethodGet, "/board/tasks/new?workspace="+workspaceID+"&scope=k3", nil)
