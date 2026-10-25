@@ -1,0 +1,13 @@
+package pages
+
+import "iworkflow/internal/modules/tasks/presentation/state"
+
+// TaskDetailPage is the detail tab of a task. Its header, its backlog view and its actions are added to this
+// element; the element carries the page scope so the actions answer inside this tab only.
+templ TaskDetailPage(view state.TaskDetailView) {
+	<div id={ state.Scoped("task-detail", view.Scope) } class="flex h-full min-h-0 flex-col">
+		<div class="shrink-0 border-b border-border bg-surface px-4 py-2.5">
+			<h1 class="page-title truncate text-xl">{ view.Task.Title }</h1>
+		</div>
+	</div>
+}

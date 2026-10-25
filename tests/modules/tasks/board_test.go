@@ -147,7 +147,7 @@ func TestBoardTabsOwnTheHomeTheEditTabAndTheWorkspaceAddresses(t *testing.T) {
 		names = append(names, route.Name+" "+route.Pattern)
 	}
 
-	assert.Equal(t, []string{"board /", "task_edit /tasks/{id}/edit", "board_workspace /board/{id}"}, names)
+	assert.Equal(t, []string{"board /", "task_edit /tasks/{id}/edit", "board_workspace /board/{id}", "task_detail /tasks/{id}"}, names)
 }
 
 func TestBoardRendersEveryStageAndTheTaskLinks(t *testing.T) {

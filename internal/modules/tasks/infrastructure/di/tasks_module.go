@@ -124,6 +124,8 @@ type Module struct {
 	Streams *httpinbound.TaskStreams
 	// Board serves the board tabs (Tabs) and the htmx endpoints of the list and the create dialog (Routes).
 	Board *httpinbound.BoardHandlers
+	// Detail serves the detail tab of a task (Tabs).
+	Detail *httpinbound.DetailHandlers
 	// The dependency graph of the board (slice C): the edges, the node positions and the successor trigger.
 	// Successors starts the tasks whose predecessors met their trigger. The composition root runs
 	// background.RunGraphLoop with it in a goroutine it owns, and stops that loop through its context.
@@ -208,6 +210,7 @@ func NewModule(deps Deps) (*Module, error) {
 		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
 		Workspaces:      deps.Workspaces,
 	}, clock)
+	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{Get: getTask}, clock)
 
 	return &Module{
 		Get:               getTask,
@@ -245,6 +248,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Subscriber:        bus,
 		Streams:           httpinbound.NewTaskStreams(getTask, getEvents, bus),
 		Board:             board,
+		Detail:            detail,
 		AddDependency:     addDependency,
 		RemoveDependency:  application.NewRemoveTaskDependency(graph, successors),
 		DetachFromGraph:   application.NewDetachTaskFromGraph(graph, successors),
@@ -340,10 +344,10 @@ func (m *Module) Sidebar(ctx context.Context) templ.Component {
 	return m.Board.Sidebar(ctx)
 }
 
-// Tabs returns the dock routes the module owns: the board, at the home address and per workspace. The
-// composition root registers them before the not-migrated catch-alls.
+// Tabs returns the dock routes the module owns: the board, at the home address and per workspace, and the detail
+// of a task. The composition root registers them before the not-migrated catch-alls.
 func (m *Module) Tabs() []dock.Route {
-	return m.Board.Tabs()
+	return append(m.Board.Tabs(), m.Detail.Tabs()...)
 }
 
 // StopAgents stops every live agent. Call it on shutdown, after the background loops have stopped, so that no

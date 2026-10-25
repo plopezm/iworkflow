@@ -152,11 +152,16 @@ func TestTheShellOpensOneTaskStreamAndTheBoardTabOpensNone(t *testing.T) {
 func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
 	handler := newRouter(t)
 
-	for _, path := range []string{"/jira", "/jira/some-id", "/tasks/some-id"} {
+	for _, path := range []string{"/jira", "/jira/some-id", "/tasks/0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11/diff"} {
 		rec := get(t, handler, "/dock/pane?path="+path)
 		require.Equal(t, http.StatusOK, rec.Code, path)
 		require.Contains(t, rec.Body.String(), "todavía no se ha migrado", "%s keeps its not-migrated explanation", path)
 	}
+	// The detail of a task is migrated; an unknown task says so in place of the not-migrated explanation.
+	detail := get(t, handler, "/dock/pane?path=/tasks/0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11")
+	require.Equal(t, http.StatusOK, detail.Code)
+	require.NotContains(t, detail.Body.String(), "todavía no se ha migrado")
+	require.Contains(t, detail.Body.String(), "ya no existe")
 	home := get(t, handler, "/dock/pane?path=/")
 	require.Equal(t, http.StatusOK, home.Code)
 	require.Contains(t, home.Body.String(), `id="board-list-`, "the home address is the board")
