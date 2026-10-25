@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/app"
-	"iworkflow/internal/core/config"
 	"iworkflow/internal/core/db/dbtest"
 	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/core/listen"
@@ -30,7 +29,7 @@ func newRouter(t *testing.T) http.Handler {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	application, err := app.New(app.Deps{
 		DB:        dbtest.New(t),
-		Config:    config.Config{},
+		Config:    app.NewTestConfig(t),
 		Logger:    logger,
 		StaticDir: static,
 		Listen:    listen.Info{Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), 3000)},
@@ -106,7 +105,7 @@ func TestMigratedTabsRenderThroughTheDockPane(t *testing.T) {
 func TestShutdownReleasesTheModules(t *testing.T) {
 	application, err := app.New(app.Deps{
 		DB:        dbtest.New(t),
-		Config:    config.Config{},
+		Config:    app.NewTestConfig(t),
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		StaticDir: t.TempDir(),
 		Listen:    listen.Info{Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), 3000)},

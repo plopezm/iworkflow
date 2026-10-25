@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -33,9 +34,9 @@ import (
 	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
 	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
+	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
 	terminaldi "iworkflow/internal/modules/terminal/infrastructure/di"
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
-	workspacespersistence "iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/persistence"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
 	workspacespages "iworkflow/internal/modules/workspaces/presentation/pages"
 )
@@ -62,17 +63,16 @@ type App struct {
 	guard     *prefsinbound.AccessGuard
 	prefs     *prefsdi.Module
 	terminal  *terminaldi.Module
+	tasks     *tasksdi.Module
+	loops     *taskLoops
 	modules   []web.Module
 	dock      *dock.Handlers
 }
 
 // New composes the modules. The order matters only for the ports the modules share: the workspaces
-// and agents_files modules need each other, so the project lookup is bound after both are built.
-//
-// TODO(tasks): the tasks module is not migrated yet. Its startup steps (reconcile interrupted tasks,
-// sweep orphan worktrees, start the graph and resume loops) and its routes (events, attachments) are
-// not wired; the workspaces module uses a temporary WorkspaceTasks adapter meanwhile, and the task
-// lookups of project_tree, terminal and code_hosting resolve to nothing (see bridges.go).
+// and agents_files modules need each other, so the project lookup is bound after both are built, and the
+// workspaces and tasks modules need each other, so the workspace cascade is bound once tasks exists.
+// New starts nothing: Start runs the tasks startup steps and the background loops.
 func New(deps Deps) (*App, error) {
 	guard := prefsinbound.NewAccessGuard(deps.Preferences.Token, deps.Listen.TokenRequired)
 
@@ -83,10 +83,11 @@ func New(deps Deps) (*App, error) {
 		Projects:   projects,
 		Logger:     deps.Logger,
 	})
+	workspaceTasks := &workspaceTasksBridge{}
 	workspaces := workspacesdi.NewModule(workspacesdi.Deps{
 		DB:          deps.DB,
 		HomeDir:     deps.Config.HomeDir,
-		Tasks:       workspacespersistence.NewTemporaryWorkspaceTasks(deps.DB),
+		Tasks:       workspaceTasks,
 		AgentsFiles: &agentsFilesBridge{module: agentsFiles},
 	})
 	projects.list = workspaces.List
@@ -108,9 +109,31 @@ func New(deps Deps) (*App, error) {
 		GentlePiConfigHome: deps.Config.GentlePiConfigHome,
 	})
 
+	// The remote merge is shared: the tasks module merges through it and code_hosting binds its use case to it.
+	remoteMerge := codehostingapp.NewRemoteMerge()
+	tasks, err := tasksdi.NewModule(tasksdi.Deps{
+		DB:             deps.DB,
+		Workspaces:     &taskWorkspaceLookup{get: workspaces.Get, list: workspaces.List},
+		AttachmentsDir: deps.Config.AttachmentsDir,
+		WorktreesDir:   deps.Config.WorktreesDir,
+		Binaries: tasksdi.RuntimeBinaries{
+			GentleShell:       deps.Config.GentleShellBin,
+			Pi:                deps.Config.PiBin,
+			Claude:            deps.Config.ClaudeBin,
+			Cursor:            deps.Config.CursorBin,
+			CursorSessionsDir: deps.Config.CursorSessionsDir,
+		},
+		LaunchSettings: &launchSettings{prepareLaunch: settings.PrepareLaunch},
+		Remote:         &remoteMergeBridge{inner: remoteMerge},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose tasks: %w", err)
+	}
+	workspaceTasks.deleteAll = tasks.DeleteWorkspace
+
 	projectTree := projecttreedi.NewModule(projecttreedi.Deps{
 		Workspaces: &workspaceRoots{get: workspaces.Get},
-		Tasks:      taskRootsPending{}, // TODO(tasks): no task worktree resolves until the tasks module lands.
+		Tasks:      &taskRootLookup{get: tasks.Get},
 	})
 	profiles := agentprofilesdi.NewModule(agentprofilesdi.Deps{
 		ProfilesDir:  deps.Config.GentlePiConfigHome,
@@ -119,12 +142,12 @@ func New(deps Deps) (*App, error) {
 	})
 	codeHosting := codehostingdi.NewModule(codehostingdi.Deps{
 		DB:          deps.DB,
-		Tasks:       taskSourcesPending{}, // TODO(tasks): no task merge request resolves until the tasks module lands.
-		RemoteMerge: codehostingapp.NewRemoteMerge(),
+		Tasks:       &taskSourceLookup{get: tasks.Get, workspaces: workspaces.Get},
+		RemoteMerge: remoteMerge,
 	})
 	terminal := terminaldi.NewModule(terminaldi.Dependencies{
 		WorkspaceResolver: workspaceTargets(workspaces.Get),
-		TaskResolver:      taskTargetsPending, // TODO(tasks): no task terminal opens until the tasks module lands.
+		TaskResolver:      taskTargets(tasks.Get),
 		HomeDir:           deps.Config.HomeDir,
 		Logger:            deps.Logger,
 	})
@@ -149,18 +172,29 @@ func New(deps Deps) (*App, error) {
 		guard:     guard,
 		prefs:     prefs,
 		terminal:  terminal,
-		modules:   []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal},
+		tasks:     tasks,
+		loops:     newTaskLoops(),
+		modules:   []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks},
 		dock:      dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }
 
-// Shutdown releases the resources the modules hold while the server runs: it kills the live terminal
-// sessions, so no shell outlives the process. The caller stops the HTTP server first.
+// Shutdown releases what the modules hold while the server runs, in the order of the Rust main. The caller
+// stops the HTTP server first, so no request starts work meanwhile. It stops the background loops and waits for
+// them, stops every live agent, waits for the worktree removals, persists the pending agent events, and last kills
+// the live terminal sessions, so no shell outlives the process. A step that runs out of the deadline is reported
+// and the next one still runs.
 func (a *App) Shutdown(ctx context.Context) error {
+	var errs []error
+	errs = append(errs, a.stopLoops(ctx))
+	errs = append(errs, boundedStep(ctx, "stop the agents", func() { a.tasks.StopAgents(ctx) }))
+	errs = append(errs, boundedStep(ctx, "wait for the worktree removals", func() { a.tasks.WaitWorktreeCleanup(ctx) }))
+	errs = append(errs, boundedStep(ctx, "persist the agent events", a.tasks.FlushEvents))
+	errs = append(errs, boundedStep(ctx, "close the agent event queue", a.tasks.ShutdownEvents))
 	if err := a.terminal.Shutdown(ctx); err != nil {
-		return fmt.Errorf("shutdown terminals: %w", err)
+		errs = append(errs, fmt.Errorf("shutdown terminals: %w", err))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // Router builds the HTTP router. Middlewares run in the order of the Rust server: the cross-site

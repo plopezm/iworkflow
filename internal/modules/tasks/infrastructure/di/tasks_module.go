@@ -1,6 +1,5 @@
-// Package di is the composition root of the tasks module. It builds the adapters and the slice A use
-// cases from the resources the composition root provides. Handlers, the other slices and the routes
-// join this module as their slices are migrated (see SLICES.md).
+// Package di is the composition root of the tasks module. It builds the adapters and the use cases from the
+// resources the composition root provides, and mounts the routes the module owns (see SLICES.md).
 package di
 
 import (
@@ -10,18 +9,46 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
 	"iworkflow/internal/modules/tasks/application"
-	"iworkflow/internal/modules/tasks/domain/ports/inbound"
+	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	httpinbound "iworkflow/internal/modules/tasks/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/events"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/files"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/git"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/claude"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/cursor"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/pi"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/storage"
 )
+
+// Runtime identifiers. They are the values the agent settings store, and the gentle-shell runtime is the default.
+const (
+	runtimeGentleShell = "gentle-shell"
+	runtimePi          = "pi"
+	runtimeClaude      = "claude"
+	runtimeCursor      = "cursor"
+)
+
+// RuntimeBinaries are the executables and the sessions folder the agent runtimes launch with. The composition
+// root reads them from the configuration; every field is required.
+type RuntimeBinaries struct {
+	// GentleShell is the gentle-shell executable launched in RPC mode (the default runtime).
+	GentleShell string
+	// Pi is the pi executable launched in RPC mode.
+	Pi string
+	// Claude is the Claude Code executable launched in stream-json mode.
+	Claude string
+	// Cursor is the Cursor agent executable, launched as `agent acp`.
+	Cursor string
+	// CursorSessionsDir stores each task's Cursor session id, so that a resume continues it.
+	CursorSessionsDir string
+}
 
 // Deps are the resources the module needs from the composition root. The fields marked optional may be
 // nil; every other field is required, because the use cases call it unconditionally.
@@ -34,21 +61,18 @@ type Deps struct {
 	// WorktreesDir is the root of the task worktrees. Every worktree the module creates or removes lives
 	// under it. The module creates the git adapter over it.
 	WorktreesDir string
-	// Start starts a backlog task; CreateTask uses it when a task is created with start_now (slice F).
-	Start inbound.StartTaskUseCase
+	// Binaries configure the agent runtimes. The module builds them, as the Rust tasks context does.
+	Binaries RuntimeBinaries
+	// LaunchSettings prepares the launch options of every start and resume from the agent settings.
+	LaunchSettings outbound.LaunchSettings
 	// Remote merges a task through its open merge request in the provider (code_hosting). Optional: nil
 	// means every task is merged locally.
 	Remote outbound.RemoteMerge
-	// Runtime restarts the agents of the stopped tasks (slice F). Optional: nil means the module has no resume
-	// use cases. It must be provided together with LaunchSettings.
-	Runtime outbound.AgentRuntime
-	// LaunchSettings prepares the launch options of a resume from the agent settings. Required with Runtime.
-	LaunchSettings outbound.LaunchSettings
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
 // the stream handlers. The event queue starts a worker goroutine: call ShutdownEvents when the
-// application stops.
+// application stops. The agents the module starts are stopped with StopAgents.
 type Module struct {
 	Get             *application.GetTask
 	List            *application.ListTasks
@@ -61,6 +85,17 @@ type Module struct {
 	DeleteWorkspace *application.DeleteWorkspaceTasks
 	AgentEvents     *application.HandleAgentEvent
 	Lifecycle       *application.TaskLifecycle
+	// The agent life cycle of a task: start, messages, mode, abort and the terminal actions. Finish, reset and
+	// discard stop the agent of the task and remove its worktree.
+	Start        *application.StartTask
+	Send         *application.SendMessage
+	SetAgentMode *application.SetAgentMode
+	Abort        *application.AbortTask
+	Finish       *application.FinishTask
+	Reset        *application.ResetTask
+	Discard      *application.DiscardTask
+	// Reconcile marks the tasks a restart interrupted; the composition root runs it once at start-up.
+	Reconcile *application.ReconcileTasks
 	// The git side: the worktree port (cached diffs) and the use cases over it.
 	Worktrees      outbound.Worktree
 	GetDiff        *application.GetTaskDiff
@@ -71,7 +106,7 @@ type Module struct {
 	ListAttachments *application.ListTaskAttachments
 	GetAttachment   *application.GetTaskAttachment
 	Cleanup         *application.AttachmentCleanup
-	// Attachments serves the content of the stored images; the composition root mounts AttachmentRoute.
+	// Attachments serves the content of the stored images. Routes mounts it.
 	Attachments *httpinbound.AttachmentHandler
 	// The files of the worktrees, read and saved from the diff view.
 	GetFile  *application.GetTaskFile
@@ -83,7 +118,7 @@ type Module struct {
 	EventSink *application.QueuedAgentEventSink
 	// Subscriber gives the live observers a subscription to the published events.
 	Subscriber outbound.TaskEventSubscriber
-	// Streams serves the task and board event streams; the composition root mounts them.
+	// Streams serves the task and board event streams. Routes mounts them.
 	Streams *httpinbound.TaskStreams
 	// The dependency graph of the board (slice C): the edges, the node positions and the successor trigger.
 	// Successors starts the tasks whose predecessors met their trigger. The composition root runs
@@ -95,10 +130,11 @@ type Module struct {
 	SetPosition      *application.SetTaskPosition
 	Successors       *application.TriggerSuccessors
 	// The resume of the tasks stopped by a usage limit (slice G). ResumeTask is the manual resume and
-	// ResumeRateLimited is the sweep the resume loop runs (background.RunResumeLoop). Both are nil when
-	// Deps has no Runtime; the composition root must not run the loop then.
+	// ResumeRateLimited is the sweep the resume loop runs (background.RunResumeLoop).
 	ResumeTask        *application.ResumeTask
 	ResumeRateLimited *application.ResumeRateLimitedTasks
+
+	runtime outbound.AgentRuntime
 }
 
 // NewModule wires the adapters into the use cases. It fails when a required dependency is missing,
@@ -112,6 +148,10 @@ func NewModule(deps Deps) (*Module, error) {
 		return nil, fmt.Errorf("tasks module: %w", err)
 	}
 	gitAdapter, err := git.NewWorktreeAdapter(deps.WorktreesDir)
+	if err != nil {
+		return nil, fmt.Errorf("tasks module: %w", err)
+	}
+	agentRuntime, err := newAgentRuntime(deps.Binaries)
 	if err != nil {
 		return nil, fmt.Errorf("tasks module: %w", err)
 	}
@@ -134,25 +174,40 @@ func NewModule(deps Deps) (*Module, error) {
 	getTask := application.NewGetTask(lifecycle)
 	getEvents := application.NewGetTaskEvents(repository)
 	graph := persistence.NewTaskGraphRepository(deps.DB, persistence.Clock(clock))
-	// The graph trigger starts the successors through the same start use case as the UI.
-	successors := application.NewTriggerSuccessors(repository, graph, deps.Start, clock)
 	attachments := persistence.NewTaskAttachmentRepository(deps.DB, persistence.Clock(clock))
 	taskFiles := files.NewFsTaskFile()
 	getAttachment := application.NewGetTaskAttachment(attachments, attachmentStorage)
+	cleanup := application.NewAttachmentCleanup(attachments, attachmentStorage)
 	eventSink := application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity)
-	resumeTask, resumeRateLimited := wireResume(deps, lifecycle, worktrees, eventSink)
+
+	// The start use case is the one the UI and the graph trigger share, so that every start claims the task the same way.
+	start := application.NewStartTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, attachments, attachmentStorage, newUUID, clock)
+	successors := application.NewTriggerSuccessors(repository, graph, start, clock)
+	send := application.NewSendMessage(lifecycle, agentRuntime)
+	resumeTask := application.NewResumeTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink)
+	resumeRateLimited := application.NewResumeRateLimitedTasks(lifecycle, agentRuntime, resumeTask, send)
 
 	return &Module{
 		Get:               getTask,
 		List:              application.NewListTasks(repository),
 		ListDone:          application.NewListDoneTasks(repository),
-		Create:            application.NewCreateTask(lifecycle, worktrees, deps.Start, attachments, attachmentStorage, newUUID, clock),
+		Create:            application.NewCreateTask(lifecycle, worktrees, start, attachments, attachmentStorage, newUUID, clock),
 		Update:            application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID),
 		Delete:            application.NewDeleteTask(lifecycle, attachmentStorage),
+		AnswerDialog:      application.NewAnswerDialog(lifecycle, agentRuntime),
+		GetSubagents:      application.NewGetTaskSubagents(lifecycle, agentRuntime),
 		DeleteWorkspace:   application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
+		Start:             start,
+		Send:              send,
+		SetAgentMode:      application.NewSetAgentMode(lifecycle, agentRuntime),
+		Abort:             application.NewAbortTask(lifecycle, agentRuntime),
+		Finish:            application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup),
+		Reset:             application.NewResetTask(lifecycle, worktrees, agentRuntime),
+		Discard:           application.NewDiscardTask(lifecycle, worktrees, agentRuntime),
+		Reconcile:         application.NewReconcileTasks(lifecycle, worktrees),
 		ListAttachments:   application.NewListTaskAttachments(attachments),
 		GetAttachment:     getAttachment,
-		Cleanup:           application.NewAttachmentCleanup(attachments, attachmentStorage),
+		Cleanup:           cleanup,
 		Attachments:       httpinbound.NewAttachmentHandler(getAttachment),
 		GetFile:           application.NewGetTaskFile(lifecycle, taskFiles),
 		SaveFile:          application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
@@ -175,23 +230,55 @@ func NewModule(deps Deps) (*Module, error) {
 		Successors:        successors,
 		ResumeTask:        resumeTask,
 		ResumeRateLimited: resumeRateLimited,
+		runtime:           agentRuntime,
 	}, nil
 }
 
-// wireResume builds the resume use cases when the composition provides an agent runtime. Without one it returns
-// nil for both, and the module is built exactly as before the resume existed.
-func wireResume(deps Deps, lifecycle *application.TaskLifecycle, worktrees outbound.Worktree, sink inbound.AgentEventSink) (*application.ResumeTask, *application.ResumeRateLimitedTasks) {
-	if deps.Runtime == nil {
-		return nil, nil
+// newAgentRuntime builds the router over the four runtime adapters. An unknown runtime identifier is routed
+// to the default (gentle-shell), as the Rust router does.
+func newAgentRuntime(binaries RuntimeBinaries) (outbound.AgentRuntime, error) {
+	gentleShellID, err := parseRuntimeID(runtimeGentleShell)
+	if err != nil {
+		return nil, err
 	}
-	resumeTask := application.NewResumeTask(lifecycle, worktrees, deps.Runtime, deps.LaunchSettings, sink)
-	return resumeTask, application.NewResumeRateLimitedTasks(lifecycle, deps.Runtime, resumeTask)
+	piID, err := parseRuntimeID(runtimePi)
+	if err != nil {
+		return nil, err
+	}
+	claudeID, err := parseRuntimeID(runtimeClaude)
+	if err != nil {
+		return nil, err
+	}
+	cursorID, err := parseRuntimeID(runtimeCursor)
+	if err != nil {
+		return nil, err
+	}
+	runtimes := map[models.RuntimeID]outbound.AgentRuntime{
+		gentleShellID: pi.NewRpcRuntimeAdapter(binaries.GentleShell),
+		piID:          pi.NewRpcRuntimeAdapter(binaries.Pi),
+		claudeID:      claude.NewStreamRuntimeAdapter(binaries.Claude),
+		cursorID:      cursor.NewCursorAcpRuntimeAdapter(binaries.Cursor, binaries.CursorSessionsDir),
+	}
+	router, err := runtime.NewAgentRuntimeRouter(gentleShellID, runtimes)
+	if err != nil {
+		return nil, fmt.Errorf("agent runtime router: %w", err)
+	}
+	return router, nil
 }
 
-// errMissingDependency is returned when a required dependency of the module is nil.
+// parseRuntimeID reads the identifier of a runtime the module names itself.
+func parseRuntimeID(raw string) (models.RuntimeID, error) {
+	id, err := models.ParseRuntimeID(raw)
+	if err != nil {
+		return models.RuntimeID{}, fmt.Errorf("runtime %q: %w", raw, err)
+	}
+	return id, nil
+}
+
+// errMissingDependency is returned when a required dependency of the module is nil or empty.
 var errMissingDependency = errors.New("tasks module: missing dependency")
 
-// validate reports the first required dependency that is nil.
+// validate reports the first required dependency that is nil or empty.
 func (d Deps) validate() error {
 	required := []struct {
 		name    string
@@ -201,17 +288,33 @@ func (d Deps) validate() error {
 		{"Workspaces", d.Workspaces == nil},
 		{"AttachmentsDir", d.AttachmentsDir == ""},
 		{"WorktreesDir", d.WorktreesDir == ""},
-		{"Start", d.Start == nil},
+		{"Binaries.GentleShell", d.Binaries.GentleShell == ""},
+		{"Binaries.Pi", d.Binaries.Pi == ""},
+		{"Binaries.Claude", d.Binaries.Claude == ""},
+		{"Binaries.Cursor", d.Binaries.Cursor == ""},
+		{"Binaries.CursorSessionsDir", d.Binaries.CursorSessionsDir == ""},
+		{"LaunchSettings", d.LaunchSettings == nil},
 	}
 	for _, dependency := range required {
 		if dependency.missing {
 			return fmt.Errorf("%w: %s", errMissingDependency, dependency.name)
 		}
 	}
-	if (d.Runtime == nil) != (d.LaunchSettings == nil) {
-		return fmt.Errorf("%w: Runtime and LaunchSettings must be provided together", errMissingDependency)
-	}
 	return nil
+}
+
+// Routes mounts the live streams and the attachment content. It satisfies web.Module, so the composition root
+// mounts it under the same access and token middlewares as the other modules.
+func (m *Module) Routes(r chi.Router) {
+	r.Get(httpinbound.TaskEventsRoute, m.Streams.TaskEvents)
+	r.Get(httpinbound.BoardEventsRoute, m.Streams.BoardEvents)
+	r.Get(httpinbound.AttachmentRoute, m.Attachments.Serve)
+}
+
+// StopAgents stops every live agent. Call it on shutdown, after the background loops have stopped, so that no
+// agent outlives the process. It is best effort.
+func (m *Module) StopAgents(ctx context.Context) {
+	m.runtime.StopAll(ctx)
 }
 
 // WaitWorktreeCleanup waits for the background removals of worktrees started so far. Call it on shutdown,

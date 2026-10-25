@@ -15,10 +15,16 @@ import (
 	agentsfilesmodels "iworkflow/internal/modules/agents_files/domain/models"
 	agentsfilesoutbound "iworkflow/internal/modules/agents_files/domain/ports/outbound"
 	agentsfilesdi "iworkflow/internal/modules/agents_files/infrastructure/di"
+	codehostingapp "iworkflow/internal/modules/code_hosting/application"
 	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
+	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
 	codehostingoutbound "iworkflow/internal/modules/code_hosting/domain/ports/outbound"
 	projecttreemodels "iworkflow/internal/modules/project_tree/domain/models"
 	projecttreeoutbound "iworkflow/internal/modules/project_tree/domain/ports/outbound"
+	tasksapp "iworkflow/internal/modules/tasks/application"
+	taskserrors "iworkflow/internal/modules/tasks/domain/errors"
+	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
+	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 	terminalmodels "iworkflow/internal/modules/terminal/domain/models"
 	terminalresolver "iworkflow/internal/modules/terminal/infrastructure/adapters/outbound/resolver"
 	workspacesapp "iworkflow/internal/modules/workspaces/application"
@@ -168,34 +174,192 @@ func workspaceTargets(get *workspacesapp.GetWorkspace) terminalresolver.Workspac
 	}
 }
 
-// TODO(tasks): the tasks module is not migrated yet, so no task resolves. The three placeholders below
-// stand for the task lookups of the Rust version (task_root_resolver, task_target and
-// CodeHostTaskSourceBridge in src/app_state.rs). Replace them when the tasks module lands.
-
-// taskRootsPending is the project_tree lookup of task worktrees. Until tasks are migrated it finds nothing.
-type taskRootsPending struct{}
-
-var _ projecttreeoutbound.WorkspaceRootLookup = taskRootsPending{}
-
-// Find returns nil: no task is migrated yet.
-func (taskRootsPending) Find(context.Context, uuid.UUID) (*projecttreemodels.WorkspaceRoot, error) {
-	return nil, nil //nolint:nilnil // TODO(tasks): no task is migrated yet.
+// taskWorkspaceLookup gives the tasks module the workspaces its tasks belong to. It is built over the workspaces
+// use cases, which exist before the tasks module does.
+type taskWorkspaceLookup struct {
+	get  *workspacesapp.GetWorkspace
+	list *workspacesapp.ListWorkspaces
 }
 
-// taskTargetsPending is the terminal lookup of task worktrees. Until tasks are migrated it finds nothing.
-func taskTargetsPending(context.Context, uuid.UUID) (*terminalmodels.TaskTarget, error) {
-	return nil, nil //nolint:nilnil // TODO(tasks): no task is migrated yet.
+var _ tasksoutbound.WorkspaceLookup = (*taskWorkspaceLookup)(nil)
+
+// Find returns the workspace, or nil and no error when it does not exist.
+func (l *taskWorkspaceLookup) Find(ctx context.Context, workspaceID string) (*tasksmodels.WorkspaceRef, error) {
+	id, err := uuid.Parse(workspaceID)
+	if err != nil {
+		return nil, nil //nolint:nilnil // The port defines "unknown identifier" as nil and no error.
+	}
+	workspace, err := findWorkspace(ctx, l.get, id)
+	if err != nil || workspace == nil {
+		return nil, err
+	}
+	ref := taskWorkspaceRef(*workspace)
+	return &ref, nil
 }
 
-// taskSourcesPending is the code_hosting lookup of the repository, branch and prompt of a task. Until
-// tasks are migrated it finds nothing, so the GitLab and GitHub merge requests of tasks stay unavailable.
-type taskSourcesPending struct{}
+// List returns every workspace.
+func (l *taskWorkspaceLookup) List(ctx context.Context) ([]tasksmodels.WorkspaceRef, error) {
+	workspaces, err := l.list.Execute(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list workspaces: %w", err)
+	}
+	refs := make([]tasksmodels.WorkspaceRef, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		refs = append(refs, taskWorkspaceRef(workspace))
+	}
+	return refs, nil
+}
 
-var _ codehostingoutbound.TaskSourceLookup = taskSourcesPending{}
+// taskWorkspaceRef maps a workspace to the view the tasks module uses.
+func taskWorkspaceRef(workspace workspacesmodels.Workspace) tasksmodels.WorkspaceRef {
+	return tasksmodels.WorkspaceRef{
+		ID:         workspace.ID.String(),
+		Name:       workspace.Name,
+		Path:       workspace.Path,
+		BaseBranch: workspace.BaseBranch,
+	}
+}
 
-// Find returns nil: no task is migrated yet.
-func (taskSourcesPending) Find(context.Context, string) (*codehostingmodels.TaskSource, error) {
-	return nil, nil //nolint:nilnil // TODO(tasks): no task is migrated yet.
+// workspaceTasksBridge gives the workspaces module the cascade that deletes the tasks of a workspace. The tasks
+// module is built after the workspaces one, so the cascade is bound once it exists (see New).
+type workspaceTasksBridge struct {
+	deleteAll *tasksapp.DeleteWorkspaceTasks
+}
+
+var _ workspacesoutbound.WorkspaceTasks = (*workspaceTasksBridge)(nil)
+
+// DeleteAll deletes the tasks of the workspace. A workspace with an active task is in use, as the Rust bridge maps it.
+func (b *workspaceTasksBridge) DeleteAll(ctx context.Context, id workspacesmodels.WorkspaceID) error {
+	err := b.deleteAll.DeleteAll(ctx, id.String())
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, taskserrors.WorkspaceHasActiveTasks()):
+		return workspaceserrors.InUse()
+	default:
+		return workspaceserrors.Repository(err.Error())
+	}
+}
+
+// taskTarget finds the worktree of a task, as task_target in src/app_state.rs does: a task has a target while it has
+// a worktree. An unknown task yields nil and no error.
+func taskTarget(ctx context.Context, get *tasksapp.GetTask, id uuid.UUID) (*terminalmodels.TaskTarget, error) {
+	task, err := get.Execute(ctx, tasksmodels.TaskIDFromUUID(id))
+	if errors.Is(err, taskserrors.NotFound("")) {
+		return nil, nil //nolint:nilnil // The ports define "unknown identifier" as nil and no error.
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find task: %w", err)
+	}
+	if !task.Status.HasWorktree() || task.WorktreePath == "" {
+		return nil, nil //nolint:nilnil // A task without worktree has no target.
+	}
+	workspaceID, err := uuid.Parse(task.WorkspaceID)
+	if err != nil {
+		return nil, nil //nolint:nilnil // A task with an invalid workspace has no target.
+	}
+	return &terminalmodels.TaskTarget{WorkspaceID: workspaceID, Name: task.Title, Path: task.WorktreePath}, nil
+}
+
+// taskRootLookup gives the project_tree module the worktree of a task. It mirrors task_root_resolver in src/app_state.rs.
+type taskRootLookup struct {
+	get *tasksapp.GetTask
+}
+
+var _ projecttreeoutbound.WorkspaceRootLookup = (*taskRootLookup)(nil)
+
+// Find returns the worktree of the task as a root, or nil when the task has none.
+func (l *taskRootLookup) Find(ctx context.Context, id uuid.UUID) (*projecttreemodels.WorkspaceRoot, error) {
+	target, err := taskTarget(ctx, l.get, id)
+	if err != nil || target == nil {
+		return nil, err
+	}
+	return &projecttreemodels.WorkspaceRoot{Name: target.Name, Path: target.Path}, nil
+}
+
+// taskTargets gives the terminal module the working directory of a task. It mirrors the task lookup of the Rust
+// terminal feature.
+func taskTargets(get *tasksapp.GetTask) terminalresolver.TaskResolver {
+	return func(ctx context.Context, id uuid.UUID) (*terminalmodels.TaskTarget, error) {
+		return taskTarget(ctx, get, id)
+	}
+}
+
+// taskSourceLookup gives the code_hosting module the repository, branch and prompt of a task. It mirrors
+// CodeHostTaskSourceBridge in src/app_state.rs: a backlog task has no branch yet, so it has no source.
+type taskSourceLookup struct {
+	get        *tasksapp.GetTask
+	workspaces *workspacesapp.GetWorkspace
+}
+
+var _ codehostingoutbound.TaskSourceLookup = (*taskSourceLookup)(nil)
+
+// Find returns the source of the task, or nil and no error when the task does not exist or is still in backlog.
+func (l *taskSourceLookup) Find(ctx context.Context, taskID string) (*codehostingmodels.TaskSource, error) {
+	id, err := uuid.Parse(taskID)
+	if err != nil {
+		return nil, nil //nolint:nilnil // The port defines "unknown identifier" as nil and no error.
+	}
+	task, err := l.get.Execute(ctx, tasksmodels.TaskIDFromUUID(id))
+	if errors.Is(err, taskserrors.NotFound("")) {
+		return nil, nil //nolint:nilnil // The port defines "unknown identifier" as nil and no error.
+	}
+	if err != nil {
+		return nil, fmt.Errorf("find task: %w", err)
+	}
+	if task.Status == tasksmodels.StatusBacklog {
+		return nil, nil //nolint:nilnil // A backlog task has no branch yet.
+	}
+	workspaceID, err := uuid.Parse(task.WorkspaceID)
+	if err != nil {
+		return nil, fmt.Errorf("task workspace: %w", err)
+	}
+	workspace, err := findWorkspace(ctx, l.workspaces, workspaceID)
+	if err != nil || workspace == nil {
+		return nil, err
+	}
+	return &codehostingmodels.TaskSource{
+		RepoPath:    workspace.Path,
+		Branch:      task.Branch,
+		BaseBranch:  task.BaseBranch,
+		Title:       task.Title,
+		Description: task.Prompt,
+	}, nil
+}
+
+// launchSettings gives the tasks module the launch options of an agent, resolved from the agent settings. It mirrors
+// LaunchSettingsBridge in src/app_state.rs.
+type launchSettings struct {
+	prepareLaunch *agentsettingsapp.PrepareLaunch
+}
+
+var _ tasksoutbound.LaunchSettings = (*launchSettings)(nil)
+
+// Prepare returns the launch options for the folder. A failed read or an unknown runtime is an error.
+func (l *launchSettings) Prepare(ctx context.Context, cwd string) (tasksmodels.LaunchOptions, error) {
+	preferences, err := l.prepareLaunch.Execute(ctx, cwd)
+	if err != nil {
+		return tasksmodels.LaunchOptions{}, fmt.Errorf("prepare launch: %w", err)
+	}
+	options := tasksmodels.LaunchOptions{
+		Limits:         tasksmodels.ResourceLimits{MemoryMB: preferences.MemoryLimitMB, CPUPercent: preferences.CPULimitPercent},
+		LimitsDisabled: preferences.LimitsDisabled,
+	}
+	if preferences.Runtime != nil {
+		id, err := tasksmodels.ParseRuntimeID(string(*preferences.Runtime))
+		if err != nil {
+			return tasksmodels.LaunchOptions{}, fmt.Errorf("prepare launch runtime: %w", err)
+		}
+		options.Runtime = &id
+	}
+	if preferences.Model != nil {
+		options.Model = &tasksmodels.LaunchModel{Provider: preferences.Model.Provider, Model: preferences.Model.Model}
+	}
+	if preferences.Thinking != nil {
+		thinking := string(*preferences.Thinking)
+		options.Thinking = &thinking
+	}
+	return options, nil
 }
 
 // modelOptions lists the orchestrator models of the agent settings catalog for the profile routing
@@ -219,4 +383,28 @@ func (m *modelOptions) List(ctx context.Context) ([]agentprofilesoutbound.ModelO
 		options = append(options, agentprofilesoutbound.ModelOption{ID: id, Label: id})
 	}
 	return options, nil
+}
+
+// remoteMergeBridge adapts the code_hosting remote merge to the port the tasks module consumes. The two modules name
+// the outcome differently, so the composition root maps it, as the Rust CodeHostRemoteMergeBridge does.
+type remoteMergeBridge struct {
+	inner *codehostingapp.RemoteMerge
+}
+
+var _ tasksoutbound.RemoteMerge = (*remoteMergeBridge)(nil)
+
+// MergeOpenRequest merges the open merge request of the task and maps the outcome to the tasks names.
+func (b *remoteMergeBridge) MergeOpenRequest(ctx context.Context, taskID string) (tasksoutbound.RemoteMergeOutcome, error) {
+	outcome, err := b.inner.MergeOpenRequest(ctx, taskID)
+	if err != nil {
+		return 0, err
+	}
+	switch outcome {
+	case codehostinginbound.RemoteMergeMerged:
+		return tasksoutbound.RemoteMerged, nil
+	case codehostinginbound.RemoteMergeNoOpenRequest:
+		return tasksoutbound.RemoteNoOpenRequest, nil
+	default:
+		return 0, fmt.Errorf("unknown remote merge outcome %d", outcome)
+	}
 }

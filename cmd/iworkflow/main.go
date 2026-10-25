@@ -130,10 +130,6 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		return fmt.Errorf("migrate database: %w", err)
 	}
 
-	// TODO(tasks): the tasks startup steps are not migrated yet. When the tasks module lands, reconcile
-	// the interrupted tasks, sweep the orphan worktrees and start the graph and resume loops here, and
-	// stop the agents and flush the task events after the server has stopped (see the Rust main).
-
 	siteOptions, err := siteOptionsFromEnv()
 	if err != nil {
 		return err
@@ -164,6 +160,12 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	if err != nil {
 		return fmt.Errorf("compose application: %w", err)
 	}
+	// The modules release what they hold however serving ends. It is deferred before the start-up, so that a failed
+	// start-up or bind still stops the loops it began; it runs after the HTTP server has stopped.
+	defer shutdownApplication(ctx, logger, application)
+	if err := application.Start(ctx); err != nil {
+		return fmt.Errorf("start application: %w", err)
+	}
 	logAccess(ctx, logger, info, prefs)
 
 	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", addr.String())
@@ -182,14 +184,17 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		Handler:           application.Router(),
 		ReadHeaderTimeout: readHeaderLimit,
 	}
-	serveErr := serveUntilStopped(ctx, logger, server, listener, restartHandle)
-	// The HTTP server has stopped; the modules now release what they hold (live terminal shells).
+	return serveUntilStopped(ctx, logger, server, listener, restartHandle)
+}
+
+// shutdownApplication releases the modules within shutdownTimeout. The signal context is already done when it runs,
+// so the deadline starts from its values without its cancellation.
+func shutdownApplication(ctx context.Context, logger *slog.Logger, application *app.App) {
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownTimeout)
 	defer cancel()
 	if err := application.Shutdown(stopCtx); err != nil {
 		logger.Warn("cannot release the modules on shutdown", "error", err)
 	}
-	return serveErr
 }
 
 // siteOptionsFromEnv returns the site settings: the environment wins, then the packaged defaults.

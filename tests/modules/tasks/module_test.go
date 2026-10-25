@@ -8,14 +8,22 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/di"
 )
 
-// nopStarter is the start use case of slices E and F; the create tests here never ask to start a task.
-type nopStarter struct{}
+// stubSettings only satisfies the launch settings port; the create tests here never start a task.
+type stubSettings struct {
+	outbound.LaunchSettings
+}
 
-func (nopStarter) Start(context.Context, models.TaskID) (models.Task, error) {
-	return models.Task{}, nil
+// testBinaries are the executables of the runtimes. The wiring only builds the adapters, so they are never run.
+var testBinaries = di.RuntimeBinaries{
+	GentleShell:       "gentle-shell",
+	Pi:                "pi",
+	Claude:            "claude",
+	Cursor:            "agent",
+	CursorSessionsDir: "cursor-sessions",
 }
 
 // workspaceLookup reads the workspaces table through the fixture row inserted by insertWorkspace.
@@ -50,7 +58,8 @@ func newModuleIn(t *testing.T, repo *Repo, attachmentsDir string) *di.Module {
 		Workspaces:     workspaceLookup{repo: repo},
 		AttachmentsDir: attachmentsDir,
 		WorktreesDir:   t.TempDir(),
-		Start:          nopStarter{},
+		Binaries:       testBinaries,
+		LaunchSettings: stubSettings{},
 	})
 	require.NoError(t, err)
 	t.Cleanup(module.ShutdownEvents)
@@ -66,7 +75,8 @@ func TestModuleRejectsMissingDependencies(t *testing.T) {
 			Workspaces:     workspaceLookup{repo: repo},
 			AttachmentsDir: t.TempDir(),
 			WorktreesDir:   t.TempDir(),
-			Start:          nopStarter{},
+			Binaries:       testBinaries,
+			LaunchSettings: stubSettings{},
 		}
 	}
 	// Each required field, cleared on its own, must be reported by its own name.
@@ -75,7 +85,7 @@ func TestModuleRejectsMissingDependencies(t *testing.T) {
 		"Workspaces":     func(d *di.Deps) { d.Workspaces = nil },
 		"AttachmentsDir": func(d *di.Deps) { d.AttachmentsDir = "" },
 		"WorktreesDir":   func(d *di.Deps) { d.WorktreesDir = "" },
-		"Start":          func(d *di.Deps) { d.Start = nil },
+		"LaunchSettings": func(d *di.Deps) { d.LaunchSettings = nil },
 	}
 	for field, clear := range cases {
 		deps := complete()
