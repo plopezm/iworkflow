@@ -9,9 +9,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"iworkflow/internal/core/dock"
 	"iworkflow/internal/modules/tasks/application"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
@@ -120,6 +122,8 @@ type Module struct {
 	Subscriber outbound.TaskEventSubscriber
 	// Streams serves the task and board event streams. Routes mounts them.
 	Streams *httpinbound.TaskStreams
+	// Board serves the board tabs (Tabs) and the htmx endpoints of the list and the create dialog (Routes).
+	Board *httpinbound.BoardHandlers
 	// The dependency graph of the board (slice C): the edges, the node positions and the successor trigger.
 	// Successors starts the tasks whose predecessors met their trigger. The composition root runs
 	// background.RunGraphLoop with it in a goroutine it owns, and stops that loop through its context.
@@ -186,6 +190,12 @@ func NewModule(deps Deps) (*Module, error) {
 	send := application.NewSendMessage(lifecycle, agentRuntime)
 	resumeTask := application.NewResumeTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink)
 	resumeRateLimited := application.NewResumeRateLimitedTasks(lifecycle, agentRuntime, resumeTask, send)
+	board := httpinbound.NewBoardHandlers(httpinbound.BoardUseCases{
+		List:       application.NewListTasks(repository),
+		ListDone:   application.NewListDoneTasks(repository),
+		Create:     application.NewCreateTask(lifecycle, worktrees, start, attachments, attachmentStorage, newUUID, clock),
+		Workspaces: deps.Workspaces,
+	}, clock)
 
 	return &Module{
 		Get:               getTask,
@@ -222,6 +232,7 @@ func NewModule(deps Deps) (*Module, error) {
 		EventSink:         eventSink,
 		Subscriber:        bus,
 		Streams:           httpinbound.NewTaskStreams(getTask, getEvents, bus),
+		Board:             board,
 		AddDependency:     application.NewAddTaskDependency(lifecycle, graph, successors),
 		RemoveDependency:  application.NewRemoveTaskDependency(graph, successors),
 		DetachFromGraph:   application.NewDetachTaskFromGraph(graph, successors),
@@ -309,6 +320,18 @@ func (m *Module) Routes(r chi.Router) {
 	r.Get(httpinbound.TaskEventsRoute, m.Streams.TaskEvents)
 	r.Get(httpinbound.BoardEventsRoute, m.Streams.BoardEvents)
 	r.Get(httpinbound.AttachmentRoute, m.Attachments.Serve)
+	m.Board.Mount(r)
+}
+
+// Sidebar returns the board part of the sidebar: the workspaces and the tasks that need the user.
+func (m *Module) Sidebar(ctx context.Context) templ.Component {
+	return m.Board.Sidebar(ctx)
+}
+
+// Tabs returns the dock routes the module owns: the board, at the home address and per workspace. The
+// composition root registers them before the not-migrated catch-alls.
+func (m *Module) Tabs() []dock.Route {
+	return m.Board.Tabs()
 }
 
 // StopAgents stops every live agent. Call it on shutdown, after the background loops have stopped, so that no

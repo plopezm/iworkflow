@@ -11,12 +11,12 @@ import (
 )
 
 // shellPage is the full document of a page visit: the sidebar, the dock that hosts the tabs, the
-// notifications and the first-run language prompt.
-templ shellPage() {
+// notifications and the first-run language prompt. boardSidebar is the board part of the sidebar.
+templ shellPage(boardSidebar templ.Component) {
 	@web.Shell(msgBrand.T(ctx)) {
 		@components.AppShell(components.AppShellProps{
 			Brand:   msgBrand.T(ctx),
-			Sidebar: sidebar(),
+			Sidebar: sidebar(boardSidebar),
 			Content: dock.Placeholder(),
 		})
 		@components.ToastStack()
@@ -27,14 +27,17 @@ templ shellPage() {
 	}
 }
 
-// sidebar is the sidebar content: brand, the navigation of the migrated screens and the footer.
-templ sidebar() {
+// sidebar is the sidebar content: brand, the board lists, the navigation of the migrated screens and the footer.
+templ sidebar(boardSidebar templ.Component) {
 	<div class="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
 		<span class="live-dot text-accent" aria-hidden="true"></span>
 		@link.Tab(link.Props{Href: "/", Class: "flex-1 text-sm font-semibold tracking-tight"}) {
 			{ msgBrand.T(ctx) }
 		}
 		@components.SidebarToggle(components.SidebarToggleProps{Class: "hidden md:flex"})
+	</div>
+	<div hx-ext="sse" sse-connect="/api/tasks/events" class="contents">
+		@boardSidebar
 	</div>
 	@components.SidebarSection(components.SidebarSectionProps{Title: msgMenu.T(ctx), Count: len(navEntries)}) {
 		<nav class="flex flex-col gap-0.5" aria-label={ msgNavigation.T(ctx) }>

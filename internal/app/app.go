@@ -154,6 +154,8 @@ func New(deps Deps) (*App, error) {
 	})
 
 	routes := make([]dock.Route, 0, 24)
+	// The board owns the home address, so it precedes the not-migrated catch-alls below.
+	routes = append(routes, tasks.Tabs()...)
 	routes = append(routes, agentsFiles.Tabs()...)
 	routes = append(routes, workspaces.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
@@ -236,8 +238,10 @@ func (a *App) Router() http.Handler {
 }
 
 // page renders the shell document. Pages are fragments the dock loads; the shell only hosts them.
+//
+//nolint:contextcheck // templ components receive the request context at Render time; the linter cannot see through the closures
 func (a *App) page(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, http.StatusOK, shellPage())
+	web.Render(w, r, http.StatusOK, shellPage(a.tasks.Sidebar(r.Context())))
 }
 
 // settingsSections are the sections of the settings screen, in display order.
@@ -283,6 +287,7 @@ func notMigratedSection(id string, label string) agentsettingspages.SettingsSect
 
 // Dock paths of the migrated screens. The modules own the same paths for their tabs.
 const (
+	boardPath       = "/"
 	workspacesPath  = "/workspaces"
 	agentsFilesPath = "/agents-files"
 	profilesPath    = "/profiles"
@@ -300,6 +305,7 @@ type navEntry struct {
 
 // navEntries are the migrated top-level destinations, in display order.
 var navEntries = []navEntry{
+	{Href: boardPath, Icon: "▦", Title: msgTitleBoard.T},
 	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
 	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
 	{Href: profilesPath, Icon: "☰", Title: agentprofilespages.TabTitle.T},
@@ -312,8 +318,6 @@ var navEntries = []navEntry{
 // (so a bookmark opens a tab) and explain the state instead of a 404.
 func notMigratedRoutes() []dock.Route {
 	return []dock.Route{
-		notMigratedRoute("/", "▦", msgTitleBoard),
-		notMigratedRoute("/board/{rest...}", "▦", msgTitleBoard),
 		notMigratedRoute("/jira", "◈", msgTitleJira),
 		notMigratedRoute("/jira/{rest...}", "◈", msgTitleJira),
 		notMigratedRoute("/tasks/{rest...}", "●", msgTitleTasks),
