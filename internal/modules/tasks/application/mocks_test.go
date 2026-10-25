@@ -86,6 +86,10 @@ type fakeRepository struct {
 	revertErr    error
 	claims       int
 	reverts      int
+	// resetResult and resetErr, when set, are returned by ResetToBacklog; resets counts the calls.
+	resetResult *bool
+	resetErr    error
+	resets      int
 }
 
 func newFakeRepository(tasks ...models.Task) *fakeRepository {
@@ -259,6 +263,18 @@ func (r *fakeRepository) DeleteInactiveByWorkspace(_ context.Context, workspaceI
 		delete(r.tasks, id)
 	}
 	return ids, true, nil
+}
+
+// ResetToBacklog answers with resetResult or resetErr when set; otherwise the reset applies.
+func (r *fakeRepository) ResetToBacklog(_ context.Context, _ models.TaskID) (bool, error) {
+	r.resets++
+	if r.resetErr != nil {
+		return false, r.resetErr
+	}
+	if r.resetResult != nil {
+		return *r.resetResult, nil
+	}
+	return true, nil
 }
 
 // fakePublisher records the published events.
@@ -569,6 +585,9 @@ type fakeRuntime struct {
 	// runningCalls and capabilityCalls count the questions asked, so tests can prove a check was skipped.
 	runningCalls    int
 	capabilityCalls int
+	// stopped records the Stop calls; stopErr fails them.
+	stopped []models.TaskID
+	stopErr error
 }
 
 func (r *fakeRuntime) IsRunning(_ context.Context, _ models.TaskID) bool {
@@ -589,6 +608,12 @@ func (r *fakeRuntime) Send(_ context.Context, _ models.TaskID, command models.Ag
 func (r *fakeRuntime) Subagents(_ context.Context, _ models.TaskID) []models.SubagentTask {
 	r.subagentCalls++
 	return r.subagents
+}
+
+// Stop records the call and answers with stopErr.
+func (r *fakeRuntime) Stop(_ context.Context, id models.TaskID) error {
+	r.stopped = append(r.stopped, id)
+	return r.stopErr
 }
 
 // newLifecycle wires the real lifecycle over the fakes and returns the publisher to inspect.

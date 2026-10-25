@@ -38,6 +38,9 @@ type fakeWorktree struct {
 	created     []worktreeCreate
 	createErr   error
 	existsCalls int
+	// committed records the CommitAll calls as path|message; commitErr fails them.
+	committed []string
+	commitErr error
 }
 
 // worktreeCreate is one Create call the start tests observe.
@@ -46,6 +49,12 @@ type worktreeCreate struct {
 	base   string
 	branch string
 	path   string
+}
+
+// CommitAll records the commit and answers with commitErr.
+func (w *fakeWorktree) CommitAll(_ context.Context, path string, message string) (bool, error) {
+	w.committed = append(w.committed, path+"|"+message)
+	return true, w.commitErr
 }
 
 func (w *fakeWorktree) Exists(context.Context, string) bool {

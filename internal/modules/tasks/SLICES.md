@@ -312,7 +312,20 @@ the glue is `mod.rs`, `test_support.rs`, `mocks.rs` and `tasks_context.rs`.
 | `usecases/abort_task.rs` | `application/abort_task.go` | 2 + 1 |
 | `usecases/reconcile_tasks.rs` | `application/reconcile_tasks.go` | 4 + 2 |
 
-- `finish_task.rs` is not in F: the table above puts `finish`, with reset and discard, in slice E. It is not ported here.
+- `finish_task.rs` is not in F: the table above puts `finish`, with reset and discard, in slice E. It is ported there (see Go status of slice E).
 - Rule tests are the Go-only or Rust-untested rules; each is marked `Rule from source:` in its test file.
 - `MessageMode` lives in `domain/models/agent_command.go` (Rust `agent_command.rs`). Its zero value is not a mode.
 - The Rust `resume_task` continuation is still a direct `runtime.Send` in `resume_rate_limited_tasks.go` (L26): switching it to `SendMessage` changes the constructor, which the DI module calls, so it is left for the wiring step.
+
+## Go status of slice E (finish, reset, discard)
+
+| Rust file | Go file | Tests (Rust parity + rule tests) |
+|---|---|---|
+| `usecases/finish_task.rs` | `application/finish_task.go` | 4 + 6 |
+| `usecases/reset_task.rs` | `application/reset_task.go` | 5 + 5 |
+| `usecases/discard_task.rs` | `application/discard_task.go` | 2 + 6 |
+
+- Use cases of slice E: finish, reset and discard are ported, so the use-case list of E above has a Go counterpart. The diff and merge presentation is slice H.
+- Ports reused, none added: `TaskLifecycle`, `outbound.Worktree` (`CommitAll`, `Remove`), `outbound.AgentRuntime` (`IsRunning`, `Stop`), `outbound.TaskRepository.ResetToBacklog` and `AttachmentCleanup` (slice D).
+- Not wired: `NewFinishTask`, `NewResetTask` and `NewDiscardTask` are not in `infrastructure/di/tasks_module.go` yet; the parent wires them with the rest of the module.
+- Rule tests are marked `Rule from source:` in their test files; Rust tests are marked `// Rust:`.
