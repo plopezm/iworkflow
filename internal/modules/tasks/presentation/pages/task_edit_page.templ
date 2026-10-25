@@ -16,13 +16,13 @@ templ TaskEditPage(form state.EditForm) {
 				class="card stack gap-4 p-5 md:p-6"
 				hx-post={ state.TaskPath(form.TaskID) + "/update" }
 				hx-encoding="multipart/form-data"
-				hx-target="#task-edit-result"
+				hx-target={ "#" + state.Scoped("task-edit-result", form.Scope) }
 				hx-swap="innerHTML"
 				hx-disabled-elt="find button[type=submit]"
 			>
 				<h1 class="page-title">{ components.EditTitle(ctx) }</h1>
 				@components.TaskEditFields(form)
-				<div id="task-edit-result">
+				<div id={ state.Scoped("task-edit-result", form.Scope) }>
 					if form.Error != "" {
 						@shared.ErrorText(form.Error)
 					}

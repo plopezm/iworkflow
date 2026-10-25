@@ -3,10 +3,12 @@ package inbound
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/a-h/templ"
@@ -129,7 +131,15 @@ func (h *BoardHandlers) title(ctx context.Context, requested string) string {
 
 // boardTab renders the board of the requested workspace with the completed tasks hidden, as the Rust board does.
 func (h *BoardHandlers) boardTab(ctx context.Context, requested string) templ.Component {
-	return pages.BoardPage(h.view(ctx, requested, false, 1))
+	view := h.view(ctx, requested, false, 1)
+	view.Scope = newScope()
+	return pages.BoardPage(view)
+}
+
+// newScope names a new board or edit instance. The scope is random, so two instances rendered by different requests
+// (or by a server that was restarted) never share an element id in one document.
+func newScope() string {
+	return strings.ToLower(rand.Text()[:12])
 }
 
 // list serves the list fragment for the address in the query: the workspace, the completed toggle and the
@@ -139,6 +149,7 @@ func (h *BoardHandlers) list(w http.ResponseWriter, r *http.Request) {
 	showCompleted := query.Get("completed") == "1"
 	donePages := state.ClampPages(parseInt(query.Get("pages"), 1))
 	view := h.view(r.Context(), query.Get("workspace"), showCompleted, donePages)
+	view.Scope = state.SanitizeScope(query.Get("scope"))
 	web.Render(w, r, http.StatusOK, components.BoardList(view))
 }
 
@@ -157,12 +168,14 @@ func (h *BoardHandlers) newTask(w http.ResponseWriter, r *http.Request) {
 		LinkKind:    query.Get("link_kind"),
 		LinkAnchor:  query.Get("link_anchor"),
 	}
-	web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(r.Context(), input, "")))
+	scope := state.SanitizeScope(query.Get("scope"))
+	web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(r.Context(), scope, input, "")))
 }
 
 // closeNewTask closes the create dialog without creating anything.
 func (h *BoardHandlers) closeNewTask(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, http.StatusOK, components.CreateTaskResult("", nil))
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
+	web.Render(w, r, http.StatusOK, components.CreateTaskResult(scope, "", nil))
 }
 
 // createTask creates the task from the dialog, linked when the form says so. A form that does not validate, or a
@@ -170,19 +183,20 @@ func (h *BoardHandlers) closeNewTask(w http.ResponseWriter, r *http.Request) {
 // refreshes the list and shows what failed after the creation: its start and its dependencies.
 func (h *BoardHandlers) createTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	form, err := dto.ParseTaskForm(w, r)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, dto.TaskForm{}, err.Error())))
+		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, scope, dto.TaskForm{}, boundaryText(ctx, err))))
 		return
 	}
 	newTask, link, err := form.ToNewTask()
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, form, err.Error())))
+		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, scope, form, boundaryText(ctx, err))))
 		return
 	}
 	result, err := h.uc.CreateLinked.Execute(ctx, newTask, link)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, form, err.Error())))
+		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, scope, form, boundaryText(ctx, err))))
 		return
 	}
 	startError := ""
@@ -194,12 +208,12 @@ func (h *BoardHandlers) createTask(w http.ResponseWriter, r *http.Request) {
 		linkErrors = append(linkErrors, linkErr.Error())
 	}
 	web.Trigger(w, boardRefreshEvent)
-	web.Render(w, r, http.StatusOK, components.CreateTaskResult(startError, linkErrors))
+	web.Render(w, r, http.StatusOK, components.CreateTaskResult(scope, startError, linkErrors))
 }
 
 // createForm rebuilds the dialog state from what was typed, with the error to show. A failed workspace read
 // replaces the message: without the workspaces the dialog cannot be filled in or submitted.
-func (h *BoardHandlers) createForm(ctx context.Context, input dto.TaskForm, message string) state.CreateForm {
+func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.TaskForm, message string) state.CreateForm {
 	workspaces, err := h.workspaceOptions(ctx)
 	if err != nil {
 		message = err.Error()
@@ -209,6 +223,7 @@ func (h *BoardHandlers) createForm(ctx context.Context, input dto.TaskForm, mess
 		message = branchErr.Error()
 	}
 	return state.CreateForm{
+		Scope:         scope,
 		Workspaces:    workspaces,
 		WorkspaceID:   input.WorkspaceID,
 		Title:         input.Title,

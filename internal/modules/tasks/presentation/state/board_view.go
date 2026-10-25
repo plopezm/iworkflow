@@ -10,6 +10,8 @@ import (
 // BoardView is everything the list of the board shows. The handlers build it from the use cases; the
 // templates only render it.
 type BoardView struct {
+	// Scope names the elements of this board instance (see Scoped); empty for a request without one.
+	Scope      string
 	Choice     WorkspaceChoice
 	Workspaces []dto.WorkspaceOptionDTO
 	Groups     []StageGroup
@@ -23,10 +25,14 @@ type BoardView struct {
 	LoadError string
 }
 
-// ListPath is the address of the list for a workspace, the completed toggle and the number of loaded pages.
-// The list keeps this address in its own attributes, so a refresh repeats what the user chose.
-func ListPath(workspaceID string, showCompleted bool, pages int) string {
+// ListPath is the address of the list of one board instance for a workspace, the completed toggle and the number of
+// loaded pages. The list keeps this address in its own attributes, so a refresh repeats what the user chose and
+// answers to the same instance.
+func ListPath(scope string, workspaceID string, showCompleted bool, pages int) string {
 	values := url.Values{}
+	if scope != "" {
+		values.Set("scope", scope)
+	}
 	values.Set("workspace", workspaceID)
 	if showCompleted {
 		values.Set("completed", "1")
@@ -38,6 +44,8 @@ func ListPath(workspaceID string, showCompleted bool, pages int) string {
 // CreateForm is the state of the create dialog: what the user typed and the error to show. A linked create
 // carries the link (LinkKind is "next" or "parallel", LinkAnchor the task it is linked to).
 type CreateForm struct {
+	// Scope names the elements of the board instance that opened the dialog (see Scoped).
+	Scope         string
 	Workspaces    []dto.WorkspaceOptionDTO
 	WorkspaceID   string
 	Title         string

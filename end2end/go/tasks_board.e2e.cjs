@@ -38,8 +38,8 @@ async function registerWs(ctx, name) {
 async function openBoard(ctx, name) {
   await ctx.goto('/');
   await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.locator('#board-controls select[name=workspace]').selectOption({ label: `${name} (main)` });
-  await ctx.page.locator('#board-list').waitFor({ timeout: 10000 });
+  await ctx.page.locator('select[name=workspace]:visible').selectOption({ label: `${name} (main)` });
+  await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await sleep(300);
 }
 
@@ -74,7 +74,7 @@ module.exports = {
         const ws = await registerWs(ctx, `tb-create-${tag}`);
         await openBoard(ctx, ws.name);
         await createFromDialog(ctx, ws.name, { prompt });
-        const card = ctx.page.locator('#board-list [data-stage="backlog"] a', { hasText: prompt }).first();
+        const card = ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"] a', { hasText: prompt }).first();
         await card.waitFor({ timeout: 10000 });
         ctx.assert(/\/tasks\/[0-9a-f-]{36}$/.test(await card.getAttribute('href')), 'la tarjeta debe enlazar a /tasks/<id>');
       },
@@ -87,11 +87,11 @@ module.exports = {
         await openBoard(ctx, first.name);
         const firstPrompt = `only-a-${tag}`;
         await createFromDialog(ctx, first.name, { prompt: firstPrompt });
-        await ctx.page.locator('#board-list').getByText(firstPrompt).first().waitFor({ timeout: 10000 });
-        await ctx.page.locator('#board-controls select[name=workspace]').selectOption({ label: `${second.name} (main)` });
-        await ctx.page.locator('#board-list').waitFor({ timeout: 10000 });
+        await ctx.page.locator('[id^="board-list-"]:visible').getByText(firstPrompt).first().waitFor({ timeout: 10000 });
+        await ctx.page.locator('select[name=workspace]:visible').selectOption({ label: `${second.name} (main)` });
+        await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
         await sleep(500);
-        ctx.assert((await ctx.page.locator('#board-list').getByText(firstPrompt).count()) === 0,
+        ctx.assert((await ctx.page.locator('[id^="board-list-"]:visible').getByText(firstPrompt).count()) === 0,
           'las tareas de otro workspace no deben mostrarse');
       },
     },
@@ -101,13 +101,13 @@ module.exports = {
         const ws = await registerWs(ctx, `tb-live-${tag}`);
         await openBoard(ctx, ws.name);
         const prompt = `live-${tag}`;
-        const workspaceId = await ctx.page.locator('#board-controls select[name=workspace]').inputValue();
+        const workspaceId = await ctx.page.locator('select[name=workspace]:visible').inputValue();
         // A create that does not come from this page: the stream must carry the change to the board.
         await ctx.page.evaluate(async ({ workspaceId, prompt }) => {
           const body = new URLSearchParams({ workspace_id: workspaceId, prompt });
           await fetch('/board/tasks', { method: 'POST', body, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
         }, { workspaceId, prompt });
-        await ctx.page.locator('#board-list').getByText(prompt).first().waitFor({ timeout: 10000 });
+        await ctx.page.locator('[id^="board-list-"]:visible').getByText(prompt).first().waitFor({ timeout: 10000 });
       },
     },
   ],

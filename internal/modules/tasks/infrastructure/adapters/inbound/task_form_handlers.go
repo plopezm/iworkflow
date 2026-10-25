@@ -3,6 +3,7 @@ package inbound
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -25,44 +26,47 @@ const branchSlot = "board-branch-slot"
 // branches serves the base branch select of the create dialog for the workspace the user picked.
 func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	id := state.Scoped(branchSlot, state.SanitizeScope(r.URL.Query().Get("scope")))
 	workspaceID := r.URL.Query().Get("workspace_id")
 	workspaces, err := h.workspaceOptions(ctx)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(branchSlot, err.Error()))
+		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(id, err.Error()))
 		return
 	}
 	options, err := h.branchesOf(ctx, workspaceID)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(branchSlot, err.Error()))
+		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(id, err.Error()))
 		return
 	}
 	choices := state.BranchChoices(options, "")
-	web.Render(w, r, http.StatusOK, components.BranchSelect(branchSlot, choices, "", defaultBranchOf(workspaces, workspaceID)))
+	web.Render(w, r, http.StatusOK, components.BranchSelect(id, choices, "", defaultBranchOf(workspaces, workspaceID)))
 }
 
 // startTask starts a backlog task from its card. The list refreshes either way, because a failed start may have
 // put the task back in backlog with its error; the failure is shown in the notice slot.
 func (h *BoardHandlers) startTask(w http.ResponseWriter, r *http.Request) {
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.BoardNotice(err.Error()))
+		web.Render(w, r, http.StatusOK, components.BoardNotice(scope, err.Error()))
 		return
 	}
 	_, startErr := h.uc.Start.Start(r.Context(), id)
 	web.Trigger(w, boardRefreshEvent)
-	web.Render(w, r, http.StatusOK, components.BoardNotice(errorText(startErr)))
+	web.Render(w, r, http.StatusOK, components.BoardNotice(scope, errorText(startErr)))
 }
 
 // deleteTask deletes a backlog task from its card. The confirmation is asked by the card before the request.
 func (h *BoardHandlers) deleteTask(w http.ResponseWriter, r *http.Request) {
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.BoardNotice(err.Error()))
+		web.Render(w, r, http.StatusOK, components.BoardNotice(scope, err.Error()))
 		return
 	}
 	deleteErr := h.uc.Delete.Execute(r.Context(), id)
 	web.Trigger(w, boardRefreshEvent)
-	web.Render(w, r, http.StatusOK, components.BoardNotice(errorText(deleteErr)))
+	web.Render(w, r, http.StatusOK, components.BoardNotice(scope, errorText(deleteErr)))
 }
 
 // editTab is the edit tab of a backlog task. A task that left backlog has no edit page any more.
@@ -78,6 +82,7 @@ func (h *BoardHandlers) editTab(ctx context.Context, rawID string) templ.Compone
 	if !editable {
 		return components.NotEditable()
 	}
+	form.Scope = newScope()
 	return pages.TaskEditPage(form)
 }
 
@@ -92,7 +97,7 @@ func (h *BoardHandlers) updateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	form, err := dto.ParseTaskForm(w, r)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.TaskEditResult(err.Error()))
+		web.Render(w, r, http.StatusOK, components.TaskEditResult(boundaryText(ctx, err)))
 		return
 	}
 	current, editable, err := h.loadEdit(ctx, id)
@@ -106,7 +111,7 @@ func (h *BoardHandlers) updateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	input, err := form.ToUpdate(keptImages(current.Existing, form.RemoveIDs))
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.TaskEditResult(err.Error()))
+		web.Render(w, r, http.StatusOK, components.TaskEditResult(boundaryText(ctx, err)))
 		return
 	}
 	saved, err := h.uc.Update.Execute(ctx, id, input)
@@ -190,6 +195,16 @@ func limitText(limit *uint32) string {
 		return ""
 	}
 	return strconv.FormatUint(uint64(*limit), 10)
+}
+
+// boundaryText is the message of a refused form in the language of the request. A form error carries its
+// translations; any other error (a domain rule, whose text is the Spanish one of the Rust version) shows as is.
+func boundaryText(ctx context.Context, err error) string {
+	var formErr *dto.FormError
+	if errors.As(err, &formErr) {
+		return formErr.Text(ctx)
+	}
+	return err.Error()
 }
 
 // errorText is the message of an error, or empty when there is none.

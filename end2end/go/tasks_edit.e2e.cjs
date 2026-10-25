@@ -40,8 +40,8 @@ async function registerWs(ctx, name) {
 async function openBoard(ctx, name) {
   await ctx.goto('/');
   await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.locator('#board-controls select[name=workspace]').selectOption({ label: `${name} (main)` });
-  await ctx.page.locator('#board-list').waitFor({ timeout: 10000 });
+  await ctx.page.locator('select[name=workspace]:visible').selectOption({ label: `${name} (main)` });
+  await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await sleep(300);
 }
 
@@ -62,7 +62,7 @@ async function submitDialog(ctx) {
 
 // Opens the edit tab of the backlog card that shows the prompt.
 async function openEditFromCard(ctx, prompt) {
-  const card = ctx.page.locator('#board-list [data-stage="backlog"]', { hasText: prompt }).first();
+  const card = ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first();
   await card.waitFor({ timeout: 10000 });
   await card.getByRole('button', { name: 'Editar' }).click();
   await ctx.page.getByRole('heading', { name: 'Editar tarea' }).waitFor({ timeout: 15000 });
@@ -83,7 +83,7 @@ module.exports = {
         await ctx.page.locator('#modal-panel input[type=file]').first().setInputFiles({ name: `captura-${tag}.png`, mimeType: 'image/png', buffer: PNG });
         await ctx.page.locator(`#modal-panel img[alt="captura-${tag}.png"]`).first().waitFor({ timeout: 10000 });
         await submitDialog(ctx);
-        await ctx.page.locator('#board-list [data-stage="backlog"]', { hasText: prompt }).first().waitFor({ timeout: 10000 });
+        await ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first().waitFor({ timeout: 10000 });
         await openEditFromCard(ctx, prompt);
         await ctx.page.locator(`img[alt="captura-${tag}.png"]`).first().waitFor({ state: 'attached', timeout: 15000 });
       },
@@ -103,7 +103,7 @@ module.exports = {
         await ctx.page.getByRole('button', { name: 'Guardar cambios' }).click();
         await ctx.page.getByRole('heading', { name: 'Editar tarea' }).waitFor({ state: 'detached', timeout: 15000 });
         // The board the save returns to is a new tab; the one the user left stays in the DOM, hidden.
-        await ctx.page.locator('#board-list:visible').getByText(`titulo-editado-${tag}`).first().waitFor({ timeout: 15000 });
+        await ctx.page.locator('[id^="board-list-"]:visible').getByText(`titulo-editado-${tag}`).first().waitFor({ timeout: 15000 });
       },
     },
     {
@@ -133,7 +133,7 @@ module.exports = {
         const prompt = `borrar-${tag}`;
         await fillDialog(ctx, ws.name, { prompt });
         await submitDialog(ctx);
-        const card = ctx.page.locator('#board-list [data-stage="backlog"]', { hasText: prompt }).first();
+        const card = ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first();
         await card.waitFor({ timeout: 10000 });
         // The harness accepts the confirmation of the card (see end2end/harness.cjs).
         await card.getByRole('button', { name: 'Borrar' }).click();
@@ -148,15 +148,15 @@ module.exports = {
         const prompt = `iniciar-${tag}`;
         await fillDialog(ctx, ws.name, { prompt });
         await submitDialog(ctx);
-        const card = ctx.page.locator('#board-list [data-stage="backlog"]', { hasText: prompt }).first();
+        const card = ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first();
         await card.waitFor({ timeout: 10000 });
         await card.getByRole('button', { name: 'Iniciar' }).click();
         // Either the task left backlog, or the failure is shown in the notice slot: never a silent click.
         const started = Date.now();
         let outcome = '';
         while (Date.now() - started < 20000 && !outcome) {
-          if ((await ctx.page.locator('#board-list [data-stage="backlog"]', { hasText: prompt }).count()) === 0) outcome = 'moved';
-          else if ((await ctx.page.locator('#board-notice .text-error').count()) > 0) outcome = 'failed';
+          if ((await ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).count()) === 0) outcome = 'moved';
+          else if ((await ctx.page.locator('[id^="board-notice-"]:visible .text-error').count()) > 0) outcome = 'failed';
           else await sleep(400);
         }
         ctx.assert(outcome !== '', 'Iniciar no produjo ni un cambio de estado ni un aviso');

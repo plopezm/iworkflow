@@ -159,6 +159,6 @@ func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
 	}
 	home := get(t, handler, "/dock/pane?path=/")
 	require.Equal(t, http.StatusOK, home.Code)
-	require.Contains(t, home.Body.String(), `id="board-list"`, "the home address is the board")
+	require.Contains(t, home.Body.String(), `id="board-list-`, "the home address is the board")
 	require.NotContains(t, home.Body.String(), "todavía no se ha migrado")
 }

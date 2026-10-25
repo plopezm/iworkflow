@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/core/dock"
+	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/modules/tasks/domain/models"
 )
 
@@ -115,12 +116,12 @@ func TestCreateTaskRejectsEveryInvalidFormAndStoresNothing(t *testing.T) {
 		want   string
 	}{
 		"unknown priority":             {change: func(v url.Values) { v.Set("priority", "eventually") }, want: "eventually"},
-		"memory is not a number":       {change: func(v url.Values) { v.Set("show_advanced", "on"); v.Set("memory_limit_mb", "abc") }, want: "la RAM máxima"},
-		"cpu is zero":                  {change: func(v url.Values) { v.Set("show_advanced", "on"); v.Set("cpu_limit_percent", "0") }, want: "la CPU máxima"},
-		"branch reads as a git option": {change: func(v url.Values) { v.Set("base_branch", "--upload-pack=x") }, want: "la rama base no es válida"},
-		"workspace is not an id":       {change: func(v url.Values) { v.Set("workspace_id", "nope") }, want: "el workspace no es válido"},
+		"memory is not a number":       {change: func(v url.Values) { v.Set("show_advanced", "on"); v.Set("memory_limit_mb", "abc") }, want: "The maximum RAM"},
+		"cpu is zero":                  {change: func(v url.Values) { v.Set("show_advanced", "on"); v.Set("cpu_limit_percent", "0") }, want: "The maximum CPU"},
+		"branch reads as a git option": {change: func(v url.Values) { v.Set("base_branch", "--upload-pack=x") }, want: "The base branch is not valid"},
+		"workspace is not an id":       {change: func(v url.Values) { v.Set("workspace_id", "nope") }, want: "The workspace is not valid"},
 		"empty prompt":                 {change: func(v url.Values) { v.Set("prompt", "") }, want: "el prompt es obligatorio"},
-		"six images":                   {images: sixImages(), want: "como máximo 5 imágenes"},
+		"six images":                   {images: sixImages(), want: "at most 5 images"},
 		"text instead of an image": {
 			images: map[string][]byte{"notes.png": []byte("just text, not a picture")},
 			want:   "image/",
@@ -152,6 +153,44 @@ func TestCreateTaskRejectsEveryInvalidFormAndStoresNothing(t *testing.T) {
 			assert.Contains(t, body, test.want)
 			assert.Contains(t, body, `name="prompt"`, "the dialog stays open")
 			assert.Equal(t, 0, taskCount(t, repo), "nothing is stored from a rejected form")
+		})
+	}
+}
+
+// inLocale serves the router with the request language the locale middleware of the app would set.
+func inLocale(router http.Handler, locale i18n.Locale) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		router.ServeHTTP(w, r.WithContext(i18n.WithState(r.Context(), i18n.State{Locale: locale, Chosen: true})))
+	})
+}
+
+func TestRejectedFormsShowTheBoundaryErrorInTheRequestLanguage(t *testing.T) {
+	t.Parallel()
+	wants := map[i18n.Locale]string{
+		i18n.En: "The maximum RAM must be a whole number greater than zero",
+		i18n.Es: "la RAM máxima debe ser un número entero mayor que cero",
+		i18n.Zh: "最大内存必须是大于零的整数",
+		i18n.De: "Der maximale RAM muss eine ganze Zahl größer als null sein",
+		i18n.Fr: "La RAM max. doit être un entier supérieur à zéro",
+	}
+	for locale, want := range wants {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			repo := newRepo(t)
+			workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+			_, router := boardRouter(t, repo)
+			fields := createFields(workspaceID)
+			fields.Set("show_advanced", "on")
+			fields.Set("memory_limit_mb", "abc")
+
+			_, create := doMultipart(t, inLocale(router, locale), "/board/tasks", fields, nil)
+			id := insertWithImage(t, repo, router, workspaceID, "keep-me")
+			_, update := doMultipart(t, inLocale(router, locale), "/tasks/"+id.String()+"/update", url.Values{
+				"title": {"changed"}, "prompt": {"changed"}, "show_advanced": {"on"}, "memory_limit_mb": {"lots"},
+			}, nil)
+
+			assert.Contains(t, create, want, "create dialog")
+			assert.Contains(t, update, want, "edit page")
 		})
 	}
 }
@@ -217,7 +256,7 @@ func TestCreateLinkedTaskShowsAnAnchorThatIsNotATask(t *testing.T) {
 
 	_, body := doMultipart(t, router, "/board/tasks", fields, nil)
 
-	assert.Contains(t, body, "la tarea enlazada no es válida")
+	assert.Contains(t, body, "The linked task is not valid")
 	assert.Equal(t, 0, taskCount(t, repo))
 }
 
@@ -233,6 +272,18 @@ func TestNewTaskDialogCarriesTheLinkOfTheAddress(t *testing.T) {
 	assert.Contains(t, body, `name="link_kind" value="parallel"`)
 	assert.Contains(t, body, `name="link_anchor" value="`+anchor+`"`)
 	assert.NotContains(t, body, `name="start_now"`, "a linked dialog does not offer the start toggle")
+}
+
+func TestNewTaskDialogLabelsTheLimitsWithTheirUnitAsPlainText(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	_, router := boardRouter(t, repo)
+
+	_, body := doRequest(t, router, http.MethodGet, "/board/tasks/new?workspace="+workspaceID, nil)
+
+	assert.Contains(t, body, `>Max. RAM (MiB)</span>`)
+	assert.Contains(t, body, `>Max. CPU (% of one core)</span>`)
 }
 
 func TestBranchesOfTheChosenWorkspaceFillTheSelect(t *testing.T) {
@@ -344,6 +395,39 @@ func TestUpdateReplacesAStoredImageWithANewOne(t *testing.T) {
 	assert.Equal(t, 1, attachmentCount(t, repo, id), "the removed image is gone and the new one is stored")
 }
 
+func TestUpdateCountsOnlyTheStoredImagesItKeepsAgainstTheImageLimit(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	_, router := boardRouter(t, repo)
+	fields := createFields(workspaceID)
+	fields.Set("title", "full-house")
+	full := make(map[string][]byte, models.MaxImagesPerMessage)
+	for range models.MaxImagesPerMessage {
+		full[uuid.NewString()+".png"] = formPNG
+	}
+	created, _ := doMultipart(t, router, "/board/tasks", fields, full)
+	require.Equal(t, http.StatusOK, created.Code)
+	var raw string
+	require.NoError(t, repo.DB.QueryRowContext(context.Background(), "SELECT id FROM tasks WHERE title = 'full-house'").Scan(&raw))
+	id, err := models.ParseTaskID(raw)
+	require.NoError(t, err)
+	stored, err := repo.Attachments.ListByTask(context.Background(), id)
+	require.NoError(t, err)
+	require.Len(t, stored, models.MaxImagesPerMessage)
+	target := "/tasks/" + id.String() + "/update"
+	base := func() url.Values { return url.Values{"title": {"full-house"}, "prompt": {"p"}} }
+
+	_, over := doMultipart(t, router, target, base(), map[string][]byte{"extra.png": formPNG})
+	removeOne := base()
+	removeOne.Set("remove_attachment_ids", stored[0].ID)
+	swapped, _ := doMultipart(t, router, target, removeOne, map[string][]byte{"extra.png": formPNG})
+
+	assert.Contains(t, over, "at most 5 images", "a sixth image is refused while the stored five are kept")
+	assert.Equal(t, "board:refresh", swapped.Header().Get("HX-Trigger"), "removing one makes room for one")
+	assert.Equal(t, models.MaxImagesPerMessage, attachmentCount(t, repo, id))
+}
+
 func TestUpdateRejectsAnInvalidFormAndKeepsTheStoredTask(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -359,7 +443,7 @@ func TestUpdateRejectsAnInvalidFormAndKeepsTheStoredTask(t *testing.T) {
 	}, nil)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.Contains(t, body, "la RAM máxima", "the error is shown in the page")
+	assert.Contains(t, body, "The maximum RAM", "the error is shown in the page")
 	assert.Equal(t, "keep-me", storedTitle(t, repo, id), "a rejected form changes nothing")
 	assert.Empty(t, recorder.Header().Get("HX-Trigger"))
 }
@@ -450,10 +534,10 @@ func TestBacklogCardOffersOnlyTheActionsThatAreAllowed(t *testing.T) {
 
 	page := renderTab(t, module, "board", dock.Params{"id": workspaceID})
 
-	assert.Contains(t, page, `hx-post="/board/tasks/`+backlog.ID.String()+`/start"`)
+	assert.Contains(t, page, `hx-post="/board/tasks/`+backlog.ID.String()+`/start?scope=`)
 	assert.Contains(t, page, `href="/tasks/`+backlog.ID.String()+`/edit"`)
 	assert.Contains(t, page, `role="button"`, "the edit control reads as a button, as the Rust card's does")
-	assert.Contains(t, page, `hx-post="/board/tasks/`+backlog.ID.String()+`/delete"`)
+	assert.Contains(t, page, `hx-post="/board/tasks/`+backlog.ID.String()+`/delete?scope=`)
 	assert.Contains(t, page, `hx-confirm="Delete this task from the pending list?"`)
 }
 

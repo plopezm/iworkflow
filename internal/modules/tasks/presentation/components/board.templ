@@ -17,8 +17,9 @@ templ StageBadge(stage string) {
 	</span>
 }
 
-// TaskCard is one task of the board: its title, its stage and its priority, linked to its detail.
-templ TaskCard(task dto.TaskDTO) {
+// TaskCard is one task of the board: its title, its stage and its priority, linked to its detail. The scope is the
+// board instance the card belongs to, so its actions answer there.
+templ TaskCard(task dto.TaskDTO, scope string) {
 	<li class="task-card" data-task-id={ task.ID } data-stage={ task.Stage }>
 		<a href={ templ.SafeURL(state.TaskPath(task.ID)) } class="card stack gap-1.5 p-3 hover:border-accent">
 			<div class="row justify-between gap-2">
@@ -33,20 +34,20 @@ templ TaskCard(task dto.TaskDTO) {
 			</div>
 		</a>
 		if task.Stage == state.StageBacklog {
-			@backlogActions(task)
+			@backlogActions(task, scope)
 		}
 	</li>
 }
 
 // backlogActions are the card buttons of a backlog task, each shown only when its action is allowed: start,
 // edit (opens the edit tab) and delete (asks first, as the Rust card does).
-templ backlogActions(task dto.TaskDTO) {
+templ backlogActions(task dto.TaskDTO, scope string) {
 	<div class="row justify-end gap-2">
 		if task.Actions.CanStart {
 			<button
 				type="button"
 				class="btn-primary min-h-8 px-2.5 py-1 text-xs"
-				hx-post={ state.BoardTaskPath(task.ID) + "/start" }
+				hx-post={ state.ScopedPath(state.BoardTaskPath(task.ID)+"/start", scope) }
 				hx-swap="none"
 				hx-disabled-elt="this"
 			>{ msgStart.T(ctx) }</button>
@@ -60,7 +61,7 @@ templ backlogActions(task dto.TaskDTO) {
 			<button
 				type="button"
 				class="btn-ghost min-h-8 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
-				hx-post={ state.BoardTaskPath(task.ID) + "/delete" }
+				hx-post={ state.ScopedPath(state.BoardTaskPath(task.ID)+"/delete", scope) }
 				hx-confirm={ msgConfirmDelete.T(ctx) }
 				hx-swap="none"
 				hx-disabled-elt="this"
@@ -72,9 +73,9 @@ templ backlogActions(task dto.TaskDTO) {
 // WorkspaceSwitcher is the workspace select of the toolbar, labelled by its title as the Rust switcher is.
 // Changing it refreshes the list through the form that holds it (see BoardToolbar). It carries no
 // aria-label of its own, so the "Workspace" label of the create dialog stays the only one with that name.
-templ WorkspaceSwitcher(workspaces []dto.WorkspaceOptionDTO, selected string) {
+templ WorkspaceSwitcher(workspaces []dto.WorkspaceOptionDTO, selected string, id string) {
 	<label class="select-pill max-w-xs" title={ msgSwitchWorkspace.T(ctx) }>
-		<select name="workspace" class="min-w-0 bg-transparent">
+		<select id={ id } name="workspace" class="min-w-0 bg-transparent">
 			if selected == "" {
 				<option value="" selected>{ msgSelectWorkspace.T(ctx) }</option>
 			}
@@ -86,19 +87,21 @@ templ WorkspaceSwitcher(workspaces []dto.WorkspaceOptionDTO, selected string) {
 }
 
 // BoardToolbar is the bar over the list: the workspace switcher, the completed toggle and the create
-// button. The form refreshes the list whenever one of its controls changes.
+// button. The form refreshes the list of its own board whenever one of its controls changes. Every target names
+// the elements of this board instance (see state.Scoped), so another open board is never touched.
 templ BoardToolbar(view state.BoardView) {
 	<form
-		id="board-controls"
+		id={ state.Scoped("board-controls", view.Scope) }
 		class="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-4 py-2.5"
 		hx-get="/board/list"
-		hx-target="#board-list"
+		hx-target={ "#" + state.Scoped("board-list", view.Scope) }
 		hx-swap="outerHTML"
 		hx-trigger="change"
 	>
+		<input type="hidden" name="scope" value={ view.Scope }/>
 		<h1 class="page-title">{ msgBoard.T(ctx) }</h1>
 		<div class="min-w-0 flex-1">
-			@WorkspaceSwitcher(view.Workspaces, view.Choice.ID)
+			@WorkspaceSwitcher(view.Workspaces, view.Choice.ID, state.Scoped("board-workspace", view.Scope))
 		</div>
 		<label class={ toggleClass("btn-secondary cursor-pointer", view.ShowCompleted, "border-accent text-accent") }>
 			<input type="checkbox" name="completed" value="1" class="sr-only" checked?={ view.ShowCompleted }/>
@@ -108,9 +111,9 @@ templ BoardToolbar(view state.BoardView) {
 		<button
 			type="button"
 			class="btn-primary"
-			hx-get="/board/tasks/new"
-			hx-include="[name='workspace']"
-			hx-target="#board-create-slot"
+			hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
+			hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
+			hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
 			hx-swap="innerHTML"
 		>
 			<span class="text-lg leading-none">+</span>
@@ -128,13 +131,15 @@ templ LoadFailed(message string) {
 }
 
 // BoardList is the list of the board, grouped by stage. It refreshes itself when the task stream says a
-// task changed or was removed, and when a create dialog reports a new task (board:refresh). Its own
-// attributes carry the address of the list, so the refresh keeps the workspace and the completed toggle.
+// task changed or was removed, and when a create dialog reports a new task (board:refresh). The refresh is a
+// broadcast: every open board reloads its own list from its own address, so the refresh is harmless for the boards
+// that are not shown. Its own attributes carry the address of the list, so the refresh keeps the workspace, the
+// completed toggle and the instance.
 templ BoardList(view state.BoardView) {
 	<div
-		id="board-list"
+		id={ state.Scoped("board-list", view.Scope) }
 		class="board-list"
-		hx-get={ state.ListPath(view.Choice.ID, view.ShowCompleted, view.Pages) }
+		hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages) }
 		hx-trigger="sse:changed, sse:removed, board:refresh from:body"
 		hx-target="this"
 		hx-swap="outerHTML"
@@ -155,7 +160,14 @@ templ BoardList(view state.BoardView) {
 						<div class="stack items-center gap-3 p-8 text-center">
 							<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
 							<p class="muted max-w-sm">{ msgEmptyHint.T(ctx) }</p>
-							<button type="button" class="btn-primary" hx-get="/board/tasks/new" hx-include="[name='workspace']" hx-target="#board-create-slot" hx-swap="innerHTML">
+							<button
+								type="button"
+								class="btn-primary"
+								hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
+								hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
+								hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
+								hx-swap="innerHTML"
+							>
 								{ msgCreateFirst.T(ctx) }
 							</button>
 						</div>
@@ -171,7 +183,7 @@ templ BoardList(view state.BoardView) {
 									if len(group.Tasks) > 0 {
 										<ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
 											for _, task := range group.Tasks {
-												@TaskCard(task)
+												@TaskCard(task, view.Scope)
 											}
 										</ul>
 									}
@@ -182,8 +194,8 @@ templ BoardList(view state.BoardView) {
 							<button
 								type="button"
 								class="btn-secondary self-center"
-								hx-get={ state.ListPath(view.Choice.ID, true, view.Pages+1) }
-								hx-target="#board-list"
+								hx-get={ state.ListPath(view.Scope, view.Choice.ID, true, view.Pages+1) }
+								hx-target={ "#" + state.Scoped("board-list", view.Scope) }
 								hx-swap="outerHTML"
 							>
 								{ msgLoadMoreDone.T(ctx) }
@@ -197,9 +209,9 @@ templ BoardList(view state.BoardView) {
 
 // CreateTaskResult is the answer of a create. It is swapped into the dialog slot, which it empties (the dialog
 // closes), so it must not repeat the slot id. The failures that happened after the task was created (its start,
-// its dependencies) go to the board's notice slot, which the response clears out of band.
-templ CreateTaskResult(startError string, linkErrors []string) {
-	<div id="board-notice" hx-swap-oob="true">
+// its dependencies) go to the notice slot of the same board instance, which the response clears out of band.
+templ CreateTaskResult(scope string, startError string, linkErrors []string) {
+	<div id={ state.Scoped("board-notice", scope) } hx-swap-oob="true">
 		if startError != "" {
 			@shared.ErrorText(msgStartFailed.Fmt(ctx, map[string]string{"error": startError}))
 		}
@@ -209,9 +221,10 @@ templ CreateTaskResult(startError string, linkErrors []string) {
 	</div>
 }
 
-// BoardNotice is an out-of-band answer that shows one failure in the board's notice slot (empty clears it).
-templ BoardNotice(message string) {
-	<div id="board-notice" hx-swap-oob="true">
+// BoardNotice is an out-of-band answer that shows one failure in the notice slot of its board instance (empty
+// clears it).
+templ BoardNotice(scope string, message string) {
+	<div id={ state.Scoped("board-notice", scope) } hx-swap-oob="true">
 		if message != "" {
 			@shared.ErrorText(message)
 		}

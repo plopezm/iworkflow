@@ -31,6 +31,8 @@ func HasAdvancedLimits(memory string, cpu string) bool {
 
 // EditForm is the state of the edit page of a backlog task: what it shows and the error to show.
 type EditForm struct {
+	// Scope names the elements of the edit page instance (see Scoped).
+	Scope       string
 	TaskID      string
 	WorkspaceID string
 	Title       string
