@@ -54,6 +54,21 @@ func TestTaskRoutesAreMountedAtTheRustPaths(t *testing.T) {
 	assert.True(t, routes["GET /api/tasks/{task_id}/attachments/{attachment_id}"], "attachment content")
 }
 
+// The transcript of a task is refreshed from its own address, served by the tasks module like the streams.
+func TestTranscriptRouteIsMountedByTheTasksModule(t *testing.T) {
+	t.Parallel()
+	router, isRoutes := composeServer(t).Router().(chi.Routes)
+	require.True(t, isRoutes)
+
+	routes := map[string]bool{}
+	require.NoError(t, chi.Walk(router, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		routes[method+" "+route] = true
+		return nil
+	}))
+
+	assert.True(t, routes["GET /tasks/{id}/transcript"], "transcript body of a task")
+}
+
 // The board stream is live: a served request answers with an event stream and stays open until the client leaves.
 func TestBoardEventsStreamIsLive(t *testing.T) {
 	t.Parallel()

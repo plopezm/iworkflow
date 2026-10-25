@@ -4,6 +4,7 @@ package inbound
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -28,6 +29,7 @@ const TaskDetailRouteName = "task_detail"
 // DetailUseCases are what the detail page reads and changes.
 type DetailUseCases struct {
 	Get             *application.GetTask
+	Events          *application.GetTaskEvents
 	ListAttachments *application.ListTaskAttachments
 	Start           *application.StartTask
 	Abort           *application.AbortTask
@@ -68,7 +70,8 @@ func (h *DetailHandlers) Tabs() []dock.Route {
 }
 
 // Mount registers the htmx endpoints of the detail page. Start, abort, resume, finish and discard answer the page;
-// reset and delete end it, so they answer the tab-closing element (see leaveAction).
+// reset and delete end it, so they answer the tab-closing element (see leaveAction). The transcript answers its body
+// again each time the task stream reports an event.
 func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/start", h.startTask)
 	r.Post("/tasks/{id}/abort", h.abortTask)
@@ -77,6 +80,7 @@ func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/discard", h.discardTask)
 	r.Post("/tasks/{id}/reset", h.resetTask)
 	r.Post("/tasks/{id}/delete", h.deleteTask)
+	r.Get("/tasks/{id}/transcript", h.transcript)
 }
 
 // title is the tab title: the title of the task, or the plain name when the task cannot be read.
@@ -109,10 +113,18 @@ func (h *DetailHandlers) detailTab(ctx context.Context, rawID string) templ.Comp
 	return pages.TaskDetailPage(h.page(ctx, newScope(), task, ""))
 }
 
-// page builds the view of a task: the task as it is now, its images and the notice of the action that asked for it.
-// A failed read of the images is shown in their place, and the rest of the page still renders.
+// page builds the view of a task: the task as it is now, its transcript, its images and the notice of the action that
+// asked for it. A failed read of the transcript or of the images is shown in their place, and the rest of the page
+// still renders.
 func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Task, notice string) state.TaskDetailView {
 	view := state.TaskDetailView{Scope: scope, Task: dto.TaskFromDomain(task, h.now()), Notice: notice}
+	transcript, cursor, transcriptErr := h.loadTranscript(ctx, task.ID)
+	if transcriptErr != nil {
+		view.TranscriptError = transcriptErr.Error()
+	} else {
+		view.Transcript = transcript
+		view.TranscriptCursor = cursor
+	}
 	stored, err := h.uc.ListAttachments.Execute(ctx, task.ID)
 	if err != nil {
 		view.AttachmentsError = err.Error()
@@ -123,6 +135,36 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 		view.Attachments = append(view.Attachments, dto.TaskAttachmentFromDomain(task.ID.String(), attachment))
 	}
 	return view
+}
+
+// loadTranscript reads the history of a task and folds it into the transcript the page shows. The cursor is the last
+// sequence number of the history, where the live stream resumes.
+func (h *DetailHandlers) loadTranscript(ctx context.Context, id models.TaskID) (state.Transcript, *int64, error) {
+	history, err := h.uc.Events.Execute(ctx, id, nil)
+	if err != nil {
+		return state.Transcript{}, nil, fmt.Errorf("read the history of the task: %w", err)
+	}
+	events, err := dto.TranscriptEventsFromDomain(history)
+	if err != nil {
+		return state.Transcript{}, nil, fmt.Errorf("map the history of the task: %w", err)
+	}
+	transcript, cursor := state.FoldTranscript(events)
+	return transcript, cursor, nil
+}
+
+// transcript answers the body of the transcript of a task. A failed read is shown in its place.
+func (h *DetailHandlers) transcript(w http.ResponseWriter, r *http.Request) {
+	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		return
+	}
+	transcript, _, err := h.loadTranscript(r.Context(), id)
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		return
+	}
+	web.Render(w, r, http.StatusOK, components.TranscriptBody(transcript))
 }
 
 // startTask starts a backlog task from its detail.

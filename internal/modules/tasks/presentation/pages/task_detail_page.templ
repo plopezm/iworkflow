@@ -5,8 +5,9 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// TaskDetailPage is the detail tab of a task: its header, then its backlog body or its actions tab, and the result
-// slot where a leaving action answers. The root carries the page scope, so the actions of this tab answer here only.
+// TaskDetailPage is the detail tab of a task: its header, then its backlog body or its actions tab with the transcript,
+// and the result slot where a leaving action answers. The root carries the page scope, so the actions of this tab
+// answer here only.
 templ TaskDetailPage(view state.TaskDetailView) {
 	<div id={ state.Scoped("task-detail", view.Scope) } class="flex h-full min-h-0 flex-col">
 		<div class="shrink-0 border-b border-border bg-surface px-4 py-2.5">
@@ -17,10 +18,13 @@ templ TaskDetailPage(view state.TaskDetailView) {
 				@components.BacklogView(view)
 			</div>
 		} else {
-			<div class="stack min-h-0 flex-1 overflow-y-auto p-4">
-				@components.TaskActions(view)
-				@components.TaskContext(view)
-				@components.TaskAttachmentsList(view.Attachments, view.AttachmentsError)
+			<div class="flex min-h-0 flex-1 flex-col">
+				<div class="stack shrink-0 max-h-[40vh] overflow-y-auto p-4">
+					@components.TaskActions(view)
+					@components.TaskContext(view)
+					@components.TaskAttachmentsList(view.Attachments, view.AttachmentsError)
+				</div>
+				@components.TranscriptPanel(view)
 			</div>
 		}
 		<div id={ state.Scoped("task-detail-result", view.Scope) }></div>

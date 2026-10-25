@@ -216,6 +216,7 @@ func NewModule(deps Deps) (*Module, error) {
 	discardTask := application.NewDiscardTask(lifecycle, worktrees, agentRuntime)
 	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{
 		Get:             getTask,
+		Events:          getEvents,
 		ListAttachments: listAttachments,
 		Start:           start,
 		Abort:           abortTask,
