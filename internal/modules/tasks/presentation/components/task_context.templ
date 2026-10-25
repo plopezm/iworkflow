@@ -1,0 +1,20 @@
+package components
+
+import "iworkflow/internal/modules/tasks/presentation/state"
+
+// TaskContext is what the actions tab says about the task: the prompt it started with, the branch it starts from and
+// the folder of its worktree.
+templ TaskContext(view state.TaskDetailView) {
+	<details class="card">
+		<summary>{ msgInitialPrompt.T(ctx) }</summary>
+		<pre class="font-mono text-sm whitespace-pre-wrap">{ view.Task.Prompt }</pre>
+	</details>
+	<div class="stack gap-1">
+		<span class="eyebrow">{ msgStartingBranch.T(ctx) }</span>
+		<code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">{ view.Task.BaseBranch }</code>
+	</div>
+	<div class="stack gap-1">
+		<span class="eyebrow">Worktree</span>
+		<code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">{ view.Task.WorktreePath }</code>
+	</div>
+}

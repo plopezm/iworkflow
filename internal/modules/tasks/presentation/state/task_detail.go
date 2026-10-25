@@ -13,6 +13,9 @@ type TaskDetailView struct {
 	Scope  string
 	Task   dto.TaskDTO
 	Notice string
+	// Attachments are the images of the task; AttachmentsError says why they could not be read.
+	Attachments      []dto.TaskAttachmentDTO
+	AttachmentsError string
 }
 
 // branchMaxChars is the longest branch the header shows; a longer one is cut in the middle.

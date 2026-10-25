@@ -210,7 +210,21 @@ func NewModule(deps Deps) (*Module, error) {
 		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
 		Workspaces:      deps.Workspaces,
 	}, clock)
-	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{Get: getTask, Start: start, Delete: deleteTask}, clock)
+	abortTask := application.NewAbortTask(lifecycle, agentRuntime)
+	finishTask := application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup)
+	resetTask := application.NewResetTask(lifecycle, worktrees, agentRuntime)
+	discardTask := application.NewDiscardTask(lifecycle, worktrees, agentRuntime)
+	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{
+		Get:             getTask,
+		ListAttachments: listAttachments,
+		Start:           start,
+		Abort:           abortTask,
+		Resume:          resumeTask,
+		Finish:          finishTask,
+		Reset:           resetTask,
+		Discard:         discardTask,
+		Delete:          deleteTask,
+	}, clock)
 
 	return &Module{
 		Get:               getTask,
@@ -225,10 +239,10 @@ func NewModule(deps Deps) (*Module, error) {
 		Start:             start,
 		Send:              send,
 		SetAgentMode:      application.NewSetAgentMode(lifecycle, agentRuntime),
-		Abort:             application.NewAbortTask(lifecycle, agentRuntime),
-		Finish:            application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup),
-		Reset:             application.NewResetTask(lifecycle, worktrees, agentRuntime),
-		Discard:           application.NewDiscardTask(lifecycle, worktrees, agentRuntime),
+		Abort:             abortTask,
+		Finish:            finishTask,
+		Reset:             resetTask,
+		Discard:           discardTask,
 		Reconcile:         application.NewReconcileTasks(lifecycle, worktrees),
 		ListAttachments:   listAttachments,
 		GetAttachment:     getAttachment,

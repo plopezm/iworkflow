@@ -1,0 +1,61 @@
+package components
+
+import "iworkflow/internal/modules/tasks/presentation/state"
+
+// TaskActions is the actions tab of a task that left backlog: the agent actions, then the danger zone. Each action
+// posts to the task and answers the page of this instance; reset and discard ask first. Reset ends the page (the tab
+// closes for the board), the other actions keep it open.
+templ TaskActions(view state.TaskDetailView) {
+	<section class="card stack">
+		<h2 class="card-title">{ msgActions.T(ctx) }</h2>
+		<span class="eyebrow">{ msgSectionAgent.T(ctx) }</span>
+		<div class="row gap-2">
+			if view.Task.Actions.CanFinish {
+				@taskAction(view, "finish", msgFinishAndReview.T(ctx), "btn-primary", msgConfirmFinish.T(ctx), false)
+			}
+			if view.Task.Actions.CanResume {
+				@taskAction(view, "resume", msgResumeAgent.T(ctx), "btn-secondary", "", false)
+			}
+			if view.Task.Actions.CanAbort {
+				@taskAction(view, "abort", msgAbortRun.T(ctx), "btn-secondary", "", false)
+			}
+		</div>
+		if view.Task.Actions.CanReset || view.Task.Actions.CanDiscard {
+			<span class="eyebrow">{ msgSectionDanger.T(ctx) }</span>
+			<div class="row gap-2">
+				if view.Task.Actions.CanReset {
+					@taskAction(view, "reset", msgReset.T(ctx), "btn-danger", msgConfirmReset.T(ctx), true)
+				}
+				if view.Task.Actions.CanDiscard {
+					@taskAction(view, "discard", msgDiscard.T(ctx), "btn-danger", msgConfirmDiscard.T(ctx), false)
+				}
+			</div>
+		}
+	</section>
+}
+
+// taskAction is one button that posts an action to the task. A leaving action answers the result slot, which holds
+// the tab-closing answer; any other answers the whole page, so the state, the notice and the actions refresh.
+templ taskAction(view state.TaskDetailView, action string, label string, class string, confirm string, leaves bool) {
+	if leaves {
+		<button
+			type="button"
+			class={ class }
+			hx-post={ state.ScopedPath(state.TaskPath(view.Task.ID)+"/"+action, view.Scope) }
+			hx-target={ "#" + state.Scoped("task-detail-result", view.Scope) }
+			hx-swap="innerHTML"
+			hx-confirm={ confirm }
+			hx-disabled-elt="this"
+		>{ label }</button>
+	} else {
+		<button
+			type="button"
+			class={ class }
+			hx-post={ state.ScopedPath(state.TaskPath(view.Task.ID)+"/"+action, view.Scope) }
+			hx-target={ "#" + state.Scoped("task-detail", view.Scope) }
+			hx-swap="outerHTML"
+			hx-confirm={ confirm }
+			hx-disabled-elt="this"
+		>{ label }</button>
+	}
+}

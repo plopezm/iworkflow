@@ -27,12 +27,18 @@ const TaskDetailRouteName = "task_detail"
 
 // DetailUseCases are what the detail page reads and changes.
 type DetailUseCases struct {
-	Get    *application.GetTask
-	Start  *application.StartTask
-	Delete *application.DeleteTask
+	Get             *application.GetTask
+	ListAttachments *application.ListTaskAttachments
+	Start           *application.StartTask
+	Abort           *application.AbortTask
+	Resume          *application.ResumeTask
+	Finish          *application.FinishTask
+	Reset           *application.ResetTask
+	Discard         *application.DiscardTask
+	Delete          *application.DeleteTask
 }
 
-// DetailHandlers serves the detail tab of a task and its backlog actions.
+// DetailHandlers serves the detail tab of a task and its actions.
 type DetailHandlers struct {
 	uc  DetailUseCases
 	now func() time.Time
@@ -61,9 +67,15 @@ func (h *DetailHandlers) Tabs() []dock.Route {
 	}
 }
 
-// Mount registers the htmx endpoints of the detail page: the start and the delete of a backlog task.
+// Mount registers the htmx endpoints of the detail page. Start, abort, resume, finish and discard answer the page;
+// reset and delete end it, so they answer the tab-closing element (see leaveAction).
 func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/start", h.startTask)
+	r.Post("/tasks/{id}/abort", h.abortTask)
+	r.Post("/tasks/{id}/resume", h.resumeTask)
+	r.Post("/tasks/{id}/finish", h.finishTask)
+	r.Post("/tasks/{id}/discard", h.discardTask)
+	r.Post("/tasks/{id}/reset", h.resetTask)
 	r.Post("/tasks/{id}/delete", h.deleteTask)
 }
 
@@ -94,26 +106,80 @@ func (h *DetailHandlers) detailTab(ctx context.Context, rawID string) templ.Comp
 	if err != nil {
 		return shared.ErrorText(err.Error())
 	}
-	return pages.TaskDetailPage(state.TaskDetailView{Scope: newScope(), Task: dto.TaskFromDomain(task, h.now())})
+	return pages.TaskDetailPage(h.page(ctx, newScope(), task, ""))
 }
 
-// startTask starts a backlog task from its detail. The answer is the page again, with the failure of the start when
-// there is one. The board refreshes either way, because a failed start may have put the task back in backlog.
+// page builds the view of a task: the task as it is now, its images and the notice of the action that asked for it.
+// A failed read of the images is shown in their place, and the rest of the page still renders.
+func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Task, notice string) state.TaskDetailView {
+	view := state.TaskDetailView{Scope: scope, Task: dto.TaskFromDomain(task, h.now()), Notice: notice}
+	stored, err := h.uc.ListAttachments.Execute(ctx, task.ID)
+	if err != nil {
+		view.AttachmentsError = err.Error()
+		return view
+	}
+	view.Attachments = make([]dto.TaskAttachmentDTO, 0, len(stored))
+	for _, attachment := range stored {
+		view.Attachments = append(view.Attachments, dto.TaskAttachmentFromDomain(task.ID.String(), attachment))
+	}
+	return view
+}
+
+// startTask starts a backlog task from its detail.
 func (h *DetailHandlers) startTask(w http.ResponseWriter, r *http.Request) {
+	h.answerAction(w, r, func(ctx context.Context, id models.TaskID) error {
+		_, err := h.uc.Start.Start(ctx, id)
+		return err //nolint:wrapcheck // the domain error is user-visible and must stay identical
+	})
+}
+
+// abortTask aborts the live agent of the task.
+func (h *DetailHandlers) abortTask(w http.ResponseWriter, r *http.Request) {
+	h.answerAction(w, r, h.uc.Abort.Execute)
+}
+
+// resumeTask resumes a stopped task.
+func (h *DetailHandlers) resumeTask(w http.ResponseWriter, r *http.Request) {
+	h.answerAction(w, r, h.uc.Resume.Execute)
+}
+
+// finishTask closes the agent of the task and consolidates its changes for review.
+func (h *DetailHandlers) finishTask(w http.ResponseWriter, r *http.Request) {
+	h.answerAction(w, r, h.uc.Finish.Execute)
+}
+
+// discardTask discards the task: its worktree and its branch go, and the task stays on the page as discarded.
+func (h *DetailHandlers) discardTask(w http.ResponseWriter, r *http.Request) {
+	h.answerAction(w, r, h.uc.Discard.Execute)
+}
+
+// resetTask returns the task to backlog. The tab closes and opens the board, as the Rust version does.
+func (h *DetailHandlers) resetTask(w http.ResponseWriter, r *http.Request) {
+	h.leaveAction(w, r, h.uc.Reset.Execute)
+}
+
+// deleteTask deletes a backlog task from its detail. The tab closes and opens the board of the task.
+func (h *DetailHandlers) deleteTask(w http.ResponseWriter, r *http.Request) {
+	h.leaveAction(w, r, h.uc.Delete.Execute)
+}
+
+// answerAction runs an action of the task and answers the page of this instance with the notice of the action. The
+// board refreshes either way, because an action may have moved the task across the board.
+func (h *DetailHandlers) answerAction(w http.ResponseWriter, r *http.Request, run func(context.Context, models.TaskID) error) {
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return
 	}
-	_, startErr := h.uc.Start.Start(r.Context(), id)
+	runErr := run(r.Context(), id)
 	web.Trigger(w, boardRefreshEvent)
-	h.renderPage(w, r, scope, id, errorText(startErr))
+	h.renderPage(w, r, scope, id, errorText(runErr))
 }
 
-// deleteTask deletes a backlog task from its detail. A deleted task leaves the tab for its board; a refused delete
-// keeps the tab and shows why in the result slot, where the delete button answers.
-func (h *DetailHandlers) deleteTask(w http.ResponseWriter, r *http.Request) {
+// leaveAction runs an action that ends the page of the task. A success closes the tab and opens the board of the
+// task; a refused action keeps the tab and shows why in the result slot, where its button answers.
+func (h *DetailHandlers) leaveAction(w http.ResponseWriter, r *http.Request, run func(context.Context, models.TaskID) error) {
 	ctx := r.Context()
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
@@ -125,8 +191,8 @@ func (h *DetailHandlers) deleteTask(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return
 	}
-	if deleteErr := h.uc.Delete.Execute(ctx, id); deleteErr != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(deleteErr.Error()))
+	if runErr := run(ctx, id); runErr != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(runErr.Error()))
 		return
 	}
 	web.Trigger(w, boardRefreshEvent)
@@ -144,6 +210,5 @@ func (h *DetailHandlers) renderPage(w http.ResponseWriter, r *http.Request, scop
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return
 	}
-	view := state.TaskDetailView{Scope: scope, Task: dto.TaskFromDomain(task, h.now()), Notice: notice}
-	web.Render(w, r, http.StatusOK, pages.TaskDetailPage(view))
+	web.Render(w, r, http.StatusOK, pages.TaskDetailPage(h.page(r.Context(), scope, task, notice)))
 }
