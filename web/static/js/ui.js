@@ -18,6 +18,11 @@ export function sidebarIsOpen(stored) {
   return stored !== '0';
 }
 
+// The label of the sidebar toggle: it offers the action the click will do.
+export function sidebarToggleLabel(dataset, collapsed) {
+  return collapsed ? dataset.labelShow : dataset.labelHide;
+}
+
 // Only the first call of a toast arms the timer; a toast that already has one is left alone.
 export function shouldArmToast(toast) {
   return toast.dataset.toastArmed === undefined;
@@ -67,6 +72,11 @@ function setCollapsed(root, collapsed) {
   for (const toggle of root.querySelectorAll('[data-collapse-toggle]')) {
     toggle.setAttribute('aria-expanded', String(!collapsed));
     toggle.setAttribute('aria-label', collapsed ? toggle.dataset.labelClosed : toggle.dataset.labelOpen);
+  }
+  for (const toggle of document.querySelectorAll('[data-sidebar-toggle]')) {
+    const label = sidebarToggleLabel(toggle.dataset, collapsed);
+    toggle.setAttribute('aria-label', label);
+    toggle.setAttribute('title', label);
   }
   const rail = document.querySelector('[data-sidebar-rail]');
   if (rail) rail.style.display = collapsed ? '' : 'none';

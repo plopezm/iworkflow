@@ -36,6 +36,10 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await page.locator('.dock-tab', { hasText: 'Workspaces' }).waitFor();
   await nav('Workspaces').click();
   await nav('Modelos').click();
+  // Each click is a round trip to the server: wait for the tab it opens (and the URL that follows it)
+  // before counting, otherwise the count is read while the response is still in flight.
+  await page.locator('.dock-tab', { hasText: 'Modelos' }).waitFor();
+  await page.waitForURL(/\/models$/);
   assert((await tabs().count()) === 3, 'abrir de nuevo una ruta abierta no debe duplicar la pestaña');
   assert(new URL(page.url()).pathname === '/models', 'la URL refleja la pestaña activa');
   step('abrir pestañas desde la barra lateral, sin duplicados, URL sincronizada');

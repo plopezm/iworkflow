@@ -71,7 +71,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   // Mensaje al agente (composer) de una tarea en vivo, sin enviar: sobrevive a un cambio de pestaña.
   await tab('Tablero').click();
   const runtime = visible(page.getByLabel(/^Agente/));
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
+  // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
+  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings') || (r.request().method() === 'POST' && /\/agent-settings\/(runtime|model|profile|thinking)$/.test(new URL(r.url()).pathname)));
   await runtime.selectOption('pi');
   await saved;
   await page.getByRole('button', { name: 'Nueva tarea' }).click();

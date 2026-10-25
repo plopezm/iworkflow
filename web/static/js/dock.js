@@ -24,6 +24,12 @@ export function actionValues(dataset) {
   return values;
 }
 
+// A pointer down focuses its group, except on the group's actions and on its menus (the "+" and "⋯"):
+// focusing re-renders the dock, which would close a menu under the pointer. Menu actions carry their own group.
+export function focusesGroup(target) {
+  return !nearestAction(target) && !target.closest?.('[data-menu]');
+}
+
 // True when a tab dropped at clientX lands on the right half of its rectangle (insert after it).
 export function dropAfter(clientX, rect) {
   return clientX > rect.left + rect.width / 2;
@@ -62,6 +68,28 @@ export function nearestAction(target) {
 // Address of the page of a path in the address bar; the root path has no tab to show.
 export function addressFor(focusedPath) {
   return focusedPath ? focusedPath : null;
+}
+
+// Runs requests one at a time: a request runs when enqueued if nothing is in flight, otherwise when the
+// current one calls settle(). Each run is a function, so the request reads its state when it is sent.
+export function createRequestQueue() {
+  const pending = [];
+  let busy = false;
+  const next = () => {
+    if (busy || pending.length === 0) return;
+    busy = true;
+    pending.shift()();
+  };
+  return {
+    enqueue(run) {
+      pending.push(run);
+      next();
+    },
+    settle() {
+      busy = false;
+      next();
+    },
+  };
 }
 
 // ----- browser wiring -------------------------------------------------------------------------
@@ -127,19 +155,29 @@ function attachPanes(dock) {
   }
 }
 
+// Dock requests run one at a time. Each one reads the layout the previous one stored, and htmx swaps
+// responses in arrival order: two requests in flight could land out of order and the older layout would
+// replace the newer one (a tab opened right after another one was lost). The queue sends the next request
+// when the dock has settled, or when a request failed. The layout is read at send time, not at enqueue time.
+const requests = createRequestQueue();
+
 function dockAction(op, values) {
-  htmx.ajax('POST', `/dock/action/${op}`, {
-    target: '#dock',
-    swap: 'outerHTML',
-    values: { layout: readLayout(), ...values },
+  requests.enqueue(() => {
+    htmx.ajax('POST', `/dock/action/${op}`, {
+      target: '#dock',
+      swap: 'outerHTML',
+      values: { layout: readLayout(), ...values },
+    });
   });
 }
 
 function restore(boot) {
-  htmx.ajax('POST', '/dock/layout', {
-    target: '#dock',
-    swap: 'outerHTML',
-    values: { layout: readLayout(), boot: boot || '' },
+  requests.enqueue(() => {
+    htmx.ajax('POST', '/dock/layout', {
+      target: '#dock',
+      swap: 'outerHTML',
+      values: { layout: readLayout(), boot: boot || '' },
+    });
   });
 }
 
@@ -228,7 +266,7 @@ function onPointerDown(event) {
     resize(divider, event);
     return;
   }
-  if (nearestAction(event.target)) return;
+  if (!focusesGroup(event.target)) return;
   const group = event.target.closest?.('section[data-dock-group]');
   if (group && !group.classList.contains('dock-group-focused')) {
     dockAction('focus', { group: group.dataset.dockGroup });
@@ -283,18 +321,18 @@ function onDrop(event) {
 }
 
 // Tab-pane handshakes: a page can rename its tab or redirect it once its content is loaded.
-function onPaneSettled(pane) {
+function onPaneSettled(pane, act) {
   const titled = pane.querySelector('[data-dock-set-title]');
   const path = pane.dataset.path;
   if (titled && path) {
     const tab = document.querySelector(`#dock [data-dock-tab-button][data-dock-path="${CSS.escape(path)}"]`);
     if (tab && tab.dataset.dockTitle !== titled.dataset.dockSetTitle) {
-      dockAction('set_title', { path, title: titled.dataset.dockSetTitle });
+      act('set_title', { path, title: titled.dataset.dockSetTitle });
     }
   }
   const redirect = pane.querySelector('[data-dock-redirect]');
   if (redirect) {
-    dockAction('replace', { tab: pane.dataset.tabId, path: redirect.dataset.dockRedirect });
+    act('replace', { tab: pane.dataset.tabId, path: redirect.dataset.dockRedirect });
   }
 }
 
@@ -311,12 +349,27 @@ function onDockSettled(dock) {
   attachPanes(dock);
   loadActivePanes(dock);
   writeLayout(dock.dataset.layout || '');
+  // The layout is stored: the next queued request may read it now.
+  requests.settle();
   const address = addressFor(dock.dataset.focusedPath);
   if (address && address !== location.pathname) history.replaceState(null, '', address);
   const active = dock.querySelector('[data-dock-tab-button][aria-selected="true"]');
   if (active) {
     requestAnimationFrame(() => active.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' }));
   }
+}
+
+// htmx afterSettle: the dock is settled, a pane is settled, or both. A response that marks [data-dock-leave]
+// ends its tab: the tab closes and the named path opens (the save of the task edit page returns to its board
+// this way). `act` posts a dock action; the default one is queued like every other dock request.
+export function handleAfterSettle(event, act = dockAction) {
+  const target = event.target;
+  if (!target || typeof target.matches !== 'function') return;
+  if (target.id === 'dock') onDockSettled(target);
+  const pane = target.closest('[data-dock-pane]');
+  if (pane && pane.childElementCount > 0) onPaneSettled(pane, act);
+  const leave = target.matches('[data-dock-leave]') ? target : target.querySelector('[data-dock-leave]');
+  if (leave && pane) act('close_and_open', { tab: pane.dataset.tabId, path: leave.dataset.dockLeave });
 }
 
 function init() {
@@ -330,17 +383,12 @@ function init() {
   document.body.addEventListener('htmx:beforeSwap', (event) => {
     if (event.detail.target?.id === 'dock') keepPanes(event.detail.target);
   });
-  document.body.addEventListener('htmx:afterSettle', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (target.id === 'dock') onDockSettled(target);
-    const pane = target.closest('[data-dock-pane]');
-    if (pane && pane.childElementCount > 0) onPaneSettled(pane);
-    // A response that marks [data-dock-leave] ends its tab: the tab closes and the named path opens (the save of
-    // the task edit page returns to its board this way).
-    const leave = target.matches?.('[data-dock-leave]') ? target : target.querySelector?.('[data-dock-leave]');
-    if (leave && pane) dockAction('close_and_open', { tab: pane.dataset.tabId, path: leave.dataset.dockLeave });
+  document.body.addEventListener('htmx:afterSettle', (event) => handleAfterSettle(event));
+  // A failed request never settles: release the queue so the dock does not stop accepting actions.
+  document.body.addEventListener('htmx:afterRequest', (event) => {
+    if (event.detail?.successful === false) requests.settle();
   });
+  document.body.addEventListener('htmx:swapError', () => requests.settle());
   // Restore the saved layout; the root path opens nothing, any other path opens its tab.
   const path = location.pathname;
   restore(path === '/' ? '' : path);

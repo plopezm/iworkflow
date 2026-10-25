@@ -1,7 +1,7 @@
 // Run with: node --test web/static/js/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveTheme, shouldArmToast, shouldLoadPane, sidebarIsOpen } from './ui.js';
+import { resolveTheme, shouldArmToast, shouldLoadPane, sidebarIsOpen, sidebarToggleLabel } from './ui.js';
 
 test('a stored light or dark theme wins over the system preference', () => {
   assert.equal(resolveTheme('light', true), 'light');
@@ -42,4 +42,10 @@ test('a keep-alive pane loads once, when it is visible, and dock panes are left 
 test('a keep-alive pane without a src renders inline and never fetches the page URL', () => {
   const inline = { dataset: { src: '' }, classList: { contains: () => false } };
   assert.equal(shouldLoadPane(inline), false);
+});
+
+test('the sidebar toggle offers to show the sidebar while it is hidden and to hide it while it is shown', () => {
+  const dataset = { labelHide: 'Ocultar barra lateral', labelShow: 'Mostrar barra lateral' };
+  assert.equal(sidebarToggleLabel(dataset, true), 'Mostrar barra lateral');
+  assert.equal(sidebarToggleLabel(dataset, false), 'Ocultar barra lateral');
 });

@@ -36,7 +36,8 @@ let page;
   // El dock arranca vacío: el tablero se abre desde la barra lateral.
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
   const runtime = page.getByLabel(/^Agente/);
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
+  // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
+  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings') || (r.request().method() === 'POST' && /\/agent-settings\/(runtime|model|profile|thinking)$/.test(new URL(r.url()).pathname)));
   await runtime.selectOption('pi');
   await saved;
   await page.reload();
