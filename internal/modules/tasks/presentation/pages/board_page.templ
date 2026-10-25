@@ -1,0 +1,19 @@
+package pages
+
+import (
+	"iworkflow/internal/modules/tasks/presentation/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// BoardPage is the board tab: the toolbar, the list of the workspace, the notice of the last create and
+// the slot of the create dialog. The task stream is connected here, and the list refreshes on its events.
+templ BoardPage(view state.BoardView) {
+	<div class="flex h-full min-h-0 flex-col" hx-ext="sse" sse-connect="/api/tasks/events">
+		@components.BoardToolbar(view)
+		<div id="board-notice"></div>
+		<div class="board-body min-h-0 flex-1 overflow-y-auto">
+			@components.BoardList(view)
+		</div>
+		<div id="board-create-slot"></div>
+	</div>
+}
