@@ -27,6 +27,7 @@ function element(attrs = [], props = {}) {
     querySelector: (selector) => node.children[selector] ?? null,
     querySelectorAll: () => [],
     setAttribute() {},
+    append() {},
     focus() {},
     setSelectionRange() {},
     classList: { toggle() {} },
@@ -34,6 +35,9 @@ function element(attrs = [], props = {}) {
   };
   return node;
 }
+
+// The composer script builds the reference chips with the document it runs in.
+globalThis.document = { createElement: () => element() };
 
 // A message box with its text, its send button, its file menu and a form that counts its submissions.
 function messageBox() {
@@ -128,4 +132,49 @@ test('Ctrl+Enter does nothing while a send is in flight', () => {
   doc.dispatch('keydown', { key: 'Enter', ctrlKey: true, target: box.textarea, preventDefault() {} });
 
   assert.equal(box.submissions.count, 0, 'a second send cannot start while the first one is on its way');
+});
+
+test('an @ query asks the server once, even though the input and the key both report it', async () => {
+  const box = messageBox();
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+
+  assert.equal(requests.length, 1, 'one keystroke is one request');
+  requests[0].answer('<li>a.txt</li>');
+  await flush();
+  assert.equal(box.menu.innerHTML, '<li>a.txt</li>');
+});
+
+test('a late answer for a query the user has already left is not shown', async () => {
+  const box = messageBox();
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+  type(doc, box, '@ab');
+  requests[1].answer('<li>ab.txt</li>');
+  await flush();
+  requests[0].answer('<li>a.txt</li>');
+  await flush();
+
+  assert.equal(box.menu.innerHTML, '<li>ab.txt</li>', 'the menu keeps the answer of the query on screen');
+});
+
+test('an answer that arrives after the @ trigger was left does not reopen the menu', async () => {
+  const box = messageBox();
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+  type(doc, box, '');
+  requests[0].answer('<li>a.txt</li>');
+  await flush();
+
+  assert.equal(box.menu.hidden, true);
+  assert.equal(box.menu.innerHTML, '');
 });

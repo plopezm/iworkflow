@@ -116,6 +116,7 @@ function setActive(composer, index) {
 }
 
 function closeMenu(composer) {
+  cancelFiles(composer);
   menuOf(composer).hidden = true;
 }
 
@@ -137,6 +138,47 @@ function refreshAll(composer) {
   refreshSend(composer);
 }
 
+// The file request of each composer: the query it asks for and the controller that cancels it. See suggestFiles.
+const fileRequests = new WeakMap();
+
+const cancelFiles = (composer) => {
+  fileRequests.get(composer)?.controller.abort();
+  fileRequests.delete(composer);
+};
+
+/** Loads the files that match a query from the server of the task. */
+async function fetchFiles(composer, query, signal) {
+  const response = await fetch(`${composer.dataset.filesPath}?q=${encodeURIComponent(query)}`, {
+    headers: { 'HX-Request': 'true' },
+    signal,
+  });
+  return response.text();
+}
+
+/**
+ * Shows the files of a query in the menu. The query on screen is asked once, however many events report it, and an
+ * answer is shown only while its query is still the one typed: a late answer for a query the user has left is dropped.
+ */
+export function suggestFiles(composer, query, load = fetchFiles) {
+  if (fileRequests.get(composer)?.query === query) return undefined;
+  cancelFiles(composer);
+  const controller = new AbortController();
+  const request = { query, controller };
+  fileRequests.set(composer, request);
+  return load(composer, query, controller.signal).then(
+    (html) => {
+      if (controller.signal.aborted || fileRequests.get(composer) !== request) return;
+      const menu = menuOf(composer);
+      menu.innerHTML = html;
+      menu.hidden = false;
+      setActive(composer, 0);
+    },
+    () => {
+      if (!controller.signal.aborted) closeMenu(composer);
+    },
+  );
+}
+
 /** Opens the menu for the trigger at the caret: commands come from the list of the composer, files from the server. */
 function updateMenu(composer) {
   const current = stateOf(composer);
@@ -146,6 +188,7 @@ function updateMenu(composer) {
   if (!trigger) return closeMenu(composer);
   const menu = menuOf(composer);
   if (trigger.kind === COMMAND) {
+    cancelFiles(composer);
     const commands = JSON.parse(composer.dataset.commands || '[]');
     const offers = matchingCommands(trigger.query, commands);
     if (offers.length === 0) return closeMenu(composer);
@@ -154,12 +197,8 @@ function updateMenu(composer) {
     return setActive(composer, 0);
   }
   menu.hidden = false;
-  // The server lists the files of the task; the swap that answers it resets the highlight (see afterSwap).
-  htmx.ajax('GET', `${composer.dataset.filesPath}?q=${encodeURIComponent(trigger.query)}`, {
-    target: menu,
-    swap: 'innerHTML',
-  });
-  return undefined;
+  // The server lists the files of the task; the answer replaces the items and resets the highlight (see suggestFiles).
+  return suggestFiles(composer, trigger.query);
 }
 
 function accept(composer, index) {
@@ -266,21 +305,12 @@ export function installComposer(doc) {
     if (composer && event.target.matches('[data-image-input]')) refreshSend(composer);
   });
   doc.addEventListener('htmx:afterSwap', (event) => {
-    const target = event.target;
-    if (target.matches?.('[data-composer-menu]')) {
-      const composer = composerOf(target);
-      // A late answer for a trigger the user already left must not reopen the menu.
-      if (stateOf(composer).trigger?.kind !== FILE) return closeMenu(composer);
-      menuOf(composer).hidden = false;
-      return setActive(composer, 0);
-    }
-    const composer = composerOf(target);
+    const composer = composerOf(event.target);
     if (composer) {
       states.set(composer, { trigger: null, active: 0, dismissed: false });
       closeMenu(composer);
       refreshAll(composer);
     }
-    return undefined;
   });
 }
 
