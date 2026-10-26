@@ -3,7 +3,10 @@ package components
 import (
 	"encoding/json"
 
+	"github.com/a-h/templ"
+
 	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
 // Texts of the controls of a dialog, copied from the Rust dialog_panel.rs Msg constants.
@@ -40,6 +43,30 @@ func confirmAnswer(confirmed bool) dialogAnswerWire {
 // cancelAnswer is the answer that closes a dialog without answering it.
 func cancelAnswer() dialogAnswerWire {
 	return dialogAnswerWire{Kind: dialogKindCancelled}
+}
+
+// answerAttrs are the attributes of a control that posts an answer to the dialog. The answer replaces the dialog element,
+// and the control drops the clicks that arrive while its answer is in flight, so one answer is sent.
+func answerAttrs(taskID string, dialogID string, answer dialogAnswerWire) templ.Attributes {
+	return templ.Attributes{
+		"hx-post":   state.DialogAnswerPath(taskID, dialogID),
+		"hx-vals":   dialogAnswerJSON(answer),
+		"hx-target": "closest [data-dialog]",
+		"hx-swap":   "outerHTML",
+		"hx-sync":   "this:drop",
+	}
+}
+
+// answerFormAttrs are the attributes of a form that posts its answer. The submit button is disabled while the answer is
+// in flight, and the form drops the submits that arrive meanwhile.
+func answerFormAttrs(taskID string, dialogID string) templ.Attributes {
+	return templ.Attributes{
+		"hx-post":         state.DialogAnswerPath(taskID, dialogID),
+		"hx-target":       "closest [data-dialog]",
+		"hx-swap":         "outerHTML",
+		"hx-sync":         "this:drop",
+		"hx-disabled-elt": "find button[type=submit]",
+	}
 }
 
 // dialogAnswerJSON encodes an answer for hx-vals. The fields are plain values, so an encoding failure is not expected;

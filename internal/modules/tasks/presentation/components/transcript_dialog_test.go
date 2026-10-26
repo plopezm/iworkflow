@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"html"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -110,6 +111,42 @@ func TestDialogClosedByItsTurnIsLabelledClosedInEveryLanguage(t *testing.T) {
 		assert.Contains(t, body, label, locale)
 		assert.NotContains(t, body, "hx-post", locale)
 	}
+}
+
+// renderPendingDialog renders a pending dialog of the kind, with the notice of a refused answer when there is one.
+func renderPendingDialog(t *testing.T, kind dto.TranscriptDialogKind, notice string) string {
+	t.Helper()
+	item := state.DialogItem{Request: dto.TranscriptDialog{ID: "d1", Title: "¿Seguir?", Kind: kind}}
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true})
+	var buf bytes.Buffer
+	require.NoError(t, components.TranscriptDialog(dialogTestTask, item, notice).Render(ctx, &buf))
+	return html.UnescapeString(buf.String())
+}
+
+// Every control that posts an answer drops the clicks that arrive while its answer is in flight, so one answer is sent.
+func TestEveryAnswerControlDropsClicksWhileItsAnswerIsInFlight(t *testing.T) {
+	t.Parallel()
+	kinds := map[string]dto.TranscriptDialogKind{
+		"select":  dto.TranscriptSelectDialog{Options: []string{"Sí", "No"}},
+		"confirm": dto.TranscriptConfirmDialog{},
+		"input":   dto.TranscriptInputDialog{},
+		"editor":  dto.TranscriptEditorDialog{},
+	}
+	for name, kind := range kinds {
+		body := renderPendingDialog(t, kind, "")
+		posts := strings.Count(body, "hx-post=")
+		assert.NotZero(t, posts, name)
+		assert.Equal(t, posts, strings.Count(body, `hx-sync="this:drop"`), name)
+	}
+}
+
+// The notice of a refused or undeliverable answer is announced when it appears in place of the answer.
+func TestAnswerNoticeIsAnnounced(t *testing.T) {
+	t.Parallel()
+	body := renderPendingDialog(t, dto.TranscriptConfirmDialog{}, "No se pudo enviar")
+	assert.Contains(t, body, `role="alert"`)
+	assert.Contains(t, body, "No se pudo enviar")
+	assert.NotContains(t, renderPendingDialog(t, dto.TranscriptConfirmDialog{}, ""), `role="alert"`)
 }
 
 func TestDialogAnswerPathEscapesTheDialogID(t *testing.T) {
