@@ -258,3 +258,16 @@ func TestTaskFileDockTabsShowTheTreeAndTheFileOfTheTask(t *testing.T) {
 	assert.Equal(t, "a.rs", fileTitle, "a file tab takes the name of the file")
 	assert.Contains(t, fileBody, "file src/a.rs of task:"+task.ID.String())
 }
+
+// The live refresh of the detail is the transcript: a task event swaps only the body of the transcript. Its answer has
+// no tab region in it, so the tab that is open is not replaced by the refresh.
+func TestTranscriptRefreshCarriesNoTabRegion(t *testing.T) {
+	t.Parallel()
+	task := newRunningTaskForTabs(t)
+	h := newTabsDetailForTest(task, nil, tabsPanelsFake{})
+
+	recorder := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/transcript")
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.NotContains(t, recorder.Body.String(), `id="task-tabs`)
+}
