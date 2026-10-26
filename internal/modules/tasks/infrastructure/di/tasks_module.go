@@ -74,6 +74,9 @@ type Deps struct {
 	// the completion finds nothing. The composition root supplies it, so the tasks module does not import the
 	// module that searches the files.
 	FileSearch httpinbound.FileSearch
+	// Panels are the project views (tree, changes, file) the Files and Changes tabs of a task embed. Optional: nil
+	// makes those tabs answer that they are not available.
+	Panels httpinbound.ProjectPanels
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -233,6 +236,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Reset:           resetTask,
 		Discard:         discardTask,
 		Delete:          deleteTask,
+		Panels:          deps.Panels,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
 		Get:  getTask,

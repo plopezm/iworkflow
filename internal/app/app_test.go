@@ -167,3 +167,14 @@ func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
 	require.Contains(t, home.Body.String(), `id="board-list-`, "the home address is the board")
 	require.NotContains(t, home.Body.String(), "todavía no se ha migrado")
 }
+
+// Rule from source: the Files tab of a task shows the file tree of the project tree, so the composition root must
+// hand the project views to the tasks module; without them the tab answers that the files are not available.
+func TestTheFilesTabOfATaskEmbedsTheProjectTree(t *testing.T) {
+	handler := newRouter(t)
+
+	rec := get(t, handler, "/dock/pane?path=/tasks/0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11/files")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), "no están disponibles")
+}

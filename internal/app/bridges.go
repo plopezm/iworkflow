@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/a-h/templ"
 	"github.com/google/uuid"
 
 	agentprofileserrors "iworkflow/internal/modules/agent_profiles/domain/errors"
@@ -25,6 +26,7 @@ import (
 	taskserrors "iworkflow/internal/modules/tasks/domain/errors"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
+	tasksinbound "iworkflow/internal/modules/tasks/infrastructure/adapters/inbound"
 	terminalmodels "iworkflow/internal/modules/terminal/domain/models"
 	terminalresolver "iworkflow/internal/modules/terminal/infrastructure/adapters/outbound/resolver"
 	workspacesapp "iworkflow/internal/modules/workspaces/application"
@@ -421,4 +423,30 @@ func (b *taskFileSearch) Files(ctx context.Context, id tasksmodels.TaskID, query
 		return nil, nil
 	}
 	return b.search.Execute(ctx, projecttreemodels.TaskScope(id.UUID()), query)
+}
+
+// taskPanels gives the Files and Changes tabs of a task the project views of the project tree. The project tree is
+// built after the tasks module, so the module is bound once it exists (see New).
+type taskPanels struct {
+	inner tasksinbound.ProjectPanels
+}
+
+// RenderTree is the project root page of a scope.
+func (b *taskPanels) RenderTree(ctx context.Context, rawScope string) templ.Component {
+	return b.inner.RenderTree(ctx, rawScope)
+}
+
+// TreePanel is the tree of a scope without its page.
+func (b *taskPanels) TreePanel(ctx context.Context, rawScope string) templ.Component {
+	return b.inner.TreePanel(ctx, rawScope)
+}
+
+// ChangesPanel is the changes panel of a scope.
+func (b *taskPanels) ChangesPanel(ctx context.Context, rawScope string) templ.Component {
+	return b.inner.ChangesPanel(ctx, rawScope)
+}
+
+// RenderFile is the editor of one file of a scope.
+func (b *taskPanels) RenderFile(ctx context.Context, rawScope string, file string) templ.Component {
+	return b.inner.RenderFile(ctx, rawScope, file)
 }

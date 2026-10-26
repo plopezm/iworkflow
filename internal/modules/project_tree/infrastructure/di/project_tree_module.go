@@ -98,3 +98,13 @@ func (m *Module) RenderFile(ctx context.Context, scope string, path string) temp
 func (m *Module) RenderChanges(ctx context.Context, scope models.ProjectScope) templ.Component {
 	return m.handlers.RenderChanges(ctx, scope)
 }
+
+// TreePanel is the tree without its page, for the task views that embed it.
+func (m *Module) TreePanel(ctx context.Context, rawScope string) templ.Component {
+	return m.handlers.TreePanel(ctx, rawScope)
+}
+
+// ChangesPanel is the changes panel of a wire scope, for the task views that embed it.
+func (m *Module) ChangesPanel(ctx context.Context, rawScope string) templ.Component {
+	return m.handlers.ChangesPanel(ctx, rawScope)
+}
