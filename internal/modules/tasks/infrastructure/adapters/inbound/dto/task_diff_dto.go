@@ -13,12 +13,16 @@ type TaskDiffDTO struct {
 	Commits   []string `json:"commits"`
 }
 
-// TaskDiffFromDomain maps the diff of a task.
+// TaskDiffFromDomain maps the diff of a task. A nil list of commits becomes an empty one, so it is sent as [] and not null.
 func TaskDiffFromDomain(diff models.TaskDiff) TaskDiffDTO {
+	commits := diff.Commits
+	if commits == nil {
+		commits = []string{}
+	}
 	return TaskDiffDTO{
 		Stat:      diff.Stat,
 		Patch:     diff.Patch,
 		Truncated: diff.Truncated,
-		Commits:   diff.Commits,
+		Commits:   commits,
 	}
 }

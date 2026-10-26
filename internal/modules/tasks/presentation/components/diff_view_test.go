@@ -87,16 +87,35 @@ func TestHiddenTreeLeavesOnlyTheCards(t *testing.T) {
 	assert.Contains(t, html, `class="diff-cards"`)
 }
 
+const flatPatch = "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-a\n+b\n"
+
+// The card is a details element. Its open attribute is the only thing that folds it, so the folded test matches the
+// opening tag of the card and the expanded test is its positive control: the same matcher must see the open card.
+var (
+	foldedCardTag  = regexp.MustCompile(`<details [^>]*class="diff-card">`)
+	expandedCardOn = regexp.MustCompile(`<details [^>]*class="diff-card" open>`)
+)
+
 func TestFoldedLayoutClosesEveryCard(t *testing.T) {
 	t.Parallel()
-	flatPatch := "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-a\n+b\n"
 	layout := state.DefaultDiffLayout().WithTree(false).WithCollapsed(true)
 	view := viewOf("", layout, dto.TaskDiffDTO{Patch: flatPatch})
 
 	html := renderIn(t, i18n.En, components.DiffView(view))
 
-	assert.Contains(t, html, `class="diff-card"`)
-	assert.NotContains(t, html, " open")
+	assert.Regexp(t, foldedCardTag, html)
+	assert.NotRegexp(t, expandedCardOn, html)
+}
+
+func TestExpandedLayoutOpensEveryCard(t *testing.T) {
+	t.Parallel()
+	layout := state.DefaultDiffLayout().WithTree(false).WithCollapsed(false)
+	view := viewOf("", layout, dto.TaskDiffDTO{Patch: flatPatch})
+
+	html := renderIn(t, i18n.En, components.DiffView(view))
+
+	assert.Regexp(t, expandedCardOn, html)
+	assert.NotRegexp(t, foldedCardTag, html)
 }
 
 func TestNoFileChangesIsSaidInTheCardsArea(t *testing.T) {

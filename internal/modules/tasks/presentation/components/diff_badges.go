@@ -15,30 +15,28 @@ var (
 	msgStatusRenamed  = i18n.Msg{En: "Renamed", Es: "Renombrado", Zh: "已重命名", De: "Umbenannt", Fr: "Renommé"}
 )
 
-// statusBadgeClass is the CSS class of the badge of a status.
-func statusBadgeClass(status state.FileStatus) string {
+// statusStyle is how a status shows in its badge: the CSS class of the badge and the name in its tooltip.
+type statusStyle struct {
+	class string
+	name  i18n.Msg
+}
+
+// styleOf is the badge of a status. Rust matches the four statuses one by one; the modified style also covers any
+// other value, so a file is never shown without a badge.
+func styleOf(status state.FileStatus) statusStyle {
 	switch status {
 	case state.FileStatusAdded:
-		return "diff-status diff-status-added"
+		return statusStyle{class: "diff-status diff-status-added", name: msgStatusAdded}
 	case state.FileStatusDeleted:
-		return "diff-status diff-status-deleted"
+		return statusStyle{class: "diff-status diff-status-deleted", name: msgStatusDeleted}
 	case state.FileStatusRenamed:
-		return "diff-status diff-status-renamed"
+		return statusStyle{class: "diff-status diff-status-renamed", name: msgStatusRenamed}
 	default:
-		return "diff-status diff-status-modified"
+		return statusStyle{class: "diff-status diff-status-modified", name: msgStatusModified}
 	}
 }
 
 // statusTitle is the name of a status in the language of the request, shown as the tooltip of its badge.
 func statusTitle(ctx context.Context, status state.FileStatus) string {
-	switch status {
-	case state.FileStatusAdded:
-		return msgStatusAdded.T(ctx)
-	case state.FileStatusDeleted:
-		return msgStatusDeleted.T(ctx)
-	case state.FileStatusRenamed:
-		return msgStatusRenamed.T(ctx)
-	default:
-		return msgStatusModified.T(ctx)
-	}
+	return styleOf(status).name.T(ctx)
 }

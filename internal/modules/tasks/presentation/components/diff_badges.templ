@@ -8,7 +8,7 @@ import (
 
 // DiffStatusBadge is the one-letter badge of a changed file (A, M, D, R), titled with the name of its status.
 templ DiffStatusBadge(status state.FileStatus) {
-	<span class={ statusBadgeClass(status) } title={ statusTitle(ctx, status) }>{ state.StatusLetter(status) }</span>
+	<span class={ styleOf(status).class } title={ statusTitle(ctx, status) }>{ state.StatusLetter(status) }</span>
 }
 
 // DiffCounts shows the added and the removed lines of a file or a folder.

@@ -48,6 +48,21 @@ func TestStatusBadgeShowsTheLetterAndTheLocalizedTitle(t *testing.T) {
 	assert.Contains(t, spanish, `title="Añadido"`)
 }
 
+// Each status is titled with its own name in the request language; the modified style also covers other values.
+func TestStatusBadgeTitleNamesEachStatusInTheRequestLanguage(t *testing.T) {
+	t.Parallel()
+	cases := map[state.FileStatus]string{
+		state.FileStatusAdded:    "Añadido",
+		state.FileStatusModified: "Modificado",
+		state.FileStatusDeleted:  "Eliminado",
+		state.FileStatusRenamed:  "Renombrado",
+	}
+	for status, title := range cases {
+		assert.Contains(t, renderIn(t, i18n.Es, components.DiffStatusBadge(status)), `title="`+title+`"`)
+	}
+	assert.Contains(t, renderIn(t, i18n.Es, components.DiffStatusBadge(state.FileStatus("other"))), `title="Modificado"`)
+}
+
 func TestStatusBadgeHasOneClassPerStatus(t *testing.T) {
 	t.Parallel()
 	cases := map[state.FileStatus]string{

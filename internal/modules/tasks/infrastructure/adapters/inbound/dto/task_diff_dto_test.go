@@ -42,3 +42,15 @@ func TestTaskDiffDTOKeepsTheRustJSONNames(t *testing.T) {
 
 	assert.Equal(t, map[string]any{"stat": "s", "patch": "p", "truncated": false, "commits": []any{"c"}}, fields)
 }
+
+// Rust serializes the commits as a list, so a task without commits sends [] and not null.
+func TestTaskDiffWithoutCommitsSerializesAnEmptyList(t *testing.T) {
+	t.Parallel()
+	raw, err := json.Marshal(dto.TaskDiffFromDomain(models.TaskDiff{Stat: "", Patch: ""}))
+	require.NoError(t, err)
+
+	var fields map[string]any
+	require.NoError(t, json.Unmarshal(raw, &fields))
+
+	assert.Equal(t, []any{}, fields["commits"])
+}
