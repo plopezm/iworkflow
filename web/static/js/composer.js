@@ -70,6 +70,7 @@ const stateOf = (composer) => states.get(composer) ?? { trigger: null, active: 0
 const composerOf = (node) => node?.closest?.('[data-composer]') ?? null;
 const textareaOf = (composer) => composer.querySelector('[data-composer-input]');
 const menuOf = (composer) => composer.querySelector('[data-composer-menu]');
+const sendOf = (composer) => composer.querySelector('[data-composer-send]');
 const itemsOf = (composer) => Array.from(menuOf(composer).querySelectorAll('[data-composer-item]'));
 
 function commandItem(offer) {
@@ -126,7 +127,7 @@ function refreshRefs(composer) {
 }
 
 function refreshSend(composer) {
-  const send = composer.querySelector('[data-composer-send]');
+  const send = sendOf(composer);
   const images = composer.querySelector('[data-image-input]')?.files.length ?? 0;
   send.disabled = textareaOf(composer).value.trim() === '' && images === 0;
 }
@@ -203,6 +204,8 @@ function onKeydown(event) {
   }
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
     event.preventDefault();
+    // The send button is the state of a send: disabled when there is nothing to send, and while one is in flight.
+    if (sendOf(composer)?.disabled) return undefined;
     return textarea.form?.requestSubmit();
   }
   return undefined;
