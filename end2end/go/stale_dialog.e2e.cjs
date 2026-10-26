@@ -42,6 +42,30 @@ async function setRuntime(ctx, runtime) {
   return previous;
 }
 
+// Runs the body with the runtime chosen, then restores the runtime found. A failure of the body is the failure reported:
+// a restore that fails after it is logged, not thrown over it.
+async function withRuntime(ctx, runtime, body) {
+  const previous = await setRuntime(ctx, runtime);
+  let failure = null;
+  try {
+    await body();
+  } catch (err) {
+    failure = err;
+  }
+  try {
+    await setRuntime(ctx, previous);
+  } catch (restoreErr) {
+    if (failure === null) {
+      failure = restoreErr;
+    } else {
+      console.error(`no se pudo restaurar el runtime ${previous}: ${restoreErr.message}`);
+    }
+  }
+  if (failure !== null) {
+    throw failure;
+  }
+}
+
 // Creates a task in a fresh repository that starts at once with the given prompt, and opens its detail page.
 // Returns the id of the task. The prompt is the exact text the fake agent matches, so it is not made unique.
 async function startedTask(ctx, name, prompt) {
@@ -83,8 +107,7 @@ module.exports = {
     {
       name: 'un diálogo que el agente abandona al cerrar su turno se cierra sin error',
       fn: async (ctx) => {
-        const previous = await setRuntime(ctx, RUNTIME);
-        try {
+        await withRuntime(ctx, RUNTIME, async () => {
           await startedTask(ctx, `stale-${tag}`, 'abandoned');
           // The agent ends its turn without waiting for the answer: the dialog closes with it, as a line of the transcript.
           await ctx.page.getByText('turno cerrado').first().waitFor({ timeout: 25000 });
@@ -97,16 +120,13 @@ module.exports = {
             (await ctx.page.getByText(/no hay un diálogo pendiente/).count()) === 0,
             'no debe aparecer el error de diálogo pendiente',
           );
-        } finally {
-          await setRuntime(ctx, previous);
-        }
+        });
       },
     },
     {
       name: 'responder «Sí» a un diálogo llega al agente, que continúa su turno',
       fn: async (ctx) => {
-        const previous = await setRuntime(ctx, RUNTIME);
-        try {
+        await withRuntime(ctx, RUNTIME, async () => {
           await startedTask(ctx, `answer-${tag}`, 'permission');
           // The pending dialog offers its answer as a control of the transcript.
           const yes = ctx.page.getByRole('button', { name: 'Sí', exact: true }).first();
@@ -119,9 +139,7 @@ module.exports = {
             (await ctx.page.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
             'una respuesta entregada no deja controles de diálogo abiertos',
           );
-        } finally {
-          await setRuntime(ctx, previous);
-        }
+        });
       },
     },
   ],
