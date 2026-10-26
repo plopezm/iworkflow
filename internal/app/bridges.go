@@ -18,6 +18,7 @@ import (
 	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
 	codehostingoutbound "iworkflow/internal/modules/code_hosting/domain/ports/outbound"
+	projecttreeapp "iworkflow/internal/modules/project_tree/application"
 	projecttreemodels "iworkflow/internal/modules/project_tree/domain/models"
 	projecttreeoutbound "iworkflow/internal/modules/project_tree/domain/ports/outbound"
 	tasksapp "iworkflow/internal/modules/tasks/application"
@@ -406,4 +407,18 @@ func (b *remoteMergeBridge) MergeOpenRequest(ctx context.Context, taskID string)
 	default:
 		return 0, fmt.Errorf("unknown remote merge outcome %d", outcome)
 	}
+}
+
+// taskFileSearch gives the composer of the tasks module the file search of the project tree for the @ completion.
+// The project tree is built after the tasks module, so the search is bound once it exists (see New).
+type taskFileSearch struct {
+	search *projecttreeapp.SearchProjectFiles
+}
+
+// Files lists the files of the worktree of the task whose path matches the query. It finds nothing while unbound.
+func (b *taskFileSearch) Files(ctx context.Context, id tasksmodels.TaskID, query string) ([]string, error) {
+	if b.search == nil {
+		return nil, nil
+	}
+	return b.search.Execute(ctx, projecttreemodels.TaskScope(id.UUID()), query)
 }

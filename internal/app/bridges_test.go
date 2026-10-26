@@ -293,3 +293,16 @@ func TestRemoteMergeBridgeMapsEveryOutcome(t *testing.T) {
 		require.ErrorIs(t, err, failure)
 	})
 }
+
+func TestTaskFileSearchFindsNothingUntilItIsBound(t *testing.T) {
+	t.Parallel()
+	bridge := &taskFileSearch{}
+
+	id, err := tasksmodels.NewTaskID()
+	require.NoError(t, err)
+
+	files, err := bridge.Files(context.Background(), id, "a")
+
+	require.NoError(t, err)
+	assert.Empty(t, files)
+}

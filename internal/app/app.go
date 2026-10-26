@@ -113,6 +113,7 @@ func New(deps Deps) (*App, error) {
 
 	// The remote merge is shared: the tasks module merges through it and code_hosting binds its use case to it.
 	remoteMerge := codehostingapp.NewRemoteMerge()
+	fileSearch := &taskFileSearch{}
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
 		DB:             deps.DB,
 		Workspaces:     &taskWorkspaceLookup{get: workspaces.Get, list: workspaces.List},
@@ -127,6 +128,7 @@ func New(deps Deps) (*App, error) {
 		},
 		LaunchSettings: &launchSettings{prepareLaunch: settings.PrepareLaunch},
 		Remote:         &remoteMergeBridge{inner: remoteMerge},
+		FileSearch:     fileSearch.Files,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose tasks: %w", err)
@@ -137,6 +139,7 @@ func New(deps Deps) (*App, error) {
 		Workspaces: &workspaceRoots{get: workspaces.Get},
 		Tasks:      &taskRootLookup{get: tasks.Get},
 	})
+	fileSearch.search = projectTree.SearchFiles
 	profiles := agentprofilesdi.NewModule(agentprofilesdi.Deps{
 		ProfilesDir:  deps.Config.GentlePiConfigHome,
 		AgentsDir:    deps.Config.PiAgentsDir,
