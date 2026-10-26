@@ -73,6 +73,7 @@ func TestTranscriptTextsExistInEveryLanguage(t *testing.T) {
 		"ok":              msgTranscriptToolOK,
 		"error":           msgTranscriptToolError,
 		"answered":        msgTranscriptDialogAnswered,
+		"closed":          msgTranscriptDialogClosed,
 		"pending":         msgTranscriptDialogPending,
 		"stopped code":    msgTranscriptStoppedCode,
 		"stopped no code": msgTranscriptStoppedNoCode,

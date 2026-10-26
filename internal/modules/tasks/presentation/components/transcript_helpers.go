@@ -95,7 +95,10 @@ func toolSummary(ctx context.Context, item state.ToolItem) string {
 // dialogText is the line of a dialog, with whether it is still pending.
 func dialogText(ctx context.Context, item state.DialogItem) string {
 	label := msgTranscriptDialogPending.T(ctx)
-	if item.Resolved {
+	switch {
+	case item.ClosedByTurn:
+		label = msgTranscriptDialogClosed.T(ctx)
+	case item.Resolved:
 		label = msgTranscriptDialogAnswered.T(ctx)
 	}
 	return "❓ " + item.Request.Title + " (" + label + ")"

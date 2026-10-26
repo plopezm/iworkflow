@@ -45,10 +45,12 @@ type StatusItem struct {
 	Error  *string
 }
 
-// DialogItem is a dialog the agent opened. Resolved is true once it was answered or closed.
+// DialogItem is a dialog the agent opened. Resolved is true once it was answered or closed. ClosedByTurn is true when
+// the turn ended before the dialog was answered: the user did not answer it.
 type DialogItem struct {
-	Request  dto.TranscriptDialog
-	Resolved bool
+	Request      dto.TranscriptDialog
+	Resolved     bool
+	ClosedByTurn bool
 }
 
 // ExitItem records that the agent process ended. Code is nil when the process had no exit code.

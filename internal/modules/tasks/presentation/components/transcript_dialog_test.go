@@ -91,6 +91,27 @@ func TestAnsweredDialogShowsNoControls(t *testing.T) {
 	assert.NotContains(t, body, "Cancelar diálogo")
 }
 
+// A dialog its turn closed without an answer reads as closed in every language, not as answered by the user.
+func TestDialogClosedByItsTurnIsLabelledClosedInEveryLanguage(t *testing.T) {
+	t.Parallel()
+	labels := map[i18n.Locale]string{
+		i18n.En: "(closed)",
+		i18n.Es: "(cerrado)",
+		i18n.Zh: "(已关闭)",
+		i18n.De: "(geschlossen)",
+		i18n.Fr: "(fermé)",
+	}
+	item := state.DialogItem{Request: dto.TranscriptDialog{ID: "d1", Title: "¿Seguir?"}, Resolved: true, ClosedByTurn: true}
+	for locale, label := range labels {
+		ctx := i18n.WithState(context.Background(), i18n.State{Locale: locale, Chosen: true})
+		var buf bytes.Buffer
+		require.NoError(t, components.TranscriptDialog(dialogTestTask, item, "").Render(ctx, &buf))
+		body := html.UnescapeString(buf.String())
+		assert.Contains(t, body, label, locale)
+		assert.NotContains(t, body, "hx-post", locale)
+	}
+}
+
 func TestDialogAnswerPathEscapesTheDialogID(t *testing.T) {
 	t.Parallel()
 	body := dialogBody(t, i18n.Es, dialogRequest("perm/a b", dto.TranscriptSelectDialog{Options: []string{"Sí"}}))

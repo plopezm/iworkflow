@@ -179,7 +179,8 @@ func TestAnsweredDialogIsShownAsAnsweredInItsPlace(t *testing.T) {
 	assert.NotContains(t, body, "hx-post")
 }
 
-// A dialog whose turn is closed, or whose agent is gone, is closed: no error is shown for it.
+// A dialog whose turn is closed, or whose agent is gone, is closed: no error is shown for it, and it is not shown as
+// answered, since the user did not answer it.
 func TestAnswerToADialogOfAClosedTurnClosesItWithoutAnError(t *testing.T) {
 	t.Parallel()
 	id := taskID(t)
@@ -193,7 +194,8 @@ func TestAnswerToADialogOfAClosedTurnClosesItWithoutAnError(t *testing.T) {
 		recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
 			url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, i18n.En))
 		assert.Equal(t, http.StatusOK, recorder.Code, name)
-		assert.Contains(t, body, "answered", name)
+		assert.Contains(t, body, "(closed)", name)
+		assert.NotContains(t, body, "answered", name)
 		assert.NotContains(t, body, "hx-post", name)
 		assert.NotContains(t, body, dialogDeliveryTexts[i18n.En], name)
 		assert.NotContains(t, strings.ToLower(body), "diálogo pendiente", name)

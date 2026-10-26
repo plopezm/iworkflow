@@ -110,8 +110,12 @@ func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id
 	}
 	err = h.uc.Answer.Execute(ctx, id, dialogID, answer)
 	switch {
-	case err == nil, closedTurn(err):
+	case err == nil:
 		item.Resolved = true
+		return item, ""
+	case closedTurn(err):
+		item.Resolved = true
+		item.ClosedByTurn = true
 		return item, ""
 	default:
 		slog.Error("could not deliver the answer of the dialog", "task_id", id.String(), "dialog_id", dialogID, "error", err)
