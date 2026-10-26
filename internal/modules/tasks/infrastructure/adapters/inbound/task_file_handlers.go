@@ -4,6 +4,7 @@ package inbound
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 
@@ -216,7 +217,7 @@ func (h *TaskFileHandlers) request(w http.ResponseWriter, r *http.Request) (mode
 	}
 	form, err := dto.DecodeTaskFileForm(w, r)
 	if err != nil {
-		return id, form, err
+		return id, form, fmt.Errorf("read the file request: %w", err)
 	}
 	return id, form, nil
 }
