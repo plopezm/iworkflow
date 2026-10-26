@@ -74,3 +74,24 @@ func (h *Handlers) RenderFile(ctx context.Context, rawScope string, path string)
 func (h *Handlers) RenderChanges(ctx context.Context, scope models.ProjectScope) templ.Component {
 	return components.GitChangesPanel(components.GitChangesPanelProps{View: h.gitView(ctx, scope)})
 }
+
+// TreePanel is the file tree of a scope without the page around it. The Archivos tab of a task embeds it. It takes the
+// wire form of the scope, so a module that does not know project_tree can call it.
+func (h *Handlers) TreePanel(ctx context.Context, rawScope string) templ.Component {
+	scope, err := dto.ParseScope(rawScope)
+	if err != nil {
+		return coreui.ErrorText(err.Error())
+	}
+	view, _ := h.rootView(ctx, scope)
+	return components.TreeBody(view)
+}
+
+// ChangesPanel is the changes panel of a scope for the screens that embed it, such as the Cambios tab of a task. It
+// takes the wire form of the scope, as TreePanel does.
+func (h *Handlers) ChangesPanel(ctx context.Context, rawScope string) templ.Component {
+	scope, err := dto.ParseScope(rawScope)
+	if err != nil {
+		return coreui.ErrorText(err.Error())
+	}
+	return h.RenderChanges(ctx, scope)
+}
