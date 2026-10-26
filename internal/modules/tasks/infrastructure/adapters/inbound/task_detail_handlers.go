@@ -19,18 +19,24 @@ import (
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/components"
-	"iworkflow/internal/modules/tasks/presentation/pages"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
 // TaskDetailRouteName is the dock route name of the detail page of a task.
 const TaskDetailRouteName = "task_detail"
 
-// DetailUseCases are what the detail page reads and changes.
+// AttachmentLister lists the images of a task. *application.ListTaskAttachments satisfies it.
+type AttachmentLister interface {
+	Execute(ctx context.Context, id models.TaskID) ([]models.StoredAttachment, error)
+}
+
+// DetailUseCases are what the detail page reads and changes. Panels are the project views of the Files and Changes
+// tabs; the composition root injects them.
 type DetailUseCases struct {
-	Get             *application.GetTask
-	Events          *application.GetTaskEvents
-	ListAttachments *application.ListTaskAttachments
+	Get             TaskGetter
+	Events          HistoryReader
+	ListAttachments AttachmentLister
+	Panels          ProjectPanels
 	Start           *application.StartTask
 	Abort           *application.AbortTask
 	Resume          *application.ResumeTask
@@ -51,10 +57,10 @@ func NewDetailHandlers(uc DetailUseCases, now func() time.Time) *DetailHandlers 
 	return &DetailHandlers{uc: uc, now: now}
 }
 
-// Tabs returns the dock route of the detail page. The module registers it before the not-migrated catch-all of
-// /tasks/{rest...}, so only this address leaves the Rust version; diff, terminal and files still fall through.
+// Tabs returns the dock routes of the detail page and of its files. The module registers them before the not-migrated
+// catch-all of /tasks/{rest...}, so these addresses leave the Rust version; diff and terminal still fall through.
 func (h *DetailHandlers) Tabs() []dock.Route {
-	return []dock.Route{
+	return append([]dock.Route{
 		{
 			Name:    TaskDetailRouteName,
 			Pattern: "/tasks/{id}",
@@ -66,7 +72,7 @@ func (h *DetailHandlers) Tabs() []dock.Route {
 				return h.detailTab(ctx, params["id"])
 			},
 		},
-	}
+	}, h.fileRoutes()...)
 }
 
 // Mount registers the htmx endpoints of the detail page. Start, abort, resume, finish and discard answer the page;
@@ -81,6 +87,7 @@ func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/reset", h.resetTask)
 	r.Post("/tasks/{id}/delete", h.deleteTask)
 	r.Get("/tasks/{id}/transcript", h.transcript)
+	r.Get("/tasks/{id}/tabs/{tab}", h.tab)
 }
 
 // title is the tab title: the title of the task, or the plain name when the task cannot be read.
@@ -110,7 +117,7 @@ func (h *DetailHandlers) detailTab(ctx context.Context, rawID string) templ.Comp
 	if err != nil {
 		return shared.ErrorText(err.Error())
 	}
-	return pages.TaskDetailPage(h.page(ctx, newScope(), task, ""))
+	return h.detailPage(ctx, newScope(), task, "")
 }
 
 // page builds the view of a task: the task as it is now, its transcript, its images and the notice of the action that
@@ -257,5 +264,5 @@ func (h *DetailHandlers) renderPage(w http.ResponseWriter, r *http.Request, scop
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return
 	}
-	web.Render(w, r, http.StatusOK, pages.TaskDetailPage(h.page(r.Context(), scope, task, notice)))
+	web.Render(w, r, http.StatusOK, h.detailPage(r.Context(), scope, task, notice))
 }
