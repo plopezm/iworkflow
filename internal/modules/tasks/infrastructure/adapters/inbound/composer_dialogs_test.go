@@ -1,0 +1,237 @@
+package inbound
+
+import (
+	"context"
+	"net/http"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"iworkflow/internal/core/i18n"
+	werrors "iworkflow/internal/modules/tasks/domain/errors"
+	"iworkflow/internal/modules/tasks/domain/models"
+)
+
+type answerCall struct {
+	id       models.TaskID
+	dialogID string
+	answer   models.DialogAnswer
+}
+
+// fakeAnswerer records the answers the composer hands to the answer use case.
+type fakeAnswerer struct {
+	calls []answerCall
+	err   error
+}
+
+func (f *fakeAnswerer) Execute(_ context.Context, id models.TaskID, dialogID string, answer models.DialogAnswer) error {
+	f.calls = append(f.calls, answerCall{id: id, dialogID: dialogID, answer: answer})
+	return f.err
+}
+
+// dialogRequested is the history of a dialog the agent opened with the kind given.
+func dialogRequested(id models.TaskID, dialogID string, kind models.DialogKind) models.TaskEvent {
+	return models.TaskEvent{
+		TaskID: id,
+		Kind: models.AgentEventKind{Event: models.DialogRequested{Request: models.DialogRequest{
+			ID:    dialogID,
+			Title: "¿Seguir?",
+			Kind:  kind,
+		}}},
+		CreatedAt: time.Unix(0, 0),
+	}
+}
+
+// dialogResolved is the history of a dialog that was answered or closed.
+func dialogResolved(id models.TaskID, dialogID string) models.TaskEvent {
+	return models.TaskEvent{
+		TaskID:    id,
+		Kind:      models.AgentEventKind{Event: models.DialogResolved{DialogID: dialogID}},
+		CreatedAt: time.Unix(0, 0),
+	}
+}
+
+// answerRouter mounts the composer with the answer use case, the way the module does.
+func answerRouter(answerer *fakeAnswerer, history *fakeHistory) chi.Router {
+	handlers := NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: history, Answer: answerer}, nil)
+	router := chi.NewRouter()
+	handlers.Mount(router)
+	return router
+}
+
+// answerRequest is the form a dialog control of the task posts, form-encoded.
+func answerRequest(t *testing.T, id models.TaskID, dialogID string, form url.Values, locale i18n.Locale) *http.Request {
+	t.Helper()
+	return answerRequestTo(t, "/tasks/"+id.String()+"/dialogs/"+url.PathEscape(dialogID)+"/answer", form, locale)
+}
+
+// answerRequestTo is the form-encoded answer posted to target.
+func answerRequestTo(t *testing.T, target string, form url.Values, locale i18n.Locale) *http.Request {
+	t.Helper()
+	r, err := http.NewRequest(http.MethodPost, target, strings.NewReader(form.Encode()))
+	require.NoError(t, err)
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return r.WithContext(i18n.WithState(r.Context(), i18n.State{Locale: locale, Chosen: true}))
+}
+
+// dialogDeliveryTexts are the texts of an answer the agent did not take, in the five languages.
+var dialogDeliveryTexts = map[i18n.Locale]string{
+	i18n.En: "The answer could not be delivered to the agent.",
+	i18n.Es: "No se pudo enviar la respuesta al agente.",
+	i18n.Zh: "无法把回答发送给智能体。",
+	i18n.De: "Die Antwort konnte nicht an den Agenten gesendet werden.",
+	i18n.Fr: "La réponse n’a pas pu être envoyée à l’agent.",
+}
+
+func TestAnsweredDialogDeliversTheDomainAnswerForEachKind(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	cases := map[string]struct {
+		form url.Values
+		want models.DialogAnswer
+	}{
+		"value":     {url.Values{"kind": {"value"}, "value": {"Sí"}}, models.ValueAnswer{Value: "Sí"}},
+		"confirmed": {url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, models.ConfirmedAnswer{Confirmed: true}},
+		"declined":  {url.Values{"kind": {"confirmed"}, "confirmed": {"false"}}, models.ConfirmedAnswer{Confirmed: false}},
+		"cancelled": {url.Values{"kind": {"cancelled"}}, models.CancelledAnswer{}},
+	}
+	for name, tc := range cases {
+		answerer := &fakeAnswerer{}
+		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.SelectDialog{Options: []string{"Sí"}})}}
+		recorder, _ := serve(answerRouter(answerer, history), answerRequest(t, id, "d1", tc.form, i18n.En))
+		assert.Equal(t, http.StatusOK, recorder.Code, name)
+		require.Len(t, answerer.calls, 1, name)
+		assert.Equal(t, id, answerer.calls[0].id, name)
+		assert.Equal(t, "d1", answerer.calls[0].dialogID, name)
+		assert.Equal(t, tc.want, answerer.calls[0].answer, name)
+	}
+}
+
+// The answer replaces the dialog: once the agent has taken it, the dialog is a line of the transcript.
+func TestAnsweredDialogIsShownAsAnsweredInItsPlace(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.ConfirmDialog{})}}
+	answerer := &fakeAnswerer{}
+	recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
+		url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, i18n.En))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, "answered")
+	assert.Contains(t, body, `data-dialog`)
+	assert.NotContains(t, body, "hx-post")
+}
+
+// A dialog whose turn is closed, or whose agent is gone, is closed: no error is shown for it.
+func TestAnswerToADialogOfAClosedTurnClosesItWithoutAnError(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	closed := map[string]error{
+		"agent not running": werrors.AgentNotRunning(),
+		"invalid state":     werrors.InvalidState("responder diálogo", "idle"),
+	}
+	for name, cause := range closed {
+		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.ConfirmDialog{})}}
+		answerer := &fakeAnswerer{err: cause}
+		recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
+			url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, i18n.En))
+		assert.Equal(t, http.StatusOK, recorder.Code, name)
+		assert.Contains(t, body, "answered", name)
+		assert.NotContains(t, body, "hx-post", name)
+		assert.NotContains(t, body, dialogDeliveryTexts[i18n.En], name)
+		assert.NotContains(t, strings.ToLower(body), "diálogo pendiente", name)
+	}
+}
+
+// A failure of the agent keeps the dialog open, with the controls, and says in the language of the request that the
+// answer did not reach the agent. The runtime text is not shown.
+func TestDeliveryFailureKeepsTheDialogOpenWithALocalizedNotice(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	for locale, want := range dialogDeliveryTexts {
+		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.ConfirmDialog{})}}
+		answerer := &fakeAnswerer{err: werrors.Runtime("no hay un diálogo pendiente con id d1")}
+		recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
+			url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, locale))
+		assert.Equal(t, http.StatusOK, recorder.Code, locale)
+		assert.Contains(t, body, want, locale)
+		assert.Contains(t, body, "hx-post", locale)
+		assert.NotContains(t, body, "no hay un diálogo pendiente", locale)
+	}
+}
+
+// A refused answer does not reach the use case; the dialog stays open with the refusal in the request language.
+func TestRefusedAnswerKeepsTheDialogOpen(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.InputDialog{})}}
+	answerer := &fakeAnswerer{}
+	recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
+		url.Values{"kind": {"maybe"}}, i18n.En))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Empty(t, answerer.calls)
+	assert.Contains(t, body, "The answer to the dialog is not valid.")
+	assert.Contains(t, body, "hx-post")
+}
+
+func TestAnswerForAnInvalidTaskIsAnsweredInTheRequestLanguage(t *testing.T) {
+	t.Parallel()
+	answerer := &fakeAnswerer{}
+	request := answerRequestTo(t, "/tasks/not-a-task/dialogs/d1/answer", url.Values{"kind": {"cancelled"}}, i18n.En)
+	recorder, body := serve(answerRouter(answerer, &fakeHistory{}), request)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, msgInvalidTask.En)
+	assert.Empty(t, answerer.calls)
+}
+
+// The history is read before the answer: without it the dialog cannot be drawn, so nothing is answered.
+func TestAnswerWithAnUnreadableHistoryIsNotDelivered(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	answerer := &fakeAnswerer{}
+	history := &fakeHistory{err: context.DeadlineExceeded}
+	recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
+		url.Values{"kind": {"cancelled"}}, i18n.En))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, msgHistoryUnavailable.En)
+	assert.Empty(t, answerer.calls)
+}
+
+// A dialog the transcript does not hold, or one already answered, is never delivered to the agent. A dialog the
+// transcript no longer holds is answered as gone: the response is empty, so its element is removed.
+func TestAnswerToAnUnknownOrResolvedDialogDeliversNothing(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	answerer := &fakeAnswerer{}
+	recorder, body := serve(answerRouter(answerer, &fakeHistory{}), answerRequest(t, id, "gone",
+		url.Values{"kind": {"cancelled"}}, i18n.En))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Empty(t, strings.TrimSpace(body))
+	assert.Empty(t, answerer.calls)
+
+	answered := &fakeHistory{events: []models.TaskEvent{
+		dialogRequested(id, "d1", models.ConfirmDialog{}),
+		dialogResolved(id, "d1"),
+	}}
+	answerer = &fakeAnswerer{}
+	recorder, body = serve(answerRouter(answerer, answered), answerRequest(t, id, "d1",
+		url.Values{"kind": {"cancelled"}}, i18n.En))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, "answered")
+	assert.Empty(t, answerer.calls)
+}
+
+// Without the answer use case the route is not mounted, so the answer is not found instead of failing on a nil use case.
+func TestAnswerRouteIsMountedOnlyWithTheAnswerUseCase(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	handlers := NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: &fakeHistory{}}, nil)
+	router := chi.NewRouter()
+	handlers.Mount(router)
+	recorder, _ := serve(router, answerRequest(t, id, "d1", url.Values{"kind": {"cancelled"}}, i18n.En))
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
+}

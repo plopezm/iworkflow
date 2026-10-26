@@ -1,0 +1,90 @@
+//nolint:contextcheck // templ components receive the request context at Render time; the linter cannot see through the closures
+package inbound
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+
+	"github.com/a-h/templ"
+	"github.com/go-chi/chi/v5"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/core/web"
+	werrors "iworkflow/internal/modules/tasks/domain/errors"
+	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// msgDialogDelivery answers an answer the agent did not take. The runtime reports its text in Spanish and that text is
+// internal, so the answer is the same in every language and the error is logged instead.
+var msgDialogDelivery = i18n.Msg{
+	En: "The answer could not be delivered to the agent.",
+	Es: "No se pudo enviar la respuesta al agente.",
+	Zh: "无法把回答发送给智能体。",
+	De: "Die Antwort konnte nicht an den Agenten gesendet werden.",
+	Fr: "La réponse n’a pas pu être envoyée à l’agent.",
+}
+
+// DialogAnswerer answers a dialog the agent opened. *application.AnswerDialog satisfies it.
+type DialogAnswerer interface {
+	Execute(ctx context.Context, id models.TaskID, dialogID string, answer models.DialogAnswer) error
+}
+
+// answerDialog takes the answer of a dialog control and answers the dialog in its place. The dialog is looked up in the
+// transcript first: one the transcript does not hold, or one already answered, is never delivered to the agent. A dialog
+// whose turn is closed, or whose agent is gone, is answered as closed, without an error.
+func (h *ComposerHandlers) answerDialog(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(ctx)))
+		return
+	}
+	dialogID := chi.URLParam(r, "dialogId")
+	transcript, _, err := foldHistory(ctx, h.uc.History, id)
+	if err != nil {
+		slog.Error("could not read the history of the dialog", "error", err)
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgHistoryUnavailable.T(ctx)))
+		return
+	}
+	item, found := transcript.Dialog(dialogID)
+	if !found {
+		web.Render(w, r, http.StatusOK, templ.NopComponent)
+		return
+	}
+	if item.Resolved {
+		web.Render(w, r, http.StatusOK, components.TranscriptDialog(id.String(), item, ""))
+		return
+	}
+	item, notice := h.takeAnswer(w, r, id, dialogID, item)
+	web.Render(w, r, http.StatusOK, components.TranscriptDialog(id.String(), item, notice))
+}
+
+// takeAnswer reads the answer of the form and hands it to the agent. It returns the dialog as it stands after the answer,
+// and the notice to show with it: a refused answer or one the agent did not take keeps the dialog open.
+func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id models.TaskID, dialogID string, item state.DialogItem) (state.DialogItem, string) {
+	ctx := r.Context()
+	answer, err := dto.ParseDialogAnswerForm(w, r)
+	if err != nil {
+		return item, formText(ctx, err)
+	}
+	err = h.uc.Answer.Execute(ctx, id, dialogID, answer)
+	switch {
+	case err == nil, closedTurn(err):
+		item.Resolved = true
+		return item, ""
+	default:
+		slog.Error("could not deliver the answer of the dialog", "task_id", id.String(), "dialog_id", dialogID, "error", err)
+		return item, msgDialogDelivery.T(ctx)
+	}
+}
+
+// closedTurn reports whether the answer found no live agent. Then the turn is closed and the dialog closes with it.
+func closedTurn(err error) bool {
+	return errors.Is(err, werrors.AgentNotRunning()) || errors.Is(err, werrors.InvalidState("", ""))
+}

@@ -56,11 +56,13 @@ type HistoryReader interface {
 // one the @ completion finds nothing. The tasks module does not import the module that searches the files.
 type FileSearch func(ctx context.Context, id models.TaskID, query string) ([]string, error)
 
-// ComposerUseCases are what the composer reads and changes.
+// ComposerUseCases are what the composer reads and changes. Answer is what the dialogs of the transcript answer to;
+// without it the answer route is not mounted.
 type ComposerUseCases struct {
 	Send    MessageSender
 	Mode    ModeSetter
 	History HistoryReader
+	Answer  DialogAnswerer
 }
 
 // ComposerHandlers serves the message box of the detail page of a task.
@@ -74,11 +76,15 @@ func NewComposerHandlers(uc ComposerUseCases, files FileSearch) *ComposerHandler
 	return &ComposerHandlers{uc: uc, files: files}
 }
 
-// Mount registers the endpoints of the composer: the message, the mode switch and the file suggestions.
+// Mount registers the endpoints of the composer: the message, the mode switch, the file suggestions and the answer of
+// a dialog of the transcript.
 func (h *ComposerHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/messages", h.sendMessage)
 	r.Post("/tasks/{id}/mode", h.setMode)
 	r.Get("/tasks/{id}/composer/files", h.fileSuggestions)
+	if h.uc.Answer != nil {
+		r.Post("/tasks/{id}/dialogs/{dialogId}/answer", h.answerDialog)
+	}
 }
 
 // sendMessage reads the message of the composer and answers its body. A refused form or a refused use case is the

@@ -173,6 +173,17 @@ func (t *Transcript) applyAgent(event dto.TranscriptAgentEvent) {
 	}
 }
 
+// Dialog returns the dialog with the id, answered or not. When the id repeats, the latest one is returned; the boolean
+// is false when the transcript holds no dialog with that id.
+func (t Transcript) Dialog(id string) (DialogItem, bool) {
+	for index := len(t.Items) - 1; index >= 0; index-- {
+		if dialog, ok := t.Items[index].(DialogItem); ok && dialog.Request.ID == id {
+			return dialog, true
+		}
+	}
+	return DialogItem{}, false
+}
+
 // PendingDialog returns the most recent dialog that is still open, if there is one.
 func (t Transcript) PendingDialog() (dto.TranscriptDialog, bool) {
 	for index := len(t.Items) - 1; index >= 0; index-- {
