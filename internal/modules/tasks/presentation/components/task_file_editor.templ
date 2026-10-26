@@ -15,6 +15,7 @@ templ TaskFileEditor(view state.FileEditor) {
 			<input type="hidden" name="scope" value={ view.Scope }/>
 			<input type="hidden" name="path" value={ view.Path }/>
 			<input type="hidden" name="base" value={ view.Digest }/>
+			<input type="hidden" name="eol" value={ view.EOL }/>
 			<textarea
 				name="content"
 				class="diff-editor-input"

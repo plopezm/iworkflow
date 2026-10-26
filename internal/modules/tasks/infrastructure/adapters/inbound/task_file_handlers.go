@@ -109,8 +109,9 @@ func (h *TaskFileHandlers) Mount(r chi.Router) {
 // editor loads a file into the editor of its card.
 func (h *TaskFileHandlers) editor(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id, form, ok := h.request(w, r)
-	if !ok {
+	id, form, err := h.request(w, r)
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(requestText(ctx, err)))
 		return
 	}
 	if form.Path == "" {
@@ -128,16 +129,35 @@ func (h *TaskFileHandlers) editor(w http.ResponseWriter, r *http.Request) {
 		Path:    form.Path,
 		Content: file.Content,
 		Digest:  state.ContentDigest(file.Content),
+		EOL:     state.LineEndingOf(file.Content),
 	}
 	web.Render(w, r, http.StatusOK, components.TaskFileEditor(view))
 }
 
 // save writes the file and commits it. A commit closes the editor and asks the diff view to reload. When nothing
-// changed, the editor stays open and says so.
+// changed, the editor stays open and says so. The file gets the line ending it had, and a save above the size limit
+// answers the editor with the text that was typed.
+//
+// The save does not compare the file with the digest the editor loaded (Base): a change that the file received after
+// the editor was opened is overwritten. Rust SaveTaskFile does the same, so the check is a product decision, not a
+// parity fix.
 func (h *TaskFileHandlers) save(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id, form, ok := h.request(w, r)
-	if !ok {
+	id, form, err := h.request(w, r)
+	if errors.Is(err, dto.ErrTaskFileTooLarge) && form.Path != "" {
+		web.Render(w, r, http.StatusOK, components.TaskFileEditor(state.FileEditor{
+			Scope:   form.Scope,
+			TaskID:  id.String(),
+			Path:    form.Path,
+			Content: form.Content,
+			Digest:  form.Base,
+			EOL:     form.EOL,
+			Error:   msgFileTooLarge.T(ctx),
+		}))
+		return
+	}
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(requestText(ctx, err)))
 		return
 	}
 	if form.Path == "" {
@@ -150,8 +170,9 @@ func (h *TaskFileHandlers) save(w http.ResponseWriter, r *http.Request) {
 		Path:    form.Path,
 		Content: form.Content,
 		Digest:  form.Base,
+		EOL:     form.EOL,
 	}
-	committed, err := h.uc.Write.Execute(ctx, id, form.Path, form.Content)
+	committed, err := h.uc.Write.Execute(ctx, id, form.Path, state.ApplyLineEnding(form.Content, form.EOL))
 	if err != nil {
 		if errors.Is(err, werrors.NotFound("")) {
 			web.Render(w, r, http.StatusOK, components.TaskGone())
@@ -172,8 +193,9 @@ func (h *TaskFileHandlers) save(w http.ResponseWriter, r *http.Request) {
 
 // state answers the status line of the editor: whether the text differs from the digest of what was loaded.
 func (h *TaskFileHandlers) state(w http.ResponseWriter, r *http.Request) {
-	_, form, ok := h.request(w, r)
-	if !ok {
+	_, form, err := h.request(w, r)
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(requestText(r.Context(), err)))
 		return
 	}
 	web.Render(w, r, http.StatusOK, components.TaskFileStatus(state.IsDirty(form.Content, form.Base)))
@@ -184,25 +206,33 @@ func (h *TaskFileHandlers) close(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, templ.NopComponent)
 }
 
-// request reads the task and the fields of a file request. A request that cannot be read answers its message in the
-// slot of the editor and reports false.
-func (h *TaskFileHandlers) request(w http.ResponseWriter, r *http.Request) (models.TaskID, dto.TaskFileForm, bool) {
-	ctx := r.Context()
+// request reads the task and the fields of a file request. It returns the error of a request that cannot be read: an
+// invalid task, or a form that is not valid. A form above the size limit comes back with its fields, so a save can show
+// the text again.
+func (h *TaskFileHandlers) request(w http.ResponseWriter, r *http.Request) (models.TaskID, dto.TaskFileForm, error) {
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(ctx)))
-		return models.TaskID{}, dto.TaskFileForm{}, false
+		return models.TaskID{}, dto.TaskFileForm{}, errInvalidTaskRequest
 	}
 	form, err := dto.DecodeTaskFileForm(w, r)
 	if err != nil {
-		message := msgInvalidPath
-		if errors.Is(err, dto.ErrTaskFileTooLarge) {
-			message = msgFileTooLarge
-		}
-		web.Render(w, r, http.StatusOK, shared.ErrorText(message.T(ctx)))
-		return models.TaskID{}, dto.TaskFileForm{}, false
+		return id, form, err
 	}
-	return id, form, true
+	return id, form, nil
+}
+
+// errInvalidTaskRequest is the error of a request that names no valid task.
+var errInvalidTaskRequest = errors.New("invalid task in the file request")
+
+// requestText is the message of a request that cannot be read, in the request language.
+func requestText(ctx context.Context, err error) string {
+	switch {
+	case errors.Is(err, errInvalidTaskRequest):
+		return msgInvalidTask.T(ctx)
+	case errors.Is(err, dto.ErrTaskFileTooLarge):
+		return msgFileTooLarge.T(ctx)
+	}
+	return msgInvalidPath.T(ctx)
 }
 
 // failure answers why a file cannot be read: a task that no longer exists says so, and any other failure is logged and

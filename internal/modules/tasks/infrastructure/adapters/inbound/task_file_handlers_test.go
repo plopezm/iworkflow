@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -161,17 +162,149 @@ func TestTaskFileSaveWithoutChangesKeepsTheEditorOpenAndSaysSo(t *testing.T) {
 	assert.Empty(t, recorder.Header().Get("HX-Trigger"), "nothing was committed, so the diff is not reloaded")
 }
 
+// A save above the limit is refused before anything is written, and the editor answers with the text that was typed, so
+// the user does not lose it.
 func TestTaskFileSaveRejectsContentAboveTheLimitBeforeWriting(t *testing.T) {
 	write := &taskFileWriterFake{}
 	h := NewTaskFileHandlers(TaskFileUseCases{Read: &taskFileReaderFake{}, Write: write})
 	id := newTaskFileIDForTest(t)
-	big := strings.Repeat("a", models.MaxTaskFileBytes+1)
+	big := "keep me " + strings.Repeat("a", models.MaxTaskFileBytes-7)
 	form := url.Values{"scope": {id.String()}, "path": {"big.txt"}, "content": {big}, "base": {""}}
 
 	recorder := serveTaskFile(t, h, i18n.Es, http.MethodPost, "/tasks/"+id.String()+"/file", form)
 
 	assert.Equal(t, 0, write.calls)
 	assert.Contains(t, recorder.Body.String(), "1 MiB")
+	assert.Contains(t, recorder.Body.String(), "<textarea")
+	assert.Contains(t, recorder.Body.String(), "keep me aaa")
+}
+
+// A file with CRLF line endings loads with its line ending, so the save can write it back the same way.
+func TestTaskFileEditorTellsTheLineEndingOfTheFile(t *testing.T) {
+	read := &taskFileReaderFake{content: models.TaskFileContent{Path: "win.txt", Content: "a\r\nb\r\n"}}
+	h := NewTaskFileHandlers(TaskFileUseCases{Read: read, Write: &taskFileWriterFake{}})
+	id := newTaskFileIDForTest(t)
+
+	recorder := serveTaskFile(t, h, i18n.En, http.MethodGet, "/tasks/"+id.String()+"/file?scope="+id.String()+"&path=win.txt", nil)
+
+	assert.Contains(t, recorder.Body.String(), `name="eol" value="crlf"`)
+}
+
+// The browser sends a textarea with LF line endings, so a CRLF file comes back as LF. The save writes the CRLF the file
+// had, and a text that already holds CRLF is not doubled.
+func TestTaskFileSaveWritesTheLineEndingTheFileHad(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		eol     string
+		content string
+		want    string
+	}{
+		{name: "crlf file gets crlf", eol: "crlf", content: "a\nb\n", want: "a\r\nb\r\n"},
+		{name: "crlf text is not doubled", eol: "crlf", content: "a\r\nb\r\n", want: "a\r\nb\r\n"},
+		{name: "lf file stays lf", eol: "lf", content: "a\nb\n", want: "a\nb\n"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			write := &taskFileWriterFake{committed: true}
+			h := NewTaskFileHandlers(TaskFileUseCases{Read: &taskFileReaderFake{}, Write: write})
+			id := newTaskFileIDForTest(t)
+			form := url.Values{"scope": {id.String()}, "path": {"win.txt"}, "content": {tc.content}, "base": {""}, "eol": {tc.eol}}
+
+			serveTaskFile(t, h, i18n.En, http.MethodPost, "/tasks/"+id.String()+"/file", form)
+
+			assert.Equal(t, tc.want, write.content)
+		})
+	}
+}
+
+// The status line compares the text of the editor with the digest of the file it loaded. For a CRLF file both are
+// compared without line endings, so an untouched editor is not reported as changed.
+func TestTaskFileStateIsCleanForAnUntouchedCRLFFile(t *testing.T) {
+	read := &taskFileReaderFake{content: models.TaskFileContent{Path: "win.txt", Content: "a\r\nb\r\n"}}
+	h := NewTaskFileHandlers(TaskFileUseCases{Read: read, Write: &taskFileWriterFake{}})
+	id := newTaskFileIDForTest(t)
+	loaded := serveTaskFile(t, h, i18n.En, http.MethodGet, "/tasks/"+id.String()+"/file?scope="+id.String()+"&path=win.txt", nil)
+	base := regexp.MustCompile(`name="base" value="([0-9a-f]+)"`).FindStringSubmatch(loaded.Body.String())
+	require.Len(t, base, 2)
+
+	state := serveTaskFile(t, h, i18n.Es, http.MethodPost, "/tasks/"+id.String()+"/file/state", url.Values{
+		"scope": {id.String()}, "path": {"win.txt"}, "content": {"a\nb\n"}, "base": {base[1]},
+	})
+
+	assert.NotContains(t, state.Body.String(), "Cambios sin guardar")
+}
+
+// A save of a task that no longer exists says so and leaves no editor behind.
+func TestTaskFileSaveShowsTheGoneTaskWithoutAnEditor(t *testing.T) {
+	write := &taskFileWriterFake{err: werrors.NotFound("gone")}
+	h := NewTaskFileHandlers(TaskFileUseCases{Read: &taskFileReaderFake{}, Write: write})
+	id := newTaskFileIDForTest(t)
+	form := url.Values{"scope": {id.String()}, "path": {"a.rs"}, "content": {"x"}, "base": {""}}
+
+	recorder := serveTaskFile(t, h, i18n.En, http.MethodPost, "/tasks/"+id.String()+"/file", form)
+
+	assert.NotContains(t, recorder.Body.String(), "<textarea")
+	assert.Equal(t, renderTemplForTest(t, components.TaskGone()), recorder.Body.String())
+}
+
+// A read failure is answered in the request language, and the text of the error stays in the log.
+func TestTaskFileEditorShowsAReadFailureWithoutItsText(t *testing.T) {
+	read := &taskFileReaderFake{err: errors.New("open /secret/root/a.rs: permission denied")}
+	h := NewTaskFileHandlers(TaskFileUseCases{Read: read, Write: &taskFileWriterFake{}})
+	id := newTaskFileIDForTest(t)
+
+	recorder := serveTaskFile(t, h, i18n.Fr, http.MethodGet, "/tasks/"+id.String()+"/file?scope="+id.String()+"&path=a.rs", nil)
+
+	assert.Contains(t, recorder.Body.String(), msgFileUnavailable.Fr)
+	assert.NotContains(t, recorder.Body.String(), "/secret/root")
+	assert.NotContains(t, recorder.Body.String(), "<textarea")
+}
+
+// A request that names no task never reaches a use case, for every endpoint of the editor.
+func TestTaskFileEndpointsAnswerAnInvalidTaskWithoutTouchingTheWorktree(t *testing.T) {
+	read := &taskFileReaderFake{}
+	write := &taskFileWriterFake{}
+	h := NewTaskFileHandlers(TaskFileUseCases{Read: read, Write: write})
+	form := url.Values{"scope": {"x"}, "path": {"a.rs"}, "content": {"x"}, "base": {""}}
+
+	for _, target := range []string{"/tasks/nope/file?path=a.rs", "/tasks/nope/file/state"} {
+		method := http.MethodGet
+		if strings.HasSuffix(target, "/state") {
+			method = http.MethodPost
+		}
+		recorder := serveTaskFile(t, h, i18n.En, method, target, form)
+		assert.Contains(t, recorder.Body.String(), msgInvalidTask.En, target)
+	}
+	recorder := serveTaskFile(t, h, i18n.En, http.MethodPost, "/tasks/nope/file", form)
+	assert.Contains(t, recorder.Body.String(), msgInvalidTask.En)
+	assert.Equal(t, 0, read.calls)
+	assert.Equal(t, 0, write.calls)
+}
+
+// A save without a path is refused before it reaches the use case.
+func TestTaskFileSaveRejectsAMissingPathBeforeWriting(t *testing.T) {
+	write := &taskFileWriterFake{}
+	h := NewTaskFileHandlers(TaskFileUseCases{Read: &taskFileReaderFake{}, Write: write})
+	id := newTaskFileIDForTest(t)
+	form := url.Values{"scope": {id.String()}, "path": {""}, "content": {"x"}, "base": {""}}
+
+	recorder := serveTaskFile(t, h, i18n.Zh, http.MethodPost, "/tasks/"+id.String()+"/file", form)
+
+	assert.Equal(t, 0, write.calls)
+	assert.Contains(t, recorder.Body.String(), msgInvalidPath.Zh)
+}
+
+// Closing the editor answers the slot with nothing, so the file is not touched.
+func TestTaskFileCloseEmptiesTheSlot(t *testing.T) {
+	write := &taskFileWriterFake{}
+	h := NewTaskFileHandlers(TaskFileUseCases{Read: &taskFileReaderFake{}, Write: write})
+	id := newTaskFileIDForTest(t)
+
+	recorder := serveTaskFile(t, h, i18n.En, http.MethodGet, "/tasks/"+id.String()+"/file/close", nil)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Empty(t, strings.TrimSpace(recorder.Body.String()))
+	assert.Equal(t, 0, write.calls)
 }
 
 func TestTaskFileSaveLocalizesDomainErrorsAndHidesTheRest(t *testing.T) {

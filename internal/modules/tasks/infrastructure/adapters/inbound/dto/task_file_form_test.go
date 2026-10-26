@@ -69,3 +69,17 @@ func TestTaskFileBodyLimitFitsTheLargestFileEncodedAsUTF8Form(t *testing.T) {
 
 	assert.NoError(t, err)
 }
+
+// A save above the limit is refused, and the form it sent is still returned, so the editor can show what was typed.
+func TestDecodeTaskFileFormKeepsTheTypedFormWhenTheContentIsTooLarge(t *testing.T) {
+	t.Parallel()
+	form := url.Values{"scope": {"s1"}, "path": {"big.txt"}, "content": {"keep me" + strings.Repeat("a", models.MaxTaskFileBytes)}, "base": {"b1"}}
+
+	got, err := dto.DecodeTaskFileForm(httptest.NewRecorder(), formRequest(http.MethodPost, "/tasks/t/file", form))
+
+	assert.ErrorIs(t, err, dto.ErrTaskFileTooLarge)
+	assert.Equal(t, "big.txt", got.Path)
+	assert.Equal(t, "s1", got.Scope)
+	assert.Equal(t, "b1", got.Base)
+	assert.True(t, strings.HasPrefix(got.Content, "keep me"))
+}
