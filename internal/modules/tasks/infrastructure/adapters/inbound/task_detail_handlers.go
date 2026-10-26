@@ -117,7 +117,7 @@ func (h *DetailHandlers) detailTab(ctx context.Context, rawID string) templ.Comp
 // asked for it. A failed read of the transcript or of the images is shown in their place, and the rest of the page
 // still renders.
 func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Task, notice string) state.TaskDetailView {
-	view := state.TaskDetailView{Scope: scope, Task: dto.TaskFromDomain(task, h.now()), Notice: notice}
+	view := state.TaskDetailView{Scope: scope, Task: dto.TaskFromDomain(task, h.now()), Notice: notice, CanMessage: task.Status.AcceptsMessages()}
 	transcript, cursor, transcriptErr := h.loadTranscript(ctx, task.ID)
 	if transcriptErr != nil {
 		view.TranscriptError = transcriptErr.Error()

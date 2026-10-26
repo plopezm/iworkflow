@@ -8,11 +8,13 @@ import (
 
 // TaskDetailView is what the detail page of one task shows. Scope is the page instance: its element ids and its
 // action targets carry it, so two tabs of the same task never share an id in one document. Notice is the answer
-// of the last action on the page, empty when there is none.
+// of the last action on the page, empty when there is none. CanMessage says whether the agent takes messages, which
+// is when the composer is shown.
 type TaskDetailView struct {
-	Scope  string
-	Task   dto.TaskDTO
-	Notice string
+	Scope      string
+	Task       dto.TaskDTO
+	Notice     string
+	CanMessage bool
 	// Attachments are the images of the task; AttachmentsError says why they could not be read.
 	Attachments      []dto.TaskAttachmentDTO
 	AttachmentsError string

@@ -25,6 +25,11 @@ templ TaskDetailPage(view state.TaskDetailView) {
 					@components.TaskAttachmentsList(view.Attachments, view.AttachmentsError)
 				</div>
 				@components.TranscriptPanel(view)
+				if view.CanMessage {
+					<div class="shrink-0 border-t border-border bg-surface p-4">
+						@components.Composer(state.NewComposerView(view.Scope, view.Task.ID, view.Transcript))
+					</div>
+				}
 			</div>
 		}
 		<div id={ state.Scoped("task-detail-result", view.Scope) }></div>
