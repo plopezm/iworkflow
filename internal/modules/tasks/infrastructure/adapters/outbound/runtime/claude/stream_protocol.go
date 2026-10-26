@@ -396,9 +396,11 @@ func (p *streamProtocol) decodeResult(record map[string]any) []models.AgentEvent
 	p.thinking = ""
 	clear(p.toolNames)
 	clear(p.settled)
-	// Dialogs that outlive the turn have no request left to answer. They are closed in the UI, or they
-	// would stay pending forever.
-	events := p.resolvePending()
+	// Dialogs that outlive the turn have no request left to answer. They are resolved after the run settles, as the
+	// cursor runtime does: the transcript closes the dialogs still open when the run settles, so an abandoned dialog is
+	// shown as closed by the turn, not as answered by the user.
+	stale := p.resolvePending()
+	var events []models.AgentEvent
 	subtype, hasSubtype := stringMember(record, "subtype")
 	failed := boolMember(record, "is_error") || (hasSubtype && subtype != "success")
 	limitRejected := p.limitRejected
@@ -408,7 +410,8 @@ func (p *streamProtocol) decodeResult(record map[string]any) []models.AgentEvent
 	if failed {
 		events = append(events, failureEvent(record, limitRejected, resetsAt))
 	}
-	return append(events, models.RunSettled{})
+	events = append(events, models.RunSettled{})
+	return append(events, stale...)
 }
 
 // resolvePending empties the pending requests and returns a DialogResolved for each of their dialogs.

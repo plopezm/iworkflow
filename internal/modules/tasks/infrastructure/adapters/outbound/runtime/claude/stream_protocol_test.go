@@ -202,13 +202,16 @@ func TestStreamProtocolAFinishedRunForgetsItsPendingPermissionsAndThinking(t *te
 
 func TestStreamProtocolAFinishedRunResolvesTheDialogsTheAgentNoLongerAwaits(t *testing.T) {
 	// Rust: stream_protocol::a_finished_run_resolves_the_dialogs_the_agent_no_longer_awaits
+	// Divergence from Rust: the run settles first and the dialogs it left open are resolved after it, as the cursor
+	// runtime does. The transcript closes the open dialogs when the run settles, so a dialog the agent abandoned is shown
+	// as closed by the turn; resolved before the settle it would be shown as answered by the user.
 	p := newStreamProtocol()
 	requestPermission(t, p)
 
 	events := decodeLines(t, p, resultLine("success", false))
 	require.Equal(t, []models.AgentEvent{
-		models.DialogResolved{DialogID: "r1"},
 		models.RunSettled{},
+		models.DialogResolved{DialogID: "r1"},
 	}, events)
 }
 
@@ -651,9 +654,9 @@ func TestStreamProtocolFinishedRunResolvesPendingDialogsInRequestIDOrder(t *test
 	)
 	events := decodeLines(t, p, resultLine("success", false))
 	require.Equal(t, []models.AgentEvent{
+		models.RunSettled{},
 		models.DialogResolved{DialogID: "r1"},
 		models.DialogResolved{DialogID: "r2"},
-		models.RunSettled{},
 	}, events)
 }
 
