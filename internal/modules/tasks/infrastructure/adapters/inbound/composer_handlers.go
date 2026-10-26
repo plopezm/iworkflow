@@ -90,6 +90,7 @@ func (h *ComposerHandlers) sendMessage(w http.ResponseWriter, r *http.Request) {
 	input, err := form.ToDomain()
 	if err != nil {
 		view.Notice = formText(r.Context(), err)
+		view.Draft = form.Message
 		h.renderBody(w, r, view)
 		return
 	}
@@ -103,12 +104,16 @@ func (h *ComposerHandlers) deliver(ctx context.Context, id models.TaskID, input 
 	if isCommand && len(input.Images) == 0 && view.HasMode() {
 		if err := h.switchMode(ctx, id, command); err != nil {
 			view.Notice = formText(ctx, err)
+			view.Draft = input.Message
 			return view
 		}
 		view.Mode = command
 		return view
 	}
-	view.Notice = formText(ctx, h.uc.Send.Execute(ctx, id, input.Message, input.Images, input.Mode))
+	if err := h.uc.Send.Execute(ctx, id, input.Message, input.Images, input.Mode); err != nil {
+		view.Notice = formText(ctx, err)
+		view.Draft = input.Message
+	}
 	return view
 }
 

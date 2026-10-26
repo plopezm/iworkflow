@@ -49,7 +49,7 @@ templ ComposerBody(view state.ComposerView) {
 					placeholder={ msgComposerPlaceholder.T(ctx) }
 					data-composer-input
 					data-image-paste
-				></textarea>
+				>{ view.Draft }</textarea>
 			</div>
 			<ul class="composer-refs flex flex-wrap gap-1" data-composer-refs hidden></ul>
 			<div class="stack gap-2" data-image-picker>

@@ -348,3 +348,49 @@ func TestTheModeSwitchRefusesABodyOverTheMessageLimit(t *testing.T) {
 	assert.Empty(t, modes.calls, "an oversized body never reaches the mode switch")
 	assert.Contains(t, body, "text-error")
 }
+
+func TestARefusedMessageKeepsTheTypedTextInTheComposer(t *testing.T) {
+	t.Parallel()
+	tests := map[string]struct {
+		senders *fakeSender
+		modes   *fakeModes
+		history *fakeHistory
+		mode    string
+		message string
+	}{
+		"the use case refuses the send": {
+			senders: &fakeSender{err: errors.New("el agente no está en ejecución")},
+			modes:   &fakeModes{}, history: &fakeHistory{}, mode: "steer", message: "hola",
+		},
+		"the adapter refuses the mode": {
+			senders: &fakeSender{}, modes: &fakeModes{}, history: &fakeHistory{}, mode: "plan", message: "hola",
+		},
+		"the agent refuses the mode switch": {
+			senders: &fakeSender{}, modes: &fakeModes{err: errors.New("el agente no permite cambiar de modo")},
+			history: &fakeHistory{events: modeReported(taskID(t), "agent")}, mode: "steer", message: "/plan",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			router := composerRouter(test.senders, test.modes, test.history, nil)
+			request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/messages",
+				map[string]string{"message": test.message, "mode": test.mode}, nil)
+
+			_, body := serve(router, request)
+
+			assert.Contains(t, body, ">"+test.message+"</textarea>", "the answer keeps the text the user typed")
+			assert.Contains(t, body, "text-error")
+		})
+	}
+}
+
+func TestASentMessageClearsTheComposer(t *testing.T) {
+	t.Parallel()
+	router := composerRouter(&fakeSender{}, &fakeModes{}, &fakeHistory{}, nil)
+	request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/messages", map[string]string{"message": "hola", "mode": "steer"}, nil)
+
+	_, body := serve(router, request)
+
+	assert.Contains(t, body, "></textarea>", "a delivered message leaves the field empty")
+}
