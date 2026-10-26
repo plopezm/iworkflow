@@ -28,20 +28,20 @@ templ TranscriptPanel(view state.TaskDetailView) {
 			if view.TranscriptError != "" {
 				@shared.ErrorText(view.TranscriptError)
 			} else {
-				@TranscriptBody(view.Transcript)
+				@TranscriptBody(view.Task.ID, view.Transcript)
 			}
 		</div>
 	</div>
 }
 
 // TranscriptBody is the content of the transcript: its items in order, or the note that there is no activity yet.
-// It is what the refresh answers.
-templ TranscriptBody(transcript state.Transcript) {
+// It is what the refresh answers. The task id is what a pending dialog answers to.
+templ TranscriptBody(taskID string, transcript state.Transcript) {
 	if len(transcript.Items) == 0 {
 		<p class="muted">{ msgTranscriptNoActivity.T(ctx) }</p>
 	}
 	for _, item := range transcript.Items {
-		@transcriptItem(item)
+		@transcriptItem(taskID, item)
 	}
 }
 
@@ -118,10 +118,6 @@ templ transcriptStatus(item state.StatusItem) {
 			<span class="muted">{ *item.Error }</span>
 		}
 	</div>
-}
-
-templ transcriptDialog(item state.DialogItem) {
-	<div class="notice notice-info">{ dialogText(ctx, item) }</div>
 }
 
 templ transcriptExit(item state.ExitItem) {

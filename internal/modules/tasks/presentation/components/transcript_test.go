@@ -26,7 +26,7 @@ func renderTranscript(t *testing.T, component templ.Component) string {
 func bodyOf(t *testing.T, events ...dto.TranscriptEventDTO) string {
 	t.Helper()
 	transcript, _ := state.FoldTranscript(events)
-	return renderTranscript(t, components.TranscriptBody(transcript))
+	return renderTranscript(t, components.TranscriptBody("t1", transcript))
 }
 
 func agentEvent(event dto.TranscriptAgentEvent) dto.TranscriptEventDTO {

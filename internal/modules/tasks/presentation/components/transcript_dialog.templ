@@ -1,0 +1,103 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TranscriptDialog is a dialog of the transcript. While the agent waits for it, it asks the answer: each control posts
+// the answer to the task and the answer replaces this element (data-dialog). Once answered or closed it is a line of
+// the transcript. notice is the answer of a refused or undeliverable answer, shown with the controls so the user can
+// answer again.
+templ TranscriptDialog(taskID string, item state.DialogItem, notice string) {
+	if item.Resolved {
+		<div class="notice notice-info" data-dialog>{ dialogText(ctx, item) }</div>
+	} else {
+		<section class="card dialog-panel stack gap-2" data-dialog>
+			<div class="notice notice-info">{ dialogText(ctx, item) }</div>
+			@dialogControls(taskID, item.Request)
+			if notice != "" {
+				@shared.ErrorText(notice)
+			}
+			<div class="row">
+				<button
+					type="button"
+					class="btn-secondary"
+					hx-post={ state.DialogAnswerPath(taskID, item.Request.ID) }
+					hx-vals={ dialogAnswerJSON(cancelAnswer()) }
+					hx-target="closest [data-dialog]"
+					hx-swap="outerHTML"
+				>{ msgDialogCancel.T(ctx) }</button>
+			</div>
+		</section>
+	}
+}
+
+// dialogControls are the controls that answer a pending dialog, by its kind. Select, confirm and cancel post their
+// answer as hx-vals; input and editor post a form with the text in its value field.
+templ dialogControls(taskID string, request dto.TranscriptDialog) {
+	switch kind := request.Kind.(type) {
+	case dto.TranscriptSelectDialog:
+		<div class="stack gap-2">
+			for _, option := range kind.Options {
+				<button
+					type="button"
+					class="btn-secondary min-h-9 w-full rounded-lg px-3 py-2 text-left text-sm whitespace-normal break-words"
+					hx-post={ state.DialogAnswerPath(taskID, request.ID) }
+					hx-vals={ dialogAnswerJSON(valueAnswer(option)) }
+					hx-target="closest [data-dialog]"
+					hx-swap="outerHTML"
+				>{ option }</button>
+			}
+		</div>
+	case dto.TranscriptConfirmDialog:
+		if kind.Message != nil {
+			<p>{ *kind.Message }</p>
+		}
+		<div class="row gap-2">
+			<button
+				type="button"
+				class="btn-primary"
+				hx-post={ state.DialogAnswerPath(taskID, request.ID) }
+				hx-vals={ dialogAnswerJSON(confirmAnswer(true)) }
+				hx-target="closest [data-dialog]"
+				hx-swap="outerHTML"
+			>{ msgDialogYes.T(ctx) }</button>
+			<button
+				type="button"
+				class="btn-secondary"
+				hx-post={ state.DialogAnswerPath(taskID, request.ID) }
+				hx-vals={ dialogAnswerJSON(confirmAnswer(false)) }
+				hx-target="closest [data-dialog]"
+				hx-swap="outerHTML"
+			>{ msgDialogNo.T(ctx) }</button>
+		</div>
+	case dto.TranscriptInputDialog:
+		<form
+			class="row gap-2"
+			hx-post={ state.DialogAnswerPath(taskID, request.ID) }
+			hx-target="closest [data-dialog]"
+			hx-swap="outerHTML"
+			hx-disabled-elt="find button[type=submit]"
+		>
+			<input type="hidden" name="kind" value="value"/>
+			<input type="text" name="value" class="input min-w-0 flex-1" placeholder={ valueOr(kind.Placeholder) }/>
+			<button type="submit" class="btn-primary">{ msgSend.T(ctx) }</button>
+		</form>
+	case dto.TranscriptEditorDialog:
+		<form
+			class="stack"
+			hx-post={ state.DialogAnswerPath(taskID, request.ID) }
+			hx-target="closest [data-dialog]"
+			hx-swap="outerHTML"
+			hx-disabled-elt="find button[type=submit]"
+		>
+			<input type="hidden" name="kind" value="value"/>
+			<textarea name="value" class="input">{ valueOr(kind.Prefill) }</textarea>
+			<div class="row">
+				<button type="submit" class="btn-primary">{ msgSend.T(ctx) }</button>
+			</div>
+		</form>
+	}
+}

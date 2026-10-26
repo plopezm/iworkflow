@@ -46,8 +46,8 @@ func isLaunchNotice(message string) bool {
 	return strings.Contains(message, "args=") || strings.Contains(message, "cwd=")
 }
 
-// transcriptItem is the view of one closed item of the transcript.
-func transcriptItem(item state.TranscriptItem) templ.Component {
+// transcriptItem is the view of one item of the transcript. The task id is what a dialog answers to.
+func transcriptItem(taskID string, item state.TranscriptItem) templ.Component {
 	switch typed := item.(type) {
 	case state.UserItem:
 		return transcriptUser(typed)
@@ -60,7 +60,7 @@ func transcriptItem(item state.TranscriptItem) templ.Component {
 	case state.StatusItem:
 		return transcriptStatus(typed)
 	case state.DialogItem:
-		return transcriptDialog(typed)
+		return TranscriptDialog(taskID, typed, "")
 	case state.ExitItem:
 		return transcriptExit(typed)
 	default:

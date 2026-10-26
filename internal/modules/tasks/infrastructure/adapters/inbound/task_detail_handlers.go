@@ -169,7 +169,7 @@ func (h *DetailHandlers) transcript(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return
 	}
-	web.Render(w, r, http.StatusOK, components.TranscriptBody(transcript))
+	web.Render(w, r, http.StatusOK, components.TranscriptBody(id.String(), transcript))
 }
 
 // startTask starts a backlog task from its detail.
