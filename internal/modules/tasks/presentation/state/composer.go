@@ -32,13 +32,14 @@ func (t Transcript) Mode() (string, bool) {
 }
 
 // ComposerView is the message box of the detail page of a task. Scope is the page instance, as on the rest of the page;
-// Mode is the agent mode shown as active, empty when the runtime reports none; Notice is the answer of the last send
-// or mode change, empty when there is none.
+// Mode is the agent mode shown as active, empty when the runtime reports none. Notice is the answer of the last send
+// and ModeNotice the answer of the last mode change; each is empty when there is none.
 type ComposerView struct {
-	Scope  string
-	TaskID string
-	Mode   string
-	Notice string
+	Scope      string
+	TaskID     string
+	Mode       string
+	Notice     string
+	ModeNotice string
 }
 
 // NewComposerView builds the composer of a task from the mode its transcript reports.
