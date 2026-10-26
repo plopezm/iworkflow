@@ -152,7 +152,7 @@ func TestTheShellOpensOneTaskStreamAndTheBoardTabOpensNone(t *testing.T) {
 func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
 	handler := newRouter(t)
 
-	for _, path := range []string{"/jira", "/jira/some-id", "/tasks/0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11/diff"} {
+	for _, path := range []string{"/jira", "/jira/some-id", "/tasks/0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11/subagents"} {
 		rec := get(t, handler, "/dock/pane?path="+path)
 		require.Equal(t, http.StatusOK, rec.Code, path)
 		require.Contains(t, rec.Body.String(), "todavía no se ha migrado", "%s keeps its not-migrated explanation", path)

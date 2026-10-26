@@ -138,7 +138,7 @@ func seedEveryStage(t *testing.T, repo *Repo, workspaceID string) map[string]str
 	return titles
 }
 
-func TestBoardTabsOwnTheHomeTheEditTabAndTheWorkspaceAddresses(t *testing.T) {
+func TestTabsOwnTheHomeTheEditTabTheWorkspaceAddressesTheDetailAndTheDiff(t *testing.T) {
 	t.Parallel()
 	module, _ := boardRouter(t, newRepo(t))
 
@@ -147,7 +147,7 @@ func TestBoardTabsOwnTheHomeTheEditTabAndTheWorkspaceAddresses(t *testing.T) {
 		names = append(names, route.Name+" "+route.Pattern)
 	}
 
-	assert.Equal(t, []string{"board /", "task_edit /tasks/{id}/edit", "board_workspace /board/{id}", "task_detail /tasks/{id}"}, names)
+	assert.Equal(t, []string{"board /", "task_edit /tasks/{id}/edit", "board_workspace /board/{id}", "task_detail /tasks/{id}", "task_diff /tasks/{id}/diff"}, names)
 }
 
 func TestBoardRendersEveryStageAndTheTaskLinks(t *testing.T) {

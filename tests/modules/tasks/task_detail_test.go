@@ -108,5 +108,9 @@ func TestDetailRouteTakesPrecedenceOverTheNotMigratedTasksCatchAll(t *testing.T)
 
 	diff, _, ok := registry.Match("/tasks/" + id + "/diff")
 	require.True(t, ok)
-	assert.Equal(t, "not_migrated", diff.Name, "diff, terminal and the rest stay not migrated")
+	assert.Equal(t, "task_diff", diff.Name, "the diff of a task is its own tab")
+
+	terminal, _, ok := registry.Match("/tasks/" + id + "/subagents")
+	require.True(t, ok)
+	assert.Equal(t, "not_migrated", terminal.Name, "subagents and the rest stay not migrated")
 }
