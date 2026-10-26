@@ -130,6 +130,8 @@ type Module struct {
 	Board *httpinbound.BoardHandlers
 	// Detail serves the detail tab of a task (Tabs).
 	Detail *httpinbound.DetailHandlers
+	// Diff serves the diff tab of a task and the view its layout controls swap.
+	Diff *httpinbound.DiffHandlers
 	// Composer serves the message box of the detail page: the message, the mode switch and the file suggestions.
 	Composer *httpinbound.ComposerHandlers
 	// The dependency graph of the board (slice C): the edges, the node positions and the successor trigger.
@@ -232,6 +234,10 @@ func NewModule(deps Deps) (*Module, error) {
 		Discard:         discardTask,
 		Delete:          deleteTask,
 	}, clock)
+	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
+		Get:  getTask,
+		Diff: application.NewGetTaskDiff(lifecycle, worktrees),
+	})
 	setAgentMode := application.NewSetAgentMode(lifecycle, agentRuntime)
 	answerDialog := application.NewAnswerDialog(lifecycle, agentRuntime)
 	composer := httpinbound.NewComposerHandlers(httpinbound.ComposerUseCases{
@@ -278,6 +284,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Streams:           httpinbound.NewTaskStreams(getTask, getEvents, bus),
 		Board:             board,
 		Detail:            detail,
+		Diff:              diff,
 		Composer:          composer,
 		AddDependency:     addDependency,
 		RemoveDependency:  application.NewRemoveTaskDependency(graph, successors),
@@ -368,6 +375,7 @@ func (m *Module) Routes(r chi.Router) {
 	r.Get(httpinbound.AttachmentRoute, m.Attachments.Serve)
 	m.Board.Mount(r)
 	m.Detail.Mount(r)
+	m.Diff.Mount(r)
 	m.Composer.Mount(r)
 }
 
@@ -376,10 +384,10 @@ func (m *Module) Sidebar(ctx context.Context) templ.Component {
 	return m.Board.Sidebar(ctx)
 }
 
-// Tabs returns the dock routes the module owns: the board, at the home address and per workspace, and the detail
-// of a task. The composition root registers them before the not-migrated catch-alls.
+// Tabs returns the dock routes the module owns: the board, at the home address and per workspace, the detail
+// and the diff of a task. The composition root registers them before the not-migrated catch-alls.
 func (m *Module) Tabs() []dock.Route {
-	return append(m.Board.Tabs(), m.Detail.Tabs()...)
+	return append(append(m.Board.Tabs(), m.Detail.Tabs()...), m.Diff.Tabs()...)
 }
 
 // StopAgents stops every live agent. Call it on shutdown, after the background loops have stopped, so that no
