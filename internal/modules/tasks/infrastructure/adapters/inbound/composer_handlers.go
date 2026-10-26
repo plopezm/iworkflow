@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"sync"
 
 	"github.com/go-chi/chi/v5"
 
@@ -66,12 +65,12 @@ type ComposerUseCases struct {
 	Answer  DialogAnswerer
 }
 
-// ComposerHandlers serves the message box of the detail page of a task. answers serializes the answers to the dialogs:
-// the check that a dialog is still open and its delivery are one step.
+// ComposerHandlers serves the message box of the detail page of a task. answers serializes the answers to each dialog:
+// the check that a dialog is still open and its delivery are one step, and only for that dialog.
 type ComposerHandlers struct {
 	uc      ComposerUseCases
 	files   FileSearch
-	answers sync.Mutex
+	answers dialogLocks
 }
 
 // NewComposerHandlers builds the handlers over their use cases and the file search of the @ completion.

@@ -386,3 +386,65 @@ func TestTwoAnswersToOneDialogDeliverItOnce(t *testing.T) {
 
 	assert.Equal(t, int32(1), answerer.delivered.Load())
 }
+
+// blockingAnswerer holds the delivery of the answers to one dialog until it is released, as a slow agent does.
+type blockingAnswerer struct {
+	blockedID string
+	started   chan struct{}
+	release   chan struct{}
+	once      sync.Once
+	delivered atomic.Int32
+}
+
+func (b *blockingAnswerer) Execute(_ context.Context, _ models.TaskID, dialogID string, _ models.DialogAnswer) error {
+	b.delivered.Add(1)
+	if dialogID == b.blockedID {
+		b.once.Do(func() { close(b.started) })
+		<-b.release
+	}
+	return nil
+}
+
+// A slow delivery to one dialog does not hold the answers to another dialog: the lock is per dialog, not per composer.
+func TestADeliveryBlockedOnOneDialogDoesNotBlockAnotherDialog(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	history := &fakeHistory{events: []models.TaskEvent{
+		dialogRequested(id, "a", models.ConfirmDialog{}),
+		dialogRequested(id, "b", models.ConfirmDialog{}),
+	}}
+	answerer := &blockingAnswerer{blockedID: "a", started: make(chan struct{}), release: make(chan struct{})}
+	router := chi.NewRouter()
+	NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: history, Answer: answerer}, nil).Mount(router)
+	form := url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}
+	slow := answerRequest(t, id, "a", form, i18n.En)
+	other := answerRequest(t, id, "b", form, i18n.En)
+
+	slowDone := make(chan struct{})
+	go func() {
+		defer close(slowDone)
+		serve(router, slow)
+	}()
+	// The slow answer is released on the way out, so a failure here does not leave its goroutine blocked.
+	t.Cleanup(func() {
+		close(answerer.release)
+		<-slowDone
+	})
+	select {
+	case <-answerer.started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the delivery to dialog a did not start")
+	}
+
+	otherDone := make(chan struct{})
+	go func() {
+		defer close(otherDone)
+		serve(router, other)
+	}()
+	select {
+	case <-otherDone:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the answer to dialog b waits for the delivery to dialog a")
+	}
+	assert.Equal(t, int32(2), answerer.delivered.Load())
+}
