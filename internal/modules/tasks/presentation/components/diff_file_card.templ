@@ -1,0 +1,79 @@
+package components
+
+import "iworkflow/internal/modules/tasks/presentation/state"
+
+// DiffFileCard is one changed file: its header (status, path and counters) and its body in the layout of the view.
+// The header is the toggle of the card, a native details element, so the card opens and closes without a request.
+templ DiffFileCard(file state.FileDiff, scope string, mode state.ViewMode, open bool) {
+	<details id={ state.CardID(scope, file.Path) } class="diff-card" open?={ open }>
+		<summary class="diff-card-header diff-card-toggle">
+			@DiffStatusBadge(file.Status)
+			<span class="min-w-0 flex-1 truncate font-mono text-xs" title={ fileTitle(file) }>{ fileTitle(file) }</span>
+			@DiffCounts(file.Additions, file.Deletions)
+		</summary>
+		if file.Binary {
+			<p class="muted p-3">{ msgBinaryFile.T(ctx) }</p>
+		} else if len(file.Hunks) == 0 {
+			<p class="muted p-3">{ msgNoContentChanges.T(ctx) }</p>
+		} else if mode == state.ViewUnified {
+			@unifiedBody(file.Hunks)
+		} else {
+			@splitBody(file.Hunks)
+		}
+	</details>
+}
+
+// splitBody lays the rows out in two columns, Before and After, with the line numbers and the added and removed cells
+// highlighted.
+templ splitBody(hunks []state.Hunk) {
+	<div class="diff-scroll">
+		<table class="diff-table">
+			<thead>
+				<tr>
+					<th class="diff-num"></th>
+					<th class="diff-col-head">{ msgBefore.T(ctx) }</th>
+					<th class="diff-num"></th>
+					<th class="diff-col-head">{ msgAfter.T(ctx) }</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, hunk := range hunks {
+					<tr class="diff-hunk-row">
+						<td colspan="4">{ hunk.Header }</td>
+					</tr>
+					for _, row := range hunk.Rows {
+						<tr>
+							<td class="diff-num">{ cellNumber(row.Left) }</td>
+							<td class={ cellClass(row.Left) }>{ cellText(row.Left) }</td>
+							<td class="diff-num">{ cellNumber(row.Right) }</td>
+							<td class={ cellClass(row.Right) }>{ cellText(row.Right) }</td>
+						</tr>
+					}
+				}
+			</tbody>
+		</table>
+	</div>
+}
+
+// unifiedBody lays the lines out in one column, with the old and the new line numbers and a sign.
+templ unifiedBody(hunks []state.Hunk) {
+	<div class="diff-scroll">
+		<table class="diff-table">
+			<tbody>
+				for _, hunk := range hunks {
+					<tr class="diff-hunk-row">
+						<td colspan="4">{ hunk.Header }</td>
+					</tr>
+					for _, line := range hunk.Lines {
+						<tr>
+							<td class="diff-num">{ lineNumber(line.OldNumber) }</td>
+							<td class="diff-num">{ lineNumber(line.NewNumber) }</td>
+							<td class="diff-sign">{ kindSign(line.Kind) }</td>
+							<td class={ kindClass(line.Kind) }>{ line.Text }</td>
+						</tr>
+					}
+				}
+			</tbody>
+		</table>
+	</div>
+}

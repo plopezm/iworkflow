@@ -76,3 +76,9 @@ func TestDeletedBinaryAndReadonlyFilesAreNotEditable(t *testing.T) {
 	assert.False(t, state.CanEditFile(binary, true))
 	assert.False(t, state.CanEditFile(modified, false))
 }
+
+func TestCardIDAddsTheInstanceScope(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, state.AnchorID("a.rs"), state.CardID("", "a.rs"))
+	assert.Equal(t, state.AnchorID("a.rs")+"-x9", state.CardID("x9", "a.rs"))
+}

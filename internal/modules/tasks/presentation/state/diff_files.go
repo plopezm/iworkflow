@@ -74,13 +74,14 @@ type FileDiff struct {
 	Hunks     []Hunk
 }
 
-// TreeNode is a folder or a file of the changed-files tree. FileIndex points into the files the tree was built from
-// and is only meaningful for a file (Dir is false).
+// TreeNode is a folder or a file of the changed-files tree. Status and FileIndex (the position in the files the tree
+// was built from) are only meaningful for a file (Dir is false).
 type TreeNode struct {
 	Name      string
 	Path      string
 	Dir       bool
 	Children  []TreeNode
+	Status    FileStatus
 	FileIndex int
 	Additions int
 	Deletions int
@@ -421,7 +422,7 @@ func materialize(dir *dirBuilder, prefix string, files []FileDiff) []TreeNode {
 	for _, name := range sortedKeys(dir.files) {
 		index := dir.files[name]
 		file := files[index]
-		nodes = append(nodes, TreeNode{Name: name, Path: file.Path, FileIndex: index, Additions: file.Additions, Deletions: file.Deletions})
+		nodes = append(nodes, TreeNode{Name: name, Path: file.Path, Status: file.Status, FileIndex: index, Additions: file.Additions, Deletions: file.Deletions})
 	}
 	return nodes
 }

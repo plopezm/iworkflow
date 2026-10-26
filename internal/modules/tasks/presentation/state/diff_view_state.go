@@ -70,6 +70,11 @@ func AnchorID(path string) string {
 	return id.String()
 }
 
+// CardID is the DOM id of the card of path in one diff view. The scope keeps two views of the same task apart.
+func CardID(scope string, path string) string {
+	return Scoped(AnchorID(path), scope)
+}
+
 func isAlphanumeric(char byte) bool {
 	return (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9')
 }
