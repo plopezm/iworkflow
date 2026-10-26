@@ -3,6 +3,7 @@ package dto
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -80,4 +81,28 @@ func TestDialogAnswerFormRefusalIsLocalized(t *testing.T) {
 		ctx := i18n.WithState(context.Background(), i18n.State{Locale: locale, Chosen: true})
 		assert.Equal(t, want, formErr.Text(ctx), locale)
 	}
+}
+
+// fillReader yields an endless run of the byte x, so an oversized body is streamed instead of allocated.
+type fillReader struct{}
+
+func (fillReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 'x'
+	}
+	return len(p), nil
+}
+
+// An answer whose body is over the form cap is refused as too large. Only a file part reaches the cap: net/http
+// refuses a urlencoded body and a text part of a multipart body earlier, with its own limits.
+func TestParseDialogAnswerFormRefusesABodyOverTheCap(t *testing.T) {
+	t.Parallel()
+	head := "--b\r\nContent-Disposition: form-data; name=\"file\"; filename=\"a.txt\"\r\n\r\n"
+	body := io.MultiReader(strings.NewReader(head), io.LimitReader(fillReader{}, maxFormBytes+1))
+	r := httptest.NewRequest(http.MethodPost, "/tasks/t/dialogs/d/answer", body)
+	r.Header.Set("Content-Type", "multipart/form-data; boundary=b")
+
+	_, err := ParseDialogAnswerForm(httptest.NewRecorder(), r)
+
+	assert.ErrorIs(t, err, ErrFormTooLarge)
 }
