@@ -55,6 +55,9 @@ func (h *ComposerHandlers) answerDialog(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	dialogID := chi.URLParam(r, "dialogId")
+	// The history is read under the lock: an answer that wins the lock records its resolution before the next one reads.
+	h.answers.Lock()
+	defer h.answers.Unlock()
 	transcript, _, err := foldHistory(ctx, h.uc.History, id)
 	if err != nil {
 		slog.Error("could not read the history of the dialog", "error", err)

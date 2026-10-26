@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -285,4 +287,70 @@ func TestAnswerRouteIsMountedOnlyWithTheAnswerUseCase(t *testing.T) {
 	handlers.Mount(router)
 	recorder, _ := serve(router, answerRequest(t, id, "d1", url.Values{"kind": {"cancelled"}}, i18n.En))
 	assert.Equal(t, http.StatusNotFound, recorder.Code)
+}
+
+// sharedDialogs is the history of one dialog that two answers race for. A read waits, for a moment, until a second
+// reader arrives: two answers that both read before either records its resolution are then seen together.
+type sharedDialogs struct {
+	mu       sync.Mutex
+	events   []models.TaskEvent
+	reads    atomic.Int32
+	bothRead chan struct{}
+	once     sync.Once
+}
+
+func (s *sharedDialogs) Execute(context.Context, models.TaskID, *int64) ([]models.TaskEvent, error) {
+	if s.reads.Add(1) == 2 {
+		s.once.Do(func() { close(s.bothRead) })
+	}
+	select {
+	case <-s.bothRead:
+	case <-time.After(300 * time.Millisecond):
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]models.TaskEvent(nil), s.events...), nil
+}
+
+// sharedAnswerer delivers answers to sharedDialogs: it counts the deliveries and records the resolution, as the use
+// case does.
+type sharedAnswerer struct {
+	dialogs   *sharedDialogs
+	delivered atomic.Int32
+}
+
+func (a *sharedAnswerer) Execute(_ context.Context, id models.TaskID, dialogID string, _ models.DialogAnswer) error {
+	a.delivered.Add(1)
+	a.dialogs.mu.Lock()
+	defer a.dialogs.mu.Unlock()
+	a.dialogs.events = append(a.dialogs.events, dialogResolved(id, dialogID))
+	return nil
+}
+
+// Two answers to the same dialog that arrive together are delivered once: the second finds the dialog answered.
+func TestTwoAnswersToOneDialogDeliverItOnce(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	dialogs := &sharedDialogs{
+		bothRead: make(chan struct{}),
+		events:   []models.TaskEvent{dialogRequested(id, "d1", models.ConfirmDialog{})},
+	}
+	answerer := &sharedAnswerer{dialogs: dialogs}
+	router := chi.NewRouter()
+	NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: dialogs, Answer: answerer}, nil).Mount(router)
+	form := url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}
+	first := answerRequest(t, id, "d1", form, i18n.En)
+	second := answerRequest(t, id, "d1", form, i18n.En)
+
+	var wg sync.WaitGroup
+	for _, request := range []*http.Request{first, second} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			serve(router, request)
+		}()
+	}
+	wg.Wait()
+
+	assert.Equal(t, int32(1), answerer.delivered.Load())
 }
