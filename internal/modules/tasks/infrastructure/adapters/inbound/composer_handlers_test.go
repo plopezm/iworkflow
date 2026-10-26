@@ -308,3 +308,28 @@ func TestAFailedFileSearchIsShownInTheMenu(t *testing.T) {
 	assert.Contains(t, body, "el worktree no existe")
 	assert.Contains(t, body, "text-error")
 }
+
+func TestAnInvalidTaskIDIsAnsweredInTheRequestLanguage(t *testing.T) {
+	t.Parallel()
+	texts := map[i18n.Locale]string{
+		i18n.En: "The task identifier is not valid.",
+		i18n.Es: "El identificador de la tarea no es válido.",
+		i18n.Zh: "任务标识无效。",
+		i18n.De: "Die Kennung der Aufgabe ist ungültig.",
+		i18n.Fr: "L’identifiant de la tâche n’est pas valide.",
+	}
+	for locale, want := range texts {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			senders := &fakeSender{}
+			router := composerRouter(senders, &fakeModes{}, &fakeHistory{}, nil)
+			request := composerMultipart(t, "/tasks/not-a-uuid/messages", map[string]string{"message": "hola", "mode": "steer"}, nil)
+			request = request.WithContext(i18n.WithState(request.Context(), i18n.State{Locale: locale, Chosen: true}))
+
+			_, body := serve(router, request)
+
+			assert.Contains(t, body, want)
+			assert.Empty(t, senders.calls)
+		})
+	}
+}

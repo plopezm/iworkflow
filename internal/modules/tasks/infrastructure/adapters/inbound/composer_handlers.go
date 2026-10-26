@@ -9,12 +9,23 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/components"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
+
+// msgInvalidTask answers a task identifier that is not a UUID. The handlers share it: the domain text is not shown
+// here, so the answer is the same in every language.
+var msgInvalidTask = i18n.Msg{
+	En: "The task identifier is not valid.",
+	Es: "El identificador de la tarea no es válido.",
+	Zh: "任务标识无效。",
+	De: "Die Kennung der Aufgabe ist ungültig.",
+	Fr: "L’identifiant de la tâche n’est pas valide.",
+}
 
 // MessageSender is the send use case as the composer uses it. *application.SendMessage satisfies it.
 type MessageSender interface {
@@ -66,7 +77,7 @@ func (h *ComposerHandlers) sendMessage(w http.ResponseWriter, r *http.Request) {
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(r.Context())))
 		return
 	}
 	view := h.composerView(r.Context(), scope, id)
@@ -107,7 +118,7 @@ func (h *ComposerHandlers) setMode(w http.ResponseWriter, r *http.Request) {
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(r.Context())))
 		return
 	}
 	view := h.composerView(r.Context(), scope, id)
@@ -124,7 +135,7 @@ func (h *ComposerHandlers) setMode(w http.ResponseWriter, r *http.Request) {
 func (h *ComposerHandlers) fileSuggestions(w http.ResponseWriter, r *http.Request) {
 	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
 	if err != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(r.Context())))
 		return
 	}
 	var paths []string
