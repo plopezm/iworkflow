@@ -50,6 +50,8 @@ async function liveTask(ctx, name) {
   ctx.assert(id, 'no se obtuvo el id de la tarea creada');
   await ctx.goto(`/tasks/${id}`);
   await ctx.page.getByText(`eco: ${prompt}`).first().waitFor({ timeout: 25000 });
+  // A message sent while the agent's turn is still open is a steer, which the fake agent refuses: wait for the turn to settle.
+  await ctx.page.getByText('Esperando', { exact: true }).first().waitFor({ timeout: 20000 });
   return id;
 }
 
@@ -100,9 +102,8 @@ module.exports = {
       name: '/plan sin modo reportado por el agente es un mensaje normal',
       fn: async (ctx) => {
         await liveTask(ctx, 'plan-plain');
-        // The mode of the agent is known once its first turn has settled ("Esperando"): only then the switch can show.
+        // The mode is known once the agent's first turn has settled, which liveTask waits for.
         await box(ctx).waitFor();
-        await ctx.page.getByText('Esperando', { exact: true }).first().waitFor({ timeout: 20000 });
         ctx.assert(
           (await ctx.page.locator('.composer-mode-option').count()) === 0,
           'el agente falso no reporta modo: no debe aparecer el selector de modo',
