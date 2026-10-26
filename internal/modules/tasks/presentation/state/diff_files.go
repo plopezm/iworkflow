@@ -167,7 +167,9 @@ func (h *hunkBuilder) finish() Hunk {
 	return Hunk{Header: h.header, Rows: h.rows, Lines: h.lines}
 }
 
-// fileBuilder collects one file section while its lines are read.
+// fileBuilder collects one file section while its lines are read. oldSide and newSide are the paths that the `---` and
+// `+++` lines name; an empty one is a side with no path (/dev/null, or a line that was never read), and the name of the
+// header stands in for it.
 type fileBuilder struct {
 	path    string
 	oldPath string
@@ -175,19 +177,13 @@ type fileBuilder struct {
 	binary  bool
 	hunks   []Hunk
 	hunk    *hunkBuilder
-	sawOld  *string
-	sawNew  *string
+	oldSide string
+	newSide string
 }
 
 // newFileBuilder reads the names of a `diff --git a/<old> b/<new>` header.
 func newFileBuilder(line string) *fileBuilder {
-	rest := strings.TrimPrefix(line, diffHeader)
-	oldName := rest
-	newName := rest
-	if index := strings.Index(rest, " b/"); index >= 0 {
-		oldName = trimRepeatedPrefix(rest[:index], "a/")
-		newName = rest[index+3:]
-	}
+	oldName, newName := splitHeaderNames(strings.TrimPrefix(line, diffHeader))
 	return &fileBuilder{path: newName, oldPath: oldName, status: FileStatusModified}
 }
 
@@ -214,16 +210,16 @@ func (f *fileBuilder) consume(line string) {
 		f.status = FileStatusDeleted
 	case strings.HasPrefix(line, "rename from "):
 		f.status = FileStatusRenamed
-		f.oldPath = strings.TrimPrefix(line, "rename from ")
+		f.oldPath = unquotePath(strings.TrimPrefix(line, "rename from "))
 	case strings.HasPrefix(line, "rename to "):
 		f.status = FileStatusRenamed
-		f.path = strings.TrimPrefix(line, "rename to ")
+		f.path = unquotePath(strings.TrimPrefix(line, "rename to "))
 	case strings.HasPrefix(line, "Binary files"), strings.HasPrefix(line, "GIT binary patch"):
 		f.binary = true
 	case strings.HasPrefix(line, "--- "):
-		f.sawOld = stripSide(strings.TrimPrefix(line, "--- "), "a/")
+		f.oldSide = stripSide(strings.TrimPrefix(line, "--- "), "a/")
 	case strings.HasPrefix(line, "+++ "):
-		f.sawNew = stripSide(strings.TrimPrefix(line, "+++ "), "b/")
+		f.newSide = stripSide(strings.TrimPrefix(line, "+++ "), "b/")
 	}
 }
 
@@ -260,13 +256,13 @@ func (f *fileBuilder) finish() FileDiff {
 	f.closeHunk()
 	switch {
 	case f.status == FileStatusDeleted:
-		if f.sawOld != nil {
-			f.path = *f.sawOld
+		if f.oldSide != "" {
+			f.path = f.oldSide
 		} else {
 			f.path = f.oldPath
 		}
-	case f.sawNew != nil:
-		f.path = *f.sawNew
+	case f.newSide != "":
+		f.path = f.newSide
 	}
 	additions := 0
 	deletions := 0
@@ -307,14 +303,121 @@ func trimRepeatedPrefix(value string, prefix string) string {
 	return value
 }
 
-// stripSide returns the path of a `---`/`+++` line without its side prefix, or nil for /dev/null.
-func stripSide(value string, prefix string) *string {
+// stripSide returns the path of a `---`/`+++` line without its side prefix, or "" for /dev/null.
+func stripSide(value string, prefix string) string {
 	trimmed := strings.TrimRight(value, "\t")
 	if trimmed == devNull {
-		return nil
+		return ""
 	}
-	path := strings.TrimPrefix(trimmed, prefix)
-	return &path
+	return strings.TrimPrefix(unquotePath(trimmed), prefix)
+}
+
+// splitHeaderNames reads the old and the new name of the rest of a `diff --git` line (without the prefix). Git quotes a
+// name that holds special bytes, and it can quote only one of the two, so a quoted name is read up to its closing quote
+// and an unquoted one up to the separator. A name that cannot be split is returned as it is, on both sides.
+func splitHeaderNames(rest string) (string, string) {
+	oldToken, newToken, ok := cutHeaderNames(rest)
+	if !ok {
+		path := unquotePath(rest)
+		return path, path
+	}
+	oldName := trimRepeatedPrefix(unquotePath(oldToken), "a/")
+	newName := strings.TrimPrefix(unquotePath(newToken), "b/")
+	return oldName, newName
+}
+
+// cutHeaderNames separates the old token from the new token of a header. A quoted new side starts with ` "b/`, which a
+// plain name can never contain; otherwise the first ` b/` separates them, as before quoting was handled.
+func cutHeaderNames(rest string) (string, string, bool) {
+	if strings.HasPrefix(rest, `"`) {
+		end := closingQuote(rest)
+		if end > 0 && end+1 < len(rest) && rest[end+1] == ' ' {
+			return rest[:end+1], rest[end+2:], true
+		}
+		return "", "", false
+	}
+	if index := strings.Index(rest, ` "b/`); index >= 0 {
+		return rest[:index], rest[index+1:], true
+	}
+	if index := strings.Index(rest, " b/"); index >= 0 {
+		return rest[:index], rest[index+1:], true
+	}
+	return "", "", false
+}
+
+// closingQuote returns the index of the quote that closes the quoted name at the start of value, or -1. An escaped quote
+// does not close it.
+func closingQuote(value string) int {
+	for index := 1; index < len(value); index++ {
+		switch value[index] {
+		case '\\':
+			index++
+		case '"':
+			return index
+		}
+	}
+	return -1
+}
+
+// unquotePath undoes git's C-style quoting of a path (`"a/caf\303\251"`): the quotes come off and the escapes, octal
+// bytes included, are decoded. A value that is not quoted is returned as it is.
+func unquotePath(value string) string {
+	if len(value) < 2 || value[0] != '"' || value[len(value)-1] != '"' {
+		return value
+	}
+	body := value[1 : len(value)-1]
+	var out strings.Builder
+	for index := 0; index < len(body); index++ {
+		if body[index] != '\\' || index+1 >= len(body) {
+			out.WriteByte(body[index])
+			continue
+		}
+		index++
+		if octal, ok := octalByte(body, index); ok {
+			out.WriteByte(octal)
+			index += 2
+			continue
+		}
+		out.WriteByte(unescapeChar(body[index]))
+	}
+	return out.String()
+}
+
+// unescapeChar is the byte a one-character C escape stands for. An unknown escape keeps its character.
+func unescapeChar(char byte) byte {
+	switch char {
+	case 'a':
+		return '\a'
+	case 'b':
+		return '\b'
+	case 't':
+		return '\t'
+	case 'n':
+		return '\n'
+	case 'v':
+		return '\v'
+	case 'f':
+		return '\f'
+	case 'r':
+		return '\r'
+	}
+	return char
+}
+
+// octalByte reads the three octal digits of a `\NNN` escape that starts at index, the byte they name.
+func octalByte(body string, index int) (byte, bool) {
+	if index+2 >= len(body) || !isOctalDigit(body[index]) || !isOctalDigit(body[index+1]) || !isOctalDigit(body[index+2]) {
+		return 0, false
+	}
+	value, err := strconv.ParseUint(body[index:index+3], 8, 8)
+	if err != nil {
+		return 0, false
+	}
+	return byte(value), true
+}
+
+func isOctalDigit(char byte) bool {
+	return char >= '0' && char <= '7'
 }
 
 // parseHunkStarts extracts the old and new start lines from `@@ -a,b +c,d @@`.

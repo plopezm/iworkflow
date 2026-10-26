@@ -147,8 +147,74 @@ func TestTruncatedPatchKeepsPartialHunk(t *testing.T) {
 	assert.Equal(t, 1, file.Additions)
 	assert.Equal(t, 1, file.Deletions)
 	assert.Equal(t, "par", cellOf(t, file.Hunks[0].Rows[1].Right).Text)
-	assert.Len(t, state.ParsePatch("diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,3"), 1)
 	assert.Empty(t, state.ParsePatch(""))
+}
+
+// A hunk header cut before its new range has no start numbers. The hunk and its lines are kept, and both sides start at
+// line 1, as the Rust parser does (parse_hunk_starts(...).unwrap_or((1, 1))).
+func TestMalformedHunkHeaderKeepsTheHunkAndStartsAtLineOne(t *testing.T) {
+	t.Parallel()
+	patch := "diff --git a/f b/f\n--- a/f\n+++ b/f\n@@ -1,3\n-a\n+b\n"
+	file := onlyFile(t, patch)
+	require.Len(t, file.Hunks, 1)
+	assert.Equal(t, "@@ -1,3", file.Hunks[0].Header)
+	require.Len(t, file.Hunks[0].Lines, 2)
+	assert.Equal(t, 1, file.Hunks[0].Lines[0].OldNumber)
+	assert.Equal(t, 1, file.Hunks[0].Lines[1].NewNumber)
+	assert.Equal(t, 1, file.Additions)
+	assert.Equal(t, 1, file.Deletions)
+}
+
+// Git quotes a path with special bytes in the header and in the ---/+++ lines (core.quotePath): the quotes and the
+// C escapes, octal included, come off before the path is shown.
+func TestQuotedPathsAreUnquoted(t *testing.T) {
+	t.Parallel()
+	patch := "diff --git \"a/caf\\303\\251 x.txt\" \"b/caf\\303\\251 x.txt\"\n--- \"a/caf\\303\\251 x.txt\"\n+++ \"b/caf\\303\\251 x.txt\"\n@@ -1 +1 @@\n-a\n+b\n"
+	file := onlyFile(t, patch)
+	assert.Equal(t, "café x.txt", file.Path)
+	assert.Equal(t, state.FileStatusModified, file.Status)
+	assert.Equal(t, 1, file.Additions)
+}
+
+// The name of a quoted path can hold " b/" itself, so the split between the two names cannot be the first " b/".
+func TestQuotedPathThatContainsTheSeparatorIsSplitOnItsQuotes(t *testing.T) {
+	t.Parallel()
+	patch := "diff --git \"a/x b/y.txt\" \"b/x b/y.txt\"\n--- \"a/x b/y.txt\"\n+++ \"b/x b/y.txt\"\n@@ -1 +1 @@\n-a\n+b\n"
+	file := onlyFile(t, patch)
+	assert.Equal(t, "x b/y.txt", file.Path)
+	assert.Empty(t, file.OldPath)
+}
+
+// Git can quote only the new side of a header (`a/x "b/..."`); the old side is then plain.
+func TestHeaderWithOnlyTheNewSideQuoted(t *testing.T) {
+	t.Parallel()
+	patch := "diff --git a/x \"b/caf\\303\\251\"\n--- a/x\n+++ \"b/caf\\303\\251\"\n@@ -1 +1 @@\n-a\n+b\n"
+	file := onlyFile(t, patch)
+	assert.Equal(t, "café", file.Path)
+}
+
+func TestQuotedRenameAndDeletedPathsAreUnquoted(t *testing.T) {
+	t.Parallel()
+	rename := "diff --git \"a/old\\303\\251\" \"b/new\\303\\251\"\nrename from \"old\\303\\251\"\nrename to \"new\\303\\251\"\n"
+	deleted := "diff --git \"a/d\\t\\\"q\\\"\" \"b/d\\t\\\"q\\\"\"\ndeleted file mode 100644\n--- \"a/d\\t\\\"q\\\"\"\n+++ /dev/null\n@@ -1 +0,0 @@\n-a\n"
+	files := state.ParsePatch(rename + deleted)
+	require.Len(t, files, 2)
+	assert.Equal(t, "newé", files[0].Path)
+	assert.Equal(t, "oldé", files[0].OldPath)
+	assert.Equal(t, "d\t\"q\"", files[1].Path)
+	assert.Equal(t, state.FileStatusDeleted, files[1].Status)
+}
+
+// The old and the new side of a deleted file: a missing ---/+++ line and a /dev/null side both fall back to the name
+// of the header, so only a real path replaces it.
+func TestSidesWithoutAPathFallBackToTheHeaderName(t *testing.T) {
+	t.Parallel()
+	noOldLine := state.ParsePatch("diff --git a/d.txt b/d.txt\ndeleted file mode 100644\n@@ -1 +0,0 @@\n-a\n")
+	require.Len(t, noOldLine, 1)
+	assert.Equal(t, "d.txt", noOldLine[0].Path)
+	devNullOld := state.ParsePatch("diff --git a/d.txt b/d.txt\ndeleted file mode 100644\n--- /dev/null\n+++ /dev/null\n@@ -1 +0,0 @@\n-a\n")
+	require.Len(t, devNullOld, 1)
+	assert.Equal(t, "d.txt", devNullOld[0].Path)
 }
 
 func TestStatusLetters(t *testing.T) {

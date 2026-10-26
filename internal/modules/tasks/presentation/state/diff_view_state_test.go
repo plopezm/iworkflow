@@ -18,10 +18,19 @@ func langContext(locale i18n.Locale) context.Context {
 	return i18n.WithState(context.Background(), i18n.State{Locale: locale, Chosen: true})
 }
 
-// diffTestFile parses a one-file patch with the given header lines and returns the file.
+// diffTestFile parses a one-file patch with the given header lines and returns the file. The ---/+++ lines follow git:
+// an added file has no old side and a deleted file has no new side.
 func diffTestFile(t *testing.T, statusHeader string, path string, binary bool) state.FileDiff {
 	t.Helper()
-	body := "--- a/" + path + "\n+++ b/" + path + "\n@@ -1 +1 @@\n-a\n+b\n"
+	oldSide := "--- a/" + path
+	newSide := "+++ b/" + path
+	switch {
+	case strings.HasPrefix(statusHeader, "new file mode"):
+		oldSide = "--- /dev/null"
+	case strings.HasPrefix(statusHeader, "deleted file mode"):
+		newSide = "+++ /dev/null"
+	}
+	body := oldSide + "\n" + newSide + "\n@@ -1 +1 @@\n-a\n+b\n"
 	if binary {
 		body = "Binary files a/x and b/x differ\n"
 	}
@@ -70,6 +79,9 @@ func TestDeletedBinaryAndReadonlyFilesAreNotEditable(t *testing.T) {
 	added := diffTestFile(t, "new file mode 100644\n", "b.rs", false)
 	deleted := diffTestFile(t, "deleted file mode 100644\n", "c.rs", false)
 	binary := diffTestFile(t, "", "d.png", true)
+	assert.Equal(t, "b.rs", added.Path)
+	assert.Equal(t, "c.rs", deleted.Path)
+	assert.Equal(t, state.FileStatusDeleted, deleted.Status)
 	assert.True(t, state.CanEditFile(modified, true))
 	assert.True(t, state.CanEditFile(added, true))
 	assert.False(t, state.CanEditFile(deleted, true))
