@@ -233,10 +233,12 @@ func NewModule(deps Deps) (*Module, error) {
 		Delete:          deleteTask,
 	}, clock)
 	setAgentMode := application.NewSetAgentMode(lifecycle, agentRuntime)
+	answerDialog := application.NewAnswerDialog(lifecycle, agentRuntime)
 	composer := httpinbound.NewComposerHandlers(httpinbound.ComposerUseCases{
 		Send:    send,
 		Mode:    setAgentMode,
 		History: getEvents,
+		Answer:  answerDialog,
 	}, deps.FileSearch)
 
 	return &Module{
@@ -246,7 +248,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Create:            createTask,
 		Update:            updateTask,
 		Delete:            deleteTask,
-		AnswerDialog:      application.NewAnswerDialog(lifecycle, agentRuntime),
+		AnswerDialog:      answerDialog,
 		GetSubagents:      application.NewGetTaskSubagents(lifecycle, agentRuntime),
 		DeleteWorkspace:   application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
 		Start:             start,

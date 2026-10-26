@@ -140,3 +140,21 @@ func TestStopAgentsIsSafeWithoutAnyAgent(t *testing.T) {
 
 	assert.NotPanics(t, func() { module.StopAgents(context.Background()) })
 }
+
+// Rule from source: the answer of a dialog reaches the agent through the module, so the composer must hold the use
+// case that answers; without it the route is not mounted and the dialogs of the transcript cannot be answered.
+func TestRoutesMountTheAnswerOfTheDialogs(t *testing.T) {
+	t.Parallel()
+	module, err := di.NewModule(baseDeps(t))
+	require.NoError(t, err)
+	router := chi.NewRouter()
+
+	module.Routes(router)
+
+	got := map[string]bool{}
+	require.NoError(t, chi.Walk(router, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		got[method+" "+route] = true
+		return nil
+	}))
+	assert.True(t, got[http.MethodPost+" /tasks/{id}/dialogs/{dialogId}/answer"])
+}
