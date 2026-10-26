@@ -70,6 +70,10 @@ type Deps struct {
 	// Remote merges a task through its open merge request in the provider (code_hosting). Optional: nil
 	// means every task is merged locally.
 	Remote outbound.RemoteMerge
+	// FileSearch lists the project files of a task for the @ completion of the composer. Optional: nil means
+	// the completion finds nothing. The composition root supplies it, so the tasks module does not import the
+	// module that searches the files.
+	FileSearch httpinbound.FileSearch
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -126,6 +130,8 @@ type Module struct {
 	Board *httpinbound.BoardHandlers
 	// Detail serves the detail tab of a task (Tabs).
 	Detail *httpinbound.DetailHandlers
+	// Composer serves the message box of the detail page: the message, the mode switch and the file suggestions.
+	Composer *httpinbound.ComposerHandlers
 	// The dependency graph of the board (slice C): the edges, the node positions and the successor trigger.
 	// Successors starts the tasks whose predecessors met their trigger. The composition root runs
 	// background.RunGraphLoop with it in a goroutine it owns, and stops that loop through its context.
@@ -226,6 +232,12 @@ func NewModule(deps Deps) (*Module, error) {
 		Discard:         discardTask,
 		Delete:          deleteTask,
 	}, clock)
+	setAgentMode := application.NewSetAgentMode(lifecycle, agentRuntime)
+	composer := httpinbound.NewComposerHandlers(httpinbound.ComposerUseCases{
+		Send:    send,
+		Mode:    setAgentMode,
+		History: getEvents,
+	}, deps.FileSearch)
 
 	return &Module{
 		Get:               getTask,
@@ -239,7 +251,7 @@ func NewModule(deps Deps) (*Module, error) {
 		DeleteWorkspace:   application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
 		Start:             start,
 		Send:              send,
-		SetAgentMode:      application.NewSetAgentMode(lifecycle, agentRuntime),
+		SetAgentMode:      setAgentMode,
 		Abort:             abortTask,
 		Finish:            finishTask,
 		Reset:             resetTask,
@@ -264,6 +276,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Streams:           httpinbound.NewTaskStreams(getTask, getEvents, bus),
 		Board:             board,
 		Detail:            detail,
+		Composer:          composer,
 		AddDependency:     addDependency,
 		RemoveDependency:  application.NewRemoveTaskDependency(graph, successors),
 		DetachFromGraph:   application.NewDetachTaskFromGraph(graph, successors),
@@ -353,6 +366,7 @@ func (m *Module) Routes(r chi.Router) {
 	r.Get(httpinbound.AttachmentRoute, m.Attachments.Serve)
 	m.Board.Mount(r)
 	m.Detail.Mount(r)
+	m.Composer.Mount(r)
 }
 
 // Sidebar returns the board part of the sidebar: the workspaces and the tasks that need the user.
