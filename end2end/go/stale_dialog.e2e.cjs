@@ -109,8 +109,26 @@ async function startedTask(ctx, name, prompt) {
   return id;
 }
 
-// The label of a dialog the transcript shows as closed: its title and "respondido" (answered).
+// The labels of a dialog the transcript shows once it is no longer open: closed by its turn, or answered by the user.
+const CLOSED_DIALOG = /❓ Run \(cerrado\)/;
 const ANSWERED_DIALOG = /❓ Run \(respondido\)/;
+
+// Checks the whole page for a dialog left open: a pending dialog is a section with its controls, and its error is drawn
+// in it. Called once the closed or answered line is shown, so a dialog still open at that point fails here.
+async function assertNoOpenDialog(ctx) {
+  ctx.assert(
+    (await ctx.page.locator('section[data-dialog]').count()) === 0,
+    'no debe quedar ningún diálogo abierto',
+  );
+  ctx.assert(
+    (await ctx.page.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
+    'no debe quedar ningún control de diálogo abierto',
+  );
+  ctx.assert(
+    (await ctx.page.getByText(/no hay un diálogo pendiente/).count()) === 0,
+    'no debe aparecer el error de diálogo pendiente',
+  );
+}
 
 module.exports = {
   name: 'stale_dialog',
@@ -122,19 +140,9 @@ module.exports = {
           await startedTask(ctx, `stale-${tag}`, 'abandoned');
           // The agent ends its turn without waiting for the answer: the dialog closes with it, as a line of the transcript.
           await ctx.page.getByText('turno cerrado').first().waitFor({ timeout: 25000 });
-          // The negative checks read the dialog line that shows the closed state, once that line is shown, and not the whole
-          // page at an instant before it. A control of the dialog is never inside that line; the error is only drawn in a
-          // pending dialog, so the line excludes it too.
-          const closedDialog = ctx.page.locator('[data-dialog]', { hasText: ANSWERED_DIALOG });
+          const closedDialog = ctx.page.locator('[data-dialog]', { hasText: CLOSED_DIALOG });
           await closedDialog.first().waitFor({ timeout: 15000 });
-          ctx.assert(
-            (await closedDialog.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
-            'no debe quedar ningún control de diálogo abierto',
-          );
-          ctx.assert(
-            (await closedDialog.getByText(/no hay un diálogo pendiente/).count()) === 0,
-            'no debe aparecer el error de diálogo pendiente',
-          );
+          await assertNoOpenDialog(ctx);
         });
       },
     },
@@ -151,10 +159,7 @@ module.exports = {
           await ctx.page.getByText('chose=allow-once').first().waitFor({ timeout: 20000 });
           const answeredDialog = ctx.page.locator('[data-dialog]', { hasText: ANSWERED_DIALOG });
           await answeredDialog.first().waitFor({ timeout: 15000 });
-          ctx.assert(
-            (await answeredDialog.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
-            'una respuesta entregada no deja controles de diálogo abiertos',
-          );
+          await assertNoOpenDialog(ctx);
         });
       },
     },
