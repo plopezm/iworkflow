@@ -1,17 +1,16 @@
 // end2end/go/stale_dialog.e2e.cjs
 // Go port of end2end/stale_dialog_smoke.cjs, and the answer path of the dialogs of the transcript.
-// The fake cursor agent (tests/fixtures/fake_cursor.py) asks a permission, which the transcript draws as a dialog:
+// The fake agent (tests/fixtures/fake_cursor.py and fake_claude.py) asks a permission, which the transcript draws as a dialog:
 //  - "abandoned" asks the permission and ends its turn without waiting for the answer. The dialog must close with the
 //    turn: no pending controls and no "no hay un diálogo pendiente" error.
 //  - "permission" waits for the answer. Answering "Sí" posts it to the task and the agent goes on with it.
-// The agent runtime is a setting of the whole server, so each test chooses cursor and restores the runtime it found.
+// The agent runtime is a setting of the whole server, so each test chooses its runtime (the two runtimes that support dialogs, cursor and claude) and restores the runtime it found.
 // Waits are on the page (locators and responses), never on fixed sleeps.
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const tag = Date.now().toString();
 const TMP = process.env.SMOKE_TMP_DIR || process.env.WORK_TMP_DIR || '/tmp';
-const RUNTIME = 'cursor';
 
 function uniqueGitRepo(prefix) {
   const dir = path.join(TMP, `stale-repo-${prefix}-${tag}`);
@@ -110,8 +109,12 @@ async function startedTask(ctx, name, prompt) {
 }
 
 // The labels of a dialog the transcript shows once it is no longer open: closed by its turn, or answered by the user.
-const CLOSED_DIALOG = /❓ Run \(cerrado\)/;
-const ANSWERED_DIALOG = /❓ Run \(respondido\)/;
+// What each fake agent says differs: the title of its permission dialog, the prompt that makes it wait for the answer, and
+// the text it reports once the answer reaches it.
+const AGENTS = {
+  cursor: { title: 'Run', waitingPrompt: 'permission', afterAnswer: 'chose=allow-once' },
+  claude: { title: 'Permitir Bash', waitingPrompt: 'tool', afterAnswer: 'Bash · ok' },
+};
 
 // Checks the whole page for a dialog left open: a pending dialog is a section with its controls, and its error is drawn
 // in it. Called once the closed or answered line is shown, so a dialog still open at that point fails here.
@@ -130,38 +133,44 @@ async function assertNoOpenDialog(ctx) {
   );
 }
 
-module.exports = {
-  name: 'stale_dialog',
-  tests: [
+// The two tests of one runtime. The labels of the dialog follow the title the agent gives it.
+function testsOf(runtime) {
+  const agent = AGENTS[runtime];
+  const closedDialog = new RegExp(`❓ ${agent.title} \\(cerrado\\)`);
+  const answeredDialog = new RegExp(`❓ ${agent.title} \\(respondido\\)`);
+  return [
     {
-      name: 'un diálogo que el agente abandona al cerrar su turno se cierra sin error',
+      name: `${runtime}: un diálogo que el agente abandona al cerrar su turno se cierra sin error`,
       fn: async (ctx) => {
-        await withRuntime(ctx, RUNTIME, async () => {
-          await startedTask(ctx, `stale-${tag}`, 'abandoned');
+        await withRuntime(ctx, runtime, async () => {
+          await startedTask(ctx, `stale-${runtime}-${tag}`, 'abandoned');
           // The agent ends its turn without waiting for the answer: the dialog closes with it, as a line of the transcript.
           await ctx.page.getByText('turno cerrado').first().waitFor({ timeout: 25000 });
-          const closedDialog = ctx.page.locator('[data-dialog]', { hasText: CLOSED_DIALOG });
-          await closedDialog.first().waitFor({ timeout: 15000 });
+          await ctx.page.locator('[data-dialog]', { hasText: closedDialog }).first().waitFor({ timeout: 15000 });
           await assertNoOpenDialog(ctx);
         });
       },
     },
     {
-      name: 'responder «Sí» a un diálogo llega al agente, que continúa su turno',
+      name: `${runtime}: responder «Sí» a un diálogo llega al agente, que continúa su turno`,
       fn: async (ctx) => {
-        await withRuntime(ctx, RUNTIME, async () => {
-          await startedTask(ctx, `answer-${tag}`, 'permission');
+        await withRuntime(ctx, runtime, async () => {
+          await startedTask(ctx, `answer-${runtime}-${tag}`, agent.waitingPrompt);
           // The pending dialog offers its answer as a control of the transcript.
           const yes = ctx.page.getByRole('button', { name: 'Sí', exact: true }).first();
           await yes.waitFor({ timeout: 25000 });
           await yes.click();
           // The answer goes to the agent, which reports the option it took and ends its turn.
-          await ctx.page.getByText('chose=allow-once').first().waitFor({ timeout: 20000 });
-          const answeredDialog = ctx.page.locator('[data-dialog]', { hasText: ANSWERED_DIALOG });
-          await answeredDialog.first().waitFor({ timeout: 15000 });
+          await ctx.page.getByText(agent.afterAnswer).first().waitFor({ timeout: 20000 });
+          await ctx.page.locator('[data-dialog]', { hasText: answeredDialog }).first().waitFor({ timeout: 15000 });
           await assertNoOpenDialog(ctx);
         });
       },
     },
-  ],
+  ];
+}
+
+module.exports = {
+  name: 'stale_dialog',
+  tests: Object.keys(AGENTS).flatMap(testsOf),
 };
