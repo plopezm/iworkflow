@@ -258,8 +258,13 @@ function refreshEvery(doc) {
   doc.querySelectorAll('[data-composer]').forEach(refreshAll);
 }
 
-/** Connects the message boxes of the document. It runs once, when the script loads. */
+// The documents the listeners are connected to: a second install on the same document does nothing.
+const installed = new WeakSet();
+
+/** Connects the message boxes of the document. The page calls it once; importing this script connects nothing. */
 export function installComposer(doc) {
+  if (installed.has(doc)) return;
+  installed.add(doc);
   refreshEvery(doc);
   doc.addEventListener('htmx:load', () => refreshEvery(doc));
   doc.addEventListener('input', (event) => {
@@ -313,5 +318,3 @@ export function installComposer(doc) {
     }
   });
 }
-
-if (typeof document !== 'undefined') installComposer(document);
