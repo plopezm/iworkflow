@@ -80,7 +80,10 @@ func (h *ComposerHandlers) sendMessage(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(r.Context())))
 		return
 	}
-	view := h.composerView(r.Context(), scope, id)
+	view, historyErr := h.composerView(r.Context(), scope, id)
+	if historyErr != nil {
+		view.Notice = formText(r.Context(), historyErr)
+	}
 	form, err := dto.ParseMessageForm(w, r)
 	if err != nil {
 		view.Notice = formText(r.Context(), err)
@@ -126,7 +129,10 @@ func (h *ComposerHandlers) setMode(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(r.Context())))
 		return
 	}
-	view := h.composerView(r.Context(), scope, id)
+	view, historyErr := h.composerView(r.Context(), scope, id)
+	if historyErr != nil {
+		view.ModeNotice = formText(r.Context(), historyErr)
+	}
 	wire, err := dto.ParseModeForm(w, r)
 	if err != nil {
 		view.ModeNotice = formText(r.Context(), err)
@@ -167,13 +173,14 @@ func (h *ComposerHandlers) switchMode(ctx context.Context, id models.TaskID, wir
 }
 
 // composerView is the composer of the task as its transcript reports the mode. A history that cannot be read leaves
-// the mode unknown: the switch stays hidden and a message is an ordinary message.
-func (h *ComposerHandlers) composerView(ctx context.Context, scope string, id models.TaskID) state.ComposerView {
+// the mode unknown, so the switch stays hidden and a message is an ordinary message; the read error is returned so the
+// answer can say so.
+func (h *ComposerHandlers) composerView(ctx context.Context, scope string, id models.TaskID) (state.ComposerView, error) {
 	transcript, _, err := foldHistory(ctx, h.uc.History, id)
 	if err != nil {
-		return state.ComposerView{Scope: scope, TaskID: id.String()}
+		return state.ComposerView{Scope: scope, TaskID: id.String()}, err
 	}
-	return state.NewComposerView(scope, id.String(), transcript)
+	return state.NewComposerView(scope, id.String(), transcript), nil
 }
 
 // renderBody answers the body of the composer, which is what a send replaces.

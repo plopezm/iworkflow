@@ -394,3 +394,32 @@ func TestASentMessageClearsTheComposer(t *testing.T) {
 
 	assert.Contains(t, body, "></textarea>", "a delivered message leaves the field empty")
 }
+
+func TestAHistoryReadErrorIsShownInTheComposer(t *testing.T) {
+	t.Parallel()
+	readErr := errors.New("no se pudo leer el historial")
+
+	t.Run("a send still goes out as an ordinary message and says why the mode is unknown", func(t *testing.T) {
+		t.Parallel()
+		senders := &fakeSender{}
+		router := composerRouter(senders, &fakeModes{}, &fakeHistory{err: readErr}, nil)
+		request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/messages", map[string]string{"message": "hola", "mode": "steer"}, nil)
+
+		_, body := serve(router, request)
+
+		require.Len(t, senders.calls, 1, "without a readable history the message is an ordinary message")
+		assert.Contains(t, body, "no se pudo leer el historial")
+		assert.Contains(t, body, "text-error")
+	})
+
+	t.Run("a mode change says why the switch is not offered", func(t *testing.T) {
+		t.Parallel()
+		router := composerRouter(&fakeSender{}, &fakeModes{}, &fakeHistory{err: readErr}, nil)
+		request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/mode", map[string]string{"mode": "plan"}, nil)
+
+		_, body := serve(router, request)
+
+		assert.Contains(t, body, "no se pudo leer el historial")
+		assert.Contains(t, body, "text-error")
+	})
+}
