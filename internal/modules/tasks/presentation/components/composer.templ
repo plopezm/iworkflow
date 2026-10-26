@@ -6,10 +6,8 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// Composer is the message box of a task that accepts messages, below its transcript. The mode switch is listed only
-// when the runtime reports a mode. The send form answers the whole composer, so the field clears; a mode change
-// answers only the mode switch, so the text typed meanwhile stays. The browser script (composer.js) adds the menus of
-// the commands and the files and the references; the server decides what a message means (state.ModeCommand).
+// Composer is the message box of a task that accepts messages, below its transcript. The element stays in the page;
+// its body is what a send answers (see ComposerBody), so the browser script keeps its data attributes.
 templ Composer(view state.ComposerView) {
 	<div
 		id={ view.ID() }
@@ -19,10 +17,18 @@ templ Composer(view state.ComposerView) {
 		data-commands={ composerCommandsJSON(ctx) }
 		data-remove-label={ msgRemoveReference.T(ctx) }
 	>
-		<div id={ view.ModeID() }>
-			@ComposerModeContents(view)
-		</div>
-		<form
+		@ComposerBody(view)
+	</div>
+}
+
+// ComposerBody is the content of the composer: the mode switch, when the runtime reports a mode, and the message form.
+// The send form answers it, so the field clears; a mode change answers only the switch, so the text typed meanwhile
+// stays. The browser script (composer.js) adds the menus and the references; the server decides what a message means.
+templ ComposerBody(view state.ComposerView) {
+	<div id={ view.ModeID() }>
+		@ComposerModeContents(view)
+	</div>
+	<form
 			class="stack"
 			hx-post={ view.MessagesPath() }
 			hx-encoding="multipart/form-data"
@@ -55,7 +61,6 @@ templ Composer(view state.ComposerView) {
 				<button type="submit" class="btn-primary" data-composer-send>{ msgSend.T(ctx) }</button>
 			</div>
 		</form>
-	</div>
 }
 
 // ComposerModeContents is the mode switch: the two modes, the reported one active, and the answer of a refused change.

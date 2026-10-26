@@ -137,18 +137,23 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 	return view
 }
 
-// loadTranscript reads the history of a task and folds it into the transcript the page shows. The cursor is the last
-// sequence number of the history, where the live stream resumes.
+// loadTranscript reads the history of a task and folds it into the transcript the page shows.
 func (h *DetailHandlers) loadTranscript(ctx context.Context, id models.TaskID) (state.Transcript, *int64, error) {
-	history, err := h.uc.Events.Execute(ctx, id, nil)
+	return foldHistory(ctx, h.uc.Events, id)
+}
+
+// foldHistory reads the history of a task and folds it into a transcript. The cursor is the last sequence number of
+// the history, where the live stream resumes.
+func foldHistory(ctx context.Context, history HistoryReader, id models.TaskID) (state.Transcript, *int64, error) {
+	events, err := history.Execute(ctx, id, nil)
 	if err != nil {
 		return state.Transcript{}, nil, fmt.Errorf("read the history of the task: %w", err)
 	}
-	events, err := dto.TranscriptEventsFromDomain(history)
+	mapped, err := dto.TranscriptEventsFromDomain(events)
 	if err != nil {
 		return state.Transcript{}, nil, fmt.Errorf("map the history of the task: %w", err)
 	}
-	transcript, cursor := state.FoldTranscript(events)
+	transcript, cursor := state.FoldTranscript(mapped)
 	return transcript, cursor, nil
 }
 

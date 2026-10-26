@@ -23,6 +23,15 @@ var msgModeInvalid = i18n.Msg{
 	Fr: "Le mode du message n’est pas valide.",
 }
 
+// msgAgentModeInvalid is the refusal of an agent mode the mode switch does not know.
+var msgAgentModeInvalid = i18n.Msg{
+	En: "The agent mode is not valid.",
+	Es: "El modo del agente no es válido.",
+	Zh: "智能体模式无效。",
+	De: "Der Agent-Modus ist ungültig.",
+	Fr: "Le mode de l’agent n’est pas valide.",
+}
+
 // MessageForm is the message of the composer as the browser sent it. Mode is raw: ToDomain validates it, so a
 // message is never queued with a mode the domain does not define.
 type MessageForm struct {
@@ -69,6 +78,15 @@ func (f MessageForm) ToDomain() (SendMessageInput, error) {
 		})
 	}
 	return SendMessageInput{Message: f.Message, Images: images, Mode: mode}, nil
+}
+
+// ParseAgentModeForm converts the wire value of an agent mode the mode switch posts. Only agent and plan exist.
+func ParseAgentModeForm(raw string) (models.AgentMode, error) {
+	mode, known := models.ParseAgentMode(raw)
+	if !known {
+		return "", formErr(msgAgentModeInvalid, nil)
+	}
+	return mode, nil
 }
 
 // ParseMessageMode converts the wire value of a message mode. Only the two queue modes exist: an idle agent always
