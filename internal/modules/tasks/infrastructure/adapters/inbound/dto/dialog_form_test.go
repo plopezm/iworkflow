@@ -58,9 +58,15 @@ func TestParseDialogAnswerFormRefusesAnUnknownOrIncompleteAnswer(t *testing.T) {
 		w := httptest.NewRecorder()
 		_, err := ParseDialogAnswerForm(w, dialogAnswerRequest(form))
 		require.Error(t, err, name)
-		var formErr *FormError
-		require.True(t, errors.As(err, &formErr), name)
+		requireFormError(t, err, name)
 	}
+}
+
+// requireFormError asserts that err is a refusal of the form, the one the handlers show in the language of the request.
+func requireFormError(t *testing.T, err error, name string) {
+	t.Helper()
+	var formErr *FormError
+	require.True(t, errors.As(err, &formErr), name)
 }
 
 // Every refusal of the answer has its text in the five languages.

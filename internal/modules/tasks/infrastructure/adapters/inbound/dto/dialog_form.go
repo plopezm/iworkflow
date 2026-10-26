@@ -41,12 +41,21 @@ func ParseDialogAnswerForm(w http.ResponseWriter, r *http.Request) (models.Dialo
 	case dialogAnswerCancelled:
 		return models.CancelledAnswer{}, nil
 	case dialogAnswerConfirmed:
-		switch first(values, "confirmed") {
-		case "true":
-			return models.ConfirmedAnswer{Confirmed: true}, nil
-		case "false":
-			return models.ConfirmedAnswer{Confirmed: false}, nil
+		if answer, ok := confirmedAnswer(first(values, "confirmed")); ok {
+			return answer, nil
 		}
 	}
 	return nil, formErr(msgDialogAnswerInvalid, nil)
+}
+
+// confirmedAnswer reads the confirmed field of a confirmation. Only "true" and "false" are answers.
+func confirmedAnswer(field string) (models.DialogAnswer, bool) {
+	switch field {
+	case "true":
+		return models.ConfirmedAnswer{Confirmed: true}, true
+	case "false":
+		return models.ConfirmedAnswer{Confirmed: false}, true
+	default:
+		return nil, false
+	}
 }
