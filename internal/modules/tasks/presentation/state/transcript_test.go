@@ -135,6 +135,21 @@ func TestTranscriptDialogLeftOpenWhenTheTurnEndsIsClosedByTheTurn(t *testing.T) 
 	}
 }
 
+// A run that settles with a dialog still open closes it, and the resolution the runtime reports after the settle does
+// not turn it into an answer.
+func TestTranscriptDialogOpenWhenTheRunSettlesIsClosedByTheTurn(t *testing.T) {
+	t.Parallel()
+	transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
+		transcriptAgent(transcriptDialog("d1")),
+		transcriptAgent(dto.TranscriptRunSettled{}),
+		transcriptAgent(dto.TranscriptDialogResolved{DialogID: "d1"}),
+	})
+	dialog, found := transcript.Dialog("d1")
+	require.True(t, found)
+	assert.True(t, dialog.Resolved)
+	assert.True(t, dialog.ClosedByTurn)
+}
+
 // A dialog answered before the turn ends keeps its answer: the turn does not close it.
 func TestTranscriptDialogAnsweredBeforeTheTurnEndsIsNotClosedByTheTurn(t *testing.T) {
 	t.Parallel()

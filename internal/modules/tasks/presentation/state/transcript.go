@@ -111,6 +111,7 @@ func (t *Transcript) applyAgent(event dto.TranscriptAgentEvent) {
 	case dto.TranscriptRunStarted:
 	case dto.TranscriptRunSettled:
 		t.clearStreaming()
+		t.CloseTurn()
 	case dto.TranscriptUserMessage:
 		t.Items = append(t.Items, UserItem{Text: typed.Text, Images: typed.Images})
 	case dto.TranscriptAssistantMessage:
