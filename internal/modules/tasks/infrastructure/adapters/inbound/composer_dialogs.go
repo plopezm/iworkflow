@@ -117,6 +117,11 @@ func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id
 		item.Resolved = true
 		item.ClosedByTurn = true
 		return item, ""
+	case errors.Is(err, werrors.AnswerNotRecorded()):
+		// The agent has the answer; only its record failed. The dialog is answered and the failure is logged.
+		slog.Error("could not record the answer of the dialog", "task_id", id.String(), "dialog_id", dialogID, "error", err)
+		item.Resolved = true
+		return item, ""
 	default:
 		slog.Error("could not deliver the answer of the dialog", "task_id", id.String(), "dialog_id", dialogID, "error", err)
 		return item, msgDialogDelivery.T(ctx)

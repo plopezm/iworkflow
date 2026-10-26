@@ -52,6 +52,7 @@ const (
 	kindCrossWorkspaceDependency
 	kindInvalidTrigger
 	kindInvalidPosition
+	kindAnswerNotRecorded
 )
 
 // Error returns the message shown to the user.
@@ -115,6 +116,8 @@ func (e Error) Error() string {
 		return "disparador de dependencia desconocido: " + e.detail
 	case kindInvalidPosition:
 		return "posición de nodo inválida"
+	case kindAnswerNotRecorded:
+		return "la respuesta llegó al agente, pero no se pudo registrar"
 	default:
 		return "error desconocido: " + e.detail
 	}
@@ -231,3 +234,6 @@ func InvalidTrigger(value string) Error { return Error{kind: kindInvalidTrigger,
 
 // InvalidPosition means a node coordinate is not a finite number.
 func InvalidPosition() Error { return Error{kind: kindInvalidPosition} }
+
+// AnswerNotRecorded means an answer reached the agent but its resolution could not be recorded: the agent has it.
+func AnswerNotRecorded() Error { return Error{kind: kindAnswerNotRecorded} }

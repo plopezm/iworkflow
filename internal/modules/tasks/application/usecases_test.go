@@ -372,6 +372,22 @@ func TestAnswerDialogForwardsAnswerAndRecordsResolution(t *testing.T) {
 	assert.Equal(t, []string{"d1"}, repo.dialogRemoves)
 }
 
+// An answer the agent took is not reported as undelivered when its resolution cannot be recorded: the error says the
+// agent has it, and the agent is sent it once.
+func TestAnswerDialogReportsAnAnswerTheAgentTookButNotRecorded(t *testing.T) {
+	t.Parallel()
+	task := newTask(models.StatusIdle, "d1")
+	repo := newFakeRepository(task)
+	repo.appendErr = werrors.Repository("db bloqueada")
+	runtime := &fakeRuntime{running: true, capabilities: models.FullAgentCapabilities()}
+	lifecycle, _ := newLifecycle(repo)
+
+	err := application.NewAnswerDialog(lifecycle, runtime).Execute(context.Background(), task.ID, "d1", models.CancelledAnswer{})
+
+	assert.ErrorIs(t, err, werrors.AnswerNotRecorded())
+	assert.Len(t, runtime.sent, 1)
+}
+
 func TestAnswerDialogRejectsWhenRuntimeLacksDialogs(t *testing.T) {
 	t.Parallel()
 	task := newTask(models.StatusIdle)

@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -126,7 +127,10 @@ func (u *AnswerDialog) Execute(ctx context.Context, id models.TaskID, dialogID s
 	if err := u.runtime.Send(ctx, id, models.AnswerDialogCommand{DialogID: dialogID, Answer: answer}); err != nil {
 		return err
 	}
-	return u.lifecycle.Record(ctx, id, models.DialogResolved{DialogID: dialogID})
+	if err := u.lifecycle.Record(ctx, id, models.DialogResolved{DialogID: dialogID}); err != nil {
+		return fmt.Errorf("%w: %w", werrors.AnswerNotRecorded(), err)
+	}
+	return nil
 }
 
 // GetTaskSubagents lists the subagents of a task (last known state); NotFound when the task does not exist.

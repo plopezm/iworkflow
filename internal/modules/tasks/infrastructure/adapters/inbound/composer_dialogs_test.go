@@ -202,6 +202,22 @@ func TestAnswerToADialogOfAClosedTurnClosesItWithoutAnError(t *testing.T) {
 	}
 }
 
+// An answer the agent took is shown as answered even when its resolution could not be recorded: it was delivered, so
+// no undelivered notice is shown and the dialog has no controls left.
+func TestAnswerTheAgentTookButNotRecordedIsShownAsAnswered(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.ConfirmDialog{})}}
+	answerer := &fakeAnswerer{err: werrors.AnswerNotRecorded()}
+	recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
+		url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, i18n.En))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Len(t, answerer.calls, 1)
+	assert.Contains(t, body, "(answered)")
+	assert.NotContains(t, body, dialogDeliveryTexts[i18n.En])
+	assert.NotContains(t, body, "hx-post")
+}
+
 // A failure of the agent keeps the dialog open, with the controls, and says in the language of the request that the
 // answer did not reach the agent. The runtime text is not shown.
 func TestDeliveryFailureKeepsTheDialogOpenWithALocalizedNotice(t *testing.T) {
