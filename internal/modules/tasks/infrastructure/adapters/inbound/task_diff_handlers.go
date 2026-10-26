@@ -132,13 +132,19 @@ func (h *DiffHandlers) view(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, components.DiffView(view))
 }
 
-// load reads the diff of the task and builds the view of it.
+// load reads the task and its diff, and builds the view of them. The files can be edited while the task has its worktree.
 func (h *DiffHandlers) load(ctx context.Context, id models.TaskID, scope string, layout state.DiffLayout) (state.DiffView, error) {
+	task, err := h.uc.Get.Execute(ctx, id)
+	if err != nil {
+		return state.DiffView{}, fmt.Errorf("read the task of the diff: %w", err)
+	}
 	diff, err := h.uc.Diff.Execute(ctx, id)
 	if err != nil {
 		return state.DiffView{}, fmt.Errorf("read the diff of the task: %w", err)
 	}
-	return state.NewDiffView(scope, id.String(), dto.TaskDiffFromDomain(diff), layout), nil
+	view := state.NewDiffView(scope, id.String(), dto.TaskDiffFromDomain(diff), layout)
+	view.CanEdit = task.Status.HasWorktree()
+	return view, nil
 }
 
 // diffFailure answers why a diff cannot be shown: a task that no longer exists says so, and any other failure is

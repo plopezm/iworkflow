@@ -6,7 +6,7 @@ import "iworkflow/internal/modules/tasks/presentation/state"
 // tree of the changed files and the cards. The whole view is one element, so each control swaps it for the same
 // address in another layout, and the layout lives in that address.
 templ DiffView(view state.DiffView) {
-	<div id={ state.DiffViewRegionID(view.Scope) } class="stack @container">
+	<div id={ state.DiffViewRegionID(view.Scope) } class="stack @container" hx-get={ state.DiffViewPath(view, view.Layout) } hx-trigger={ state.DiffSavedEvent + " from:body" } hx-target="this" hx-swap="outerHTML">
 		if view.Diff.Patch == "" && len(view.Diff.Commits) == 0 {
 			<p class="muted">{ msgNoChangesVsBase.T(ctx) }</p>
 		} else {
@@ -26,7 +26,7 @@ templ DiffView(view state.DiffView) {
 						<p class="muted">{ msgNoFileChanges.T(ctx) }</p>
 					}
 					for _, file := range view.Files {
-						@DiffFileCard(file, view.Scope, view.Layout.Mode, !view.Layout.Collapsed)
+						@DiffFileCard(file, view, !view.Layout.Collapsed)
 					}
 				</div>
 			</div>

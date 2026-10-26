@@ -74,6 +74,8 @@ type DiffView struct {
 	Files  []FileDiff
 	Tree   []TreeNode
 	Layout DiffLayout
+	// CanEdit is true while the task has its worktree: the files of the diff can be edited then.
+	CanEdit bool
 }
 
 // NewDiffView parses the patch of the diff and builds its tree.

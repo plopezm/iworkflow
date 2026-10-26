@@ -71,21 +71,21 @@ func TestDiffCountsShowsAdditionsAndDeletions(t *testing.T) {
 func TestFileCardTitleShowsBothPathsOfARename(t *testing.T) {
 	t.Parallel()
 	file := patchFile(t, "diff --git a/a.rs b/b.rs\nsimilarity index 100%\nrename from a.rs\nrename to b.rs\n")
-	html := renderIn(t, i18n.En, components.DiffFileCard(file, "", state.ViewSplit, true))
+	html := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", state.ViewSplit), true))
 	assert.Contains(t, html, "a.rs → b.rs")
 }
 
 func TestFileCardIsAnchoredByItsScopedId(t *testing.T) {
 	t.Parallel()
 	file := patchFile(t, modifyPatch)
-	html := renderIn(t, i18n.En, components.DiffFileCard(file, "abc123", state.ViewSplit, true))
+	html := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("abc123", state.ViewSplit), true))
 	assert.Contains(t, html, `id="`+state.AnchorID("src/a.rs")+`-abc123"`)
 }
 
 func TestSplitViewPairsRemovedAndAddedCells(t *testing.T) {
 	t.Parallel()
 	file := patchFile(t, modifyPatch)
-	html := renderIn(t, i18n.En, components.DiffFileCard(file, "", state.ViewSplit, true))
+	html := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", state.ViewSplit), true))
 	assert.Contains(t, html, `class="diff-cell diff-cell-del"`)
 	assert.Contains(t, html, `class="diff-cell diff-cell-add"`)
 	assert.Contains(t, html, ">Before<")
@@ -96,7 +96,7 @@ func TestSplitViewPairsRemovedAndAddedCells(t *testing.T) {
 func TestUnifiedViewShowsSignsAndBothLineNumbers(t *testing.T) {
 	t.Parallel()
 	file := patchFile(t, modifyPatch)
-	html := renderIn(t, i18n.En, components.DiffFileCard(file, "", state.ViewUnified, true))
+	html := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", state.ViewUnified), true))
 	assert.Contains(t, html, `<td class="diff-sign">-</td>`)
 	assert.Contains(t, html, `<td class="diff-sign">+</td>`)
 	assert.NotContains(t, html, ">Before<")
@@ -105,7 +105,7 @@ func TestUnifiedViewShowsSignsAndBothLineNumbers(t *testing.T) {
 func TestEmptyCellOfASplitAdditionIsBlank(t *testing.T) {
 	t.Parallel()
 	file := patchFile(t, "diff --git a/n.txt b/n.txt\nnew file mode 100644\n--- /dev/null\n+++ b/n.txt\n@@ -0,0 +1,1 @@\n+a\n")
-	html := renderIn(t, i18n.En, components.DiffFileCard(file, "", state.ViewSplit, true))
+	html := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", state.ViewSplit), true))
 	assert.Contains(t, html, `class="diff-cell diff-cell-empty"`)
 }
 
@@ -114,8 +114,8 @@ func TestBinaryAndUnchangedFilesSayWhyThereIsNoBody(t *testing.T) {
 	binary := patchFile(t, "diff --git a/i.png b/i.png\nBinary files a/i.png and b/i.png differ\n")
 	mode := patchFile(t, "diff --git a/s.sh b/s.sh\nold mode 100644\nnew mode 100755\n")
 
-	assert.Contains(t, renderIn(t, i18n.En, components.DiffFileCard(binary, "", state.ViewSplit, true)), "Binary file: content is not shown.")
-	assert.Contains(t, renderIn(t, i18n.En, components.DiffFileCard(mode, "", state.ViewSplit, true)), "No content changes.")
+	assert.Contains(t, renderIn(t, i18n.En, components.DiffFileCard(binary, cardView("", state.ViewSplit), true)), "Binary file: content is not shown.")
+	assert.Contains(t, renderIn(t, i18n.En, components.DiffFileCard(mode, cardView("", state.ViewSplit), true)), "No content changes.")
 }
 
 // A closed card is a native details element without the open attribute: the browser hides the body, which stays in
@@ -123,7 +123,7 @@ func TestBinaryAndUnchangedFilesSayWhyThereIsNoBody(t *testing.T) {
 func TestCollapsedCardIsClosedAndKeepsItsHeaderAndBody(t *testing.T) {
 	t.Parallel()
 	file := patchFile(t, modifyPatch)
-	html := renderIn(t, i18n.En, components.DiffFileCard(file, "", state.ViewSplit, false))
+	html := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", state.ViewSplit), false))
 	assert.NotContains(t, html, " open")
 	assert.Contains(t, html, "src/a.rs")
 	assert.Contains(t, html, "diff-table")

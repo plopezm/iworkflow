@@ -216,3 +216,27 @@ func TestDiffViewRejectsAnInvalidIdentifier(t *testing.T) {
 	assert.Contains(t, body, msgInvalidTask.En)
 	assert.Equal(t, 0, reader.calls)
 }
+
+// The files of a diff can be edited only while the task has its worktree, so the cards offer the editor then.
+func TestDiffTabOffersTheEditorOnlyWhileTheTaskHasItsWorktree(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		status  models.TaskStatus
+		offered bool
+	}{
+		{name: "running task keeps its worktree", status: models.StatusRunning, offered: true},
+		{name: "merged task has no worktree", status: models.StatusMerged, offered: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			task := newDiffTaskForTest(t)
+			task.Status = tc.status
+			h := newDiffHandlersForTest(&diffTaskFake{task: task}, &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}})
+
+			html := renderDiffTab(t, h, i18n.En, task.ID.String())
+
+			assert.Equal(t, tc.offered, strings.Contains(html, `hx-get="/tasks/`+task.ID.String()+`/file?`))
+		})
+	}
+}

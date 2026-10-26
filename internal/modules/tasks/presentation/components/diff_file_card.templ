@@ -4,18 +4,25 @@ import "iworkflow/internal/modules/tasks/presentation/state"
 
 // DiffFileCard is one changed file: its header (status, path and counters) and its body in the layout of the view.
 // The header is the toggle of the card, a native details element, so the card opens and closes without a request.
-templ DiffFileCard(file state.FileDiff, scope string, mode state.ViewMode, open bool) {
-	<details id={ state.CardID(scope, file.Path) } class="diff-card" open?={ open }>
+// A file that can be edited offers its editor under the header; the editor loads into the slot of the card.
+templ DiffFileCard(file state.FileDiff, view state.DiffView, open bool) {
+	<details id={ state.CardID(view.Scope, file.Path) } class="diff-card" open?={ open }>
 		<summary class="diff-card-header diff-card-toggle">
 			@DiffStatusBadge(file.Status)
 			<span class="min-w-0 flex-1 truncate font-mono text-xs" title={ fileTitle(file) }>{ fileTitle(file) }</span>
 			@DiffCounts(file.Additions, file.Deletions)
 		</summary>
+		if state.CanEditFile(file, view.CanEdit) {
+			<div class="diff-card-actions flex justify-end p-2">
+				<button type="button" class="btn-secondary" hx-get={ state.FileEditorPath(view.TaskID, view.Scope, file.Path) } hx-target={ "#" + state.FileSlotID(view.Scope, file.Path) } hx-swap="innerHTML">{ msgEdit.T(ctx) }</button>
+			</div>
+			<div id={ state.FileSlotID(view.Scope, file.Path) }></div>
+		}
 		if file.Binary {
 			<p class="muted p-3">{ msgBinaryFile.T(ctx) }</p>
 		} else if len(file.Hunks) == 0 {
 			<p class="muted p-3">{ msgNoContentChanges.T(ctx) }</p>
-		} else if mode == state.ViewUnified {
+		} else if view.Layout.Mode == state.ViewUnified {
 			@unifiedBody(file.Hunks)
 		} else {
 			@splitBody(file.Hunks)
