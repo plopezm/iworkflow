@@ -72,7 +72,8 @@ function taskHrefs(page) {
 }
 
 // Creates a task in a fresh repository that starts at once with the given prompt, and opens its detail page.
-// Returns the id of the task. The prompt is the exact text the fake agent matches, so it is not made unique.
+// Returns the id of the task. The prompt is the exact text the fake agent matches, so it is not made unique: the task
+// is found by the link that the create adds, not by its prompt.
 async function startedTask(ctx, name, prompt) {
   const dir = uniqueGitRepo(name);
   await ctx.goto('/workspaces');
@@ -121,13 +122,17 @@ module.exports = {
           await startedTask(ctx, `stale-${tag}`, 'abandoned');
           // The agent ends its turn without waiting for the answer: the dialog closes with it, as a line of the transcript.
           await ctx.page.getByText('turno cerrado').first().waitFor({ timeout: 25000 });
-          await ctx.page.getByText(ANSWERED_DIALOG).first().waitFor({ timeout: 15000 });
+          // The negative checks read the dialog line that shows the closed state, once that line is shown, and not the whole
+          // page at an instant before it. A control of the dialog is never inside that line; the error is only drawn in a
+          // pending dialog, so the line excludes it too.
+          const closedDialog = ctx.page.locator('[data-dialog]', { hasText: ANSWERED_DIALOG });
+          await closedDialog.first().waitFor({ timeout: 15000 });
           ctx.assert(
-            (await ctx.page.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
+            (await closedDialog.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
             'no debe quedar ningún control de diálogo abierto',
           );
           ctx.assert(
-            (await ctx.page.getByText(/no hay un diálogo pendiente/).count()) === 0,
+            (await closedDialog.getByText(/no hay un diálogo pendiente/).count()) === 0,
             'no debe aparecer el error de diálogo pendiente',
           );
         });
@@ -144,9 +149,10 @@ module.exports = {
           await yes.click();
           // The answer goes to the agent, which reports the option it took and ends its turn.
           await ctx.page.getByText('chose=allow-once').first().waitFor({ timeout: 20000 });
-          await ctx.page.getByText(ANSWERED_DIALOG).first().waitFor({ timeout: 15000 });
+          const answeredDialog = ctx.page.locator('[data-dialog]', { hasText: ANSWERED_DIALOG });
+          await answeredDialog.first().waitFor({ timeout: 15000 });
           ctx.assert(
-            (await ctx.page.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
+            (await answeredDialog.getByRole('button', { name: 'Cancelar diálogo' }).count()) === 0,
             'una respuesta entregada no deja controles de diálogo abiertos',
           );
         });
