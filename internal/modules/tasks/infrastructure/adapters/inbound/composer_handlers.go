@@ -122,8 +122,10 @@ func (h *ComposerHandlers) setMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := h.composerView(r.Context(), scope, id)
-	wire := r.FormValue("mode")
-	if err := h.switchMode(r.Context(), id, wire); err != nil {
+	wire, err := dto.ParseModeForm(w, r)
+	if err != nil {
+		view.ModeNotice = formText(r.Context(), err)
+	} else if err := h.switchMode(r.Context(), id, wire); err != nil {
 		view.ModeNotice = formText(r.Context(), err)
 	} else {
 		view.Mode = wire

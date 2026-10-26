@@ -80,6 +80,20 @@ func (f MessageForm) ToDomain() (SendMessageInput, error) {
 	return SendMessageInput{Message: f.Message, Images: images, Mode: mode}, nil
 }
 
+// ParseModeForm reads the wire mode of a mode switch. The body is capped like the message form, so a switch cannot
+// post what the message route refuses. The mode is validated by ParseAgentModeForm.
+func ParseModeForm(w http.ResponseWriter, r *http.Request) (string, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxFormBytes)
+	values, _, err := readFormValues(r)
+	if err != nil {
+		return "", err
+	}
+	if list := values["mode"]; len(list) > 0 {
+		return list[0], nil
+	}
+	return "", nil
+}
+
 // ParseAgentModeForm converts the wire value of an agent mode the mode switch posts. Only agent and plan exist.
 func ParseAgentModeForm(raw string) (models.AgentMode, error) {
 	mode, known := models.ParseAgentMode(raw)

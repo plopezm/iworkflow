@@ -333,3 +333,18 @@ func TestAnInvalidTaskIDIsAnsweredInTheRequestLanguage(t *testing.T) {
 		})
 	}
 }
+
+func TestTheModeSwitchRefusesABodyOverTheMessageLimit(t *testing.T) {
+	t.Parallel()
+	modes := &fakeModes{}
+	router := composerRouter(&fakeSender{}, modes, &fakeHistory{}, nil)
+	// A multipart body is read into memory and temporary files with no limit of its own, so the switch caps it like
+	// the message route does: the padding is above that cap.
+	padding := strings.Repeat("x", models.MaxImagesPerMessage*models.MaxImageBytes+2<<20)
+	request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/mode", map[string]string{"mode": "plan", "pad": padding}, nil)
+
+	_, body := serve(router, request)
+
+	assert.Empty(t, modes.calls, "an oversized body never reaches the mode switch")
+	assert.Contains(t, body, "text-error")
+}
