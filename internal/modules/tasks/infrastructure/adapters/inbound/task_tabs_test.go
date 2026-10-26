@@ -203,15 +203,17 @@ func TestTaskTabsAnswerAnInvalidTaskWithoutItsTabs(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), "files of ")
 }
 
+// A read failure of the task is answered in the request language, without the internal text of the error.
 func TestTaskTabsShowAReadErrorInsteadOfTheTab(t *testing.T) {
 	t.Parallel()
 	task := newRunningTaskForTabs(t)
 	h := newTabsDetailForTest(task, errors.New("disk on fire"), tabsPanelsFake{})
 
-	recorder := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/tabs/changes")
+	recorder := serveTabs(t, h, i18n.Fr, "/tasks/"+task.ID.String()+"/tabs/changes")
 
 	body := recorder.Body.String()
-	assert.Contains(t, body, "disk on fire")
+	assert.Contains(t, body, "La tâche n’a pas pu être lue.")
+	assert.NotContains(t, body, "disk on fire")
 	assert.NotContains(t, body, `id="task-tabs"`)
 	assert.NotContains(t, body, "changes of ")
 }

@@ -4,6 +4,7 @@ package inbound
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"path"
 
@@ -29,6 +30,15 @@ const (
 
 // msgTaskFilesTitle names the Files dock tab of a task, copied from the Rust app (TITLE_FILES).
 var msgTaskFilesTitle = i18n.Msg{En: "Files", Es: "Archivos", Zh: "文件", De: "Dateien", Fr: "Fichiers"}
+
+// msgTaskUnavailable answers a tab whose task cannot be read. The read error is logged, not shown: its text is internal.
+var msgTaskUnavailable = i18n.Msg{
+	En: "The task could not be read.",
+	Es: "No se pudo leer la tarea.",
+	Zh: "无法读取任务。",
+	De: "Die Aufgabe konnte nicht gelesen werden.",
+	Fr: "La tâche n’a pas pu être lue.",
+}
 
 // msgPanelsUnavailable answers a tab whose project views were not injected. It is a wiring fault, not a user error.
 var msgPanelsUnavailable = i18n.Msg{
@@ -128,7 +138,8 @@ func (h *DetailHandlers) tab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		slog.Error("could not read the task of a tab", "task", id.String(), "error", err)
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgTaskUnavailable.T(ctx)))
 		return
 	}
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
