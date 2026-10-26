@@ -1,6 +1,10 @@
 // Behaviour of the task forms: shows and hides the advanced options, previews the chosen images and takes the
 // images pasted into a prompt. The server validates everything (types, sizes, counts, limits); this script only
 // shows it and fills the file input.
+//
+// The message box of the task detail page is loaded from here, because every page already loads this script: its
+// menus and keys are delegated from the document, so it works wherever the composer is rendered.
+import './composer.js';
 
 /** Shows or hides the block a toggle names in data-toggle-target, following the toggle. */
 function toggleBlock(toggle) {
