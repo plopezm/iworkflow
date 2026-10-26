@@ -106,11 +106,11 @@ func (h *DiffHandlers) tab(ctx context.Context, rawID string) templ.Component {
 		return shared.ErrorText(msgInvalidTask.T(ctx))
 	}
 	if _, err := h.uc.Get.Execute(ctx, id); err != nil {
-		return diffFailure(ctx, err)
+		return diffFailure(ctx, id, err)
 	}
 	view, err := h.load(ctx, id, newScope(), state.DefaultDiffLayout())
 	if err != nil {
-		return diffFailure(ctx, err)
+		return diffFailure(ctx, id, err)
 	}
 	return pages.TaskDiffPage(view)
 }
@@ -124,9 +124,13 @@ func (h *DiffHandlers) view(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := r.URL.Query()
-	view, err := h.load(ctx, id, state.SanitizeScope(query.Get("scope")), state.ParseDiffLayout(query))
+	scope := state.SanitizeScope(query.Get("scope"))
+	layout := state.ParseDiffLayout(query)
+	view, err := h.load(ctx, id, scope, layout)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, diffFailure(ctx, err))
+		// The region answers with its controls and the failure in them, so a failed read does not take the layout away.
+		failed := state.DiffView{Scope: scope, TaskID: id.String(), Layout: layout, Failure: diffFailureText(ctx, id, err)}
+		web.Render(w, r, http.StatusOK, components.DiffView(failed))
 		return
 	}
 	web.Render(w, r, http.StatusOK, components.DiffView(view))
@@ -147,12 +151,21 @@ func (h *DiffHandlers) load(ctx context.Context, id models.TaskID, scope string,
 	return view, nil
 }
 
-// diffFailure answers why a diff cannot be shown: a task that no longer exists says so, and any other failure is
-// logged and answered in the request language.
-func diffFailure(ctx context.Context, err error) templ.Component {
+// diffFailure answers why a diff cannot be shown in the full tab: a task that no longer exists says so, and any other
+// failure is answered in the request language.
+func diffFailure(ctx context.Context, id models.TaskID, err error) templ.Component {
 	if errors.Is(err, werrors.NotFound("")) {
 		return components.TaskGone()
 	}
-	slog.Error("could not read the diff of the task", "error", err)
-	return shared.ErrorText(msgDiffUnavailable.T(ctx))
+	return shared.ErrorText(diffFailureText(ctx, id, err))
+}
+
+// diffFailureText is the message of a diff that cannot be shown, in the request language. A read failure is logged
+// with the task it belongs to; its text is internal, so it is not shown.
+func diffFailureText(ctx context.Context, id models.TaskID, err error) string {
+	if errors.Is(err, werrors.NotFound("")) {
+		return components.TaskGoneText(ctx)
+	}
+	slog.Error("could not read the diff of the task", "task", id.String(), "error", err)
+	return msgDiffUnavailable.T(ctx)
 }

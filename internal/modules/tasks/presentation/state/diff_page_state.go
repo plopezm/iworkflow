@@ -76,6 +76,9 @@ type DiffView struct {
 	Layout DiffLayout
 	// CanEdit is true while the task has its worktree: the files of the diff can be edited then.
 	CanEdit bool
+	// Failure is why the diff cannot be shown, in the request language. The controls stay, so the layout can be asked
+	// again; the body is replaced by the message.
+	Failure string
 }
 
 // NewDiffView parses the patch of the diff and builds its tree.

@@ -21,3 +21,8 @@ var (
 func DetailTitle(ctx context.Context) string {
 	return msgTask.T(ctx)
 }
+
+// TaskGoneText is the message of a task that no longer exists, for a view that shows its failure as text.
+func TaskGoneText(ctx context.Context) string {
+	return msgTaskGone.T(ctx)
+}

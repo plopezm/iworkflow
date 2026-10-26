@@ -1,13 +1,19 @@
 package components
 
-import "iworkflow/internal/modules/tasks/presentation/state"
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
 
 // DiffView is the diff of a task: the layout controls, the commits and the stat, the notice of a truncated patch, the
 // tree of the changed files and the cards. The whole view is one element, so each control swaps it for the same
 // address in another layout, and the layout lives in that address.
 templ DiffView(view state.DiffView) {
 	<div id={ state.DiffViewRegionID(view.Scope) } class="stack @container" hx-get={ state.DiffViewPath(view, view.Layout) } hx-trigger={ state.DiffSavedEvent + " from:body" } hx-target="this" hx-swap="outerHTML">
-		if view.Diff.Patch == "" && len(view.Diff.Commits) == 0 {
+		if view.Failure != "" {
+			@diffToolbar(view)
+			@coreui.ErrorText(view.Failure)
+		} else if view.Diff.Patch == "" && len(view.Diff.Commits) == 0 {
 			<p class="muted">{ msgNoChangesVsBase.T(ctx) }</p>
 		} else {
 			@diffToolbar(view)

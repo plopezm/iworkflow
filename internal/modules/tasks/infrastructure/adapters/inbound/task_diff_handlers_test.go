@@ -1,8 +1,10 @@
 package inbound
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -204,6 +206,50 @@ func TestDiffViewSaysThatTheDiffCannotBeReadInTheRequestLanguage(t *testing.T) {
 	assert.Equal(t, http.StatusOK, code)
 	assert.Contains(t, body, msgDiffUnavailable.Es)
 	assert.NotContains(t, body, "boom")
+}
+
+// A view that cannot read the diff answers the region with its controls still in it, so the layout can be changed again
+// and the rest of the page is not lost.
+func TestDiffViewKeepsTheControlsWhenTheDiffCannotBeRead(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	h := newDiffHandlersForTest(&diffTaskFake{task: task}, &diffReaderFake{err: errors.New("git exploded")})
+
+	code, body := diffViewRequest(t, h, i18n.En, task.ID.String(), "scope=ab12&view=unified")
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, `id="diff-view-ab12"`)
+	assert.Contains(t, body, `class="diff-toolbar"`)
+	assert.Contains(t, body, msgDiffUnavailable.En)
+	assert.NotContains(t, body, "git exploded")
+}
+
+// A task that no longer exists keeps the region too, so the view that asked is still the one that answers.
+func TestDiffViewSaysSoForATaskThatNoLongerExistsInItsRegion(t *testing.T) {
+	t.Parallel()
+	h := newDiffHandlersForTest(&diffTaskFake{err: werrors.NotFound("x")}, &diffReaderFake{})
+
+	code, body := diffViewRequest(t, h, i18n.En, newDiffTaskForTest(t).ID.String(), "scope=ab12")
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, `id="diff-view-ab12"`)
+	assert.Contains(t, body, "This task no longer exists.")
+}
+
+// The read error goes to the log with the task it belongs to, so the failure can be followed to its task. The default
+// logger is swapped, so this test does not run in parallel.
+func TestDiffViewLogsTheTaskWhoseDiffCouldNotBeRead(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+	task := newDiffTaskForTest(t)
+	h := newDiffHandlersForTest(&diffTaskFake{task: task}, &diffReaderFake{err: errors.New("git exploded")})
+
+	diffViewRequest(t, h, i18n.En, task.ID.String(), "")
+
+	assert.Contains(t, logs.String(), "task="+task.ID.String())
+	assert.Contains(t, logs.String(), "git exploded")
 }
 
 func TestDiffViewRejectsAnInvalidIdentifier(t *testing.T) {
