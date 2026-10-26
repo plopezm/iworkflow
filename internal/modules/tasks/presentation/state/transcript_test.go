@@ -116,6 +116,39 @@ func TestTranscriptStatusWithoutLiveAgentClosesOrphanDialogs(t *testing.T) {
 	assert.False(t, open)
 }
 
+// A dialog the turn leaves open is closed by the turn, whichever fact ends the turn: the transcript derives it.
+func TestTranscriptDialogLeftOpenWhenTheTurnEndsIsClosedByTheTurn(t *testing.T) {
+	t.Parallel()
+	cases := map[string]dto.TranscriptEventDTO{
+		"process exit":              transcriptAgent(dto.TranscriptProcessExited{Code: nil}),
+		"status without live agent": transcriptStatus("interrupted", false),
+	}
+	for name, endOfTurn := range cases {
+		transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
+			transcriptAgent(transcriptDialog("d1")),
+			endOfTurn,
+		})
+		dialog, found := transcript.Dialog("d1")
+		require.True(t, found, name)
+		assert.True(t, dialog.Resolved, name)
+		assert.True(t, dialog.ClosedByTurn, name)
+	}
+}
+
+// A dialog answered before the turn ends keeps its answer: the turn does not close it.
+func TestTranscriptDialogAnsweredBeforeTheTurnEndsIsNotClosedByTheTurn(t *testing.T) {
+	t.Parallel()
+	transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
+		transcriptAgent(transcriptDialog("d1")),
+		transcriptAgent(dto.TranscriptDialogResolved{DialogID: "d1"}),
+		transcriptAgent(dto.TranscriptProcessExited{Code: nil}),
+	})
+	dialog, found := transcript.Dialog("d1")
+	require.True(t, found)
+	assert.True(t, dialog.Resolved)
+	assert.False(t, dialog.ClosedByTurn)
+}
+
 func TestTranscriptLiveStatusesKeepDialogsOpenAndOthersCloseThem(t *testing.T) {
 	t.Parallel()
 	for _, status := range []string{"starting", "running", "idle"} {
@@ -133,7 +166,7 @@ func TestTranscriptLiveStatusesKeepDialogsOpenAndOthersCloseThem(t *testing.T) {
 		_, open := transcript.PendingDialog()
 		assert.False(t, open, status)
 		// The dialog stays in the transcript, marked as resolved, and the status comes after it.
-		require.Equal(t, state.DialogItem{Request: dto.TranscriptDialog{ID: "d1", Title: "¿Seguir?"}, Resolved: true}, transcript.Items[0], status)
+		require.Equal(t, state.DialogItem{Request: dto.TranscriptDialog{ID: "d1", Title: "¿Seguir?"}, Resolved: true, ClosedByTurn: true}, transcript.Items[0], status)
 		assert.IsType(t, state.StatusItem{}, transcript.Items[len(transcript.Items)-1], status)
 	}
 }

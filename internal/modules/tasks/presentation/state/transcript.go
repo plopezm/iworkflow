@@ -101,7 +101,7 @@ func (t *Transcript) applyStatus(status dto.TranscriptStatusDTO) {
 	// Without a live agent nobody can answer: a server restarted does not emit ProcessExited, so the status change
 	// closes the dialogs left open.
 	if !status.HasLiveAgent {
-		t.resolveDialogs(nil)
+		t.CloseTurn()
 	}
 	t.Items = append(t.Items, StatusItem{Status: status.Status, Error: status.Error})
 }
@@ -144,7 +144,7 @@ func (t *Transcript) applyAgent(event dto.TranscriptAgentEvent) {
 	case dto.TranscriptDialogRequested:
 		t.Items = append(t.Items, DialogItem{Request: typed.Request})
 	case dto.TranscriptDialogResolved:
-		t.resolveDialogs(&typed.DialogID)
+		t.resolveDialog(typed.DialogID)
 	case dto.TranscriptNotice:
 		t.Items = append(t.Items, NoticeItem{Level: typed.Level, Message: typed.Message})
 	case dto.TranscriptStatusChanged:
@@ -166,7 +166,7 @@ func (t *Transcript) applyAgent(event dto.TranscriptAgentEvent) {
 		t.Items = append(t.Items, NoticeItem{Level: dto.NoticeLevelWarning, Message: typed.Message})
 	case dto.TranscriptProcessExited:
 		t.clearStreaming()
-		t.resolveDialogs(nil)
+		t.CloseTurn()
 		t.QueuedSteering = nil
 		t.QueuedFollowUp = nil
 		t.Statuses = nil
@@ -230,17 +230,29 @@ func (t *Transcript) toolAt(callID string) (int, ToolItem, bool) {
 	return -1, ToolItem{}, false
 }
 
-// resolveDialogs marks as resolved the dialog with the id or, with nil, every dialog.
-func (t *Transcript) resolveDialogs(dialogID *string) {
+// CloseTurn ends the turn: nobody can answer the dialogs it left open, so each one closes with the turn. A dialog
+// answered before keeps its answer, and is not closed by the turn.
+func (t *Transcript) CloseTurn() {
 	for index, item := range t.Items {
 		dialog, ok := item.(DialogItem)
-		if !ok {
+		if !ok || dialog.Resolved {
 			continue
 		}
-		if dialogID == nil || dialog.Request.ID == *dialogID {
-			dialog.Resolved = true
-			t.Items[index] = dialog
+		dialog.Resolved = true
+		dialog.ClosedByTurn = true
+		t.Items[index] = dialog
+	}
+}
+
+// resolveDialog marks as answered the dialog with the id.
+func (t *Transcript) resolveDialog(dialogID string) {
+	for index, item := range t.Items {
+		dialog, ok := item.(DialogItem)
+		if !ok || dialog.Request.ID != dialogID {
+			continue
 		}
+		dialog.Resolved = true
+		t.Items[index] = dialog
 	}
 }
 

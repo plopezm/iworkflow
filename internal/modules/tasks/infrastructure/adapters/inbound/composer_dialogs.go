@@ -74,7 +74,7 @@ func (h *ComposerHandlers) answerDialog(w http.ResponseWriter, r *http.Request) 
 		web.Render(w, r, http.StatusOK, components.TranscriptDialog(id.String(), item, ""))
 		return
 	}
-	item, notice := h.takeAnswer(w, r, id, dialogID, item)
+	item, notice := h.takeAnswer(w, r, id, &transcript, dialogID, item)
 	web.Render(w, r, http.StatusOK, components.TranscriptDialog(id.String(), item, notice))
 }
 
@@ -100,7 +100,7 @@ func answerFits(kind dto.TranscriptDialogKind, answer models.DialogAnswer) bool 
 
 // takeAnswer reads the answer of the form and hands it to the agent. It returns the dialog as it stands after the answer,
 // and the notice to show with it: a refused answer or one the agent did not take keeps the dialog open.
-func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id models.TaskID, dialogID string, item state.DialogItem) (state.DialogItem, string) {
+func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id models.TaskID, transcript *state.Transcript, dialogID string, item state.DialogItem) (state.DialogItem, string) {
 	ctx := r.Context()
 	answer, err := dto.ParseDialogAnswerForm(w, r)
 	if err != nil {
@@ -115,9 +115,10 @@ func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id
 		item.Resolved = true
 		return item, ""
 	case closedTurn(err):
-		item.Resolved = true
-		item.ClosedByTurn = true
-		return item, ""
+		// The agent is gone, so its turn ended: the transcript closes the dialog with the turn, as it does for the history.
+		transcript.CloseTurn()
+		closed, _ := transcript.Dialog(dialogID)
+		return closed, ""
 	case errors.Is(err, werrors.AnswerNotRecorded()):
 		// The agent has the answer; only its record failed. The dialog is answered and the failure is logged.
 		slog.Error("could not record the answer of the dialog", "task_id", id.String(), "dialog_id", dialogID, "error", err)
