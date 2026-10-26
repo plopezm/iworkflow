@@ -31,7 +31,8 @@ func TestComposerPostsTheMessageToTheTaskAndAnswersTheWholeComposer(t *testing.T
 	assert.Contains(t, body, `id="task-composer"`, "the composer keeps one stable element per page")
 	assert.Contains(t, body, `hx-post="/tasks/t1/messages"`)
 	assert.Contains(t, body, `hx-encoding="multipart/form-data"`, "the images travel with the message")
-	assert.Contains(t, body, `hx-target="#task-composer"`, "a send answers the composer, so the field clears")
+	assert.Contains(t, body, `id="task-composer-body"`, "the body is the element a send answers")
+	assert.Contains(t, body, `hx-target="#task-composer-body"`, "a send answers the body inside the composer, so the field clears")
 	assert.Contains(t, body, `name="message"`)
 	assert.Contains(t, body, `name="mode" value="steer"`, "every message is queued as a steer")
 	assert.Contains(t, body, `data-image-paste`, "pasted images go to the picker of the form")
@@ -39,6 +40,17 @@ func TestComposerPostsTheMessageToTheTaskAndAnswersTheWholeComposer(t *testing.T
 	assert.Contains(t, body, `placeholder="Write a message for the agent… (@ for files, / for commands, Ctrl+Enter to send)"`)
 	assert.Contains(t, body, `type="submit"`)
 	assert.Contains(t, body, `>Send<`, "the send button is labelled in English")
+}
+
+func TestComposerSendAnswerIsTheBodyOnly(t *testing.T) {
+	t.Parallel()
+	view := state.ComposerView{TaskID: "t1", Notice: "refused"}
+
+	answer := renderComposerIn(t, i18n.En, components.ComposerBody(view))
+
+	assert.NotContains(t, answer, `data-files-path`, "the answer never carries the composer element itself")
+	assert.NotContains(t, answer, `id="task-composer"`, "the composer is not nested inside its own answer")
+	assert.Contains(t, answer, `name="message"`)
 }
 
 func TestComposerScopesItsElementsToThePageInstance(t *testing.T) {
@@ -50,7 +62,7 @@ func TestComposerScopesItsElementsToThePageInstance(t *testing.T) {
 	assert.Contains(t, body, `id="task-composer-k3"`)
 	assert.Contains(t, body, `id="task-composer-mode-k3"`)
 	assert.Contains(t, body, `hx-post="/tasks/t1/messages?scope=k3"`)
-	assert.Contains(t, body, `hx-target="#task-composer-k3"`)
+	assert.Contains(t, body, `hx-target="#task-composer-body-k3"`)
 	assert.NotContains(t, body, `id="task-composer"`, "no plain id leaks into a scoped instance")
 }
 

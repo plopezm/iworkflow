@@ -6,8 +6,8 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// Composer is the message box of a task that accepts messages, below its transcript. The element stays in the page;
-// its body is what a send answers (see ComposerBody), so the browser script keeps its data attributes.
+// Composer is the message box of a task that accepts messages, below its transcript. The element stays in the page
+// with its data attributes; its body, inside it, is what a send answers (see ComposerBody).
 templ Composer(view state.ComposerView) {
 	<div
 		id={ view.ID() }
@@ -17,7 +17,9 @@ templ Composer(view state.ComposerView) {
 		data-commands={ composerCommandsJSON(ctx) }
 		data-remove-label={ msgRemoveReference.T(ctx) }
 	>
-		@ComposerBody(view)
+		<div id={ view.BodyID() } class="contents">
+			@ComposerBody(view)
+		</div>
 	</div>
 }
 
@@ -32,7 +34,7 @@ templ ComposerBody(view state.ComposerView) {
 			class="stack"
 			hx-post={ view.MessagesPath() }
 			hx-encoding="multipart/form-data"
-			hx-target={ "#" + view.ID() }
+			hx-target={ "#" + view.BodyID() }
 			hx-swap="innerHTML"
 			hx-disabled-elt="find button[type=submit]"
 		>

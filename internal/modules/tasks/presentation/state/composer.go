@@ -55,9 +55,15 @@ func (v ComposerView) HasMode() bool {
 	return v.Mode != ""
 }
 
-// ID is the id of the composer element of this page instance. The send answer replaces its content.
+// ID is the id of the composer element of this page instance. It keeps its place in the page and its attributes.
 func (v ComposerView) ID() string {
 	return Scoped("task-composer", v.Scope)
+}
+
+// BodyID is the id of the body of the composer of this page instance: what a send answers. The composer element
+// itself is never replaced, so it is never nested in an answer.
+func (v ComposerView) BodyID() string {
+	return Scoped("task-composer-body", v.Scope)
 }
 
 // ModeID is the id of the mode switch of this page instance. A mode change replaces only this element.

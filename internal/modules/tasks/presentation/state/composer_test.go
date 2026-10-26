@@ -57,3 +57,13 @@ func TestComposerViewTakesTheModeOfTheTranscriptAndNamesItsElements(t *testing.T
 	assert.False(t, plain.HasMode(), "no mode is reported, so the mode switch stays hidden")
 	assert.Equal(t, "task-composer", plain.ID(), "a request without a scope keeps the plain names")
 }
+
+func TestComposerBodyIsInsideTheComposerAndScopedToThePage(t *testing.T) {
+	t.Parallel()
+	scoped := state.ComposerView{Scope: "k3", TaskID: "t1"}
+	plain := state.ComposerView{TaskID: "t1"}
+
+	assert.Equal(t, "task-composer-body-k3", scoped.BodyID(), "the send answers the body, of this page instance")
+	assert.Equal(t, "task-composer-body", plain.BodyID(), "a request without a scope keeps the plain name")
+	assert.NotEqual(t, scoped.ID(), scoped.BodyID(), "the body is not the composer element")
+}
