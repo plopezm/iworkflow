@@ -151,6 +151,20 @@ func TestAnswerOfAnotherKindThanTheDialogIsRefused(t *testing.T) {
 	}
 }
 
+// The refusal of a mismatched answer is shown in the language of the request, in each of the five languages.
+func TestAnswerMismatchIsRefusedInTheRequestLanguage(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	for locale, want := range dialogMismatchTexts {
+		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.ConfirmDialog{})}}
+		answerer := &fakeAnswerer{}
+		_, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1",
+			url.Values{"kind": {"value"}, "value": {"S\u00ed"}}, locale))
+		assert.Contains(t, body, want, locale)
+		assert.Empty(t, answerer.calls, locale)
+	}
+}
+
 // A cancel closes any dialog, whatever its kind: it is the one answer every dialog takes.
 func TestCancelIsDeliveredToEveryKindOfDialog(t *testing.T) {
 	t.Parallel()
