@@ -79,6 +79,15 @@ func answerRequestTo(t *testing.T, target string, form url.Values, locale i18n.L
 	return r.WithContext(i18n.WithState(r.Context(), i18n.State{Locale: locale, Chosen: true}))
 }
 
+// dialogMismatchTexts are the texts of an answer that does not fit the dialog, in the five languages.
+var dialogMismatchTexts = map[i18n.Locale]string{
+	i18n.En: "The answer does not match the dialog.",
+	i18n.Es: "La respuesta no corresponde al diálogo.",
+	i18n.Zh: "回答与对话框不匹配。",
+	i18n.De: "Die Antwort passt nicht zu dem Dialog.",
+	i18n.Fr: "La réponse ne correspond pas à la boîte de dialogue.",
+}
+
 // dialogDeliveryTexts are the texts of an answer the agent did not take, in the five languages.
 var dialogDeliveryTexts = map[i18n.Locale]string{
 	i18n.En: "The answer could not be delivered to the agent.",
@@ -92,23 +101,65 @@ func TestAnsweredDialogDeliversTheDomainAnswerForEachKind(t *testing.T) {
 	t.Parallel()
 	id := taskID(t)
 	cases := map[string]struct {
+		kind models.DialogKind
 		form url.Values
 		want models.DialogAnswer
 	}{
-		"value":     {url.Values{"kind": {"value"}, "value": {"Sí"}}, models.ValueAnswer{Value: "Sí"}},
-		"confirmed": {url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, models.ConfirmedAnswer{Confirmed: true}},
-		"declined":  {url.Values{"kind": {"confirmed"}, "confirmed": {"false"}}, models.ConfirmedAnswer{Confirmed: false}},
-		"cancelled": {url.Values{"kind": {"cancelled"}}, models.CancelledAnswer{}},
+		"value of a select":   {models.SelectDialog{Options: []string{"Sí"}}, url.Values{"kind": {"value"}, "value": {"Sí"}}, models.ValueAnswer{Value: "Sí"}},
+		"value of an input":   {models.InputDialog{}, url.Values{"kind": {"value"}, "value": {"x"}}, models.ValueAnswer{Value: "x"}},
+		"value of an editor":  {models.EditorDialog{}, url.Values{"kind": {"value"}, "value": {"uno\ndos"}}, models.ValueAnswer{Value: "uno\ndos"}},
+		"confirmed":           {models.ConfirmDialog{}, url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}, models.ConfirmedAnswer{Confirmed: true}},
+		"declined":            {models.ConfirmDialog{}, url.Values{"kind": {"confirmed"}, "confirmed": {"false"}}, models.ConfirmedAnswer{Confirmed: false}},
+		"cancelled of select": {models.SelectDialog{Options: []string{"Sí"}}, url.Values{"kind": {"cancelled"}}, models.CancelledAnswer{}},
 	}
 	for name, tc := range cases {
 		answerer := &fakeAnswerer{}
-		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", models.SelectDialog{Options: []string{"Sí"}})}}
+		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", tc.kind)}}
 		recorder, _ := serve(answerRouter(answerer, history), answerRequest(t, id, "d1", tc.form, i18n.En))
 		assert.Equal(t, http.StatusOK, recorder.Code, name)
 		require.Len(t, answerer.calls, 1, name)
 		assert.Equal(t, id, answerer.calls[0].id, name)
 		assert.Equal(t, "d1", answerer.calls[0].dialogID, name)
 		assert.Equal(t, tc.want, answerer.calls[0].answer, name)
+	}
+}
+
+// The answer must be one the dialog takes: a value for a select, input or editor, a confirmation for a confirm. A
+// mismatched answer is refused in the request language and never reaches the agent.
+func TestAnswerOfAnotherKindThanTheDialogIsRefused(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	cases := map[string]struct {
+		kind models.DialogKind
+		form url.Values
+	}{
+		"value to a confirm":        {models.ConfirmDialog{}, url.Values{"kind": {"value"}, "value": {"Sí"}}},
+		"confirmation to a select":  {models.SelectDialog{Options: []string{"Sí"}}, url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}},
+		"confirmation to an input":  {models.InputDialog{}, url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}},
+		"confirmation to an editor": {models.EditorDialog{}, url.Values{"kind": {"confirmed"}, "confirmed": {"false"}}},
+	}
+	for name, tc := range cases {
+		answerer := &fakeAnswerer{}
+		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", tc.kind)}}
+		recorder, body := serve(answerRouter(answerer, history), answerRequest(t, id, "d1", tc.form, i18n.En))
+		assert.Equal(t, http.StatusOK, recorder.Code, name)
+		assert.Empty(t, answerer.calls, name)
+		assert.Contains(t, body, dialogMismatchTexts[i18n.En], name)
+		assert.Contains(t, body, "hx-post", name)
+	}
+}
+
+// A cancel closes any dialog, whatever its kind: it is the one answer every dialog takes.
+func TestCancelIsDeliveredToEveryKindOfDialog(t *testing.T) {
+	t.Parallel()
+	id := taskID(t)
+	kinds := []models.DialogKind{models.SelectDialog{}, models.ConfirmDialog{}, models.InputDialog{}, models.EditorDialog{}}
+	for _, kind := range kinds {
+		answerer := &fakeAnswerer{}
+		history := &fakeHistory{events: []models.TaskEvent{dialogRequested(id, "d1", kind)}}
+		serve(answerRouter(answerer, history), answerRequest(t, id, "d1", url.Values{"kind": {"cancelled"}}, i18n.En))
+		require.Len(t, answerer.calls, 1, "%T", kind)
+		assert.Equal(t, models.CancelledAnswer{}, answerer.calls[0].answer, "%T", kind)
 	}
 }
 

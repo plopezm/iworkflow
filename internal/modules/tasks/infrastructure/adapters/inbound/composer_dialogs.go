@@ -30,6 +30,15 @@ var msgDialogDelivery = i18n.Msg{
 	Fr: "La réponse n’a pas pu être envoyée à l’agent.",
 }
 
+// msgDialogAnswerMismatch refuses an answer that is not of the kind the dialog asks, like a confirmation to a select.
+var msgDialogAnswerMismatch = i18n.Msg{
+	En: "The answer does not match the dialog.",
+	Es: "La respuesta no corresponde al diálogo.",
+	Zh: "回答与对话框不匹配。",
+	De: "Die Antwort passt nicht zu dem Dialog.",
+	Fr: "La réponse ne correspond pas à la boîte de dialogue.",
+}
+
 // DialogAnswerer answers a dialog the agent opened. *application.AnswerDialog satisfies it.
 type DialogAnswerer interface {
 	Execute(ctx context.Context, id models.TaskID, dialogID string, answer models.DialogAnswer) error
@@ -65,6 +74,26 @@ func (h *ComposerHandlers) answerDialog(w http.ResponseWriter, r *http.Request) 
 	web.Render(w, r, http.StatusOK, components.TranscriptDialog(id.String(), item, notice))
 }
 
+// answerFits reports whether the dialog takes the answer: a value for a select, input or editor, a confirmation for a
+// confirm dialog. A cancel closes any dialog.
+func answerFits(kind dto.TranscriptDialogKind, answer models.DialogAnswer) bool {
+	switch answer.(type) {
+	case models.CancelledAnswer:
+		return true
+	case models.ValueAnswer:
+		switch kind.(type) {
+		case dto.TranscriptSelectDialog, dto.TranscriptInputDialog, dto.TranscriptEditorDialog:
+			return true
+		}
+		return false
+	case models.ConfirmedAnswer:
+		_, isConfirm := kind.(dto.TranscriptConfirmDialog)
+		return isConfirm
+	default:
+		return false
+	}
+}
+
 // takeAnswer reads the answer of the form and hands it to the agent. It returns the dialog as it stands after the answer,
 // and the notice to show with it: a refused answer or one the agent did not take keeps the dialog open.
 func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id models.TaskID, dialogID string, item state.DialogItem) (state.DialogItem, string) {
@@ -72,6 +101,9 @@ func (h *ComposerHandlers) takeAnswer(w http.ResponseWriter, r *http.Request, id
 	answer, err := dto.ParseDialogAnswerForm(w, r)
 	if err != nil {
 		return item, formText(ctx, err)
+	}
+	if !answerFits(item.Request.Kind, answer) {
+		return item, msgDialogAnswerMismatch.T(ctx)
 	}
 	err = h.uc.Answer.Execute(ctx, id, dialogID, answer)
 	switch {
