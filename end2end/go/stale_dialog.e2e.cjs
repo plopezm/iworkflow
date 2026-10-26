@@ -66,6 +66,11 @@ async function withRuntime(ctx, runtime, body) {
   }
 }
 
+// The hrefs of the task links on the page, in the order they are shown.
+function taskHrefs(page) {
+  return page.locator('a[href*="/tasks/"]').evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+}
+
 // Creates a task in a fresh repository that starts at once with the given prompt, and opens its detail page.
 // Returns the id of the task. The prompt is the exact text the fake agent matches, so it is not made unique.
 async function startedTask(ctx, name, prompt) {
@@ -83,6 +88,7 @@ async function startedTask(ctx, name, prompt) {
   await ctx.page.locator('[id^="board-controls-"]:visible select[name=workspace]').selectOption({ label: `${name} (main)` });
   await listed;
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+  const knownHrefs = await taskHrefs(ctx.page);
   await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
   await ctx.page.getByLabel(/^Workspace/).selectOption({ label: `${name} (main)` });
   await ctx.page.getByLabel('Prompt').fill(prompt);
@@ -90,9 +96,13 @@ async function startedTask(ctx, name, prompt) {
   await ctx.page.getByRole('button', { name: 'Crear tarea' }).click();
   // Navigating before the create -> start chain ends cancels the start (as tasks.e2e does): wait for the modal to close.
   await ctx.page.getByRole('button', { name: 'Crear tarea' }).waitFor({ state: 'detached', timeout: 15000 });
-  const link = ctx.page.locator('a[href*="/tasks/"]', { hasText: prompt }).first();
-  await link.waitFor({ state: 'attached', timeout: 15000 });
-  const id = ((await link.getAttribute('href')) || '').match(/\/tasks\/([0-9a-f-]{36})/)?.[1];
+  const created = await ctx.page.waitForFunction(
+    (known) => [...document.querySelectorAll('a[href*="/tasks/"]')].map((a) => a.getAttribute('href')).find((href) => !known.includes(href)) || null,
+    knownHrefs,
+    { timeout: 15000 },
+  );
+  const href = await created.jsonValue();
+  const id = (href || '').match(/\/tasks\/([0-9a-f-]{36})/)?.[1];
   ctx.assert(id, 'no se obtuvo el id de la tarea creada');
   await ctx.goto(`/tasks/${id}`);
   return id;
