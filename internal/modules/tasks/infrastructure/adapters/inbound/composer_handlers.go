@@ -4,6 +4,7 @@ package inbound
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +26,15 @@ var msgInvalidTask = i18n.Msg{
 	Zh: "任务标识无效。",
 	De: "Die Kennung der Aufgabe ist ungültig.",
 	Fr: "L’identifiant de la tâche n’est pas valide.",
+}
+
+// msgHistoryUnavailable answers a history that cannot be read. The read error is logged, not shown: its text is internal.
+var msgHistoryUnavailable = i18n.Msg{
+	En: "The history of the task could not be read.",
+	Es: "No se pudo leer el historial de la tarea.",
+	Zh: "无法读取任务的历史记录。",
+	De: "Der Verlauf der Aufgabe konnte nicht gelesen werden.",
+	Fr: "L’historique de la tâche n’a pas pu être lu.",
 }
 
 // MessageSender is the send use case as the composer uses it. *application.SendMessage satisfies it.
@@ -82,7 +92,8 @@ func (h *ComposerHandlers) sendMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	view, historyErr := h.composerView(r.Context(), scope, id)
 	if historyErr != nil {
-		view.Notice = formText(r.Context(), historyErr)
+		slog.Error("could not read the history of the composer", "error", historyErr)
+		view.Notice = msgHistoryUnavailable.T(r.Context())
 	}
 	form, err := dto.ParseMessageForm(w, r)
 	if err != nil {
@@ -131,7 +142,8 @@ func (h *ComposerHandlers) setMode(w http.ResponseWriter, r *http.Request) {
 	}
 	view, historyErr := h.composerView(r.Context(), scope, id)
 	if historyErr != nil {
-		view.ModeNotice = formText(r.Context(), historyErr)
+		slog.Error("could not read the history of the composer", "error", historyErr)
+		view.ModeNotice = msgHistoryUnavailable.T(r.Context())
 	}
 	wire, err := dto.ParseModeForm(w, r)
 	if err != nil {

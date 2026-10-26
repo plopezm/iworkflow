@@ -395,31 +395,48 @@ func TestASentMessageClearsTheComposer(t *testing.T) {
 	assert.Contains(t, body, "></textarea>", "a delivered message leaves the field empty")
 }
 
-func TestAHistoryReadErrorIsShownInTheComposer(t *testing.T) {
+func TestAHistoryReadErrorIsShownInTheRequestLanguageWithoutTheInternalText(t *testing.T) {
 	t.Parallel()
-	readErr := errors.New("no se pudo leer el historial")
+	readErr := errors.New("sqlite: database is locked")
+	texts := map[i18n.Locale]string{
+		i18n.En: "The history of the task could not be read.",
+		i18n.Es: "No se pudo leer el historial de la tarea.",
+		i18n.Zh: "无法读取任务的历史记录。",
+		i18n.De: "Der Verlauf der Aufgabe konnte nicht gelesen werden.",
+		i18n.Fr: "L’historique de la tâche n’a pas pu être lu.",
+	}
+	for locale, want := range texts {
+		t.Run(string(locale), func(t *testing.T) {
+			t.Parallel()
+			inLocale := func(r *http.Request) *http.Request {
+				return r.WithContext(i18n.WithState(r.Context(), i18n.State{Locale: locale, Chosen: true}))
+			}
 
-	t.Run("a send still goes out as an ordinary message and says why the mode is unknown", func(t *testing.T) {
-		t.Parallel()
-		senders := &fakeSender{}
-		router := composerRouter(senders, &fakeModes{}, &fakeHistory{err: readErr}, nil)
-		request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/messages", map[string]string{"message": "hola", "mode": "steer"}, nil)
+			t.Run("a send still goes out as an ordinary message", func(t *testing.T) {
+				t.Parallel()
+				senders := &fakeSender{}
+				router := composerRouter(senders, &fakeModes{}, &fakeHistory{err: readErr}, nil)
+				request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/messages", map[string]string{"message": "hola", "mode": "steer"}, nil)
 
-		_, body := serve(router, request)
+				_, body := serve(router, inLocale(request))
 
-		require.Len(t, senders.calls, 1, "without a readable history the message is an ordinary message")
-		assert.Contains(t, body, "no se pudo leer el historial")
-		assert.Contains(t, body, "text-error")
-	})
+				require.Len(t, senders.calls, 1, "without a readable history the message is an ordinary message")
+				assert.Contains(t, body, want)
+				assert.NotContains(t, body, "database is locked", "the internal error text is never shown")
+				assert.Contains(t, body, "text-error")
+			})
 
-	t.Run("a mode change says why the switch is not offered", func(t *testing.T) {
-		t.Parallel()
-		router := composerRouter(&fakeSender{}, &fakeModes{}, &fakeHistory{err: readErr}, nil)
-		request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/mode", map[string]string{"mode": "plan"}, nil)
+			t.Run("a mode change says why the switch is not offered", func(t *testing.T) {
+				t.Parallel()
+				router := composerRouter(&fakeSender{}, &fakeModes{}, &fakeHistory{err: readErr}, nil)
+				request := composerMultipart(t, "/tasks/"+taskID(t).String()+"/mode", map[string]string{"mode": "plan"}, nil)
 
-		_, body := serve(router, request)
+				_, body := serve(router, inLocale(request))
 
-		assert.Contains(t, body, "no se pudo leer el historial")
-		assert.Contains(t, body, "text-error")
-	})
+				assert.Contains(t, body, want)
+				assert.NotContains(t, body, "database is locked", "the internal error text is never shown")
+				assert.Contains(t, body, "text-error")
+			})
+		})
+	}
 }
