@@ -47,10 +47,11 @@ func TestParseDialogAnswerFormReadsEachKindOfAnswer(t *testing.T) {
 func TestParseDialogAnswerFormRefusesAnUnknownOrIncompleteAnswer(t *testing.T) {
 	t.Parallel()
 	cases := map[string]url.Values{
-		"no kind":            {"value": {"x"}},
-		"unknown kind":       {"kind": {"maybe"}},
-		"confirmation empty": {"kind": {"confirmed"}},
-		"confirmation text":  {"kind": {"confirmed"}, "confirmed": {"sí"}},
+		"no kind":             {"value": {"x"}},
+		"unknown kind":        {"kind": {"maybe"}},
+		"value without field": {"kind": {"value"}},
+		"confirmation empty":  {"kind": {"confirmed"}},
+		"confirmation text":   {"kind": {"confirmed"}, "confirmed": {"sí"}},
 	}
 	for name, form := range cases {
 		w := httptest.NewRecorder()

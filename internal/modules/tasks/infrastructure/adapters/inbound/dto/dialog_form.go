@@ -34,7 +34,10 @@ func ParseDialogAnswerForm(w http.ResponseWriter, r *http.Request) (models.Dialo
 	}
 	switch first(values, "kind") {
 	case dialogAnswerValue:
-		return models.ValueAnswer{Value: first(values, "value")}, nil
+		// An empty input posts its field with an empty value; a missing field is not an answer.
+		if _, sent := values["value"]; sent {
+			return models.ValueAnswer{Value: first(values, "value")}, nil
+		}
 	case dialogAnswerCancelled:
 		return models.CancelledAnswer{}, nil
 	case dialogAnswerConfirmed:
