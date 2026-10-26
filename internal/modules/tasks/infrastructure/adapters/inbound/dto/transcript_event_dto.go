@@ -30,11 +30,36 @@ type TranscriptAgentEvent interface {
 	isTranscriptAgentEvent()
 }
 
-// TranscriptDialog is the part of a dialog request the transcript shows.
+// TranscriptDialog is the part of a dialog request the transcript shows: its identifier, its title and the kind
+// of answer it asks for.
 type TranscriptDialog struct {
 	ID    string
 	Title string
+	Kind  TranscriptDialogKind
 }
+
+// TranscriptDialogKind is the kind of a dialog request as the transcript keeps it. The implementations are the closed
+// set below.
+type TranscriptDialogKind interface {
+	isTranscriptDialogKind()
+}
+
+// TranscriptSelectDialog asks the user to pick one of the options.
+type TranscriptSelectDialog struct{ Options []string }
+
+// TranscriptConfirmDialog asks a yes or no question.
+type TranscriptConfirmDialog struct{ Message *string }
+
+// TranscriptInputDialog asks for a line of text.
+type TranscriptInputDialog struct{ Placeholder *string }
+
+// TranscriptEditorDialog asks for a multi-line text.
+type TranscriptEditorDialog struct{ Prefill *string }
+
+func (TranscriptSelectDialog) isTranscriptDialogKind()  {}
+func (TranscriptConfirmDialog) isTranscriptDialogKind() {}
+func (TranscriptInputDialog) isTranscriptDialogKind()   {}
+func (TranscriptEditorDialog) isTranscriptDialogKind()  {}
 
 // Transcript agent events. Each one mirrors the domain event of the same meaning, with the fields the transcript uses.
 type (
@@ -170,7 +195,11 @@ func transcriptAgentFromDomain(event models.AgentEvent) (TranscriptAgentEvent, e
 	case models.QueueChanged:
 		return TranscriptQueueChanged{Steering: typed.Steering, FollowUp: typed.FollowUp}, nil
 	case models.DialogRequested:
-		request := TranscriptDialog{ID: typed.Request.ID, Title: typed.Request.Title}
+		kind, err := transcriptDialogKind(typed.Request.Kind)
+		if err != nil {
+			return nil, err
+		}
+		request := TranscriptDialog{ID: typed.Request.ID, Title: typed.Request.Title, Kind: kind}
 		return TranscriptDialogRequested{Request: request}, nil
 	case models.DialogResolved:
 		return TranscriptDialogResolved{DialogID: typed.DialogID}, nil
@@ -192,5 +221,22 @@ func transcriptAgentFromDomain(event models.AgentEvent) (TranscriptAgentEvent, e
 		return TranscriptProcessExited{Code: typed.Code}, nil
 	default:
 		return nil, fmt.Errorf("unknown agent event %T", event)
+	}
+}
+
+// transcriptDialogKind maps the kind of a dialog request to its transcript form. An unknown kind is an error, so a
+// new kind of dialog cannot reach the transcript without a form.
+func transcriptDialogKind(kind models.DialogKind) (TranscriptDialogKind, error) {
+	switch typed := kind.(type) {
+	case models.SelectDialog:
+		return TranscriptSelectDialog{Options: typed.Options}, nil
+	case models.ConfirmDialog:
+		return TranscriptConfirmDialog{Message: typed.Message}, nil
+	case models.InputDialog:
+		return TranscriptInputDialog{Placeholder: typed.Placeholder}, nil
+	case models.EditorDialog:
+		return TranscriptEditorDialog{Prefill: typed.Prefill}, nil
+	default:
+		return nil, fmt.Errorf("unknown dialog kind %T", kind)
 	}
 }
