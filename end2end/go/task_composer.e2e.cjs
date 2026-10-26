@@ -19,8 +19,6 @@ function uniqueGitRepo(prefix) {
   return dir;
 }
 
-async function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
-
 // Creates a task that starts at once in a fresh repository and opens its detail page once the agent has answered.
 // Returns the id of the task.
 async function liveTask(ctx, name) {
@@ -34,9 +32,11 @@ async function liveTask(ctx, name) {
   await ctx.page.getByText(dir).first().waitFor({ timeout: 12000 });
   await ctx.goto('/');
   await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
+  // Choosing the workspace refreshes the list of the board: the new-task button is used once that answer has arrived.
+  const listed = ctx.page.waitForResponse((r) => r.url().includes('/board/frame'), { timeout: 10000 });
   await ctx.page.locator('[id^="board-controls-"]:visible select[name=workspace]').selectOption({ label: `${name} (main)` });
+  await listed;
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
-  await sleep(300);
   await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
   await ctx.page.getByLabel(/^Workspace/).selectOption({ label: `${name} (main)` });
   await ctx.page.getByLabel('Prompt').fill(prompt);
@@ -46,7 +46,6 @@ async function liveTask(ctx, name) {
   await ctx.page.getByRole('button', { name: 'Crear tarea' }).waitFor({ state: 'detached', timeout: 15000 });
   const link = ctx.page.locator('a[href*="/tasks/"]', { hasText: prompt }).first();
   await link.waitFor({ state: 'attached', timeout: 15000 });
-  await sleep(2000);
   const id = ((await link.getAttribute('href')) || '').match(/\/tasks\/([0-9a-f-]{36})/)?.[1];
   ctx.assert(id, 'no se obtuvo el id de la tarea creada');
   await ctx.goto(`/tasks/${id}`);
@@ -88,6 +87,8 @@ module.exports = {
       name: 'el botón Enviar envía el mensaje y está deshabilitado con el campo vacío',
       fn: async (ctx) => {
         await liveTask(ctx, 'send-button');
+        // The button is disabled by the script once the page is up: wait for that state instead of reading it early.
+        await ctx.page.waitForFunction(() => document.querySelector('[data-composer-send]')?.disabled === true);
         ctx.assert(await sendButton(ctx).isDisabled(), 'Enviar debe estar deshabilitado con el campo vacío');
         const text = `hola-boton-${tag}`;
         await box(ctx).fill(text);
@@ -99,6 +100,9 @@ module.exports = {
       name: '/plan sin modo reportado por el agente es un mensaje normal',
       fn: async (ctx) => {
         await liveTask(ctx, 'plan-plain');
+        // The mode of the agent is known once its first turn has settled ("Esperando"): only then the switch can show.
+        await box(ctx).waitFor();
+        await ctx.page.getByText('Esperando', { exact: true }).first().waitFor({ timeout: 20000 });
         ctx.assert(
           (await ctx.page.locator('.composer-mode-option').count()) === 0,
           'el agente falso no reporta modo: no debe aparecer el selector de modo',
@@ -129,6 +133,8 @@ module.exports = {
         const taken = await pasteImage(ctx, name);
         ctx.assert(taken, 'el pegado de una imagen debe interceptarse');
         await ctx.page.locator(`[data-image-previews] img[alt="${name}"]`).first().waitFor({ timeout: 10000 });
+        // An image alone is a message: the send button follows the picked images, with no text in the box.
+        await ctx.page.waitForFunction(() => document.querySelector('[data-composer-send]')?.disabled === false, null, { timeout: 5000 });
       },
     },
   ],
