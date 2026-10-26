@@ -106,3 +106,14 @@ func TestDiffViewReloadsWhenAFileIsSaved(t *testing.T) {
 func cardView(scope string, mode state.ViewMode) state.DiffView {
 	return state.DiffView{Scope: scope, Layout: state.DiffLayout{Mode: mode}}
 }
+
+// The editor slot of an editable card carries hx-preserve, so an editor that is open keeps its text when the diff view
+// reloads after another file is saved.
+func TestFileSlotIsPreservedAcrossADiffReload(t *testing.T) {
+	t.Parallel()
+	file := patchFile(t, modifyPatch)
+
+	html := renderIn(t, i18n.En, components.DiffFileCard(file, editableView(editScope, true), true))
+
+	assert.Contains(t, html, `id="`+state.FileSlotID(editScope, "src/a.rs")+`" hx-preserve="true"`)
+}

@@ -4,7 +4,8 @@ import "iworkflow/internal/modules/tasks/presentation/state"
 
 // DiffFileCard is one changed file: its header (status, path and counters) and its body in the layout of the view.
 // The header is the toggle of the card, a native details element, so the card opens and closes without a request.
-// A file that can be edited offers its editor under the header; the editor loads into the slot of the card.
+// A file that can be edited offers its editor under the header; the editor loads into the slot of the card. The slot is
+// hx-preserve: when the view reloads after a save, an editor that is open keeps its text.
 templ DiffFileCard(file state.FileDiff, view state.DiffView, open bool) {
 	<details id={ state.CardID(view.Scope, file.Path) } class="diff-card" open?={ open }>
 		<summary class="diff-card-header diff-card-toggle">
@@ -16,7 +17,7 @@ templ DiffFileCard(file state.FileDiff, view state.DiffView, open bool) {
 			<div class="diff-card-actions flex justify-end p-2">
 				<button type="button" class="btn-secondary" hx-get={ state.FileEditorPath(view.TaskID, view.Scope, file.Path) } hx-target={ "#" + state.FileSlotID(view.Scope, file.Path) } hx-swap="innerHTML">{ msgEdit.T(ctx) }</button>
 			</div>
-			<div id={ state.FileSlotID(view.Scope, file.Path) }></div>
+			<div id={ state.FileSlotID(view.Scope, file.Path) } hx-preserve="true"></div>
 		}
 		if file.Binary {
 			<p class="muted p-3">{ msgBinaryFile.T(ctx) }</p>
