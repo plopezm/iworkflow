@@ -88,11 +88,15 @@ function type(doc, box, text) {
   doc.dispatch('keyup', { key: 'a', target: box.textarea });
 }
 
-// The file requests of the test: each one waits until the test answers it.
+// The file requests of the test: each one waits until the test answers it, with a body and a status or with a failure.
 function fileRequests() {
   const requests = [];
-  globalThis.fetch = (url) => new Promise((resolve) => {
-    requests.push({ url, answer: (html) => resolve({ text: async () => html }) });
+  globalThis.fetch = (url) => new Promise((resolve, reject) => {
+    requests.push({
+      url,
+      answer: (html, status = 200) => resolve({ ok: status >= 200 && status < 300, status, text: async () => html }),
+      fail: (error) => reject(error),
+    });
   });
   return requests;
 }
@@ -173,6 +177,41 @@ test('an answer that arrives after the @ trigger was left does not reopen the me
   type(doc, box, '@a');
   type(doc, box, '');
   requests[0].answer('<li>a.txt</li>');
+  await flush();
+
+  assert.equal(box.menu.hidden, true);
+  assert.equal(box.menu.innerHTML, '');
+});
+
+test('a failed file answer shows no suggestions and the next query still works', async () => {
+  const box = messageBox();
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+  requests[0].answer('<p>internal server error</p>', 500);
+  await flush();
+
+  assert.equal(box.menu.innerHTML, '', 'the error body is not rendered as file names');
+  assert.equal(box.menu.hidden, true);
+
+  type(doc, box, '@ab');
+  requests[1].answer('<li>ab.txt</li>');
+  await flush();
+
+  assert.equal(box.menu.innerHTML, '<li>ab.txt</li>');
+  assert.equal(box.menu.hidden, false);
+});
+
+test('a file request that fails to reach the server closes the menu', async () => {
+  const box = messageBox();
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+  requests[0].fail(new TypeError('Failed to fetch'));
   await flush();
 
   assert.equal(box.menu.hidden, true);

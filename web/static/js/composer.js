@@ -152,6 +152,8 @@ async function fetchFiles(composer, query, signal) {
     headers: { 'HX-Request': 'true' },
     signal,
   });
+  // A failed answer carries an error page, not file names: it takes the same path as a request that never arrived.
+  if (!response.ok) throw new Error(`the file suggestions answered ${response.status}`);
   return response.text();
 }
 
