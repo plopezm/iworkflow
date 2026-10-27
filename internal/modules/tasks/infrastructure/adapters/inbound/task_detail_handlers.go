@@ -50,6 +50,7 @@ type DetailUseCases struct {
 	Discard         *application.DiscardTask
 	Delete          *application.DeleteTask
 	Merge           TaskMerger
+	Subagents       SubagentsReader
 }
 
 // DetailHandlers serves the detail tab of a task and its actions.
@@ -94,6 +95,7 @@ func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/reset", h.resetTask)
 	r.Post("/tasks/{id}/delete", h.deleteTask)
 	r.Get("/tasks/{id}/transcript", h.transcript)
+	r.Get("/tasks/{id}/subagents", h.subagents)
 	r.Get("/tasks/{id}/tabs/{tab}", h.tab)
 }
 

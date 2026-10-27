@@ -110,7 +110,9 @@ func TestDetailRouteTakesPrecedenceOverTheNotMigratedTasksCatchAll(t *testing.T)
 	require.True(t, ok)
 	assert.Equal(t, "task_diff", diff.Name, "the diff of a task is its own tab")
 
-	terminal, _, ok := registry.Match("/tasks/" + id + "/subagents")
+	// Subagents are a panel of the detail page (see task_subagents_test.go), not a dock tab: the dock still has no
+	// route for them, and the catch-all keeps the address that the panel never serves as a tab.
+	subagents, _, ok := registry.Match("/tasks/" + id + "/subagents")
 	require.True(t, ok)
-	assert.Equal(t, "not_migrated", terminal.Name, "subagents and the rest stay not migrated")
+	assert.Equal(t, "not_migrated", subagents.Name, "subagents are not a dock tab; the panel lives in the detail")
 }

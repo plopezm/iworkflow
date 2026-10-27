@@ -226,6 +226,7 @@ func NewModule(deps Deps) (*Module, error) {
 	resetTask := application.NewResetTask(lifecycle, worktrees, agentRuntime)
 	discardTask := application.NewDiscardTask(lifecycle, worktrees, agentRuntime)
 	mergeTask := application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote)
+	getSubagents := application.NewGetTaskSubagents(lifecycle, agentRuntime)
 	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{
 		Get:             getTask,
 		Events:          getEvents,
@@ -239,6 +240,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Delete:          deleteTask,
 		Panels:          deps.Panels,
 		Merge:           mergeTask,
+		Subagents:       getSubagents,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
 		Get:  getTask,
@@ -261,7 +263,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Update:            updateTask,
 		Delete:            deleteTask,
 		AnswerDialog:      answerDialog,
-		GetSubagents:      application.NewGetTaskSubagents(lifecycle, agentRuntime),
+		GetSubagents:      getSubagents,
 		DeleteWorkspace:   application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
 		Start:             start,
 		Send:              send,

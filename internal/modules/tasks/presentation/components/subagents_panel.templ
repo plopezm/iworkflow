@@ -1,0 +1,107 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// SubagentsPanel is the list of the subagents of a task, with the detail of the selected one. It refreshes itself
+// while it stays open: every stream event asks for the list again with the same selection, as the transcript does.
+templ SubagentsPanel(view state.SubagentsView) {
+	<div
+		id={ state.Scoped("task-subagents", view.Scope) }
+		class="stack gap-2"
+		hx-get={ state.SubagentsPath(view.TaskID, view.Scope, view.Selected) }
+		hx-trigger="sse:message from:body delay:300ms"
+		hx-sync="this:replace"
+		hx-target="this"
+		hx-swap="outerHTML"
+	>
+		if len(view.Subagents) == 0 {
+			<p class="muted">{ msgSubagentsEmpty.T(ctx) }</p>
+		} else {
+			<ul class="stack gap-1">
+				for _, subagent := range view.Subagents {
+					<li>
+						<button
+							type="button"
+							class={ subagentRowClass(subagent.ID == view.Selected) }
+							aria-pressed={ subagentAriaPressed(subagent.ID == view.Selected) }
+							hx-get={ state.SubagentsPath(view.TaskID, view.Scope, subagent.ID) }
+							hx-target={ "#" + state.Scoped("task-subagents", view.Scope) }
+							hx-swap="outerHTML"
+						>
+							<div class="row justify-between gap-2">
+								<span class="truncate text-sm font-semibold">{ subagentDisplayName(subagent) }</span>
+								@shared.Badge(subagentStatusLabel(ctx, subagent.Status), subagentStatusVariant(subagent.Status))
+							</div>
+							<span class="text-[11px] text-muted">{ subagentActivity(ctx, subagent.Turns, subagent.ToolCalls) }</span>
+							if subagent.LastStep != nil {
+								<span class="truncate text-[11px] text-muted">{ *subagent.LastStep }</span>
+							}
+						</button>
+					</li>
+				}
+			</ul>
+			if view.Detail != nil {
+				@subagentDetail(*view.Detail)
+			}
+		}
+	</div>
+}
+
+// subagentDetail is the prompt, the error and the thread of the selected subagent.
+templ subagentDetail(subagent dto.SubagentDTO) {
+	<div class="stack gap-2">
+		if subagent.Prompt != nil {
+			<div class="stack gap-1">
+				<span class="eyebrow">Prompt</span>
+				@subagentCode(*subagent.Prompt)
+			</div>
+		}
+		if subagent.Error != nil {
+			<p class="notice notice-warn">{ *subagent.Error }</p>
+		}
+		<div class="stack gap-1">
+			<span class="eyebrow">{ msgSubagentActivity.T(ctx) }</span>
+			for _, item := range subagent.Thread {
+				@subagentItem(item)
+			}
+		</div>
+	</div>
+}
+
+// subagentItem is one item of the thread: a text, its reasoning, a note, or a tool call with its arguments and output.
+templ subagentItem(item dto.SubagentItemDTO) {
+	if item.Kind == "text" {
+		<p class="text-sm whitespace-pre-wrap text-fg">{ item.Text }</p>
+	} else if item.Kind == "thinking" {
+		<p class="text-xs whitespace-pre-wrap text-muted italic">{ item.Text }</p>
+	} else if item.Kind == "note" {
+		<p class="notice notice-info">{ item.Text }</p>
+	} else if item.Kind == "tool" {
+		<div class="stack gap-1 rounded-md border border-border/60 p-2">
+			<div class="row gap-2">
+				<code class="font-mono text-xs font-semibold">{ item.Name }</code>
+				if item.Running {
+					@shared.Badge(msgBadgeRunning.T(ctx), "info")
+				}
+				if item.IsError {
+					@shared.Badge(msgBadgeError.T(ctx), "error")
+				}
+			</div>
+			if item.Args != nil {
+				@subagentCode(*item.Args)
+			}
+			if item.Output != nil {
+				@subagentCode(*item.Output)
+			}
+		</div>
+	}
+}
+
+// subagentCode is a monospaced block with its own scroll, for the long texts of a subagent.
+templ subagentCode(text string) {
+	<pre class="max-h-48 overflow-auto rounded-md bg-surface-2/60 p-2 font-mono text-[11px] whitespace-pre-wrap break-all text-muted">{ text }</pre>
+}
