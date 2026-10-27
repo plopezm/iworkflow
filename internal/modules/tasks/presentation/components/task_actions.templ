@@ -20,6 +20,12 @@ templ TaskActions(view state.TaskDetailView) {
 				@taskAction(view, "abort", msgAbortRun.T(ctx), "btn-secondary", "", false)
 			}
 		</div>
+		if view.Task.Actions.CanMerge {
+			<span class="eyebrow">{ msgSectionReview.T(ctx) }</span>
+			<div class="row gap-2">
+				@taskAction(view, "merge", msgMerge.T(ctx), "btn-primary", msgConfirmMerge.T(ctx), false)
+			</div>
+		}
 		if view.Task.Actions.CanReset || view.Task.Actions.CanDiscard {
 			<span class="eyebrow">{ msgSectionDanger.T(ctx) }</span>
 			<div class="row gap-2">

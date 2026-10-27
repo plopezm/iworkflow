@@ -225,6 +225,7 @@ func NewModule(deps Deps) (*Module, error) {
 	finishTask := application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup)
 	resetTask := application.NewResetTask(lifecycle, worktrees, agentRuntime)
 	discardTask := application.NewDiscardTask(lifecycle, worktrees, agentRuntime)
+	mergeTask := application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote)
 	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{
 		Get:             getTask,
 		Events:          getEvents,
@@ -237,6 +238,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Discard:         discardTask,
 		Delete:          deleteTask,
 		Panels:          deps.Panels,
+		Merge:           mergeTask,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
 		Get:  getTask,
@@ -277,7 +279,7 @@ func NewModule(deps Deps) (*Module, error) {
 		SaveFile:          application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
 		Worktrees:         worktrees,
 		GetDiff:           application.NewGetTaskDiff(lifecycle, worktrees),
-		Merge:             application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote),
+		Merge:             mergeTask,
 		SweepWorktrees:    application.NewSweepOrphanWorktrees(repository, worktrees),
 		ListBranches:      application.NewListWorkspaceBranches(lifecycle, worktrees),
 		Lifecycle:         lifecycle,

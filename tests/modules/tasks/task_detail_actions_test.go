@@ -33,6 +33,7 @@ func TestDetailOfARunningTaskOffersItsAgentAndDangerActionsWithTheirConfirmation
 	assert.Contains(t, body, `hx-post="/tasks/`+id+`/discard`, "a running task can be discarded")
 	assert.Contains(t, body, `hx-confirm="Discard the task? The worktree and the unmerged branch will be deleted."`)
 	assert.NotContains(t, body, `hx-post="/tasks/`+id+`/resume`, "resume is for stopped tasks")
+	assert.NotContains(t, body, `hx-post="/tasks/`+id+`/merge`, "a live task is not integrated yet")
 }
 
 func TestDetailOfAReviewedTaskOffersResumeAndNoAgentStop(t *testing.T) {
@@ -64,7 +65,7 @@ func TestDetailOfAMergedTaskOffersNoAgentOrDangerAction(t *testing.T) {
 
 	body := renderDetailTab(t, module, i18n.En, id)
 
-	for _, action := range []string{"abort", "finish", "resume", "reset", "discard"} {
+	for _, action := range []string{"abort", "finish", "resume", "reset", "discard", "merge"} {
 		assert.NotContains(t, body, `hx-post="/tasks/`+id+`/`+action, action)
 	}
 }
@@ -184,4 +185,38 @@ func TestResetOfAMergedTaskFromTheDetailIsRefusedAndTheTabStays(t *testing.T) {
 	assert.Contains(t, body, `text-error`, "a merge cannot be undone")
 	assert.NotContains(t, body, "data-dock-leave", "the tab stays open")
 	assert.Equal(t, string(models.StatusMerged), statusOf(t, repo, merged.ID))
+}
+
+// The review section of the actions tab: a task that can be integrated offers the merge, after a confirmation.
+func TestDetailOfAReviewedTaskOffersMergeWithItsConfirmation(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	reviewed := newTask(t, workspaceID, "merge-offered", models.StatusAwaitingReview)
+	insertTask(t, repo, reviewed)
+	module, _ := boardRouter(t, repo)
+	id := reviewed.ID.String()
+
+	body := renderDetailTab(t, module, i18n.En, id)
+
+	assert.Contains(t, body, ">Review<", "the review section has its heading")
+	assert.Contains(t, body, `hx-post="/tasks/`+id+`/merge`, "a reviewed task can be merged")
+	assert.Contains(t, body, `hx-confirm="Merge the branch into the base? The worktree will be removed."`)
+}
+
+// A merge the task cannot take is refused in place: the page stays, the reason is shown, the status does not move.
+func TestMergeOfARunningTaskFromTheDetailIsRefusedAndTheTabStays(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	running := newTask(t, workspaceID, "merge-refused", models.StatusRunning)
+	insertTask(t, repo, running)
+	_, router := boardRouter(t, repo)
+
+	recorder, body := doRequest(t, router, http.MethodPost, "/tasks/"+running.ID.String()+"/merge?scope=abc123", nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, `id="task-detail-abc123"`, "the answer is the page of this instance")
+	assert.Contains(t, body, `text-error`, "the refusal is shown")
+	assert.Equal(t, string(models.StatusRunning), statusOf(t, repo, running.ID))
 }

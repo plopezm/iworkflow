@@ -30,6 +30,11 @@ type AttachmentLister interface {
 	Execute(ctx context.Context, id models.TaskID) ([]models.StoredAttachment, error)
 }
 
+// TaskMerger integrates the branch of a task into its base. *application.MergeTask satisfies it.
+type TaskMerger interface {
+	Execute(ctx context.Context, id models.TaskID) (models.MergeOutcome, error)
+}
+
 // DetailUseCases are what the detail page reads and changes. Panels are the project views of the Files and Changes
 // tabs; the composition root injects them.
 type DetailUseCases struct {
@@ -44,6 +49,7 @@ type DetailUseCases struct {
 	Reset           *application.ResetTask
 	Discard         *application.DiscardTask
 	Delete          *application.DeleteTask
+	Merge           TaskMerger
 }
 
 // DetailHandlers serves the detail tab of a task and its actions.
@@ -84,6 +90,7 @@ func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/resume", h.resumeTask)
 	r.Post("/tasks/{id}/finish", h.finishTask)
 	r.Post("/tasks/{id}/discard", h.discardTask)
+	r.Post("/tasks/{id}/merge", h.mergeTask)
 	r.Post("/tasks/{id}/reset", h.resetTask)
 	r.Post("/tasks/{id}/delete", h.deleteTask)
 	r.Get("/tasks/{id}/transcript", h.transcript)
@@ -210,6 +217,26 @@ func (h *DetailHandlers) discardTask(w http.ResponseWriter, r *http.Request) {
 // resetTask returns the task to backlog. The tab closes and opens the board, as the Rust version does.
 func (h *DetailHandlers) resetTask(w http.ResponseWriter, r *http.Request) {
 	h.leaveAction(w, r, h.uc.Reset.Execute)
+}
+
+// mergeTask integrates the branch of the task into its base. The page answers with the outcome in its notice: the
+// branch went in, or the files that clash. A refused merge keeps the page and shows why.
+func (h *DetailHandlers) mergeTask(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
+	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		return
+	}
+	outcome, runErr := h.uc.Merge.Execute(ctx, id)
+	web.Trigger(w, boardRefreshEvent)
+	if runErr != nil {
+		h.renderPage(w, r, scope, id, errorText(runErr))
+		return
+	}
+	mapped := dto.MergeOutcomeFromDomain(outcome)
+	h.renderPage(w, r, scope, id, components.MergeNotice(ctx, mapped.Conflict, mapped.Files))
 }
 
 // deleteTask deletes a backlog task from its detail. The tab closes and opens the board of the task.
