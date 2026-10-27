@@ -62,7 +62,21 @@ async function liveTask(ctx, key) {
   const prompt = `${key}-${tag}`;
   const t = await taskDetail(ctx, key, prompt, { start: true });
   await ctx.page.getByText(`eco: ${prompt}`).first().waitFor({ timeout: 25000 });
-  await ctx.page.getByRole('heading', { name: '❓ ¿Seguir?' }).waitFor({ timeout: 15000 });
+  // The dialog is rendered as a notice line, not as a heading.
+  await ctx.page.getByText(/❓ ¿Seguir\?/).first().waitFor({ timeout: 15000 });
+  return t;
+}
+
+// Finaliza la tarea en vivo: responde el diálogo si sigue pendiente y pulsa "Finalizar y revisar".
+async function finishedTask(ctx, key) {
+  const t = await liveTask(ctx, key);
+  const page = ctx.page;
+  const pendingDialog = page.getByText(/❓ ¿Seguir\? \(pendiente\)/);
+  if (await pendingDialog.first().isVisible().catch(() => false)) {
+    await page.getByRole('button', { name: 'Sí' }).first().click();
+  }
+  await page.getByRole('button', { name: 'Finalizar y revisar' }).click();
+  await page.getByText('Pendiente de revisión').first().waitFor({ timeout: 25000 });
   return t;
 }
 
@@ -85,7 +99,7 @@ module.exports = {
     {
       name: 'el informe del diff se abre desde Exportar PDF y se cierra',
       fn: async (ctx) => {
-        const t = await liveTask(ctx, 'informe');
+        const t = await finishedTask(ctx, 'informe');
         await openDiff(ctx);
         // El diff del agente falso (CAMBIO.md) se lee en la pestaña.
         await ctx.page.getByText('cambio del agente').first().waitFor({ timeout: 20000 });
@@ -98,10 +112,15 @@ module.exports = {
           (await ctx.page.locator('.print-report').count()) === 1,
           'el informe debe responder con una sola copia del informe',
         );
+        // El informe del diff muestra el archivo y el texto del cambio del agente.
+        await report.getByText('CAMBIO.md').first().waitFor({ timeout: 15000 });
+        await report.getByText('cambio del agente').first().waitFor({ timeout: 15000 });
         // El cierre del informe responde el cierre del report del diff.
         await ctx.page.getByRole('button', { name: 'Cerrar' }).first().click();
         await ctx.page.locator('.print-report').waitFor({ state: 'detached', timeout: 15000 });
-        ctx.assert(!ctx.page.url().includes('/diff'), 'el cierre del informe no debe navegar');
+        ctx.assert(/\/tasks\/[0-9a-f-]{36}\/diff/.test(ctx.page.url()), 'el cierre del informe no debe navegar fuera del diff');
+        // Tras cerrar el informe, el diff vuelve con su tarjeta de archivo.
+        await ctx.page.locator('.diff-card').first().waitFor({ state: 'visible', timeout: 15000 });
       },
     },
   ],
