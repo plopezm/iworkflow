@@ -296,16 +296,22 @@ func TestDiffReportExplainedWaitsForTheAgentAnswer(t *testing.T) {
 	assert.Contains(t, body, "Generating PDF")
 }
 
-// The close of the report answers the idle view of the task, without the report content.
+// The close of the report stops the report and answers the diff view again: the summary and the file cards of
+// the task diff come back, without the report content.
 func TestDiffReportCloseStopsWaiting(t *testing.T) {
 	t.Parallel()
 	task := newDiffTaskForTest(t)
-	h := newDiffHandlersForTest(&diffTaskFake{task: task}, &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}})
+	reader := &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch, Commits: []string{"abc1234 fix"}}}
+	h := newDiffHandlersForTest(&diffTaskFake{task: task}, reader)
 
 	code, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=close")
 
 	assert.Equal(t, http.StatusOK, code)
 	assert.NotContains(t, body, `class="print-report"`)
+	assert.Contains(t, body, `class="diff-summary"`)
+	assert.Contains(t, body, `class="diff-cards"`)
+	assert.Contains(t, body, "src/a.rs")
+	assert.Equal(t, 1, reader.calls)
 }
 
 // The report answers an action that is not one of the reports of the task.

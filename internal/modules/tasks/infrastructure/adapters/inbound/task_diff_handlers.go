@@ -169,7 +169,7 @@ func (h *DiffHandlers) report(w http.ResponseWriter, r *http.Request) {
 	case "explained":
 		web.Render(w, r, http.StatusOK, h.explained(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
 	case "close":
-		web.Render(w, r, http.StatusOK, closedView(state.DiffView{Scope: state.SanitizeScope(r.URL.Query().Get("scope")), TaskID: id.String()}))
+		web.Render(w, r, http.StatusOK, h.closed(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
 	default:
 		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidReportAction.T(ctx)))
 	}
@@ -205,8 +205,14 @@ func (h *DiffHandlers) explained(ctx context.Context, id models.TaskID, scope st
 	return components.DiffView(view)
 }
 
-// closed answers a task that has no printable report open: the idle view of the diff, without the diff read.
-func closedView(view state.DiffView) templ.Component {
+// closed answers the task with its diff again, without the report: the close of the report stops it, and the
+// diff view that replaces it answers again with the summary and the file cards of the task diff.
+func (h *DiffHandlers) closed(ctx context.Context, id models.TaskID, scope string) templ.Component {
+	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+	if err != nil {
+		return diffFailure(ctx, id, err)
+	}
+	view.Report = view.Report.Close()
 	return components.DiffView(view)
 }
 

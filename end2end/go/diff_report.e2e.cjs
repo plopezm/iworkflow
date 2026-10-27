@@ -116,7 +116,8 @@ module.exports = {
         await report.getByText('CAMBIO.md').first().waitFor({ timeout: 15000 });
         await report.getByText('cambio del agente').first().waitFor({ timeout: 15000 });
         // El cierre del informe responde el cierre del report del diff.
-        await ctx.page.getByRole('button', { name: 'Cerrar' }).first().click();
+        // Scoped to the report: the dock tab also has a "Cerrar pestaña" button that the report covers.
+        await ctx.page.locator('.print-report-toolbar').getByRole('button', { name: 'Cerrar', exact: true }).click();
         await ctx.page.locator('.print-report').waitFor({ state: 'detached', timeout: 15000 });
         ctx.assert(/\/tasks\/[0-9a-f-]{36}\/diff/.test(ctx.page.url()), 'el cierre del informe no debe navegar fuera del diff');
         // Tras cerrar el informe, el diff vuelve con su tarjeta de archivo.
