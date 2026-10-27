@@ -121,6 +121,9 @@ module.exports = {
         await openActions(ctx);
         await ctx.page.getByRole('button', { name: 'Merge' }).click();
         await ctx.page.getByText('Integrada en la rama base.').first().waitFor({ timeout: 30000 });
+        // A task that is not awaiting review is not mergeable: after integrating the task is merged, so the
+        // action is not offered again and the state is left unchanged.
+        await ctx.page.getByRole('button', { name: 'Merge' }).waitFor({ state: 'detached', timeout: 15000 });
         await openBoard(ctx, t.ws);
         // The Go toolbar renders the completed toggle as a checkbox label, not as a button.
         await ctx.page.getByText('Mostrar terminadas').first().click();
