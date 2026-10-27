@@ -53,7 +53,7 @@ func newDiffTaskForTest(t *testing.T) models.Task {
 }
 
 func newDiffHandlersForTest(get *diffTaskFake, diff *diffReaderFake) *DiffHandlers {
-	return NewDiffHandlers(DiffUseCases{Get: get, Diff: diff})
+	return NewDiffHandlers(DiffUseCases{Get: get, Diff: diff, Send: &fakeSender{}})
 }
 
 // inLanguage is a request context in one language, as the shell sets it.
@@ -77,6 +77,19 @@ func diffViewRequest(t *testing.T, h *DiffHandlers, locale i18n.Locale, rawID st
 	router := chi.NewRouter()
 	h.Mount(router)
 	request := httptest.NewRequest(http.MethodGet, "/tasks/"+rawID+"/diff/view?"+query, nil)
+	request.Header.Set("HX-Request", "true")
+	request = request.WithContext(inLanguage(locale))
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder.Code, recorder.Body.String()
+}
+
+// diffReportRequest asks a printable report action of the task, as htmx does from a control of the report.
+func diffReportRequest(t *testing.T, h *DiffHandlers, locale i18n.Locale, rawID string, query string) (int, string) {
+	t.Helper()
+	router := chi.NewRouter()
+	h.Mount(router)
+	request := httptest.NewRequest(http.MethodGet, "/tasks/"+rawID+"/diff/report?"+query, nil)
 	request.Header.Set("HX-Request", "true")
 	request = request.WithContext(inLanguage(locale))
 	recorder := httptest.NewRecorder()
@@ -250,6 +263,60 @@ func TestDiffViewLogsTheTaskWhoseDiffCouldNotBeRead(t *testing.T) {
 
 	assert.Contains(t, logs.String(), "task="+task.ID.String())
 	assert.Contains(t, logs.String(), "git exploded")
+}
+
+// The plain report renders the printable content of the diff: the toolbar of the report, the commits, the summary
+// and the patch grouped per file, each line with its class.
+func TestDiffReportRendersThePlainReport(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	h := newDiffHandlersForTest(&diffTaskFake{task: task}, &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch, Commits: []string{"abc1234 fix"}}})
+
+	code, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=plain")
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, `class="print-report"`)
+	assert.Contains(t, body, `class="print-report-toolbar"`)
+	assert.Contains(t, body, `class="print-report-page"`)
+	assert.Contains(t, body, task.Title)
+	assert.Contains(t, body, `class="print-report-block"`)
+	assert.Contains(t, body, `class="diff-add"`)
+	assert.Contains(t, body, `class="diff-del"`)
+}
+
+// The explained report answers the task with the report that waits for the agent, behind the progress dialog.
+func TestDiffReportExplainedWaitsForTheAgentAnswer(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	h := newDiffHandlersForTest(&diffTaskFake{task: task}, &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}})
+
+	code, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=explained")
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, "Generating PDF")
+}
+
+// The close of the report answers the idle view of the task, without the report content.
+func TestDiffReportCloseStopsWaiting(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	h := newDiffHandlersForTest(&diffTaskFake{task: task}, &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}})
+
+	code, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=close")
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.NotContains(t, body, `class="print-report"`)
+}
+
+// The report answers an action that is not one of the reports of the task.
+func TestDiffReportRejectsAnUnknownAction(t *testing.T) {
+	t.Parallel()
+	h := newDiffHandlersForTest(&diffTaskFake{}, &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}})
+
+	code, body := diffReportRequest(t, h, i18n.En, newDiffTaskForTest(t).ID.String(), "action=nope")
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, msgInvalidReportAction.En)
 }
 
 func TestDiffViewRejectsAnInvalidIdentifier(t *testing.T) {

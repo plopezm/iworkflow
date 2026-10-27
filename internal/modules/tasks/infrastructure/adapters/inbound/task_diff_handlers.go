@@ -38,6 +38,19 @@ var msgDiffUnavailable = i18n.Msg{
 // msgDiffTabPlain names the diff tab when the task cannot be read, so the title does not show a failure.
 var msgDiffTabPlain = i18n.Msg{En: "Diff", Es: "Diff", Zh: "差异", De: "Diff", Fr: "Diff"}
 
+// msgInvalidReportAction answers a report action that is not one of the reports of the task.
+var msgInvalidReportAction = i18n.Msg{
+	En: "Unknown report action.",
+	Es: "Acción de informe desconocida.",
+	Zh: "未知的变更报告操作。",
+	De: "Unbekannte Berichtsaktion.",
+	Fr: "Action de rapport inconnue.",
+}
+
+// msgChangesReport names the diff report when the task it belongs to cannot be read, so the report does not show
+// an empty title.
+var msgChangesReport = i18n.Msg{En: "Changes report", Es: "Informe de cambios", Zh: "变更报告", De: "Änderungsbericht", Fr: "Rapport de modifications"}
+
 // TaskGetter reads a task: the title of the tab and whether the task exists. The application use case satisfies it.
 type TaskGetter interface {
 	Execute(ctx context.Context, id models.TaskID) (models.Task, error)
@@ -48,10 +61,12 @@ type TaskDiffGetter interface {
 	Execute(ctx context.Context, id models.TaskID) (models.TaskDiff, error)
 }
 
-// DiffUseCases are what the diff tab reads.
+// DiffUseCases are what the diff tab reads. Send asks the agent to explain the changes when the user asks for a
+// report with explanations; it is the send the composer uses for a message.
 type DiffUseCases struct {
 	Get  TaskGetter
 	Diff TaskDiffGetter
+	Send MessageSender
 }
 
 // DiffHandlers serves the diff tab of a task and the view that its layout controls swap.
@@ -81,9 +96,11 @@ func (h *DiffHandlers) Tabs() []dock.Route {
 	}
 }
 
-// Mount registers the view of the diff. The layout controls answer it, with the layout in the query.
+// Mount registers the view of the diff and the actions of its printable report. The layout controls answer the
+// view with a layout in the query; the report actions answer the report that swaps the view.
 func (h *DiffHandlers) Mount(r chi.Router) {
 	r.Get("/tasks/{id}/diff/view", h.view)
+	r.Get("/tasks/{id}/diff/report", h.report)
 }
 
 // title is the tab title: the title of the task, or the plain name when the task cannot be read.
@@ -136,6 +153,63 @@ func (h *DiffHandlers) view(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, components.DiffView(view))
 }
 
+// report answers a printable report action of the task: the plain report renders the changes without
+// explanations, the explained one asks the agent to explain them and waits for its answer, and the close stops the
+// report. Each action answers the view of the task, so the overlay of the report swaps the region that asked.
+func (h *DiffHandlers) report(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(ctx)))
+		return
+	}
+	switch action := r.URL.Query().Get("action"); action {
+	case "plain":
+		web.Render(w, r, http.StatusOK, h.plain(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
+	case "explained":
+		web.Render(w, r, http.StatusOK, h.explained(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
+	case "close":
+		web.Render(w, r, http.StatusOK, closedView(state.DiffView{Scope: state.SanitizeScope(r.URL.Query().Get("scope")), TaskID: id.String()}))
+	default:
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidReportAction.T(ctx)))
+	}
+}
+
+// plain renders the printable report without the explanation of the agent: the title, the commits, the summary and
+// the patch grouped per file of the diff.
+func (h *DiffHandlers) plain(ctx context.Context, id models.TaskID, scope string) templ.Component {
+	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+	if err != nil {
+		return diffFailure(ctx, id, err)
+	}
+	view.Report = state.DiffReport{TaskID: id.String(), Request: state.ReportRequestPlain}
+	return components.DiffView(view)
+}
+
+// explained asks the agent to explain the changes and answers with the report that waits for its answer: the
+// report renders behind the progress dialog until the agent answers, or fails when the ask cannot be delivered.
+func (h *DiffHandlers) explained(ctx context.Context, id models.TaskID, scope string) templ.Component {
+	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+	if err != nil {
+		return diffFailure(ctx, id, err)
+	}
+	report := state.DiffReport{TaskID: id.String()}
+	report = report.RequestExplanation(state.Transcript{})
+	report.Version++
+	report.SendError = nil
+	if err := h.uc.Send.Execute(ctx, id, state.ExplanationPrompt, nil, models.MessageModeFollowUp); err != nil {
+		sendError := err.Error()
+		report.SendError = &sendError
+	}
+	view.Report = report
+	return components.DiffView(view)
+}
+
+// closed answers a task that has no printable report open: the idle view of the diff, without the diff read.
+func closedView(view state.DiffView) templ.Component {
+	return components.DiffView(view)
+}
+
 // load reads the task and its diff, and builds the view of them. The files can be edited while the task has its worktree.
 func (h *DiffHandlers) load(ctx context.Context, id models.TaskID, scope string, layout state.DiffLayout) (state.DiffView, error) {
 	task, err := h.uc.Get.Execute(ctx, id)
@@ -148,6 +222,10 @@ func (h *DiffHandlers) load(ctx context.Context, id models.TaskID, scope string,
 	}
 	view := state.NewDiffView(scope, id.String(), dto.TaskDiffFromDomain(diff), layout)
 	view.CanEdit = task.Status.HasWorktree()
+	view.Title = task.Title
+	if view.Title == "" {
+		view.Title = msgChangesReport.T(ctx)
+	}
 	return view, nil
 }
 

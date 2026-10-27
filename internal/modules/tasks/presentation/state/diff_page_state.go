@@ -65,15 +65,21 @@ func (l DiffLayout) query() url.Values {
 	return url.Values{"view": {string(l.Mode)}, "tree": {tree}, "fold": {fold}}
 }
 
-// DiffView is what the diff view shows: the diff of the task, its parsed files and tree, and the layout the
-// controls start from. Scope is the page instance (see Scoped).
+// DiffView is what the diff view shows: the diff of the task, its parsed files and tree, the layout the controls
+// start from and the screen state of its printable report. Scope is the page instance (see Scoped).
 type DiffView struct {
 	Scope  string
 	TaskID string
+	// Title is the title of the task, the report opens with it. Empty when the task cannot be read, and then the
+	// report says its own name instead.
+	Title  string
 	Diff   dto.TaskDiffDTO
 	Files  []FileDiff
 	Tree   []TreeNode
 	Layout DiffLayout
+	// Report is the screen state of the printable diff report of the task: what was asked for and the phase it
+	// holds. A task that has no report open answers the idle phase.
+	Report DiffReport
 	// CanEdit is true while the task has its worktree: the files of the diff can be edited then.
 	CanEdit bool
 	// Failure is why the diff cannot be shown, in the request language. The controls stay, so the layout can be asked
@@ -87,6 +93,12 @@ func NewDiffView(scope string, taskID string, diff dto.TaskDiffDTO, layout DiffL
 	return DiffView{Scope: scope, TaskID: taskID, Diff: diff, Files: files, Tree: BuildTree(files), Layout: layout}
 }
 
+// ReportPhase returns the screen phase of the printable report of the task: none open, the plain one, or the one
+// that waits for the agent.
+func (v DiffView) ReportPhase() ReportPhase {
+	return v.Report.Phase()
+}
+
 // DiffViewPath is the address of the view of the task in another layout. It carries the scope of the instance, so
 // the answer swaps the view that asked.
 func DiffViewPath(view DiffView, layout DiffLayout) string {
@@ -95,6 +107,16 @@ func DiffViewPath(view DiffView, layout DiffLayout) string {
 		values.Set("scope", view.Scope)
 	}
 	return "/tasks/" + view.TaskID + "/diff/view?" + values.Encode()
+}
+
+// DiffReportPath is the address that answers a report action of the task (plain, explained, close), carrying the
+// instance scope.
+func DiffReportPath(taskID string, scope string, action string) string {
+	path := "/tasks/" + taskID + "/diff/report?action=" + action
+	if scope == "" {
+		return path
+	}
+	return path + "&scope=" + scope
 }
 
 // DiffViewRegionID is the id of the element the controls swap for one instance of the view.

@@ -11,8 +11,6 @@ import (
 // Port of the Rust tests of src/modules/tasks/presentation/state/diff_report.rs (the pure logic of the printable
 // diff report).
 
-func boolPtr(value bool) *bool { return &value }
-
 var isErrorFalse = false
 
 func TestExplanationPromptAsksForTheExplanationsInSpanish(t *testing.T) {

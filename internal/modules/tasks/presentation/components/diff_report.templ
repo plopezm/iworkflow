@@ -1,0 +1,44 @@
+package components
+
+import (
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// DiffReport is the printable report of the diff of a task: title, commits, summary, optional agent explanation and
+// the patch grouped per file. The phase decides whether the content of the report is complete; a complete plain
+// report is rendered as is, a complete explained one renders the answer of the agent. The save itself is the print
+// dialog of the browser, where "Save as PDF" is available; the close answers the report of the task through the diff
+// view that renders it.
+templ DiffReport(taskID string, scope string, title string, diff dto.TaskDiffDTO, phase state.ReportPhase) {
+	<div class="print-report">
+		<div class="print-report-toolbar">
+			<button type="button" class="btn-primary" data-print-report>{ msgSaveAsPDF.T(ctx) }</button>
+			<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(taskID, scope, "close") } hx-target={ "#" + state.DiffViewRegionID(scope) } hx-swap="outerHTML">{ msgReportClose.T(ctx) }</button>
+		</div>
+		<article class="print-report-page">
+			<h1>{ title }</h1>
+			<h2>{ msgReportCommits.Fmt(ctx, map[string]string{"n": countText(len(diff.Commits))}) }</h2>
+			<pre class="print-report-block">{ joinLines(diff.Commits) }</pre>
+			<h2>{ msgReportSummary.T(ctx) }</h2>
+			<pre class="print-report-block">{ diff.Stat }</pre>
+			if diff.Truncated {
+				<p class="notice notice-warn animate-fade-in">{ msgTruncated.T(ctx) }</p>
+			}
+			if phase.IsReady() {
+				<h2>{ msgReportExplanation.T(ctx) }</h2>
+				<div class="markdown">@templ.Raw(markdownHTML(phase.Explanation))</div>
+			}
+			<h2>{ msgReportChangesByFile.T(ctx) }</h2>
+			for _, file := range state.SplitPatchByFile(diff.Patch) {
+				<section class="print-report-file">
+					<pre class="diff">
+						for _, line := range file.Lines {
+							<div class={ lineClass(line) }>{ line }</div>
+						}
+					</pre>
+				</section>
+			}
+		</article>
+	</div>
+}

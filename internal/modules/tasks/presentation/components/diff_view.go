@@ -20,6 +20,12 @@ var (
 	msgNoFileChanges     = i18n.Msg{En: "No file changes.", Es: "Sin cambios de ficheros.", Zh: "文件没有更改。", De: "Keine Dateiänderungen.", Fr: "Aucune modification de fichier."}
 )
 
+// Texts of the controls of the printable report of the diff view, copied from the Rust diff view (src/modules/tasks/presentation/components/diff_view.rs).
+var (
+	msgExportPdf           = i18n.Msg{En: "Export PDF", Es: "Exportar PDF", Zh: "导出 PDF", De: "PDF exportieren", Fr: "Exporter en PDF"}
+	msgPdfWithExplanations = i18n.Msg{En: "PDF with explanations", Es: "PDF con explicaciones", Zh: "带说明的 PDF", De: "PDF mit Erklärungen", Fr: "PDF avec explications"}
+)
+
 // boolText is the value of a pressed or expanded attribute.
 func boolText(value bool) string {
 	return strconv.FormatBool(value)

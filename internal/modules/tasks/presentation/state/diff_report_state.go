@@ -49,6 +49,15 @@ func (p ReportPhase) HasReport() bool {
 	return p.Kind == ReportPhasePlain || p.Kind == ReportPhaseReady
 }
 
+// IsPlain reports whether the report is the plain one: the content without the agent explanation.
+func (p ReportPhase) IsPlain() bool { return p.Kind == ReportPhasePlain }
+
+// IsReady reports whether the report is the explained one and holds the answer of the agent.
+func (p ReportPhase) IsReady() bool { return p.Kind == ReportPhaseReady }
+
+// IsFailed reports whether the report failed and offers a retry and a close.
+func (p ReportPhase) IsFailed() bool { return p.Kind == ReportPhaseFailed }
+
 // GateRender holds a complete report back as Preparing until it is rendered. The server renders as soon as it can,
 // so a rendered content passes the gate.
 func GateRender(phase ReportPhase, rendered bool) ReportPhase {

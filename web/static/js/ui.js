@@ -184,6 +184,12 @@ function onClick(event) {
     return;
   }
 
+  const print = target.closest?.('[data-print-report]');
+  if (print) {
+    window.print();
+    return;
+  }
+
   const section = target.closest?.('[data-section-toggle]');
   if (section) return toggleCollapsibleSection(section);
 
