@@ -1,6 +1,9 @@
 package components
 
-import "iworkflow/internal/modules/tasks/presentation/state"
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
 
 // TaskActions is the actions tab of a task that left backlog: the agent actions, then the danger zone. Each action
 // posts to the task and answers the page of this instance; reset and discard ask first. Reset ends the page (the tab
@@ -19,7 +22,20 @@ templ TaskActions(view state.TaskDetailView) {
 			if view.Task.Actions.CanAbort {
 				@taskAction(view, "abort", msgAbortRun.T(ctx), "btn-secondary", "", false)
 			}
+			<button
+				type="button"
+				class="btn-secondary"
+				hx-get={ state.SubagentsPath(view.Task.ID, view.Scope, "") }
+				hx-target={ "#" + state.Scoped("task-subagents", view.Scope) }
+				hx-swap="outerHTML"
+			>
+				{ msgSubagents.T(ctx) }
+				if view.Transcript.SubagentsActive > 0 {
+					@shared.Badge(subagentCount(view.Transcript.SubagentsActive), "info")
+				}
+			</button>
 		</div>
+		<div id={ state.Scoped("task-subagents", view.Scope) }></div>
 		if view.Task.Actions.CanMerge {
 			<span class="eyebrow">{ msgSectionReview.T(ctx) }</span>
 			<div class="row gap-2">

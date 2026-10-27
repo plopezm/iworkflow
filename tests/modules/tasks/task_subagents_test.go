@@ -13,6 +13,21 @@ import (
 
 // The subagents panel of a task: the detail offers it, and the panel answers the subagents the runtime reports.
 
+func TestDetailOfARunningTaskOffersTheSubagentsPanel(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	running := newTask(t, workspaceID, "subagents-offered", models.StatusRunning)
+	insertTask(t, repo, running)
+	module, _ := boardRouter(t, repo)
+	id := running.ID.String()
+
+	body := renderDetailTab(t, module, i18n.En, id)
+
+	assert.Contains(t, body, `hx-get="/tasks/`+id+`/subagents`, "the entry asks for the panel of this task")
+	assert.Contains(t, body, ">Subagents", "the entry has its label")
+}
+
 func TestSubagentsOfATaskWithoutAnAgentAnswerTheEmptyPanel(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)

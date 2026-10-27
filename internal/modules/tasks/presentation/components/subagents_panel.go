@@ -61,6 +61,11 @@ func subagentActivity(ctx context.Context, turns uint32, tools uint32) string {
 	})
 }
 
+// subagentCount is the number of subagents still working, as the badge of the entry shows it.
+func subagentCount(active uint32) string {
+	return strconv.FormatUint(uint64(active), 10)
+}
+
 // subagentRowClass is the row of a subagent in the list; the selected one is highlighted.
 func subagentRowClass(selected bool) string {
 	if selected {

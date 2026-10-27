@@ -4,6 +4,7 @@ import "iworkflow/internal/core/i18n"
 
 // Texts of the subagents panel, copied from the Rust subagents_panel.rs and task_actions.rs Msg constants.
 var (
+	msgSubagents        = i18n.Msg{En: "Subagents", Es: "Subagentes", Zh: "子智能体", De: "Subagents", Fr: "Sous-agents"}
 	msgSubagentsEmpty   = i18n.Msg{En: "This agent has not launched any subagents.", Es: "Este agente no ha lanzado subagentes.", Zh: "此智能体尚未启动任何子智能体。", De: "Dieser Agent hat noch keine Subagents gestartet.", Fr: "Cet agent n’a lancé aucun sous-agent."}
 	msgStatusQueued     = i18n.Msg{En: "Queued", Es: "En cola", Zh: "排队中", De: "In Warteschlange", Fr: "En file d’attente"}
 	msgStatusRunning    = i18n.Msg{En: "Running", Es: "Ejecutando", Zh: "运行中", De: "Läuft", Fr: "En cours d’exécution"}
