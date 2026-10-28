@@ -248,6 +248,13 @@ func (a *App) Router() http.Handler {
 	// Every other GET is a page visit: the shell loads, and dock.js opens the path as a tab.
 	r.Get("/", a.page)
 	r.NotFound(a.page)
+	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			a.page(w, r)
+			return
+		}
+		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+	})
 	return r
 }
 
@@ -332,7 +339,6 @@ var navEntries = []navEntry{
 // (so a bookmark opens a tab) and explain the state instead of a 404.
 func notMigratedRoutes() []dock.Route {
 	return []dock.Route{
-		notMigratedRoute("/jira/{rest...}", "◈", msgTitleJira),
 		notMigratedRoute("/tasks/{rest...}", "●", msgTitleTasks),
 	}
 }

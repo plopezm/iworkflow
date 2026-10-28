@@ -13,6 +13,5 @@ var (
 	msgResources    = i18n.Msg{En: "Resources", Es: "Recursos", Zh: "资源", De: "Ressourcen", Fr: "Ressources"}
 	msgSettingsLang = i18n.Msg{En: "Language", Es: "Idioma", Zh: "语言", De: "Sprache", Fr: "Langue"}
 	msgSettingsNet  = i18n.Msg{En: "Network", Es: "Red", Zh: "网络", De: "Netzwerk", Fr: "Réseau"}
-	msgTitleTasks   = i18n.Msg{En: "Task", Es: "Tarea", Zh: "任务", De: "Aufgabe", Fr: "Tâche"}
-	msgTitleJira    = i18n.Msg{En: "Jira", Es: "Jira", Zh: "Jira", De: "Jira", Fr: "Jira"}
+	msgTitleTasks   = i18n.Msg{En: "Task", Es: "Tarea", Zh: "任务", De: "Aufgabe", Fr: "Tâches"}
 )

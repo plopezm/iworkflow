@@ -251,8 +251,10 @@ func TestBoardHandlers_Page(t *testing.T) {
 	f.connectAndSync()
 
 	tabs := f.module.Tabs()
-	require.Len(t, tabs, 1)
+	require.Len(t, tabs, 3)
 	assert.Equal(t, "jira", tabs[0].Name)
+	assert.Equal(t, "jira_convert", tabs[1].Name)
+	assert.Equal(t, "jira_issue", tabs[2].Name)
 
 	comp := tabs[0].Render(context.Background(), nil)
 	rec := httptest.NewRecorder()

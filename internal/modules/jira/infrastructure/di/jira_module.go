@@ -16,6 +16,7 @@ import (
 	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/outbound/api"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/outbound/persistence"
+	"iworkflow/internal/modules/jira/presentation/pages"
 )
 
 // Deps are the resources the module needs from the composition root.
@@ -55,12 +56,14 @@ type Module struct {
 
 	handlers      *inbound.ConnectionHandlers
 	boardHandlers *inbound.BoardHandlers
+	issueHandlers *inbound.IssueHandlers
 }
 
 // Routes mounts the fragment endpoints of the module. It satisfies web.Module.
 func (m *Module) Routes(r chi.Router) {
 	m.handlers.Mount(r)
 	m.boardHandlers.Mount(r)
+	m.issueHandlers.Mount(r)
 }
 
 // Tabs returns the dock tabs of the module.
@@ -73,6 +76,28 @@ func (m *Module) Tabs() []dock.Route {
 			Title:   func(_ context.Context, _ dock.Params) string { return "Jira" },
 			Render: func(ctx context.Context, _ dock.Params) templ.Component {
 				return m.handlers.Page(ctx)
+			},
+		},
+		{
+			Name:    "jira_convert",
+			Pattern: "/jira/{key}/convert",
+			Icon:    "◈",
+			Title: func(ctx context.Context, params dock.Params) string {
+				return pages.FormatConvertTitle(ctx, params["key"])
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return m.issueHandlers.ConvertPage(ctx, params["key"])
+			},
+		},
+		{
+			Name:    "jira_issue",
+			Pattern: "/jira/{key}",
+			Icon:    "◈",
+			Title: func(_ context.Context, params dock.Params) string {
+				return params["key"]
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return m.issueHandlers.IssuePage(ctx, params["key"])
 			},
 		},
 	}
@@ -105,6 +130,15 @@ func NewModule(deps Deps) *Module {
 	setLaneCollapsed := application.NewSetLaneCollapsed(lanes)
 	setIssueIgnored := application.NewSetIssueIgnored(issues)
 
+	getIssue := application.NewGetIssue(issues)
+	listComments := application.NewListIssueComments(connections, client)
+	listTransitions := application.NewListIssueTransitions(connections, client)
+	addComment := application.NewAddIssueComment(connections, client)
+	transitionIssue := application.NewTransitionIssue(connections, issues, client, clock)
+	prepareConversion := application.NewPrepareConversion(issues, deps.Workspaces)
+	listConversionBranches := application.NewListConversionBranches(deps.Workspaces)
+	convertIssue := application.NewConvertIssue(issues, deps.Tasks)
+
 	connectionHandlers := inbound.NewConnectionHandlers(getConnection, saveConnection, deleteConnection)
 	boardHandlers := inbound.NewBoardHandlers(
 		getConnection,
@@ -117,6 +151,17 @@ func NewModule(deps Deps) *Module {
 		setIssueIgnored,
 	)
 	connectionHandlers.SetBoardHandlers(boardHandlers)
+	issueHandlers := inbound.NewIssueHandlers(
+		getIssue,
+		listComments,
+		listTransitions,
+		addComment,
+		transitionIssue,
+		setIssueIgnored,
+		prepareConversion,
+		listConversionBranches,
+		convertIssue,
+	)
 
 	return &Module{
 		GetConnection:          getConnection,
@@ -128,16 +173,17 @@ func NewModule(deps Deps) *Module {
 		UpdateLane:             updateLane,
 		DeleteLane:             deleteLane,
 		SetLaneCollapsed:       setLaneCollapsed,
-		GetIssue:               application.NewGetIssue(issues),
-		ListComments:           application.NewListIssueComments(connections, client),
-		ListTransitions:        application.NewListIssueTransitions(connections, client),
-		AddComment:             application.NewAddIssueComment(connections, client),
-		TransitionIssue:        application.NewTransitionIssue(connections, issues, client, clock),
+		GetIssue:               getIssue,
+		ListComments:           listComments,
+		ListTransitions:        listTransitions,
+		AddComment:             addComment,
+		TransitionIssue:        transitionIssue,
 		SetIssueIgnored:        setIssueIgnored,
-		PrepareConversion:      application.NewPrepareConversion(issues, deps.Workspaces),
-		ListConversionBranches: application.NewListConversionBranches(deps.Workspaces),
-		ConvertIssue:           application.NewConvertIssue(issues, deps.Tasks),
+		PrepareConversion:      prepareConversion,
+		ListConversionBranches: listConversionBranches,
+		ConvertIssue:           convertIssue,
 		handlers:               connectionHandlers,
 		boardHandlers:          boardHandlers,
+		issueHandlers:          issueHandlers,
 	}
 }
