@@ -36,7 +36,7 @@ Sizes are Rust line counts (modules) and unmeasured for `tasks` sub-slices.
   - [x] T8 (S1,S4,S7) code_hosting — e2e 7/7 (PR / MR tab wired via taskPanels bridge)
   - [x] T9 (S1,S4,S7) terminal — e2e 6/6
 - Wave C:
-  - [~] T10 (S1,S4,S7) jira — backend ff45651, presentation J1 (connection UI + dock route) done, J2 (lanes/sync/filters) done (e2e jira_lanes 6/6), J3 (issue detail/convert) pending
+  - [x] T10 (S1,S4,S7) jira — backend ff45651, presentation J1 (connection UI + dock route) done, J2 (lanes/sync/filters) done, J3 (issue detail/convert) done (e2e jira 21/21 PASS)
 - Wave D, `tasks` (42k), sequential per S6:
   - [x] T11 (S6) A task-core — 6c76e86..e24265c (test parity partial, see D7)
   - [x] T12 (S6) B task-events and SSE
@@ -208,4 +208,12 @@ Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure
   - b48e0b0: BoardHandlers con /jira/sync, /jira/board, /jira/lanes/new, /jira/lanes (POST), /jira/lanes/{id}/edit, /jira/lanes/{id} (POST/PUT), /jira/lanes/{id}/confirm-delete, /jira/lanes/{id}/delete, /jira/lanes/{id}/collapse, /jira/lanes/cancel, /jira/issues/{key}/ignore; cableado DI en jira_module.go; tests de integración en tests/modules/jira/lane_handlers_test.go (11 casos); y suite E2E modular end2end/go/jira_lanes.e2e.cjs (6/6 PASS).
   Parent verification: gofmt limpio, go vet limpio, golangci-lint 0 issues, go test -race -p 2 limpio en todo el repositorio, e2e jira_lanes 6/6 PASS, regresión tasks_board 4/4 PASS.
   Native review assess cc1b3ea..b48e0b0: reviewDue: false (under_budget).
-- STATE FOR RESTART (L113): T10 J2 completado (6/6 E2E). Next: T10 J3 (detalle de issue /jira/{key}, comentarios, transiciones, y conversión a tarea /jira/{key}/convert). Whole-branch review remains DECLINED per L38.
+- L114: T10 J3 (detalle de issue /jira/{key}, comentarios, transiciones, y conversión a tarea /jira/{key}/convert) completado en 3 commits (2e63c9a, aaec5dd, 23bc602):
+  - 2e63c9a: DTOs y mapping de conversión/ramas, y estado de presentación (state/issue_detail.go, state/conversion.go) con pruebas unitarias TDD.
+  - aaec5dd: componentes Templ multilingües (pages/jira_issue_page.templ, pages/jira_convert_page.templ, pages/messages.go) con soporte de 5 idiomas.
+  - 23bc602: IssueHandlers con /jira/{key}/comments, /jira/{key}/transitions, /jira/{key}/ignore, /jira/{key}/convert/branches, /jira/{key}/convert (POST); cableado en di/jira_module.go y dock routes /jira/{key} y /jira/{key}/convert; resolución de rutas GET directas a través del shell dock en app.go; pruebas de integración en tests/modules/jira/issue_handlers_test.go y convert_handlers_test.go.
+  Verificación: gofmt limpio, golangci-lint 0 issues, go test -p 2 -race limpio en todo el proyecto, e2e suite completa jira 21/21 PASS (jira.e2e.cjs 15/15 + jira_lanes.e2e.cjs 6/6), regresiones tasks_board 4/4, tasks_actions 5/5, workspaces 8/8 PASS.
+  Native review assess 6dacbc5..23bc602: reviewDue: false (under_budget).
+  T10 (Jira) 100% CERRADO.
+- STATE FOR RESTART (L114): T10 completamente migrado a Go (Wave C cerrada). Todos los módulos (Waves A, B, C, D) tienen sus cortes migrados y funcionales. Restan los ítems de Quality debt (D1-D5, D9, D11), verificación independiente S7 y T19/T20. Whole-branch review remains DECLINED per L38.
+
