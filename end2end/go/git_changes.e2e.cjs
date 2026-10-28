@@ -57,20 +57,23 @@ async function liveTask(ctx) {
   await ctx.goto('/');
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
   // The runtime is saved by the agent bar (POST /agent-settings/runtime) before the task is created.
-  const saved = page.waitForResponse(
-    (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/agent-settings/runtime',
-    { timeout: 10000 },
-  );
-  await page.getByLabel(/^Agente/).first().selectOption('pi');
-  await saved;
+  const agentSelect = page.getByLabel(/^Agente/).first();
+  if ((await agentSelect.inputValue()) !== 'pi') {
+    const saved = page.waitForResponse(
+      (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/agent-settings/runtime',
+      { timeout: 10000 },
+    );
+    await agentSelect.selectOption('pi');
+    await saved;
+  }
   // Choosing the workspace refreshes the list of the board. The board may already show it (it is the only
   // workspace of a fresh database): a select on the same option fires no change, so no refresh is awaited then.
-  const workspaceChoice = page.locator('[id^="board-controls-"]:visible select[name=workspace]');
+  const workspaceChoice = page.locator('select[name=workspace]:visible');
   const label = `${WORKSPACE} (main)`;
-  if ((await workspaceChoice.evaluate((s) => s.selectedOptions[0]?.textContent)) !== label) {
-    const listed = page.waitForResponse((r) => r.url().includes('/board/frame'), { timeout: 10000 });
+  if ((await workspaceChoice.evaluate((s) => s.selectedOptions[0]?.textContent?.trim())) !== label) {
     await workspaceChoice.selectOption({ label });
-    await listed;
+    await page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+    await new Promise((r) => setTimeout(r, 400));
   }
   await page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await page.getByRole('button', { name: 'Nueva tarea' }).first().click();

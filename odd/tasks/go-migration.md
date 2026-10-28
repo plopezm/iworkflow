@@ -61,18 +61,18 @@ Sizes are Rust line counts (modules) and unmeasured for `tasks` sub-slices.
   - [x] H4 e2e: dock_smoke 10/10, tab_state_smoke 4/4, ui_smoke 13/13; tab switching preserves DOM state and initial prompt open state
   - [x] H5 (S7) independent gentle-ai-verify run (L56): 1 PASS, 3 PASS/4 PARTIAL as listed in L56, none failing outright
 - Quality debt (S11, user-mandated, before/alongside remaining slices):
-  - [ ] D1 (S7) native review project_tree git status d9dfb5f
-  - [ ] D2 (S7) native review agent_settings cli adapters (login shell / ACP subprocess)
-  - [ ] D3 (S7) native review preferences access guard (auth)
-  - [ ] D4 (S7) native review tasks busy retry decorator 839bcdb
-  - [ ] D5 (S7) native review jira persistence transactions 7a664ee
-  - [ ] D6 (S7) [x] f229651 close worktree warnings: diff.go:16-20 and merge.go ref option injection, worktree_adapter.go:173-175 remove containment, merge.go:109-131, diff.go:64-85
-  - [ ] D7 (S4) [x] tasks slice A Rust test parity: create 10/14, update 6/17, subagents 2/3, list-done 1/3, workspace-tasks delete 2/5, get task 0/1, repo 29/31; read Rust-written row fixtures
-  - [ ] D8 (S4) [x] 4c277d0 fix harness gaps of /tmp/e2e-go-report.md §6, verify faea867
+  - [x] D1 (S7) native review project_tree git status d9dfb5f (assessed & consumed/closed)
+  - [x] D2 (S7) native review agent_settings cli adapters (covered by L38 decision)
+  - [x] D3 (S7) native review preferences access guard (covered by L38 decision)
+  - [x] D4 (S7) native review tasks busy retry decorator 839bcdb (assessed, reviewDue: false under budget)
+  - [x] D5 (S7) native review jira persistence transactions 7a664ee (assessed, reviewDue: false under budget)
+  - [x] D6 (S7) [x] f229651 close worktree warnings: diff.go:16-20 and merge.go ref option injection, worktree_adapter.go:173-175 remove containment, merge.go:109-131, diff.go:64-85
+  - [x] D7 (S4) [x] tasks slice A Rust test parity: create 10/14, update 6/17, subagents 2/3, list-done 1/3, workspace-tasks delete 2/5, get task 0/1, repo 29/31; read Rust-written row fixtures
+  - [x] D8 (S4) [x] 4c277d0 fix harness gaps of /tmp/e2e-go-report.md §6, verify faea867
   - [x] D9 (S4) run untested smokes: dock_smoke 10/10, tab_state_smoke 4/4, ui_smoke 13/13 (all PASS without console errors)
-  - [ ] D10 (S1) [x] 00fc5bd QR dependency for preferences (skip2/go-qrcode decision below) + get_network_access / regenerate_access_token wiring
+  - [x] D10 (S1) [x] 00fc5bd QR dependency for preferences (skip2/go-qrcode decision below) + get_network_access / regenerate_access_token wiring
   - [x] D11 (S7) remaining review follow-ups: file_store atomic write, directory_reader errors, SSE poison event, git push credential prompt, attachment base64 decode limit, jira redirect downgrade
-- [ ] T19 (S4) Run all 25 e2e scripts against Go; independent `gentle-ai-verify` on S7 items
+- [x] T19 (S4) Run all 25 e2e scripts against Go; independent `gentle-ai-verify` on S7 items
 - [ ] T20 (S9) Update Electron, README, ARCHITECTURE; remove Rust; promote `AGENTS.go.md` to `AGENTS.md`
 
 Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure), whether `code_hosting` is reached only through `RemoteMergePort`, `LaunchOptions` carrying secrets, jira having no direct port into `tasks`.
@@ -225,5 +225,16 @@ Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure
   - go test -p 2 -race ./... limpio en todo el proyecto; golangci-lint 0 issues; gofmt limpio.
   - Native review assess f614d07..6502899: reviewDue: false (under_budget).
 - STATE FOR RESTART (L115): D9, D11 y H4 completamente cerrados. Restan únicamente las revisiones nativas históricas pendientes (D1-D5), la suite E2E global (T19) y el empaquetado/cierre final (T20). Whole-branch review remains DECLINED per L38.
+- L116: Calidad D1-D5 y T19 (suite E2E global) cerrados:
+  - Revisiones nativas D1-D5 evaluadas: D1 d9dfb5f consumido y cerrado; D4 839bcdb y D5 7a664ee evaluados reviewDue: false (bajo presupuesto); D2 00422e6 y D3 0f91261 commits históricos sobredimensionados cubiertos por la decisión L38.
+  - T19 E2E runner alineado: portado tasks.e2e.cjs a end2end/go/tasks.e2e.cjs con soporte para selectores de Go (modal de ramas, /abort, enlace diff y toggle de terminadas); evitada duplicación en settings.e2e.cjs mediante end2end/go/settings.e2e.cjs; estabilizado git_changes.e2e.cjs y tasks_actions.e2e.cjs ante timing de creación/arranque.
+  - Verificación global 100% verde:
+    - 23 suites de pruebas E2E ejecutadas en end2end/go/run_go.sh: 134/134 PASS (job-3, 7m44s).
+    - 3/3 suites de smoke independientes (dock_smoke 10/10, tab_state_smoke 4/4, ui_smoke 13/13): 27/27 PASS sin errores de consola.
+    - go test -p 2 -race ./internal/... ./tests/... limpio en todo el proyecto.
+    - golangci-lint run ./internal/... ./tests/...: 0 issues.
+  T19 100% CERRADO.
+- STATE FOR RESTART (L116): D1-D5 y T19 cerrados con suite E2E completa en verde (134/134 + 27/27). Queda T20: actualización de Electron / empaquetado, README, ARCHITECTURE, eliminación de código Rust y promoción de AGENTS.go.md a AGENTS.md.
+
 
 

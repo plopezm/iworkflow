@@ -71,6 +71,7 @@ async function taskDetail(ctx, key, prompt, opts = {}) {
   await page.getByRole('button', { name: 'Crear tarea' }).waitFor({ state: 'detached', timeout: 15000 });
   const link = page.locator('a[href*="/tasks/"]', { hasText: prompt }).first();
   await link.waitFor({ state: 'attached', timeout: 15000 });
+  if (opts.start) await sleep(1500);
   const href = await link.getAttribute('href');
   const id = (href.match(/\/tasks\/([0-9a-f-]{36})/) || [])[1];
   ctx.assert(id, `no se obtuvo el id de la tarea "${prompt}"`);
