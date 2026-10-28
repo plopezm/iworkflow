@@ -1,0 +1,66 @@
+package components
+
+import (
+	"fmt"
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+templ TaskGraphCanvas(view state.GraphView, positions map[string]state.Point, viewport state.Viewport, scope string, selectedEdgeKey string) {
+	{{
+		markerScope := MarkerScope(scope)
+		transformStyle := fmt.Sprintf("transform: %s; transform-origin: 0 0;", viewport.TransformCSS())
+	}}
+	<div
+		class="task-graph-canvas relative h-full w-full overflow-hidden select-none"
+		style={ GridStyle(viewport) }
+		data-graph-canvas
+		data-scope={ scope }
+	>
+		<svg
+			class="graph-edges absolute inset-0 h-full w-full pointer-events-none"
+			style={ transformStyle }
+		>
+			@GraphArrowDefs(markerScope)
+			for _, edge := range view.Edges {
+				{{
+					from := state.OutputAnchor(positions[edge.PredecessorID])
+					to := state.InputAnchor(positions[edge.SuccessorID])
+					selected := edge.Key() == selectedEdgeKey
+					delAttrs := templ.Attributes{
+						"hx-delete": state.ScopedPath(fmt.Sprintf("/tasks/dependencies?predecessor=%s&successor=%s", edge.PredecessorID, edge.SuccessorID), scope),
+						"hx-swap":   "none",
+					}
+				}}
+				@GraphEdgeLine(edge, markerScope, from, to, selected, delAttrs)
+			}
+		</svg>
+		<div
+			class="graph-nodes absolute inset-0 pointer-events-auto"
+			style={ transformStyle }
+		>
+			for _, node := range view.Nodes {
+				@TaskNode(node, positions[node.Task.ID], scope)
+			}
+		</div>
+		<div class="graph-zoom-bar absolute bottom-4 right-4 flex items-center gap-2">
+			@shared.ZoomControls(shared.ZoomControlsProps{
+				Zoom:         viewport.Zoom,
+				ZoomInLabel:  msgZoomIn.T(ctx),
+				ZoomOutLabel: msgZoomOut.T(ctx),
+				ZoomInAttrs:  templ.Attributes{"data-zoom-in": ""},
+				ZoomOutAttrs: templ.Attributes{"data-zoom-out": ""},
+			})
+			<button
+				type="button"
+				class="btn-secondary zoom-fit-btn h-8 w-8 !p-0 inline-flex items-center justify-center text-sm"
+				title={ msgFitView.T(ctx) }
+				aria-label={ msgFitView.T(ctx) }
+				data-zoom-fit
+				data-zoom-reset
+			>
+				<span aria-hidden="true">⤢</span>
+			</button>
+		</div>
+	</div>
+}

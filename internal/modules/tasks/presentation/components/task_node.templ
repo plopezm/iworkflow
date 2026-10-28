@@ -1,0 +1,95 @@
+package components
+
+import (
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+templ TaskNode(node state.NodeView, position state.Point, scope string) {
+	<div
+		class={ NodeClass(false, false, node.Task.NeedsAttention) }
+		style={ NodeStyle(position) }
+		data-node-id={ node.Task.ID }
+	>
+		<span class="graph-port graph-port-in" title={ msgInputPort.T(ctx) } aria-hidden="true"></span>
+		<article class="card animate-fade-in flex h-full flex-col gap-1.5 !p-2.5">
+			<div class="flex items-start justify-between gap-2">
+				<a
+					href={ templ.SafeURL(state.TaskPath(node.Task.ID)) }
+					class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg transition-colors hover:text-accent"
+				>
+					<span>{ state.TaskTitle(node.Task) }</span>
+				</a>
+				@StageBadge(node.Task.Stage)
+			</div>
+			<div class="flex min-h-5 flex-wrap items-center gap-1">
+				if node.Task.Priority != "" && node.Task.Priority != "normal" {
+					<span class={ "badge badge-" + priorityVariant(node.Task.Priority) }>{ priorityLabel(node.Task.Priority).T(ctx) }</span>
+				}
+				if node.Waiting > 0 {
+					if label := WaitingLabel(ctx, node.Waiting); label != nil {
+						<span class="badge badge-muted gap-1">
+							<span class="graph-waiting-dot" aria-hidden="true"></span>
+							{ *label }
+						</span>
+					}
+				}
+				if node.Task.PendingDialogs > 0 {
+					<span class="badge badge-muted">
+						{ pendingDialogsLabel(ctx, node.Task.PendingDialogs) }
+					</span>
+				}
+			</div>
+			if node.Task.Error != nil && *node.Task.Error != "" {
+				<p class="truncate text-xs text-error" title={ *node.Task.Error }>{ *node.Task.Error }</p>
+			}
+			<div class="mt-auto flex flex-wrap items-center gap-1">
+				if node.Task.Stage == state.StageBacklog {
+					@backlogActions(node.Task, scope)
+				}
+			</div>
+		</article>
+		<button
+			type="button"
+			class="graph-port graph-port-out"
+			title={ msgOutputPort.T(ctx) }
+			aria-label={ msgOutputPort.T(ctx) }
+		></button>
+		<div class="graph-node-tools">
+			<button
+				type="button"
+				class="graph-tool"
+				title={ msgAddNext.T(ctx) }
+				aria-label={ msgAddNext.T(ctx) }
+				hx-get={ state.ScopedPath("/tasks/new?predecessor="+node.Task.ID, scope) }
+				hx-target={ "#" + state.Scoped("board-create-slot", scope) }
+				hx-swap="innerHTML"
+			>
+				<span aria-hidden="true">→+</span>
+				{ msgNextShort.T(ctx) }
+			</button>
+			<button
+				type="button"
+				class="graph-tool"
+				title={ msgAddParallel.T(ctx) }
+				aria-label={ msgAddParallel.T(ctx) }
+				hx-get={ state.ScopedPath("/tasks/new?parallel="+node.Task.ID, scope) }
+				hx-target={ "#" + state.Scoped("board-create-slot", scope) }
+				hx-swap="innerHTML"
+			>
+				<span aria-hidden="true">⇉</span>
+				{ msgParallelShort.T(ctx) }
+			</button>
+			<button
+				type="button"
+				class="graph-tool"
+				title={ msgDetachTitle.T(ctx) }
+				aria-label={ msgDetachShort.T(ctx) }
+				hx-post={ state.ScopedPath(state.BoardTaskPath(node.Task.ID)+"/detach", scope) }
+				hx-swap="none"
+			>
+				<span aria-hidden="true">⊖</span>
+				{ msgDetachShort.T(ctx) }
+			</button>
+		</div>
+	</div>
+}

@@ -1,0 +1,54 @@
+package components
+
+import (
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+templ LooseTaskCard(task dto.TaskDTO, scope string) {
+	<article
+		class={ "card loose-card animate-fade-in flex flex-col gap-1.5 !p-2.5 " + toggleClass("", task.NeedsAttention, "loose-card-attention") }
+		title={ msgDragHint.T(ctx) }
+		data-task-id={ task.ID }
+		data-loose-task
+	>
+		<div class="flex items-start justify-between gap-2">
+			<a
+				href={ templ.SafeURL(state.TaskPath(task.ID)) }
+				class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg transition-colors hover:text-accent"
+			>
+				<span>{ state.TaskTitle(task) }</span>
+			</a>
+			@StageBadge(task.Stage)
+		</div>
+		<div class="flex min-h-5 flex-wrap items-center gap-1">
+			if task.Priority != "" && task.Priority != "normal" {
+				<span class={ "badge badge-" + priorityVariant(task.Priority) }>{ priorityLabel(task.Priority).T(ctx) }</span>
+			}
+			if task.PendingDialogs > 0 {
+				<span class="badge badge-muted">
+					{ pendingDialogsLabel(ctx, task.PendingDialogs) }
+				</span>
+			}
+		</div>
+		if task.Error != nil && *task.Error != "" {
+			<p class="truncate text-xs text-error" title={ *task.Error }>{ *task.Error }</p>
+		}
+		<div class="mt-auto flex flex-wrap items-center gap-1">
+			<button
+				type="button"
+				class="btn-ghost min-h-7 px-2 py-0.5 text-xs"
+				title={ msgAddToGraph.T(ctx) }
+				aria-label={ msgAddToGraph.T(ctx) }
+				hx-post={ state.ScopedPath(state.BoardTaskPath(task.ID)+"/add-to-graph", scope) }
+				hx-swap="none"
+			>
+				<span aria-hidden="true">+ </span>
+				{ msgAddToGraph.T(ctx) }
+			</button>
+			if task.Stage == state.StageBacklog {
+				@backlogActions(task, scope)
+			}
+		</div>
+	</article>
+}
