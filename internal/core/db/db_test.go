@@ -85,7 +85,8 @@ func TestMigrateAdoptsDieselManagedDatabase(t *testing.T) {
 	_, err := legacy.Exec(`CREATE TABLE __diesel_schema_migrations (version VARCHAR(50) PRIMARY KEY NOT NULL, run_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`)
 	require.NoError(t, err)
 	for _, dir := range legacyMigrationDirs(t) {
-		version := strings.ReplaceAll(strings.SplitN(dir, "-0000_", 2)[0], "-", "")
+		// Real Diesel version: folder prefix without hyphens (18 digits, e.g. 202609281634570000)
+		version := strings.ReplaceAll(strings.SplitN(dir, "_", 2)[0], "-", "")
 		_, err := legacy.Exec(`INSERT INTO __diesel_schema_migrations (version) VALUES (?)`, version)
 		require.NoError(t, err)
 	}
@@ -100,6 +101,30 @@ func TestMigrateAdoptsDieselManagedDatabase(t *testing.T) {
 	var applied int
 	require.NoError(t, legacy.QueryRow(`SELECT COUNT(*) FROM goose_db_version WHERE version_id > 0`).Scan(&applied))
 	require.Equal(t, len(legacyMigrationDirs(t)), applied)
+
+	var dieselTables int
+	require.NoError(t, legacy.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '__diesel_schema_migrations'`).Scan(&dieselTables))
+	require.Equal(t, 0, dieselTables, "diesel table must be dropped after adoption")
+}
+
+func TestMigrateFixesAlreadyAdopted18DigitVersions(t *testing.T) {
+	ctx := context.Background()
+	legacy := legacyDatabase(t)
+	_, err := legacy.Exec(`CREATE TABLE goose_db_version (id INTEGER PRIMARY KEY AUTOINCREMENT, version_id INTEGER NOT NULL, is_applied INTEGER NOT NULL, tstamp TIMESTAMP DEFAULT (datetime('now')))`)
+	require.NoError(t, err)
+	_, err = legacy.Exec(`INSERT INTO goose_db_version (version_id, is_applied) VALUES (0, 1)`)
+	require.NoError(t, err)
+	for _, dir := range legacyMigrationDirs(t) {
+		version := strings.ReplaceAll(strings.SplitN(dir, "_", 2)[0], "-", "")
+		_, err := legacy.Exec(`INSERT INTO goose_db_version (version_id, is_applied) VALUES (?, 1)`, version)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, db.Migrate(ctx, legacy))
+
+	var maxVersion int64
+	require.NoError(t, legacy.QueryRow(`SELECT MAX(version_id) FROM goose_db_version`).Scan(&maxVersion))
+	require.Less(t, maxVersion, int64(100000000000000), "all versions must be 14 digits or less")
 }
 
 func legacyMigrationDirs(t *testing.T) []string {
