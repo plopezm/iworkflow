@@ -64,7 +64,7 @@ func diffReportPollAttrs(taskID string, scope string, since int) templ.Attribute
 }
 
 // diffReportProgressTitle is the title of the progress dialog of the report.
-func diffReportProgressTitle(ctx context.Context, phase state.ReportPhase) string {
+func diffReportProgressTitle(ctx context.Context) string {
 	return msgReportProgressTitle.T(ctx)
 }
 

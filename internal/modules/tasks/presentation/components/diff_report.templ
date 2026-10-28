@@ -14,7 +14,7 @@ templ DiffReport(taskID string, scope string, title string, diff dto.TaskDiffDTO
 	<div class="print-report">
 		<div class="print-report-toolbar">
 			<button type="button" class="btn-primary" data-print-report>{ msgSaveAsPDF.T(ctx) }</button>
-			<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(taskID, scope, "close") } hx-target={ "#" + state.DiffViewRegionID(scope) } hx-swap="outerHTML">{ msgReportClose.T(ctx) }</button>
+			<button type="button" class="btn-secondary" { diffReportCancelAttrs(taskID, scope)... }>{ msgReportClose.T(ctx) }</button>
 		</div>
 		<article class="print-report-page">
 			<h1>{ title }</h1>

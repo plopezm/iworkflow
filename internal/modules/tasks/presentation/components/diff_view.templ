@@ -30,7 +30,7 @@ templ DiffView(view state.DiffView) {
 				<div hidden { diffReportPollAttrs(view.TaskID, view.Scope, view.Report.Since)... }></div>
 			}
 			if view.ReportPhase().IsBusy() {
-				@coreui.ProgressDialog(diffReportProgressTitle(ctx, view.ReportPhase()), diffReportProgressMessage(ctx, view.ReportPhase()), view.ReportPhase().IsBusy(), diffReportCancelAttrs(view.TaskID, view.Scope))
+				@coreui.ProgressDialog(diffReportProgressTitle(ctx), diffReportProgressMessage(ctx, view.ReportPhase()), true, diffReportCancelAttrs(view.TaskID, view.Scope))
 			}
 			@diffSummary(view.Diff.Commits, view.Diff.Stat)
 			if view.Diff.Truncated {

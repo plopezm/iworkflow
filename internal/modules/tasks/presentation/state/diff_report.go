@@ -47,7 +47,7 @@ func FindExplanation(transcript Transcript, prompt string, since int) (string, b
 	if transcript.IsStreaming() {
 		return "", false
 	}
-	if since > len(transcript.Items) {
+	if since < 0 || since > len(transcript.Items) {
 		return "", false
 	}
 	items := transcript.Items[since:]

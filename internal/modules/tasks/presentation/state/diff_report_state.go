@@ -122,20 +122,12 @@ func (r DiffReport) Phase() ReportPhase {
 
 // contentPhase derives the phase from the request, the answer and the error of the send.
 func (r DiffReport) contentPhase() ReportPhase {
-	switch r.Request {
-	case ReportRequestPlain:
-		return ReportPhase{Kind: ReportPhasePlain}
-	case ReportRequestExplained:
-		if answer, ok := FindExplanation(r.Transcript, ExplanationPrompt, r.Since); ok {
-			return ReportPhase{Kind: ReportPhaseReady, Explanation: answer}
-		}
-		if err := SendErrorSince(r.Version, r.Baseline, r.SendError); err != nil {
-			return ReportPhase{Kind: ReportPhaseFailed, Error: *err}
-		}
-		return ReportPhase{Kind: ReportPhaseWaiting}
-	default:
-		return PhaseFor(ReportRequestNone, nil, nil)
+	var answer *string
+	if text, ok := FindExplanation(r.Transcript, ExplanationPrompt, r.Since); ok {
+		answer = &text
 	}
+	err := SendErrorSince(r.Version, r.Baseline, r.SendError)
+	return PhaseFor(r.Request, answer, err)
 }
 
 // OpenPlain opens the plain report, behind the progress dialog of the server render.

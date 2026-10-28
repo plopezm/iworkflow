@@ -176,37 +176,45 @@ func (h *DiffHandlers) report(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidTask.T(ctx)))
 		return
 	}
-	switch action := r.URL.Query().Get("action"); action {
+	query := r.URL.Query()
+	scope := state.SanitizeScope(query.Get("scope"))
+	layout := state.ParseDiffLayout(query)
+	var comp templ.Component
+	switch query.Get("action") {
 	case "plain":
-		web.Render(w, r, http.StatusOK, h.plain(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
+		comp = h.plain(ctx, id, scope, layout)
 	case "explained":
-		web.Render(w, r, http.StatusOK, h.explained(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
+		comp = h.explained(ctx, id, scope, layout)
 	case "poll":
-		web.Render(w, r, http.StatusOK, h.polled(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope")), r.URL.Query().Get("since")))
+		comp = h.polled(ctx, id, scope, layout, query.Get("since"))
 	case "close":
-		web.Render(w, r, http.StatusOK, h.closed(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
+		comp = h.closed(ctx, id, scope, layout)
 	default:
-		web.Render(w, r, http.StatusOK, shared.ErrorText(msgInvalidReportAction.T(ctx)))
+		comp = shared.ErrorText(msgInvalidReportAction.T(ctx))
 	}
+	web.Render(w, r, http.StatusOK, comp)
 }
 
 // plain renders the printable report without the explanation of the agent: the title, the commits, the summary and
 // the patch grouped per file of the diff.
-func (h *DiffHandlers) plain(ctx context.Context, id models.TaskID, scope string) templ.Component {
-	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+func (h *DiffHandlers) plain(ctx context.Context, id models.TaskID, scope string, layout state.DiffLayout) templ.Component {
+	view, err := h.load(ctx, id, scope, layout)
 	if err != nil {
 		return diffFailure(ctx, id, err)
 	}
-	view.Report = state.DiffReport{TaskID: id.String(), Request: state.ReportRequestPlain}
+	view.Report = state.DiffReport{TaskID: id.String()}.OpenPlain()
 	return components.DiffView(view)
 }
 
 // explained asks the agent to explain the changes and answers with the report that waits for its answer: the
 // report renders behind the progress dialog until the agent answers, or fails when the ask cannot be delivered.
-func (h *DiffHandlers) explained(ctx context.Context, id models.TaskID, scope string) templ.Component {
-	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+func (h *DiffHandlers) explained(ctx context.Context, id models.TaskID, scope string, layout state.DiffLayout) templ.Component {
+	view, err := h.load(ctx, id, scope, layout)
 	if err != nil {
 		return diffFailure(ctx, id, err)
+	}
+	if view.Diff.Patch == "" && len(view.Diff.Commits) == 0 {
+		return components.DiffView(view)
 	}
 	transcript, _, err := foldHistory(ctx, h.uc.History, id)
 	if err != nil {
@@ -225,8 +233,8 @@ func (h *DiffHandlers) explained(ctx context.Context, id models.TaskID, scope st
 
 // polled answers the report that waits for the agent: the transcript is read again, and the report renders once the
 // agent answered the prompt after the length of the transcript at the time of the ask (since).
-func (h *DiffHandlers) polled(ctx context.Context, id models.TaskID, scope string, rawSince string) templ.Component {
-	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+func (h *DiffHandlers) polled(ctx context.Context, id models.TaskID, scope string, layout state.DiffLayout, rawSince string) templ.Component {
+	view, err := h.load(ctx, id, scope, layout)
 	if err != nil {
 		return diffFailure(ctx, id, err)
 	}
@@ -238,14 +246,17 @@ func (h *DiffHandlers) polled(ctx context.Context, id models.TaskID, scope strin
 	if err != nil || since < 0 {
 		since = 0
 	}
+	if since > len(transcript.Items) {
+		since = len(transcript.Items)
+	}
 	view.Report = state.DiffReport{TaskID: id.String(), Request: state.ReportRequestExplained, Since: since, Transcript: transcript}
 	return components.DiffView(view)
 }
 
 // closed answers the task with its diff again, without the report: the close of the report stops it, and the
 // diff view that replaces it answers again with the summary and the file cards of the task diff.
-func (h *DiffHandlers) closed(ctx context.Context, id models.TaskID, scope string) templ.Component {
-	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+func (h *DiffHandlers) closed(ctx context.Context, id models.TaskID, scope string, layout state.DiffLayout) templ.Component {
+	view, err := h.load(ctx, id, scope, layout)
 	if err != nil {
 		return diffFailure(ctx, id, err)
 	}

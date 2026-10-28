@@ -70,6 +70,20 @@ func TestSplitPatchFallsBackToTheTextOfAnUnparsableHeader(t *testing.T) {
 	assert.Equal(t, "weird", files[0].Name)
 }
 
+func TestFindExplanationRejectsNegativeSince(t *testing.T) {
+	t.Parallel()
+
+	transcript := state.Transcript{Items: []state.TranscriptItem{
+		state.UserItem{Text: "P"},
+		state.AssistantItem{Text: "uno"},
+	}}
+
+	answer, ok := state.FindExplanation(transcript, "P", -1)
+
+	assert.False(t, ok)
+	assert.Empty(t, answer)
+}
+
 func TestFindExplanationTakesTheLastAssistantAnswerAfterThePrompt(t *testing.T) {
 	t.Parallel()
 

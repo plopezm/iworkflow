@@ -180,7 +180,7 @@ func DiffView(view state.DiffView) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if view.ReportPhase().IsBusy() {
-				templ_7745c5c3_Err = coreui.ProgressDialog(diffReportProgressTitle(ctx, view.ReportPhase()), diffReportProgressMessage(ctx, view.ReportPhase()), view.ReportPhase().IsBusy(), diffReportCancelAttrs(view.TaskID, view.Scope)).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = coreui.ProgressDialog(diffReportProgressTitle(ctx), diffReportProgressMessage(ctx, view.ReportPhase()), true, diffReportCancelAttrs(view.TaskID, view.Scope)).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

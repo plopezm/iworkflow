@@ -342,6 +342,51 @@ func TestDiffReportPollRendersTheAnswerWhenTheAgentAnswered(t *testing.T) {
 	assert.NotContains(t, ready, "Generating PDF")
 }
 
+// When the diff has no changes, explained does not send an explanation prompt to the agent.
+func TestDiffReportExplainedWithNoChangesDoesNotSendPrompt(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	sender := &fakeSender{}
+	h := NewDiffHandlers(DiffUseCases{Get: &diffTaskFake{task: task}, Diff: &diffReaderFake{diff: models.TaskDiff{Patch: "", Commits: nil}}, Send: sender, History: &fakeHistory{}})
+
+	code, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=explained")
+
+	assert.Equal(t, http.StatusOK, code)
+	assert.Empty(t, sender.calls)
+	assert.NotContains(t, body, "Generating PDF")
+	assert.Contains(t, body, "No changes compared to the base branch.")
+}
+
+// Report actions preserve the diff layout across plain, close, and poll.
+func TestDiffReportPreservesLayout(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	reader := &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch, Commits: []string{"abc1234 fix"}}}
+	h := newDiffHandlersForTest(&diffTaskFake{task: task}, reader)
+
+	_, bodyPlain := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=plain&tree=1")
+	assert.Contains(t, bodyPlain, "tree=1")
+
+	_, bodyClose := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=close&tree=1")
+	assert.Contains(t, bodyClose, "tree=1")
+	assert.Contains(t, bodyClose, `class="diff-sidebar"`)
+}
+
+// Polling clamps since when it exceeds the transcript length.
+func TestDiffReportPollClampsSinceWhenExceedingTranscriptLength(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	reader := &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}}
+	history := &fakeHistory{events: []models.TaskEvent{{TaskID: task.ID, Kind: models.AgentEventKind{Event: models.UserMessage{Text: "P"}}}}}
+	h := NewDiffHandlers(DiffUseCases{Get: &diffTaskFake{task: task}, Diff: reader, Send: &fakeSender{}, History: history})
+
+	_, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=poll&since=99")
+
+	assert.Contains(t, body, "action=poll")
+	assert.Contains(t, body, "since=1")
+	assert.NotContains(t, body, "since=99")
+}
+
 // A send that fails is shown with its error and a way out, not as an empty region.
 func TestDiffReportExplainedShowsTheSendFailure(t *testing.T) {
 	t.Parallel()
