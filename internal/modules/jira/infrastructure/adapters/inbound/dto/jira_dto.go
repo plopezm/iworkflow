@@ -107,11 +107,23 @@ type WorkspaceDTO struct {
 	BaseBranch string `json:"base_branch"`
 }
 
-// BranchDTO is a branch a converted task can start from.
-type BranchDTO struct {
-	Name   string `json:"name"`
-	Remote bool   `json:"remote"`
+// ConversionBranchDTO is a branch a converted task can start from.
+type ConversionBranchDTO struct {
+	Name     string `json:"name"`
+	IsRemote bool   `json:"is_remote"`
 }
+
+// BranchDTO is an alias for ConversionBranchDTO.
+type BranchDTO = ConversionBranchDTO
+
+// JiraIssueDTO aliases IssueDTO for presentation consistency.
+type JiraIssueDTO = IssueDTO
+
+// JiraCommentDTO aliases CommentDTO for presentation consistency.
+type JiraCommentDTO = CommentDTO
+
+// JiraTransitionDTO aliases TransitionDTO for presentation consistency.
+type JiraTransitionDTO = TransitionDTO
 
 // ConversionPreparationDTO is what the conversion screen shows before the user confirms.
 type ConversionPreparationDTO struct {
@@ -271,6 +283,36 @@ func (d ConvertIssueDTO) ToConversionRequest() models.ConversionRequest {
 // ConvertedFromDomain maps the conversion result.
 func ConvertedFromDomain(converted application.ConvertedIssue) ConvertedIssueDTO {
 	return ConvertedIssueDTO{TaskID: converted.TaskID, StartError: converted.StartError}
+}
+
+// BranchesFromDomain maps domain branch options to conversion branch DTOs.
+func BranchesFromDomain(options []models.BranchOption) []ConversionBranchDTO {
+	branches := make([]ConversionBranchDTO, 0, len(options))
+	for _, opt := range options {
+		branches = append(branches, ConversionBranchDTO{
+			Name:     opt.Name,
+			IsRemote: opt.Remote,
+		})
+	}
+	return branches
+}
+
+// CommentsFromDomain maps a slice of domain comments.
+func CommentsFromDomain(comments []models.Comment) []CommentDTO {
+	result := make([]CommentDTO, 0, len(comments))
+	for _, c := range comments {
+		result = append(result, CommentFromDomain(c))
+	}
+	return result
+}
+
+// TransitionsFromDomain maps a slice of domain transitions.
+func TransitionsFromDomain(transitions []models.Transition) []TransitionDTO {
+	result := make([]TransitionDTO, 0, len(transitions))
+	for _, t := range transitions {
+		result = append(result, TransitionFromDomain(t))
+	}
+	return result
 }
 
 // parseLocalStateStrict accepts only the three stored states; anything else means no filter.
