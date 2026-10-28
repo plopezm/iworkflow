@@ -13,8 +13,8 @@ import (
 	"iworkflow/internal/modules/jira/presentation/state"
 )
 
-// JiraPage renders the Jira screen hosting the connection card.
-func JiraPage(view state.ConnectionCardView) templ.Component {
+// JiraPage renders the Jira screen hosting the connection card and the issues board.
+func JiraPage(connView state.ConnectionCardView, boardView *state.IssuesPanelView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -39,11 +39,22 @@ func JiraPage(view state.ConnectionCardView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = components.JiraConnectionCard(view).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = components.JiraConnectionCard(connView).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div></div>")
+		if boardView != nil {
+			templ_7745c5c3_Err = components.IssuesPanel(*boardView).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div id=\"jira-board\"></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -1,0 +1,81 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// LaneForm renders the form to create or edit a custom lane.
+templ LaneForm(form state.LaneFormView) {
+	{{
+		isEditing := form.Mode == state.LaneFormEditing
+		postURL := "/jira/lanes"
+		if isEditing {
+			postURL = "/jira/lanes/" + form.LaneID
+		}
+	}}
+	<form
+		class="card stack animate-slide-down border-accent/40"
+		hx-post={ postURL }
+		hx-target="#jira-board"
+		hx-swap="outerHTML"
+	>
+		<h2 class="card-title">
+			if isEditing {
+				{ msgEditLane.T(ctx) }
+			} else {
+				{ msgNewLane.T(ctx) }
+			}
+		</h2>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgLaneName.T(ctx) }</span>
+			<input
+				type="text"
+				name="name"
+				class="input"
+				aria-label={ msgLaneName.T(ctx) }
+				placeholder={ msgLaneNamePlaceholder.T(ctx) }
+				value={ form.Name }
+				required
+			/>
+		</label>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgJqlLabel.T(ctx) }</span>
+			<textarea
+				name="jql"
+				class="input min-h-24 font-mono text-xs"
+				aria-label={ msgJqlLabel.T(ctx) }
+				placeholder="project = ABC AND priority = High AND statusCategory != Done ORDER BY updated DESC"
+				required
+			>{ form.JQL }</textarea>
+			<p class="muted text-xs">{ msgJqlHint.T(ctx) }</p>
+		</label>
+		if form.Err != "" {
+			@shared.ErrorText(form.Err)
+		}
+		<div class="row flex-wrap items-center justify-end gap-2">
+			<button
+				type="button"
+				class="btn-ghost"
+				hx-get="/jira/lanes/cancel"
+				hx-target="#jira-board"
+				hx-swap="outerHTML"
+			>
+				{ msgCancel.T(ctx) }
+			</button>
+			<button
+				type="submit"
+				class="btn-primary"
+				disabled?={ form.Pending }
+			>
+				if form.Pending {
+					{ msgSavingAndSyncing.T(ctx) }
+				} else if isEditing {
+					{ msgSaveChanges.T(ctx) }
+				} else {
+					{ msgCreateLane.T(ctx) }
+				}
+			</button>
+		</div>
+	</form>
+}

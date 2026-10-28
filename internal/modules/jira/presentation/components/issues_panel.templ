@@ -1,0 +1,73 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// IssuesPanel renders the imported Jira issues board with sync, lane management, filters, and lanes.
+templ IssuesPanel(view state.IssuesPanelView) {
+	@issuesPanelBody(view, false)
+}
+
+// IssuesPanelOOB renders the board with hx-swap-oob="true" for out-of-band updates.
+templ IssuesPanelOOB(view state.IssuesPanelView) {
+	@issuesPanelBody(view, true)
+}
+
+templ issuesPanelBody(view state.IssuesPanelView, oob bool) {
+	<div
+		id="jira-board"
+		class="stack gap-4"
+		if oob {
+			hx-swap-oob="true"
+		}
+	>
+		@shared.Card(msgImportedIssues.T(ctx)) {
+			<div class="row flex-wrap items-center gap-2">
+				<button
+					type="button"
+					class="btn-primary"
+					disabled?={ view.Syncing }
+					hx-post="/jira/sync"
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+				>
+					if view.Syncing {
+						{ msgSyncing.T(ctx) }
+					} else {
+						{ msgSync.T(ctx) }
+					}
+				</button>
+				<button
+					type="button"
+					class="btn-secondary"
+					disabled?={ view.LaneForm.Mode != state.LaneFormClosed }
+					hx-get="/jira/lanes/new"
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+				>
+					{ msgNewLane.T(ctx) }
+				</button>
+				if view.SyncMessage != nil && *view.SyncMessage != "" {
+					<span class="muted text-sm">{ *view.SyncMessage }</span>
+				}
+			</div>
+			for _, failed := range view.FailedLanes {
+				@shared.ErrorText(formatLaneFailed(ctx, failed))
+			}
+			if view.LaneNotice != nil && *view.LaneNotice != "" {
+				@shared.ErrorText(*view.LaneNotice)
+			}
+			@IssueFilters(view.Filters, view.Statuses)
+		}
+		if view.LaneForm.Mode != state.LaneFormClosed {
+			@LaneForm(view.LaneForm)
+		}
+		<div class="stack gap-4">
+			for _, lane := range view.Lanes {
+				@LaneSection(lane)
+			}
+		</div>
+	</div>
+}
