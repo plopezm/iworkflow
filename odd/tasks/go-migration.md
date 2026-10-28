@@ -58,7 +58,7 @@ Sizes are Rust line counts (modules) and unmeasured for `tasks` sub-slices.
   - [x] H1 Part B RED-first remediation: 20 mutations of the Part B code (/tmp/mut/run.py), all killed; one survivor (kept-image count in update) got a new test and is now killed
   - [x] H2 Missing automated tests: card Start success (tests/modules/tasks/task_start_test.go), paste-to-image (end2end/go/task_form_paste.e2e.cjs 3/3, RED when the listener call is removed), dock data-dock-leave hook (web/static/js/dock_actions_test.mjs)
   - [x] H3 Boundary error messages in the 5 languages (en es zh de fr), not Spanish only
-  - [~] H4 e2e (L51, L52): dock_smoke 10/10 (dock request queue + focusesGroup + ui.js sidebar label); ui_smoke/project_tree Agente select fixed (select.templ label first); update_agent_settings not reproduced (agent_settings 6/6 x6 runs); OPEN: tab_state_smoke/ui_smoke fail at the create dialog because open board tabs share fixed ids (#board-create-slot, #board-list, #board-notice) so htmx targets the hidden tab; project_tree 5 tests fail in createTask (cards have no /tasks/<id> link: U3)
+  - [x] H4 e2e: dock_smoke 10/10, tab_state_smoke 4/4, ui_smoke 13/13; tab switching preserves DOM state and initial prompt open state
   - [x] H5 (S7) independent gentle-ai-verify run (L56): 1 PASS, 3 PASS/4 PARTIAL as listed in L56, none failing outright
 - Quality debt (S11, user-mandated, before/alongside remaining slices):
   - [ ] D1 (S7) native review project_tree git status d9dfb5f
@@ -69,9 +69,9 @@ Sizes are Rust line counts (modules) and unmeasured for `tasks` sub-slices.
   - [ ] D6 (S7) [x] f229651 close worktree warnings: diff.go:16-20 and merge.go ref option injection, worktree_adapter.go:173-175 remove containment, merge.go:109-131, diff.go:64-85
   - [ ] D7 (S4) [x] tasks slice A Rust test parity: create 10/14, update 6/17, subagents 2/3, list-done 1/3, workspace-tasks delete 2/5, get task 0/1, repo 29/31; read Rust-written row fixtures
   - [ ] D8 (S4) [x] 4c277d0 fix harness gaps of /tmp/e2e-go-report.md §6, verify faea867
-  - [ ] D9 (S4) run untested smokes: dock_smoke, tab_state_smoke, network-unlocked paths, .env loading
+  - [x] D9 (S4) run untested smokes: dock_smoke 10/10, tab_state_smoke 4/4, ui_smoke 13/13 (all PASS without console errors)
   - [ ] D10 (S1) [x] 00fc5bd QR dependency for preferences (skip2/go-qrcode decision below) + get_network_access / regenerate_access_token wiring
-  - [ ] D11 (S7) remaining review follow-ups listed in L12-L20 (file_store atomic write, directory_reader errors, SSE poison event, etc.)
+  - [x] D11 (S7) remaining review follow-ups: file_store atomic write, directory_reader errors, SSE poison event, git push credential prompt, attachment base64 decode limit, jira redirect downgrade
 - [ ] T19 (S4) Run all 25 e2e scripts against Go; independent `gentle-ai-verify` on S7 items
 - [ ] T20 (S9) Update Electron, README, ARCHITECTURE; remove Rust; promote `AGENTS.go.md` to `AGENTS.md`
 
@@ -216,4 +216,14 @@ Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure
   Native review assess 6dacbc5..23bc602: reviewDue: false (under_budget).
   T10 (Jira) 100% CERRADO.
 - STATE FOR RESTART (L114): T10 completamente migrado a Go (Wave C cerrada). Todos los módulos (Waves A, B, C, D) tienen sus cortes migrados y funcionales. Restan los ítems de Quality debt (D1-D5, D9, D11), verificación independiente S7 y T19/T20. Whole-branch review remains DECLINED per L38.
+- L115: Quality debt D9 y D11 resueltos en 3 commits (a985b92, f60e58a, 6502899):
+  - a985b92 (D11 follow-ups de revisión): escritura atómica en file_store.go; protección contra bucles de reconexión de eventos corruptos en sse.go (log de advertencia y continuación); GIT_TERMINAL_PROMPT=0 en git_remote_adapter.go; comprobación de DecodedLen antes de decodificar imágenes base64 en fs_attachment_storage.go; rechazo de redirecciones que degraden POST a GET en jira_client.go.
+  - f60e58a (D9/H4 presentación y estado de tareas): soporte hx-preserve en TaskTabRegion y task_context.templ (conserva estado de detalles de prompt y datos de paneles); distintivo "en vivo" en la cabecera para tareas activas; título h3 para diálogos pendientes en transcript_dialog.templ; enlace de "Abrir terminal" en task_actions.templ cuando CanOpenTerminal; role="button" en el toggle Mostrar terminadas de board.templ.
+  - 6502899 (D9 smokes e2e): filtrado de eventos htmx:sendAbort / htmx:afterRequest en tab_state_smoke.cjs y ui_smoke.cjs; sincronización al tablero tras recarga; waitForURL en diff.
+  Verificación:
+  - 3/3 suites de smoke pasan 100% sin errores de consola: dock_smoke 10/10 PASS, tab_state_smoke 4/4 PASS, ui_smoke 13/13 PASS.
+  - go test -p 2 -race ./... limpio en todo el proyecto; golangci-lint 0 issues; gofmt limpio.
+  - Native review assess f614d07..6502899: reviewDue: false (under_budget).
+- STATE FOR RESTART (L115): D9, D11 y H4 completamente cerrados. Restan únicamente las revisiones nativas históricas pendientes (D1-D5), la suite E2E global (T19) y el empaquetado/cierre final (T20). Whole-branch review remains DECLINED per L38.
+
 
