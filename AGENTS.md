@@ -1,277 +1,242 @@
-# Agent Context & Instructions: Rust (Leptos + Diesel) Hexagonal Vertical Slice
+# Agent Context & Instructions: Go (templ + htmx) Hexagonal Vertical Slice
 
 ## 1. Stack tecnológico
-- Lenguaje: Rust (edición 2021 o superior)
-- Framework: Leptos full-stack (SSR + hidratación, reactividad con Signals) sobre `axum`, gestionado con `cargo-leptos`
-- ORM: Diesel (`diesel` + `diesel-async` con `SyncConnectionWrapper<SqliteConnection>` y pool `deadpool`), migraciones con `diesel_cli` y embebidas (`embed_migrations!`) que se aplican al arrancar
-- Base de datos: SQLite (`libsqlite3-sys` bundled) en `~/.iworkflow/workspaces.db` (override con `IWF_DATABASE_URL`)
-- Búsqueda código: Usa codegraph, mantén actualizado los grafos en cada feature
-- Diseño: Usa tailwind css
+- Lenguaje: Go (última versión estable; `go.mod` fija la versión mínima)
+- Web: `net/http` + `chi` (router), render SSR con `templ` e interactividad con `htmx`. JS propio solo donde htmx no llegue (terminal, follow-bottom, diffs) y siempre aislado en `web/static/`
+- Tiempo real: SSE y WebSocket (`nhooyr.io/websocket` / `coder/websocket`) para streams de tareas, terminal y refrescos
+- Acceso a datos: `sqlc` (queries tipadas generadas) sobre `database/sql`, con migraciones `goose` embebidas (`embed.FS`) que se aplican al arrancar
+- Base de datos: SQLite con `modernc.org/sqlite` (puro Go, sin CGO) en `~/.iworkflow/workspaces.db` (override con `IWF_DATABASE_URL`)
+- PTY: `creack/pty`. HTTP externo: `net/http` con timeouts explícitos
+- Búsqueda código: usa codegraph, mantén actualizados los grafos en cada feature
+- Diseño: Tailwind CSS (CLI standalone, salida en `web/static/`)
+- Lint: `golangci-lint`. Mocks: `mockery` (o mocks manuales en `mocks_test.go`). Aserciones: `testify`
 
 ## 2. Orquestación
 
-Utiliza siempre la metodología ODD con multiagente
-
+Utiliza siempre la metodología ODD con multiagente. La migración desde Rust se coordina con `odd/tasks/go-migration.md`: cada especificación `S#` es un criterio de paridad con el comportamiento Rust existente (tests y e2e actuales).
 
 ## 3. Arquitectura (Hexagonal + Vertical Slicing)
 
-Combinamos los conceptos clave para mantener el sistema desacoplado, testeable y escalable:
-1. **Vertical Slicing**.
-2. **Arquitectura Hexagonal**: Dentro de cada corte vertical, el **Dominio** y los **Casos de Uso** están en el centro, completamente aislados de la infraestructura externa (Diesel, SQLite, HTTP, Leptos, axum).
-3. **Use Case Driven (Orientado a Casos de Uso)**: Cada acción del usuario o sistema está representada por un único Caso de Uso (struct con un método `execute`) que orquesta la lógica.
-4. **Presentación desacoplada**: Reutiliza componentes dentro de `presentation/components/` antes de duplicar UI.
+1. **Vertical Slicing**: cada feature es un paquete propio bajo `internal/modules/`.
+2. **Arquitectura Hexagonal**: `domain` y `application` están en el centro, aislados de la infraestructura (SQL, HTTP, templ, htmx, `chi`).
+3. **Use Case Driven**: cada acción del usuario o del sistema es un único caso de uso (struct con un método `Execute(ctx, input)`).
+4. **Presentación desacoplada**: reutiliza los componentes de `presentation/components/` y de `internal/core/components/` antes de duplicar UI.
 
 **Puertos:**
-- **Outbound** (`domain/ports/outbound/`): siempre. Son `trait`s; el caso de uso depende del trait (`Arc<dyn OrderRepositoryPort>`) y el adaptador Diesel lo implementa en `infrastructure`.
-- **Inbound** (`domain/ports/inbound/`): solo si hace falta un contrato explícito (varios drivers, tests contra el trait, o el proyecto ya lo usa). Si la server function es el único consumidor, basta el struct del use case en `application/usecases/` sin trait inbound.
+- **Outbound** (`domain/ports/outbound/`): siempre. Son `interface`s definidas en el dominio; el caso de uso depende de la interfaz y el adaptador de persistencia la implementa en `infrastructure`.
+- **Inbound** (`domain/ports/inbound/`): solo si hace falta un contrato explícito (varios drivers, tests contra la interfaz). Si el handler HTTP es el único consumidor basta el struct del caso de uso.
 
-**Traits asíncronos:** los puertos que se usen como `dyn Trait` se declaran con `#[async_trait::async_trait]` y con bound `Send + Sync`.
+Las interfaces son pequeñas y se definen donde se consumen. Todo método de I/O recibe `context.Context` como primer argumento.
 
-### 3.1 Compilación dual: `ssr` / `hydrate`
+### 3.1 Dependencias entre capas (se verifica con `depguard` / `go-arch-lint`)
 
-Leptos compila el mismo crate dos veces: servidor (feature `ssr`) y cliente WASM (feature `hydrate`).
+- `domain` no importa nada del proyecto salvo `domain` y paquetes de la stdlib sin I/O.
+- `application` solo importa `domain`.
+- `infrastructure` importa `domain` y `application`. `presentation` solo habla con `application` a través de los handlers/DTOs de `infrastructure/adapters/inbound`.
+- Prohibido en `domain` y `application`: `database/sql`, `net/http`, `chi`, `templ`, `sqlc` y cualquier paquete generado.
+- `internal/core` no puede importar nada de `internal/modules/`.
 
-- `domain` y `application` solo se compilan en el servidor salvo los modelos que viajen al cliente (ver 3.3).
-- Todo lo que dependa de Diesel, `diesel-async`, `deadpool`, `axum` o `tokio` va detrás de `#[cfg(feature = "ssr")]` y sus dependencias en `Cargo.toml` son `optional = true` activadas solo por `ssr`.
-- Nunca debe acabar Diesel ni código de acceso a datos en el bundle WASM.
+### 3.2 Stack obligatorio: composition root (DI) + htmx (estado)
 
-### 3.2 Stack obligatorio: Contexto de Leptos/axum (DI) + Signals (estado)
-
-Estas herramientas son **la única forma autorizada** de inyección de dependencias y gestión de estado. No uses alternativas (singletons con `lazy_static`/`OnceCell` para servicios, `static mut`, stores globales de terceros, llamadas a Diesel desde componentes, etc.) salvo que el usuario lo pida explícitamente.
+Es la **única forma autorizada** de inyección de dependencias y de estado de UI. No uses alternativas (variables globales, `init()` con efectos, singletons, frameworks de DI como wire/fx/dig, `context.Value` para servicios) salvo petición explícita.
 
 ### 3.3 Inyección de dependencias (servidor)
 
-- **Mecanismo:** el pool de SQLite y los casos de uso se construyen en el arranque (`main.rs`) y se inyectan en las server functions mediante `provide_context` usando `leptos_routes_with_context` / `handle_server_fns_with_context` de `leptos_axum`.
-- **Dónde:** el wiring de cada feature vive en `infrastructure/di/[feature]_context.rs`, que expone un struct `[Feature]Context` con los casos de uso ya construidos. La composición global se hace en `src/app_state.rs`, que solo agrupa los contextos de features.
-- **Qué registrar:** adaptadores outbound (dentro de los casos de uso) y casos de uso. Nunca el pool "a pelo" para que una server function haga queries.
-- **Cómo consumir:** en la server function con `expect_context::<OrderContext>()` (o `use_context` devolviendo `ServerFnError` si falta).
-- **Prohibido:** instanciar adaptadores o pools dentro de componentes, server functions o casos de uso; ejecutar queries Diesel fuera de `infrastructure/adapters/outbound/persistence/`.
+- **Mecanismo:** DI manual por constructores. El pool se crea en el arranque (`cmd/iworkflow/main.go`) y se inyecta en los módulos; no hay registro global.
+- **Dónde:** el wiring de cada feature vive en `infrastructure/di/<feature>_module.go`, que expone un struct `Module` con los casos de uso y los handlers ya construidos y un método `Routes(r chi.Router)`. La composición global está en `internal/app/app.go`, que solo agrupa los módulos.
+- **Qué registrar:** adaptadores outbound (dentro de los casos de uso) y casos de uso. Nunca la `*sql.DB` "a pelo" a un handler.
+- **Prohibido:** instanciar adaptadores o pools dentro de handlers, componentes o casos de uso; ejecutar queries fuera de `infrastructure/adapters/outbound/persistence/`.
 
 *Ejemplo de registro por feature:*
 
-```rust
-// src/modules/portfolio/infrastructure/di/portfolio_context.rs
-#[cfg(feature = "ssr")]
-#[derive(Clone)]
-pub struct PortfolioContext {
-    pub create_product: Arc<CreateProduct>,
+```go
+// internal/modules/portfolio/infrastructure/di/portfolio_module.go
+type Module struct {
+	CreateProduct *application.CreateProduct
+	handlers      *inbound.Handlers
 }
 
-#[cfg(feature = "ssr")]
-impl PortfolioContext {
-    pub fn new(pool: DbPool) -> Self {
-        let repository: Arc<dyn PortfolioRepositoryPort> =
-            Arc::new(PortfolioRepositoryAdapter::new(pool));
-        Self {
-            create_product: Arc::new(CreateProduct::new(repository)),
-        }
-    }
+func NewModule(db *sql.DB) *Module {
+	repo := persistence.NewPortfolioRepository(db) // implementa outbound.PortfolioRepositoryPort
+	create := application.NewCreateProduct(repo)
+	return &Module{CreateProduct: create, handlers: inbound.NewHandlers(create)}
 }
+
+func (m *Module) Routes(r chi.Router) { m.handlers.Mount(r) }
 ```
 
-```rust
-// src/main.rs (extracto)
-let pool: DbPool = build_pool(&database_url).await?;
-let portfolio: PortfolioContext = PortfolioContext::new(pool.clone());
-
-let router: Router = Router::new()
-    .leptos_routes_with_context(
-        &leptos_options,
-        routes,
-        move || provide_context(portfolio.clone()),
-        { let options = leptos_options.clone(); move || shell(options.clone()) },
-    );
+```go
+// cmd/iworkflow/main.go (extracto)
+db, err := database.Open(ctx, databaseURL)
+if err != nil { log.Fatal(err) }
+application := app.New(db) // construye todos los Module
+srv := &http.Server{Addr: addr, Handler: application.Router()}
 ```
 
-### 3.4 Server functions — adaptador inbound
+### 3.4 Handlers HTTP — adaptador inbound
 
-- **Dónde:** `infrastructure/adapters/inbound/server_fns.rs`, anotadas con `#[server]`.
-- **Responsabilidad:** deserializar la entrada, obtener el caso de uso del contexto, invocarlo y mapear errores de dominio a `ServerFnError`. **Sin lógica de negocio.**
-- **Tipos que viajan cliente↔servidor:** DTOs con `Serialize`/`Deserialize` en `infrastructure/adapters/inbound/dto/` (compilados en ambas features). No se exponen los structs de Diesel.
+- **Dónde:** `infrastructure/adapters/inbound/handlers.go` (y ficheros por recurso).
+- **Responsabilidad:** decodificar la petición (formulario, JSON o parámetros), invocar el caso de uso, mapear errores de dominio a código HTTP/fragmento de error y renderizar. **Sin lógica de negocio.**
+- **Tipos de entrada/salida:** DTOs en `infrastructure/adapters/inbound/dto/`. No se exponen los structs generados por `sqlc` ni se serializa el dominio directamente.
+- **Fragmentos htmx:** los handlers devuelven fragmentos templ cuando `HX-Request` está presente y la página completa en otro caso.
 
-```rust
-#[server]
-pub async fn create_product(input: CreateProductDto) -> Result<ProductDto, ServerFnError> {
-    let ctx: PortfolioContext = expect_context::<PortfolioContext>();
-    let product: Product = ctx
-        .create_product
-        .execute(input.into())
-        .await
-        .map_err(|e: PortfolioError| ServerFnError::new(e.to_string()))?;
-    Ok(ProductDto::from(product))
+```go
+func (h *Handlers) createProduct(w http.ResponseWriter, r *http.Request) {
+	input, err := dto.DecodeCreateProduct(r)
+	if err != nil { h.renderError(w, r, err); return }
+	product, err := h.create.Execute(r.Context(), input.ToDomain())
+	if err != nil { h.renderError(w, r, err); return }
+	h.render(w, r, components.ProductRow(dto.FromProduct(product)))
 }
 ```
 
-### 3.5 Signals — gestión de estado de UI
+### 3.5 Estado de UI (htmx + templ)
 
-- **Primitivas:** `signal` / `RwSignal` para estado local de UI, `Memo` para derivados, `Resource` para lecturas asíncronas vía server functions, `ServerAction` / `Action` (o `ActionForm`) para mutaciones.
-- **Dónde:** el estado de una pantalla se agrupa en `presentation/state/[flow]_state.rs` (struct con signals/resources/actions y un constructor `new()`), que se crea en la página y se comparte con sus hijos vía `provide_context` si hace falta.
-- **Responsabilidad del estado:** traducir interacciones en llamadas a server functions, exponer carga/éxito/error y datos listos para pintar. **Sin lógica de negocio duplicada:** la orquestación vive en `application/usecases/`.
-- **UI:** páginas y componentes usan `<Suspense>`, `<Transition>`, `<ErrorBoundary>` y leen signals; no llaman a Diesel, ni a adaptadores, ni a casos de uso directamente.
-- **Prohibido:** estado de dominio en signals globales compartidos entre features, `Effect` para coordinar llamadas al backend (usa `Resource`/`Action`), o contextos que sustituyan al estado de pantalla.
+- **El servidor es la fuente de verdad.** El estado de la pantalla se deriva de los datos del caso de uso y se actualiza con `hx-get`, `hx-post`, `hx-swap`, `hx-target` y eventos `HX-Trigger`.
+- **Dónde:** el estado de una pantalla se agrupa en `presentation/state/<flow>_state.go` (view-models inmutables que construye el handler), y las vistas en `presentation/pages/` y `presentation/components/` (`.templ`).
+- **Cliente:** el JS local se limita a comportamiento puramente de UI (foco, scroll, terminal). Para estado reactivo ligero usa atributos `data-*` y módulos pequeños en `web/static/js/`; no se duplica lógica de negocio en el cliente.
+- **Tiempo real:** SSE/WebSocket los expone el módulo y los consume htmx (`hx-ext="sse"`) o un módulo JS dedicado.
+- **Prohibido:** lógica de negocio en `.templ`, llamadas a SQL desde presentación y estado de dominio compartido entre features.
 
-*Flujos típicos:*
+*Flujo típico:*
 
 ```text
-[Page / Component] ──> [Signals / Resource / Action] ──> [#[server] fn (inbound adapter)]
-                                                                   │
-                                                          [Use Case (application)]
-                                                                   │
-[Diesel Adapter (persistence)] <── [Outbound Port (trait)] <───────┘
+[templ page/component] ──> [htmx request] ──> [HTTP handler (inbound adapter)]
+                                                        │
+                                               [Use Case (application)]
+                                                        │
+[sqlc/SQL adapter (persistence)] <── [Outbound Port (interface)] <──┘
          ▲
-         └── construido en [feature]_context.rs y provisto vía provide_context
+         └── construido en <feature>_module.go y compuesto en internal/app/app.go
 ```
 
 ## 4. Estructura de Carpetas (Estrategia de Slicing)
 
-Toda nueva funcionalidad debe crearse dentro de su propio módulo/feature. Queda **estrictamente prohibido** crear estados globales, repositorios compartidos o servicios genéricos que crucen features sin pasar por el dominio.
+Toda nueva funcionalidad se crea dentro de su propio módulo/feature. **Prohibido** crear estados globales, repositorios compartidos o servicios genéricos que crucen features sin pasar por el dominio.
 
-**Código compartido:** lo transversal (pool de SQLite, `schema.rs` de Diesel, shell/app, router, tema, componentes base, errores genéricos, utilidades sin dominio de un feature) vive en `src/core/` (o `src/shared/` si el proyecto ya usa ese nombre). `core`/`shared` **no** puede importar nada de `modules/`. Si un feature necesita algo de otro, se expone vía puerto de dominio o se mapea en la composition root (`app_state.rs` / `main.rs`) — no se importa el otro feature a pelo.
-
-Sigue este patrón de estructura de archivos:
+**Código compartido:** lo transversal (pool, migraciones, shell/layout, router base, tema, componentes base, errores genéricos, utilidades sin dominio) vive en `internal/core/`. Si un feature necesita algo de otro, se expone vía puerto de dominio o se mapea en la composition root (`internal/app/app.go`), nunca con un import directo entre features.
 
 ```text
-Cargo.toml                            # features: ssr / hydrate; [package.metadata.leptos]
-diesel.toml                           # print_schema -> src/core/db/schema.rs
-migrations/                           # Migraciones Diesel (up.sql / down.sql)
-src/
-├── main.rs                           # Arranque axum + leptos_axum (solo ssr)
-├── lib.rs                            # Entrada hydrate
-├── app.rs                            # Shell, <Router>, rutas
-├── app_state.rs                      # Composición de contextos de features (ssr)
+go.mod / go.sum
+sqlc.yaml                             # genera internal/core/db/gen (o por feature)
+Makefile                              # build, generate (templ, sqlc, tailwind), test, lint
+.golangci.yml
+migrations/                           # goose: NNNN_nombre.sql (-- +goose Up / Down)
+cmd/
+└── iworkflow/
+    └── main.go                       # Arranque: config, pool, migraciones, servidor
+internal/
+├── app/
+│   └── app.go                        # Composición de módulos y router
 ├── core/                             # Transversal (sin imports de modules/)
-│   ├── db/
-│   │   ├── pool.rs                   # DbPool (deadpool + SyncConnectionWrapper<SqliteConnection>)
-│   │   └── schema.rs                 # Generado por diesel print-schema
-│   └── components/                   # Componentes base reutilizables
+│   ├── db/                           # Open, pragmas, migraciones embebidas, tx helper
+│   ├── config/                       # config, env
+│   ├── i18n/
+│   ├── web/                          # shell, layout, middlewares, helpers htmx/SSE
+│   ├── components/                   # Componentes templ base reutilizables
+│   └── ...                           # git, process, markdown, etc. sin dominio de feature
 └── modules/
-    └── [feature_name]/               # Ejemplo: portfolio, taxation
-        ├── mod.rs
-        ├── mocks.rs                  # #[cfg(test)] mocks mockall del feature
-        ├── domain/                   # Núcleo de negocio (Rust puro: sin Leptos, Diesel ni axum)
-        │   ├── models/               # Entidades y value objects (order.rs, product_id.rs)
-        │   ├── errors/               # Errores de negocio con thiserror (order_error.rs)
+    └── <feature_name>/               # p. ej. workspaces, tasks, jira
+        ├── mocks_test.go             # mocks de los puertos del feature (package <feature>_test o interno)
+        ├── domain/                   # Núcleo de negocio (Go puro)
+        │   ├── models/               # Entidades y value objects
+        │   ├── errors/               # Errores de negocio (sentinelas y tipos)
         │   └── ports/
-        │       ├── inbound/          # Traits de casos de uso (create_order_use_case.rs)
-        │       └── outbound/         # Traits hacia infraestructura (order_repository_port.rs)
-        │
-        ├── application/              # Orquestación de la lógica de negocio
-        │   └── usecases/
-        │       ├── create_order.rs
-        │       └── cancel_order.rs
-        │
-        ├── infrastructure/           # Adaptadores técnicos y DI del slice
+        │       ├── inbound/          # Interfaces de casos de uso (si hace falta)
+        │       └── outbound/         # Interfaces hacia infraestructura
+        ├── application/              # Un fichero por caso de uso (+ _test.go)
+        ├── infrastructure/
         │   ├── adapters/
         │   │   ├── inbound/
-        │   │   │   ├── dto/          # DTOs serde cliente <-> servidor (order_dto.rs)
-        │   │   │   └── server_fns.rs # #[server] functions
+        │   │   │   ├── dto/
+        │   │   │   └── handlers.go
         │   │   └── outbound/
-        │   │       ├── api/          # Clientes HTTP externos (reqwest), si aplica
-        │   │       └── persistence/  # Diesel (solo ssr)
-        │   │           ├── models/   # Structs Queryable / Insertable / AsChangeset (order_row.rs)
-        │   │           └── order_repository_adapter.rs
+        │   │       ├── api/          # Clientes HTTP externos
+        │   │       └── persistence/  # sqlc/SQL: queries/*.sql, repositorios, mapeos fila↔dominio
         │   └── di/
-        │       └── [feature]_context.rs
-        │
-        └── presentation/             # UI Leptos: componentes, páginas y estado
+        │       └── <feature>_module.go
+        └── presentation/             # templ
             ├── state/
-            │   └── order_list_state.rs
             ├── pages/
-            │   └── order_list_page.rs
             └── components/
-                └── order_list_item.rs
-
-tests/                                # Tests de integración (SQLite temporal)
-└── modules/
-    └── [feature_name]/
-        └── order_repository_adapter_test.rs
-end2end/                              # Tests e2e (Playwright vía cargo-leptos), solo si aportan valor
+web/
+├── static/                           # CSS compilado, JS, assets
+└── tailwind.css
+tests/                                # Integración (SQLite temporal) por feature
+└── modules/<feature_name>/
+end2end/                              # Playwright (se reutilizan los e2e actuales como criterio de paridad)
 ```
 
 ## 5. Testing: Cobertura de Tests Obligatoria (Test-Driven Mindset)
-- **Regla:** Cada *feature*, caso de uso, adaptador o estado de pantalla nuevo debe incluir obligatoriamente sus pruebas correspondientes.
+- **Regla:** cada *feature*, caso de uso, adaptador, handler o estado de pantalla nuevo incluye sus pruebas.
 - **Estándar:**
-  - Casos de uso: tests unitarios en `#[cfg(test)] mod tests` junto al código, con `#[tokio::test]` y `mockall` sobre los puertos outbound.
-  - Adaptadores Diesel: tests de integración en `tests/modules/[feature_name]/` contra un fichero SQLite temporal (`tempfile`) por test, con las migraciones embebidas aplicadas.
-  - Server functions y DTOs: tests de mapeo (DTO ↔ dominio, error de dominio → `ServerFnError`).
-  - Estado de UI / componentes: `wasm-bindgen-test` o e2e con Playwright (`end2end/`) solo cuando aporten valor real.
-  - La UI necesitará tests Playwright por feature para asegurar que el caso de uso funciona en navegador
-- Se deberá crear un fichero `mocks.rs` para cada feature (`src/modules/[feature_name]/mocks.rs`, bajo `#[cfg(test)]`), donde se definirán los mocks con `mockall::mock!`.
+  - Casos de uso: tests unitarios en `*_test.go` junto al código, table-driven, con mocks de los puertos outbound.
+  - Adaptadores SQL: tests de integración en `tests/modules/<feature>/` contra un SQLite temporal por test (`t.TempDir()`), con las migraciones embebidas aplicadas.
+  - Handlers y DTOs: tests de mapeo con `httptest` (DTO ↔ dominio, error de dominio → código HTTP y fragmento).
+  - Componentes templ: tests de render (`templ` + comparación de HTML) cuando aporten valor.
+  - La UI necesita tests Playwright por feature en `end2end/` para asegurar el caso de uso en navegador.
+- **Paridad:** un módulo migrado no se da por terminado hasta que su e2e actual pasa contra la versión Go y sus tests Rust equivalentes tienen contraparte Go.
+- Cada feature mantiene sus mocks en `mocks_test.go` (o `mocks/` generado con `mockery`).
 
 ## 6. Reglas Estrictas de Código (Strict Rules)
-- Inmutabilidad por defecto: solo se usa `mut` cuando la variable deba reasignarse o mutarse.
-- Los valores constantes se declaran con `const` (o `static` si requieren dirección fija), en `SCREAMING_SNAKE_CASE`.
-- Todo binding `let` indica su tipo explícitamente (`let total: Decimal = ...`). Excepción: patrones de desestructuración y argumentos de closures donde la anotación no sea posible o sea redundante con la firma.
-- Los componentes no contendrán lógica de negocio en ninguno de los casos.
-- Los componentes se crearán de la forma más genérica posible (props tipadas, `Children`, `#[prop(into)]`) para su reutilización.
-- Siempre hay que hacer `.await` de los futures; nunca se descartan.
-- Evitar tareas fire-and-forget (`tokio::spawn`, `spawn_local`) sin gestionar su resultado o `JoinHandle`.
-- Prohibido `unwrap()` / `expect()` / `panic!` fuera de tests y del arranque en `main.rs`; los errores se propagan con `Result` y `?`, definidos con `thiserror`.
-- Prohibido `unsafe` salvo petición explícita del usuario.
-- Nada de SQL crudo (`sql_query`) salvo que el query builder de Diesel no lo permita o sean configuraciones de BD como `pragmas`, y siempre con parámetros `bind` si es posible.
+- Código formateado con `gofmt`/`goimports`; sin warnings de `golangci-lint`.
+- Inmutabilidad por defecto: entidades y value objects se construyen con constructores (`NewX`) que validan invariantes; los campos de dominio no se exportan si pueden romper invariantes.
+- Valores constantes con `const` (o variables de paquete no exportadas e inmutables); sin globales mutables.
+- Idiomático: se permite `:=`; los tipos explícitos son obligatorios en firmas, campos y APIs exportadas (adaptación de la regla Rust de anotar cada `let`).
+- Los componentes templ no contienen lógica de negocio; se crean lo más genéricos posible (parámetros tipados, `templ.Component` hijos, slots).
+- Todo error se propaga con `fmt.Errorf("...: %w", err)` y se comprueba con `errors.Is/As`; prohibido ignorar errores (`_ =`) salvo justificación comentada.
+- Prohibido `panic` fuera de `main.go` y de tests; prohibido `log.Fatal` fuera de `main.go`.
+- Toda goroutine tiene dueño: usa `errgroup`/`context` y espera su finalización; prohibidas las goroutines fire-and-forget. Respeta la cancelación de `context.Context`.
+- Prohibido `unsafe` y `cgo` salvo petición explícita.
+- Nada de SQL concatenado: SQL solo en `queries/*.sql` (sqlc) con parámetros; SQL crudo únicamente para pragmas/configuración.
+- Tiempos y IDs se inyectan (`Clock`, `IDGenerator`) para poder testear.
 
 ## 7. Comandos
 
-Ejecutar desde la raíz del proyecto (donde está el `Cargo.toml`). Requiere `cargo-leptos`, `diesel_cli` (con feature `sqlite-bundled`) y el target `wasm32-unknown-unknown`. Comandos útiles según el alcance del cambio:
+Ejecutar desde la raíz (donde está `go.mod`). Requiere `go`, `templ`, `sqlc`, `goose`, `golangci-lint` y Tailwind CLI.
 
 ```bash
-# Descarga/compilación de dependencias
-cargo fetch
-cargo leptos build
+# Generación (deben ejecutarse tras tocar .templ, queries SQL o CSS)
+make generate        # templ generate && sqlc generate && tailwind build
 
-# Desarrollo con recarga
-cargo leptos watch
+# Desarrollo
+make dev             # servidor con recarga
 
-# Base de datos (usa DATABASE_URL=ruta al .db; la app aplica migraciones al arrancar)
-diesel setup
-diesel migration generate [nombre]
-diesel migration run
-diesel migration redo          # Verifica que down.sql revierte correctamente
+# Migraciones
+goose -dir migrations sqlite3 "$IWF_DATABASE_URL" up
+goose -dir migrations sqlite3 "$IWF_DATABASE_URL" redo   # verifica que Down revierte
 
-# Testear la aplicación
-cargo leptos test
-# o directamente la parte servidor
-cargo test --features ssr
-
-# Tests de un feature concreto
-cargo test --features ssr modules::[feature_name]
-
-# Un test de integración concreto
-cargo test --features ssr --test order_repository_adapter_test
+# Tests
+go test -p 2 ./internal/modules/<feature_name>/...          # unitarios de un feature
+go test -p 2 ./tests/modules/<feature_name>/...             # integración de un feature
+go test -p 2 -race ./...                                    # suite completa
 
 # E2E (si existen)
-cargo leptos end-to-end
-
-# Límite de recursos: cada binario de tests enlaza con rust-lld (~3 GB de RAM).
-# Usa siempre -j 2 y, en iteración, solo tests de librería (--lib); nunca `cargo test`
-# sin filtro ni todos los tests de integración a la vez.
-cargo test --features ssr --lib -j 2 modules::[feature_name]
+make e2e
 
 # Formato y análisis estático (deben terminar sin errores ni warnings)
-cargo fmt --all -- --check
-cargo clippy --features ssr -- -D warnings
-cargo clippy --features hydrate --target wasm32-unknown-unknown -- -D warnings
+gofmt -l .
+go vet ./...
+golangci-lint run
 ```
 
 ### 7.1 Límites de memoria y comandos largos
 
-- Todo comando `cargo` (build, clippy, test) se ejecuta con `-j 2` (o `CARGO_BUILD_JOBS=2`).
-- Los tests de integración se lanzan de uno en uno (`--test <nombre>`), nunca todos en paralelo: cada enlazado con `rust-lld` ronda 3 GB.
-- Comandos largos (compilación inicial, clippy, tests): en segundo plano con `nohup ... > /tmp/<nombre>.log 2>&1 &` y consultar el log con `tail`; nunca en primer plano sin timeout, para evitar bloqueos.
+- Todo comando `go` (build, test, lint) se ejecuta con `-p 2` (o `GOMAXPROCS`/`GOFLAGS=-p=2`) para limitar la memoria.
+- Los tests de integración se lanzan por feature, nunca todos a la vez en iteración.
+- Comandos largos (compilación inicial, lint, suites): en segundo plano con `nohup ... > /tmp/<nombre>.log 2>&1 &` y consulta del log con `tail`; nunca en primer plano sin timeout.
 - Esto aplica también a los subagentes: inclúyelo en sus instrucciones.
 
 ## 8. Finalización (Definition of Done)
 
 No dar una tarea por terminada hasta cumplir todo lo aplicable:
 
-1. El código nuevo sigue la estructura de `src/modules/[feature_name]/` y el stack contexto (DI) + Signals + server functions + Diesel.
-2. Existen tests (unitarios en el módulo y/o de integración en `tests/modules/[feature_name]/`) para los casos de uso, adaptadores y server functions tocados y, si aplica, `mocks.rs` del feature.
-3. No hay `use` de `infrastructure` ni `presentation`, ni de `leptos`, `diesel` o `axum`, dentro de `domain` ni `application`.
-4. Las migraciones nuevas tienen `up.sql` y `down.sql`, `diesel migration redo` funciona y `schema.rs` está regenerado.
-5. Se han ejecutado y han pasado:
-   - `cargo fmt --all -- --check`
-   - `cargo clippy` para `ssr` y `hydrate` con `-D warnings`
-   - `cargo leptos test` / `cargo test --features ssr` (o al menos los tests del feature/archivos afectados)
-6. Comprobar que se ha hecho todo lo indicado en [Auto-Invoke Skills](#2-auto-invoke-skills).
-7. Al reportar el cierre: indicar comandos ejecutados, resultado (ok/fallo) y qué quedó sin verificar.
-8. Al mezclar a la rama principal, verifica que las migraciones no se solapan.
+1. El código nuevo sigue la estructura de `internal/modules/<feature_name>/` y el stack composition root (DI) + htmx/templ + handlers + sqlc.
+2. Existen tests (unitarios, de integración y handlers) para los casos de uso, adaptadores y handlers tocados, y mocks del feature si aplica.
+3. No hay imports de `infrastructure` ni `presentation`, ni de `database/sql`, `net/http`, `chi` o `templ`, dentro de `domain` ni `application`.
+4. Las migraciones nuevas tienen `Up` y `Down`, `goose redo` funciona y el código `sqlc` está regenerado.
+5. Los ficheros generados (`*_templ.go`, `sqlc`) están al día (`make generate` sin diff).
+6. Se han ejecutado y pasado: `gofmt -l .` (vacío), `go vet ./...`, `golangci-lint run` y `go test` de los paquetes afectados (y su e2e si existe).
+7. Para módulos migrados: paridad con el comportamiento Rust verificada (e2e y specs `S#` de `odd/tasks/go-migration.md`).
+8. Al reportar el cierre: indicar comandos ejecutados, resultado (ok/fallo) y qué quedó sin verificar.
+9. Al mezclar a la rama principal, verifica que las migraciones no se solapan.

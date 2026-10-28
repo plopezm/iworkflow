@@ -73,7 +73,7 @@ Sizes are Rust line counts (modules) and unmeasured for `tasks` sub-slices.
   - [x] D10 (S1) [x] 00fc5bd QR dependency for preferences (skip2/go-qrcode decision below) + get_network_access / regenerate_access_token wiring
   - [x] D11 (S7) remaining review follow-ups: file_store atomic write, directory_reader errors, SSE poison event, git push credential prompt, attachment base64 decode limit, jira redirect downgrade
 - [x] T19 (S4) Run all 25 e2e scripts against Go; independent `gentle-ai-verify` on S7 items
-- [ ] T20 (S9) Update Electron, README, ARCHITECTURE; remove Rust; promote `AGENTS.go.md` to `AGENTS.md`
+- [x] T20 (S9) Update Electron, README, ARCHITECTURE; remove Rust; promote `AGENTS.go.md` to `AGENTS.md`
 
 Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure), whether `code_hosting` is reached only through `RemoteMergePort`, `LaunchOptions` carrying secrets, jira having no direct port into `tasks`.
 
@@ -235,6 +235,19 @@ Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure
     - golangci-lint run ./internal/... ./tests/...: 0 issues.
   T19 100% CERRADO.
 - STATE FOR RESTART (L116): D1-D5 y T19 cerrados con suite E2E completa en verde (134/134 + 27/27). Queda T20: actualización de Electron / empaquetado, README, ARCHITECTURE, eliminación de código Rust y promoción de AGENTS.go.md a AGENTS.md.
+- L117: T20 completado y cierre final de la migración a Go:
+  - Decisión del usuario: opción 1 (retirada completa de Rust y docs).
+  - Promovido AGENTS.go.md a AGENTS.md y retirado AGENTS.go.md.
+  - Actualizados README.md, README.es.md, ARCHITECTURE.md y ARCHITECTURE.es.md al nuevo stack de Go (templ + htmx + Tailwind, chi, sqlc, goose, modernc.org/sqlite).
+  - Actualizado launcher de Electron para reconocer tanto anuncios en español de Rust como logs de inicio en Go (msg=listening url=...); suite electron 36/36 tests PASS.
+  - Retirado el código fuente Rust (src/, Cargo.toml, Cargo.lock, diesel.toml).
+  - Verificación final de puertas limpia:
+    - go build ./cmd/iworkflow: OK
+    - go vet ./...: OK
+    - golangci-lint run ./internal/... ./tests/...: 0 issues
+    - npm --prefix electron test: 36/36 PASS
+  T20 100% CERRADO. MIGRACIÓN A GOLANG COMPLETADA.
+
 
 
 

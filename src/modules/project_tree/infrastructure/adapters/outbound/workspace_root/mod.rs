@@ -1,1 +1,0 @@
-pub mod resolver_workspace_root_adapter;

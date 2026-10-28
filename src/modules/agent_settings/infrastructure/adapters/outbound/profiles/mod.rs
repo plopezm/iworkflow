@@ -1,1 +1,0 @@
-pub mod profiles_file_catalog_adapter;

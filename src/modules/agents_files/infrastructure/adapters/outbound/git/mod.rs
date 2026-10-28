@@ -1,1 +1,0 @@
-pub mod git_agents_file_installer_adapter;
