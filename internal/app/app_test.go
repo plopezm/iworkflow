@@ -118,10 +118,17 @@ func TestShutdownReleasesTheModules(t *testing.T) {
 }
 
 func TestUnmigratedTabsExplainTheirState(t *testing.T) {
-	rec := get(t, newRouter(t), "/dock/pane?path=/jira")
+	rec := get(t, newRouter(t), "/dock/pane?path=/jira/some-id")
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), "todavía no se ha migrado")
+}
+
+func TestJiraTabRendersTheConnectionCard(t *testing.T) {
+	rec := get(t, newRouter(t), "/dock/pane?path=/jira")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), "Conexión con Jira")
 }
 
 func TestSettingsSectionsAreRoutable(t *testing.T) {
@@ -152,7 +159,7 @@ func TestTheShellOpensOneTaskStreamAndTheBoardTabOpensNone(t *testing.T) {
 func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
 	handler := newRouter(t)
 
-	for _, path := range []string{"/jira", "/jira/some-id"} {
+	for _, path := range []string{"/jira/some-id"} {
 		rec := get(t, handler, "/dock/pane?path="+path)
 		require.Equal(t, http.StatusOK, rec.Code, path)
 		require.Contains(t, rec.Body.String(), "todavía no se ha migrado", "%s keeps its not-migrated explanation", path)

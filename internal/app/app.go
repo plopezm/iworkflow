@@ -29,6 +29,7 @@ import (
 	codehostingapp "iworkflow/internal/modules/code_hosting/application"
 	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
 	codehostingdi "iworkflow/internal/modules/code_hosting/infrastructure/di"
+	jiradi "iworkflow/internal/modules/jira/infrastructure/di"
 	prefsinbound "iworkflow/internal/modules/preferences/infrastructure/adapters/inbound"
 	prefssystem "iworkflow/internal/modules/preferences/infrastructure/adapters/outbound/system"
 	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
@@ -159,6 +160,11 @@ func New(deps Deps) (*App, error) {
 		HomeDir:           deps.Config.HomeDir,
 		Logger:            deps.Logger,
 	})
+	jiraModule := jiradi.NewModule(jiradi.Deps{
+		DB:         deps.DB,
+		Tasks:      &jiraTaskCreation{create: tasks.Create},
+		Workspaces: &jiraWorkspaceCatalog{list: workspaces.List, get: workspaces.Get},
+	})
 
 	routes := make([]dock.Route, 0, 24)
 	// The board owns the home address, so it precedes the not-migrated catch-alls below.
@@ -170,6 +176,7 @@ func New(deps Deps) (*App, error) {
 	routes = append(routes, settings.Tabs(settingsSections(settings, codeHosting))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
 	routes = append(routes, terminal.Tabs()...)
+	routes = append(routes, jiraModule.Tabs()...)
 	routes = append(routes, notMigratedRoutes()...)
 	registry, err := dock.NewRegistry(routes...)
 	if err != nil {
@@ -185,7 +192,7 @@ func New(deps Deps) (*App, error) {
 		terminal:   terminal,
 		tasks:      tasks,
 		loops:      newTaskLoops(),
-		modules:    []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks},
+		modules:    []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule},
 		dock:       dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }
@@ -325,7 +332,6 @@ var navEntries = []navEntry{
 // (so a bookmark opens a tab) and explain the state instead of a 404.
 func notMigratedRoutes() []dock.Route {
 	return []dock.Route{
-		notMigratedRoute("/jira", "◈", msgTitleJira),
 		notMigratedRoute("/jira/{rest...}", "◈", msgTitleJira),
 		notMigratedRoute("/tasks/{rest...}", "●", msgTitleTasks),
 	}

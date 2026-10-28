@@ -3,12 +3,17 @@
 package di
 
 import (
+	"context"
 	"database/sql"
 
+	"github.com/a-h/templ"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"iworkflow/internal/core/dock"
 	"iworkflow/internal/modules/jira/application"
 	"iworkflow/internal/modules/jira/domain/ports/outbound"
+	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/outbound/api"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/outbound/persistence"
 )
@@ -47,6 +52,28 @@ type Module struct {
 	PrepareConversion      *application.PrepareConversion
 	ListConversionBranches *application.ListConversionBranches
 	ConvertIssue           *application.ConvertIssue
+
+	handlers *inbound.ConnectionHandlers
+}
+
+// Routes mounts the fragment endpoints of the module. It satisfies web.Module.
+func (m *Module) Routes(r chi.Router) {
+	m.handlers.Mount(r)
+}
+
+// Tabs returns the dock tabs of the module.
+func (m *Module) Tabs() []dock.Route {
+	return []dock.Route{
+		{
+			Name:    "jira",
+			Pattern: "/jira",
+			Icon:    "◈",
+			Title:   func(_ context.Context, _ dock.Params) string { return "Jira" },
+			Render: func(ctx context.Context, _ dock.Params) templ.Component {
+				return m.handlers.Page(ctx)
+			},
+		},
+	}
 }
 
 // NewModule wires the adapters into the use cases. It does not open the database: the caller owns it.
@@ -65,10 +92,14 @@ func NewModule(deps Deps) *Module {
 	client := api.NewJiraClient(clock)
 
 	sync := application.NewSyncIssues(connections, issues, lanes, client, clock)
+	getConnection := application.NewGetConnection(connections)
+	saveConnection := application.NewSaveConnection(connections, issues, client)
+	deleteConnection := application.NewDeleteConnection(connections, issues)
+
 	return &Module{
-		GetConnection:          application.NewGetConnection(connections),
-		SaveConnection:         application.NewSaveConnection(connections, issues, client),
-		DeleteConnection:       application.NewDeleteConnection(connections, issues),
+		GetConnection:          getConnection,
+		SaveConnection:         saveConnection,
+		DeleteConnection:       deleteConnection,
 		SyncIssues:             sync,
 		ListIssues:             application.NewListIssues(issues, lanes),
 		CreateLane:             application.NewCreateLane(lanes, sync),
@@ -84,5 +115,6 @@ func NewModule(deps Deps) *Module {
 		PrepareConversion:      application.NewPrepareConversion(issues, deps.Workspaces),
 		ListConversionBranches: application.NewListConversionBranches(deps.Workspaces),
 		ConvertIssue:           application.NewConvertIssue(issues, deps.Tasks),
+		handlers:               inbound.NewConnectionHandlers(getConnection, saveConnection, deleteConnection),
 	}
 }

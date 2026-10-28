@@ -36,7 +36,7 @@ Sizes are Rust line counts (modules) and unmeasured for `tasks` sub-slices.
   - [x] T8 (S1,S4,S7) code_hosting — e2e 7/7 (PR / MR tab wired via taskPanels bridge)
   - [x] T9 (S1,S4,S7) terminal — e2e 6/6
 - Wave C:
-  - [~] T10 (S1,S4,S7) jira — backend ff45651, presentation pending
+  - [~] T10 (S1,S4,S7) jira — backend ff45651, presentation J1 (connection UI + dock route) done, J2 (lanes/sync/filters) pending
 - Wave D, `tasks` (42k), sequential per S6:
   - [x] T11 (S6) A task-core — 6c76e86..e24265c (test parity partial, see D7)
   - [x] T12 (S6) B task-events and SSE
@@ -200,3 +200,5 @@ Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure
 - STATE FOR RESTART (L110): HEAD b52ea32 on feat/golang, tree clean. T18 closed. T19 E2E execution measured at 109/143 passing (with remaining gaps confined to unported Jira UI and legacy test locators). Ready for independent S7 verification and closing session. Whole-branch review remains DECLINED per L38.
 - L111: T8 closed. PR/MR tab (TaskTabCodeHost "code-host") added to task_tabs.go, task_tabs_messages.go, ProjectPanels.MergeRequestPanel and internal/app/bridges.go taskPanels; RED tests in state/components/inbound task_tabs_test.go -> GREEN. end2end/go/tasks_actions.e2e.cjs registerWs updated to accept opts.origin; end2end/go/code_hosting.e2e.cjs switched to require ./tasks_actions.e2e.cjs. Verification: gofmt clean, go vet clean, golangci-lint 0 issues, go test -race -p 2 clean, node web/static/js 62/62 pass, e2e code_hosting 7/7 PASS, e2e tasks_actions 5/5 PASS, e2e tasks_board 4/4 PASS.
 - STATE FOR RESTART (L111): T8 closed (7/7 E2E). Next: T10 (Jira presentation) or S7 independent verification. Whole-branch review remains DECLINED per L38.
+- L112: T10 J1 (Jira connection presentation) completed. Pure logic state in connection.go (CanSubmit, ShortTimestamp), Templ components (JiraConnectionCard, JiraConnectionForm, JiraConnectionSummary with multilingual messages), ConnectionHandlers with GET/POST/edit/cancel/disconnect mounted on /jira/connection. Jira module wired into internal/app (bridges for task creation and workspace catalog; dock route /jira rendered; unmigrated catch-all shrunk to /jira/{rest...}). Verification: gofmt clean, go vet clean, golangci-lint 0 issues, go test -race -p 2 clean across app and jira packages. Tested against jira_mock in e2e: reaches "Editar conexión" cleanly; times out only on Sincronizar (J2).
+- STATE FOR RESTART (L112): T10 J1 done. Next: T10 J2 (carriles/lanes, filtros e incidencias con botón Sincronizar). Whole-branch review remains DECLINED per L38.

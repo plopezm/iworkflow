@@ -20,6 +20,8 @@ import (
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
 	codehostingoutbound "iworkflow/internal/modules/code_hosting/domain/ports/outbound"
 	codehostingcomponents "iworkflow/internal/modules/code_hosting/presentation/components"
+	jiramodels "iworkflow/internal/modules/jira/domain/models"
+	jiraoutbound "iworkflow/internal/modules/jira/domain/ports/outbound"
 	projecttreeapp "iworkflow/internal/modules/project_tree/application"
 	projecttreemodels "iworkflow/internal/modules/project_tree/domain/models"
 	projecttreeoutbound "iworkflow/internal/modules/project_tree/domain/ports/outbound"
@@ -466,4 +468,81 @@ func (b *taskPanels) MergeRequestPanel(_ context.Context, taskID string) templ.C
 	return codehostingcomponents.TaskMergeRequestPanel(codehostingcomponents.TaskMergeRequestPanelProps{
 		TaskID: taskID,
 	})
+}
+
+// jiraTaskCreation adapts tasks.Create to jira's outbound.TaskCreation interface.
+type jiraTaskCreation struct {
+	create *tasksapp.CreateTask
+}
+
+var _ jiraoutbound.TaskCreation = (*jiraTaskCreation)(nil)
+
+func (b *jiraTaskCreation) Create(ctx context.Context, input jiraoutbound.NewLinkedTask) (jiraoutbound.CreatedLinkedTask, error) {
+	priority := tasksmodels.PriorityNormal
+	switch input.Priority {
+	case jiramodels.PriorityHintLow:
+		priority = tasksmodels.PriorityLow
+	case jiramodels.PriorityHintHigh:
+		priority = tasksmodels.PriorityHigh
+	case jiramodels.PriorityHintUrgent:
+		priority = tasksmodels.PriorityUrgent
+	}
+	out, err := b.create.Execute(ctx, tasksmodels.NewTask{
+		WorkspaceID: input.WorkspaceID,
+		BaseBranch:  input.BaseBranch,
+		Title:       input.Title,
+		Prompt:      input.Prompt,
+		Priority:    priority,
+		StartNow:    input.StartNow,
+	})
+	if err != nil {
+		return jiraoutbound.CreatedLinkedTask{}, err
+	}
+	var startErr *string
+	if out.StartError != nil {
+		s := out.StartError.Error()
+		startErr = &s
+	}
+	return jiraoutbound.CreatedLinkedTask{
+		TaskID:     out.Task.ID.String(),
+		StartError: startErr,
+	}, nil
+}
+
+// jiraWorkspaceCatalog adapts workspaces to jira's outbound.WorkspaceCatalog interface.
+type jiraWorkspaceCatalog struct {
+	list *workspacesapp.ListWorkspaces
+	get  *workspacesapp.GetWorkspace
+}
+
+var _ jiraoutbound.WorkspaceCatalog = (*jiraWorkspaceCatalog)(nil)
+
+func (b *jiraWorkspaceCatalog) Workspaces(ctx context.Context) ([]jiramodels.WorkspaceOption, error) {
+	wsList, err := b.list.Execute(ctx)
+	if err != nil {
+		return nil, err
+	}
+	opts := make([]jiramodels.WorkspaceOption, 0, len(wsList))
+	for _, ws := range wsList {
+		opts = append(opts, jiramodels.WorkspaceOption{
+			ID:         ws.ID.String(),
+			Name:       ws.Name,
+			BaseBranch: ws.BaseBranch,
+		})
+	}
+	return opts, nil
+}
+
+func (b *jiraWorkspaceCatalog) Branches(ctx context.Context, workspaceID string) ([]jiramodels.BranchOption, error) {
+	wsID, err := workspacesmodels.ParseWorkspaceID(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	ws, err := b.get.Execute(ctx, wsID)
+	if err != nil {
+		return nil, err
+	}
+	return []jiramodels.BranchOption{
+		{Name: ws.BaseBranch, Remote: false},
+	}, nil
 }
