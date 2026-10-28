@@ -53,12 +53,14 @@ type Module struct {
 	ListConversionBranches *application.ListConversionBranches
 	ConvertIssue           *application.ConvertIssue
 
-	handlers *inbound.ConnectionHandlers
+	handlers      *inbound.ConnectionHandlers
+	boardHandlers *inbound.BoardHandlers
 }
 
 // Routes mounts the fragment endpoints of the module. It satisfies web.Module.
 func (m *Module) Routes(r chi.Router) {
 	m.handlers.Mount(r)
+	m.boardHandlers.Mount(r)
 }
 
 // Tabs returns the dock tabs of the module.
@@ -96,25 +98,46 @@ func NewModule(deps Deps) *Module {
 	saveConnection := application.NewSaveConnection(connections, issues, client)
 	deleteConnection := application.NewDeleteConnection(connections, issues)
 
+	listIssues := application.NewListIssues(issues, lanes)
+	createLane := application.NewCreateLane(lanes, sync)
+	updateLane := application.NewUpdateLane(lanes, sync)
+	deleteLane := application.NewDeleteLane(lanes)
+	setLaneCollapsed := application.NewSetLaneCollapsed(lanes)
+	setIssueIgnored := application.NewSetIssueIgnored(issues)
+
+	connectionHandlers := inbound.NewConnectionHandlers(getConnection, saveConnection, deleteConnection)
+	boardHandlers := inbound.NewBoardHandlers(
+		getConnection,
+		sync,
+		listIssues,
+		createLane,
+		updateLane,
+		deleteLane,
+		setLaneCollapsed,
+		setIssueIgnored,
+	)
+	connectionHandlers.SetBoardHandlers(boardHandlers)
+
 	return &Module{
 		GetConnection:          getConnection,
 		SaveConnection:         saveConnection,
 		DeleteConnection:       deleteConnection,
 		SyncIssues:             sync,
-		ListIssues:             application.NewListIssues(issues, lanes),
-		CreateLane:             application.NewCreateLane(lanes, sync),
-		UpdateLane:             application.NewUpdateLane(lanes, sync),
-		DeleteLane:             application.NewDeleteLane(lanes),
-		SetLaneCollapsed:       application.NewSetLaneCollapsed(lanes),
+		ListIssues:             listIssues,
+		CreateLane:             createLane,
+		UpdateLane:             updateLane,
+		DeleteLane:             deleteLane,
+		SetLaneCollapsed:       setLaneCollapsed,
 		GetIssue:               application.NewGetIssue(issues),
 		ListComments:           application.NewListIssueComments(connections, client),
 		ListTransitions:        application.NewListIssueTransitions(connections, client),
 		AddComment:             application.NewAddIssueComment(connections, client),
 		TransitionIssue:        application.NewTransitionIssue(connections, issues, client, clock),
-		SetIssueIgnored:        application.NewSetIssueIgnored(issues),
+		SetIssueIgnored:        setIssueIgnored,
 		PrepareConversion:      application.NewPrepareConversion(issues, deps.Workspaces),
 		ListConversionBranches: application.NewListConversionBranches(deps.Workspaces),
 		ConvertIssue:           application.NewConvertIssue(issues, deps.Tasks),
-		handlers:               inbound.NewConnectionHandlers(getConnection, saveConnection, deleteConnection),
+		handlers:               connectionHandlers,
+		boardHandlers:          boardHandlers,
 	}
 }

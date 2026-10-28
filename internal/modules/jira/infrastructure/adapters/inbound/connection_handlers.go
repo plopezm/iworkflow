@@ -22,6 +22,12 @@ type ConnectionHandlers struct {
 	GetConnection    *application.GetConnection
 	SaveConnection   *application.SaveConnection
 	DeleteConnection *application.DeleteConnection
+	boardHandlers    *BoardHandlers
+}
+
+// SetBoardHandlers sets the board handlers reference for integrated page and card rendering.
+func (h *ConnectionHandlers) SetBoardHandlers(b *BoardHandlers) {
+	h.boardHandlers = b
 }
 
 // NewConnectionHandlers constructs the connection handlers with their required use cases.
@@ -59,9 +65,12 @@ func MountConnectionRoutes(r chi.Router, h *ConnectionHandlers) {
 
 // Page renders the full Jira screen for the dock tab.
 func (h *ConnectionHandlers) Page(ctx context.Context) templ.Component {
+	if h.boardHandlers != nil {
+		return h.boardHandlers.Page(ctx)
+	}
 	connection, err := h.GetConnection.Execute(ctx)
 	if err != nil {
-		return pages.JiraPage(state.ConnectionCardView{Err: err.Error()})
+		return pages.JiraPage(state.ConnectionCardView{Err: err.Error()}, nil)
 	}
 	var storedDTO *dto.ConnectionDTO
 	if connection != nil {
@@ -72,7 +81,7 @@ func (h *ConnectionHandlers) Page(ctx context.Context) templ.Component {
 		Stored:  storedDTO,
 		Editing: storedDTO == nil,
 	}
-	return pages.JiraPage(view)
+	return pages.JiraPage(view, nil)
 }
 
 // Get renders the ConnectionCard: summary if connected and not editing, or form if not connected.
@@ -148,6 +157,9 @@ func (h *ConnectionHandlers) Save(w http.ResponseWriter, r *http.Request) {
 		Stored:  &savedDTO,
 	}
 	web.Render(w, r, http.StatusOK, components.JiraConnectionCard(view))
+	if h.boardHandlers != nil {
+		_ = h.boardHandlers.BoardOOB(ctx).Render(ctx, w)
+	}
 }
 
 // Edit renders the form prefilled with the stored URL and settings.
@@ -230,4 +242,7 @@ func (h *ConnectionHandlers) Disconnect(w http.ResponseWriter, r *http.Request) 
 		Editing: true,
 	}
 	web.Render(w, r, http.StatusOK, components.JiraConnectionCard(view))
+	if h.boardHandlers != nil {
+		_, _ = w.Write([]byte(`<div id="jira-board" hx-swap-oob="true"></div>`))
+	}
 }
