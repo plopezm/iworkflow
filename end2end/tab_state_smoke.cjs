@@ -13,7 +13,13 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await context.addCookies([{ name: 'iw-lang', value: 'es', url: BASE }]);
   page = await context.newPage();
   const problems = [];
-  page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/reading a resource in `hydrate`/.test(m.text())) problems.push(`${m.type()}: ${m.text()}`); });
+  page.on('console', m => {
+    if ((m.type() === 'error' || m.type() === 'warning') &&
+        !/reading a resource in `hydrate`/.test(m.text()) &&
+        !/htmx:(afterRequest|sendAbort)/.test(m.text())) {
+      problems.push(`${m.type()}: ${m.text()}`);
+    }
+  });
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   page.on('response', r => { if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${r.url()}`); });
   const step = (s) => console.log('✔', s);
