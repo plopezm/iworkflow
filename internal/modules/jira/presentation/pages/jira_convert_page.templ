@@ -1,0 +1,153 @@
+package pages
+
+import (
+	"fmt"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// ConversionBranchContainer renders the branch selector for the conversion form.
+templ ConversionBranchContainer(branches []dto.ConversionBranchDTO) {
+	<div id="conversion-branch-container" class="stack gap-1.5">
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgBaseBranchLabel.T(ctx) }</span>
+			<select class="input" name="base_branch" aria-label={ msgBaseBranchLabel.T(ctx) }>
+				<option value="">{ msgDefaultBranchHint.T(ctx) }</option>
+				for _, b := range branches {
+					<option value={ b.Name }>{ formatBranchOption(ctx, b) }</option>
+				}
+			</select>
+		</label>
+	</div>
+}
+
+// JiraConvertPage renders the issue conversion screen.
+templ JiraConvertPage(view state.ConvertIssueView) {
+	<div id="jira-convert-container" class="h-full min-h-0 overflow-y-auto">
+		<div class="mx-auto stack w-full max-w-3xl gap-4 p-4 pb-10 md:p-6 md:pb-12">
+			<div class="row items-center justify-between gap-2">
+				<h1 class="page-title">{ FormatConvertHeading(ctx, view.Preparation.Issue.Key) }</h1>
+				<a href={ templ.SafeURL(fmt.Sprintf("/jira/%s", view.Preparation.Issue.Key)) } class="btn-ghost">
+					{ msgViewJiraIssue.T(ctx) }
+				</a>
+			</div>
+			<p class="muted text-sm">{ msgReviewHint.T(ctx) }</p>
+
+			if view.Error != "" {
+				@shared.ErrorText(view.Error)
+			}
+
+			if view.Converted != nil {
+				@shared.Card(msgTaskCreated.T(ctx)) {
+					if view.Converted.StartError != nil && *view.Converted.StartError != "" {
+						@shared.ErrorText(*view.Converted.StartError)
+					}
+					<div class="row flex-wrap gap-2 pt-2">
+						<a href={ templ.SafeURL(fmt.Sprintf("/tasks/%s", view.Converted.TaskID)) } class="btn-primary">
+							{ msgViewTaskButton.T(ctx) }
+						</a>
+						<a href={ templ.SafeURL(fmt.Sprintf("/jira/%s", view.Preparation.Issue.Key)) } class="btn-ghost">
+							{ msgViewJiraIssue.T(ctx) }
+						</a>
+					</div>
+				}
+			} else {
+				@shared.Card("") {
+					<form
+						class="stack gap-4"
+						method="post"
+						action={ templ.SafeURL(fmt.Sprintf("/jira/%s/convert", view.Preparation.Issue.Key)) }
+						hx-post={ fmt.Sprintf("/jira/%s/convert", view.Preparation.Issue.Key) }
+						hx-target="#jira-convert-container"
+						hx-swap="outerHTML"
+					>
+						if len(view.Preparation.Workspaces) == 0 {
+							<p class="text-sm muted">
+								{ msgNoWorkspacePrefix.T(ctx) }
+								<a href="/workspaces" class="link">{ msgNoWorkspaceLink.T(ctx) }</a>
+								{ msgNoWorkspaceSuffix.T(ctx) }
+							</p>
+						} else {
+							<label class="stack gap-1.5">
+								<span class="text-sm font-medium text-fg">{ msgWorkspaceLabel.T(ctx) }</span>
+								<select
+									class="input"
+									name="workspace_id"
+									aria-label={ msgWorkspaceLabel.T(ctx) }
+									required
+									hx-get={ fmt.Sprintf("/jira/%s/convert/branches", view.Preparation.Issue.Key) }
+									hx-target="#conversion-branch-container"
+									hx-swap="outerHTML"
+								>
+									if len(view.Preparation.Workspaces) > 1 {
+										<option value="">{ msgPickWorkspace.T(ctx) }</option>
+									}
+									for _, ws := range view.Preparation.Workspaces {
+										<option
+											value={ ws.ID }
+											selected?={ len(view.Preparation.Workspaces) == 1 }
+										>
+											{ fmt.Sprintf("%s (%s)", ws.Name, ws.BaseBranch) }
+										</option>
+									}
+								</select>
+							</label>
+						}
+
+						@ConversionBranchContainer(view.Branches)
+
+						<label class="stack gap-1.5">
+							<span class="text-sm font-medium text-fg">{ msgTitleLabel.T(ctx) }</span>
+							<input
+								type="text"
+								class="input"
+								name="title"
+								aria-label={ msgTitleLabel.T(ctx) }
+								value={ view.Preparation.Title }
+								required
+							/>
+						</label>
+
+						<label class="stack gap-1.5">
+							<span class="text-sm font-medium text-fg">{ msgPromptLabel.T(ctx) }</span>
+							<textarea
+								class="input min-h-32"
+								name="prompt"
+								aria-label={ msgPromptLabel.T(ctx) }
+								required
+							>{ view.Preparation.Prompt }</textarea>
+						</label>
+
+						<label class="stack gap-1.5">
+							<span class="text-sm font-medium text-fg">{ msgPriorityLabel.T(ctx) }</span>
+							<select class="input" name="priority" aria-label={ msgPriorityLabel.T(ctx) }>
+								for _, opt := range state.PriorityOptions() {
+									<option
+										value={ opt.Value }
+										selected?={ opt.Value == view.Preparation.Priority || (view.Preparation.Priority == "" && opt.Value == "normal") }
+									>
+										{ opt.LabelText(i18n.StateFrom(ctx).Locale) }
+									</option>
+								}
+							</select>
+						</label>
+
+						<label class="row items-center gap-2">
+							<input type="checkbox" name="start_now" value="true" class="checkbox" />
+							<span class="text-sm">{ msgStartNowLabel.T(ctx) }</span>
+						</label>
+
+						<div class="row justify-end">
+							<button type="submit" class="btn-primary" disabled?={ len(view.Preparation.Workspaces) == 0 }>
+								{ msgCreateTaskButton.T(ctx) }
+							</button>
+						</div>
+					</form>
+				}
+			}
+		</div>
+	</div>
+}

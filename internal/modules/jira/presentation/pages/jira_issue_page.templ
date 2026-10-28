@@ -1,0 +1,139 @@
+package pages
+
+import (
+	"fmt"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	jiraComponents "iworkflow/internal/modules/jira/presentation/components"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// JiraIssuePage renders the detail view of an imported Jira issue.
+templ JiraIssuePage(view state.IssueDetailView) {
+	<div id="jira-issue-container" class="h-full min-h-0 overflow-y-auto">
+		<div class="mx-auto stack w-full max-w-5xl gap-4 p-4 pb-10 md:p-6 md:pb-12">
+			@shared.Card("") {
+				<div class="row flex-wrap items-center gap-2">
+					<h1 class="page-title">{ fmt.Sprintf("%s: %s", view.Issue.Key, view.Issue.Summary) }</h1>
+				</div>
+				<div class="row flex-wrap items-center gap-2 text-sm">
+					<span class="badge badge-warn">{ view.Issue.Status }</span>
+					@jiraComponents.LocalStateBadge(view.Issue.LocalState)
+					<span class="muted">{ view.Issue.IssueType }</span>
+					if view.Issue.Priority != nil && *view.Issue.Priority != "" {
+						<span class="muted">{ *view.Issue.Priority }</span>
+					}
+				</div>
+				<dl class="grid gap-x-4 gap-y-1 text-sm md:grid-cols-2">
+					<div>
+						<dt class="muted inline">{ msgAssignee.T(ctx) }</dt>
+						<dd class="inline">{ view.AssigneeText() }</dd>
+					</div>
+					<div>
+						<dt class="muted inline">{ msgReporter.T(ctx) }</dt>
+						<dd class="inline">{ view.ReporterText() }</dd>
+					</div>
+					<div>
+						<dt class="muted inline">{ msgUpdatedInJira.T(ctx) }</dt>
+						<dd class="inline">{ state.ShortTimestamp(view.Issue.JiraUpdatedAt) }</dd>
+					</div>
+					<div>
+						<dt class="muted inline">{ msgLabels.T(ctx) }</dt>
+						<dd class="inline">{ view.LabelsText() }</dd>
+					</div>
+				</dl>
+				<div class="row flex-wrap gap-2">
+					if view.Issue.LocalState == "converted" && view.TaskPath() != "" {
+						<a href={ templ.SafeURL(view.TaskPath()) } class="btn-secondary">{ msgViewIworkflowTask.T(ctx) }</a>
+					} else if view.Issue.LocalState != "converted" {
+						<a href={ templ.SafeURL(view.ConvertPath()) } class="btn-primary">{ msgConvertToTask.T(ctx) }</a>
+					}
+					if view.Issue.LocalState == "new" {
+						<button class="btn-ghost" hx-post={ fmt.Sprintf("/jira/%s/ignore?ignored=true", view.Issue.Key) } hx-target="#jira-issue-container" hx-swap="outerHTML">
+							{ msgIgnoreAction.T(ctx) }
+						</button>
+					} else if view.Issue.LocalState == "ignored" {
+						<button class="btn-ghost" hx-post={ fmt.Sprintf("/jira/%s/ignore?ignored=false", view.Issue.Key) } hx-target="#jira-issue-container" hx-swap="outerHTML">
+							{ msgRestoreAction.T(ctx) }
+						</button>
+					} else if view.Issue.LocalState == "converted" {
+						<button class="btn-ghost" hx-post={ fmt.Sprintf("/jira/%s/ignore?ignored=false", view.Issue.Key) } hx-target="#jira-issue-container" hx-swap="outerHTML">
+							{ msgMarkAsNewAction.T(ctx) }
+						</button>
+					}
+					<a
+						href={ templ.SafeURL(view.Issue.URL) }
+						target="_blank"
+						rel="noopener noreferrer"
+						class="btn-ghost"
+					>
+						{ msgOpenInJiraAction.T(ctx) }
+					</a>
+				</div>
+				if view.ActionErr != "" {
+					@shared.ErrorText(view.ActionErr)
+				}
+			}
+			@shared.Card(msgDescriptionTitle.T(ctx)) {
+				<pre class="whitespace-pre-wrap break-words text-sm">{ view.DescriptionText(i18n.StateFrom(ctx).Locale) }</pre>
+			}
+			@shared.Card(msgChangeStatusTitle.T(ctx)) {
+				if view.TransitionsErr != "" {
+					@shared.ErrorText(view.TransitionsErr)
+				} else if len(view.Transitions) == 0 {
+					<p class="muted">{ msgNoTransitions.T(ctx) }</p>
+				} else {
+					<form class="row flex-wrap items-end gap-2" hx-post={ fmt.Sprintf("/jira/%s/transitions", view.Issue.Key) } hx-target="#jira-issue-container" hx-swap="outerHTML">
+						<div class="min-w-0 flex-1">
+							<label class="stack gap-1.5">
+								<span class="text-sm font-medium text-fg">{ msgTransitionLabel.T(ctx) }</span>
+								<select class="input" name="transition_id" aria-label={ msgTransitionLabel.T(ctx) } required>
+									<option value="" selected?={ view.SelectedTransition == "" }>{ msgPickTransition.T(ctx) }</option>
+									for _, t := range view.Transitions {
+										<option value={ t.ID } selected?={ view.SelectedTransition == t.ID }>{ fmt.Sprintf("%s → %s", t.Name, t.ToStatus) }</option>
+									}
+								</select>
+							</label>
+						</div>
+						<button type="submit" class="btn-primary">
+							{ msgApplyTransition.T(ctx) }
+						</button>
+					</form>
+				}
+			}
+			@shared.Card(msgCommentsTitle.T(ctx)) {
+				if view.CommentsErr != "" {
+					@shared.ErrorText(view.CommentsErr)
+				} else if len(view.Comments) == 0 {
+					<p class="muted">{ msgNoComments.T(ctx) }</p>
+				} else {
+					<ul class="stack gap-3">
+						for _, c := range view.Comments {
+							<li class="stack gap-1 border-l-2 border-border pl-3">
+								<p class="text-xs">
+									<strong>{ c.Author }</strong>
+									<span class="muted">{ fmt.Sprintf(" · %s", state.ShortTimestamp(c.CreatedAt)) }</span>
+								</p>
+								<pre class="whitespace-pre-wrap break-words text-sm">{ c.Body }</pre>
+							</li>
+						}
+					</ul>
+				}
+				<form class="stack" hx-post={ fmt.Sprintf("/jira/%s/comments", view.Issue.Key) } hx-target="#jira-issue-container" hx-swap="outerHTML">
+					<textarea
+						class="input min-h-24"
+						name="body"
+						placeholder={ msgCommentPlaceholder.T(ctx) }
+						required
+					>{ view.CommentText }</textarea>
+					<div class="row justify-end">
+						<button type="submit" class="btn-primary">
+							{ msgCommentInJira.T(ctx) }
+						</button>
+					</div>
+				</form>
+			}
+		</div>
+	</div>
+}
