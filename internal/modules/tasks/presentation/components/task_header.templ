@@ -10,7 +10,12 @@ import (
 templ TaskHeader(view state.TaskDetailView) {
 	<div class="row justify-between gap-2">
 		<h1 class="page-title min-w-0 truncate text-xl">{ view.Task.Title }</h1>
-		@TaskStatusBadge(view.Task.Status)
+		<div class="flex items-center gap-2">
+			@TaskStatusBadge(view.Task.Status)
+			if view.Task.Stage != state.StageBacklog {
+				<span class="text-xs text-muted">{ msgLive.T(ctx) }</span>
+			}
+		</div>
 	</div>
 	if view.Task.Stage != state.StageBacklog {
 		<p class="truncate text-[11px] text-muted">{ msgBranchPrefix.T(ctx) }<code class="font-mono" title={ view.Task.Branch }>{ state.ShortBranch(view.Task.Branch) }</code>{ msgBranchFrom.T(ctx) }<code class="font-mono">{ view.Task.BaseBranch }</code></p>

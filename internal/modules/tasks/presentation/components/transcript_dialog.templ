@@ -15,6 +15,7 @@ templ TranscriptDialog(taskID string, item state.DialogItem, notice string) {
 		<div class="notice notice-info" data-dialog>{ dialogText(ctx, item) }</div>
 	} else {
 		<section class="card dialog-panel stack gap-2" data-dialog>
+			<h3 class="card-title whitespace-pre-wrap break-words">{ "❓ " + item.Request.Title }</h3>
 			<div class="notice notice-info">{ dialogText(ctx, item) }</div>
 			@dialogControls(taskID, item.Request)
 			if notice != "" {

@@ -116,7 +116,18 @@ func (h *DetailHandlers) fileTab(ctx context.Context, rawID string, file string)
 func (h *DetailHandlers) detailPage(ctx context.Context, scope string, task models.Task, notice string) templ.Component {
 	view := h.page(ctx, scope, task, notice)
 	tabs := state.TaskTabs{Scope: scope, TaskID: task.ID.String(), Active: state.TaskTabActions}
-	return pages.TaskDetailPage(view, tabs, components.TaskActionsBody(view))
+	var filesBody, changesBody, codeHostBody templ.Component
+	if h.uc.Panels != nil {
+		filesBody = h.tabBody(ctx, scope, task, state.TaskTabFiles)
+		changesBody = h.tabBody(ctx, scope, task, state.TaskTabChanges)
+		codeHostBody = h.tabBody(ctx, scope, task, state.TaskTabCodeHost)
+	}
+	return pages.TaskDetailPage(view, tabs,
+		components.TaskActionsBody(view),
+		filesBody,
+		changesBody,
+		codeHostBody,
+	)
 }
 
 // tab answers the region of the tabs of a task with one tab active: the strip and the body of that tab. A tab the strip
@@ -145,7 +156,22 @@ func (h *DetailHandlers) tab(w http.ResponseWriter, r *http.Request) {
 	}
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	tabs := state.TaskTabs{Scope: scope, TaskID: id.String(), Active: tab}
-	web.Render(w, r, http.StatusOK, components.TaskTabRegion(tabs, h.tabBody(ctx, scope, task, tab)))
+	var filesBody, changesBody, codeHostBody templ.Component
+	switch tab {
+	case state.TaskTabFiles:
+		filesBody = h.tabBody(ctx, scope, task, state.TaskTabFiles)
+	case state.TaskTabChanges:
+		changesBody = h.tabBody(ctx, scope, task, state.TaskTabChanges)
+	case state.TaskTabCodeHost:
+		codeHostBody = h.tabBody(ctx, scope, task, state.TaskTabCodeHost)
+	}
+	web.Render(w, r, http.StatusOK, components.TaskTabRegion(
+		tabs,
+		components.TaskActionsBody(h.page(ctx, scope, task, "")),
+		filesBody,
+		changesBody,
+		codeHostBody,
+	))
 }
 
 // tabBody is the body of one tab of a task. Files and changes are the project views of the worktree of the task.

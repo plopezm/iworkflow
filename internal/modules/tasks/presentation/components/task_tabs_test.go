@@ -16,7 +16,7 @@ func TestTaskTabRegionShowsTheFourTabsAndTheActiveBody(t *testing.T) {
 	t.Parallel()
 	tabs := state.TaskTabs{Scope: "s1", TaskID: editTaskID, Active: state.TaskTabFiles}
 
-	html := renderIn(t, i18n.Es, components.TaskTabRegion(tabs, templ.Raw("<p>cuerpo-visible</p>")))
+	html := renderIn(t, i18n.Es, components.TaskTabRegion(tabs, nil, templ.Raw("<p>cuerpo-visible</p>"), nil, nil))
 
 	assert.Contains(t, html, `id="task-tabs-s1"`)
 	assert.Equal(t, 4, strings.Count(html, `role="tab"`))
@@ -34,7 +34,7 @@ func TestTaskTabRegionNamesTheActionsTabInEnglish(t *testing.T) {
 	t.Parallel()
 	tabs := state.TaskTabs{TaskID: editTaskID, Active: state.TaskTabActions}
 
-	html := renderIn(t, i18n.En, components.TaskTabRegion(tabs, templ.Raw("")))
+	html := renderIn(t, i18n.En, components.TaskTabRegion(tabs, templ.Raw(""), nil, nil, nil))
 
 	assert.Contains(t, html, ">Actions<")
 	assert.Contains(t, html, ">Files<")

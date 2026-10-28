@@ -5,13 +5,38 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// TaskTabRegion is the strip of the detail tabs of a task and the body of the active tab. The region is one element:
-// each tab swaps it for its own body, and the body of a tab that stays on screen is not reloaded by another one.
-templ TaskTabRegion(tabs state.TaskTabs, body templ.Component) {
+func taskPaneClass(active bool) string {
+	if active {
+		return "stack gap-3 min-h-0 flex-1 overflow-y-auto p-4"
+	}
+	return "stack gap-3 min-h-0 flex-1 overflow-y-auto p-4 hidden"
+}
+
+// TaskTabRegion is the strip of the detail tabs of a task and the four kept tab panes.
+templ TaskTabRegion(tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody templ.Component) {
 	<div id={ tabs.RegionID() } class="flex min-h-0 max-h-[40vh] shrink-0 flex-col">
 		@coreui.TabBar(taskTabItems(ctx, tabs), tabs.Active)
-		<div class="stack min-h-0 overflow-y-auto p-4">
-			@body
+		<div class="flex min-h-0 flex-1 flex-col">
+			<div class={ taskPaneClass(tabs.Active == state.TaskTabActions) }>
+				if actionsBody != nil {
+					@actionsBody
+				}
+			</div>
+			<div id={ tabs.RegionID() + "-files" } hx-preserve="true" class={ taskPaneClass(tabs.Active == state.TaskTabFiles) }>
+				if filesBody != nil {
+					@filesBody
+				}
+			</div>
+			<div id={ tabs.RegionID() + "-changes" } hx-preserve="true" class={ taskPaneClass(tabs.Active == state.TaskTabChanges) }>
+				if changesBody != nil {
+					@changesBody
+				}
+			</div>
+			<div id={ tabs.RegionID() + "-code-host" } hx-preserve="true" class={ taskPaneClass(tabs.Active == state.TaskTabCodeHost) }>
+				if codeHostBody != nil {
+					@codeHostBody
+				}
+			</div>
 		</div>
 	</div>
 }

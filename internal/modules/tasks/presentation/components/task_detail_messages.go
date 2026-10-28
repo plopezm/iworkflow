@@ -15,6 +15,7 @@ var (
 	msgBranchFrom          = i18n.Msg{En: " from ", Es: " desde ", Zh: " 基于 ", De: " von ", Fr: " depuis "}
 	msgResumesAt           = i18n.Msg{En: "Resumes automatically at", Es: "Se reanudará automáticamente a las", Zh: "将自动恢复于", De: "Wird automatisch fortgesetzt um", Fr: "Reprise automatique à"}
 	msgDetailConfirmDelete = i18n.Msg{En: "Delete this task from the to-do list?", Es: "¿Borrar esta tarea de la lista de pendientes?", Zh: "要从待办列表中删除此任务吗？", De: "Diese Aufgabe aus der To-do-Liste löschen?", Fr: "Supprimer cette tâche de la liste des tâches à faire ?"}
+	msgLive                = i18n.Msg{En: "live", Es: "en vivo", Zh: "实时", De: "live", Fr: "en direct"}
 )
 
 // DetailTitle is the tab title of a task whose title is not known.

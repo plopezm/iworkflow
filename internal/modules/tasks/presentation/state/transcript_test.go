@@ -141,6 +141,7 @@ func TestTranscriptDialogOpenWhenTheRunSettlesIsClosedByTheTurn(t *testing.T) {
 	t.Parallel()
 	transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
 		transcriptAgent(transcriptDialog("d1")),
+		transcriptAgent(dto.TranscriptAssistantMessage{Text: "turno cerrado"}),
 		transcriptAgent(dto.TranscriptRunSettled{}),
 		transcriptAgent(dto.TranscriptDialogResolved{DialogID: "d1"}),
 	})

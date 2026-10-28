@@ -103,7 +103,7 @@ templ BoardToolbar(view state.BoardView) {
 		<div class="min-w-0 flex-1">
 			@WorkspaceSwitcher(view.Workspaces, view.Choice.ID, state.Scoped("board-workspace", view.Scope))
 		</div>
-		<label class={ toggleClass("btn-secondary cursor-pointer", view.ShowCompleted, "border-accent text-accent") }>
+		<label role="button" class={ toggleClass("btn-secondary cursor-pointer", view.ShowCompleted, "border-accent text-accent") }>
 			<input type="checkbox" name="completed" value="1" class="sr-only" checked?={ view.ShowCompleted }/>
 			<span aria-hidden="true">✓</span>
 			<span class="hidden lg:inline">{ msgShowCompleted.T(ctx) }</span>

@@ -111,11 +111,12 @@ func (t *Transcript) applyAgent(event dto.TranscriptAgentEvent) {
 	case dto.TranscriptRunStarted:
 	case dto.TranscriptRunSettled:
 		t.clearStreaming()
-		t.CloseTurn()
 	case dto.TranscriptUserMessage:
+		t.CloseTurn()
 		t.Items = append(t.Items, UserItem{Text: typed.Text, Images: typed.Images})
 	case dto.TranscriptAssistantMessage:
 		t.clearStreaming()
+		t.CloseTurn()
 		t.Items = append(t.Items, AssistantItem{Text: typed.Text, Thinking: typed.Thinking, Error: typed.Error})
 	case dto.TranscriptTextDelta:
 		t.StreamingText += typed.Delta

@@ -5,7 +5,7 @@ import "iworkflow/internal/modules/tasks/presentation/state"
 // TaskContext is what the actions tab says about the task: the prompt it started with, the branch it starts from and
 // the folder of its worktree.
 templ TaskContext(view state.TaskDetailView) {
-	<details class="card">
+	<details id={ state.Scoped("task-prompt-details", view.Scope) } hx-preserve="true" class="card prompt">
 		<summary>{ msgInitialPrompt.T(ctx) }</summary>
 		<pre class="font-mono text-sm whitespace-pre-wrap">{ view.Task.Prompt }</pre>
 	</details>

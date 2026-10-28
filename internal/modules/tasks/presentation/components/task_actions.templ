@@ -11,7 +11,6 @@ import (
 // closes for the board), the other actions keep it open.
 templ TaskActions(view state.TaskDetailView) {
 	<section class="card stack">
-		<h2 class="card-title">{ msgActions.T(ctx) }</h2>
 		<span class="eyebrow">{ msgSectionAgent.T(ctx) }</span>
 		<div class="row gap-2">
 			if view.Task.Actions.CanFinish {
@@ -47,6 +46,14 @@ templ TaskActions(view state.TaskDetailView) {
 				}
 				if view.Task.Actions.CanMerge {
 					@taskAction(view, "merge", msgMerge.T(ctx), "btn-primary", msgConfirmMerge.T(ctx), false)
+				}
+			</div>
+		}
+		if view.Task.Actions.CanOpenTerminal {
+			<span class="eyebrow">Worktree</span>
+			<div class="row gap-2">
+				@link.Tab(link.Props{Href: "/tasks/" + view.Task.ID + "/terminal", Class: "btn-secondary", Role: "link"}) {
+					{ msgOpenTerminal.T(ctx) }
 				}
 			</div>
 		}

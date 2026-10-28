@@ -6,9 +6,8 @@ import (
 )
 
 // TaskDetailPage is the detail tab of a task: its header, then its backlog body or its tabs with the transcript, and the
-// result slot where a leaving action answers. The tabs are the region of the active tab; the root carries the page
-// scope, so the actions of this tab answer here only.
-templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, body templ.Component) {
+// result slot where a leaving action answers.
+templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody templ.Component) {
 	<div id={ state.Scoped("task-detail", view.Scope) } class="flex h-full min-h-0 flex-col">
 		<div class="shrink-0 border-b border-border bg-surface px-4 py-2.5">
 			@components.TaskHeader(view)
@@ -19,7 +18,7 @@ templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, body templ.
 			</div>
 		} else {
 			<div class="flex min-h-0 flex-1 flex-col">
-				@components.TaskTabRegion(tabs, body)
+				@components.TaskTabRegion(tabs, actionsBody, filesBody, changesBody, codeHostBody)
 				@components.TranscriptPanel(view)
 				if view.CanMessage {
 					<div class="shrink-0 border-t border-border bg-surface p-4">
