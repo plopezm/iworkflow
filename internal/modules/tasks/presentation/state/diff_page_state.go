@@ -2,6 +2,7 @@ package state
 
 import (
 	"net/url"
+	"strconv"
 
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 )
@@ -117,6 +118,12 @@ func DiffReportPath(taskID string, scope string, action string) string {
 		return path
 	}
 	return path + "&scope=" + scope
+}
+
+// DiffReportPollPath is the address that asks again for the report that waits for the agent. since is the length of
+// the transcript when the explanation was asked.
+func DiffReportPollPath(taskID string, scope string, since int) string {
+	return DiffReportPath(taskID, scope, "poll") + "&since=" + strconv.Itoa(since)
 }
 
 // DiffViewRegionID is the id of the element the controls swap for one instance of the view.

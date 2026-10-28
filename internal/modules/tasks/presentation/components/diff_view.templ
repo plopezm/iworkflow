@@ -20,6 +20,15 @@ templ DiffView(view state.DiffView) {
 			if view.ReportPhase().HasReport() {
 				@DiffReport(view.TaskID, view.Scope, view.Title, view.Diff, view.ReportPhase())
 			}
+			if view.ReportPhase().IsFailed() {
+				<div class="notice notice-warn row justify-between animate-fade-in">
+					@coreui.ErrorText(view.ReportPhase().Error)
+					<button type="button" class="btn-secondary" { diffReportCancelAttrs(view.TaskID, view.Scope)... }>{ msgReportClose.T(ctx) }</button>
+				</div>
+			}
+			if view.ReportPhase().IsWaiting() {
+				<div hidden { diffReportPollAttrs(view.TaskID, view.Scope, view.Report.Since)... }></div>
+			}
 			if view.ReportPhase().IsBusy() {
 				@coreui.ProgressDialog(diffReportProgressTitle(ctx, view.ReportPhase()), diffReportProgressMessage(ctx, view.ReportPhase()), view.ReportPhase().IsBusy(), diffReportCancelAttrs(view.TaskID, view.Scope))
 			}

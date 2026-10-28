@@ -52,6 +52,17 @@ func diffReportCancelAttrs(taskID string, scope string) templ.Attributes {
 	}
 }
 
+// diffReportPollAttrs returns the htmx attributes that ask again for the report that waits for the agent. The answer
+// swaps the diff view region, and with it the element that polls, so the polling stops with the wait.
+func diffReportPollAttrs(taskID string, scope string, since int) templ.Attributes {
+	return templ.Attributes{
+		"hx-get":     state.DiffReportPollPath(taskID, scope, since),
+		"hx-trigger": "every 2s",
+		"hx-target":  "#" + state.DiffViewRegionID(scope),
+		"hx-swap":    "outerHTML",
+	}
+}
+
 // diffReportProgressTitle is the title of the progress dialog of the report.
 func diffReportProgressTitle(ctx context.Context, phase state.ReportPhase) string {
 	return msgReportProgressTitle.T(ctx)

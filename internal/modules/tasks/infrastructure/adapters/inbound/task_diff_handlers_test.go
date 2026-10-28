@@ -18,6 +18,7 @@ import (
 	"iworkflow/internal/core/i18n"
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
 const diffTestPatch = "diff --git a/src/a.rs b/src/a.rs\n--- a/src/a.rs\n+++ b/src/a.rs\n@@ -1 +1 @@\n-a\n+b\n"
@@ -53,7 +54,16 @@ func newDiffTaskForTest(t *testing.T) models.Task {
 }
 
 func newDiffHandlersForTest(get *diffTaskFake, diff *diffReaderFake) *DiffHandlers {
-	return NewDiffHandlers(DiffUseCases{Get: get, Diff: diff, Send: &fakeSender{}})
+	return NewDiffHandlers(DiffUseCases{Get: get, Diff: diff, Send: &fakeSender{}, History: &fakeHistory{}})
+}
+
+// explainedHistory is the history of a task whose agent was asked for the explanation and answered it.
+func explainedHistory(id models.TaskID, answered bool) []models.TaskEvent {
+	events := []models.TaskEvent{{TaskID: id, Kind: models.AgentEventKind{Event: models.UserMessage{Text: state.ExplanationPrompt}}}}
+	if answered {
+		events = append(events, models.TaskEvent{TaskID: id, Kind: models.AgentEventKind{Event: models.AssistantMessage{Text: "EXPLAINED-BODY"}}})
+	}
+	return events
 }
 
 // inLanguage is a request context in one language, as the shell sets it.
@@ -294,6 +304,58 @@ func TestDiffReportExplainedWaitsForTheAgentAnswer(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, code)
 	assert.Contains(t, body, "Generating PDF")
+}
+
+// The explained report sends the prompt and keeps asking for the answer: the dialog polls with the length of the
+// transcript at the time of the ask, so the answers before it are ignored.
+func TestDiffReportExplainedPollsFromTheTranscriptItWasAskedAt(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	sender := &fakeSender{}
+	history := &fakeHistory{events: []models.TaskEvent{{TaskID: task.ID, Kind: models.AgentEventKind{Event: models.AssistantMessage{Text: "old"}}}}}
+	h := NewDiffHandlers(DiffUseCases{Get: &diffTaskFake{task: task}, Diff: &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}}, Send: sender, History: history})
+
+	_, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=explained")
+
+	require.Len(t, sender.calls, 1)
+	assert.Equal(t, state.ExplanationPrompt, sender.calls[0].message)
+	assert.Contains(t, body, "Generating PDF")
+	assert.Contains(t, body, "action=poll")
+	assert.Contains(t, body, "since=1")
+}
+
+// The poll shows the report with the answer of the agent once it answered, and keeps waiting before that.
+func TestDiffReportPollRendersTheAnswerWhenTheAgentAnswered(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	reader := &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}}
+	waiting := NewDiffHandlers(DiffUseCases{Get: &diffTaskFake{task: task}, Diff: reader, Send: &fakeSender{}, History: &fakeHistory{events: explainedHistory(task.ID, false)}})
+	answered := NewDiffHandlers(DiffUseCases{Get: &diffTaskFake{task: task}, Diff: reader, Send: &fakeSender{}, History: &fakeHistory{events: explainedHistory(task.ID, true)}})
+
+	_, stillWaiting := diffReportRequest(t, waiting, i18n.En, task.ID.String(), "action=poll&since=0")
+	_, ready := diffReportRequest(t, answered, i18n.En, task.ID.String(), "action=poll&since=0")
+
+	assert.Contains(t, stillWaiting, "Generating PDF")
+	assert.NotContains(t, stillWaiting, `class="print-report"`)
+	assert.Contains(t, ready, `class="print-report"`)
+	assert.Contains(t, ready, "EXPLAINED-BODY")
+	assert.NotContains(t, ready, "Generating PDF")
+}
+
+// A send that fails is shown with its error and a way out, not as an empty region.
+func TestDiffReportExplainedShowsTheSendFailure(t *testing.T) {
+	t.Parallel()
+	task := newDiffTaskForTest(t)
+	sender := &fakeSender{err: errors.New("task is not accepting messages")}
+	h := NewDiffHandlers(DiffUseCases{Get: &diffTaskFake{task: task}, Diff: &diffReaderFake{diff: models.TaskDiff{Patch: diffTestPatch}}, Send: sender, History: &fakeHistory{}})
+
+	_, body := diffReportRequest(t, h, i18n.En, task.ID.String(), "action=explained")
+
+	assert.Contains(t, body, msgExplanationNotSent.En)
+	assert.NotContains(t, body, "task is not accepting messages")
+	assert.Contains(t, body, "action=close")
+	assert.NotContains(t, body, "Generating PDF")
+	assert.NotContains(t, body, "action=poll")
 }
 
 // The close of the report stops the report and answers the diff view again: the summary and the file cards of

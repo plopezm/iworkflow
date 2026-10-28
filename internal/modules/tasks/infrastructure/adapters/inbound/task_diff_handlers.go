@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
@@ -51,6 +52,16 @@ var msgInvalidReportAction = i18n.Msg{
 // an empty title.
 var msgChangesReport = i18n.Msg{En: "Changes report", Es: "Informe de cambios", Zh: "变更报告", De: "Änderungsbericht", Fr: "Rapport de modifications"}
 
+// msgExplanationNotSent answers a report with explanations whose ask could not be delivered to the agent. The send
+// error is logged, not shown: its text is internal.
+var msgExplanationNotSent = i18n.Msg{
+	En: "The agent could not be asked for the explanation. Close this and try again.",
+	Es: "No se pudo pedir la explicación al agente. Cierra esto e inténtalo de nuevo.",
+	Zh: "无法向智能体请求说明。请关闭后重试。",
+	De: "Der Agent konnte nicht um die Erklärung gebeten werden. Schließe dies und versuche es erneut.",
+	Fr: "L’agent n’a pas pu être sollicité pour l’explication. Fermez ceci et réessayez.",
+}
+
 // TaskGetter reads a task: the title of the tab and whether the task exists. The application use case satisfies it.
 type TaskGetter interface {
 	Execute(ctx context.Context, id models.TaskID) (models.Task, error)
@@ -62,11 +73,13 @@ type TaskDiffGetter interface {
 }
 
 // DiffUseCases are what the diff tab reads. Send asks the agent to explain the changes when the user asks for a
-// report with explanations; it is the send the composer uses for a message.
+// report with explanations; it is the send the composer uses for a message. History is where the answer of the
+// agent is read from.
 type DiffUseCases struct {
-	Get  TaskGetter
-	Diff TaskDiffGetter
-	Send MessageSender
+	Get     TaskGetter
+	Diff    TaskDiffGetter
+	Send    MessageSender
+	History HistoryReader
 }
 
 // DiffHandlers serves the diff tab of a task and the view that its layout controls swap.
@@ -168,6 +181,8 @@ func (h *DiffHandlers) report(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, h.plain(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
 	case "explained":
 		web.Render(w, r, http.StatusOK, h.explained(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
+	case "poll":
+		web.Render(w, r, http.StatusOK, h.polled(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope")), r.URL.Query().Get("since")))
 	case "close":
 		web.Render(w, r, http.StatusOK, h.closed(ctx, id, state.SanitizeScope(r.URL.Query().Get("scope"))))
 	default:
@@ -193,15 +208,37 @@ func (h *DiffHandlers) explained(ctx context.Context, id models.TaskID, scope st
 	if err != nil {
 		return diffFailure(ctx, id, err)
 	}
+	transcript, _, err := foldHistory(ctx, h.uc.History, id)
+	if err != nil {
+		return diffFailure(ctx, id, err)
+	}
 	report := state.DiffReport{TaskID: id.String()}
-	report = report.RequestExplanation(state.Transcript{})
+	report = report.RequestExplanation(transcript)
 	report.Version++
-	report.SendError = nil
 	if err := h.uc.Send.Execute(ctx, id, state.ExplanationPrompt, nil, models.MessageModeFollowUp); err != nil {
-		sendError := err.Error()
-		report.SendError = &sendError
+		slog.Error("could not ask the agent for the explanation of the diff", "task", id.String(), "error", err)
+		report = report.WithSendError(msgExplanationNotSent.T(ctx))
 	}
 	view.Report = report
+	return components.DiffView(view)
+}
+
+// polled answers the report that waits for the agent: the transcript is read again, and the report renders once the
+// agent answered the prompt after the length of the transcript at the time of the ask (since).
+func (h *DiffHandlers) polled(ctx context.Context, id models.TaskID, scope string, rawSince string) templ.Component {
+	view, err := h.load(ctx, id, scope, state.DefaultDiffLayout())
+	if err != nil {
+		return diffFailure(ctx, id, err)
+	}
+	transcript, _, err := foldHistory(ctx, h.uc.History, id)
+	if err != nil {
+		return diffFailure(ctx, id, err)
+	}
+	since, err := strconv.Atoi(rawSince)
+	if err != nil || since < 0 {
+		since = 0
+	}
+	view.Report = state.DiffReport{TaskID: id.String(), Request: state.ReportRequestExplained, Since: since, Transcript: transcript}
 	return components.DiffView(view)
 }
 

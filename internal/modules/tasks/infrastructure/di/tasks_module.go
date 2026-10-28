@@ -243,9 +243,10 @@ func NewModule(deps Deps) (*Module, error) {
 		Subagents:       getSubagents,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
-		Get:  getTask,
-		Diff: application.NewGetTaskDiff(lifecycle, worktrees),
-		Send: send,
+		Get:     getTask,
+		Diff:    application.NewGetTaskDiff(lifecycle, worktrees),
+		Send:    send,
+		History: getEvents,
 	})
 	setAgentMode := application.NewSetAgentMode(lifecycle, agentRuntime)
 	answerDialog := application.NewAnswerDialog(lifecycle, agentRuntime)
