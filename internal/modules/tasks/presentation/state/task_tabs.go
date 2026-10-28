@@ -6,15 +6,16 @@ import (
 
 // Tabs of the detail page of a task, in the order the strip shows them. Actions is the tab the page opens on.
 const (
-	TaskTabActions = "actions"
-	TaskTabFiles   = "files"
-	TaskTabChanges = "changes"
+	TaskTabActions  = "actions"
+	TaskTabFiles    = "files"
+	TaskTabChanges  = "changes"
+	TaskTabCodeHost = "code-host"
 )
 
 // ParseTaskTab reads the tab of a request. A tab that the strip does not show is refused, not served.
 func ParseTaskTab(raw string) (string, bool) {
 	switch raw {
-	case TaskTabActions, TaskTabFiles, TaskTabChanges:
+	case TaskTabActions, TaskTabFiles, TaskTabChanges, TaskTabCodeHost:
 		return raw, true
 	default:
 		return "", false

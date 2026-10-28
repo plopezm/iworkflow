@@ -63,6 +63,10 @@ func (tabsPanelsFake) RenderFile(_ context.Context, scope string, path string) t
 	return templ.Raw("file " + path + " of " + scope)
 }
 
+func (tabsPanelsFake) MergeRequestPanel(_ context.Context, taskID string) templ.Component {
+	return templ.Raw("merge-request of task:" + taskID)
+}
+
 // newTabsDetailForTest builds the detail handlers over fakes, with the project panels injected as the composition
 // root injects them.
 func newTabsDetailForTest(task models.Task, getErr error, panels ProjectPanels) *DetailHandlers {
@@ -133,6 +137,16 @@ func TestTaskTabsServeTheChangesOfTheTaskWorktree(t *testing.T) {
 	recorder := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/tabs/changes")
 
 	assert.Contains(t, recorder.Body.String(), "changes of task:"+task.ID.String())
+}
+
+func TestTaskTabsServeTheMergeRequestPanelOfTheTask(t *testing.T) {
+	t.Parallel()
+	task := newRunningTaskForTabs(t)
+	h := newTabsDetailForTest(task, nil, tabsPanelsFake{})
+
+	recorder := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/tabs/code-host")
+
+	assert.Contains(t, recorder.Body.String(), "merge-request of task:"+task.ID.String())
 }
 
 func TestTaskTabsServeTheActionsOfTheTask(t *testing.T) {

@@ -49,14 +49,15 @@ var msgPanelsUnavailable = i18n.Msg{
 	Fr: "Les fichiers de la tâche ne sont pas disponibles.",
 }
 
-// ProjectPanels are the project views a task embeds: its file tree, the tree without its page, its changes and one of
-// its files. Each takes the wire form of the scope, `task:<id>` for a worktree. The project_tree handlers satisfy it,
-// and the composition root injects them, so tasks never imports project_tree.
+// ProjectPanels are the project views and panels a task embeds: its file tree, the tree without its page, its changes,
+// one of its files and its merge request panel. The composition root injects them, so tasks never imports project_tree
+// or code_hosting.
 type ProjectPanels interface {
 	RenderTree(ctx context.Context, rawScope string) templ.Component
 	TreePanel(ctx context.Context, rawScope string) templ.Component
 	ChangesPanel(ctx context.Context, rawScope string) templ.Component
 	RenderFile(ctx context.Context, rawScope string, file string) templ.Component
+	MergeRequestPanel(ctx context.Context, taskID string) templ.Component
 }
 
 // fileRoutes are the dock routes of the files of a task. A file tab takes the name of its file.
@@ -154,6 +155,9 @@ func (h *DetailHandlers) tabBody(ctx context.Context, scope string, task models.
 	}
 	if h.uc.Panels == nil {
 		return shared.ErrorText(msgPanelsUnavailable.T(ctx))
+	}
+	if tab == state.TaskTabCodeHost {
+		return h.uc.Panels.MergeRequestPanel(ctx, task.ID.String())
 	}
 	wire := state.TaskPanelScope(task.ID.String())
 	if tab == state.TaskTabChanges {

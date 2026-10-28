@@ -28,8 +28,14 @@ function uniqueGitRepo(prefix) {
 async function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 // Registers a workspace from the Workspaces screen and waits until it is listed.
-async function registerWs(ctx, name) {
+async function registerWs(ctx, name, opts = {}) {
   const dir = uniqueGitRepo(name);
+  if (opts.origin) {
+    execSync(`git -C '${dir}' remote add origin '${opts.origin}'`, { stdio: 'ignore' });
+    const bare = `${dir}-remote.git`;
+    execSync(`git init -q --bare '${bare}'`, { stdio: 'ignore' });
+    execSync(`git -C '${dir}' config 'url.${bare}.pushInsteadOf' '${opts.origin}'`, { stdio: 'ignore' });
+  }
   await ctx.goto('/workspaces');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
@@ -52,7 +58,7 @@ async function openBoard(ctx, name) {
 // when `opts.start` is set; the create -> start chain is awaited before navigating, so the start is not cancelled.
 async function taskDetail(ctx, key, prompt, opts = {}) {
   const name = `tk-${key}-${tag}`;
-  const ws = await registerWs(ctx, name);
+  const ws = await registerWs(ctx, name, opts);
   await openBoard(ctx, ws.name);
   const page = ctx.page;
   await page.getByRole('button', { name: 'Nueva tarea' }).first().click();

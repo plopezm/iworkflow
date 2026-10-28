@@ -19,6 +19,7 @@ import (
 	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
 	codehostingoutbound "iworkflow/internal/modules/code_hosting/domain/ports/outbound"
+	codehostingcomponents "iworkflow/internal/modules/code_hosting/presentation/components"
 	projecttreeapp "iworkflow/internal/modules/project_tree/application"
 	projecttreemodels "iworkflow/internal/modules/project_tree/domain/models"
 	projecttreeoutbound "iworkflow/internal/modules/project_tree/domain/ports/outbound"
@@ -425,11 +426,20 @@ func (b *taskFileSearch) Files(ctx context.Context, id tasksmodels.TaskID, query
 	return b.search.Execute(ctx, projecttreemodels.TaskScope(id.UUID()), query)
 }
 
-// taskPanels gives the Files and Changes tabs of a task the project views of the project tree. The project tree is
-// built after the tasks module, so the module is bound once it exists (see New).
-type taskPanels struct {
-	inner tasksinbound.ProjectPanels
+type projectTreePanels interface {
+	RenderTree(ctx context.Context, rawScope string) templ.Component
+	TreePanel(ctx context.Context, rawScope string) templ.Component
+	ChangesPanel(ctx context.Context, rawScope string) templ.Component
+	RenderFile(ctx context.Context, rawScope string, file string) templ.Component
 }
+
+// taskPanels gives the Files and Changes tabs of a task the project views of the project tree, and the PR/MR tab
+// the merge request panel of code hosting.
+type taskPanels struct {
+	inner projectTreePanels
+}
+
+var _ tasksinbound.ProjectPanels = (*taskPanels)(nil)
 
 // RenderTree is the project root page of a scope.
 func (b *taskPanels) RenderTree(ctx context.Context, rawScope string) templ.Component {
@@ -449,4 +459,11 @@ func (b *taskPanels) ChangesPanel(ctx context.Context, rawScope string) templ.Co
 // RenderFile is the editor of one file of a scope.
 func (b *taskPanels) RenderFile(ctx context.Context, rawScope string, file string) templ.Component {
 	return b.inner.RenderFile(ctx, rawScope, file)
+}
+
+// MergeRequestPanel is the merge/pull request panel of a task.
+func (b *taskPanels) MergeRequestPanel(_ context.Context, taskID string) templ.Component {
+	return codehostingcomponents.TaskMergeRequestPanel(codehostingcomponents.TaskMergeRequestPanelProps{
+		TaskID: taskID,
+	})
 }

@@ -14,7 +14,7 @@
 //
 // The "PR / MR" tab is the task tab that the tasks screen embeds with the merge request panel. The
 // tests need the tasks screen to exist (finishedTask and openActions come from it).
-const tasks = require('../tasks.e2e.cjs');
+const tasks = require('./tasks_actions.e2e.cjs');
 const { finishedTask, openActions } = tasks.helpers;
 
 const GITLAB_URL = process.env.GITLAB_MOCK_URL || 'http://127.0.0.1:9998';
