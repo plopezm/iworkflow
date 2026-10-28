@@ -55,6 +55,9 @@ func (s *FsAttachmentStorage) Save(_ context.Context, taskID models.TaskID, atta
 	if !isCanonicalUUID(attachmentID) {
 		return "", werrors.Storage("identificador de adjunto no válido: " + attachmentID)
 	}
+	if base64.StdEncoding.DecodedLen(len(image.Data)) > models.MaxImageBytes+4 {
+		return "", werrors.Storage(image.Name + ": la imagen supera los 4 MiB")
+	}
 	data, err := base64.StdEncoding.DecodeString(image.Data)
 	if err != nil {
 		return "", werrors.Storage(fmt.Sprintf("%s: base64 inválido: %v", image.Name, err))

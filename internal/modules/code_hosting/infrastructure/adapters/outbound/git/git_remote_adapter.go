@@ -149,7 +149,10 @@ func tokenEnv(settings models.CodeHostSettings) []string {
 	if settings.InsecureTLS {
 		entries = append(entries, [2]string{scope + ".sslVerify", "false"})
 	}
-	env := []string{"GIT_CONFIG_COUNT=" + strconv.Itoa(len(entries))}
+	env := []string{
+		"GIT_TERMINAL_PROMPT=0",
+		"GIT_CONFIG_COUNT=" + strconv.Itoa(len(entries)),
+	}
 	for index, entry := range entries {
 		env = append(env,
 			fmt.Sprintf("GIT_CONFIG_KEY_%d=%s", index, entry[0]),

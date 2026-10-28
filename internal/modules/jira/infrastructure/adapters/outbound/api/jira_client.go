@@ -276,6 +276,9 @@ func newHTTPClient(acceptInvalidCerts bool) *http.Client {
 			if len(via) >= maxRedirects {
 				return errors.New("too many redirects")
 			}
+			if len(via) > 0 && request.Method != via[0].Method && via[0].Method == http.MethodPost {
+				return errors.New("cannot follow redirect that downgrades POST to " + request.Method)
+			}
 			if !sameOrigin(request.URL, via[0].URL) {
 				request.Header.Del("Authorization")
 			}

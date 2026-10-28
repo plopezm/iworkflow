@@ -207,14 +207,17 @@ func boardEventName(kind models.TaskEventKind) (string, bool) {
 }
 
 // sendTaskEvent writes one event with its sequence number as id, when it has one.
+// A poison event that cannot be mapped or marshaled is logged and skipped, preventing reconnect loops.
 func sendTaskEvent(ctx context.Context, stream *web.SSE, event models.TaskEvent) error {
 	wire, err := dto.TaskEventFromDomain(event)
 	if err != nil {
-		return fmt.Errorf("map task event: %w", err)
+		slog.Warn("skipping unmappable task event", "seq", event.Seq, "error", err)
+		return nil
 	}
 	data, err := json.Marshal(wire)
 	if err != nil {
-		return fmt.Errorf("encode task event: %w", err)
+		slog.Warn("skipping unencodable task event", "seq", event.Seq, "error", err)
+		return nil
 	}
 	id := ""
 	if event.Seq != nil {

@@ -43,7 +43,7 @@ func (s *FileStore) Read(_ context.Context, root string, relative string) (model
 	return models.ProjectFile{Name: path.Base(relative), Path: relative, Content: string(content)}, nil
 }
 
-// Write overwrites an existing regular file. It never creates files: a missing path is an error.
+// Write overwrites an existing regular file atomically. It never creates files: a missing path is an error.
 func (s *FileStore) Write(_ context.Context, root string, relative string, content string) error {
 	if int64(len(content)) > maxFileBytes {
 		return treeerrors.FileTooLarge(relative)
@@ -52,7 +52,27 @@ func (s *FileStore) Write(_ context.Context, root string, relative string, conte
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
+	dir := filepath.Dir(target)
+	tmp, err := os.CreateTemp(dir, ".tmp-edit-*")
+	if err != nil {
+		return ioError(err)
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		_ = os.Remove(tmpName)
+	}()
+	if _, err := tmp.Write([]byte(content)); err != nil {
+		_ = tmp.Close()
+		return ioError(err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return ioError(err)
+	}
+	if err := tmp.Close(); err != nil {
+		return ioError(err)
+	}
+	if err := os.Rename(tmpName, target); err != nil {
 		return ioError(err)
 	}
 	return nil
