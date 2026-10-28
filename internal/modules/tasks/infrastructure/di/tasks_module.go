@@ -137,6 +137,8 @@ type Module struct {
 	Diff *httpinbound.DiffHandlers
 	// Composer serves the message box of the detail page: the message, the mode switch and the file suggestions.
 	Composer *httpinbound.ComposerHandlers
+	// Graph serves the dependency graph and node positions.
+	Graph *httpinbound.GraphHandlers
 	// The dependency graph of the board (slice C): the edges, the node positions and the successor trigger.
 	// Successors starts the tasks whose predecessors met their trigger. The composition root runs
 	// background.RunGraphLoop with it in a goroutine it owns, and stops that loop through its context.
@@ -256,6 +258,21 @@ func NewModule(deps Deps) (*Module, error) {
 		History: getEvents,
 		Answer:  answerDialog,
 	}, deps.FileSearch)
+	getGraph := application.NewGetTaskGraph(graph)
+	removeDependency := application.NewRemoveTaskDependency(graph, successors)
+	detachFromGraph := application.NewDetachTaskFromGraph(graph, successors)
+	setPosition := application.NewSetTaskPosition(graph)
+	listTasks := application.NewListTasks(repository)
+	listDoneTasks := application.NewListDoneTasks(repository)
+	graphHandlers := httpinbound.NewGraphHandlers(httpinbound.GraphUseCases{
+		GetGraph:         getGraph,
+		AddDependency:    addDependency,
+		RemoveDependency: removeDependency,
+		DetachFromGraph:  detachFromGraph,
+		SetPosition:      setPosition,
+		ListTasks:        listTasks,
+		ListDoneTasks:    listDoneTasks,
+	}, clock)
 
 	return &Module{
 		Get:               getTask,
@@ -296,11 +313,12 @@ func NewModule(deps Deps) (*Module, error) {
 		Detail:            detail,
 		Diff:              diff,
 		Composer:          composer,
+		Graph:             graphHandlers,
 		AddDependency:     addDependency,
-		RemoveDependency:  application.NewRemoveTaskDependency(graph, successors),
-		DetachFromGraph:   application.NewDetachTaskFromGraph(graph, successors),
-		GetGraph:          application.NewGetTaskGraph(graph),
-		SetPosition:       application.NewSetTaskPosition(graph),
+		RemoveDependency:  removeDependency,
+		DetachFromGraph:   detachFromGraph,
+		GetGraph:          getGraph,
+		SetPosition:       setPosition,
 		Successors:        successors,
 		ResumeTask:        resumeTask,
 		ResumeRateLimited: resumeRateLimited,
@@ -387,6 +405,7 @@ func (m *Module) Routes(r chi.Router) {
 	m.Detail.Mount(r)
 	m.Diff.Mount(r)
 	m.Composer.Mount(r)
+	m.Graph.Mount(r)
 }
 
 // Sidebar returns the board part of the sidebar: the workspaces and the tasks that need the user.
