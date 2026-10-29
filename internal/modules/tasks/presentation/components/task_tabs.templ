@@ -9,30 +9,30 @@ func taskPaneClass(active bool) string {
 	if active {
 		return "stack gap-3 min-h-0 flex-1 overflow-y-auto p-4"
 	}
-	return "stack gap-3 min-h-0 flex-1 overflow-y-auto p-4 hidden"
+	return "hidden"
 }
 
 // TaskTabRegion is the strip of the detail tabs of a task and the four kept tab panes.
 templ TaskTabRegion(tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody templ.Component) {
-	<div id={ tabs.RegionID() } class="flex min-h-0 max-h-[40vh] shrink-0 flex-col">
+	<div id={ tabs.RegionID() } class="flex min-h-0 flex-1 flex-col">
 		@coreui.TabBar(taskTabItems(ctx, tabs), tabs.Active)
 		<div class="flex min-h-0 flex-1 flex-col">
-			<div class={ taskPaneClass(tabs.Active == state.TaskTabActions) }>
+			<div class={ taskPaneClass(tabs.Active == state.TaskTabActions) } hidden?={ tabs.Active != state.TaskTabActions }>
 				if actionsBody != nil {
 					@actionsBody
 				}
 			</div>
-			<div id={ tabs.RegionID() + "-files" } hx-preserve="true" class={ taskPaneClass(tabs.Active == state.TaskTabFiles) }>
+			<div id={ tabs.RegionID() + "-files" } class={ taskPaneClass(tabs.Active == state.TaskTabFiles) } hidden?={ tabs.Active != state.TaskTabFiles }>
 				if filesBody != nil {
 					@filesBody
 				}
 			</div>
-			<div id={ tabs.RegionID() + "-changes" } hx-preserve="true" class={ taskPaneClass(tabs.Active == state.TaskTabChanges) }>
+			<div id={ tabs.RegionID() + "-changes" } class={ taskPaneClass(tabs.Active == state.TaskTabChanges) } hidden?={ tabs.Active != state.TaskTabChanges }>
 				if changesBody != nil {
 					@changesBody
 				}
 			</div>
-			<div id={ tabs.RegionID() + "-code-host" } hx-preserve="true" class={ taskPaneClass(tabs.Active == state.TaskTabCodeHost) }>
+			<div id={ tabs.RegionID() + "-code-host" } class={ taskPaneClass(tabs.Active == state.TaskTabCodeHost) } hidden?={ tabs.Active != state.TaskTabCodeHost }>
 				if codeHostBody != nil {
 					@codeHostBody
 				}

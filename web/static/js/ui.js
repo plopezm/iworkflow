@@ -74,6 +74,10 @@ function setCollapsed(root, collapsed) {
   for (const toggle of root.querySelectorAll('[data-collapse-toggle]')) {
     toggle.setAttribute('aria-expanded', String(!collapsed));
     toggle.setAttribute('aria-label', collapsed ? toggle.dataset.labelClosed : toggle.dataset.labelOpen);
+    const span = toggle.querySelector('span');
+    if (span && toggle.dataset.glyphClosed && toggle.dataset.glyphOpen) {
+      span.textContent = collapsed ? toggle.dataset.glyphClosed : toggle.dataset.glyphOpen;
+    }
   }
   for (const toggle of document.querySelectorAll('[data-sidebar-toggle]')) {
     const label = sidebarToggleLabel(toggle.dataset, collapsed);
@@ -87,10 +91,13 @@ function setCollapsed(root, collapsed) {
   if (key && storage()) storage().setItem(key, collapsed ? '0' : '1');
 }
 
-function restoreSidebars() {
-  for (const root of document.querySelectorAll('[data-collapse-root][data-persist-key]')) {
-    const open = sidebarIsOpen(storage()?.getItem(root.dataset.persistKey) ?? null);
-    setCollapsed(root, !open);
+function restoreSidebars(root = document) {
+  const elements = [];
+  if (root.matches?.('[data-collapse-root][data-persist-key]')) elements.push(root);
+  elements.push(...(root.querySelectorAll?.('[data-collapse-root][data-persist-key]') ?? []));
+  for (const el of elements) {
+    const open = sidebarIsOpen(storage()?.getItem(el.dataset.persistKey) ?? null);
+    setCollapsed(el, !open);
   }
 }
 
@@ -234,6 +241,7 @@ function init() {
     if (event.target instanceof Element) {
       armToasts(event.target);
       loadPanes(event.target);
+      restoreSidebars(event.target);
       // Moving or opening tabs closes the mobile sidebar overlay.
       if (event.target.id === 'dock') document.getElementById('sidebar-panel')?.removeAttribute('data-mobile-open');
     }

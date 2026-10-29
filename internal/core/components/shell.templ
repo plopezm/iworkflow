@@ -51,6 +51,8 @@ templ CollapsePanel(p CollapsePanelProps) {
 			aria-expanded={ ariaBool(p.Open) }
 			aria-label={ msgCollapsePanel.T(ctx) }
 			data-collapse-toggle
+			data-glyph-open={ HandleGlyph(p.Side, true) }
+			data-glyph-closed={ HandleGlyph(p.Side, false) }
 			data-label-open={ msgCollapsePanel.T(ctx) }
 			data-label-closed={ msgExpandPanel.T(ctx) }
 		>
