@@ -270,6 +270,7 @@ func TestTaskNodeAndCanvasRendering(t *testing.T) {
 	assert.Contains(t, htmlCanvas, "background-size: 18.00px 18.00px; background-position: 10.00px -5.00px;")
 	assert.Contains(t, htmlCanvas, "graph-edges")
 	assert.Contains(t, htmlCanvas, "graph-nodes")
+	assert.Contains(t, htmlCanvas, "graph-zoom-bar")
 	assert.Contains(t, htmlCanvas, "zoom-controls")
 	assert.Contains(t, htmlCanvas, "zoom-fit-btn")
 }

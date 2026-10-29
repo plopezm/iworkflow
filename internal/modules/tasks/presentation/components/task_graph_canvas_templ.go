@@ -120,7 +120,7 @@ func TaskGraphCanvas(view state.GraphView, positions map[string]state.Point, vie
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div class=\"graph-zoom-bar absolute bottom-4 left-4 flex items-center gap-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</div><div class=\"graph-zoom-bar absolute bottom-4 left-4 z-10 flex items-center gap-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

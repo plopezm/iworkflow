@@ -43,7 +43,7 @@ templ TaskGraphCanvas(view state.GraphView, positions map[string]state.Point, vi
 				@TaskNode(node, positions[node.Task.ID], scope)
 			}
 		</div>
-		<div class="graph-zoom-bar absolute bottom-4 left-4 flex items-center gap-2">
+		<div class="graph-zoom-bar absolute bottom-4 left-4 z-10 flex items-center gap-2">
 			@shared.ZoomControls(shared.ZoomControlsProps{
 				Zoom:         viewport.Zoom,
 				ZoomInLabel:  msgZoomIn.T(ctx),
