@@ -98,6 +98,10 @@ func TestBuildGraphKeepsOneWorkspaceAndOrdersByAge(t *testing.T) {
 		order[i] = n.Task.ID
 	}
 	assert.Equal(t, []string{"early", "late"}, order)
+	assert.False(t, view.Nodes[0].HasPredecessors)
+	assert.False(t, view.Nodes[0].CanAddParallel())
+	assert.True(t, view.Nodes[1].HasPredecessors)
+	assert.True(t, view.Nodes[1].CanAddParallel())
 	// La arista hacia otro workspace no se pinta
 	assert.Len(t, view.Edges, 1)
 	assert.Equal(t, "early", view.Edges[0].PredecessorID)

@@ -71,19 +71,21 @@ templ TaskNode(node state.NodeView, position state.Point, scope string) {
 				<span aria-hidden="true">→+</span>
 				{ msgNextShort.T(ctx) }
 			</button>
-			<button
-				type="button"
-				class="graph-tool"
-				title={ msgAddParallel.T(ctx) }
-				aria-label={ msgAddParallel.T(ctx) }
-				hx-get={ state.ScopedPath(fmt.Sprintf("/board/tasks/new?link_kind=parallel&link_anchor=%s", node.Task.ID), scope) }
-				hx-include={ "#" + state.Scoped("board-workspace", scope) }
-				hx-target={ "#" + state.Scoped("board-create-slot", scope) }
-				hx-swap="innerHTML"
-			>
-				<span aria-hidden="true">⇉</span>
-				{ msgParallelShort.T(ctx) }
-			</button>
+			if node.CanAddParallel() {
+				<button
+					type="button"
+					class="graph-tool"
+					title={ msgAddParallel.T(ctx) }
+					aria-label={ msgAddParallel.T(ctx) }
+					hx-get={ state.ScopedPath(fmt.Sprintf("/board/tasks/new?link_kind=parallel&link_anchor=%s", node.Task.ID), scope) }
+					hx-include={ "#" + state.Scoped("board-workspace", scope) }
+					hx-target={ "#" + state.Scoped("board-create-slot", scope) }
+					hx-swap="innerHTML"
+				>
+					<span aria-hidden="true">⇉</span>
+					{ msgParallelShort.T(ctx) }
+				</button>
+			}
 			<button
 				type="button"
 				class="graph-tool"

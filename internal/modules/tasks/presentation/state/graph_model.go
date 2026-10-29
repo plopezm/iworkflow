@@ -69,6 +69,13 @@ type NodeView struct {
 	Task dto.TaskDTO `json:"task"`
 	// Waiting es el número de predecesoras aún no integradas; solo cuenta para tareas en Backlog.
 	Waiting int `json:"waiting"`
+	// HasPredecessors indica si la tarea tiene al menos una predecesora en el grafo.
+	HasPredecessors bool `json:"has_predecessors"`
+}
+
+// CanAddParallel indica si la tarea puede tener una tarea añadida en paralelo (no es la primera en su flujo).
+func (n NodeView) CanAddParallel() bool {
+	return n.HasPredecessors || n.Waiting > 0
 }
 
 // GraphView es el grafo visible de un workspace.
@@ -241,11 +248,19 @@ func BuildGraph(
 		}
 	}
 
+	predecessorsCount := make(map[string]int, len(partition.Nodes))
+	for _, d := range graph.Dependencies {
+		if _, ok := statuses[d.PredecessorID]; ok {
+			predecessorsCount[d.SuccessorID]++
+		}
+	}
+
 	nodes := make([]NodeView, 0, len(partition.Nodes))
 	for _, t := range partition.Nodes {
 		nodes = append(nodes, NodeView{
-			Task:    t,
-			Waiting: WaitingCount(t, graph.Dependencies, statuses),
+			Task:            t,
+			Waiting:         WaitingCount(t, graph.Dependencies, statuses),
+			HasPredecessors: predecessorsCount[t.ID] > 0,
 		})
 	}
 
@@ -255,7 +270,7 @@ func BuildGraph(
 // NodeKey genera la clave de un nodo para evitar re-renderizados innecesarios.
 func NodeKey(node NodeView) string {
 	return fmt.Sprintf(
-		"%s|%s|%s|%s|%s|%s|%t|%d|%s|%d",
+		"%s|%s|%s|%s|%s|%s|%t|%d|%s|%d|%t",
 		node.Task.ID,
 		node.Task.Title,
 		node.Task.Prompt,
@@ -266,6 +281,7 @@ func NodeKey(node NodeView) string {
 		node.Task.PendingDialogs,
 		node.Task.UpdatedAt,
 		node.Waiting,
+		node.HasPredecessors,
 	)
 }
 

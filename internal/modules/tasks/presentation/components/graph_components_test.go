@@ -274,6 +274,43 @@ func TestTaskNodeAndCanvasRendering(t *testing.T) {
 	assert.Contains(t, htmlCanvas, "zoom-fit-btn")
 }
 
+func TestTaskNodeOmitsParallelActionForFirstTask(t *testing.T) {
+	t.Parallel()
+	node := state.NodeView{
+		Task: dto.TaskDTO{
+			ID:    "task-first",
+			Title: "First task",
+			Stage: "backlog",
+		},
+		Waiting: 0,
+	}
+	pos := state.Point{X: 0, Y: 0}
+
+	htmlNode := renderComponent(t, i18n.Es, components.TaskNode(node, pos, "sc-board"))
+	assert.Contains(t, htmlNode, "Siguiente")
+	assert.NotContains(t, htmlNode, "Paralela")
+	assert.Contains(t, htmlNode, "Quitar del grafo")
+}
+
+func TestTaskNodeIncludesParallelActionWhenHasPredecessors(t *testing.T) {
+	t.Parallel()
+	node := state.NodeView{
+		Task: dto.TaskDTO{
+			ID:    "task-second",
+			Title: "Second task",
+			Stage: "backlog",
+		},
+		Waiting:         0,
+		HasPredecessors: true,
+	}
+	pos := state.Point{X: 0, Y: 0}
+
+	htmlNode := renderComponent(t, i18n.Es, components.TaskNode(node, pos, "sc-board"))
+	assert.Contains(t, htmlNode, "Siguiente")
+	assert.Contains(t, htmlNode, "Paralela")
+	assert.Contains(t, htmlNode, "Quitar del grafo")
+}
+
 func TestNodeStyleAndClass(t *testing.T) {
 	t.Parallel()
 
