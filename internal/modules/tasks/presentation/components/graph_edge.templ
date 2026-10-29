@@ -67,7 +67,7 @@ templ GraphEdgeLine(edge state.EdgeView, markerScope string, from state.Point, t
 		path := state.EdgePath(from, to)
 		middle := state.EdgeMidpoint(from, to)
 	}}
-	<g class={ EdgeClass(edge.State, selected) } data-edge-key={ edge.Key() }>
+	<g id={ "edge-" + markerScope + "-" + edge.Key() } class={ EdgeClass(edge.State, selected) } data-edge-key={ edge.Key() }>
 		<path
 			class="graph-edge-hit"
 			d={ path }

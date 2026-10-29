@@ -71,7 +71,7 @@ func Shell(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</title><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/vendor/htmx.min.js\"></script><script src=\"/static/vendor/htmx-ext-sse.js\"></script></head><body hx-ext=\"sse\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</title><link rel=\"stylesheet\" href=\"/static/app.css\"><script src=\"/static/vendor/htmx.min.js\"></script><script src=\"/static/vendor/htmx-ext-sse.js\"></script><script src=\"/static/vendor/idiomorph-ext.min.js\"></script></head><body hx-ext=\"sse,morph\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
