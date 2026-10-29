@@ -75,7 +75,8 @@ templ backlogActions(task dto.TaskDTO, scope string) {
 // aria-label of its own, so the "Workspace" label of the create dialog stays the only one with that name.
 templ WorkspaceSwitcher(workspaces []dto.WorkspaceOptionDTO, selected string, id string) {
 	<label class="select-pill max-w-xs" title={ msgSwitchWorkspace.T(ctx) }>
-		<select id={ id } name="workspace" class="min-w-0 bg-transparent">
+		<span class="sr-only">{ msgSwitchWorkspace.T(ctx) }</span>
+		<select id={ id } name="workspace" class="select-pill-input">
 			if selected == "" {
 				<option value="" selected>{ msgSelectWorkspace.T(ctx) }</option>
 			}
@@ -83,6 +84,9 @@ templ WorkspaceSwitcher(workspaces []dto.WorkspaceOptionDTO, selected string, id
 				<option value={ workspace.ID } selected?={ workspace.ID == selected }>{ workspace.Name + " (" + workspace.BaseBranch + ")" }</option>
 			}
 		</select>
+		<svg class="select-pill-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+			<path d="M5.5 8L10 12.5L14.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+		</svg>
 	</label>
 }
 

@@ -123,6 +123,10 @@ label {
   -webkit-tap-highlight-color: transparent;
 }
 
+select {
+  color-scheme: inherit;
+}
+
 html,
 body {
   touch-action: manipulation;
@@ -470,6 +474,8 @@ body.dock-resizing .xterm {
   @apply w-full min-w-0 flex-1 cursor-pointer appearance-none truncate border-none bg-transparent text-fg outline-none;
 }
 /* The native dropdown list ignores the transparent pill; paint it with theme colors. */
+select option,
+select optgroup,
 .select-pill-input option,
 .select-pill-input optgroup {
   @apply bg-surface text-fg;
