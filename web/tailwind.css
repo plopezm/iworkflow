@@ -1640,6 +1640,10 @@ select optgroup,
   touch-action: pan-y;
   user-select: none;
 }
+.loose-tasks-container,
+.loose-list {
+  touch-action: pan-y;
+}
 .loose-card-attention {
   border-color: color-mix(in srgb, var(--color-stage-attention) 55%, var(--color-border));
 }
@@ -1721,5 +1725,9 @@ select optgroup,
   }
   .side-panel-body[hidden] {
     display: block;
+  }
+  .loose-card {
+    cursor: default;
+    touch-action: pan-y;
   }
 }

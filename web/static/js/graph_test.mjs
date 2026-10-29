@@ -11,6 +11,7 @@ import {
 	DEFAULT_VIEWPORT,
 	fitCanvasView,
 	extractEdgeEndpoints,
+	isCanvasVisible,
 } from "./graph.js";
 
 test("screenToCanvas and canvasToScreen are inverse", () => {
@@ -153,4 +154,48 @@ test("loose task client drop converts to canvas coordinates correctly", () => {
 	assert.equal(canvasCoord.x, 125);
 	assert.equal(canvasCoord.y, 87.5);
 });
+
+test("isCanvasVisible returns false for falsy or zero-dimension canvas", () => {
+	assert.equal(isCanvasVisible(null), false);
+	assert.equal(isCanvasVisible(undefined), false);
+	assert.equal(isCanvasVisible({ offsetWidth: 0, offsetHeight: 0, clientWidth: 0, clientHeight: 0 }), false);
+});
+
+test("isCanvasVisible returns false when hidden in narrow screen loose tab", () => {
+	const canvas = {
+		offsetWidth: 400,
+		offsetHeight: 600,
+		closest(selector) {
+			if (selector === ".board-panes") {
+				return { dataset: { tab: "loose" } };
+			}
+			return null;
+		},
+	};
+
+	// Save global window
+	const originalWindow = globalThis.window;
+	try {
+		globalThis.window = {
+			matchMedia: (q) => ({ matches: q.includes("max-width: 767px") }),
+			getComputedStyle: () => ({ visibility: "visible", display: "block" }),
+		};
+		assert.equal(isCanvasVisible(canvas), false);
+
+		// When on desktop (> 767px), matchMedia returns false -> canvas is visible
+		globalThis.window.matchMedia = () => ({ matches: false });
+		assert.equal(isCanvasVisible(canvas), true);
+
+		// When CSS visibility is hidden, it is false regardless
+		globalThis.window.getComputedStyle = () => ({ visibility: "hidden" });
+		assert.equal(isCanvasVisible(canvas), false);
+	} finally {
+		if (originalWindow === undefined) {
+			delete globalThis.window;
+		} else {
+			globalThis.window = originalWindow;
+		}
+	}
+});
+
 
