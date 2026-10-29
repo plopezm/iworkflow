@@ -174,8 +174,7 @@ function onClick(event) {
     if (root) setCollapsed(root, !root.hasAttribute('data-collapsed'));
     return;
   }
-
-  const mobileOpen = target.closest?.('[data-mobile-open]');
+  const mobileOpen = target.closest?.('[data-mobile-open][data-target]');
   if (mobileOpen) {
     const root = document.getElementById(mobileOpen.dataset.target);
     root?.setAttribute('data-mobile-open', '');
@@ -187,7 +186,8 @@ function onClick(event) {
   if (overlayClose) {
     const root = overlayClose.closest('[data-collapse-root]');
     root?.removeAttribute('data-mobile-open');
-    overlayClose.hidden = true;
+    const overlay = root?.querySelector('[data-overlay-close]');
+    if (overlay) overlay.hidden = true;
     return;
   }
 
