@@ -119,3 +119,32 @@ test('a safety timeout clears the smooth flag when scrollend never fires', () =>
   el.emit('scroll');
   assert.equal(el.parentElement.dataset.atBottom, 'false');
 });
+
+test('resetToBottom jumps directly to the end even after user scrolled away', () => {
+  const el = fakeEl({ scrollTop: 600 });
+  installDom(el);
+  mod.followBottom('log', true);
+  // User scrolls up away from bottom
+  el.scrollTop = 100;
+  el.emit('scroll');
+  assert.equal(el.parentElement.dataset.atBottom, 'false');
+
+  // Entering the window / resetToBottom forces scroll to bottom and restores stuck flag
+  mod.resetToBottom('log');
+  assert.equal(el.scrollTop, el.scrollHeight);
+  assert.equal(el.parentElement.dataset.atBottom, 'true');
+
+  // New content arriving continues to be followed
+  el.scrollHeight = 1500;
+  mod.followBottom('log', true);
+  assert.equal(el.scrollTop, 1500);
+
+  // But if the user scrolls up again, their position is respected
+  el.scrollTop = 200;
+  el.emit('scroll');
+  assert.equal(el.parentElement.dataset.atBottom, 'false');
+  el.scrollHeight = 1800;
+  mod.followBottom('log', true);
+  assert.equal(el.scrollTop, 200);
+});
+

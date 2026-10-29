@@ -77,7 +77,7 @@ func shellPage(boardSidebar templ.Component) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<script type=\"module\" src=\"/static/js/ui.js\"></script> <script type=\"module\" src=\"/static/js/transcript.js\"></script> <script type=\"module\" src=\"/static/js/dock.js\"></script> <script type=\"module\" src=\"/static/js/task_form.js\"></script> <script type=\"module\" src=\"/static/js/graph.js\"></script> <script type=\"module\" src=\"/static/js/code.js\"></script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<script type=\"module\" src=\"/static/js/ui.js\"></script> <script type=\"module\" src=\"/static/js/dock.js\"></script> <script type=\"module\" src=\"/static/js/transcript.js\"></script> <script type=\"module\" src=\"/static/js/task_form.js\"></script> <script type=\"module\" src=\"/static/js/graph.js\"></script> <script type=\"module\" src=\"/static/js/code.js\"></script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

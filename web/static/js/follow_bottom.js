@@ -44,11 +44,21 @@ function watch(el) {
 // Content can grow after the caller's signal fires (streamed text, late layout): while
 // auto-scroll is on, every DOM change inside the container pins it to the bottom.
 function observe(el) {
-  if (el.__iwfObserver) return;
-  el.__iwfObserver = new MutationObserver(() => {
-    if (shouldFollow(el)) el.scrollTop = el.scrollHeight;
-  });
-  el.__iwfObserver.observe(el, { childList: true, subtree: true, characterData: true });
+  if (!el.__iwfObserver && typeof MutationObserver !== 'undefined') {
+    el.__iwfObserver = new MutationObserver(() => {
+      if (shouldFollow(el)) el.scrollTop = el.scrollHeight;
+    });
+    el.__iwfObserver.observe(el, { childList: true, subtree: true, characterData: true });
+  }
+  if (!el.__iwfResizeObserver && typeof ResizeObserver !== 'undefined') {
+    el.__iwfResizeObserver = new ResizeObserver(() => {
+      if (shouldFollow(el)) el.scrollTop = el.scrollHeight;
+    });
+    el.__iwfResizeObserver.observe(el);
+    if (el.firstElementChild) {
+      el.__iwfResizeObserver.observe(el.firstElementChild);
+    }
+  }
 }
 
 // Following needs both: the caller asked for it (`auto`) and the user has not scrolled away.
@@ -60,7 +70,7 @@ function shouldFollow(el) {
 // Pins the element with `id` to its end when `auto` is true and the user is still at the bottom.
 export function followBottom(id, auto) {
   requestAnimationFrame(() => {
-    const el = document.getElementById(id);
+    const el = typeof id === 'string' ? document.getElementById(id) : id;
     if (!el) return;
     watch(el);
     observe(el);
@@ -70,9 +80,27 @@ export function followBottom(id, auto) {
   });
 }
 
+// Jumps the element with `id` directly to its end and keeps it stuck for future content.
+export function resetToBottom(id) {
+  const apply = (el) => {
+    if (!el) return;
+    watch(el);
+    observe(el);
+    el.__iwfAuto = true;
+    el.__iwfStuck = true;
+    el.__iwfSmooth = false;
+    el.scrollTop = el.scrollHeight;
+    syncBottom(el);
+  };
+  const el = typeof id === 'string' ? document.getElementById(id) : id;
+  if (!el) return;
+  apply(el);
+  requestAnimationFrame(() => apply(el));
+}
+
 // Scrolls the element with `id` to its end smoothly and follows the animation to the bottom.
 export function scrollToBottom(id) {
-  const el = document.getElementById(id);
+  const el = typeof id === 'string' ? document.getElementById(id) : id;
   if (!el) return;
   watch(el);
   el.__iwfStuck = true;
@@ -84,5 +112,5 @@ export function scrollToBottom(id) {
 }
 
 if (typeof window !== 'undefined') {
-  window.iwfFollowBottom = { isNearBottom, followBottom, scrollToBottom };
+  window.iwfFollowBottom = { isNearBottom, followBottom, scrollToBottom, resetToBottom };
 }
