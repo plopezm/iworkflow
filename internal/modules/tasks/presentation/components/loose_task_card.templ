@@ -14,12 +14,9 @@ templ LooseTaskCard(task dto.TaskDTO, scope string) {
 		data-loose-task
 	>
 		<div class="flex items-start justify-between gap-2">
-			<a
-				href={ templ.SafeURL(state.TaskPath(task.ID)) }
-				class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg transition-colors hover:text-accent"
-			>
-				<span>{ state.TaskTitle(task) }</span>
-			</a>
+			<div class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg select-none">
+				{ state.TaskTitle(task) }
+			</div>
 			@StageBadge(task.Stage)
 		</div>
 		<div class="flex min-h-5 flex-wrap items-center gap-1">

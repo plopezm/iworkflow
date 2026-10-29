@@ -16,12 +16,9 @@ templ TaskNode(node state.NodeView, position state.Point, scope string) {
 		<span class="graph-port graph-port-in" title={ msgInputPort.T(ctx) } aria-hidden="true"></span>
 		<article class="card task-node-card flex h-full flex-col gap-1.5 !p-2.5">
 			<div class="flex items-start justify-between gap-2">
-				<a
-					href={ templ.SafeURL(state.TaskPath(node.Task.ID)) }
-					class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg transition-colors hover:text-accent"
-				>
-					<span>{ state.TaskTitle(node.Task) }</span>
-				</a>
+				<div class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg select-none">
+					{ state.TaskTitle(node.Task) }
+				</div>
 				@StageBadge(node.Task.Stage)
 			</div>
 			<div class="flex min-h-5 flex-wrap items-center gap-1">
