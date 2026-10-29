@@ -13,7 +13,7 @@ func TestScrollbackIsBoundedToTheLimit(t *testing.T) {
 	output := newSharedOutput()
 
 	chunk := []byte(strings.Repeat("x", 8192))
-	for range 20 {
+	for range (scrollbackLimit / 8192) + 5 {
 		output.append(chunk)
 	}
 
@@ -111,4 +111,37 @@ func TestPumpCopiesReadsIntoTheOutputUntilEndOfFile(t *testing.T) {
 
 	require.Equal(t, []byte("hello"), <-live)
 	require.False(t, output.isRunning())
+}
+
+func TestCleanScrollbackStartPreventsBrokenAnsiSequences(t *testing.T) {
+	// A line with an ANSI synchronized output sequence \x1b[?2026h followed by a newline and text.
+	data := []byte("prefix\x1b[?2026h\nsecond line\nthird line")
+	// If excess lands in the middle of \x1b[?2026h:
+	excess := 8 // lands at '[' in \x1b[?2026h
+	cut := cleanScrollbackStart(data, excess)
+	result := string(data[cut:])
+	require.False(t, strings.HasPrefix(result, "[?2026h"), "must not start with orphaned bracket sequence")
+	require.False(t, strings.HasPrefix(result, "?2026h"), "must not start with orphaned question-mark sequence")
+	require.Equal(t, "second line\nthird line", result)
+}
+
+func TestCleanScrollbackStartWithoutNewlineDiscardsPartialAnsi(t *testing.T) {
+	// No newlines: raw escape sequence
+	data := []byte("abc\x1b[?2026hxyz")
+	// Excess lands on '?' (index 5)
+	excess := 5
+	cut := cleanScrollbackStart(data, excess)
+	result := string(data[cut:])
+	require.Equal(t, "xyz", result, "partial escape sequence must be discarded")
+}
+
+func TestCleanScrollbackStartPreservesUtf8Boundaries(t *testing.T) {
+	// 🌸 is 4 bytes: F0 9F 8C B8
+	emoji := "🌸"
+	data := []byte("abc" + emoji + "def")
+	// Excess lands on second byte of emoji (index 4)
+	excess := 4
+	cut := cleanScrollbackStart(data, excess)
+	result := string(data[cut:])
+	require.Equal(t, "def", result, "continuation bytes of UTF-8 must be skipped")
 }

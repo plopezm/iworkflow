@@ -4,17 +4,17 @@ package components
 // web/static/js/terminal_view.js sends it to the terminal. The buttons do not take the focus from
 // the terminal, which the script enforces on mousedown.
 templ KeyBar() {
-	<div class="grid shrink-0 grid-cols-9 gap-1.5" role="toolbar" aria-label={ msgSpecialKeys.T(ctx) }>
+	<div class="grid shrink-0 grid-cols-9 gap-1 sm:gap-1.5" role="toolbar" aria-label={ msgSpecialKeys.T(ctx) }>
 		for _, key := range terminalKeys {
 			<button
 				type="button"
-				class="btn-secondary min-h-10 px-0 py-1"
+				class="btn-secondary min-h-9 sm:min-h-10 px-0 py-1"
 				aria-label={ key.Label }
 				title={ key.Label }
 				data-terminal-key={ key.Key }
 			>
 				<svg
-					class="h-5 w-5"
+					class="h-4 w-4 sm:h-5 sm:w-5"
 					viewBox="0 0 24 24"
 					fill="none"
 					stroke="currentColor"

@@ -37,20 +37,20 @@ func SessionPage(view state.SessionPage) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section class=\"stack h-full min-h-0 gap-2 px-3 pt-3 pb-2 animate-slide-up\"><header class=\"row justify-between\"><h1 class=\"page-title truncate text-xl\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section class=\"stack h-full min-h-0 gap-1.5 sm:gap-2 px-1.5 sm:px-3 pt-1.5 sm:pt-3 pb-1 sm:pb-2\"><header class=\"row justify-between gap-1.5\"><h1 class=\"page-title truncate text-base sm:text-xl\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(view.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/session_page.templ`, Line: 14, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/terminal/presentation/pages/session_page.templ`, Line: 14, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</h1><div class=\"row gap-1.5\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</h1><div class=\"row shrink-0 gap-1.5\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -77,11 +77,11 @@ func SessionPage(view state.SessionPage) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.TerminalsPath, Class: "btn-secondary min-h-8 px-2.5 py-1 text-xs"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.TerminalsPath, Class: "btn-secondary min-h-8 px-2 sm:px-2.5 py-1 text-xs"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var3), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<button type=\"button\" class=\"btn-danger min-h-8 px-2.5 py-1 text-xs\" hx-post=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<button type=\"button\" class=\"btn-danger min-h-8 px-2 sm:px-2.5 py-1 text-xs\" hx-post=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

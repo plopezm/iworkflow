@@ -22,12 +22,13 @@ var (
 
 // session is one live shell with its PTY. The registry owns it and stops it exactly once.
 type session struct {
-	meta    models.TerminalSession
-	cmd     *exec.Cmd
-	master  *os.File
-	output  *sharedOutput
-	writeMu sync.Mutex
-	stopMu  sync.Once
+	meta     models.TerminalSession
+	cmd      *exec.Cmd
+	master   *os.File
+	output   *sharedOutput
+	writeMu  sync.Mutex
+	stopMu   sync.Once
+	lastSize models.TerminalSize
 	// reaped is closed when the shell has been waited for; pumped when the reader has finished.
 	reaped chan struct{}
 	pumped chan struct{}
@@ -81,9 +82,21 @@ func (s *session) resize(size models.TerminalSize) error {
 	if err := s.ensureRunning(); err != nil {
 		return err
 	}
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	// If size is unchanged, nudge the dimensions by 1 row to force the kernel and TUI
+	// applications (like pi) to detect a window size change and repaint the full screen.
+	if s.lastSize == size && size.Rows > 1 {
+		nudged := size
+		nudged.Rows--
+		_ = creackpty.Setsize(s.master, toWinsize(nudged))
+	}
+
 	if err := creackpty.Setsize(s.master, toWinsize(size)); err != nil {
 		return terminalerrors.Pty(err) //nolint:wrapcheck // domain error constructor; the text is the user-facing message
 	}
+	s.lastSize = size
 	return nil
 }
 
