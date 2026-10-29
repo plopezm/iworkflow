@@ -178,3 +178,52 @@ func TestVisibleTextAllowsTabsAndRejectsControlBytes(t *testing.T) {
 	require.False(t, validHeaderValue("iw-lang=de\r\nSet-Cookie: x=1"))
 	require.True(t, validHeaderValue("iw-lang=de"))
 }
+
+func TestRemoteIPParsing(t *testing.T) {
+	addr, ok := remoteIP("127.0.0.1:8080")
+	require.True(t, ok)
+	require.Equal(t, "127.0.0.1", addr.String())
+
+	addr, ok = remoteIP("[::1]:8080")
+	require.True(t, ok)
+	require.Equal(t, "::1", addr.String())
+
+	addr, ok = remoteIP("[::ffff:127.0.0.1]:8080")
+	require.True(t, ok)
+	require.Equal(t, "127.0.0.1", addr.String())
+
+	addr, ok = remoteIP("127.0.0.1")
+	require.True(t, ok)
+	require.Equal(t, "127.0.0.1", addr.String())
+
+	_, ok = remoteIP("invalid-ip")
+	require.False(t, ok)
+}
+
+func TestIsLocalOrSameIP(t *testing.T) {
+	// Loopback addresses are always same IP / local
+	addr, ok := remoteIP("127.0.0.1:1234")
+	require.True(t, ok)
+	require.True(t, isLocalOrSameIP(addr))
+
+	addr, ok = remoteIP("[::1]:1234")
+	require.True(t, ok)
+	require.True(t, isLocalOrSameIP(addr))
+
+	// External IP from TEST-NET-1 is not same IP
+	addr, ok = remoteIP("192.0.2.1:1234")
+	require.True(t, ok)
+	require.False(t, isLocalOrSameIP(addr))
+}
+
+func TestIsSameIPFromRequest(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
+	req.RemoteAddr = "127.0.0.1:54321"
+	require.True(t, isSameIP(req))
+
+	req.RemoteAddr = "[::1]:54321"
+	require.True(t, isSameIP(req))
+
+	req.RemoteAddr = "192.0.2.1:54321"
+	require.False(t, isSameIP(req))
+}

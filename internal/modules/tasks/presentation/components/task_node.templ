@@ -45,6 +45,8 @@ templ TaskNode(node state.NodeView, position state.Point, scope string) {
 			<div class="mt-auto flex flex-wrap items-center gap-1">
 				if node.Task.Stage == state.StageBacklog {
 					@backlogActions(node.Task, scope)
+				} else {
+					@activeActions(node.Task, scope)
 				}
 			</div>
 		</article>

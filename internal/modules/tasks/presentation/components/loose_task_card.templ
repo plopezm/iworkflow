@@ -46,6 +46,8 @@ templ LooseTaskCard(task dto.TaskDTO, scope string) {
 			</button>
 			if task.Stage == state.StageBacklog {
 				@backlogActions(task, scope)
+			} else {
+				@activeActions(task, scope)
 			}
 		</div>
 	</article>

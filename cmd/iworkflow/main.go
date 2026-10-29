@@ -246,11 +246,12 @@ func siteOptionsFromEnv() (site.Options, error) {
 // logAccess tells the operator how other devices reach the server, and warns when it is open
 // without a token.
 func logAccess(ctx context.Context, logger *slog.Logger, info listen.Info, prefs app.Preferences) {
+	host := "<IP>"
+	if ip, ok := listen.LocalNetworkIP(ctx); ok {
+		host = ip.String()
+	}
+	logger.Info("access token", "token", prefs.Token.Value(), "link", app.AccessLink(host, info.Addr.Port(), prefs.Token))
 	if info.TokenRequired {
-		host := "<IP>"
-		if ip, ok := listen.LocalNetworkIP(ctx); ok {
-			host = ip.String()
-		}
 		logger.Info("network access is protected by a token", "link", app.AccessLink(host, info.Addr.Port(), prefs.Token))
 		return
 	}

@@ -275,6 +275,35 @@ func TestTaskNodeAndCanvasRendering(t *testing.T) {
 	assert.Contains(t, htmlCanvas, "zoom-fit-btn")
 }
 
+func TestTaskNodeWorkingStageActions(t *testing.T) {
+	t.Parallel()
+
+	node := state.NodeView{
+		Task: dto.TaskDTO{
+			ID:    "task-working-1",
+			Title: "Terminal task",
+			Stage: "working",
+			Actions: dto.TaskActionsDTO{
+				CanOpenTerminal: true,
+			},
+		},
+	}
+	pos := state.Point{X: 50.0, Y: 50.0}
+
+	htmlNode := renderComponent(t, i18n.Es, components.TaskNode(node, pos, "sc-board"))
+	// Title must NOT be an anchor link
+	assert.NotContains(t, htmlNode, `<a href="/tasks/task-working-1" class="line-clamp-2`)
+	assert.Contains(t, htmlNode, `<div class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg select-none">Terminal task</div>`)
+
+	// Must contain Open button to /tasks/task-working-1
+	assert.Contains(t, htmlNode, `data-dock-path="/tasks/task-working-1"`)
+	assert.Contains(t, htmlNode, "Abrir")
+
+	// Must contain Terminal button to /tasks/task-working-1/terminal
+	assert.Contains(t, htmlNode, `data-dock-path="/tasks/task-working-1/terminal"`)
+	assert.Contains(t, htmlNode, "Terminal")
+}
+
 func TestTaskNodeOmitsParallelActionForFirstTask(t *testing.T) {
 	t.Parallel()
 	node := state.NodeView{

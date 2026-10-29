@@ -77,7 +77,7 @@ type App struct {
 // workspaces and tasks modules need each other, so the workspace cascade is bound once tasks exists.
 // New starts nothing: Start runs the tasks startup steps and the background loops.
 func New(deps Deps) (*App, error) {
-	guard := prefsinbound.NewAccessGuard(deps.Preferences.Token, deps.Listen.TokenRequired)
+	guard := prefsinbound.NewAccessGuard(deps.Preferences.Token, deps.Listen.TokenRequired, deps.Logger)
 
 	projects := &projectLookup{}
 	agentsFiles := agentsfilesdi.NewModule(agentsfilesdi.Deps{

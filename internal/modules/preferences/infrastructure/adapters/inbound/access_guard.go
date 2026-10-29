@@ -12,11 +12,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/modules/preferences/domain/models"
@@ -79,11 +83,28 @@ type AccessGuard struct {
 	mu      sync.RWMutex
 	token   models.AccessToken
 	enforce bool
+	logger  *slog.Logger
 }
 
 // NewAccessGuard guards requests with token. When enforce is false every request passes.
-func NewAccessGuard(token models.AccessToken, enforce bool) *AccessGuard {
-	return &AccessGuard{token: token, enforce: enforce}
+func NewAccessGuard(token models.AccessToken, enforce bool, logger ...*slog.Logger) *AccessGuard {
+	var l *slog.Logger
+	if len(logger) > 0 {
+		l = logger[0]
+	}
+	return &AccessGuard{token: token, enforce: enforce, logger: l}
+}
+
+func (g *AccessGuard) logWarn(msg string, args ...any) {
+	if g != nil && g.logger != nil {
+		g.logger.Warn(msg, args...)
+	}
+}
+
+func (g *AccessGuard) logDebug(msg string, args ...any) {
+	if g != nil && g.logger != nil {
+		g.logger.Debug(msg, args...)
+	}
 }
 
 // SetToken replaces the token; it takes effect for the next request. The old token stops working
@@ -225,8 +246,91 @@ func cleanLocation(r *http.Request) string {
 	return path
 }
 
-// RequireAccess lets a request through when the guard is off or the request carries the current
-// token; otherwise it answers 401. The login route is skipped because it checks the token itself.
+var (
+	localAddrsMu   sync.RWMutex
+	localAddrsList []netip.Addr
+	localAddrsLast time.Time
+)
+
+// isSameIP reports whether the request originates from the same machine or IP as the server.
+func isSameIP(r *http.Request) bool {
+	ip, ok := remoteIP(r.RemoteAddr)
+	if !ok {
+		return false
+	}
+	return isLocalOrSameIP(ip)
+}
+
+// remoteIP extracts and parses the IP from an incoming request RemoteAddr.
+func remoteIP(remoteAddr string) (netip.Addr, bool) {
+	if addrPort, err := netip.ParseAddrPort(remoteAddr); err == nil {
+		return addrPort.Addr().Unmap(), true
+	}
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+	addr, err := netip.ParseAddr(host)
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	return addr.Unmap(), true
+}
+
+// isLocalOrSameIP returns true if the IP is a loopback address or matches any local network interface of this machine.
+func isLocalOrSameIP(ip netip.Addr) bool {
+	ip = ip.Unmap()
+	if ip.IsLoopback() {
+		return true
+	}
+	localAddrsMu.RLock()
+	if time.Since(localAddrsLast) < 5*time.Second {
+		for _, addr := range localAddrsList {
+			if addr == ip {
+				localAddrsMu.RUnlock()
+				return true
+			}
+		}
+		localAddrsMu.RUnlock()
+		return false
+	}
+	localAddrsMu.RUnlock()
+
+	localAddrsMu.Lock()
+	defer localAddrsMu.Unlock()
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	list := make([]netip.Addr, 0, len(addrs))
+	for _, a := range addrs {
+		var ifIP net.IP
+		switch v := a.(type) {
+		case *net.IPNet:
+			ifIP = v.IP
+		case *net.IPAddr:
+			ifIP = v.IP
+		}
+		if ip4 := ifIP.To4(); ip4 != nil {
+			ifIP = ip4
+		}
+		if parsed, ok := netip.AddrFromSlice(ifIP); ok {
+			list = append(list, parsed.Unmap())
+		}
+	}
+	localAddrsList = list
+	localAddrsLast = time.Now()
+	for _, addr := range list {
+		if addr == ip {
+			return true
+		}
+	}
+	return false
+}
+
+// RequireAccess lets a request through when the guard is off, the client is on the same IP as the server,
+// or the request carries the current token; otherwise it answers 401. The login route is skipped because
+// it checks the token itself.
 func RequireAccess(guard *AccessGuard) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -238,6 +342,16 @@ func RequireAccess(guard *AccessGuard) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
+			if isSameIP(r) {
+				// A query-string token is stripped and turned into a session cookie so it does not linger in the URL.
+				if _, ok := queryToken(r.URL.RawQuery); ok && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+					redirectWithSession(w, guard, cleanLocation(r))
+					return
+				}
+				guard.logDebug("access granted: same IP", "remote_addr", r.RemoteAddr, "path", r.URL.Path)
+				next.ServeHTTP(w, r)
+				return
+			}
 			source, accepted := acceptedSource(guard, r)
 			switch {
 			case accepted && source == sourceQuery && (r.Method == http.MethodGet || r.Method == http.MethodHead):
@@ -245,6 +359,7 @@ func RequireAccess(guard *AccessGuard) func(http.Handler) http.Handler {
 			case accepted:
 				next.ServeHTTP(w, r)
 			default:
+				guard.logWarn("access denied: token required or invalid", "remote_addr", r.RemoteAddr, "path", r.URL.Path, "access_token", guard.current().Value())
 				writeUnauthorized(w, isHTMLGet(r), localeOf(r.Header), false)
 			}
 		})
@@ -266,12 +381,14 @@ func AccessRouter(guard *AccessGuard) http.Handler {
 func serveLogin(guard *AccessGuard, w http.ResponseWriter, r *http.Request) {
 	token, ok := readLoginToken(w, r)
 	if !ok {
+		guard.logWarn("login failed: invalid form body", "remote_addr", r.RemoteAddr)
 		return
 	}
-	if !guard.IsEnforcing() || guard.accepts(token) {
+	if !guard.IsEnforcing() || isSameIP(r) || guard.accepts(token) {
 		redirectWithSessionIfEnforcing(w, guard)
 		return
 	}
+	guard.logWarn("login failed: invalid access token", "remote_addr", r.RemoteAddr, "expected_token", guard.current().Value())
 	writeUnauthorized(w, true, localeOf(r.Header), true)
 }
 

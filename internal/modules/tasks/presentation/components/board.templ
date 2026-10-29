@@ -35,8 +35,24 @@ templ TaskCard(task dto.TaskDTO, scope string) {
 		</a>
 		if task.Stage == state.StageBacklog {
 			@backlogActions(task, scope)
+		} else {
+			@activeActions(task, scope)
 		}
 	</li>
+}
+
+// activeActions are the card buttons of an active or completed task: open the task tab and, if available, its terminal.
+templ activeActions(task dto.TaskDTO, scope string) {
+	<div class="row justify-end gap-2">
+		@link.Tab(link.Props{Href: state.TaskPath(task.ID), Class: "btn-ghost min-h-8 px-2.5 py-1 text-xs", Role: "button"}) {
+			{ msgOpen.T(ctx) }
+		}
+		if task.Actions.CanOpenTerminal {
+			@link.Tab(link.Props{Href: "/tasks/" + task.ID + "/terminal", Class: "btn-ghost min-h-8 px-2.5 py-1 text-xs", Role: "button"}) {
+				{ msgTerminal.T(ctx) }
+			}
+		}
+	</div>
 }
 
 // backlogActions are the card buttons of a backlog task, each shown only when its action is allowed: start,

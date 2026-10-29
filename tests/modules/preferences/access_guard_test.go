@@ -43,7 +43,15 @@ func newGuardedServer(t *testing.T, guard *inbound.AccessGuard) guardedServer {
 	mux.Handle("/hello", hits.handler())
 	mux.Handle("/other", hits.handler())
 	mux.Handle("/", hits.handler())
-	server := httptest.NewServer(inbound.RequireAccess(guard)(mux))
+	testRemote := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if sim := r.Header.Get("X-Test-Remote-Addr"); sim != "" {
+			r.RemoteAddr = sim
+		} else {
+			r.RemoteAddr = "192.0.2.1:12345"
+		}
+		inbound.RequireAccess(guard)(mux).ServeHTTP(w, r)
+	})
+	server := httptest.NewServer(testRemote)
 	t.Cleanup(server.Close)
 	return guardedServer{
 		Server: server,
@@ -347,4 +355,42 @@ func TestCrossSiteWritesAreRefusedBeforeReachingTheApp(t *testing.T) {
 	readReq.Header.Set("Origin", "https://evil.example")
 	read := send(t, client, readReq)
 	require.Equal(t, http.StatusOK, read.status)
+}
+
+func TestSameIPPassesWithoutTokenWhenEnforcing(t *testing.T) {
+	token := newToken(t)
+	server := newGuardedServer(t, inbound.NewAccessGuard(token, true))
+
+	// Loopback IPv4 passes without token
+	resp := server.do(t, http.MethodGet, "/hello", "", map[string]string{
+		"X-Test-Remote-Addr": "127.0.0.1:54321",
+	})
+	require.Equal(t, http.StatusOK, resp.status)
+	require.Equal(t, int64(1), server.hits.count.Load())
+
+	// Loopback IPv6 passes without token
+	resp6 := server.do(t, http.MethodGet, "/hello", "", map[string]string{
+		"X-Test-Remote-Addr": "[::1]:54321",
+	})
+	require.Equal(t, http.StatusOK, resp6.status)
+	require.Equal(t, int64(2), server.hits.count.Load())
+
+	// External IP requires token
+	ext := server.do(t, http.MethodGet, "/hello", "", map[string]string{
+		"X-Test-Remote-Addr": "192.0.2.100:54321",
+	})
+	require.Equal(t, http.StatusUnauthorized, ext.status)
+	require.Equal(t, int64(2), server.hits.count.Load())
+}
+
+func TestSameIPWithQueryTokenRedirectsToCleanURL(t *testing.T) {
+	token := newToken(t)
+	server := newGuardedServer(t, inbound.NewAccessGuard(token, true))
+
+	resp := server.do(t, http.MethodGet, "/hello?token="+token.Value(), "", map[string]string{
+		"X-Test-Remote-Addr": "127.0.0.1:54321",
+	})
+	require.Equal(t, http.StatusSeeOther, resp.status)
+	require.Equal(t, "/hello", resp.header.Get("Location"))
+	require.Equal(t, expectedSetCookie(token), resp.header.Get("Set-Cookie"))
 }
