@@ -5,7 +5,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/a-h/templ"
+
+	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
 // Texts of the task graph presentation and loose tasks panel in 5 languages (en, es, zh, de, fr),
@@ -195,7 +199,51 @@ var (
 		De: "{count} Dialoge",
 		Fr: "{count} dialogues",
 	}
+
+	msgTabLoose = i18n.Msg{
+		En: "Loose ({n})",
+		Es: "Sueltas ({n})",
+		Zh: "零散 ({n})",
+		De: "Lose ({n})",
+		Fr: "Libres ({n})",
+	}
+
+	msgTabGraph = i18n.Msg{
+		En: "Graph",
+		Es: "Grafo",
+		Zh: "图",
+		De: "Graph",
+		Fr: "Graphe",
+	}
+
+	msgTabsLabel = i18n.Msg{
+		En: "Board view",
+		Es: "Vista del tablero",
+		Zh: "看板视图",
+		De: "Board-Ansicht",
+		Fr: "Vue du tableau",
+	}
 )
+
+// TabOptions returns the sub-tab options for narrow screens: loose tasks and graph.
+func TabOptions(ctx context.Context, looseCount int) []shared.SegmentOption {
+	return []shared.SegmentOption{
+		{
+			Value: string(state.BoardTabLoose),
+			Label: msgTabLoose.Fmt(ctx, map[string]string{"n": strconv.Itoa(looseCount)}),
+			Attrs: templ.Attributes{
+				"data-board-tab": string(state.BoardTabLoose),
+			},
+		},
+		{
+			Value: string(state.BoardTabGraph),
+			Label: msgTabGraph.T(ctx),
+			Attrs: templ.Attributes{
+				"data-board-tab": string(state.BoardTabGraph),
+			},
+		},
+	}
+}
 
 // WaitingLabel formats the predecessor waiting badge label. Returns nil if waiting <= 0.
 func WaitingLabel(ctx context.Context, waiting int) *string {

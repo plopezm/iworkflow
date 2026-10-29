@@ -5,7 +5,58 @@
 
 export const THEME_STORAGE_KEY = 'pi-theme';
 export const SIDEBAR_STORAGE_KEY = 'iwf-sidebar-open';
+export const BOARD_TAB_STORAGE_KEY = 'iwf-board-tab';
 export const TOAST_DISMISS_MS = 8000;
+
+// Switches the active sub-tab (loose / graph) on narrow screens.
+export function switchBoardTab(button) {
+  const tab = button.dataset.boardTab;
+  if (!tab) return;
+  const tabs = button.closest('.board-tabs');
+  if (!tabs) return;
+  const parent = tabs.closest('.board-list') || tabs.parentElement;
+  const panes = parent?.querySelector('.board-panes');
+  if (!panes) return;
+
+  panes.setAttribute('data-tab', tab);
+  for (const b of tabs.querySelectorAll('[data-board-tab]')) {
+    const active = b === button;
+    b.setAttribute('aria-selected', String(active));
+    b.classList.toggle('segment-selected', active);
+  }
+
+  try {
+    globalThis.sessionStorage?.setItem(BOARD_TAB_STORAGE_KEY, tab);
+  } catch {}
+
+  if (tab === 'graph') {
+    const canvas = panes.querySelector('[data-graph-canvas]');
+    if (canvas && typeof canvas._fitView === 'function') {
+      if (typeof globalThis.requestAnimationFrame === 'function') {
+        globalThis.requestAnimationFrame(() => canvas._fitView());
+      } else {
+        canvas._fitView();
+      }
+    }
+  }
+}
+
+// Restores the previously selected board tab on narrow screens.
+export function restoreBoardTab(root = document) {
+  let saved = null;
+  try {
+    saved = globalThis.sessionStorage?.getItem(BOARD_TAB_STORAGE_KEY);
+  } catch {}
+  if (!saved) return;
+  if (typeof globalThis.innerWidth === 'number' && globalThis.innerWidth > 767) return;
+
+  for (const tabs of root.querySelectorAll('.board-tabs')) {
+    const targetBtn = tabs.querySelector(`[data-board-tab="${saved}"]`);
+    if (targetBtn) {
+      switchBoardTab(targetBtn);
+    }
+  }
+}
 
 // Resolves a stored theme preference to the theme to apply: "light" or "dark".
 export function resolveTheme(stored, systemPrefersDark) {
@@ -199,6 +250,19 @@ function onClick(event) {
   const choice = target.closest?.('[data-theme-choice]');
   if (choice) return applyTheme(choice.dataset.themeChoice);
 
+  const boardTab = target.closest?.('[data-board-tab]');
+  if (boardTab) {
+    switchBoardTab(boardTab);
+    return;
+  }
+
+  const addToGraph = target.closest?.('[hx-post*="/add-to-graph"]');
+  if (addToGraph) {
+    try {
+      globalThis.sessionStorage?.setItem(BOARD_TAB_STORAGE_KEY, 'graph');
+    } catch {}
+  }
+
   const close = target.closest?.('[data-modal-close]');
   if (close) return closeModal(close.closest('[data-modal]'));
   if (target.matches?.('[data-modal]')) return closeModal(target);
@@ -234,6 +298,7 @@ function init() {
     if (event.target instanceof Element) {
       armToasts(event.target);
       loadPanes(event.target);
+      restoreBoardTab(event.target);
       // Moving or opening tabs closes the mobile sidebar overlay.
       if (event.target.id === 'dock') document.getElementById('sidebar-panel')?.removeAttribute('data-mobile-open');
     }
@@ -241,6 +306,7 @@ function init() {
   restoreSidebars();
   armToasts(document);
   loadPanes(document);
+  restoreBoardTab(document);
 }
 
 if (typeof document !== 'undefined') {
