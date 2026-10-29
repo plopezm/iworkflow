@@ -709,6 +709,28 @@ function setupEdgeSelection(canvas) {
 	}
 }
 
+/**
+ * Checks if a canvas element is currently visible and interactive for drops.
+ */
+export function isCanvasVisible(canvas) {
+	if (!canvas) return false;
+	if (canvas.offsetWidth === 0 && canvas.offsetHeight === 0 && !canvas.clientWidth && !canvas.clientHeight) {
+		return false;
+	}
+	if (typeof window !== "undefined" && window.getComputedStyle) {
+		const style = window.getComputedStyle(canvas);
+		if (style.visibility === "hidden" || style.display === "none") return false;
+	}
+	const panes = canvas.closest ? canvas.closest(".board-panes") : null;
+	if (panes && panes.dataset && panes.dataset.tab === "loose") {
+		const isNarrow = typeof window !== "undefined" && window.matchMedia
+			? window.matchMedia("(max-width: 767px)").matches
+			: false;
+		if (isNarrow) return false;
+	}
+	return true;
+}
+
 export function setupLooseTasks(root = document) {
 	if (!root || root._looseTasksInitialized) return;
 	root._looseTasksInitialized = true;
@@ -720,6 +742,13 @@ export function setupLooseTasks(root = document) {
 	let dragClone = null;
 
 	root.addEventListener("pointerdown", (e) => {
+		// In mobile/narrow views (<= 767px), board panes are mutually exclusive tabs ("graph" vs "loose").
+		// Inter-panel drag is disabled; adding tasks to the graph is done via the explicit button.
+		const isMobile = typeof window !== "undefined" && window.matchMedia
+			? window.matchMedia("(max-width: 767px)").matches
+			: false;
+		if (isMobile) return;
+
 		const card = e.target.closest(".loose-list [data-loose-task], [data-loose-task]");
 		if (!card) return;
 		if (e.target.closest("button, a, input, textarea, select")) return;
@@ -773,12 +802,26 @@ export function setupLooseTasks(root = document) {
 			dragClone = null;
 		}
 
+		if (dragged) {
+			// Suppress synthetic clicks that mobile/touch or desktop browsers fire upon releasing a drag
+			const suppressClick = (evt) => {
+				evt.preventDefault();
+				evt.stopPropagation();
+				root.removeEventListener("click", suppressClick, true);
+			};
+			root.addEventListener("click", suppressClick, true);
+			setTimeout(() => {
+				root.removeEventListener("click", suppressClick, true);
+			}, 100);
+		}
+
 		if (!dragged) return;
 
 		const canvases = typeof document !== "undefined" ? document.querySelectorAll("[data-graph-canvas]") : [];
 		let targetCanvas = null;
 		let canvasRect = null;
 		for (const c of canvases) {
+			if (!isCanvasVisible(c)) continue;
 			const r = c.getBoundingClientRect();
 			if (
 				e.clientX >= r.left &&
