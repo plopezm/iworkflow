@@ -26,7 +26,14 @@ var (
 		De: "Gilt für neue Aufgaben.",
 		Fr: "S'applique aux nouvelles tâches.",
 	}
-	msgActiveSuffix = i18n.Msg{En: "{name} (active)", Es: "{name} (activo)", Zh: "{name}（当前）", De: "{name} (aktiv)", Fr: "{name} (actif)"}
+	msgActiveSuffix    = i18n.Msg{En: "{name} (active)", Es: "{name} (activo)", Zh: "{name}（当前）", De: "{name} (aktiv)", Fr: "{name} (actif)"}
+	msgSessionSettings = i18n.Msg{
+		En: "Session Settings",
+		Es: "Ajustes de sesión",
+		Zh: "会话设置",
+		De: "Sitzungseinstellungen",
+		Fr: "Paramètres de session",
+	}
 
 	msgThinkingOff     = i18n.Msg{En: "No reasoning", Es: "No reasoning", Zh: "无推理", De: "Kein Reasoning", Fr: "Sans raisonnement"}
 	msgThinkingMinimal = i18n.Msg{En: "Minimal", Es: "Mínimo", Zh: "最低", De: "Minimal", Fr: "Minimal"}

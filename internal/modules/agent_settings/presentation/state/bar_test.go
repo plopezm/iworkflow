@@ -150,3 +150,27 @@ func TestLimitsCarryTheNoticeAndTheSwitch(t *testing.T) {
 	require.Equal(t, "40", props.CPUPercent)
 	require.Equal(t, "error de persistencia", props.Notice)
 }
+
+func TestBarPopulatesActiveSessionSummary(t *testing.T) {
+	ctx := inLocale(i18n.Es)
+
+	// Con datos explícitos guardados:
+	props := state.Bar(ctx, healthyData())
+	require.Equal(t, "pi", props.ActiveRuntime)
+	require.Equal(t, "claude-5", props.ActiveModel)
+	require.Equal(t, "Very high", props.ActiveThinking)
+	require.Equal(t, "Gentleman", props.ActiveProfile)
+	require.Equal(t, "Ajustes de sesión", props.StatusTitle)
+
+	// Con settings por defecto (sin runtime, modelo ni perfil explícito):
+	dataDefault := state.BarData{
+		Settings: dto.AgentSettingsDTO{},
+		Profiles: dto.ProfileCatalogDTO{Active: str("Gemini"), Names: []string{"Claude", "Gemini"}},
+	}
+	propsDefault := state.Bar(ctx, dataDefault)
+	require.Equal(t, "gentle-shell", propsDefault.ActiveRuntime)
+	require.Equal(t, "Por defecto", propsDefault.ActiveModel)
+	require.Equal(t, "Por defecto", propsDefault.ActiveThinking)
+	require.Equal(t, "Gemini (activo)", propsDefault.ActiveProfile, "toma el perfil activo global cuando no hay perfil fijado")
+	require.Equal(t, "Por defecto (Gemini)", propsDefault.Profile.Select.DefaultLabel)
+}

@@ -493,6 +493,31 @@ select optgroup,
   @apply h-9 w-full shrink-0 animate-pulse rounded-md border border-border bg-surface-2;
 }
 
+.select-pill-compact {
+  @apply min-h-6.5 py-0.5 pl-2 pr-5 text-[10px] font-mono rounded bg-surface/90 border-border/70 hover:bg-surface hover:border-accent/40;
+}
+.select-pill-compact .select-pill-icon {
+  @apply h-3.5 w-3.5;
+}
+.select-pill-compact .select-pill-icon svg {
+  @apply h-3.5 w-3.5;
+}
+.select-pill-compact .select-pill-chevron {
+  @apply right-1.5 h-2.5 w-2.5;
+}
+.select-pill-profile {
+  @apply min-h-7 py-0.5 pl-2 pr-5 text-[11px] font-semibold rounded bg-surface/90 border-border/70 hover:bg-surface hover:border-accent/40 text-fg;
+}
+.select-pill-profile .select-pill-icon {
+  @apply h-3.5 w-3.5 text-accent;
+}
+.select-pill-profile .select-pill-icon svg {
+  @apply h-3.5 w-3.5;
+}
+.select-pill-profile .select-pill-chevron {
+  @apply right-1.5 h-2.5 w-2.5;
+}
+
 /* ── Badges (status + stage) ────────────────────── */
 .badge {
   @apply inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[11px] font-semibold;

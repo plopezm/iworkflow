@@ -2,6 +2,7 @@ package state
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/a-h/templ"
 
@@ -44,12 +45,17 @@ func Bar(ctx context.Context, data BarData) presentation.AgentSettingsBarProps {
 	}
 	tooltip, footer := BarHint(ctx)
 	return presentation.AgentSettingsBarProps{
-		Tooltip:  tooltip,
-		Footer:   footer,
-		Runtime:  runtimeSlot(ctx, data.Settings),
-		Model:    modelSlot(ctx, data),
-		Thinking: thinkingSlot(ctx, data),
-		Profile:  profileSlot(ctx, data),
+		Tooltip:        tooltip,
+		Footer:         footer,
+		StatusTitle:    msgSessionSettings.T(ctx),
+		Runtime:        runtimeSlot(ctx, data.Settings),
+		Model:          modelSlot(ctx, data),
+		Thinking:       thinkingSlot(ctx, data),
+		Profile:        profileSlot(ctx, data),
+		ActiveRuntime:  activeRuntimeName(data.Settings),
+		ActiveModel:    activeModelName(ctx, data),
+		ActiveThinking: activeThinkingName(ctx, data.Settings),
+		ActiveProfile:  activeProfileName(ctx, data),
 	}
 }
 
@@ -67,6 +73,7 @@ func runtimeSlot(ctx context.Context, settings dto.AgentSettingsDTO) presentatio
 		DefaultLabel: defaultRuntime,
 		Options:      options,
 		Icon:         IconRuntime,
+		Class:        "select-pill-compact flex-1 min-w-0",
 		Attrs:        changeAttrs(runtimeEndpoint),
 	}}
 }
@@ -88,6 +95,7 @@ func modelSlot(ctx context.Context, data BarData) presentation.BarSlot {
 			DefaultLabel: msgDefault.T(ctx),
 			Options:      options,
 			Icon:         IconModel,
+			Class:        "select-pill-compact flex-[1.3] min-w-0",
 			Attrs:        changeAttrs(modelEndpoint),
 		},
 	}
@@ -106,6 +114,7 @@ func thinkingSlot(ctx context.Context, data BarData) presentation.BarSlot {
 			DefaultLabel: msgDefault.T(ctx),
 			Options:      options,
 			Icon:         IconThinking,
+			Class:        "select-pill-compact flex-[0.9] min-w-0",
 			Attrs:        changeAttrs(thinkingEndpoint),
 		},
 	}
@@ -119,14 +128,19 @@ func profileSlot(ctx context.Context, data BarData) presentation.BarSlot {
 			Label: profileLabel(ctx, name, data.Profiles.Active),
 		})
 	}
+	defaultLabel := msgDefault.T(ctx)
+	if data.Profiles.Active != nil && *data.Profiles.Active != "" {
+		defaultLabel = fmt.Sprintf("%s (%s)", msgDefault.T(ctx), *data.Profiles.Active)
+	}
 	return presentation.BarSlot{
 		Err: data.ProfilesErr,
 		Select: components.OptionSelectProps{
 			Label:        msgProfile.T(ctx),
 			Value:        stringOrEmpty(data.Settings.Profile),
-			DefaultLabel: msgDefault.T(ctx),
+			DefaultLabel: defaultLabel,
 			Options:      options,
 			Icon:         IconProfile,
+			Class:        "select-pill-profile min-w-0 flex-1",
 			Attrs:        changeAttrs(profileEndpoint),
 		},
 	}
@@ -168,6 +182,38 @@ func currentModelValue(settings dto.AgentSettingsDTO) string {
 		return ""
 	}
 	return dto.EncodeModelValue(*settings.ModelProvider, *settings.ModelID)
+}
+
+func activeRuntimeName(settings dto.AgentSettingsDTO) string {
+	if settings.Runtime != nil && *settings.Runtime != "" {
+		return *settings.Runtime
+	}
+	return defaultRuntime
+}
+
+func activeModelName(ctx context.Context, data BarData) string {
+	if data.Settings.ModelID != nil && *data.Settings.ModelID != "" {
+		return *data.Settings.ModelID
+	}
+	return msgDefault.T(ctx)
+}
+
+func activeThinkingName(ctx context.Context, settings dto.AgentSettingsDTO) string {
+	if settings.Thinking != nil && *settings.Thinking != "" {
+		return thinkingLabel(ctx, *settings.Thinking)
+	}
+	return msgDefault.T(ctx)
+}
+
+func activeProfileName(ctx context.Context, data BarData) string {
+	if data.Settings.Profile != nil && *data.Settings.Profile != "" {
+		name := *data.Settings.Profile
+		return profileLabel(ctx, name, data.Profiles.Active)
+	}
+	if data.Profiles.Active != nil && *data.Profiles.Active != "" {
+		return profileLabel(ctx, *data.Profiles.Active, data.Profiles.Active)
+	}
+	return msgDefault.T(ctx)
 }
 
 // changeAttrs makes a selector post its value (form field "value") to endpoint on every change,

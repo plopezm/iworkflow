@@ -9,24 +9,46 @@ const BarPath = "/agent-settings/bar"
 // AgentSettingsBarPlaceholder is the element that loads the bar with htmx on page load. The shell
 // renders it in the sidebar footer (or anywhere the bar belongs).
 templ AgentSettingsBarPlaceholder() {
-	<div id={ BarID } class="flex flex-col gap-1.5" hx-get={ BarPath } hx-trigger="load" hx-swap="outerHTML">
-		<span class="select-pill-skeleton" aria-hidden="true"></span>
+	<div id={ BarID } class="flex flex-col gap-1" hx-get={ BarPath } hx-trigger="load" hx-swap="outerHTML">
+		<div class="h-14 w-full animate-pulse rounded-lg border border-border/40 bg-surface-2/40"></div>
 	</div>
 }
 
-// AgentSettingsBar is the bar with the four selectors. Each change is posted by its own selector and
-// the response replaces the whole bar, so the bar always shows the stored values.
+// AgentSettingsBar is the compact interactive session bar where each active value can be changed
+// directly upon tapping its pill to open its list.
 templ AgentSettingsBar(p AgentSettingsBarProps) {
-	<div id={ BarID } class="flex flex-col gap-1.5" title={ p.Tooltip }>
+	<div
+		id={ BarID }
+		class="session-bar-root flex flex-col gap-1 rounded-lg border border-border bg-surface-2/60 p-1.5 shadow-2xs"
+		title={ p.Tooltip }
+	>
 		if p.Error != "" {
 			@ui.ErrorText(p.Error)
 		} else {
-			@barSlot(p.Runtime)
-			@barSlot(p.Model)
-			@barSlot(p.Thinking)
-			@barSlot(p.Profile)
+			<div class="flex items-center justify-between gap-1.5">
+				<div class="flex min-w-0 flex-1 items-center gap-1.5">
+					<span class="live-dot text-ok" aria-hidden="true"></span>
+					@barSlot(p.Profile)
+				</div>
+				<button
+					type="button"
+					class="btn-ghost flex shrink-0 cursor-pointer items-center gap-1 rounded border border-border/70 bg-surface/80 px-2 py-0.5 text-[10px] font-mono text-muted transition-colors hover:border-accent/40 hover:bg-surface hover:text-fg"
+					data-theme-cycle
+					title="Cambiar tema (Auto / Claro / Oscuro)"
+					aria-label="Cambiar tema"
+				>
+					<span data-active-theme-label>Auto</span>
+				</button>
+			</div>
+
+			<div class="flex items-center gap-1">
+				@barSlot(p.Runtime)
+				@barSlot(p.Model)
+				@barSlot(p.Thinking)
+			</div>
+
+			<p class="text-[10px] text-muted text-center leading-none pt-0.5">{ p.Footer }</p>
 		}
-		<p class="text-[11px] text-muted">{ p.Footer }</p>
 	</div>
 }
 

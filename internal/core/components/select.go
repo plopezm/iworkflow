@@ -46,6 +46,8 @@ type OptionSelectProps struct {
 	Disabled     bool
 	// Icon is an optional visual prefix (a small SVG), rendered before the select.
 	Icon string
+	// Class adds classes to the outer label.
+	Class string
 	// Attrs carries the behaviour, usually htmx attributes (hx-post, hx-trigger="change").
 	Attrs templ.Attributes
 }

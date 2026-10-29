@@ -37,20 +37,26 @@ func TestPlaceholderLoadsTheBarOnPageLoad(t *testing.T) {
 
 func TestBarRendersEverySelectorAndTheFooter(t *testing.T) {
 	props := components.AgentSettingsBarProps{
-		Runtime:  selectSlot("pi", ui.SelectOption{Value: "pi", Label: "pi"}),
-		Model:    selectSlot(""),
-		Thinking: selectSlot(""),
-		Profile:  selectSlot(""),
-		Tooltip:  "tip",
-		Footer:   "Applies to new tasks.",
+		Runtime:        selectSlot("pi", ui.SelectOption{Value: "pi", Label: "pi"}),
+		Model:          selectSlot(""),
+		Thinking:       selectSlot(""),
+		Profile:        selectSlot(""),
+		ActiveRuntime:  "pi",
+		ActiveModel:    "gemini-3.8-flash",
+		ActiveThinking: "Medium",
+		ActiveProfile:  "Gemini (activo)",
+		Tooltip:        "tip",
+		Footer:         "Applies to new tasks.",
 	}
 
 	body := render(t, components.AgentSettingsBar(props))
 
-	require.Equal(t, 4, strings.Count(body, `class="select-pill"`))
+	require.Equal(t, 4, strings.Count(body, "select-pill-input"))
 	require.Contains(t, body, `title="tip"`)
 	require.Contains(t, body, "Applies to new tasks.")
 	require.Contains(t, body, `<option value="pi" selected>pi</option>`)
+	require.Contains(t, body, "data-theme-cycle")
+	require.Contains(t, body, "session-bar-root")
 }
 
 func TestBarShowsOnlyTheErrorWhenTheSettingsCannotBeRead(t *testing.T) {

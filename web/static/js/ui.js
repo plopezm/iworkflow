@@ -6,6 +6,7 @@
 export const THEME_STORAGE_KEY = 'pi-theme';
 export const SIDEBAR_STORAGE_KEY = 'iwf-sidebar-open';
 export const BOARD_TAB_STORAGE_KEY = 'iwf-board-tab';
+export const SESSION_BAR_STORAGE_KEY = 'iwf-session-bar-open';
 export const TOAST_DISMISS_MS = 8000;
 
 // Switches the active sub-tab (loose / graph) on narrow screens.
@@ -66,6 +67,11 @@ export function resolveTheme(stored, systemPrefersDark) {
 
 // The sidebar is open unless it was explicitly stored closed ("0").
 export function sidebarIsOpen(stored) {
+  return stored !== '0';
+}
+
+// The session bar is open unless it was explicitly stored closed ("0").
+export function sessionBarIsOpen(stored) {
   return stored !== '0';
 }
 
@@ -172,6 +178,25 @@ function toggleCollapsiblePanel(toggle) {
   toggle.querySelector('span').textContent = collapsed ? '▸' : '▾';
 }
 
+function updateThemeIndicators(choice) {
+  let label = '⚙ Auto';
+  if (choice === 'dark') label = '☾ Oscuro';
+  else if (choice === 'light') label = '☀ Claro';
+  for (const el of document.querySelectorAll('[data-active-theme-label]')) {
+    el.textContent = label;
+  }
+}
+
+function restoreTheme(root = document) {
+  const choice = storage()?.getItem(THEME_STORAGE_KEY) || 'system';
+  for (const button of root.querySelectorAll('[data-theme-choice]')) {
+    const selected = button.dataset.themeChoice === choice;
+    button.setAttribute('aria-pressed', String(selected));
+    button.classList.toggle('chip-selected', selected);
+  }
+  updateThemeIndicators(choice);
+}
+
 // The choice is stored as light, dark or system (the Rust version stored the same values).
 function applyTheme(choice) {
   storage()?.setItem(THEME_STORAGE_KEY, choice);
@@ -180,6 +205,45 @@ function applyTheme(choice) {
     const selected = button.dataset.themeChoice === choice;
     button.setAttribute('aria-pressed', String(selected));
     button.classList.toggle('chip-selected', selected);
+  }
+  updateThemeIndicators(choice);
+}
+
+function cycleTheme() {
+  const current = storage()?.getItem(THEME_STORAGE_KEY) || 'system';
+  const next = current === 'system' ? 'light' : current === 'light' ? 'dark' : 'system';
+  applyTheme(next);
+}
+
+function setSessionBarOpen(root, open) {
+  const body = root.querySelector('[data-session-bar-body]');
+  const toggle = root.querySelector('[data-session-bar-toggle]');
+  const chevron = root.querySelector('[data-session-bar-chevron]');
+  if (!body) return;
+  body.classList.toggle('hidden', !open);
+  body.classList.toggle('flex', open);
+  if (toggle) toggle.setAttribute('aria-expanded', String(open));
+  if (chevron) {
+    chevron.textContent = open ? '▴' : '▾';
+  }
+  if (storage()) storage().setItem(SESSION_BAR_STORAGE_KEY, open ? '1' : '0');
+}
+
+function toggleSessionBar(toggle) {
+  const root = toggle.closest('[data-session-bar-root]');
+  if (!root) return;
+  const body = root.querySelector('[data-session-bar-body]');
+  const open = body ? body.classList.contains('hidden') : false;
+  setSessionBarOpen(root, open);
+}
+
+function restoreSessionBar(root = document) {
+  const elements = [];
+  if (root.matches?.('[data-session-bar-root]')) elements.push(root);
+  elements.push(...(root.querySelectorAll?.('[data-session-bar-root]') ?? []));
+  for (const el of elements) {
+    const open = sessionBarIsOpen(storage()?.getItem(SESSION_BAR_STORAGE_KEY) ?? null);
+    setSessionBarOpen(el, open);
   }
 }
 
@@ -251,11 +315,17 @@ function onClick(event) {
   const section = target.closest?.('[data-section-toggle]');
   if (section) return toggleCollapsibleSection(section);
 
+  const sessionBarToggle = target.closest?.('[data-session-bar-toggle]');
+  if (sessionBarToggle) return toggleSessionBar(sessionBarToggle);
+
   const panel = target.closest?.('[data-collapsible-toggle]');
   if (panel) return toggleCollapsiblePanel(panel);
 
   const choice = target.closest?.('[data-theme-choice]');
   if (choice) return applyTheme(choice.dataset.themeChoice);
+
+  const cycle = target.closest?.('[data-theme-cycle]');
+  if (cycle) return cycleTheme();
 
   const boardTab = target.closest?.('[data-board-tab]');
   if (boardTab) {
@@ -306,12 +376,16 @@ function init() {
       armToasts(event.target);
       loadPanes(event.target);
       restoreSidebars(event.target);
+      restoreSessionBar(event.target);
+      restoreTheme(event.target);
       restoreBoardTab(event.target);
       // Moving or opening tabs closes the mobile sidebar overlay.
       if (event.target.id === 'dock') document.getElementById('sidebar-panel')?.removeAttribute('data-mobile-open');
     }
   });
   restoreSidebars();
+  restoreSessionBar();
+  restoreTheme();
   armToasts(document);
   loadPanes(document);
   restoreBoardTab(document);
