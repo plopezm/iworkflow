@@ -553,14 +553,40 @@ func (b *remoteMergeBridge) MergeOpenRequest(ctx context.Context, taskID string)
 // The project tree is built after the tasks module, so the search is bound once it exists (see New).
 type taskFileSearch struct {
 	search *projecttreeapp.SearchProjectFiles
+	tasks  *tasksapp.GetTask
 }
 
-// Files lists the files of the worktree of the task whose path matches the query. It finds nothing while unbound.
+// Files lists the files of the worktree of the task whose path matches the query. When the task is still in
+// backlog (no worktree), it falls back to the files of its workspace. It finds nothing while unbound.
 func (b *taskFileSearch) Files(ctx context.Context, id tasksmodels.TaskID, query string) ([]string, error) {
 	if b.search == nil {
 		return nil, nil
 	}
-	return b.search.Execute(ctx, projecttreemodels.TaskScope(id.UUID()), query)
+	files, err := b.search.Execute(ctx, projecttreemodels.TaskScope(id.UUID()), query)
+	if err == nil {
+		return files, nil
+	}
+	if b.tasks != nil {
+		task, taskErr := b.tasks.Execute(ctx, id)
+		if taskErr == nil && task.WorkspaceID != "" {
+			if wsUUID, parseErr := uuid.Parse(task.WorkspaceID); parseErr == nil {
+				return b.search.Execute(ctx, projecttreemodels.WorkspaceScope(wsUUID), query)
+			}
+		}
+	}
+	return nil, err
+}
+
+// WorkspaceFiles lists the project files of a workspace whose path matches the query.
+func (b *taskFileSearch) WorkspaceFiles(ctx context.Context, workspaceID string, query string) ([]string, error) {
+	if b.search == nil || workspaceID == "" {
+		return nil, nil
+	}
+	wsUUID, err := uuid.Parse(workspaceID)
+	if err != nil {
+		return nil, nil
+	}
+	return b.search.Execute(ctx, projecttreemodels.WorkspaceScope(wsUUID), query)
 }
 
 type projectTreePanels interface {

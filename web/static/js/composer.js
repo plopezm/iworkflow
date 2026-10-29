@@ -129,8 +129,10 @@ function refreshRefs(composer) {
 
 function refreshSend(composer) {
   const send = sendOf(composer);
+  if (!send) return;
+  const textarea = textareaOf(composer);
   const images = composer.querySelector('[data-image-input]')?.files.length ?? 0;
-  send.disabled = textareaOf(composer).value.trim() === '' && images === 0;
+  send.disabled = (textarea?.value.trim() ?? '') === '' && images === 0;
 }
 
 function refreshAll(composer) {
@@ -148,7 +150,13 @@ const cancelFiles = (composer) => {
 
 /** Loads the files that match a query from the server of the task. */
 async function fetchFiles(composer, query, signal) {
-  const response = await fetch(`${composer.dataset.filesPath}?q=${encodeURIComponent(query)}`, {
+  const separator = (composer.dataset.filesPath || '').includes('?') ? '&' : '?';
+  let url = `${composer.dataset.filesPath}${separator}q=${encodeURIComponent(query)}`;
+  const workspaceSelect = composer.closest('form')?.querySelector('select[name="workspace_id"]');
+  if (workspaceSelect?.value) {
+    url += `&workspace_id=${encodeURIComponent(workspaceSelect.value)}`;
+  }
+  const response = await fetch(url, {
     headers: { 'HX-Request': 'true' },
     signal,
   });

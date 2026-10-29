@@ -78,7 +78,7 @@ func modeReported(id models.TaskID, mode string) []models.TaskEvent {
 
 // composerRouter mounts the composer handlers the way the module does, so the path parameters are read as in production.
 func composerRouter(senders *fakeSender, modes *fakeModes, history *fakeHistory, files FileSearch) chi.Router {
-	handlers := NewComposerHandlers(ComposerUseCases{Send: senders, Mode: modes, History: history}, files)
+	handlers := NewComposerHandlers(ComposerUseCases{Send: senders, Mode: modes, History: history}, files, nil)
 	router := chi.NewRouter()
 	handlers.Mount(router)
 	return router
@@ -439,4 +439,47 @@ func TestAHistoryReadErrorIsShownInTheRequestLanguageWithoutTheInternalText(t *t
 			})
 		})
 	}
+}
+
+func TestWorkspaceFileSuggestionsAreAnsweredAsMenuItems(t *testing.T) {
+	t.Parallel()
+	var askedQuery string
+	var askedWorkspace string
+	wsFiles := func(_ context.Context, wsID string, query string) ([]string, error) {
+		askedWorkspace = wsID
+		askedQuery = query
+		return []string{"README.md", "src/main.go"}, nil
+	}
+	handlers := NewComposerHandlers(ComposerUseCases{}, nil, wsFiles)
+	router := chi.NewRouter()
+	handlers.Mount(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/board/tasks/composer/files?workspace_id=ws-test&q=main", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "ws-test", askedWorkspace)
+	assert.Equal(t, "main", askedQuery)
+	body := recorder.Body.String()
+	assert.Contains(t, body, `data-composer-item`)
+	assert.Contains(t, body, `data-insert="@README.md"`)
+	assert.Contains(t, body, `data-insert="@src/main.go"`)
+}
+
+func TestWorkspaceFileSuggestionsWithoutWorkspaceReturnNoFiles(t *testing.T) {
+	t.Parallel()
+	handlers := NewComposerHandlers(ComposerUseCases{}, nil, func(_ context.Context, _ string, _ string) ([]string, error) {
+		return []string{"should-not-reach"}, nil
+	})
+	router := chi.NewRouter()
+	handlers.Mount(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/board/tasks/composer/files?q=a", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	body := recorder.Body.String()
+	assert.Contains(t, body, "composer-menu-empty")
 }

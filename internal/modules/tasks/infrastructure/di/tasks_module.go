@@ -74,6 +74,8 @@ type Deps struct {
 	// the completion finds nothing. The composition root supplies it, so the tasks module does not import the
 	// module that searches the files.
 	FileSearch httpinbound.FileSearch
+	// WorkspaceFileSearch lists the project files of a workspace for the @ completion of the create task dialog.
+	WorkspaceFileSearch httpinbound.WorkspaceFileSearch
 	// Panels are the project views (tree, changes, file) the Files and Changes tabs of a task embed. Optional: nil
 	// makes those tabs answer that they are not available.
 	Panels httpinbound.ProjectPanels
@@ -266,7 +268,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Mode:    setAgentMode,
 		History: getEvents,
 		Answer:  answerDialog,
-	}, deps.FileSearch)
+	}, deps.FileSearch, deps.WorkspaceFileSearch)
 	removeDependency := application.NewRemoveTaskDependency(graph, successors)
 	listTasks := application.NewListTasks(repository)
 	listDoneTasks := application.NewListDoneTasks(repository)

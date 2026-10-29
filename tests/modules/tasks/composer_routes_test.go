@@ -25,6 +25,7 @@ func TestModuleMountsTheComposerEndpoints(t *testing.T) {
 		{"message", http.MethodPost, "/tasks/" + id + "/messages"},
 		{"mode switch", http.MethodPost, "/tasks/" + id + "/mode"},
 		{"file suggestions", http.MethodGet, "/tasks/" + id + "/composer/files?q=a"},
+		{"workspace file suggestions", http.MethodGet, "/board/tasks/composer/files?workspace_id=ws-1&q=a"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

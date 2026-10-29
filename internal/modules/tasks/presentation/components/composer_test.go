@@ -135,3 +135,35 @@ func TestComposerTextsExistInTheFiveShippedLanguages(t *testing.T) {
 		assert.Contains(t, body, placeholder, "the placeholder is translated for %v", locale)
 	}
 }
+
+func TestTaskPromptFieldRendersComposerAttributesForCreateAndEdit(t *testing.T) {
+	t.Parallel()
+
+	createDialog := renderComposerIn(t, i18n.Es, components.CreateTaskDialog(state.CreateForm{
+		Scope:       "c1",
+		WorkspaceID: "ws-1",
+		Prompt:      "Hola @README.md",
+	}))
+
+	assert.Contains(t, createDialog, `data-composer`)
+	assert.Contains(t, createDialog, `data-files-path="/board/tasks/composer/files"`)
+	assert.Contains(t, createDialog, `data-composer-input`)
+	assert.Contains(t, createDialog, `data-composer-menu`)
+	assert.Contains(t, createDialog, `data-composer-refs`)
+	assert.Contains(t, createDialog, `name="prompt"`)
+	assert.Contains(t, createDialog, `Hola @README.md`)
+
+	editFields := renderComposerIn(t, i18n.Es, components.TaskEditFields(state.EditForm{
+		Scope:  "e1",
+		TaskID: "t-123",
+		Prompt: "Revisa @src/main.go",
+	}))
+
+	assert.Contains(t, editFields, `data-composer`)
+	assert.Contains(t, editFields, `data-files-path="/tasks/t-123/composer/files"`)
+	assert.Contains(t, editFields, `data-composer-input`)
+	assert.Contains(t, editFields, `data-composer-menu`)
+	assert.Contains(t, editFields, `data-composer-refs`)
+	assert.Contains(t, editFields, `name="prompt"`)
+	assert.Contains(t, editFields, `Revisa @src/main.go`)
+}

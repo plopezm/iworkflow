@@ -217,3 +217,48 @@ test('a file request that fails to reach the server closes the menu', async () =
   assert.equal(box.menu.hidden, true);
   assert.equal(box.menu.innerHTML, '');
 });
+
+test('a composer without a send button updates refs without error', () => {
+  const textarea = element(['[data-composer-input]']);
+  const menu = element(['[data-composer-menu]'], { hidden: true });
+  const refs = element(['[data-composer-refs]'], { hidden: true });
+  const composer = element(['[data-composer]'], {
+    dataset: { filesPath: '/board/tasks/composer/files', commands: '[]' },
+    children: {
+      '[data-composer-input]': textarea,
+      '[data-composer-menu]': menu,
+      '[data-composer-refs]': refs,
+    },
+  });
+  textarea.parent = composer;
+  menu.parent = composer;
+  refs.parent = composer;
+
+  const doc = documentWith([composer]);
+  installComposer(doc);
+
+  type(doc, { textarea, composer }, 'Hola @src/main.go');
+  assert.equal(refs.hidden, false, 'the reference chip is rendered even without a send button');
+});
+
+test('a file request inside a form with workspace_id appends the workspace', async () => {
+  const box = messageBox();
+  const wsSelect = element(['select'], { value: 'ws-123' });
+  box.composer.closest = (sel) => {
+    if (sel === 'form') {
+      return {
+        querySelector: (q) => (q === 'select[name="workspace_id"]' ? wsSelect : null),
+      };
+    }
+    return box.composer;
+  };
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+
+  assert.equal(requests.length, 1);
+  assert.ok(requests[0].url.includes('workspace_id=ws-123'), `url should contain workspace_id, got: ${requests[0].url}`);
+});
+
