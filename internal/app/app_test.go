@@ -80,6 +80,11 @@ func TestShellRendersDockAndMigratedNavigation(t *testing.T) {
 	require.Contains(t, body, `href="/models"`)
 	require.Contains(t, body, `href="/terminals"`)
 	require.Contains(t, body, `href="/settings"`)
+
+	menuIdx := strings.Index(body, `aria-label="Navegación"`)
+	boardSidebarIdx := strings.Index(body, `id="board-sidebar"`)
+	require.True(t, menuIdx > 0 && boardSidebarIdx > 0, "both menu and board-sidebar must be rendered")
+	require.Less(t, menuIdx, boardSidebarIdx, "the menu section must precede the workspaces board sidebar")
 }
 
 func TestDeepLinkServesTheShellForAnyPage(t *testing.T) {

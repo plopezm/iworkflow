@@ -32,7 +32,7 @@ templ shellPage(boardSidebar templ.Component) {
 	}
 }
 
-// sidebar is the sidebar content: brand, the board lists, the navigation of the migrated screens and the footer.
+// sidebar is the sidebar content: brand, the navigation of the migrated screens, the board lists and the footer.
 templ sidebar(boardSidebar templ.Component) {
 	<div class="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
 		<span class="live-dot text-accent" aria-hidden="true"></span>
@@ -41,7 +41,6 @@ templ sidebar(boardSidebar templ.Component) {
 		}
 		@components.SidebarToggle(components.SidebarToggleProps{Class: "hidden md:flex"})
 	</div>
-	@boardSidebar
 	@components.SidebarSection(components.SidebarSectionProps{Title: msgMenu.T(ctx), Count: len(navEntries)}) {
 		<nav class="flex flex-col gap-0.5" aria-label={ msgNavigation.T(ctx) }>
 			for _, entry := range navEntries {
@@ -52,6 +51,7 @@ templ sidebar(boardSidebar templ.Component) {
 			}
 		</nav>
 	}
+	@boardSidebar
 	<div class="min-h-0 flex-1 overflow-y-auto"></div>
 	<div class="stack shrink-0 gap-1.5 border-t border-border p-3">
 		@components.ThemeToggle(components.ThemeToggleProps{Selected: components.ThemeSystem})
