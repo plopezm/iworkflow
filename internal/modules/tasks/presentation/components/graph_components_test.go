@@ -379,3 +379,26 @@ func TestLooseCardKeyAndGhostStyle(t *testing.T) {
 	assert.Contains(t, key, "Task title")
 	assert.Contains(t, key, "running")
 }
+
+func TestTabOptionsCarryTheLooseCount(t *testing.T) {
+	t.Parallel()
+
+	ctxEn := i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true})
+	ctxEs := i18n.WithState(context.Background(), i18n.State{Locale: i18n.Es, Chosen: true})
+
+	optsEn := components.TabOptions(ctxEn, 3)
+	require.Len(t, optsEn, 2)
+	assert.Equal(t, "loose", optsEn[0].Value)
+	assert.Equal(t, "Loose (3)", optsEn[0].Label)
+	assert.Equal(t, "loose", optsEn[0].Attrs["data-board-tab"])
+	assert.Equal(t, "graph", optsEn[1].Value)
+	assert.Equal(t, "Graph", optsEn[1].Label)
+	assert.Equal(t, "graph", optsEn[1].Attrs["data-board-tab"])
+
+	optsEs := components.TabOptions(ctxEs, 5)
+	require.Len(t, optsEs, 2)
+	assert.Equal(t, "loose", optsEs[0].Value)
+	assert.Equal(t, "Sueltas (5)", optsEs[0].Label)
+	assert.Equal(t, "graph", optsEs[1].Value)
+	assert.Equal(t, "Grafo", optsEs[1].Label)
+}

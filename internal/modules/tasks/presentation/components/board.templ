@@ -170,7 +170,7 @@ templ LoadFailed(message string) {
 templ BoardList(view state.BoardView) {
 	<div
 		id={ state.Scoped("board-list", view.Scope) }
-		class="board-list flex h-full w-full min-h-0 min-w-0 flex-1 overflow-hidden"
+		class="board-list flex h-full w-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 		hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages) }
 		hx-trigger="sse:changed, sse:removed, board:refresh from:body"
 		hx-sync="this:replace"
@@ -196,10 +196,20 @@ templ BoardListBody(view state.BoardView) {
 			case state.ChoiceMissing:
 				<p class="muted p-8 text-center">{ msgWorkspaceGone.T(ctx) }</p>
 			case state.ChoiceSelected:
+				@shared.SegmentedControl(shared.SegmentedControlProps{
+					Class:     "board-tabs",
+					Options:   TabOptions(ctx, len(view.Loose)),
+					Selected:  string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose))),
+					AriaLabel: msgTabsLabel.T(ctx),
+				})
 				if view.Total == 0 {
-					<div class="board-graph-container relative flex h-full w-full overflow-hidden" id={ state.Scoped("board-graph", view.Scope) }>
+					<div
+						class="board-panes relative flex h-full w-full min-h-0 min-w-0 flex-1 overflow-hidden"
+						id={ state.Scoped("board-graph", view.Scope) }
+						data-tab={ string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose))) }
+					>
 						@LooseTasksPanel(view.Loose, view.Scope, false)
-						<div class="relative flex-1 h-full min-w-0">
+						<div class="board-canvas relative flex-1 h-full min-w-0 min-h-0">
 							@TaskGraphCanvas(view.GraphView, view.Positions, view.Viewport, view.Scope, "")
 							<div class="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
 								<div class="graph-empty pointer-events-auto stack items-center gap-3 p-8 text-center bg-surface/90 rounded-lg border border-border shadow-lg">
@@ -220,9 +230,13 @@ templ BoardListBody(view state.BoardView) {
 						</div>
 					</div>
 				} else {
-					<div class="board-graph-container relative flex h-full w-full overflow-hidden" id={ state.Scoped("board-graph", view.Scope) }>
+					<div
+						class="board-panes relative flex h-full w-full min-h-0 min-w-0 flex-1 overflow-hidden"
+						id={ state.Scoped("board-graph", view.Scope) }
+						data-tab={ string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose))) }
+					>
 						@LooseTasksPanel(view.Loose, view.Scope, false)
-						<div class="relative flex-1 h-full min-w-0">
+						<div class="board-canvas relative flex-1 h-full min-w-0 min-h-0">
 							@TaskGraphCanvas(view.GraphView, view.Positions, view.Viewport, view.Scope, "")
 							if view.HasMore {
 								<button
