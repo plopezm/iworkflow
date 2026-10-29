@@ -305,4 +305,21 @@ func TestTaskFileSearchFindsNothingUntilItIsBound(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, files)
+
+	wsFiles, err := bridge.WorkspaceFiles(context.Background(), uuid.New().String(), "a")
+	require.NoError(t, err)
+	assert.Empty(t, wsFiles)
+}
+
+func TestTaskFileSearchWorkspaceFilesWithInvalidOrEmptyUUIDReturnsNil(t *testing.T) {
+	t.Parallel()
+	bridge := &taskFileSearch{}
+
+	files, err := bridge.WorkspaceFiles(context.Background(), "", "a")
+	require.NoError(t, err)
+	assert.Empty(t, files)
+
+	files, err = bridge.WorkspaceFiles(context.Background(), "invalid-uuid", "a")
+	require.NoError(t, err)
+	assert.Empty(t, files)
 }

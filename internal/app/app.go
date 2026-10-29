@@ -134,9 +134,10 @@ func New(deps Deps) (*App, error) {
 			modelCatalog: settings.ModelCatalog,
 			listProfiles: settings.ListProfiles,
 		},
-		Remote:     &remoteMergeBridge{inner: remoteMerge},
-		FileSearch: fileSearch.Files,
-		Panels:     panels,
+		Remote:              &remoteMergeBridge{inner: remoteMerge},
+		FileSearch:          fileSearch.Files,
+		WorkspaceFileSearch: fileSearch.WorkspaceFiles,
+		Panels:              panels,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose tasks: %w", err)
@@ -148,6 +149,7 @@ func New(deps Deps) (*App, error) {
 		Tasks:      &taskRootLookup{get: tasks.Get},
 	})
 	fileSearch.search = projectTree.SearchFiles
+	fileSearch.tasks = tasks.Get
 	panels.inner = projectTree
 	profiles := agentprofilesdi.NewModule(agentprofilesdi.Deps{
 		ProfilesDir:  deps.Config.GentlePiConfigHome,

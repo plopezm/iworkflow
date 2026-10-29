@@ -56,6 +56,9 @@ type HistoryReader interface {
 // one the @ completion finds nothing. The tasks module does not import the module that searches the files.
 type FileSearch func(ctx context.Context, id models.TaskID, query string) ([]string, error)
 
+// WorkspaceFileSearch lists the project files of a workspace whose path matches query.
+type WorkspaceFileSearch func(ctx context.Context, workspaceID string, query string) ([]string, error)
+
 // ComposerUseCases are what the composer reads and changes. Answer is what the dialogs of the transcript answer to;
 // without it the answer route is not mounted.
 type ComposerUseCases struct {
@@ -68,14 +71,15 @@ type ComposerUseCases struct {
 // ComposerHandlers serves the message box of the detail page of a task. answers serializes the answers to each dialog:
 // the check that a dialog is still open and its delivery are one step, and only for that dialog.
 type ComposerHandlers struct {
-	uc      ComposerUseCases
-	files   FileSearch
-	answers dialogLocks
+	uc             ComposerUseCases
+	files          FileSearch
+	workspaceFiles WorkspaceFileSearch
+	answers        dialogLocks
 }
 
 // NewComposerHandlers builds the handlers over their use cases and the file search of the @ completion.
-func NewComposerHandlers(uc ComposerUseCases, files FileSearch) *ComposerHandlers {
-	return &ComposerHandlers{uc: uc, files: files}
+func NewComposerHandlers(uc ComposerUseCases, files FileSearch, workspaceFiles WorkspaceFileSearch) *ComposerHandlers {
+	return &ComposerHandlers{uc: uc, files: files, workspaceFiles: workspaceFiles}
 }
 
 // Mount registers the endpoints of the composer: the message, the mode switch, the file suggestions and the answer of
@@ -84,6 +88,7 @@ func (h *ComposerHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/messages", h.sendMessage)
 	r.Post("/tasks/{id}/mode", h.setMode)
 	r.Get("/tasks/{id}/composer/files", h.fileSuggestions)
+	r.Get("/board/tasks/composer/files", h.workspaceFileSuggestions)
 	if h.uc.Answer != nil {
 		r.Post("/tasks/{id}/dialogs/{dialogId}/answer", h.answerDialog)
 	}
@@ -174,6 +179,21 @@ func (h *ComposerHandlers) fileSuggestions(w http.ResponseWriter, r *http.Reques
 	var paths []string
 	if h.files != nil {
 		found, searchErr := h.files(r.Context(), id, r.URL.Query().Get("q"))
+		if searchErr != nil {
+			web.Render(w, r, http.StatusOK, shared.ErrorText(formText(r.Context(), searchErr)))
+			return
+		}
+		paths = found
+	}
+	web.Render(w, r, http.StatusOK, components.ComposerFileItems(paths))
+}
+
+// workspaceFileSuggestions answers the files the @ completion offers for a workspace query, one item per path.
+func (h *ComposerHandlers) workspaceFileSuggestions(w http.ResponseWriter, r *http.Request) {
+	workspaceID := r.URL.Query().Get("workspace_id")
+	var paths []string
+	if h.workspaceFiles != nil && workspaceID != "" {
+		found, searchErr := h.workspaceFiles(r.Context(), workspaceID, r.URL.Query().Get("q"))
 		if searchErr != nil {
 			web.Render(w, r, http.StatusOK, shared.ErrorText(formText(r.Context(), searchErr)))
 			return
