@@ -10,6 +10,7 @@ templ LooseTaskCard(task dto.TaskDTO, scope string) {
 		class={ "card loose-card animate-fade-in flex flex-col gap-1.5 !p-2.5 " + toggleClass("", task.NeedsAttention, "loose-card-attention") }
 		title={ msgDragHint.T(ctx) }
 		data-task-id={ task.ID }
+		data-stage={ task.Stage }
 		data-loose-task
 	>
 		<div class="flex items-start justify-between gap-2">

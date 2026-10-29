@@ -13,7 +13,7 @@ templ BoardPage(view state.BoardView) {
 	<div class="flex h-full min-h-0 flex-col">
 		@components.BoardToolbar(view)
 		<div id={ state.Scoped("board-notice", view.Scope) }></div>
-		<div class="board-body min-h-0 flex-1 overflow-y-auto">
+		<div class="board-body min-h-0 flex-1 overflow-hidden">
 			@components.BoardList(view)
 		</div>
 		<div id={ state.Scoped("board-create-slot", view.Scope) }></div>

@@ -13,17 +13,19 @@ templ LooseTasksPanel(loose []dto.TaskDTO, scope string, collapsed bool) {
 		ExpandLabel:   msgLooseExpand.T(ctx),
 		CollapseLabel: msgLooseCollapse.T(ctx),
 	}) {
-		if len(loose) == 0 {
-			<div class="empty-hint p-4 text-center">
-				<p class="font-medium text-fg">{ msgLooseEmptyTitle.T(ctx) }</p>
-				<p class="mt-1 text-xs text-muted">{ msgLooseEmptyHint.T(ctx) }</p>
-			</div>
-		} else {
-			<div class="loose-list flex flex-col gap-2 p-2">
-				for _, task := range loose {
-					@LooseTaskCard(task, scope)
-				}
-			</div>
-		}
+		<div class="loose-tasks-container flex flex-col h-full" data-stage="backlog">
+			if len(loose) == 0 {
+				<div class="empty-hint p-4 text-center">
+					<p class="font-medium text-fg">{ msgLooseEmptyTitle.T(ctx) }</p>
+					<p class="mt-1 text-xs text-muted">{ msgLooseEmptyHint.T(ctx) }</p>
+				</div>
+			} else {
+				<div class="loose-list flex flex-col gap-2 p-2">
+					for _, task := range loose {
+						@LooseTaskCard(task, scope)
+					}
+				</div>
+			}
+		</div>
 	}
 }

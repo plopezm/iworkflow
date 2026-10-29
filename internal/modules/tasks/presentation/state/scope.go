@@ -3,6 +3,7 @@ package state
 import (
 	"net/url"
 	"regexp"
+	"strings"
 )
 
 // scopePattern is the shape a board scope may take: short lowercase letters and digits, which are safe inside an
@@ -34,5 +35,9 @@ func ScopedPath(path string, scope string) string {
 	if scope == "" {
 		return path
 	}
-	return path + "?" + url.Values{"scope": {scope}}.Encode()
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	return path + sep + url.Values{"scope": {scope}}.Encode()
 }

@@ -18,7 +18,7 @@ templ TaskGraphCanvas(view state.GraphView, positions map[string]state.Point, vi
 		data-scope={ scope }
 	>
 		<svg
-			class="graph-edges absolute inset-0 h-full w-full pointer-events-none"
+			class="graph-edges absolute inset-0 h-full w-full"
 			style={ transformStyle }
 		>
 			@GraphArrowDefs(markerScope)
@@ -36,14 +36,14 @@ templ TaskGraphCanvas(view state.GraphView, positions map[string]state.Point, vi
 			}
 		</svg>
 		<div
-			class="graph-nodes absolute inset-0 pointer-events-auto"
+			class="graph-nodes absolute inset-0 pointer-events-none"
 			style={ transformStyle }
 		>
 			for _, node := range view.Nodes {
 				@TaskNode(node, positions[node.Task.ID], scope)
 			}
 		</div>
-		<div class="graph-zoom-bar absolute bottom-4 right-4 flex items-center gap-2">
+		<div class="graph-zoom-bar absolute bottom-4 left-4 flex items-center gap-2">
 			@shared.ZoomControls(shared.ZoomControlsProps{
 				Zoom:         viewport.Zoom,
 				ZoomInLabel:  msgZoomIn.T(ctx),

@@ -110,6 +110,16 @@ templ BoardToolbar(view state.BoardView) {
 		</label>
 		<button
 			type="button"
+			class="btn-secondary"
+			title={ msgFitView.T(ctx) }
+			aria-label={ msgFitView.T(ctx) }
+			data-zoom-fit
+		>
+			<span aria-hidden="true">⤢</span>
+			<span class="hidden sm:inline">{ msgFitView.T(ctx) }</span>
+		</button>
+		<button
+			type="button"
 			class="btn-primary"
 			hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
 			hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
@@ -140,7 +150,7 @@ templ LoadFailed(message string) {
 templ BoardList(view state.BoardView) {
 	<div
 		id={ state.Scoped("board-list", view.Scope) }
-		class="board-list"
+		class="board-list flex h-full w-full min-h-0 min-w-0 flex-1 overflow-hidden"
 		hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages) }
 		hx-trigger="sse:changed, sse:removed, board:refresh from:body"
 		hx-sync="this:replace"
@@ -167,51 +177,47 @@ templ BoardListBody(view state.BoardView) {
 				<p class="muted p-8 text-center">{ msgWorkspaceGone.T(ctx) }</p>
 			case state.ChoiceSelected:
 				if view.Total == 0 {
-					<div class="stack items-center gap-3 p-8 text-center">
-						<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
-						<p class="muted max-w-sm">{ msgEmptyHint.T(ctx) }</p>
-						<button
-							type="button"
-							class="btn-primary"
-							hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
-							hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
-							hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
-							hx-swap="innerHTML"
-						>
-							{ msgCreateFirst.T(ctx) }
-						</button>
+					<div class="board-graph-container relative flex h-full w-full overflow-hidden" id={ state.Scoped("board-graph", view.Scope) }>
+						@LooseTasksPanel(view.Loose, view.Scope, false)
+						<div class="relative flex-1 h-full min-w-0">
+							@TaskGraphCanvas(view.GraphView, view.Positions, view.Viewport, view.Scope, "")
+							<div class="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+								<div class="graph-empty pointer-events-auto stack items-center gap-3 p-8 text-center bg-surface/90 rounded-lg border border-border shadow-lg">
+									<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
+									<p class="muted max-w-sm text-xs">{ msgEmptyHint.T(ctx) }</p>
+									<button
+										type="button"
+										class="btn-primary"
+										hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
+										hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
+										hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
+										hx-swap="innerHTML"
+									>
+										{ msgCreateFirst.T(ctx) }
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				} else {
+					<div class="board-graph-container relative flex h-full w-full overflow-hidden" id={ state.Scoped("board-graph", view.Scope) }>
+						@LooseTasksPanel(view.Loose, view.Scope, false)
+						<div class="relative flex-1 h-full min-w-0">
+							@TaskGraphCanvas(view.GraphView, view.Positions, view.Viewport, view.Scope, "")
+							if view.HasMore {
+								<button
+									type="button"
+									class="btn-secondary absolute bottom-4 right-20 text-xs px-3 py-1.5 shadow"
+									hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages+1) }
+									hx-target={ "#" + state.Scoped("board-list", view.Scope) }
+									hx-swap="innerHTML"
+								>
+									{ msgLoadMoreDone.T(ctx) }
+								</button>
+							}
+						</div>
 					</div>
 				}
-				<div class="stack gap-4 p-4">
-					for _, group := range view.Groups {
-						if group.Stage != state.StageDone || view.ShowCompleted {
-							<section class="stack gap-2" data-stage={ group.Stage }>
-								<h2 class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted">
-									@StageBadge(group.Stage)
-									<span>{ count(len(group.Tasks)) }</span>
-								</h2>
-								if len(group.Tasks) > 0 {
-									<ul class="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-										for _, task := range group.Tasks {
-											@TaskCard(task, view.Scope)
-										}
-									</ul>
-								}
-							</section>
-						}
-					}
-					if view.HasMore {
-						<button
-							type="button"
-							class="btn-secondary self-center"
-							hx-get={ state.FramePath(view.Scope, view.Choice.ID, true, view.Pages+1) }
-							hx-target={ "#" + state.Scoped("board-list", view.Scope) }
-							hx-swap="outerHTML"
-						>
-							{ msgLoadMoreDone.T(ctx) }
-						</button>
-					}
-				</div>
 		}
 	}
 }

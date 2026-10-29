@@ -91,5 +91,133 @@ module.exports = {
         await ctx.page.getByText('Tarea para Grafo').first().waitFor({ timeout: 5000 });
       },
     },
+    {
+      name: 'graph_hover_tools: los botones de hover abren el modal para añadir siguiente',
+      fn: async (ctx) => {
+        const ws = await registerWs(ctx, `tg-tools-${tag}`);
+        const wsId = await getWsId(ctx, ws.name);
+        assert.ok(wsId);
+
+        // Open home board
+        await ctx.goto(`/board/${encodeURIComponent(wsId)}`);
+        await ctx.page.locator('[data-graph-canvas]').first().waitFor({ timeout: 10000 });
+
+        // Create a task
+        await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
+        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        await ctx.page.locator('#modal-panel input[name=title]').fill('Tarea Origen');
+        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill('Prompt origen');
+        await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+
+        // Add to graph
+        const addBtn = ctx.page.locator('button', { hasText: 'Añadir al grafo' }).first();
+        await addBtn.waitFor({ timeout: 5000 });
+        await addBtn.click();
+
+        // Node appears on canvas
+        const node = ctx.page.locator('.graph-node', { hasText: 'Tarea Origen' }).first();
+        await node.waitFor({ timeout: 10000 });
+
+        // Hover over node to reveal tools
+        await node.hover();
+        const nextBtn = node.locator('button.graph-tool', { hasText: 'Siguiente' }).first();
+        await nextBtn.waitFor({ state: 'visible', timeout: 5000 });
+        await nextBtn.click();
+
+        // Modal opens configured to link next task
+        await ctx.page.locator('#modal-panel').waitFor({ state: 'visible', timeout: 10000 });
+      },
+    },
+    {
+      name: 'graph_edge_selection_and_deletion: seleccionar una arista muestra el botón de borrado y la elimina al pulsar',
+      fn: async (ctx) => {
+        const ws = await registerWs(ctx, `tg-edge-${tag}`);
+        const wsId = await getWsId(ctx, ws.name);
+        assert.ok(wsId);
+
+        // Open board
+        await ctx.goto(`/board/${encodeURIComponent(wsId)}`);
+        await ctx.page.locator('[data-graph-canvas]').first().waitFor({ timeout: 10000 });
+
+        // Create Task A
+        await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
+        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        await ctx.page.locator('#modal-panel input[name=title]').fill('Tarea Pred');
+        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill('Prompt pred');
+        await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+
+        // Create Task B
+        await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
+        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        await ctx.page.locator('#modal-panel input[name=title]').fill('Tarea Succ');
+        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill('Prompt succ');
+        await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+
+        // Place both tasks on canvas via API
+        const tasks = await ctx.page.evaluate(async () => {
+          const res = await fetch('/api/tasks');
+          // Fallback if /api/tasks is not a plain JSON endpoint, read cards from DOM
+          const cards = document.querySelectorAll('[data-task-id]');
+          return Array.from(cards).map(c => c.dataset.taskId).filter(Boolean);
+        });
+
+        // Add them to graph using the "+ Añadir al grafo" buttons
+        const addBtns = ctx.page.locator('button', { hasText: 'Añadir al grafo' });
+        const count = await addBtns.count();
+        for (let i = 0; i < count; i++) {
+          await addBtns.first().click();
+          await sleep(300);
+        }
+
+        // Now both nodes are on canvas. Retrieve their IDs:
+        const nodeEls = ctx.page.locator('.graph-node');
+        await nodeEls.first().waitFor({ timeout: 5000 });
+        const predNode = ctx.page.locator('.graph-node', { hasText: 'Tarea Pred' }).first();
+        const succNode = ctx.page.locator('.graph-node', { hasText: 'Tarea Succ' }).first();
+        await predNode.waitFor({ timeout: 5000 });
+        await succNode.waitFor({ timeout: 5000 });
+        const predId = await predNode.getAttribute('data-task-id');
+        const succId = await succNode.getAttribute('data-task-id');
+
+        // Add dependency via POST and position succNode to the right
+        await ctx.page.evaluate(async ({ predId, succId }) => {
+          const posBody = new URLSearchParams({ x: '500', y: '100' });
+          await fetch(`/tasks/${succId}/position`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: posBody.toString(),
+          });
+          const depBody = new URLSearchParams({ predecessor_id: predId });
+          await fetch(`/tasks/${succId}/dependencies`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: depBody.toString(),
+          });
+          document.body.dispatchEvent(new CustomEvent('board:refresh'));
+        }, { predId, succId });
+
+        // Edge line appears on canvas between the separated nodes
+        const edgeLine = ctx.page.locator('.graph-edges g[data-edge-key]').first();
+        await edgeLine.waitFor({ state: 'attached', timeout: 10000 });
+
+        // Click on the edge to select it
+        const edgeHit = edgeLine.locator('.graph-edge-hit');
+        await edgeHit.waitFor({ state: 'attached', timeout: 5000 });
+        await edgeHit.dispatchEvent('click', { bubbles: true });
+
+        // Delete button appears on edge
+        const delBtn = edgeLine.locator('.graph-edge-delete');
+        await delBtn.waitFor({ state: 'attached', timeout: 5000 });
+
+        // Click delete button
+        await delBtn.dispatchEvent('click', { bubbles: true });
+
+        // Edge is removed
+        await edgeLine.waitFor({ state: 'detached', timeout: 10000 });
+      },
+    },
   ],
 };

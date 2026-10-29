@@ -48,6 +48,9 @@ type BoardUseCases struct {
 	ListAttachments *application.ListTaskAttachments
 	ListBranches    *application.ListWorkspaceBranches
 	Workspaces      outbound.WorkspaceLookup
+	GetGraph        *application.GetTaskGraph
+	SetPosition     *application.SetTaskPosition
+	DetachFromGraph *application.DetachTaskFromGraph
 }
 
 // BoardHandlers serves the board tabs and their htmx requests. Every htmx response is a 200: htmx 2 does
@@ -113,6 +116,8 @@ func (h *BoardHandlers) Mount(r chi.Router) {
 	r.Post("/board/tasks", h.createTask)
 	r.Post("/board/tasks/{id}/start", h.startTask)
 	r.Post("/board/tasks/{id}/delete", h.deleteTask)
+	r.Post("/board/tasks/{id}/add-to-graph", h.addToGraph)
+	r.Post("/board/tasks/{id}/detach", h.detachFromGraph)
 	r.Post("/tasks/{id}/update", h.updateTask)
 }
 
@@ -280,7 +285,66 @@ func (h *BoardHandlers) view(ctx context.Context, requested string, showComplete
 	view.Total = len(tasks.Tasks)
 	view.HasMore = showCompleted && state.DoneHasMore(tasks.LastPageLen)
 	view.Groups = state.GroupByStage(tasks.Tasks)
+
+	var graphDTO dto.TaskGraphDTO
+	if h.uc.GetGraph != nil {
+		g, err := h.uc.GetGraph.Execute(ctx, view.Choice.ID)
+		if err == nil {
+			graphDTO = dto.TaskGraphFromDomain(g)
+		} else {
+			slog.Warn("could not load graph for workspace", "workspace", view.Choice.ID, "error", err)
+		}
+	}
+	view.GraphView = state.BuildGraph(view.Choice.ID, tasks.Tasks, graphDTO, showCompleted, nil)
+	view.Loose = state.LooseTasks(view.Choice.ID, tasks.Tasks, graphDTO, showCompleted, nil)
+	saved := state.SavedPositions(graphDTO)
+
+	nodeIDs := make([]string, len(view.GraphView.Nodes))
+	for i, n := range view.GraphView.Nodes {
+		nodeIDs[i] = n.Task.ID
+	}
+	edges := make([][2]string, len(view.GraphView.Edges))
+	for i, e := range view.GraphView.Edges {
+		edges[i] = [2]string{e.PredecessorID, e.SuccessorID}
+	}
+	view.Positions = state.ResolvePositions(nodeIDs, edges, saved)
+	view.Viewport = state.DefaultViewport()
+
 	return view
+}
+
+func (h *BoardHandlers) addToGraph(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	taskIDStr := chi.URLParam(r, "id")
+	taskID, err := models.ParseTaskID(taskIDStr)
+	if err != nil {
+		http.Error(w, "invalid task id", http.StatusBadRequest)
+		return
+	}
+	if h.uc.SetPosition != nil {
+		_ = h.uc.SetPosition.Execute(ctx, taskID, 120, 120)
+	}
+	web.Trigger(w, boardRefreshEvent)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *BoardHandlers) detachFromGraph(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	taskIDStr := chi.URLParam(r, "id")
+	taskID, err := models.ParseTaskID(taskIDStr)
+	if err != nil {
+		http.Error(w, "invalid task id", http.StatusBadRequest)
+		return
+	}
+	if h.uc.DetachFromGraph != nil {
+		if err := h.uc.DetachFromGraph.Execute(ctx, taskID); err != nil {
+			slog.Error("failed to detach task from graph", "id", taskID, "error", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	web.Trigger(w, boardRefreshEvent)
+	w.WriteHeader(http.StatusOK)
 }
 
 // boardTasks is what loadTasks returns: the tasks of the board and the length of the last completed page

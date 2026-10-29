@@ -1,17 +1,20 @@
 package components
 
 import (
+	"fmt"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
 templ TaskNode(node state.NodeView, position state.Point, scope string) {
 	<div
-		class={ NodeClass(false, false, node.Task.NeedsAttention) }
+		class={ NodeClass(false, false, node.Task.NeedsAttention) + " pointer-events-auto" }
 		style={ NodeStyle(position) }
 		data-node-id={ node.Task.ID }
+		data-task-id={ node.Task.ID }
+		data-stage={ node.Task.Stage }
 	>
 		<span class="graph-port graph-port-in" title={ msgInputPort.T(ctx) } aria-hidden="true"></span>
-		<article class="card animate-fade-in flex h-full flex-col gap-1.5 !p-2.5">
+		<article class="card task-node-card flex h-full flex-col gap-1.5 !p-2.5">
 			<div class="flex items-start justify-between gap-2">
 				<a
 					href={ templ.SafeURL(state.TaskPath(node.Task.ID)) }
@@ -60,7 +63,8 @@ templ TaskNode(node state.NodeView, position state.Point, scope string) {
 				class="graph-tool"
 				title={ msgAddNext.T(ctx) }
 				aria-label={ msgAddNext.T(ctx) }
-				hx-get={ state.ScopedPath("/tasks/new?predecessor="+node.Task.ID, scope) }
+				hx-get={ state.ScopedPath(fmt.Sprintf("/board/tasks/new?link_kind=next&link_anchor=%s", node.Task.ID), scope) }
+				hx-include={ "#" + state.Scoped("board-workspace", scope) }
 				hx-target={ "#" + state.Scoped("board-create-slot", scope) }
 				hx-swap="innerHTML"
 			>
@@ -72,7 +76,8 @@ templ TaskNode(node state.NodeView, position state.Point, scope string) {
 				class="graph-tool"
 				title={ msgAddParallel.T(ctx) }
 				aria-label={ msgAddParallel.T(ctx) }
-				hx-get={ state.ScopedPath("/tasks/new?parallel="+node.Task.ID, scope) }
+				hx-get={ state.ScopedPath(fmt.Sprintf("/board/tasks/new?link_kind=parallel&link_anchor=%s", node.Task.ID), scope) }
+				hx-include={ "#" + state.Scoped("board-workspace", scope) }
 				hx-target={ "#" + state.Scoped("board-create-slot", scope) }
 				hx-swap="innerHTML"
 			>

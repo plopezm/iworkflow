@@ -211,17 +211,23 @@ func NewModule(deps Deps) (*Module, error) {
 	deleteTask := application.NewDeleteTask(lifecycle, attachmentStorage)
 	addDependency := application.NewAddTaskDependency(lifecycle, graph, successors)
 	listAttachments := application.NewListTaskAttachments(attachments)
+	getGraph := application.NewGetTaskGraph(graph)
+	detachFromGraph := application.NewDetachTaskFromGraph(graph, successors)
+	setPosition := application.NewSetTaskPosition(graph)
 	board := httpinbound.NewBoardHandlers(httpinbound.BoardUseCases{
 		List:            application.NewListTasks(repository),
 		ListDone:        application.NewListDoneTasks(repository),
 		Get:             getTask,
-		CreateLinked:    application.NewCreateLinkedTask(createTask, addDependency, application.NewGetTaskGraph(graph)),
+		CreateLinked:    application.NewCreateLinkedTask(createTask, addDependency, getGraph),
 		Update:          updateTask,
 		Start:           start,
 		Delete:          deleteTask,
 		ListAttachments: listAttachments,
 		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
 		Workspaces:      deps.Workspaces,
+		GetGraph:        getGraph,
+		SetPosition:     setPosition,
+		DetachFromGraph: detachFromGraph,
 	}, clock)
 	abortTask := application.NewAbortTask(lifecycle, agentRuntime)
 	finishTask := application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup)
@@ -258,10 +264,7 @@ func NewModule(deps Deps) (*Module, error) {
 		History: getEvents,
 		Answer:  answerDialog,
 	}, deps.FileSearch)
-	getGraph := application.NewGetTaskGraph(graph)
 	removeDependency := application.NewRemoveTaskDependency(graph, successors)
-	detachFromGraph := application.NewDetachTaskFromGraph(graph, successors)
-	setPosition := application.NewSetTaskPosition(graph)
 	listTasks := application.NewListTasks(repository)
 	listDoneTasks := application.NewListDoneTasks(repository)
 	graphHandlers := httpinbound.NewGraphHandlers(httpinbound.GraphUseCases{

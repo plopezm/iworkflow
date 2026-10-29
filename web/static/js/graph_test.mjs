@@ -9,6 +9,8 @@ import {
 	cubicCurve,
 	clampZoom,
 	DEFAULT_VIEWPORT,
+	fitCanvasView,
+	extractEdgeEndpoints,
 } from "./graph.js";
 
 test("screenToCanvas and canvasToScreen are inverse", () => {
@@ -49,3 +51,106 @@ test("cubicCurve formats SVG path string", () => {
 	const path = cubicCurve({ x: 0, y: 0 }, { x: 400, y: 100 });
 	assert.equal(path, "M 0.00 0.00 C 200.00 0.00, 200.00 100.00, 400.00 100.00");
 });
+
+test("fitCanvasView resets to default viewport when no nodes are present", () => {
+	const canvas = { clientWidth: 800, clientHeight: 600 };
+	const viewport = { x: 50, y: 50, zoom: 1.5 };
+	const res = fitCanvasView(canvas, viewport, () => []);
+	assert.deepEqual(res, { x: 0, y: 0, zoom: 1.0 });
+	assert.deepEqual(viewport, { x: 0, y: 0, zoom: 1.0 });
+});
+
+test("fitCanvasView clamps zoom to 1.0 and centers a single node", () => {
+	const canvas = { clientWidth: 800, clientHeight: 600 };
+	const viewport = { x: 0, y: 0, zoom: 1.0 };
+	const nodes = [{ x: 100, y: 100, width: 200, height: 100 }];
+	const res = fitCanvasView(canvas, viewport, () => nodes);
+	assert.equal(res.zoom, 1.0);
+	// Center of node is (200, 150). Center of 800x600 viewport is (400, 300).
+	// Viewport x = 400 - 200 * 1.0 = 200. Viewport y = 300 - 150 * 1.0 = 150.
+	assert.equal(res.x, 200);
+	assert.equal(res.y, 150);
+});
+
+test("fitCanvasView fits multiple nodes with 40px margin", () => {
+	const canvas = { clientWidth: 800, clientHeight: 600 };
+	const viewport = { x: 0, y: 0, zoom: 1.0 };
+	// Content bounds: x: [0, 1000] (width 1000), y: [0, 500] (height 500)
+	// Available: width: 800 - 80 = 720. height: 600 - 80 = 520.
+	// Zoom: min(720 / 1000 = 0.72, 520 / 500 = 1.04) => 0.72.
+	const nodes = [
+		{ x: 0, y: 0, width: 200, height: 100 },
+		{ x: 800, y: 400, width: 200, height: 100 },
+	];
+	const res = fitCanvasView(canvas, viewport, () => nodes);
+	assert.ok(Math.abs(res.zoom - 0.72) < 1e-4);
+	// Center is (500, 250).
+	// Viewport x = 400 - 500 * 0.72 = 400 - 360 = 40 (matches 40px margin!).
+	assert.ok(Math.abs(res.x - 40) < 1e-4);
+});
+
+test("fitCanvasView clamps zoom to minimum 0.25 when nodes are spread widely", () => {
+	const canvas = { clientWidth: 800, clientHeight: 600 };
+	const viewport = { x: 0, y: 0, zoom: 1.0 };
+	const nodes = [
+		{ x: 0, y: 0, width: 200, height: 100 },
+		{ x: 10000, y: 10000, width: 200, height: 100 },
+	];
+	const res = fitCanvasView(canvas, viewport, () => nodes);
+	assert.equal(res.zoom, 0.25);
+});
+
+test("fitCanvasView reads node position and size from style properties with fallback", () => {
+	const canvas = { clientWidth: 1000, clientHeight: 800 };
+	const viewport = { x: 0, y: 0, zoom: 1.0 };
+	const domNodes = [
+		{
+			style: { left: "100px", top: "100px" },
+			offsetWidth: 0,
+			offsetHeight: 0,
+		},
+	];
+	// Fallback width 264, height 140. Node box: [100, 364], [100, 240].
+	// Center: (232, 170). Canvas: 1000x800 -> center (500, 400).
+	// Zoom clamps to 1.0.
+	// Viewport x = 500 - 232 * 1.0 = 268. Viewport y = 400 - 170 * 1.0 = 230.
+	const res = fitCanvasView(canvas, viewport, () => domNodes);
+	assert.equal(res.zoom, 1.0);
+	assert.equal(res.x, 268);
+	assert.equal(res.y, 230);
+});
+
+test("extractEdgeEndpoints handles data-predecessor/successor attributes and invalid inputs", () => {
+	assert.equal(extractEdgeEndpoints(null), null);
+	assert.equal(extractEdgeEndpoints({}), null);
+
+	const edge = {
+		getAttribute(name) {
+			if (name === "data-predecessor") return "pred-1";
+			if (name === "data-successor") return "succ-2";
+			return null;
+		},
+		dataset: {
+			predecessor: "pred-1",
+			successor: "succ-2",
+		},
+	};
+	assert.deepEqual(extractEdgeEndpoints(edge), { predecessor: "pred-1", successor: "succ-2" });
+});
+
+test("loose task client drop converts to canvas coordinates correctly", () => {
+	const viewport = { x: 50, y: 30, zoom: 0.8 };
+	const canvasRect = { left: 100, top: 50 };
+	const clientDrop = { clientX: 250, clientY: 150 };
+
+	const screenPoint = {
+		x: clientDrop.clientX - canvasRect.left, // 150
+		y: clientDrop.clientY - canvasRect.top,  // 100
+	};
+	const canvasCoord = screenToCanvas(screenPoint, viewport);
+	// (150 - 50) / 0.8 = 100 / 0.8 = 125
+	// (100 - 30) / 0.8 = 70 / 0.8 = 87.5
+	assert.equal(canvasCoord.x, 125);
+	assert.equal(canvasCoord.y, 87.5);
+});
+

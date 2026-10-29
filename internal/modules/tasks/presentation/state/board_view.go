@@ -23,6 +23,12 @@ type BoardView struct {
 	HasMore bool
 	// LoadError is the message of a failed load; empty when the data is fresh.
 	LoadError string
+
+	// Graph presentation fields
+	GraphView GraphView
+	Positions map[string]Point
+	Viewport  Viewport
+	Loose     []dto.TaskDTO
 }
 
 // ListPath is the address of the content of the list of one board instance for a workspace, the completed toggle

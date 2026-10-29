@@ -2,7 +2,6 @@ package components
 
 import (
 	"context"
-	"strconv"
 
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/modules/tasks/presentation/state"
@@ -14,11 +13,6 @@ func toggleClass(base string, on bool, extra string) string {
 		return base + " " + extra
 	}
 	return base
-}
-
-// count renders a number for a badge or a counter.
-func count(n int) string {
-	return strconv.Itoa(n)
 }
 
 // priorityOptions are the priorities of the create dialog, in the order the state declares them.
