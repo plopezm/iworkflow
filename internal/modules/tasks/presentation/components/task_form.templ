@@ -4,6 +4,8 @@ import (
 	"context"
 
 	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
@@ -70,18 +72,74 @@ templ ExistingAttachments(items []dto.TaskAttachmentDTO) {
 	}
 }
 
-// LimitFields are the optional RAM and CPU caps of a task behind an "Advanced options" toggle, as the Rust form
-// has them. The limits count only while the toggle is on; an empty field means the default from the settings.
-// The page script shows and hides the block (data-toggle-target), so the block keeps what was typed.
-templ LimitFields(id string, advanced bool, memory string, cpu string) {
+// AdvancedOptions renders the collapsible "Advanced options" section with agent, model, effort, profile
+// selectors as the first option, followed by the RAM and CPU resource limits.
+templ AdvancedOptions(id string, scope string, advanced bool, memory string, cpu string, agent state.AgentFormState) {
 	<label class="row min-h-10 items-center gap-2 text-sm text-fg">
 		<input type="checkbox" name="show_advanced" value="on" class="h-5 w-5" checked?={ advanced } data-toggle-target={ id }/>
 		<span>{ msgAdvancedOptions.T(ctx) }</span>
 	</label>
 	<div id={ id } class="stack gap-3" hidden?={ !advanced }>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgAgent.T(ctx) }</span>
+			<select
+				class="input"
+				name="agent_runtime"
+				aria-label={ msgAgent.T(ctx) }
+				hx-get={ state.ScopedPath("/board/tasks/agent-options", scope) }
+				hx-target={ "#" + state.Scoped("task-agent-options", scope) }
+				hx-swap="innerHTML"
+				hx-trigger="change"
+			>
+				<option value="" selected?={ agent.SelectedRuntime == "" }>{ agentDefaultLabel(ctx, agent.Catalog.DefaultRuntime) }</option>
+				for _, rt := range agent.Catalog.Runtimes {
+					<option value={ rt } selected?={ agent.SelectedRuntime == rt }>{ rt }</option>
+				}
+			</select>
+		</label>
+		<div id={ state.Scoped("task-agent-options", scope) } class="stack gap-3">
+			@AgentOptionsFields(scope, agent)
+		</div>
 		@shared.NumberField(shared.NumberFieldProps{Label: msgMaxRAM.T(ctx), Name: "memory_limit_mb", Unit: "MiB", Placeholder: msgDefaultFromSet.T(ctx), Value: memory})
 		@shared.NumberField(shared.NumberFieldProps{Label: msgMaxCPU.T(ctx), Name: "cpu_limit_percent", Unit: msgPercentOfCore.T(ctx), Placeholder: msgDefaultFromSet.T(ctx), Value: cpu})
 	</div>
+}
+
+// AgentOptionsFields renders the dependent agent selectors (model, thinking, profile) that the selected
+// agent supports. Any unsupported option is not shown.
+templ AgentOptionsFields(scope string, agent state.AgentFormState) {
+	if agent.Catalog.SupportsModels && len(agent.Catalog.Models) > 0 {
+		@shared.SelectField(shared.SelectFieldProps{
+			Label:       msgModel.T(ctx),
+			Name:        "agent_model",
+			Value:       agent.SelectedModel,
+			Placeholder: modelPlaceholder(ctx, agent.Catalog.DefaultModel),
+			Options:     modelFormOptions(agent.Catalog.Models),
+		})
+	}
+	if agent.Catalog.SupportsThinking && len(agent.Catalog.ThinkingLevels) > 0 {
+		@shared.SelectField(shared.SelectFieldProps{
+			Label:       msgThinking.T(ctx),
+			Name:        "agent_thinking",
+			Value:       agent.SelectedThinking,
+			Placeholder: thinkingPlaceholder(ctx, agent.Catalog.DefaultThinking),
+			Options:     thinkingFormOptions(ctx, agent.Catalog.ThinkingLevels),
+		})
+	}
+	if agent.Catalog.SupportsProfiles && len(agent.Catalog.Profiles) > 0 {
+		@shared.SelectField(shared.SelectFieldProps{
+			Label:       msgProfile.T(ctx),
+			Name:        "agent_profile",
+			Value:       agent.SelectedProfile,
+			Placeholder: profilePlaceholder(ctx, agent.Catalog.DefaultProfile),
+			Options:     profileFormOptions(agent.Catalog.Profiles),
+		})
+	}
+}
+
+// LimitFields are the optional RAM and CPU caps of a task behind an "Advanced options" toggle.
+templ LimitFields(id string, advanced bool, memory string, cpu string) {
+	@AdvancedOptions(id, "", advanced, memory, cpu, state.AgentFormState{})
 }
 
 // CreateTaskDialog is the create dialog: workspace, base branch, title, prompt, images, priority, the advanced
@@ -119,7 +177,7 @@ templ CreateTaskDialog(form state.CreateForm) {
 			@shared.TextArea(shared.FieldProps{Label: msgPrompt.T(ctx), Name: "prompt", Value: form.Prompt, Placeholder: msgPromptHint.T(ctx), Required: true, Large: true, Attrs: templ.Attributes{"data-image-paste": ""}})
 			@ImagePicker()
 			@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
-			@LimitFields(state.Scoped("board-advanced-limits", form.Scope), form.ShowAdvanced, form.MemoryLimit, form.CPULimit)
+			@AdvancedOptions(state.Scoped("board-advanced-limits", form.Scope), form.Scope, form.ShowAdvanced, form.MemoryLimit, form.CPULimit, form.Agent)
 			if form.LinkKind == "" {
 				<label class="row min-h-10 items-center gap-2 text-sm text-fg">
 					<input type="checkbox" name="start_now" value="on" class="h-5 w-5" checked?={ form.StartNow }/>
@@ -147,7 +205,7 @@ templ TaskEditFields(form state.EditForm) {
 	@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
 	@BranchSelect(state.Scoped("task-edit-branch", form.Scope), state.BranchChoices(form.Branches, form.BaseBranch), form.BaseBranch, form.DefaultBranch)
 	@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
-	@LimitFields(state.Scoped("task-edit-advanced-limits", form.Scope), form.ShowAdvanced, form.MemoryLimit, form.CPULimit)
+	@AdvancedOptions(state.Scoped("task-edit-advanced-limits", form.Scope), form.Scope, form.ShowAdvanced, form.MemoryLimit, form.CPULimit, form.Agent)
 	@shared.TextArea(shared.FieldProps{Label: msgPrompt.T(ctx), Name: "prompt", Value: form.Prompt, Placeholder: msgPromptHint.T(ctx), Required: true, Large: true, Attrs: templ.Attributes{"data-image-paste": ""}})
 	@ExistingAttachments(form.Existing)
 	@ImagePicker()
@@ -179,4 +237,78 @@ templ NotEditable() {
 // EditTitle is the title of the edit tab.
 func EditTitle(ctx context.Context) string {
 	return msgEditTask.T(ctx)
+}
+
+func agentDefaultLabel(ctx context.Context, defaultRuntime string) string {
+	if defaultRuntime != "" {
+		return msgDefaultRuntime.Fmt(ctx, map[string]string{"runtime": defaultRuntime})
+	}
+	return msgDefault.T(ctx)
+}
+
+func modelPlaceholder(ctx context.Context, defaultModel string) string {
+	if defaultModel != "" {
+		return msgDefault.T(ctx) + " (" + defaultModel + ")"
+	}
+	return msgDefault.T(ctx)
+}
+
+func thinkingPlaceholder(ctx context.Context, defaultThinking string) string {
+	if defaultThinking != "" {
+		return msgDefault.T(ctx) + " (" + thinkingLabel(ctx, defaultThinking) + ")"
+	}
+	return msgDefault.T(ctx)
+}
+
+func profilePlaceholder(ctx context.Context, defaultProfile string) string {
+	if defaultProfile != "" {
+		return msgDefault.T(ctx) + " (" + defaultProfile + ")"
+	}
+	return msgDefault.T(ctx)
+}
+
+func modelFormOptions(models []outbound.AgentModelOption) []shared.FormOption {
+	options := make([]shared.FormOption, 0, len(models))
+	for _, m := range models {
+		val := m.Model
+		label := m.Model
+		if m.Provider != "" {
+			val = m.Provider + "/" + m.Model
+			label = m.Provider + "/" + m.Model
+		}
+		options = append(options, shared.FormOption{Value: val, Label: label})
+	}
+	return options
+}
+
+func thinkingFormOptions(ctx context.Context, levels []string) []shared.FormOption {
+	options := make([]shared.FormOption, 0, len(levels))
+	for _, id := range levels {
+		options = append(options, shared.FormOption{Value: id, Label: thinkingLabel(ctx, id)})
+	}
+	return options
+}
+
+func profileFormOptions(profiles []string) []shared.FormOption {
+	options := make([]shared.FormOption, 0, len(profiles))
+	for _, p := range profiles {
+		options = append(options, shared.FormOption{Value: p, Label: p})
+	}
+	return options
+}
+
+func thinkingLabel(ctx context.Context, id string) string {
+	labels := map[string]i18n.Msg{
+		"off":     msgThinkingOff,
+		"minimal": msgThinkingMinimal,
+		"low":     msgThinkingLow,
+		"medium":  msgThinkingMedium,
+		"high":    msgThinkingHigh,
+		"xhigh":   msgThinkingXHigh,
+		"max":     msgThinkingMax,
+	}
+	if label, known := labels[id]; known {
+		return label.T(ctx)
+	}
+	return id
 }

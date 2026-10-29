@@ -44,6 +44,10 @@ type TaskDTO struct {
 	Priority      string  `json:"priority"`
 	MemoryLimitMB *uint32 `json:"memory_limit_mb"`
 	CPUPercent    *uint32 `json:"cpu_limit_percent"`
+	AgentRuntime  *string `json:"agent_runtime,omitempty"`
+	AgentModel    *string `json:"agent_model,omitempty"`
+	AgentThinking *string `json:"agent_thinking,omitempty"`
+	AgentProfile  *string `json:"agent_profile,omitempty"`
 	Error         *string `json:"error"`
 	// ResumeAt is RFC 3339 in UTC: when the resume after a usage limit is retried.
 	ResumeAt       *string        `json:"resume_at"`
@@ -69,6 +73,10 @@ func TaskFromDomain(task models.Task, now time.Time) TaskDTO {
 		Priority:       task.Priority.String(),
 		MemoryLimitMB:  task.Limits.MemoryMB,
 		CPUPercent:     task.Limits.CPUPercent,
+		AgentRuntime:   agentRuntimeString(task.Agent.Runtime),
+		AgentModel:     task.Agent.ModelID,
+		AgentThinking:  task.Agent.Thinking,
+		AgentProfile:   task.Agent.Profile,
 		Error:          task.Error,
 		Actions:        actionsFor(task),
 		Stage:          StageName(task.StageAt(now)),
@@ -82,6 +90,14 @@ func TaskFromDomain(task models.Task, now time.Time) TaskDTO {
 		dto.ResumeAt = &resumeAt
 	}
 	return dto
+}
+
+func agentRuntimeString(r *models.RuntimeID) *string {
+	if r == nil {
+		return nil
+	}
+	s := r.String()
+	return &s
 }
 
 // actionsFor derives the offered actions from the status rules of the domain.

@@ -83,27 +83,32 @@ type JiraLaneIssue struct {
 }
 
 type Task struct {
-	ID               string
-	WorkspaceID      string
-	Title            string
-	Prompt           string
-	Branch           string
-	BaseBranch       string
-	WorktreePath     string
-	Status           string
-	Error            *string
-	CreatedAt        string
-	UpdatedAt        string
-	PendingDialogs   string
-	SubagentsActive  int64
-	SubagentsWaiting int64
-	Priority         string
-	BaseSha          *string
-	HeadSha          *string
-	MemoryLimitMb    *int64
-	CpuLimitPercent  *int64
-	ResumeAt         *string
-	ResumeAttempts   int64
+	ID                 string
+	WorkspaceID        string
+	Title              string
+	Prompt             string
+	Branch             string
+	BaseBranch         string
+	WorktreePath       string
+	Status             string
+	Error              *string
+	CreatedAt          string
+	UpdatedAt          string
+	PendingDialogs     string
+	SubagentsActive    int64
+	SubagentsWaiting   int64
+	Priority           string
+	BaseSha            *string
+	HeadSha            *string
+	MemoryLimitMb      *int64
+	CpuLimitPercent    *int64
+	ResumeAt           *string
+	ResumeAttempts     int64
+	AgentRuntime       *string
+	AgentModelProvider *string
+	AgentModelID       *string
+	AgentThinking      *string
+	AgentProfile       *string
 }
 
 type TaskAttachment struct {

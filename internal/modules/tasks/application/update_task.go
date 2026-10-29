@@ -18,6 +18,7 @@ type UpdateInput struct {
 	Prompt     string
 	Priority   models.TaskPriority
 	Limits     models.ResourceLimits
+	Agent      models.TaskAgentOptions
 	BaseBranch *string
 	Images     []models.ImageAttachment
 	RemoveIDs  []string
@@ -52,6 +53,7 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 		Prompt:      input.Prompt,
 		Priority:    input.Priority,
 		Limits:      input.Limits,
+		Agent:       input.Agent,
 		BaseBranch:  input.BaseBranch,
 	}.Validated()
 	if err != nil {
@@ -88,7 +90,7 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 			return models.Task{}, werrors.InvalidAttachment(fmt.Sprintf("máximo %d imágenes por tarea", models.MaxImagesPerMessage))
 		}
 	}
-	updated, err := u.lifecycle.Repository().UpdateDetailsIfBacklog(ctx, id, validated.Title, validated.Prompt, validated.Priority, validated.Limits, baseBranch)
+	updated, err := u.lifecycle.Repository().UpdateDetailsIfBacklog(ctx, id, validated.Title, validated.Prompt, validated.Priority, validated.Limits, baseBranch, validated.Agent)
 	if err != nil {
 		return models.Task{}, err
 	}
@@ -112,6 +114,7 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 	task.Prompt = validated.Prompt
 	task.Priority = validated.Priority
 	task.Limits = validated.Limits
+	task.Agent = validated.Agent
 	task.BaseBranch = baseBranch
 	return task, nil
 }

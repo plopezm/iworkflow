@@ -26,4 +26,17 @@ var (
 	msgEdit              = i18n.Msg{En: "Edit", Es: "Editar", Zh: "编辑", De: "Bearbeiten", Fr: "Modifier"}
 	msgDelete            = i18n.Msg{En: "Delete", Es: "Borrar", Zh: "删除", De: "Löschen", Fr: "Supprimer"}
 	msgConfirmDelete     = i18n.Msg{En: "Delete this task from the pending list?", Es: "¿Borrar esta tarea de la lista de pendientes?", Zh: "要从待办列表中删除此任务吗？", De: "Diese Aufgabe aus der Liste der offenen Aufgaben löschen?", Fr: "Supprimer cette tâche de la liste des tâches en attente ?"}
+	msgAgent             = i18n.Msg{En: "Agent", Es: "Agente", Zh: "智能体", De: "Agent", Fr: "Agent"}
+	msgModel             = i18n.Msg{En: "Model", Es: "Modelo", Zh: "模型", De: "Modell", Fr: "Modèle"}
+	msgThinking          = i18n.Msg{En: "Reasoning effort", Es: "Esfuerzo de razonamiento", Zh: "推理级别", De: "Denkaufwand", Fr: "Effort de réflexion"}
+	msgProfile           = i18n.Msg{En: "Profile", Es: "Perfil", Zh: "配置文件", De: "Profil", Fr: "Profil"}
+	msgDefault           = i18n.Msg{En: "Default", Es: "Por defecto", Zh: "默认", De: "Standard", Fr: "Par défaut"}
+	msgDefaultRuntime    = i18n.Msg{En: "Default ({runtime})", Es: "Por defecto ({runtime})", Zh: "默认（{runtime}）", De: "Standard ({runtime})", Fr: "Par défaut ({runtime})"}
+	msgThinkingOff       = i18n.Msg{En: "off", Es: "desactivado", Zh: "关闭", De: "aus", Fr: "désactivé"}
+	msgThinkingMinimal   = i18n.Msg{En: "minimal", Es: "mínimo", Zh: "极低", De: "minimal", Fr: "minimal"}
+	msgThinkingLow       = i18n.Msg{En: "low", Es: "bajo", Zh: "低", De: "niedrig", Fr: "bas"}
+	msgThinkingMedium    = i18n.Msg{En: "medium", Es: "medio", Zh: "中", De: "mittel", Fr: "moyen"}
+	msgThinkingHigh      = i18n.Msg{En: "high", Es: "alto", Zh: "高", De: "hoch", Fr: "élevé"}
+	msgThinkingXHigh     = i18n.Msg{En: "xhigh", Es: "muy alto", Zh: "超高", De: "sehr hoch", Fr: "très élevé"}
+	msgThinkingMax       = i18n.Msg{En: "max", Es: "máximo", Zh: "最大", De: "maximal", Fr: "maximal"}
 )

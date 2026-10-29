@@ -52,6 +52,14 @@ type OptionSelectProps struct {
 	Attrs templ.Attributes
 }
 
+// optionSelectClass returns "select-pill" with extra classes when specified, avoiding trailing whitespace.
+func optionSelectClass(class string) string {
+	if class != "" {
+		return "select-pill " + class
+	}
+	return "select-pill"
+}
+
 // currentLabel is the text of the selected option, or DefaultLabel when none matches.
 func currentLabel(p OptionSelectProps) string {
 	for _, option := range p.Options {

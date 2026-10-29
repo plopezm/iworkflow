@@ -129,9 +129,14 @@ func New(deps Deps) (*App, error) {
 			CursorSessionsDir: deps.Config.CursorSessionsDir,
 		},
 		LaunchSettings: &launchSettings{prepareLaunch: settings.PrepareLaunch},
-		Remote:         &remoteMergeBridge{inner: remoteMerge},
-		FileSearch:     fileSearch.Files,
-		Panels:         panels,
+		AgentCatalog: &agentCatalogBridge{
+			getSettings:  settings.GetAgentSettings,
+			modelCatalog: settings.ModelCatalog,
+			listProfiles: settings.ListProfiles,
+		},
+		Remote:     &remoteMergeBridge{inner: remoteMerge},
+		FileSearch: fileSearch.Files,
+		Panels:     panels,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose tasks: %w", err)

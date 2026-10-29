@@ -39,6 +39,26 @@ sql:
             go_type:
               type: "int64"
               pointer: true
+          - column: "tasks.agent_runtime"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_model_provider"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_model_id"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_thinking"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_profile"
+            go_type:
+              type: "string"
+              pointer: true
           - column: "task_events.created_at"
             go_type: "string"
           - column: "task_attachments.created_at"

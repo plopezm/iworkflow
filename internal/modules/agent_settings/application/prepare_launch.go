@@ -21,19 +21,45 @@ func NewPrepareLaunch(repository outbound.AgentSettingsRepositoryPort, pin outbo
 
 // Execute prepares the launch of a task whose worktree is repoDir.
 func (u *PrepareLaunch) Execute(ctx context.Context, repoDir string) (models.LaunchPreferences, error) {
+	return u.ExecuteWithOverrides(ctx, repoDir, models.LaunchOverrides{})
+}
+
+// ExecuteWithOverrides prepares the launch of a task whose worktree is repoDir with task-specific overrides.
+func (u *PrepareLaunch) ExecuteWithOverrides(ctx context.Context, repoDir string, overrides models.LaunchOverrides) (models.LaunchPreferences, error) {
 	settings, err := u.repository.Get(ctx)
 	if err != nil {
 		return models.LaunchPreferences{}, err //nolint:wrapcheck // port errors are domain errors; passed unchanged
 	}
-	runtime := models.RuntimeOrDefault(settings.Runtime)
-	// pi loads the gentle-pi extension, which reads the pin the same way gentle-shell does.
-	if err := u.pin.Apply(ctx, repoDir, settings.Profile); err != nil {
+	runtime := settings.Runtime
+	if overrides.Runtime != nil {
+		runtime = overrides.Runtime
+	}
+	effectiveRuntime := models.RuntimeOrDefault(runtime)
+
+	profile := settings.Profile
+	if overrides.Profile != nil {
+		profile = overrides.Profile
+	}
+	if err := u.pin.Apply(ctx, repoDir, profile); err != nil {
 		return models.LaunchPreferences{}, err //nolint:wrapcheck // port errors are domain errors; passed unchanged
 	}
+
+	model := settings.Model
+	if overrides.Model != nil {
+		model = overrides.Model
+	} else if overrides.Runtime != nil && settings.Runtime != nil && *overrides.Runtime != *settings.Runtime {
+		model = nil
+	}
+
+	thinking := settings.Thinking
+	if overrides.Thinking != nil {
+		thinking = overrides.Thinking
+	}
+
 	return models.LaunchPreferences{
-		Runtime:         settings.Runtime,
-		Model:           settings.Model,
-		Thinking:        effectiveThinking(settings.Thinking, runtime),
+		Runtime:         runtime,
+		Model:           model,
+		Thinking:        effectiveThinking(thinking, effectiveRuntime),
 		MemoryLimitMB:   settings.MemoryLimitMB,
 		CPULimitPercent: settings.CPULimitPercent,
 		LimitsDisabled:  settings.LimitsDisabled,

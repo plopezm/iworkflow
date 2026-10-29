@@ -87,6 +87,7 @@ func (u *CreateTask) Execute(ctx context.Context, input models.NewTask) (models.
 		Status:    models.StatusBacklog,
 		Priority:  validated.Priority,
 		Limits:    validated.Limits,
+		Agent:     validated.Agent,
 		CreatedAt: now,
 		UpdatedAt: now,
 	}

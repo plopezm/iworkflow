@@ -11,3 +11,11 @@ type LaunchPreferences struct {
 	CPULimitPercent *uint32
 	LimitsDisabled  bool
 }
+
+// LaunchOverrides are task-specific overrides for one launch.
+type LaunchOverrides struct {
+	Runtime  *AgentRuntime
+	Model    *ModelRef
+	Thinking *ThinkingLevel
+	Profile  *ProfileName
+}

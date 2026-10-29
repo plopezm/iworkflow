@@ -25,9 +25,9 @@ type TaskRepository interface {
 	// UpdateStatus sets the status and its error text. Leaving RateLimited clears resume_at; a status
 	// without a live agent clears the subagent counters. A missing task is NotFound.
 	UpdateStatus(ctx context.Context, id models.TaskID, status models.TaskStatus, errorText *string) error
-	// UpdateDetailsIfBacklog changes title, prompt, priority, limits and base branch only while the
+	// UpdateDetailsIfBacklog changes title, prompt, priority, limits, base branch and agent options only while the
 	// task is in backlog. It returns false, changing nothing, when the task is missing or left backlog.
-	UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string) (bool, error)
+	UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions) (bool, error)
 	// ClaimForStart atomically moves a backlog task to starting and fixes its plan (branch, worktree
 	// path and base branch) in one conditional update. It returns false, changing nothing, when the
 	// task is missing or left backlog, so two concurrent starts cannot claim the same task.

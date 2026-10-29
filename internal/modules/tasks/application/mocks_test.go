@@ -171,7 +171,7 @@ func (r *fakeRepository) RevertStartClaim(_ context.Context, id models.TaskID) (
 	return true, nil
 }
 
-func (r *fakeRepository) UpdateDetailsIfBacklog(_ context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string) (bool, error) {
+func (r *fakeRepository) UpdateDetailsIfBacklog(_ context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions) (bool, error) {
 	if r.detailsResult != nil {
 		return *r.detailsResult, nil
 	}
@@ -179,7 +179,7 @@ func (r *fakeRepository) UpdateDetailsIfBacklog(_ context.Context, id models.Tas
 	if !ok || task.Status != models.StatusBacklog {
 		return false, nil
 	}
-	task.Title, task.Prompt, task.Priority, task.Limits, task.BaseBranch = title, prompt, priority, limits, baseBranch
+	task.Title, task.Prompt, task.Priority, task.Limits, task.BaseBranch, task.Agent = title, prompt, priority, limits, baseBranch, agent
 	r.tasks[id] = task
 	return true, nil
 }

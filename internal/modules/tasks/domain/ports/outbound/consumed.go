@@ -16,9 +16,9 @@ type WorkspaceLookup interface {
 }
 
 // LaunchSettings resolves the launch options (orchestrator model) for a launch in cwd, from the global
-// settings of the agent_settings module. Consumer-side: implemented in the composition root.
+// settings of the agent_settings module and optional task-specific overrides. Consumer-side: implemented in the composition root.
 type LaunchSettings interface {
-	Prepare(ctx context.Context, cwd string) (models.LaunchOptions, error)
+	Prepare(ctx context.Context, cwd string, agent models.TaskAgentOptions) (models.LaunchOptions, error)
 }
 
 // TaskEventPublisher broadcasts task events to the live observers. Publishing does not fail.

@@ -72,6 +72,7 @@ type CreateForm struct {
 	Branches      []dto.BranchOptionDTO
 	MemoryLimit   string
 	CPULimit      string
+	Agent         AgentFormState
 	ShowAdvanced  bool
 	StartNow      bool
 	LinkKind      string
