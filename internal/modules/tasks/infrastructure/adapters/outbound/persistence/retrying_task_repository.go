@@ -143,9 +143,9 @@ func (r *RetryingTaskRepository) UpdateStatus(ctx context.Context, id models.Tas
 	return retryVoid(r, ctx, "update_status", func() error { return r.inner.UpdateStatus(ctx, id, status, errorText) })
 }
 
-func (r *RetryingTaskRepository) UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string) (bool, error) {
+func (r *RetryingTaskRepository) UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions) (bool, error) {
 	return retry(r, ctx, "update_details_if_backlog", func() (bool, error) {
-		return r.inner.UpdateDetailsIfBacklog(ctx, id, title, prompt, priority, limits, baseBranch)
+		return r.inner.UpdateDetailsIfBacklog(ctx, id, title, prompt, priority, limits, baseBranch, agent)
 	})
 }
 

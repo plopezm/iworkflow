@@ -84,7 +84,8 @@ func (q *Queries) DeleteTasksByWorkspace(ctx context.Context, workspaceID string
 const getTaskByID = `-- name: GetTaskByID :one
 SELECT id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, error,
        created_at, updated_at, pending_dialogs, subagents_active, subagents_waiting, priority,
-       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts
+       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts,
+       agent_runtime, agent_model_provider, agent_model_id, agent_thinking, agent_profile
 FROM tasks
 WHERE id = ?1
 `
@@ -114,6 +115,11 @@ func (q *Queries) GetTaskByID(ctx context.Context, id string) (Task, error) {
 		&i.CpuLimitPercent,
 		&i.ResumeAt,
 		&i.ResumeAttempts,
+		&i.AgentRuntime,
+		&i.AgentModelProvider,
+		&i.AgentModelID,
+		&i.AgentThinking,
+		&i.AgentProfile,
 	)
 	return i, err
 }
@@ -122,39 +128,47 @@ const insertTask = `-- name: InsertTask :exec
 INSERT INTO tasks (
     id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, error,
     created_at, updated_at, pending_dialogs, subagents_active, subagents_waiting, priority,
-    base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts
+    base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts,
+    agent_runtime, agent_model_provider, agent_model_id, agent_thinking, agent_profile
 ) VALUES (
     ?1, ?2, ?3, ?4, ?5,
     ?6, ?7, ?8, ?9,
     ?10, ?11, ?12,
     ?13, ?14, ?15,
     ?16, ?17, ?18, ?19,
-    ?20, ?21
+    ?20, ?21,
+    ?22, ?23, ?24,
+    ?25, ?26
 )
 `
 
 type InsertTaskParams struct {
-	ID               string
-	WorkspaceID      string
-	Title            string
-	Prompt           string
-	Branch           string
-	BaseBranch       string
-	WorktreePath     string
-	Status           string
-	Error            *string
-	CreatedAt        string
-	UpdatedAt        string
-	PendingDialogs   string
-	SubagentsActive  int64
-	SubagentsWaiting int64
-	Priority         string
-	BaseSha          *string
-	HeadSha          *string
-	MemoryLimitMb    *int64
-	CpuLimitPercent  *int64
-	ResumeAt         *string
-	ResumeAttempts   int64
+	ID                 string
+	WorkspaceID        string
+	Title              string
+	Prompt             string
+	Branch             string
+	BaseBranch         string
+	WorktreePath       string
+	Status             string
+	Error              *string
+	CreatedAt          string
+	UpdatedAt          string
+	PendingDialogs     string
+	SubagentsActive    int64
+	SubagentsWaiting   int64
+	Priority           string
+	BaseSha            *string
+	HeadSha            *string
+	MemoryLimitMb      *int64
+	CpuLimitPercent    *int64
+	ResumeAt           *string
+	ResumeAttempts     int64
+	AgentRuntime       *string
+	AgentModelProvider *string
+	AgentModelID       *string
+	AgentThinking      *string
+	AgentProfile       *string
 }
 
 func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
@@ -180,6 +194,11 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 		arg.CpuLimitPercent,
 		arg.ResumeAt,
 		arg.ResumeAttempts,
+		arg.AgentRuntime,
+		arg.AgentModelProvider,
+		arg.AgentModelID,
+		arg.AgentThinking,
+		arg.AgentProfile,
 	)
 	return err
 }
@@ -187,7 +206,8 @@ func (q *Queries) InsertTask(ctx context.Context, arg InsertTaskParams) error {
 const listActiveTasks = `-- name: ListActiveTasks :many
 SELECT id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, error,
        created_at, updated_at, pending_dialogs, subagents_active, subagents_waiting, priority,
-       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts
+       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts,
+       agent_runtime, agent_model_provider, agent_model_id, agent_thinking, agent_profile
 FROM tasks
 WHERE status NOT IN (SELECT value FROM json_each(?1))
   AND (?2 IS NULL OR workspace_id = ?2)
@@ -230,6 +250,11 @@ func (q *Queries) ListActiveTasks(ctx context.Context, arg ListActiveTasksParams
 			&i.CpuLimitPercent,
 			&i.ResumeAt,
 			&i.ResumeAttempts,
+			&i.AgentRuntime,
+			&i.AgentModelProvider,
+			&i.AgentModelID,
+			&i.AgentThinking,
+			&i.AgentProfile,
 		); err != nil {
 			return nil, err
 		}
@@ -247,7 +272,8 @@ func (q *Queries) ListActiveTasks(ctx context.Context, arg ListActiveTasksParams
 const listDoneTasksPage = `-- name: ListDoneTasksPage :many
 SELECT id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, error,
        created_at, updated_at, pending_dialogs, subagents_active, subagents_waiting, priority,
-       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts
+       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts,
+       agent_runtime, agent_model_provider, agent_model_id, agent_thinking, agent_profile
 FROM tasks
 WHERE status IN (SELECT value FROM json_each(?1))
   AND (?2 IS NULL OR workspace_id = ?2)
@@ -298,6 +324,11 @@ func (q *Queries) ListDoneTasksPage(ctx context.Context, arg ListDoneTasksPagePa
 			&i.CpuLimitPercent,
 			&i.ResumeAt,
 			&i.ResumeAttempts,
+			&i.AgentRuntime,
+			&i.AgentModelProvider,
+			&i.AgentModelID,
+			&i.AgentThinking,
+			&i.AgentProfile,
 		); err != nil {
 			return nil, err
 		}
@@ -347,7 +378,8 @@ func (q *Queries) ListTaskIDStatusesByWorkspace(ctx context.Context, workspaceID
 const listTasks = `-- name: ListTasks :many
 SELECT id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, error,
        created_at, updated_at, pending_dialogs, subagents_active, subagents_waiting, priority,
-       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts
+       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts,
+       agent_runtime, agent_model_provider, agent_model_id, agent_thinking, agent_profile
 FROM tasks
 WHERE (?1 IS NULL OR workspace_id = ?1)
 ORDER BY created_at DESC
@@ -384,6 +416,11 @@ func (q *Queries) ListTasks(ctx context.Context, workspaceID interface{}) ([]Tas
 			&i.CpuLimitPercent,
 			&i.ResumeAt,
 			&i.ResumeAttempts,
+			&i.AgentRuntime,
+			&i.AgentModelProvider,
+			&i.AgentModelID,
+			&i.AgentThinking,
+			&i.AgentProfile,
 		); err != nil {
 			return nil, err
 		}
@@ -401,7 +438,8 @@ func (q *Queries) ListTasks(ctx context.Context, workspaceID interface{}) ([]Tas
 const listTasksByStatus = `-- name: ListTasksByStatus :many
 SELECT id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, error,
        created_at, updated_at, pending_dialogs, subagents_active, subagents_waiting, priority,
-       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts
+       base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts,
+       agent_runtime, agent_model_provider, agent_model_id, agent_thinking, agent_profile
 FROM tasks
 WHERE status IN (SELECT value FROM json_each(?1))
 `
@@ -437,6 +475,11 @@ func (q *Queries) ListTasksByStatus(ctx context.Context, statuses interface{}) (
 			&i.CpuLimitPercent,
 			&i.ResumeAt,
 			&i.ResumeAttempts,
+			&i.AgentRuntime,
+			&i.AgentModelProvider,
+			&i.AgentModelID,
+			&i.AgentThinking,
+			&i.AgentProfile,
 		); err != nil {
 			return nil, err
 		}
@@ -566,20 +609,30 @@ SET title = ?1,
     base_branch = ?4,
     memory_limit_mb = ?5,
     cpu_limit_percent = ?6,
-    updated_at = ?7
-WHERE id = ?8
+    agent_runtime = ?7,
+    agent_model_provider = ?8,
+    agent_model_id = ?9,
+    agent_thinking = ?10,
+    agent_profile = ?11,
+    updated_at = ?12
+WHERE id = ?13
   AND status = 'backlog'
 `
 
 type UpdateTaskDetailsIfBacklogParams struct {
-	Title           string
-	Prompt          string
-	Priority        string
-	BaseBranch      string
-	MemoryLimitMb   *int64
-	CpuLimitPercent *int64
-	UpdatedAt       string
-	ID              string
+	Title              string
+	Prompt             string
+	Priority           string
+	BaseBranch         string
+	MemoryLimitMb      *int64
+	CpuLimitPercent    *int64
+	AgentRuntime       *string
+	AgentModelProvider *string
+	AgentModelID       *string
+	AgentThinking      *string
+	AgentProfile       *string
+	UpdatedAt          string
+	ID                 string
 }
 
 func (q *Queries) UpdateTaskDetailsIfBacklog(ctx context.Context, arg UpdateTaskDetailsIfBacklogParams) (int64, error) {
@@ -590,6 +643,11 @@ func (q *Queries) UpdateTaskDetailsIfBacklog(ctx context.Context, arg UpdateTask
 		arg.BaseBranch,
 		arg.MemoryLimitMb,
 		arg.CpuLimitPercent,
+		arg.AgentRuntime,
+		arg.AgentModelProvider,
+		arg.AgentModelID,
+		arg.AgentThinking,
+		arg.AgentProfile,
 		arg.UpdatedAt,
 		arg.ID,
 	)

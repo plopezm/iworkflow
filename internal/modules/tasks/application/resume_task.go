@@ -64,7 +64,7 @@ func (u *ResumeTask) Execute(ctx context.Context, id models.TaskID) error {
 	if !u.worktrees.Exists(ctx, task.WorktreePath) {
 		return werrors.WorktreeMissing(task.WorktreePath)
 	}
-	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath)
+	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, task.Agent)
 	if err != nil {
 		return err
 	}

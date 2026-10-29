@@ -77,6 +77,8 @@ type Deps struct {
 	// Panels are the project views (tree, changes, file) the Files and Changes tabs of a task embed. Optional: nil
 	// makes those tabs answer that they are not available.
 	Panels httpinbound.ProjectPanels
+	// AgentCatalog queries the available agent runtimes, models, thinking levels and profiles for forms. Optional.
+	AgentCatalog outbound.AgentCatalogPort
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -228,6 +230,7 @@ func NewModule(deps Deps) (*Module, error) {
 		GetGraph:        getGraph,
 		SetPosition:     setPosition,
 		DetachFromGraph: detachFromGraph,
+		AgentCatalog:    deps.AgentCatalog,
 	}, clock)
 	abortTask := application.NewAbortTask(lifecycle, agentRuntime)
 	finishTask := application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup)

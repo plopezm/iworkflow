@@ -248,16 +248,26 @@ func (r *TaskRepository) RecordDiffRange(ctx context.Context, id models.TaskID, 
 }
 
 // UpdateDetailsIfBacklog changes the editable fields only while the task is in backlog.
-func (r *TaskRepository) UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string) (bool, error) {
+func (r *TaskRepository) UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions) (bool, error) {
+	var runtime *string
+	if agent.Runtime != nil {
+		s := agent.Runtime.String()
+		runtime = &s
+	}
 	updated, err := r.queries.UpdateTaskDetailsIfBacklog(ctx, gen.UpdateTaskDetailsIfBacklogParams{
-		Title:           title,
-		Prompt:          prompt,
-		Priority:        priority.String(),
-		BaseBranch:      baseBranch,
-		MemoryLimitMb:   limitToColumn(limits.MemoryMB),
-		CpuLimitPercent: limitToColumn(limits.CPUPercent),
-		UpdatedAt:       formatTimestamp(r.clock()),
-		ID:              id.String(),
+		Title:              title,
+		Prompt:             prompt,
+		Priority:           priority.String(),
+		BaseBranch:         baseBranch,
+		MemoryLimitMb:      limitToColumn(limits.MemoryMB),
+		CpuLimitPercent:    limitToColumn(limits.CPUPercent),
+		AgentRuntime:       runtime,
+		AgentModelProvider: agent.ModelProvider,
+		AgentModelID:       agent.ModelID,
+		AgentThinking:      agent.Thinking,
+		AgentProfile:       agent.Profile,
+		UpdatedAt:          formatTimestamp(r.clock()),
+		ID:                 id.String(),
 	})
 	if err != nil {
 		return false, dbError(err)

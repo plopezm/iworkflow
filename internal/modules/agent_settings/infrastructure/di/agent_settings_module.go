@@ -12,6 +12,7 @@ import (
 	"iworkflow/internal/core/dock"
 	"iworkflow/internal/modules/agent_settings/application"
 	"iworkflow/internal/modules/agent_settings/domain/models"
+	outbound "iworkflow/internal/modules/agent_settings/domain/ports/outbound"
 	"iworkflow/internal/modules/agent_settings/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/agent_settings/infrastructure/adapters/outbound/cli"
 	"iworkflow/internal/modules/agent_settings/infrastructure/adapters/outbound/git"
@@ -40,6 +41,7 @@ type Module struct {
 	UpdateAgentSettings *application.UpdateAgentSettings
 	// PrepareLaunch is consumed by other modules (the tasks launch) through the composition root.
 	PrepareLaunch *application.PrepareLaunch
+	ModelCatalog  outbound.ModelCatalogPort
 
 	handlers *inbound.Handlers
 }
@@ -80,6 +82,7 @@ func NewModule(deps Dependencies) *Module {
 		ListProfiles:        listProfiles,
 		UpdateAgentSettings: update,
 		PrepareLaunch:       application.NewPrepareLaunch(repository, pin),
+		ModelCatalog:        modelCatalog,
 		handlers:            inbound.NewHandlers(getSettings, update, listModels, listProfiles),
 	}
 }

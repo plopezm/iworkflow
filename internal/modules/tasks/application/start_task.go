@@ -156,7 +156,7 @@ func (u *StartTask) abandonClaim(ctx context.Context, id models.TaskID, createEr
 // launch prepares the launch options, starts the agent in the worktree and sends it the initial prompt. The images
 // are read before the agent starts, so a missing file never leaves a running agent without its prompt.
 func (u *StartTask) launch(ctx context.Context, task models.Task) error {
-	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath)
+	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, task.Agent)
 	if err != nil {
 		return err
 	}

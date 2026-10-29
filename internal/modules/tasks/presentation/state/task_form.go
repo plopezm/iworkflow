@@ -1,6 +1,9 @@
 package state
 
-import "iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+import (
+	"iworkflow/internal/modules/tasks/domain/ports/outbound"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+)
 
 // BranchChoice is one option of the base branch select.
 type BranchChoice struct {
@@ -29,6 +32,15 @@ func HasAdvancedLimits(memory string, cpu string) bool {
 	return memory != "" || cpu != ""
 }
 
+// AgentFormState holds the selected values and catalog metadata for task forms.
+type AgentFormState struct {
+	Catalog          outbound.AgentCatalogInfo
+	SelectedRuntime  string
+	SelectedModel    string
+	SelectedThinking string
+	SelectedProfile  string
+}
+
 // EditForm is the state of the edit page of a backlog task: what it shows and the error to show.
 type EditForm struct {
 	// Scope names the elements of the edit page instance (see Scoped).
@@ -44,6 +56,7 @@ type EditForm struct {
 	Branches      []dto.BranchOptionDTO
 	MemoryLimit   string
 	CPULimit      string
+	Agent         AgentFormState
 	ShowAdvanced  bool
 	Existing      []dto.TaskAttachmentDTO
 	Error         string

@@ -101,7 +101,7 @@ func TestUpdatesDetailsOnlyWhileInBacklog(t *testing.T) {
 	insertTask(t, repo, backlog)
 	limits := models.ResourceLimits{MemoryMB: ptr(uint32(512)), CPUPercent: ptr(uint32(150))}
 
-	updated, err := repo.Tasks.UpdateDetailsIfBacklog(bg(), backlog.ID, "nuevo", "prompt", models.PriorityUrgent, limits, "develop")
+	updated, err := repo.Tasks.UpdateDetailsIfBacklog(bg(), backlog.ID, "nuevo", "prompt", models.PriorityUrgent, limits, "develop", models.TaskAgentOptions{})
 	require.NoError(t, err)
 	assert.True(t, updated)
 	got := found(t, repo, backlog.ID)
@@ -112,12 +112,12 @@ func TestUpdatesDetailsOnlyWhileInBacklog(t *testing.T) {
 
 	running := newTask(t, workspaceID, "dos", models.StatusRunning)
 	insertTask(t, repo, running)
-	updated, err = repo.Tasks.UpdateDetailsIfBacklog(bg(), running.ID, "x", "y", models.PriorityLow, models.ResourceLimits{}, "main")
+	updated, err = repo.Tasks.UpdateDetailsIfBacklog(bg(), running.ID, "x", "y", models.PriorityLow, models.ResourceLimits{}, "main", models.TaskAgentOptions{})
 	require.NoError(t, err)
 	assert.False(t, updated)
 	assert.Equal(t, "dos", found(t, repo, running.ID).Title)
 
-	updated, err = repo.Tasks.UpdateDetailsIfBacklog(bg(), newTaskID(t), "x", "y", models.PriorityLow, models.ResourceLimits{}, "main")
+	updated, err = repo.Tasks.UpdateDetailsIfBacklog(bg(), newTaskID(t), "x", "y", models.PriorityLow, models.ResourceLimits{}, "main", models.TaskAgentOptions{})
 	require.NoError(t, err)
 	assert.False(t, updated)
 }
@@ -664,7 +664,7 @@ func TestLimitsPersistOnInsertAndUpdate(t *testing.T) {
 	insertTask(t, repo, task)
 	assert.Equal(t, task.Limits, found(t, repo, task.ID).Limits)
 
-	updated, err := repo.Tasks.UpdateDetailsIfBacklog(bg(), task.ID, "uno", "p", models.DefaultTaskPriority, models.ResourceLimits{CPUPercent: ptr(uint32(200))}, "main")
+	updated, err := repo.Tasks.UpdateDetailsIfBacklog(bg(), task.ID, "uno", "p", models.DefaultTaskPriority, models.ResourceLimits{CPUPercent: ptr(uint32(200))}, "main", models.TaskAgentOptions{})
 	require.NoError(t, err)
 	require.True(t, updated)
 	assert.Equal(t, models.ResourceLimits{CPUPercent: ptr(uint32(200))}, found(t, repo, task.ID).Limits)
@@ -761,4 +761,40 @@ func TestUpdatedAtIsFrozenAfterClosingSoDoneOrderIsStable(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, closedAt.Equal(found(t, repo, open.ID).UpdatedAt), "closing sets updated_at; later writes must not move it")
+}
+
+func TestTaskAgentOptionsRoundTrip(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, "/repos/a")
+	task := newTask(t, workspaceID, "agent-task", models.StatusBacklog)
+	runtimeID, err := models.ParseRuntimeID("claude")
+	require.NoError(t, err)
+	task.Agent = models.TaskAgentOptions{
+		Runtime:       &runtimeID,
+		ModelProvider: ptr("anthropic"),
+		ModelID:       ptr("sonnet"),
+		Thinking:      ptr("high"),
+		Profile:       ptr("Claude"),
+	}
+	insertTask(t, repo, task)
+
+	got := found(t, repo, task.ID)
+	assert.Equal(t, task.Agent, got.Agent)
+
+	newRuntime, err := models.ParseRuntimeID("pi")
+	require.NoError(t, err)
+	updatedAgent := models.TaskAgentOptions{
+		Runtime:       &newRuntime,
+		ModelProvider: ptr("openai"),
+		ModelID:       ptr("gpt-4o"),
+		Thinking:      ptr("medium"),
+		Profile:       ptr("Gentleman"),
+	}
+	updated, err := repo.Tasks.UpdateDetailsIfBacklog(bg(), task.ID, "updated-agent-task", "new prompt", models.PriorityHigh, task.Limits, "main", updatedAgent)
+	require.NoError(t, err)
+	require.True(t, updated)
+
+	gotUpdated := found(t, repo, task.ID)
+	assert.Equal(t, updatedAgent, gotUpdated.Agent)
 }

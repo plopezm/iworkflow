@@ -228,3 +228,79 @@ func TestParseTaskFormRejectsANonMultipartBody(t *testing.T) {
 
 	assert.Error(t, err)
 }
+
+func TestToNewTaskParsesAgentOptionsWhenAdvancedIsOpen(t *testing.T) {
+	t.Parallel()
+	form := validForm()
+	form.ShowAdvanced = true
+	form.AgentRuntime = "claude"
+	form.AgentModel = "anthropic/sonnet"
+	form.AgentThinking = "high"
+	form.AgentProfile = "Claude" // Should be ignored for claude runtime
+
+	input, _, err := form.ToNewTask()
+	require.NoError(t, err)
+	require.NotNil(t, input.Agent.Runtime)
+	assert.Equal(t, "claude", input.Agent.Runtime.String())
+	require.NotNil(t, input.Agent.ModelID)
+	assert.Equal(t, "sonnet", *input.Agent.ModelID)
+	require.NotNil(t, input.Agent.ModelProvider)
+	assert.Equal(t, "anthropic", *input.Agent.ModelProvider)
+	require.NotNil(t, input.Agent.Thinking)
+	assert.Equal(t, "high", *input.Agent.Thinking)
+	assert.Nil(t, input.Agent.Profile, "profile must be ignored for claude")
+}
+
+func TestToNewTaskIgnoresThinkingAndProfileForCursor(t *testing.T) {
+	t.Parallel()
+	form := validForm()
+	form.ShowAdvanced = true
+	form.AgentRuntime = "cursor"
+	form.AgentModel = "cursor/agent"
+	form.AgentThinking = "high"
+	form.AgentProfile = "SomeProfile"
+
+	input, _, err := form.ToNewTask()
+	require.NoError(t, err)
+	require.NotNil(t, input.Agent.Runtime)
+	assert.Equal(t, "cursor", input.Agent.Runtime.String())
+	assert.Nil(t, input.Agent.Thinking, "thinking must be ignored for cursor")
+	assert.Nil(t, input.Agent.Profile, "profile must be ignored for cursor")
+}
+
+func TestToNewTaskPreservesAllOptionsForPi(t *testing.T) {
+	t.Parallel()
+	form := validForm()
+	form.ShowAdvanced = true
+	form.AgentRuntime = "pi"
+	form.AgentModel = "openai/gpt-4o"
+	form.AgentThinking = "low"
+	form.AgentProfile = "Gentleman"
+
+	input, _, err := form.ToNewTask()
+	require.NoError(t, err)
+	require.NotNil(t, input.Agent.Runtime)
+	assert.Equal(t, "pi", input.Agent.Runtime.String())
+	require.NotNil(t, input.Agent.ModelID)
+	assert.Equal(t, "gpt-4o", *input.Agent.ModelID)
+	require.NotNil(t, input.Agent.ModelProvider)
+	assert.Equal(t, "openai", *input.Agent.ModelProvider)
+	require.NotNil(t, input.Agent.Thinking)
+	assert.Equal(t, "low", *input.Agent.Thinking)
+	require.NotNil(t, input.Agent.Profile)
+	assert.Equal(t, "Gentleman", *input.Agent.Profile)
+}
+
+func TestToNewTaskIgnoresAgentOptionsWhileAdvancedIsHidden(t *testing.T) {
+	t.Parallel()
+	form := validForm()
+	form.ShowAdvanced = false
+	form.AgentRuntime = "claude"
+	form.AgentModel = "anthropic/sonnet"
+	form.AgentThinking = "high"
+	form.AgentProfile = "Claude"
+
+	input, _, err := form.ToNewTask()
+	require.NoError(t, err)
+	assert.True(t, input.Agent.IsZero(), "agent options must be empty when advanced options are hidden")
+}

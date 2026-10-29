@@ -290,6 +290,8 @@ func TestStartTaskRejectsTaskNotInBacklog(t *testing.T) {
 func TestStartTaskPassesPreparedModelToRuntimeStart(t *testing.T) {
 	t.Parallel()
 	task := newTask(models.StatusBacklog)
+	runtimeID, _ := models.ParseRuntimeID("claude")
+	task.Agent = models.TaskAgentOptions{Runtime: &runtimeID}
 	fx := newStartFixture(task)
 	fx.settings.options = models.LaunchOptions{Model: &models.LaunchModel{Provider: "anthropic", Model: "claude-5"}}
 
@@ -300,6 +302,8 @@ func TestStartTaskPassesPreparedModelToRuntimeStart(t *testing.T) {
 	require.Len(t, fx.runtime.started, 1)
 	require.NotNil(t, fx.runtime.started[0].options.Model)
 	assert.Equal(t, models.LaunchModel{Provider: "anthropic", Model: "claude-5"}, *fx.runtime.started[0].options.Model)
+	require.Len(t, fx.settings.agents, 1)
+	assert.Equal(t, task.Agent, fx.settings.agents[0])
 }
 
 // Rust: start_task::passes_prepared_thinking_level_to_runtime_start

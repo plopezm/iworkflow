@@ -12,6 +12,8 @@ import (
 	agentprofileserrors "iworkflow/internal/modules/agent_profiles/domain/errors"
 	agentprofilesoutbound "iworkflow/internal/modules/agent_profiles/domain/ports/outbound"
 	agentsettingsapp "iworkflow/internal/modules/agent_settings/application"
+	agentsettingsmodels "iworkflow/internal/modules/agent_settings/domain/models"
+	agentsettingsoutbound "iworkflow/internal/modules/agent_settings/domain/ports/outbound"
 	agentsfileserrors "iworkflow/internal/modules/agents_files/domain/errors"
 	agentsfilesmodels "iworkflow/internal/modules/agents_files/domain/models"
 	agentsfilesoutbound "iworkflow/internal/modules/agents_files/domain/ports/outbound"
@@ -341,8 +343,36 @@ type launchSettings struct {
 var _ tasksoutbound.LaunchSettings = (*launchSettings)(nil)
 
 // Prepare returns the launch options for the folder. A failed read or an unknown runtime is an error.
-func (l *launchSettings) Prepare(ctx context.Context, cwd string) (tasksmodels.LaunchOptions, error) {
-	preferences, err := l.prepareLaunch.Execute(ctx, cwd)
+func (l *launchSettings) Prepare(ctx context.Context, cwd string, agent tasksmodels.TaskAgentOptions) (tasksmodels.LaunchOptions, error) {
+	overrides := agentsettingsmodels.LaunchOverrides{}
+	if agent.Runtime != nil {
+		rt, err := agentsettingsmodels.ParseAgentRuntime(agent.Runtime.String())
+		if err == nil {
+			overrides.Runtime = &rt
+		}
+	}
+	if agent.ModelID != nil && *agent.ModelID != "" {
+		provider := ""
+		if agent.ModelProvider != nil {
+			provider = *agent.ModelProvider
+		}
+		modelRef := agentsettingsmodels.ModelRef{Provider: provider, Model: *agent.ModelID}
+		overrides.Model = &modelRef
+	}
+	if agent.Thinking != nil && *agent.Thinking != "" {
+		thinking, err := agentsettingsmodels.ParseThinkingLevel(*agent.Thinking)
+		if err == nil {
+			overrides.Thinking = &thinking
+		}
+	}
+	if agent.Profile != nil && *agent.Profile != "" {
+		profile, err := agentsettingsmodels.ParseProfileName(*agent.Profile)
+		if err == nil {
+			overrides.Profile = &profile
+		}
+	}
+
+	preferences, err := l.prepareLaunch.ExecuteWithOverrides(ctx, cwd, overrides)
 	if err != nil {
 		return tasksmodels.LaunchOptions{}, fmt.Errorf("prepare launch: %w", err)
 	}
@@ -365,6 +395,111 @@ func (l *launchSettings) Prepare(ctx context.Context, cwd string) (tasksmodels.L
 		options.Thinking = &thinking
 	}
 	return options, nil
+}
+
+// agentCatalogBridge adapts agent_settings to the tasks module's AgentCatalogPort.
+type agentCatalogBridge struct {
+	getSettings  *agentsettingsapp.GetAgentSettings
+	modelCatalog agentsettingsoutbound.ModelCatalogPort
+	listProfiles *agentsettingsapp.ListProfiles
+}
+
+var _ tasksoutbound.AgentCatalogPort = (*agentCatalogBridge)(nil)
+
+func (b *agentCatalogBridge) CatalogForRuntime(ctx context.Context, requested string) (tasksoutbound.AgentCatalogInfo, error) {
+	settings, err := b.getSettings.Execute(ctx)
+	if err != nil {
+		return tasksoutbound.AgentCatalogInfo{}, fmt.Errorf("read agent settings: %w", err)
+	}
+
+	defaultRt := string(agentsettingsmodels.RuntimeOrDefault(settings.Runtime))
+	effectiveRtStr := defaultRt
+	if requested != "" {
+		effectiveRtStr = requested
+	}
+	parsedRt, err := agentsettingsmodels.ParseAgentRuntime(effectiveRtStr)
+	if err != nil {
+		parsedRt = agentsettingsmodels.RuntimeOrDefault(settings.Runtime)
+		effectiveRtStr = string(parsedRt)
+	}
+
+	allRuntimes := agentsettingsmodels.AllRuntimes()
+	runtimeStrings := make([]string, 0, len(allRuntimes))
+	for _, rt := range allRuntimes {
+		runtimeStrings = append(runtimeStrings, string(rt))
+	}
+
+	// Models
+	var modelsList []tasksoutbound.AgentModelOption
+	supportsModels := true
+	modelsRefs, err := b.modelCatalog.List(ctx, parsedRt)
+	if err == nil {
+		for _, m := range modelsRefs {
+			modelsList = append(modelsList, tasksoutbound.AgentModelOption{
+				Provider: m.Provider,
+				Model:    m.Model,
+			})
+		}
+	}
+	if len(modelsList) == 0 {
+		supportsModels = false
+	}
+
+	defaultModel := ""
+	if settings.Model != nil && string(agentsettingsmodels.RuntimeOrDefault(settings.Runtime)) == effectiveRtStr {
+		defaultModel = settings.Model.Model
+	}
+
+	// Thinking levels
+	supportedThinking := agentsettingsmodels.SupportedBy(parsedRt)
+	thinkingStrings := make([]string, 0, len(supportedThinking))
+	for _, th := range supportedThinking {
+		thinkingStrings = append(thinkingStrings, string(th))
+	}
+	supportsThinking := len(thinkingStrings) > 0
+
+	defaultThinking := ""
+	if settings.Thinking != nil && supportsThinking {
+		if settings.Thinking.IsSupportedBy(parsedRt) {
+			defaultThinking = string(*settings.Thinking)
+		}
+	}
+
+	// Profiles: only gentle-shell and pi support gentle-pi profiles
+	supportsProfiles := parsedRt == agentsettingsmodels.RuntimeGentleShell || parsedRt == agentsettingsmodels.RuntimePi
+	var profilesList []string
+	activeProfile := ""
+	defaultProfile := ""
+	if supportsProfiles {
+		cat, err := b.listProfiles.Execute(ctx)
+		if err == nil {
+			profilesList = cat.Names
+			if cat.Active != nil {
+				activeProfile = *cat.Active
+			}
+		}
+		if settings.Profile != nil {
+			defaultProfile = settings.Profile.String()
+		} else if activeProfile != "" {
+			defaultProfile = activeProfile
+		}
+	}
+
+	return tasksoutbound.AgentCatalogInfo{
+		DefaultRuntime:   defaultRt,
+		Runtimes:         runtimeStrings,
+		SelectedRuntime:  effectiveRtStr,
+		SupportsModels:   supportsModels,
+		Models:           modelsList,
+		DefaultModel:     defaultModel,
+		SupportsThinking: supportsThinking,
+		ThinkingLevels:   thinkingStrings,
+		DefaultThinking:  defaultThinking,
+		SupportsProfiles: supportsProfiles,
+		Profiles:         profilesList,
+		ActiveProfile:    activeProfile,
+		DefaultProfile:   defaultProfile,
+	}, nil
 }
 
 // modelOptions lists the orchestrator models of the agent settings catalog for the profile routing

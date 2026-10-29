@@ -38,14 +38,18 @@ const (
 // TaskForm is the create or edit form of a task as the browser sent it. Its fields are raw: ToNewTask and
 // ToUpdate validate them and refuse the whole form on the first error, so nothing is stored from a rejected form.
 type TaskForm struct {
-	WorkspaceID string
-	Title       string
-	Prompt      string
-	Priority    string
-	BaseBranch  string
-	MemoryLimit string
-	CPULimit    string
-	StartNow    bool
+	WorkspaceID   string
+	Title         string
+	Prompt        string
+	Priority      string
+	BaseBranch    string
+	MemoryLimit   string
+	CPULimit      string
+	AgentRuntime  string
+	AgentModel    string
+	AgentThinking string
+	AgentProfile  string
+	StartNow      bool
 	// ShowAdvanced says the advanced options were open: the limits count only then (Rust parity). A hidden
 	// limit is ignored, not validated, so the default from the settings applies.
 	ShowAdvanced bool
@@ -74,18 +78,22 @@ func ParseTaskForm(w http.ResponseWriter, r *http.Request) (TaskForm, error) {
 		return TaskForm{}, err
 	}
 	form := TaskForm{
-		WorkspaceID:  first(values, "workspace_id"),
-		Title:        first(values, "title"),
-		Prompt:       first(values, "prompt"),
-		Priority:     first(values, "priority"),
-		BaseBranch:   first(values, "base_branch"),
-		MemoryLimit:  first(values, "memory_limit_mb"),
-		CPULimit:     first(values, "cpu_limit_percent"),
-		StartNow:     first(values, "start_now") == "on",
-		ShowAdvanced: first(values, "show_advanced") == "on",
-		LinkKind:     first(values, "link_kind"),
-		LinkAnchor:   first(values, "link_anchor"),
-		RemoveIDs:    values["remove_attachment_ids"],
+		WorkspaceID:   first(values, "workspace_id"),
+		Title:         first(values, "title"),
+		Prompt:        first(values, "prompt"),
+		Priority:      first(values, "priority"),
+		BaseBranch:    first(values, "base_branch"),
+		MemoryLimit:   first(values, "memory_limit_mb"),
+		CPULimit:      first(values, "cpu_limit_percent"),
+		AgentRuntime:  first(values, "agent_runtime"),
+		AgentModel:    first(values, "agent_model"),
+		AgentThinking: first(values, "agent_thinking"),
+		AgentProfile:  first(values, "agent_profile"),
+		StartNow:      first(values, "start_now") == "on",
+		ShowAdvanced:  first(values, "show_advanced") == "on",
+		LinkKind:      first(values, "link_kind"),
+		LinkAnchor:    first(values, "link_anchor"),
+		RemoveIDs:     values["remove_attachment_ids"],
 	}
 	images, err := readImages(files[imagesField])
 	if err != nil {
@@ -215,6 +223,7 @@ func (f TaskForm) ToUpdate(kept int) (application.UpdateInput, error) {
 		Prompt:     input.Prompt,
 		Priority:   input.Priority,
 		Limits:     input.Limits,
+		Agent:      input.Agent,
 		BaseBranch: input.BaseBranch,
 		Images:     images,
 		RemoveIDs:  removed,
@@ -234,6 +243,7 @@ func (f TaskForm) baseTask() (models.NewTask, error) {
 		priority = parsed
 	}
 	var memory, cpu *uint32
+	var agent models.TaskAgentOptions
 	if f.ShowAdvanced {
 		memory, err = parseLimit(f.MemoryLimit, msgRAMLimitInvalid)
 		if err != nil {
@@ -242,6 +252,29 @@ func (f TaskForm) baseTask() (models.NewTask, error) {
 		cpu, err = parseLimit(f.CPULimit, msgCPULimitInvalid)
 		if err != nil {
 			return models.NewTask{}, err
+		}
+		if f.AgentRuntime != "" {
+			rt, err := models.ParseRuntimeID(f.AgentRuntime)
+			if err != nil {
+				return models.NewTask{}, err //nolint:wrapcheck // the domain error text is user-visible
+			}
+			agent.Runtime = &rt
+		}
+		agent.ModelProvider, agent.ModelID = parseAgentModel(f.AgentModel)
+		if f.AgentThinking != "" {
+			thinking := strings.TrimSpace(f.AgentThinking)
+			agent.Thinking = &thinking
+		}
+		if f.AgentProfile != "" {
+			profile := strings.TrimSpace(f.AgentProfile)
+			agent.Profile = &profile
+		}
+		if agent.Runtime != nil && agent.Runtime.String() == "cursor" {
+			agent.Thinking = nil
+			agent.Profile = nil
+		}
+		if agent.Runtime != nil && agent.Runtime.String() == "claude" {
+			agent.Profile = nil
 		}
 	}
 	branch, err := parseBaseBranch(f.BaseBranch)
@@ -253,8 +286,33 @@ func (f TaskForm) baseTask() (models.NewTask, error) {
 		Prompt:     f.Prompt,
 		Priority:   priority,
 		Limits:     models.ResourceLimits{MemoryMB: memory, CPUPercent: cpu},
+		Agent:      agent,
 		BaseBranch: branch,
 	}, nil
+}
+
+func parseAgentModel(raw string) (provider *string, model *string) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	if strings.Contains(trimmed, "\u0001") {
+		p, m, _ := strings.Cut(trimmed, "\u0001")
+		return ptrIfNotEmpty(p), ptrIfNotEmpty(m)
+	}
+	if strings.Contains(trimmed, "/") {
+		p, m, _ := strings.Cut(trimmed, "/")
+		return ptrIfNotEmpty(p), ptrIfNotEmpty(m)
+	}
+	return nil, &trimmed
+}
+
+func ptrIfNotEmpty(s string) *string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 // parseLimit reads an optional positive whole number. Empty means the default from the settings.

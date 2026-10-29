@@ -20,7 +20,7 @@ import (
 // claudeSettings launches every task on the claude runtime.
 type claudeSettings struct{}
 
-func (claudeSettings) Prepare(context.Context, string) (models.LaunchOptions, error) {
+func (claudeSettings) Prepare(context.Context, string, models.TaskAgentOptions) (models.LaunchOptions, error) {
 	runtime, err := models.ParseRuntimeID("claude")
 	if err != nil {
 		return models.LaunchOptions{}, err //nolint:wrapcheck // test double

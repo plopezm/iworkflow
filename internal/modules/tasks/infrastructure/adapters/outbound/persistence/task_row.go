@@ -169,6 +169,7 @@ func rowToTask(row gen.Task) (models.Task, error) {
 			MemoryMB:   limitFromColumn(row.MemoryLimitMb),
 			CPUPercent: limitFromColumn(row.CpuLimitPercent),
 		},
+		Agent:          agentFromRow(row),
 		Error:          row.Error,
 		UsageLimit:     usage,
 		PendingDialogs: dialogs,
@@ -208,6 +209,14 @@ func taskToInsertParams(task models.Task) (gen.InsertTaskParams, error) {
 		CpuLimitPercent:  limitToColumn(task.Limits.CPUPercent),
 		ResumeAttempts:   clampCount(task.UsageLimit.Attempts),
 	}
+	if task.Agent.Runtime != nil {
+		runtimeStr := task.Agent.Runtime.String()
+		params.AgentRuntime = &runtimeStr
+	}
+	params.AgentModelProvider = task.Agent.ModelProvider
+	params.AgentModelID = task.Agent.ModelID
+	params.AgentThinking = task.Agent.Thinking
+	params.AgentProfile = task.Agent.Profile
 	if task.UsageLimit.ResumeAt != nil {
 		resumeAt := formatTimestamp(*task.UsageLimit.ResumeAt)
 		params.ResumeAt = &resumeAt
@@ -226,6 +235,21 @@ func clampAttempts(value int64) uint32 {
 		return 0
 	}
 	return uint32(min(value, math.MaxUint32))
+}
+
+func agentFromRow(row gen.Task) models.TaskAgentOptions {
+	var agent models.TaskAgentOptions
+	if row.AgentRuntime != nil {
+		id, err := models.ParseRuntimeID(*row.AgentRuntime)
+		if err == nil {
+			agent.Runtime = &id
+		}
+	}
+	agent.ModelProvider = row.AgentModelProvider
+	agent.ModelID = row.AgentModelID
+	agent.Thinking = row.AgentThinking
+	agent.Profile = row.AgentProfile
+	return agent
 }
 
 func clampActivity(value int64) uint32 {

@@ -14,6 +14,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
 
+	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/dock"
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/tasks/application"
@@ -51,6 +52,7 @@ type BoardUseCases struct {
 	GetGraph        *application.GetTaskGraph
 	SetPosition     *application.SetTaskPosition
 	DetachFromGraph *application.DetachTaskFromGraph
+	AgentCatalog    outbound.AgentCatalogPort
 }
 
 // BoardHandlers serves the board tabs and their htmx requests. Every htmx response is a 200: htmx 2 does
@@ -113,6 +115,7 @@ func (h *BoardHandlers) Mount(r chi.Router) {
 	r.Get("/board/tasks/new", h.newTask)
 	r.Get("/board/tasks/new/close", h.closeNewTask)
 	r.Get("/board/tasks/branches", h.branches)
+	r.Get("/board/tasks/agent-options", h.agentOptions)
 	r.Post("/board/tasks", h.createTask)
 	r.Post("/board/tasks/{id}/start", h.startTask)
 	r.Post("/board/tasks/{id}/delete", h.deleteTask)
@@ -241,6 +244,15 @@ func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.
 	if branchErr != nil && message == "" {
 		message = branchErr.Error()
 	}
+	catalog, _ := h.agentCatalog(ctx, parseRuntimeOrNil(input.AgentRuntime))
+	agentState := state.AgentFormState{
+		Catalog:          catalog,
+		SelectedRuntime:  input.AgentRuntime,
+		SelectedModel:    input.AgentModel,
+		SelectedThinking: input.AgentThinking,
+		SelectedProfile:  input.AgentProfile,
+	}
+	hasAgentOverrides := input.AgentRuntime != "" || input.AgentModel != "" || input.AgentThinking != "" || input.AgentProfile != ""
 	return state.CreateForm{
 		Scope:         scope,
 		Workspaces:    workspaces,
@@ -253,12 +265,30 @@ func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.
 		Branches:      branches,
 		MemoryLimit:   input.MemoryLimit,
 		CPULimit:      input.CPULimit,
-		ShowAdvanced:  input.ShowAdvanced,
+		Agent:         agentState,
+		ShowAdvanced:  input.ShowAdvanced || hasAgentOverrides,
 		StartNow:      input.StartNow,
 		LinkKind:      input.LinkKind,
 		LinkAnchor:    input.LinkAnchor,
 		Error:         message,
 	}
+}
+
+// agentOptions serves the dynamic agent options (model, thinking, profile) when the agent runtime changes.
+func (h *BoardHandlers) agentOptions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
+	runtime := r.URL.Query().Get("agent_runtime")
+	catalog, err := h.agentCatalog(ctx, parseRuntimeOrNil(runtime))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		return
+	}
+	agentState := state.AgentFormState{
+		Catalog:         catalog,
+		SelectedRuntime: runtime,
+	}
+	web.Render(w, r, http.StatusOK, components.AgentOptionsFields(scope, agentState))
 }
 
 // view builds what the list shows for the requested workspace. A failed read is reported in LoadError and

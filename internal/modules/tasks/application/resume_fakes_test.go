@@ -122,10 +122,12 @@ type fakeLaunchSettings struct {
 	options models.LaunchOptions
 	err     error
 	asked   []string
+	agents  []models.TaskAgentOptions
 }
 
-func (f *fakeLaunchSettings) Prepare(_ context.Context, cwd string) (models.LaunchOptions, error) {
+func (f *fakeLaunchSettings) Prepare(_ context.Context, cwd string, agent models.TaskAgentOptions) (models.LaunchOptions, error) {
 	f.asked = append(f.asked, cwd)
+	f.agents = append(f.agents, agent)
 	return f.options, f.err
 }
 

@@ -14,6 +14,7 @@ import (
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/components"
 	"iworkflow/internal/modules/tasks/presentation/pages"
@@ -147,6 +148,15 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 	// A failed branch listing does not stop the page: the task keeps its base branch, and the failure is shown.
 	branches, branchErr := h.branchesOf(ctx, task.WorkspaceID)
 	view := dto.TaskFromDomain(task, h.now())
+	catalog, _ := h.agentCatalog(ctx, task.Agent.Runtime)
+	agentState := state.AgentFormState{
+		Catalog:          catalog,
+		SelectedRuntime:  stringOrEmpty(task.Agent.Runtime),
+		SelectedModel:    modelValue(task.Agent),
+		SelectedThinking: stringPtrOrEmpty(task.Agent.Thinking),
+		SelectedProfile:  stringPtrOrEmpty(task.Agent.Profile),
+	}
+	hasAgentOverrides := !task.Agent.IsZero()
 	form := state.EditForm{
 		TaskID:        id.String(),
 		WorkspaceID:   task.WorkspaceID,
@@ -158,7 +168,8 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 		Branches:      branches,
 		MemoryLimit:   limitText(view.MemoryLimitMB),
 		CPULimit:      limitText(view.CPUPercent),
-		ShowAdvanced:  view.MemoryLimitMB != nil || view.CPUPercent != nil,
+		Agent:         agentState,
+		ShowAdvanced:  view.MemoryLimitMB != nil || view.CPUPercent != nil || hasAgentOverrides,
 		Existing:      existing,
 		BoardPath:     state.BoardPath(task.WorkspaceID),
 	}
@@ -213,4 +224,54 @@ func errorText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+func (h *BoardHandlers) agentCatalog(ctx context.Context, runtime *models.RuntimeID) (outbound.AgentCatalogInfo, error) {
+	if h.uc.AgentCatalog == nil {
+		return outbound.AgentCatalogInfo{}, nil
+	}
+	rt := ""
+	if runtime != nil {
+		rt = runtime.String()
+	}
+	info, err := h.uc.AgentCatalog.CatalogForRuntime(ctx, rt)
+	if err != nil {
+		return outbound.AgentCatalogInfo{}, fmt.Errorf("read agent catalog: %w", err)
+	}
+	return info, nil
+}
+
+func stringOrEmpty(r *models.RuntimeID) string {
+	if r == nil {
+		return ""
+	}
+	return r.String()
+}
+
+func stringPtrOrEmpty(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func modelValue(agent models.TaskAgentOptions) string {
+	if agent.ModelID == nil {
+		return ""
+	}
+	if agent.ModelProvider != nil && *agent.ModelProvider != "" {
+		return *agent.ModelProvider + "/" + *agent.ModelID
+	}
+	return *agent.ModelID
+}
+
+func parseRuntimeOrNil(raw string) *models.RuntimeID {
+	if raw == "" {
+		return nil
+	}
+	id, err := models.ParseRuntimeID(raw)
+	if err != nil {
+		return nil
+	}
+	return &id
 }

@@ -3,7 +3,7 @@ package components
 // OptionSelect is a compact pill drop-down with optional option groups. The empty first option
 // is DefaultLabel; the selected option is Value.
 templ OptionSelect(p OptionSelectProps) {
-	<label class={ "select-pill", p.Class } title={ currentLabel(p) }>
+	<label class={ optionSelectClass(p.Class) } title={ currentLabel(p) }>
 		<span class="sr-only">{ p.Label }</span>
 		if p.Icon != "" {
 			<span class="select-pill-icon" aria-hidden="true">@templ.Raw(p.Icon)</span>

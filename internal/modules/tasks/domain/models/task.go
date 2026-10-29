@@ -76,6 +76,8 @@ type Task struct {
 	Priority     TaskPriority
 	// Limits are the task's own RAM and CPU limits; each defined resource wins over the global one.
 	Limits ResourceLimits
+	// Agent holds task-specific overrides for agent, model, effort, and profile.
+	Agent TaskAgentOptions
 	// Error is the failure message shown with the status, if any.
 	Error *string
 	// UsageLimit is the scheduled resume after a provider usage limit.
@@ -159,6 +161,8 @@ type NewTask struct {
 	Prompt      string
 	Priority    TaskPriority
 	Limits      ResourceLimits
+	// Agent holds optional overrides for agent, model, thinking, and profile.
+	Agent TaskAgentOptions
 	// BaseBranch is a local or remote branch (for example origin/develop) the worktree starts from.
 	// Nil uses the workspace base branch.
 	BaseBranch *string
@@ -189,6 +193,10 @@ func (n NewTask) Validated() (NewTask, error) {
 	if err != nil {
 		return NewTask{}, err
 	}
+	agent, err := n.Agent.Validated()
+	if err != nil {
+		return NewTask{}, err
+	}
 	var baseBranch *string
 	if n.BaseBranch != nil {
 		trimmed := strings.TrimSpace(*n.BaseBranch)
@@ -207,6 +215,7 @@ func (n NewTask) Validated() (NewTask, error) {
 		Prompt:      prompt,
 		Priority:    priority,
 		Limits:      limits,
+		Agent:       agent,
 		BaseBranch:  baseBranch,
 		Images:      images,
 		StartNow:    n.StartNow,
