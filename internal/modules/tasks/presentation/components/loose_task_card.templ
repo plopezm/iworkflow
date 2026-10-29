@@ -7,7 +7,8 @@ import (
 
 templ LooseTaskCard(task dto.TaskDTO, scope string) {
 	<article
-		class={ "card loose-card animate-fade-in flex flex-col gap-1.5 !p-2.5 " + toggleClass("", task.NeedsAttention, "loose-card-attention") }
+		id={ state.Scoped("loose-task-"+task.ID, scope) }
+		class={ "card loose-card flex flex-col gap-1.5 !p-2.5 " + toggleClass("", task.NeedsAttention, "loose-card-attention") }
 		title={ msgDragHint.T(ctx) }
 		data-task-id={ task.ID }
 		data-stage={ task.Stage }

@@ -14,7 +14,7 @@ import (
 // notifications and the first-run language prompt. boardSidebar is the board part of the sidebar.
 templ shellPage(boardSidebar templ.Component) {
 	@web.Shell(msgBrand.T(ctx)) {
-		<div hx-ext="sse" sse-connect="/api/tasks/events" class="contents">
+		<div hx-ext="sse,morph" sse-connect="/api/tasks/events" class="contents">
 			@components.AppShell(components.AppShellProps{
 				Brand:   msgBrand.T(ctx),
 				Sidebar: sidebar(boardSidebar),

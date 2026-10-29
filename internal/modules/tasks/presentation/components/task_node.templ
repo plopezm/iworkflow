@@ -7,6 +7,7 @@ import (
 
 templ TaskNode(node state.NodeView, position state.Point, scope string) {
 	<div
+		id={ state.Scoped("node-"+node.Task.ID, scope) }
 		class={ NodeClass(false, false, node.Task.NeedsAttention) + " pointer-events-auto" }
 		style={ NodeStyle(position) }
 		data-node-id={ node.Task.ID }
