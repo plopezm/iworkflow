@@ -27,7 +27,7 @@
 
   // xterm.js no desplaza con el dedo: su `.xterm-screen` tapa el viewport nativo. Se traduce
   // el arrastre vertical a líneas (con inercia). En la pantalla alternativa (TUIs) se emite
-  // una rueda sintética para que xterm la convierta en ratón o flechas según el modo.
+  // un evento de rueda sobre el terminal para que xterm lo convierta en eventos de ratón.
   var LONG_PRESS_MS = 450;
 
   function enableTouchScroll(term, el) {
@@ -35,7 +35,7 @@
     var startY = 0;
     var lastTime = 0;
     var velocity = 0;
-    var remainder = 0;
+    var accumulatedDelta = 0;
     var dragging = false;
     var scrolled = false;
     var raf = 0;
@@ -71,17 +71,19 @@
     }
 
     function scrollBy(pixels) {
-      remainder += pixels / lineHeight();
-      var lines = Math.trunc(remainder);
+      var lh = lineHeight();
+      accumulatedDelta += pixels;
+      var lines = Math.trunc(accumulatedDelta / lh);
       if (lines === 0) return;
-      remainder -= lines;
+      accumulatedDelta -= lines * lh;
+
       if (term.buffer.active.type === "alternate") {
-        var target = el.querySelector(".xterm-screen") || el;
+        var target = el.querySelector(".xterm") || el.querySelector(".xterm-screen") || el;
         var rect = target.getBoundingClientRect();
         target.dispatchEvent(
           new WheelEvent("wheel", {
-            deltaY: lines,
-            deltaMode: 1,
+            deltaY: lines * lh,
+            deltaMode: 0,
             clientX: rect.left + rect.width / 2,
             clientY: rect.top + rect.height / 2,
             bubbles: true,
@@ -99,8 +101,8 @@
     }
 
     function fling() {
-      velocity *= 0.95;
-      if (Math.abs(velocity) < 0.02) {
+      velocity *= 0.94;
+      if (Math.abs(velocity) < 0.05) {
         raf = 0;
         return;
       }
@@ -114,7 +116,7 @@
       dragging = true;
       scrolled = false;
       velocity = 0;
-      remainder = 0;
+      accumulatedDelta = 0;
       startY = lastY = event.touches[0].clientY;
       lastTime = event.timeStamp;
       selecting = false;
@@ -133,20 +135,21 @@
 
     function onMove(event) {
       if (!dragging || event.touches.length !== 1) return;
+      var y = event.touches[0].clientY;
       if (selecting) {
         event.preventDefault();
         selectRange(anchor, cellAt(event.touches[0]));
         return;
       }
-      var y = event.touches[0].clientY;
-      if (!scrolled && Math.abs(y - startY) < 6) return;
+      var deltaY = lastY - y;
+      if (!scrolled && Math.abs(y - startY) < 4) return;
       scrolled = true;
       cancelPress();
       event.preventDefault();
       var dt = Math.max(event.timeStamp - lastTime, 1);
       // Arrastrar hacia abajo muestra líneas anteriores (desplazamiento negativo).
-      scrollBy(lastY - y);
-      velocity = 0.8 * velocity + 0.2 * ((lastY - y) / dt);
+      scrollBy(deltaY);
+      velocity = 0.7 * velocity + 0.3 * (deltaY / dt);
       lastY = y;
       lastTime = event.timeStamp;
     }
@@ -164,8 +167,8 @@
         term.clearSelection();
       }
       // Sin inercia si el dedo estuvo quieto antes de soltar o el gesto se canceló.
-      var held = event.timeStamp - lastTime > 100;
-      if (event.type === "touchend" && scrolled && !held && Math.abs(velocity) > 0.05) {
+      var held = event.timeStamp - lastTime > 120;
+      if (event.type === "touchend" && scrolled && !held && Math.abs(velocity) > 0.08) {
         raf = requestAnimationFrame(fling);
       }
     }
@@ -201,12 +204,24 @@
     return true;
   }
 
+  function isMobileViewport() {
+    return window.innerWidth <= 640;
+  }
+
+  function termFontSize() {
+    return isMobileViewport() ? 12 : 14;
+  }
+
   function open(el, sessionId) {
+    var currentMobile = isMobileViewport();
     var term = new window.Terminal({
       cursorBlink: true,
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-      fontSize: 14,
+      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+      fontSize: termFontSize(),
+      scrollback: 10000,
       theme: theme(),
+      allowProposedApi: true,
+      smoothScrollDuration: 100,
     });
     var fit = new window.FitAddon.FitAddon();
     term.loadAddon(fit);
@@ -215,7 +230,17 @@
       // false = xterm no procesa la tecla (no llega al shell).
       return !handleCopyKey(term, event);
     });
-    fit.fit();
+
+    function safeFit() {
+      try {
+        fit.fit();
+        if (term.element) {
+          term.refresh(0, term.rows - 1);
+        }
+      } catch (_) {}
+    }
+
+    safeFit();
 
     var encoder = new TextEncoder();
     var ws = null;
@@ -249,6 +274,7 @@
         if (everOpened) term.reset();
         everOpened = true;
         openedAt = Date.now();
+        safeFit();
         sendResize();
       };
       socket.onclose = function () {
@@ -277,10 +303,15 @@
       }, delay);
     }
 
-    // Al volver a primer plano o recuperar red, reconecta de inmediato si el socket murió.
+    // Al volver a primer plano o recuperar red, reconecta de inmediato si el socket murió
+    // y refresca el layout y repintado para evitar pantallas negras o franjas.
     function ensureConnected() {
       if (disposed || document.hidden) return;
-      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+      safeFit();
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        sendResize();
+        return;
+      }
       if (retryTimer !== null) {
         clearTimeout(retryTimer);
         retryTimer = null;
@@ -291,6 +322,7 @@
     document.addEventListener("visibilitychange", ensureConnected);
     window.addEventListener("online", ensureConnected);
     window.addEventListener("pageshow", ensureConnected);
+    window.addEventListener("orientationchange", safeFit);
     connect();
 
     var dataSub = term.onData(function (data) {
@@ -300,10 +332,17 @@
     });
     var resizeSub = term.onResize(sendResize);
 
+    var resizeRaf = 0;
     var observer = new ResizeObserver(function () {
-      try {
-        fit.fit();
-      } catch (_) {}
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(function () {
+        var mobileNow = isMobileViewport();
+        if (mobileNow !== currentMobile) {
+          currentMobile = mobileNow;
+          term.options.fontSize = termFontSize();
+        }
+        safeFit();
+      });
     });
     observer.observe(el);
     var stopTouchScroll = enableTouchScroll(term, el);
@@ -316,15 +355,25 @@
       attributeFilter: ["data-theme"],
     });
 
+    // Pases diferidos para asegurar dimensiones exactas tras el montaje del DOM.
+    requestAnimationFrame(function () {
+      safeFit();
+      sendResize();
+    });
+    setTimeout(safeFit, 150);
+    setTimeout(safeFit, 350);
+
     term.focus();
     return {
       term: term,
       cleanup: function () {
         disposed = true;
         if (retryTimer !== null) clearTimeout(retryTimer);
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
         document.removeEventListener("visibilitychange", ensureConnected);
         window.removeEventListener("online", ensureConnected);
         window.removeEventListener("pageshow", ensureConnected);
+        window.removeEventListener("orientationchange", safeFit);
         observer.disconnect();
         stopTouchScroll();
         themeObserver.disconnect();

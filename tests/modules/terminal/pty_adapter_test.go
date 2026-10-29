@@ -315,14 +315,14 @@ func drainUntilClosed(t *testing.T, output <-chan []byte) {
 }
 
 func TestScrollbackIsBounded(t *testing.T) {
-	const limit int = 64 * 1024
+	const limit int = 1024 * 1024
 	adapter := newAdapter(t)
 	id := spawnSh(t, adapter, t.TempDir(), "demo")
 	// This subscriber never reads: it falls behind and must not stall the reader.
 	_, _ = attach(t, adapter, id)
 
-	// About 240 KiB of output followed by a marker.
-	command := "i=0; while [ $i -lt 3000 ]; do echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; i=$((i+1)); done; echo done_$((1+1))_marker\n"
+	// About 1.2 MiB of output followed by a marker.
+	command := "i=0; while [ $i -lt 16000 ]; do echo xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; i=$((i+1)); done; echo done_$((1+1))_marker\n"
 	require.NoError(t, adapter.Write(context.Background(), id, []byte(command)))
 
 	deadline := time.Now().Add(waitTimeout)

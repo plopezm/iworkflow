@@ -34,7 +34,7 @@ func TerminalView(sessionID string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div data-terminal-view class=\"flex min-h-0 flex-1 flex-col gap-2\"><div class=\"min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface p-1.5\"><div data-terminal-session=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div data-terminal-view class=\"flex min-h-0 flex-1 flex-col gap-1.5 sm:gap-2\"><div class=\"min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-[var(--c-bg,#09090b)] p-1 sm:p-1.5\"><div data-terminal-session=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -47,7 +47,7 @@ func TerminalView(sessionID string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"h-full w-full\"></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"h-full w-full bg-[var(--c-bg,#09090b)]\"></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

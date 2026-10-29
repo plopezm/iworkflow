@@ -6,9 +6,9 @@ package components
 // The padding stays outside the xterm container: FitAddon does not subtract it from the available
 // height, and it would cut the last row.
 templ TerminalView(sessionID string) {
-	<div data-terminal-view class="flex min-h-0 flex-1 flex-col gap-2">
-		<div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-surface p-1.5">
-			<div data-terminal-session={ sessionID } class="h-full w-full"></div>
+	<div data-terminal-view class="flex min-h-0 flex-1 flex-col gap-1.5 sm:gap-2">
+		<div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-[var(--c-bg,#09090b)] p-1 sm:p-1.5">
+			<div data-terminal-session={ sessionID } class="h-full w-full bg-[var(--c-bg,#09090b)]"></div>
 		</div>
 		@KeyBar()
 	</div>
