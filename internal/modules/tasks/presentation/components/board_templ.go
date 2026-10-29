@@ -912,7 +912,7 @@ func BoardList(view state.BoardView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\" hx-trigger=\"sse:changed, sse:removed, board:refresh from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 61, "\" hx-trigger=\"sse:changed, sse:removed, board:refresh from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"morph:innerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

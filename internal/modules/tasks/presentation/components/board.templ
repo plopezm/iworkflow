@@ -175,7 +175,7 @@ templ BoardList(view state.BoardView) {
 		hx-trigger="sse:changed, sse:removed, board:refresh from:body"
 		hx-sync="this:replace"
 		hx-target="this"
-		hx-swap="innerHTML"
+		hx-swap="morph:innerHTML"
 	>
 		@BoardListBody(view)
 	</div>

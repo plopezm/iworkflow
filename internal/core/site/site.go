@@ -72,7 +72,7 @@ func WithPackagedDefaults(options Options) Options {
 	}
 	_, siteRootSet := os.LookupEnv(siteRootVar)
 	_, outputNameSet := os.LookupEnv(outputNameVar)
-	_, siteAddrSet := os.LookupEnv(listen.SiteAddrVar)
+	_, siteAddrSet := listen.LookupSiteAddr()
 	options = ApplyPackagedDefaults(options, exeDir, siteRootSet, outputNameSet)
 	return ApplyPackagedPort(options, siteAddrSet)
 }

@@ -7,10 +7,28 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 )
 
-// SiteAddrVar pins the bind address. Leptos reads it too, so the name is kept.
-const SiteAddrVar string = "LEPTOS_SITE_ADDR"
+// PrimarySiteAddrVar is the preferred environment variable for the bind address.
+const PrimarySiteAddrVar string = "IWORKFLOW_ADDR"
+
+// LegacySiteAddrVar was kept from Leptos for backwards compatibility.
+const LegacySiteAddrVar string = "LEPTOS_SITE_ADDR"
+
+// SiteAddrVar points to PrimarySiteAddrVar.
+const SiteAddrVar string = PrimarySiteAddrVar
+
+// LookupSiteAddr checks IWORKFLOW_ADDR first, falling back to LEPTOS_SITE_ADDR.
+func LookupSiteAddr() (string, bool) {
+	if val, ok := os.LookupEnv(PrimarySiteAddrVar); ok && val != "" {
+		return val, true
+	}
+	if val, ok := os.LookupEnv(LegacySiteAddrVar); ok && val != "" {
+		return val, true
+	}
+	return "", false
+}
 
 // routeProbe is only used to ask the OS which interface it would route through. Nothing is sent.
 var routeProbe netip.AddrPort = netip.AddrPortFrom(netip.AddrFrom4([4]byte{192, 0, 2, 1}), 9)
