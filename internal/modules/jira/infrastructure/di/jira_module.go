@@ -66,6 +66,11 @@ func (m *Module) Routes(r chi.Router) {
 	m.issueHandlers.Mount(r)
 }
 
+// SettingsContent returns the settings card component for embedding into the settings screen.
+func (m *Module) SettingsContent() func(context.Context) templ.Component {
+	return m.handlers.SettingsContent()
+}
+
 // Tabs returns the dock tabs of the module.
 func (m *Module) Tabs() []dock.Route {
 	return []dock.Route{

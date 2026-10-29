@@ -1,7 +1,7 @@
 GOFLAGS ?= -p=2
 export GOFLAGS
 
-.PHONY: generate templ sqlc css build dev test lint fmt vet
+.PHONY: generate templ sqlc css build dev test lint fmt vet electron electron-build electron-dev electron-test e2e e2e-smoke
 
 generate: templ sqlc css
 
@@ -35,3 +35,22 @@ fmt:
 
 lint:
 	golangci-lint run
+
+electron: electron-build
+
+electron-build:
+	./scripts/electron.sh build
+
+electron-dev:
+	./scripts/electron.sh dev
+
+electron-test:
+	npm --prefix electron test
+
+e2e:
+	./end2end/go/run_go.sh $(FILTER)
+
+e2e-smoke:
+	IWF_E2E_SCRIPTS="end2end/dock_smoke.cjs end2end/tab_state_smoke.cjs end2end/ui_smoke.cjs" ./end2end/go/run_go.sh
+
+

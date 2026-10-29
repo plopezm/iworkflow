@@ -173,7 +173,7 @@ func New(deps Deps) (*App, error) {
 	routes = append(routes, workspaces.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
 	routes = append(routes, profiles.Tabs()...)
-	routes = append(routes, settings.Tabs(settingsSections(settings, codeHosting))...)
+	routes = append(routes, settings.Tabs(settingsSections(settings, codeHosting, jiraModule))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
 	routes = append(routes, terminal.Tabs()...)
 	routes = append(routes, jiraModule.Tabs()...)
@@ -266,7 +266,7 @@ func (a *App) page(w http.ResponseWriter, r *http.Request) {
 }
 
 // settingsSections are the sections of the settings screen, in display order.
-func settingsSections(settings *agentsettingsdi.Module, codeHosting *codehostingdi.Module) []agentsettingspages.SettingsSection {
+func settingsSections(settings *agentsettingsdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module) []agentsettingspages.SettingsSection {
 	return []agentsettingspages.SettingsSection{
 		{
 			ID:    "language",
@@ -283,7 +283,11 @@ func settingsSections(settings *agentsettingsdi.Module, codeHosting *codehosting
 				return prefspages.NetworkSection()
 			},
 		},
-		notMigratedSection("jira", "Jira"),
+		{
+			ID:      "jira",
+			Label:   func(context.Context) string { return "Jira" },
+			Content: jira.SettingsContent(),
+		},
 		{
 			ID:      "gitlab",
 			Label:   func(context.Context) string { return "GitLab" },
@@ -297,20 +301,12 @@ func settingsSections(settings *agentsettingsdi.Module, codeHosting *codehosting
 	}
 }
 
-// notMigratedSection is a settings section whose module is not migrated yet.
-func notMigratedSection(id string, label string) agentsettingspages.SettingsSection {
-	return agentsettingspages.SettingsSection{
-		ID:      id,
-		Label:   func(context.Context) string { return label },
-		Content: func(context.Context) templ.Component { return notMigratedPane() },
-	}
-}
-
 // Dock paths of the migrated screens. The modules own the same paths for their tabs.
 const (
 	boardPath       = "/"
 	workspacesPath  = "/workspaces"
 	agentsFilesPath = "/agents-files"
+	jiraPath        = "/jira"
 	profilesPath    = "/profiles"
 	modelsPath      = "/models"
 	terminalsPath   = "/terminals"
@@ -329,6 +325,7 @@ var navEntries = []navEntry{
 	{Href: boardPath, Icon: "▦", Title: func(ctx context.Context) string { return taskscomponents.BoardTitle(ctx, "") }},
 	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
 	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
+	{Href: jiraPath, Icon: "◈", Title: func(context.Context) string { return "Jira" }},
 	{Href: profilesPath, Icon: "☰", Title: agentprofilespages.TabTitle.T},
 	{Href: modelsPath, Icon: "◇", Title: agentprofilespages.ModelsTitle.T},
 	{Href: terminalsPath, Icon: "❯", Title: terminalpages.TerminalsTitle},

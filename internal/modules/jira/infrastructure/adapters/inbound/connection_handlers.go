@@ -63,6 +63,26 @@ func MountConnectionRoutes(r chi.Router, h *ConnectionHandlers) {
 	h.MountConnectionRoutes(r)
 }
 
+// SettingsContent returns a function that renders the JiraConnectionCard for the settings screen.
+func (h *ConnectionHandlers) SettingsContent() func(context.Context) templ.Component {
+	return func(ctx context.Context) templ.Component {
+		connection, err := h.GetConnection.Execute(ctx)
+		if err != nil {
+			return components.JiraConnectionCard(state.ConnectionCardView{Err: err.Error()})
+		}
+		var storedDTO *dto.ConnectionDTO
+		if connection != nil {
+			d := dto.ConnectionFromDomain(*connection)
+			storedDTO = &d
+		}
+		view := state.ConnectionCardView{
+			Stored:  storedDTO,
+			Editing: storedDTO == nil,
+		}
+		return components.JiraConnectionCard(view)
+	}
+}
+
 // Page renders the full Jira screen for the dock tab.
 func (h *ConnectionHandlers) Page(ctx context.Context) templ.Component {
 	if h.boardHandlers != nil {

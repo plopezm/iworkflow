@@ -2,6 +2,7 @@ package jira_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -99,4 +100,19 @@ func TestModuleRefusesToSaveAWrongTokenAndStoresNothing(t *testing.T) {
 	stored, err := module.GetConnection.Execute(ctx)
 	require.NoError(t, err)
 	assert.Nil(t, stored)
+}
+
+// TestModuleSettingsContentRendersTheConnectionCard covers embedding the card in the settings screen.
+func TestModuleSettingsContentRendersTheConnectionCard(t *testing.T) {
+	ctx := context.Background()
+	module := di.NewModule(di.Deps{DB: dbtest.New(t), Tasks: &stubTasks{}, Workspaces: stubWorkspaces{}})
+
+	content := module.SettingsContent()
+	require.NotNil(t, content)
+	component := content(ctx)
+	require.NotNil(t, component)
+
+	var buf strings.Builder
+	require.NoError(t, component.Render(ctx, &buf))
+	assert.Contains(t, buf.String(), `id="jira-connection-card"`)
 }

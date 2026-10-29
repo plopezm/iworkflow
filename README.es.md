@@ -369,7 +369,9 @@ Guía de la arquitectura y del código en [ARCHITECTURE.es.md](ARCHITECTURE.es.m
 make test                                      # go test -p 2 -race ./...
 make vet                                       # go vet ./...
 make lint                                      # golangci-lint run
-./end2end/go/run_go.sh                         # suite e2e completa en navegador
+make e2e                                       # suite completa e2e Playwright en navegador (o FILTER=<name>)
+make electron-build                            # empaquetar app de escritorio (dist/electron)
+make electron-dev                              # abrir ventana de Electron en desarrollo
 ```
 
 ## Licencia

@@ -370,7 +370,9 @@ Architecture and code guide in [ARCHITECTURE.md](ARCHITECTURE.md); project rules
 make test                                      # go test -p 2 -race ./...
 make vet                                       # go vet ./...
 make lint                                      # golangci-lint run
-./end2end/go/run_go.sh                         # full browser e2e suite
+make e2e                                       # full browser Playwright e2e suite (or FILTER=<name>)
+make electron-build                            # package desktop app (dist/electron)
+make electron-dev                              # run Electron window in development
 ```
 
 ## License

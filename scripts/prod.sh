@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build and run iworkflow in release mode.
 #
-#   ./scripts/prod.sh build   # cargo leptos build --release + package into $DIST_DIR
+#   ./scripts/prod.sh build   # build assets + Go binary and package into $DIST_DIR
 #   ./scripts/prod.sh run     # start the packaged binary
 #   ./scripts/prod.sh         # build + run
 #
@@ -17,11 +17,11 @@ BIN_NAME="iworkflow"
 
 build() {
   cd "$ROOT"
-  cargo leptos build --release
+  make generate
   rm -rf "$DIST_DIR"
   mkdir -p "$DIST_DIR"
-  cp "target/release/$BIN_NAME" "$DIST_DIR/"
-  cp -r target/site "$DIST_DIR/site"
+  go build -p 2 -ldflags="-s -w" -o "$DIST_DIR/$BIN_NAME" ./cmd/iworkflow
+  cp -r web/static "$DIST_DIR/site"
   echo "Packaged into $DIST_DIR"
 }
 

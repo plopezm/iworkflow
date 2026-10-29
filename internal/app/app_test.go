@@ -143,8 +143,9 @@ func TestSettingsSectionsAreRoutable(t *testing.T) {
 		rec := get(t, handler, "/dock/pane?path=/settings/"+section)
 		require.Equal(t, http.StatusOK, rec.Code, section)
 	}
-	// GitLab and GitHub are migrated: the settings screen renders their provider cards.
+	// GitLab, GitHub and Jira are migrated: the settings screen renders their provider cards.
 	settings := get(t, handler, "/dock/pane?path=/settings")
+	require.Contains(t, settings.Body.String(), `id="jira-connection-card"`)
 	require.Contains(t, settings.Body.String(), `id="code-host-settings-gitlab"`)
 	require.Contains(t, settings.Body.String(), `id="code-host-settings-github"`)
 }
@@ -155,6 +156,7 @@ func TestTheShellOpensOneTaskStreamAndTheBoardTabOpensNone(t *testing.T) {
 	shell := get(t, handler, "/")
 	require.Equal(t, http.StatusOK, shell.Code)
 	require.Equal(t, 1, strings.Count(shell.Body.String(), `sse-connect="/api/tasks/events"`), "the sidebar stream serves the whole page")
+	require.Contains(t, shell.Body.String(), `data-dock-path="/jira"`, "the sidebar menu includes Jira")
 
 	board := get(t, handler, "/dock/pane?path=/")
 	require.Equal(t, http.StatusOK, board.Code)

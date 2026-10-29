@@ -247,6 +247,13 @@ Open uncertainties from exploration: real size of `tasks` sub-slices (re-measure
     - golangci-lint run ./internal/... ./tests/...: 0 issues
     - npm --prefix electron test: 36/36 PASS
   T20 100% CERRADO. MIGRACIÓN A GOLANG COMPLETADA.
+- L118: Remediación de integración de Jira y script de empaquetado para Electron:
+  - Expuesto `SettingsContent()` en `jira_module.go` y `connection_handlers.go` renderizando `JiraConnectionCard`.
+  - Integrado `jira.SettingsContent()` en `settingsSections` de `internal/app/app.go` (reemplazando `notMigratedSection`).
+  - Añadido `/jira` con icono `◈` a `navEntries` en `internal/app/app.go` para visualización en menú lateral y dock launcher.
+  - Actualizado `scripts/prod.sh` de `cargo leptos build` a `make generate && go build` con copiado de `web/static` a `dist/site`.
+  - Verificación: `go test -p 2 ./...` (100% PASS), `golangci-lint run` (0 issues), `gofmt -l .` limpio, `./scripts/prod.sh build` OK, suite electron 36/36 PASS.
+
 
 
 
