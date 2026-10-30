@@ -82,6 +82,7 @@ La interfaz es un espacio de trabajo tipo IDE: cada pantalla (tablero, tarea, di
 - Los ficheros y carpetas modificados, añadidos, sin seguimiento, borrados o en conflicto se colorean según `git status`.
 - Mientras editas, el margen izquierdo marca las líneas añadidas, modificadas y borradas respecto a `HEAD` (como en VS Code).
 - Al **editar una tarea**, los límites de CPU y memoria están en *Opciones avanzadas*.
+- **Proyectos relacionados:** las pantallas de crear y editar tarea listan los demás workspaces en *Proyectos relacionados*. La tarea guarda los que marques; al arrancar, su agente recibe sus rutas, puede leer sus ficheros (solo lectura) y, si existen, consultar el codegraph de cada proyecto (`.codegraph/`) y su memoria engram (solo si `engram` está instalado). Claude además recibe las carpetas con `--add-dir`. Al escribir `@` en el prompt se completan ficheros del proyecto actual y de los marcados, con la forma `@<proyecto>:<ruta>` (los espacios del nombre pasan a guiones).
 
 ## Tablero por workspace
 
