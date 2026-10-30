@@ -143,6 +143,12 @@ type TaskPosition struct {
 	Y      float64
 }
 
+type TaskRelatedProject struct {
+	TaskID      string
+	WorkspaceID string
+	Position    int64
+}
+
 type Workspace struct {
 	ID         string
 	Name       string
