@@ -14,13 +14,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 ELECTRON_DIR="$ROOT/electron"
-
-server_binary() {
-  case "$(uname -s)" in
-    MINGW* | MSYS* | CYGWIN*) echo "iworkflow.exe" ;;
-    *) echo "iworkflow" ;;
-  esac
-}
+# shellcheck source=scripts/lib.sh
+source "$ROOT/scripts/lib.sh"
 
 builder_platform() {
   case "$(uname -s)" in
@@ -60,6 +55,13 @@ build() {
 }
 
 dev() {
+  local bin
+  bin="$(server_binary)"
+  if [[ -f "$ROOT/bin/$bin" ]]; then
+    mkdir -p "$DIST_DIR/site"
+    cp "$ROOT/bin/$bin" "$DIST_DIR/$bin"
+    cp -r "$ROOT/web/static"/* "$DIST_DIR/site/"
+  fi
   require_server_package
   cd "$ELECTRON_DIR"
   npm ci

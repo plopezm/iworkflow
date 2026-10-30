@@ -1,0 +1,50 @@
+package components
+
+// TextField is a one-line text input labelled above.
+templ TextField(p FieldProps) {
+	<label class="stack gap-1.5">
+		<span class="text-sm font-medium text-fg">{ p.Label }</span>
+		<input type="text" name={ p.Name } class="input" placeholder={ p.Placeholder } value={ p.Value } required?={ p.Required } { p.Attrs... }/>
+	</label>
+}
+
+// TextArea is a multi-line text input labelled above. Large selects the wide variant.
+templ TextArea(p FieldProps) {
+	<label class="stack gap-1.5">
+		<span class="text-sm font-medium text-fg">{ p.Label }</span>
+		<textarea class={ textAreaClass(p.Large) } name={ p.Name } placeholder={ p.Placeholder } required?={ p.Required } { p.Attrs... }>{ p.Value }</textarea>
+	</label>
+}
+
+// SelectField is a drop-down labelled above; Placeholder adds an empty first option.
+templ SelectField(p SelectFieldProps) {
+	<label class="stack gap-1.5">
+		<span class="text-sm font-medium text-fg">{ p.Label }</span>
+		<select class="input" name={ p.Name } required?={ p.Required } { p.Attrs... }>
+			if p.Placeholder != "" {
+				<option value="" selected?={ p.Value == "" }>{ p.Placeholder }</option>
+			}
+			for _, option := range p.Options {
+				<option value={ option.Value } selected?={ option.Value == p.Value }>{ option.Label }</option>
+			}
+		</select>
+	</label>
+}
+
+// NumberField is an optional numeric input with its unit, e.g. "Memory (MiB)".
+templ NumberField(p NumberFieldProps) {
+	<label class="stack gap-1.5">
+		<span class="text-sm font-medium text-fg">{ p.Label + " (" + p.Unit + ")" }</span>
+		<input type="number" min="1" name={ p.Name } class="input" placeholder={ p.Placeholder } value={ p.Value } { p.Attrs... }/>
+	</label>
+}
+
+// NumberInput is a compact numeric pill with its unit. It reports the new text on change; empty
+// means "no value".
+templ NumberInput(p NumberInputProps) {
+	<label class="select-pill">
+		<span class="text-[11px] text-muted">{ p.Label }</span>
+		<input type="number" min="1" name={ p.Name } class="select-pill-input w-20" placeholder={ p.Placeholder } value={ p.Value } disabled?={ p.Disabled } { p.Attrs... }/>
+		<span class="text-[11px] text-muted">{ p.Unit }</span>
+	</label>
+}

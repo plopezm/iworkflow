@@ -3,20 +3,33 @@
 // Usage:
 //   node end2end/run.e2e.cjs                 # all modules
 //   node end2end/run.e2e.cjs workspaces      # only modules whose name/file matches
-// Requires the server to be up on SMOKE_BASE_URL (started by end2end/run_tests.sh).
+//   IWF_E2E_TARGET=go node end2end/run.e2e.cjs   # Go server: end2end/go/*.e2e.cjs replace the
+//                                               # root module of the same name; root modules
+//                                               # without a Go copy still run (they show the gaps).
+// Requires the server to be up on SMOKE_BASE_URL (started by end2end/run_tests.sh or end2end/go/run_go.sh).
 const fs = require('fs');
 const path = require('path');
 const harness = require('./harness.cjs');
 
 const FILTER = process.argv[2] || '';
 const SMOKE_TMP = process.env.SMOKE_TMP_DIR || '/tmp/iwf-e2e-fail';
+const GO_TARGET = process.env.IWF_E2E_TARGET === 'go';
+const GO_DIR = path.join(__dirname, 'go');
 
-function collectModules() {
-  const dir = __dirname;
-  const modules = fs.readdirSync(dir)
+function listSpecs(dir, prefix) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
     .filter((f) => f.endsWith('.e2e.cjs'))
     .filter((f) => !f.startsWith('_') && f !== 'run.e2e.cjs') // throwaway probes + this runner
-    .map((f) => ({ file: f, name: f.replace(/.e2e.cjs$/, '') }))
+    .map((f) => ({ file: path.join(prefix, f), name: f.replace(/.e2e.cjs$/, '') }));
+}
+
+function collectModules() {
+  const root = listSpecs(__dirname, '');
+  // In Go mode the go/ copy of a module replaces the root (Rust) one with the same name.
+  const goSpecs = GO_TARGET ? listSpecs(GO_DIR, 'go') : [];
+  const goNames = new Set(goSpecs.map((m) => m.name));
+  const modules = [...goSpecs, ...root.filter((m) => !goNames.has(m.name))]
     .sort((a, b) => {
       // workspaces runs first: its "empty state" test needs a fresh (empty)
       // shared DB; the other modules may have registered workspaces.

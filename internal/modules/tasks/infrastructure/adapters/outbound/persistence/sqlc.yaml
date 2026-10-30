@@ -1,0 +1,67 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    # Schema is the shared goose migration folder (the `-- +goose Up` section of each file).
+    schema: "../../../../../../core/db/migrations"
+    queries: "queries"
+    gen:
+      go:
+        package: "gen"
+        out: "gen"
+        overrides:
+          # Timestamps are stored as "YYYY-MM-DD HH:MM:SS[.f]" text, the format the Rust (Diesel)
+          # version wrote. The adapter formats and parses them itself, so the driver never converts.
+          - column: "tasks.created_at"
+            go_type: "string"
+          - column: "tasks.updated_at"
+            go_type: "string"
+          - column: "tasks.resume_at"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.error"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.base_sha"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.head_sha"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.memory_limit_mb"
+            go_type:
+              type: "int64"
+              pointer: true
+          - column: "tasks.cpu_limit_percent"
+            go_type:
+              type: "int64"
+              pointer: true
+          - column: "tasks.agent_runtime"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_model_provider"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_model_id"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_thinking"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "tasks.agent_profile"
+            go_type:
+              type: "string"
+              pointer: true
+          - column: "task_events.created_at"
+            go_type: "string"
+          - column: "task_attachments.created_at"
+            go_type: "string"
+          - column: "task_dependencies.created_at"
+            go_type: "string"

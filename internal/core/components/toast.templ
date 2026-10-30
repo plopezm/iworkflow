@@ -1,0 +1,17 @@
+package components
+
+// ToastStack is the fixed container that notifications are appended to.
+templ ToastStack() {
+	<div id={ ToastStackID } class="fixed inset-x-0 bottom-4 z-[60] flex flex-col items-center gap-2 px-4 sm:items-end sm:px-6" aria-live="polite"></div>
+}
+
+// Toast is a notification that dismisses itself after ToastAutoDismissMillis or through its button.
+templ Toast(p ToastProps) {
+	<div class="relative overflow-hidden rounded-xl border border-border/60 bg-surface/90 p-3 text-sm text-fg shadow-lg backdrop-blur-xl sm:w-auto animate-slide-up" { p.Attributes()... }>
+		<div class="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-accent to-purple"></div>
+		<div class="row items-start gap-3">
+			<span class="flex-1">{ p.Text }</span>
+			<button type="button" class="btn-ghost min-h-10 min-w-10 rounded-full px-2" aria-label={ msgCloseNotification.T(ctx) } data-toast-dismiss>✕</button>
+		</div>
+	</div>
+}

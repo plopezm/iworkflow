@@ -1,0 +1,42 @@
+package pages
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/tasks/presentation/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TaskEditPage is the edit tab of a backlog task: its fields, its attached images and the save. A save that
+// succeeds closes the tab and returns to the board (see components.TaskSaved).
+templ TaskEditPage(form state.EditForm) {
+	<div class="h-full min-h-0 overflow-y-auto">
+		<div class="mx-auto w-full max-w-5xl p-4 pb-10 md:p-6 md:pb-12">
+			<form
+				class="card stack gap-4 p-5 md:p-6"
+				hx-post={ state.TaskPath(form.TaskID) + "/update" }
+				hx-encoding="multipart/form-data"
+				hx-target={ "#" + state.Scoped("task-edit-result", form.Scope) }
+				hx-swap="innerHTML"
+				hx-disabled-elt="find button[type=submit]"
+			>
+				<h1 class="page-title">{ components.EditTitle(ctx) }</h1>
+				@components.TaskEditFields(form)
+				<div id={ state.Scoped("task-edit-result", form.Scope) }>
+					if form.Error != "" {
+						@shared.ErrorText(form.Error)
+					}
+				</div>
+				<div class="row justify-end gap-2">
+					@link.Tab(link.Props{Href: form.BoardPath, Class: "btn-secondary"}) {
+						{ msgCancel.T(ctx) }
+					}
+					<button type="submit" class="btn-primary">{ msgSaveChanges.T(ctx) }</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}
+
+
+

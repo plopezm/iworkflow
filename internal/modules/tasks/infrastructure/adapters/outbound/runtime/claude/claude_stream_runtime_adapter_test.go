@@ -1,0 +1,111 @@
+package claude
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"iworkflow/internal/modules/tasks/domain/models"
+)
+
+func TestClaudeStreamRuntimeAdapterDefaultArgsRunClaudeInStreamJSONMode(t *testing.T) {
+	// Rust: claude_stream_runtime_adapter::tests::default_args_run_claude_in_stream_json_mode
+	adapter := NewStreamRuntimeAdapter("claude")
+
+	require.Equal(t, streamJSONArgs(), launchArgs(adapter.baseArgs, false, models.LaunchOptions{}))
+}
+
+func TestClaudeStreamRuntimeAdapterDefaultArgsAcceptEditsAndLeaveTheRestToTheUser(t *testing.T) {
+	// Rust: claude_stream_runtime_adapter::tests::default_args_accept_edits_and_leave_the_rest_to_the_user
+	adapter := NewStreamRuntimeAdapter("claude")
+	args := launchArgs(adapter.baseArgs, false, models.LaunchOptions{})
+
+	position := -1
+	for index, arg := range args {
+		if arg == "--permission-mode" {
+			position = index
+			break
+		}
+	}
+	require.NotEqual(t, -1, position)
+	require.Less(t, position+1, len(args))
+	assert.Equal(t, "acceptEdits", args[position+1])
+}
+
+func TestClaudeStreamRuntimeAdapterThinkingLevelsClaudeDoesNotSupportAreMapped(t *testing.T) {
+	// Rust: claude_stream_runtime_adapter::tests::thinking_levels_claude_does_not_support_are_mapped
+	argsFor := func(level string) []string {
+		return launchArgs(nil, false, models.LaunchOptions{Thinking: &level})
+	}
+
+	assert.Empty(t, argsFor("off"))
+	assert.Equal(t, []string{"--effort", "low"}, argsFor("minimal"))
+	for _, level := range []string{"low", "medium", "high", "xhigh", "max"} {
+		assert.Equal(t, []string{"--effort", level}, argsFor(level), level)
+	}
+}
+
+func TestClaudeStreamRuntimeAdapterLaunchArgsAppendResumeModelAndEffortWithoutProvider(t *testing.T) {
+	// Rust: claude_stream_runtime_adapter::tests::launch_args_append_resume_model_and_effort_without_provider
+	high := "high"
+	options := models.LaunchOptions{
+		Model:    &models.LaunchModel{Provider: "anthropic", Model: "opus"},
+		Thinking: &high,
+	}
+
+	require.Equal(t,
+		[]string{"-p", "--continue", "--model", "opus", "--effort", "high"},
+		launchArgs([]string{"-p"}, true, options),
+	)
+}
+
+func TestClaudeStreamRuntimeAdapterAddDirsBecomeOneFlagPerDirectoryAfterTheOtherFlags(t *testing.T) {
+	// Related projects: each readable project is one --add-dir, so that the variadic flag never swallows an argument.
+	high := "high"
+	options := models.LaunchOptions{
+		Thinking: &high,
+		AddDirs:  []string{"/repos/api", "/repos/web"},
+	}
+
+	require.Equal(t,
+		[]string{
+			"-p", "--effort", "high",
+			"--add-dir", "/repos/api", "--add-dir", "/repos/web",
+			"--disallowedTools=Edit(//repos/api/**)",
+			"--disallowedTools=Edit(//repos/web/**)",
+		},
+		launchArgs([]string{"-p"}, false, options),
+	)
+	require.Equal(t,
+		[]string{
+			"-p", "--continue", "--add-dir", "/repos/api",
+			"--disallowedTools=Edit(//repos/api/**)",
+		},
+		launchArgs([]string{"-p"}, true, models.LaunchOptions{AddDirs: []string{"/repos/api"}}),
+	)
+}
+
+func TestClaudeStreamRuntimeAdapterRelatedDirectoriesDenyOnlyTheEditToolsForAPathWithSpaces(t *testing.T) {
+	// The edit tools are denied per directory. Shell commands are not restricted by these rules.
+	require.Equal(t,
+		[]string{
+			"--add-dir", "/srv/my project",
+			"--disallowedTools=Edit(//srv/my project/**)",
+		},
+		launchArgs(nil, false, models.LaunchOptions{AddDirs: []string{"/srv/my project"}}),
+	)
+}
+
+func TestClaudeStreamRuntimeAdapterNoAddDirsAddsNoFlag(t *testing.T) {
+	assert.Equal(t, []string{"-p"}, launchArgs([]string{"-p"}, false, models.LaunchOptions{AddDirs: []string{}}))
+	assert.Equal(t, []string{"-p"}, launchArgs([]string{"-p"}, false, models.LaunchOptions{}))
+}
+
+func TestClaudeStreamRuntimeAdapterRelatedDirectoryWithACommaGetsNoDenyRule(t *testing.T) {
+	// A comma would split the --disallowedTools value into two malformed rules, so the folder is added without one.
+	require.Equal(t,
+		[]string{"--add-dir", "/srv/a,b"},
+		launchArgs(nil, false, models.LaunchOptions{AddDirs: []string{"/srv/a,b"}}),
+	)
+}

@@ -1,0 +1,20 @@
+package components
+
+import (
+	"strconv"
+
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// DiffStatusBadge is the one-letter badge of a changed file (A, M, D, R), titled with the name of its status.
+templ DiffStatusBadge(status state.FileStatus) {
+	<span class={ styleOf(status).class } title={ statusTitle(ctx, status) }>{ state.StatusLetter(status) }</span>
+}
+
+// DiffCounts shows the added and the removed lines of a file or a folder.
+templ DiffCounts(additions int, deletions int) {
+	<span class="diff-counts">
+		<span class="text-ok">{ "+" + strconv.Itoa(additions) }</span>
+		<span class="text-error">{ "-" + strconv.Itoa(deletions) }</span>
+	</span>
+}

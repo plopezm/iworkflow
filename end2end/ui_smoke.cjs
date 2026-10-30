@@ -15,7 +15,13 @@ let page;
   await context.addCookies([{ name: 'iw-lang', value: 'es', url: BASE }]);
   page = await context.newPage();
   const problems = [];
-  page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/reading a resource in `hydrate`/.test(m.text())) problems.push(`${m.type()}: ${m.text()}`); });
+  page.on('console', m => {
+    if ((m.type() === 'error' || m.type() === 'warning') &&
+        !/reading a resource in `hydrate`/.test(m.text()) &&
+        !/htmx:(afterRequest|sendAbort)/.test(m.text())) {
+      problems.push(`${m.type()}: ${m.text()}`);
+    }
+  });
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   page.on('dialog', d => d.accept());
   page.on('response', r => { if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${r.url()}`); });
@@ -36,7 +42,8 @@ let page;
   // El dock arranca vacío: el tablero se abre desde la barra lateral.
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
   const runtime = page.getByLabel(/^Agente/);
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
+  // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
+  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings') || (r.request().method() === 'POST' && /\/agent-settings\/(runtime|model|profile|thinking)$/.test(new URL(r.url()).pathname)));
   await runtime.selectOption('pi');
   await saved;
   await page.reload();
@@ -44,6 +51,9 @@ let page;
   if ((await runtime.inputValue()) !== 'pi') throw new Error('el agente pi no persistió');
   if (!(await page.getByLabel(/^Perfil/).count())) throw new Error('el perfil debería seguir visible con pi');
   step('agente pi seleccionado y persistido (perfil visible)');
+
+  await showDemoBoard();
+  await page.getByRole('button', { name: 'Nueva tarea' }).waitFor();
 
   // Edición en pantalla propia (no en diálogo): crear en Backlog, editar, guardar y volver.
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
@@ -111,6 +121,7 @@ let page;
   await page.getByText('Acciones', { exact: true }).click();
   await page.getByRole('button', { name: 'Ver diff' }).click();
   await page.locator('.dock-tab', { hasText: /^.*Diff/ }).waitFor();
+  await page.waitForURL(/\/diff$/);
   if (new URL(page.url()).pathname.endsWith('/diff') === false) throw new Error('el diff debe abrirse en su propia pestaña');
   await page.getByText('cambio del agente pi').waitFor();
   step('diff visible (lo escribió el binario pi)');

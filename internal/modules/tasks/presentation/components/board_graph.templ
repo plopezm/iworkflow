@@ -1,0 +1,27 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// BoardGraph combines the loose tasks panel and the graph canvas in a split layout.
+templ BoardGraph(view state.GraphView, positions map[string]state.Point, viewport state.Viewport, loose []dto.TaskDTO, scope string) {
+	@shared.SegmentedControl(shared.SegmentedControlProps{
+		Class:     "board-tabs",
+		Options:   TabOptions(ctx, len(loose)),
+		Selected:  string(state.DefaultBoardTab(len(view.Nodes), len(loose))),
+		AriaLabel: msgTabsLabel.T(ctx),
+	})
+	<div
+		class="board-panes relative flex h-full w-full min-h-0 min-w-0 flex-1 overflow-hidden"
+		id={ state.Scoped("board-graph", scope) }
+		data-tab={ string(state.DefaultBoardTab(len(view.Nodes), len(loose))) }
+	>
+		@LooseTasksPanel(loose, scope, false)
+		<div class="board-canvas relative flex-1 h-full min-w-0 min-h-0">
+			@TaskGraphCanvas(view, positions, viewport, scope, "")
+		</div>
+	</div>
+}

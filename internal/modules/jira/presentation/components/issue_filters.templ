@@ -1,0 +1,63 @@
+package components
+
+import (
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// IssueFilters renders the search bar, Jira status selector, and local state selector.
+templ IssueFilters(filter dto.IssueFilterDTO, statuses []string) {
+	<form
+		id="jira-filters"
+		class="grid gap-3 md:grid-cols-3"
+		hx-get="/jira/board"
+		hx-trigger="change, keyup delay:300ms from:input[type='search']"
+		hx-target="#jira-board"
+		hx-swap="outerHTML"
+	>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgSearch.T(ctx) }</span>
+			<input
+				type="search"
+				name="search"
+				class="input"
+				aria-label={ msgSearch.T(ctx) }
+				placeholder={ msgSearchPlaceholder.T(ctx) }
+				value={ filter.Search }
+			/>
+		</label>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgJiraStatus.T(ctx) }</span>
+			<select
+				name="status"
+				class="input"
+				aria-label={ msgJiraStatus.T(ctx) }
+			>
+				<option value="" selected?={ filter.Status == nil || *filter.Status == "" }>{ msgAll.T(ctx) }</option>
+				for _, st := range statuses {
+					<option value={ st } selected?={ filter.Status != nil && *filter.Status == st }>{ st }</option>
+				}
+			</select>
+		</label>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgLocalStatus.T(ctx) }</span>
+			<select
+				name="local_state"
+				class="input"
+				aria-label={ msgLocalStatus.T(ctx) }
+			>
+				<option value="" selected?={ filter.LocalState == nil || *filter.LocalState == "" }>{ msgAll.T(ctx) }</option>
+				<option value="new" selected?={ filter.LocalState != nil && *filter.LocalState == "new" }>
+					{ state.LocalStateLabel("new", i18n.StateFrom(ctx).Locale) }
+				</option>
+				<option value="converted" selected?={ filter.LocalState != nil && *filter.LocalState == "converted" }>
+					{ state.LocalStateLabel("converted", i18n.StateFrom(ctx).Locale) }
+				</option>
+				<option value="ignored" selected?={ filter.LocalState != nil && *filter.LocalState == "ignored" }>
+					{ state.LocalStateLabel("ignored", i18n.StateFrom(ctx).Locale) }
+				</option>
+			</select>
+		</label>
+	</form>
+}

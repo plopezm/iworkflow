@@ -1,0 +1,27 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+)
+
+// TaskAttachmentsList shows the images of a task as thumbnails; each one opens the full image. It takes no space when
+// the task has no images, and a failed read is shown in its place.
+templ TaskAttachmentsList(items []dto.TaskAttachmentDTO, failure string) {
+	if failure != "" {
+		@shared.ErrorText(failure)
+	} else if len(items) > 0 {
+		<section class="card stack">
+			<h3 class="card-title">{ msgAttachments.T(ctx) }</h3>
+			<ul class="flex flex-wrap gap-2" aria-label={ msgTaskImages.T(ctx) }>
+				for _, item := range items {
+					<li class="h-20 w-20 overflow-hidden rounded-md border border-border bg-surface">
+						<a href={ templ.SafeURL(item.URL) } target="_blank" rel="noopener">
+							<img src={ item.URL } alt={ item.Name } title={ item.Name } class="h-full w-full object-cover"/>
+						</a>
+					</li>
+				}
+			</ul>
+		</section>
+	}
+}

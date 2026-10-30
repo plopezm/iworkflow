@@ -1,0 +1,83 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/project_tree/presentation/state"
+)
+
+// TreeBody is the root listing of a project: its rows, or the empty or error message. It is the swap
+// target of the reload button, so it renders its own content only.
+templ TreeBody(v state.TreeView) {
+	if v.Error != "" {
+		<div class="px-3 py-2">@coreui.ErrorText(v.Error)</div>
+	} else if len(v.Rows) == 0 {
+		<p class="px-3 py-2 text-xs text-muted">{ msgEmptyFolder.T(ctx) }</p>
+	} else {
+		<ul>
+			@TreeRows(v.Scope.Wire(), v.Rows)
+		</ul>
+	}
+}
+
+// TreeChildren is the content of a folder once it is expanded: its rows, or the empty or error message
+// as one list item. It is swapped into the folder's own list.
+templ TreeChildren(v state.TreeView) {
+	if v.Error != "" {
+		<li class="px-3 py-2">@coreui.ErrorText(v.Error)</li>
+	} else if len(v.Rows) == 0 {
+		<li><p class="py-1 pr-2 text-xs text-muted" style={ v.EmptyStyle }>{ msgEmptyFolder.T(ctx) }</p></li>
+	} else {
+		@TreeRows(v.Scope.Wire(), v.Rows)
+	}
+}
+
+// TreeRows renders the rows of one listing as list items.
+templ TreeRows(scope string, rows []state.TreeRow) {
+	for _, row := range rows {
+		if row.IsDir {
+			@TreeFolder(scope, row)
+		} else {
+			@TreeFile(row)
+		}
+	}
+}
+
+// TreeFolder is a folder row. Its first click loads the children into the list that follows it, and
+// the shared section toggle (web/static/js/ui.js) shows or hides that list afterwards.
+templ TreeFolder(scope string, row state.TreeRow) {
+	<li data-section>
+		<button
+			type="button"
+			class={ "tree-row " + row.StatusClass }
+			style={ row.Style }
+			aria-expanded="false"
+			data-section-toggle
+			hx-get={ state.DirectoryURL(scope, row.Path) }
+			hx-trigger="click once"
+			hx-target="next [data-section-body]"
+			hx-swap="innerHTML"
+		>
+			@coreui.TreeChevron(false)
+			@coreui.TreeIcon(true, false)
+			<span class="truncate" title={ row.Name }>{ row.Name }</span>
+		</button>
+		<ul data-section-body style="display: none"></ul>
+	</li>
+}
+
+// TreeFile is a file row. A plain click opens the file beside the current tab.
+templ TreeFile(row state.TreeRow) {
+	<li>
+		<a
+			href={ templ.SafeURL(row.Href) }
+			class={ "tree-row " + row.StatusClass }
+			style={ row.Style }
+			{ link.Props{Href: row.Href, Beside: true}.Attributes()... }
+		>
+			<span class="tree-chevron-spacer" aria-hidden="true"></span>
+			@coreui.TreeIcon(false, false)
+			<span class="truncate" title={ row.Name }>{ row.Name }</span>
+		</a>
+	</li>
+}

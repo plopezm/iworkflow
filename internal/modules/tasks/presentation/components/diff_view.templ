@@ -1,0 +1,87 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// DiffView is the diff of a task: the layout controls, the commits and the stat, the notice of a truncated patch, the
+// tree of the changed files and the cards. The whole view is one element, so each control swaps it for the same
+// address in another layout, and the layout lives in that address.
+templ DiffView(view state.DiffView) {
+	<div id={ state.DiffViewRegionID(view.Scope) } class="stack @container" hx-get={ state.DiffViewPath(view, view.Layout) } hx-trigger={ state.DiffSavedEvent + " from:body" } hx-target="this" hx-swap="outerHTML">
+		if view.Failure != "" {
+			@diffToolbar(view)
+			@coreui.ErrorText(view.Failure)
+		} else if view.Diff.Patch == "" && len(view.Diff.Commits) == 0 {
+			<p class="muted">{ msgNoChangesVsBase.T(ctx) }</p>
+		} else {
+			@diffToolbar(view)
+			if view.ReportPhase().HasReport() {
+				@DiffReport(view.TaskID, view.Scope, view.Title, view.Diff, view.ReportPhase())
+			}
+			if view.ReportPhase().IsFailed() {
+				<div class="notice notice-warn row justify-between animate-fade-in">
+					@coreui.ErrorText(view.ReportPhase().Error)
+					<button type="button" class="btn-secondary" { diffReportCancelAttrs(view.TaskID, view.Scope)... }>{ msgReportClose.T(ctx) }</button>
+				</div>
+			}
+			if view.ReportPhase().IsWaiting() {
+				<div hidden { diffReportPollAttrs(view.TaskID, view.Scope, view.Report.Since)... }></div>
+			}
+			if view.ReportPhase().IsBusy() {
+				@coreui.ProgressDialog(diffReportProgressTitle(ctx), diffReportProgressMessage(ctx, view.ReportPhase()), true, diffReportCancelAttrs(view.TaskID, view.Scope))
+			}
+			@diffSummary(view.Diff.Commits, view.Diff.Stat)
+			if view.Diff.Truncated {
+				<p class="notice notice-warn animate-fade-in">{ msgTruncated.T(ctx) }</p>
+			}
+			<div class="diff-layout">
+				if view.Layout.TreeOpen && len(view.Files) > 0 {
+					<aside class="diff-sidebar">
+						@DiffFileTree(view.Tree, view.Scope)
+					</aside>
+				}
+				<div class="diff-cards">
+					if len(view.Files) == 0 {
+						<p class="muted">{ msgNoFileChanges.T(ctx) }</p>
+					}
+					for _, file := range view.Files {
+						@DiffFileCard(file, view, !view.Layout.Collapsed)
+					}
+				</div>
+			</div>
+		}
+	</div>
+}
+
+// diffToolbar holds the layout controls. Each one swaps the view for its own layout.
+templ diffToolbar(view state.DiffView) {
+	<div class="diff-toolbar">
+		<div class="diff-segmented" role="group" aria-label={ msgViewMode.T(ctx) }>
+			@diffModeButton(view, state.ViewSplit)
+			@diffModeButton(view, state.ViewUnified)
+		</div>
+		<button type="button" class="btn-secondary" hx-get={ state.DiffViewPath(view, view.Layout.WithCollapsed(false)) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgExpandAll.T(ctx) }</button>
+		<button type="button" class="btn-secondary" hx-get={ state.DiffViewPath(view, view.Layout.WithCollapsed(true)) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgCollapseAll.T(ctx) }</button>
+		<button type="button" class="btn-secondary" aria-pressed={ boolText(view.Layout.TreeOpen) } hx-get={ state.DiffViewPath(view, view.Layout.WithTree(!view.Layout.TreeOpen)) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgTree.T(ctx) }</button>
+		<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(view.TaskID, view.Scope, "plain") } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgExportPdf.T(ctx) }</button>
+		<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(view.TaskID, view.Scope, "explained") } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgPdfWithExplanations.T(ctx) }</button>
+	</div>
+}
+
+// diffModeButton is one option of the Split and Unified toggle; the one in use is marked as pressed.
+templ diffModeButton(view state.DiffView, mode state.ViewMode) {
+	<button type="button" class={ diffSegmentClass(view.Layout.Mode == mode) } aria-pressed={ boolText(view.Layout.Mode == mode) } hx-get={ state.DiffViewPath(view, view.Layout.WithMode(mode)) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ mode.Label(ctx) }</button>
+}
+
+// diffSummary lists the commits of the task and the stat of its diff, folded until asked for.
+templ diffSummary(commits []string, stat string) {
+	<details class="diff-summary">
+		<summary class="diff-summary-toggle">{ msgCommitsAndSummary.Fmt(ctx, map[string]string{"n": countText(len(commits))}) }</summary>
+		<div class="stack p-3">
+			<pre class="rounded-lg bg-surface-2/40 p-3 text-sm">{ joinLines(commits) }</pre>
+			<pre class="rounded-lg bg-surface-2/40 p-3 text-sm">{ stat }</pre>
+		</div>
+	</details>
+}

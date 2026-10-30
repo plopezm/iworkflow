@@ -22,7 +22,7 @@
 - **Mobile-first**: check progress, answer an agent's question and merge from your phone (through Tailscale).
 - **Tabbed IDE-like workspace**: board, task, diff, terminal and file editor as draggable, splittable tabs.
 
-iworkflow imposes no workflow: each agent uses the configuration and plugins you already have installed, plus the project's `AGENTS.md`. Under the hood agents are driven over RPC (or ACP / stream-json, depending on the runtime). It is built with Rust, Leptos (SSR + hydration), Diesel and SQLite.
+iworkflow imposes no workflow: each agent uses the configuration and plugins you already have installed, plus the project's `AGENTS.md`. Under the hood agents are driven over RPC (or ACP / stream-json, depending on the runtime). It is built with Go (`net/http` + `chi`), SSR with `templ` and `htmx`, Tailwind CSS, `sqlc` and SQLite (`modernc.org/sqlite`).
 
 ## Index
 
@@ -55,12 +55,12 @@ The server runs on your computer and the phone is only a browser, so you need a 
 
 ## Quick start
 
-Requirements: `git`, a Rust toolchain (edition 2024, Rust 1.85 or newer), [`cargo-leptos`](https://github.com/leptos-rs/cargo-leptos) (`cargo install cargo-leptos --locked`), the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`) and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude` or `agent` for Cursor).
+Requirements: `git`, Go (1.23 or newer), `templ`, `tailwindcss` and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude` or `agent` for Cursor).
 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
 cd iworkflow
-cargo leptos watch          # http://127.0.0.1:3000
+make dev                    # http://127.0.0.1:9000
 ```
 
 1. **Workspaces** → register a folder with git (it needs at least one commit).
@@ -82,6 +82,7 @@ The interface is an IDE-like workspace: every screen (board, task, diff, termina
 - Modified, added, untracked, deleted or conflicted files and folders are colored according to `git status`.
 - While you edit, the left gutter marks added, modified and deleted lines against `HEAD` (as in VS Code).
 - When **editing a task**, the CPU and memory limits live under *Advanced options*.
+- **Related projects:** the create and edit task screens list the other workspaces under *Related projects*. A task keeps the ones you tick; when its agent starts it is told their paths and not to modify them, may read their files, and, when present, query each project's codegraph (`.codegraph/`) and its engram memory (only if `engram` is installed). Claude also gets the folders through `--add-dir`, and its edit tools (`Edit`, `Write`, `NotebookEdit`) are denied inside them. Shell commands are not sandboxed, so this is not a hard guarantee. Typing `@` in the prompt completes files of the current project and of the ticked ones, written as `@<project>:<path>` (spaces in the project name become dashes).
 
 ## Workspace board
 
@@ -367,12 +368,12 @@ Tips:
 Architecture and code guide in [ARCHITECTURE.md](ARCHITECTURE.md); project rules in [AGENTS.md](AGENTS.md). Checks:
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --features ssr --all-targets -- -D warnings
-cargo clippy --features hydrate --target wasm32-unknown-unknown --lib -- -D warnings
-cargo test --features ssr
-PLAYWRIGHT_MODULE=/path/to/node_modules/playwright ./end2end/run_smoke.sh   # UI with a fake agent
-PLAYWRIGHT_MODULE=/path/to/node_modules/playwright ./end2end/run_tests.sh [module]   # e2e use-case suite (Jira and GitLab mocks, fake agents)
+make test                                      # go test -p 2 -race ./...
+make vet                                       # go vet ./...
+make lint                                      # golangci-lint run
+make e2e                                       # full browser Playwright e2e suite (or FILTER=<name>)
+make electron-build                            # package desktop app (dist/electron)
+make electron-dev                              # run Electron window in development
 ```
 
 ## License

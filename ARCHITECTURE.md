@@ -48,16 +48,16 @@ iworkflow is an ADE (Agentic Development Environment) to launch, orchestrate and
 
 ```mermaid
 flowchart LR
-    U[Browser<br/>hydrated Leptos] -- "server functions (HTTP)" --> S[axum server]
+    U[Browser<br/>htmx + templ SSR] -- "HTTP (chi router)" --> S[Go server]
     U -- "SSE: task events" --> S
     U -- "WebSocket: terminal" --> S
-    S --> DB[(SQLite<br/>Diesel)]
+    S --> DB[(SQLite<br/>sqlc + goose)]
     S -- "git worktree / merge" --> G[User's git repos]
     S -- "JSONL over stdin/stdout" --> A[Agent process<br/>pi / gentle-shell, RPC mode]
     S -- "PTY" --> T[Interactive shell]
 ```
 
-It is a single Rust binary that serves the HTML (SSR), the WASM bundle, the *server functions*, an SSE endpoint and a WebSocket. The desktop installers (`electron/`) are only a shell: a window plus a child process running this same binary, with no extra logic.
+It is a single Go binary (`cmd/iworkflow`) that serves the HTML (SSR with templ), static assets, HTTP endpoints, an SSE endpoint and a WebSocket. The desktop installers (`electron/`) are only a shell: a window plus a child process running this same binary, with no extra logic.
 
 Task lifecycle (the state machine lives in `src/modules/tasks/domain/models/task.rs`):
 

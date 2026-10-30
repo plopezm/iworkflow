@@ -1,0 +1,75 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/agent_profiles/presentation/state"
+)
+
+// ProfilesList is the profile selector: a card with the new and import buttons above the chips of the
+// profiles, the active one badged and the selected one highlighted.
+//
+// Props are the state.ListView fields: ID and DialogID name the card and its dialog host, Items are
+// the chips, Error replaces them, and SelectURL, NewURL and ImportURL are the endpoints. The card is
+// the swap target of a chip selection, so it is replaced as a whole; oob sends it out of band after a
+// change of the list instead.
+templ ProfilesList(list state.ListView, oob bool) {
+	<div id={ list.ID } class="stack" { oobAttrs(oob)... }>
+		@coreui.Card(msgProfilesTitle.T(ctx)) {
+			<div class="row gap-2">
+				<button type="button" class="btn-primary" hx-get={ list.NewURL } hx-target={ hashID(list.DialogID) } hx-swap="outerHTML">{ msgNew.T(ctx) }</button>
+				<button type="button" class="btn-secondary" hx-get={ list.ImportURL } hx-target={ hashID(list.DialogID) } hx-swap="outerHTML">{ msgImport.T(ctx) }</button>
+			</div>
+			if list.Error != "" {
+				@coreui.ErrorText(list.Error)
+			} else if len(list.Items) == 0 {
+				<p class="muted">{ msgNoProfiles.T(ctx) }</p>
+			} else {
+				<ul class="stack gap-1.5">
+					for _, item := range list.Items {
+						<li>
+							<button type="button" class={ chipClass(item.Selected) } hx-get={ list.SelectURL } hx-vals={ valsJSON(map[string]string{"selected": item.Name}) } hx-target={ hashID(list.ID) } hx-swap="outerHTML">
+								<span class="truncate">{ item.Name }</span>
+								if item.Active {
+									@coreui.Badge(msgActive.T(ctx), "ok")
+								}
+							</button>
+						</li>
+					}
+				</ul>
+			}
+		}
+	</div>
+}
+
+// DialogHost is an empty dialog container. A successful dialog reply sends it to close the dialog.
+templ DialogHost(id string) {
+	<div id={ id }></div>
+}
+
+// JSONPanel shows the exported JSON of a profile in a read-only box, so it can be copied by hand.
+templ JSONPanel(text string) {
+	<textarea class="input min-h-40 font-mono text-xs" readonly>{ text }</textarea>
+}
+
+// RolesCard lists the agent roles. It is refreshed out of band after a role is created.
+templ RolesCard(roles state.RolesView, oob bool) {
+	<div id="profiles-roles" class="stack" { oobAttrs(oob)... }>
+		@coreui.Card(msgAgentRoles.T(ctx)) {
+			<button type="button" class="btn-secondary" hx-get={ roles.NewRoleURL } hx-target="#profiles-dialog" hx-swap="outerHTML">{ msgNewRole.T(ctx) }</button>
+			if roles.Error != "" {
+				@coreui.ErrorText(roles.Error)
+			} else if len(roles.Items) == 0 {
+				<p class="muted">{ msgNoRoles.T(ctx) }</p>
+			} else {
+				<ul class="stack gap-1.5">
+					for _, role := range roles.Items {
+						<li class="stack gap-0.5">
+							<span class="text-sm font-medium text-fg">{ role.Name }</span>
+							<span class="muted text-xs">{ role.Description }</span>
+						</li>
+					}
+				</ul>
+			}
+		}
+	</div>
+}

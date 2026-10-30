@@ -1,0 +1,80 @@
+package components
+
+import (
+	"context"
+
+	ui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+func tokenPlaceholder(ctx context.Context, view state.ConnectionCardView) string {
+	if view.Stored != nil {
+		return msgTokenKeepPlaceholder.T(ctx)
+	}
+	return msgTokenPlaceholder.T(ctx)
+}
+
+// JiraConnectionForm renders the URL and PAT configuration form for Jira.
+templ JiraConnectionForm(view state.ConnectionCardView) {
+	<form
+		hx-post="/jira/connection"
+		hx-target="#jira-connection-card"
+		hx-swap="outerHTML"
+		class="stack gap-3"
+	>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgServerURL.T(ctx) }</span>
+			<input
+				type="text"
+				name="base_url"
+				class="input"
+				placeholder={ msgServerURLPlaceholder.T(ctx) }
+				value={ view.FormURL }
+				required
+			/>
+		</label>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgTokenLabel.T(ctx) }</span>
+			<input
+				type="password"
+				name="token"
+				class="input"
+				autocomplete="off"
+				placeholder={ tokenPlaceholder(ctx, view) }
+			/>
+		</label>
+		<label class="row min-h-10 items-center gap-2 text-sm text-fg">
+			<input
+				type="checkbox"
+				name="accept_invalid_certs"
+				value="true"
+				class="h-5 w-5"
+				checked?={ view.FormAcceptInvalidCerts }
+			/>
+			{ msgAcceptInvalidCerts.T(ctx) }
+		</label>
+		if view.Err != "" {
+			@ui.ErrorText(view.Err)
+		}
+		<div class="row justify-end gap-2">
+			if view.Stored != nil {
+				<button
+					type="button"
+					class="btn-secondary"
+					hx-get="/jira/connection/cancel"
+					hx-target="#jira-connection-card"
+					hx-swap="outerHTML"
+				>
+					{ msgCancel.T(ctx) }
+				</button>
+			}
+			<button
+				type="submit"
+				class="btn-primary"
+				data-loading-text={ msgChecking.T(ctx) }
+			>
+				{ msgConnect.T(ctx) }
+			</button>
+		</div>
+	</form>
+}

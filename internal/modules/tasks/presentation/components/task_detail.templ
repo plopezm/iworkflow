@@ -1,0 +1,14 @@
+package components
+
+import "iworkflow/internal/core/dock/link"
+
+// TaskGone is the detail tab of a task that no longer exists: it says so and links back to the home board.
+templ TaskGone() {
+	<section class="card stack m-4">
+		<h1 class="page-title">{ msgTask.T(ctx) }</h1>
+		<p class="muted">{ msgTaskGone.T(ctx) }</p>
+		@link.Tab(link.Props{Href: "/", Class: "btn-secondary"}) {
+			{ msgBackToBoard.T(ctx) }
+		}
+	</section>
+}

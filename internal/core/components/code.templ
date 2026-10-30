@@ -1,0 +1,44 @@
+package components
+
+// CodeView is a read-only viewer with syntax colours and line numbers. web/static/js/code.js loads
+// highlight.js on demand and renders Text into the code element.
+templ CodeView(p CodeViewProps) {
+	<div class="code-box code-box-view">
+		<pre class="code-gutter" aria-hidden="true">{ LineNumbers(p.Text) }</pre>
+		<pre class="code-text"><code data-code-text={ p.Text } { codeAttributes(p.Filename)... }></code></pre>
+	</div>
+}
+
+// CodeEditor is an editor with syntax colours: a transparent textarea over a highlighted layer.
+// Ctrl/Cmd+S submits the form through the behaviour in Attrs (data-code-save is set).
+templ CodeEditor(p CodeEditorProps) {
+	<div class="code-box code-box-edit">
+		<pre class="code-gutter code-gutter-edit" aria-hidden="true" data-code-gutter>
+			for i, number := range splitNumbers(p.Value) {
+				if i < len(p.Marks) {
+					<span class={ MarkClass(p.Marks[i]) }>{ number }</span>
+				} else {
+					<span class="gm-none">{ number }</span>
+				}
+				if i < len(splitNumbers(p.Value))-1 {
+					{ "\n" }
+				}
+			}
+		</pre>
+		<div class="code-stack">
+			<pre class="code-text code-layer" aria-hidden="true" data-code-layer><code data-code-text={ p.Value } { codeAttributes(p.Filename)... }></code></pre>
+			<textarea
+				class="code-input"
+				name={ p.Name }
+				spellcheck="false"
+				autocapitalize="off"
+				autocomplete="off"
+				wrap="off"
+				aria-label={ msgFileContent.T(ctx) }
+				disabled?={ p.Disabled }
+				data-code-editor
+				{ p.Attrs... }
+			>{ p.Value }</textarea>
+		</div>
+	</div>
+}

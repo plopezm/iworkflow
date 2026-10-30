@@ -1,0 +1,42 @@
+package components
+
+import (
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// BacklogView is the body of a backlog task: its prompt and what can be done before it starts. Start answers the
+// page of this instance; delete asks first and answers the result slot, which leaves the tab when the task is gone.
+templ BacklogView(view state.TaskDetailView) {
+	<section class="card stack">
+		<p class="whitespace-pre-wrap text-fg">{ view.Task.Prompt }</p>
+		<div class="row">
+			if view.Task.Actions.CanStart {
+				<button
+					type="button"
+					class="btn-primary"
+					hx-post={ state.ScopedPath(state.TaskPath(view.Task.ID)+"/start", view.Scope) }
+					hx-target={ "#" + state.Scoped("task-detail", view.Scope) }
+					hx-swap="outerHTML"
+					hx-disabled-elt="this"
+				>{ msgStart.T(ctx) }</button>
+			}
+			if view.Task.Actions.CanEdit {
+				@link.Tab(link.Props{Href: state.TaskPath(view.Task.ID) + "/edit", Class: "btn-secondary"}) {
+					{ msgEdit.T(ctx) }
+				}
+			}
+			if view.Task.Actions.CanDelete {
+				<button
+					type="button"
+					class="btn-danger"
+					hx-post={ state.ScopedPath(state.TaskPath(view.Task.ID)+"/delete", view.Scope) }
+					hx-target={ "#" + state.Scoped("task-detail-result", view.Scope) }
+					hx-swap="innerHTML"
+					hx-confirm={ msgDetailConfirmDelete.T(ctx) }
+					hx-disabled-elt="this"
+				>{ msgDelete.T(ctx) }</button>
+			}
+		</div>
+	</section>
+}

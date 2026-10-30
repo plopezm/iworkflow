@@ -1,0 +1,15 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    # Schema is the shared goose migration folder (the `-- +goose Up` section of each file).
+    schema: "../../../../../../core/db/migrations"
+    queries: "queries"
+    gen:
+      go:
+        package: "gen"
+        out: "gen"
+        overrides:
+          # Timestamps are stored as "YYYY-MM-DD HH:MM:SS[.f]" text, the format the Rust (Diesel)
+          # version wrote. The adapter formats and parses them itself, so the driver never converts.
+          - column: "agents_files.created_at"
+            go_type: "string"

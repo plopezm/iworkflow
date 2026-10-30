@@ -1,0 +1,18 @@
+package components
+
+
+// ProgressDialog is a cancelable dialog with an indeterminate progress bar for long-running work.
+// Closing it by any means runs the cancel behaviour in CancelAttrs.
+templ ProgressDialog(title string, message string, open bool, cancelAttrs templ.Attributes) {
+	@Modal(ModalProps{Title: title, Open: open, CloseAttrs: cancelAttrs}) {
+		<p class="text-sm text-muted">{ message }</p>
+		<div class="progress-track" role="progressbar" aria-busy="true" aria-valuetext={ msgInProgress.T(ctx) }>
+			<div class="progress-bar"></div>
+		</div>
+		<div class="row justify-end">
+			<button type="button" class="btn-secondary" { cancelAttrs... }>
+				{ msgCancel.T(ctx) }
+			</button>
+		</div>
+	}
+}

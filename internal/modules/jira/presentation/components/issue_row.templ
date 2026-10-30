@@ -1,0 +1,83 @@
+package components
+
+import (
+	"fmt"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// IssueRow renders a single imported issue card in the lane listing.
+templ IssueRow(issue dto.IssueDTO) {
+	<li class="card stack gap-2">
+		<div class="row flex-wrap items-center gap-2">
+			@link.Tab(link.Props{
+				Href:  "/jira/" + issue.Key,
+				Class: "font-semibold text-accent",
+			}) {
+				{ issue.Key }
+			}
+			<span class="min-w-0 flex-1 break-words text-sm font-medium">{ issue.Summary }</span>
+		</div>
+		<div class="row flex-wrap items-center gap-2 text-xs">
+			@shared.Badge(issue.Status, "warn")
+			@LocalStateBadge(issue.LocalState)
+			<span class="muted">{ issue.IssueType }</span>
+			if issue.Priority != nil && *issue.Priority != "" {
+				<span class="muted">{ *issue.Priority }</span>
+			}
+			if issue.Assignee != nil && *issue.Assignee != "" {
+				<span class="muted">{ fmt.Sprintf("→ %s", *issue.Assignee) }</span>
+			}
+			<span class="muted">{ state.ShortTimestamp(issue.JiraUpdatedAt) }</span>
+		</div>
+		<div class="row flex-wrap gap-2">
+			if issue.LocalState == "converted" && issue.TaskID != nil && *issue.TaskID != "" {
+				@link.Tab(link.Props{
+					Href:  "/tasks/" + *issue.TaskID,
+					Class: "btn-secondary min-h-8 px-3 py-1 text-xs",
+				}) {
+					{ msgViewTask.T(ctx) }
+				}
+			} else if issue.LocalState != "converted" {
+				@link.Tab(link.Props{
+					Href:  "/jira/" + issue.Key + "/convert",
+					Class: "btn-primary min-h-8 px-3 py-1 text-xs",
+				}) {
+					{ msgConvert.T(ctx) }
+				}
+			}
+			if issue.LocalState == "new" {
+				<button
+					type="button"
+					class="btn-ghost min-h-8 px-3 py-1 text-xs"
+					hx-post={ "/jira/issues/" + issue.Key + "/ignore?ignored=true" }
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+				>
+					{ msgIgnore.T(ctx) }
+				</button>
+			} else if issue.LocalState == "ignored" {
+				<button
+					type="button"
+					class="btn-ghost min-h-8 px-3 py-1 text-xs"
+					hx-post={ "/jira/issues/" + issue.Key + "/ignore?ignored=false" }
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+				>
+					{ msgRestore.T(ctx) }
+				</button>
+			}
+			<a
+				href={ templ.SafeURL(issue.URL) }
+				target="_blank"
+				rel="noreferrer noopener"
+				class="btn-ghost min-h-8 px-3 py-1 text-xs"
+			>
+				{ msgOpenInJira.T(ctx) }
+			</a>
+		</div>
+	</li>
+}

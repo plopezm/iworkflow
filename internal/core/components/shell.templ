@@ -1,0 +1,239 @@
+package components
+
+import "iworkflow/internal/core/dock/link"
+
+// CollapsePanelProps configures a side panel: a column with a handle on desktop and an overlay on
+// mobile. Width is the desktop width class (e.g. md:w-72). PersistKey, when set, stores the open
+// state in localStorage (web/static/js/ui.js).
+type CollapsePanelProps struct {
+	Side       PanelSide
+	Open       bool
+	Width      string
+	Label      string
+	ID         string
+	PersistKey string
+}
+
+func collapsePanelClass(side PanelSide) string {
+	return "fixed inset-y-0 z-40 w-[88vw] max-w-sm min-h-0 flex-col border-border bg-surface md:static md:z-auto md:max-w-none md:shrink-0 hidden group-data-[mobile-open]:flex md:flex group-data-[collapsed]:md:hidden " + side.anchor()
+}
+
+func collapseHandleClass(side PanelSide) string {
+	base := "absolute top-1/2 z-20 hidden h-12 w-4 -translate-y-1/2 cursor-pointer items-center justify-center border border-border bg-surface text-xs text-muted opacity-60 transition-opacity hover:opacity-100 hover:text-fg md:flex"
+	if side == RightPanel {
+		return base + " left-0 -translate-x-1/2 rounded-md group-data-[collapsed]:left-auto group-data-[collapsed]:right-0 group-data-[collapsed]:translate-x-0 rounded-l-md"
+	}
+	return base + " right-0 translate-x-1/2 rounded-md group-data-[collapsed]:right-auto group-data-[collapsed]:left-0 group-data-[collapsed]:translate-x-0 rounded-r-md"
+}
+
+// CollapsePanel is a side panel that collapses to a handle on desktop and opens as an overlay on mobile.
+templ CollapsePanel(p CollapsePanelProps) {
+	<div
+		id={ p.ID }
+		class="group relative flex min-h-0 shrink-0"
+		data-collapse-root
+		data-persist-key={ p.PersistKey }
+		data-collapsed?={ !p.Open }
+	>
+		<button
+			type="button"
+			hidden
+			class="fixed inset-0 z-30 cursor-default bg-black/40 md:hidden"
+			aria-label={ msgClosePanel.T(ctx) }
+			data-overlay-close
+		></button>
+		<aside class={ collapsePanelClass(p.Side), p.Width } aria-label={ p.Label }>
+			{ children... }
+		</aside>
+		<button
+			type="button"
+			class={ collapseHandleClass(p.Side) }
+			aria-expanded={ ariaBool(p.Open) }
+			aria-label={ msgCollapsePanel.T(ctx) }
+			data-collapse-toggle
+			data-glyph-open={ HandleGlyph(p.Side, true) }
+			data-glyph-closed={ HandleGlyph(p.Side, false) }
+			data-label-open={ msgCollapsePanel.T(ctx) }
+			data-label-closed={ msgExpandPanel.T(ctx) }
+		>
+			<span aria-hidden="true">{ HandleGlyph(p.Side, p.Open) }</span>
+		</button>
+	</div>
+}
+
+// DropdownMenuProps configures a menu that closes on a choice or on any click outside it.
+type DropdownMenuProps struct {
+	Label        string
+	AriaLabel    string
+	TriggerClass string
+	MenuClass    string
+}
+
+// DropdownMenu is a generic popup menu; the menu entries are its children.
+templ DropdownMenu(p DropdownMenuProps) {
+	<div class="relative" data-menu>
+		<button
+			type="button"
+			class={ p.TriggerClass }
+			aria-label={ p.AriaLabel }
+			aria-haspopup="menu"
+			aria-expanded="false"
+			data-menu-trigger
+		>{ p.Label }</button>
+		<div
+			class={ "absolute top-full right-0 z-40 mt-1 flex min-w-44 flex-col rounded-md border border-border bg-surface p-1 shadow-lg", p.MenuClass }
+			role="menu"
+			style={ hiddenStyle(true) }
+			data-menu-panel
+		>
+			{ children... }
+		</div>
+	</div>
+}
+
+// SidebarSectionProps configures a collapsible sidebar section with a counter and optional actions.
+type SidebarSectionProps struct {
+	Title   string
+	Count   int
+	Actions templ.Component
+}
+
+// SidebarSection is a collapsible group of the sidebar.
+templ SidebarSection(p SidebarSectionProps) {
+	<section class="px-1 pb-1" data-section>
+		<div class="flex items-center gap-2 px-2.5 py-1.5">
+			<button
+				type="button"
+				class="flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[11px] font-medium text-muted hover:text-fg"
+				aria-expanded="true"
+				data-section-toggle
+			>
+				<span aria-hidden="true">▾</span>
+				{ p.Title }
+			</button>
+			if p.Actions != nil {
+				@p.Actions
+			}
+			<span class="text-[10px] text-muted">{ fmtCount(p.Count) }</span>
+		</div>
+		<div class="flex flex-col gap-0.5 px-1.5 pb-2" data-section-body>
+			{ children... }
+		</div>
+	</section>
+}
+
+// SidebarItemProps configures a sidebar row: a tab link with a title and subtitle, and an optional menu.
+type SidebarItemProps struct {
+	Href      string
+	Title     string
+	Subtitle  string
+	Selected  bool
+	Highlight bool
+}
+
+// SidebarItem is a row of the sidebar: a link that opens its tab, and an optional `…` menu (children).
+templ SidebarItem(p SidebarItemProps, menu templ.Component) {
+	<div class={ sidebarRowClass(p.Selected) }>
+		@link.Tab(link.Props{Href: p.Href, Title: p.Title, Class: "min-w-0 flex-1 px-2.5 py-1.5"}) {
+			<div class="flex items-center gap-1.5">
+				if p.Highlight {
+					<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-error" title={ msgNeedsAttn.T(ctx) }></span>
+				}
+				<span class="truncate text-[13px] font-medium text-fg">{ p.Title }</span>
+			</div>
+			if p.Subtitle != "" {
+				<div class="truncate text-[11px] text-muted">{ p.Subtitle }</div>
+			}
+		}
+		if menu != nil {
+			<div class="flex">
+				@DropdownMenu(DropdownMenuProps{Label: "…", AriaLabel: msgMoreActions.T(ctx), TriggerClass: "flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"}) {
+					@menu
+				}
+			</div>
+		}
+	</div>
+}
+
+// TabItem is one option of a TabBar. Attrs carries its behaviour (usually htmx attributes).
+type TabItem struct {
+	ID    string
+	Label string
+	Attrs templ.Attributes
+}
+
+// TabBar is a controlled tab strip: the caller decides which body to render for Active.
+templ TabBar(tabs []TabItem, active string) {
+	<div class="flex shrink-0 gap-1.5 overflow-x-auto border-b border-border p-2" role="tablist">
+		for _, tab := range tabs {
+			<button
+				type="button"
+				role="tab"
+				class={ tabClass(tab.ID == active) }
+				aria-selected={ ariaBool(tab.ID == active) }
+				{ tab.Attrs... }
+			>{ tab.Label }</button>
+		}
+	</div>
+}
+
+// SidebarToggleProps configures the button that hides or shows the sidebar on desktop.
+type SidebarToggleProps struct {
+	Class string
+}
+
+// SidebarToggle hides or shows the desktop sidebar (web/static/js/ui.js handles the click).
+templ SidebarToggle(p SidebarToggleProps) {
+	<button
+		type="button"
+		class={ "icon-btn", p.Class }
+		aria-label={ msgHideSidebar.T(ctx) }
+		title={ msgHideSidebar.T(ctx) }
+		data-sidebar-toggle
+		data-label-hide={ msgHideSidebar.T(ctx) }
+		data-label-show={ msgShowSidebar.T(ctx) }
+	>
+		<svg viewBox="0 0 16 16" fill="none" class="h-4 w-4" aria-hidden="true">
+			<rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"></rect>
+			<path d="M6 3v10" stroke="currentColor" stroke-width="1.3"></path>
+		</svg>
+	</button>
+}
+
+// AppShellProps configures the full-screen layout: a collapsible sidebar and the main column.
+type AppShellProps struct {
+	Brand string
+	// HomeReuse is the name of the route the brand reuses when its tab is already open.
+	HomeReuse string
+	Sidebar   templ.Component
+	Content   templ.Component
+}
+
+// AppShell is the three-column layout: the sidebar (collapsible on desktop, an overlay opened from
+// the header on mobile) and, to its right, the content. Each column scrolls on its own.
+templ AppShell(p AppShellProps) {
+	<div class="flex h-dvh w-full overflow-hidden bg-bg text-fg" data-app-shell>
+		@CollapsePanel(CollapsePanelProps{
+			Side:       LeftPanel,
+			Open:       true,
+			Width:      "md:w-72",
+			Label:      msgSidebar.T(ctx),
+			ID:         "sidebar-panel",
+			PersistKey: SidebarStorageKey,
+		}) {
+			@p.Sidebar
+		}
+		<div class="hidden w-10 shrink-0 flex-col items-center border-r border-border bg-surface pt-2 md:flex" style={ hiddenStyle(true) } data-sidebar-rail>
+			@SidebarToggle(SidebarToggleProps{})
+		</div>
+		<div class="flex min-w-0 flex-1 flex-col">
+			<header class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden">
+				<button type="button" class="btn-secondary min-h-9 px-2.5 py-1" aria-label={ msgOpenMenu.T(ctx) } data-mobile-open data-target="sidebar-panel">☰</button>
+				@link.Tab(link.Props{Href: "/", Reuse: p.HomeReuse, Class: "text-sm font-semibold tracking-tight"}) {
+					{ p.Brand }
+				}
+			</header>
+			<main class="min-h-0 min-w-0 flex-1 overflow-hidden bg-bg">@p.Content</main>
+		</div>
+	</div>
+}

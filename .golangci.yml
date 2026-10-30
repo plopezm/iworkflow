@@ -1,0 +1,47 @@
+version: "2"
+run:
+  go: "1.27"
+linters:
+  default: standard
+  enable:
+    - depguard
+    - errorlint
+    - wrapcheck
+    - bodyclose
+    - contextcheck
+    - noctx
+  settings:
+    depguard:
+      rules:
+        domain:
+          files: ["**/internal/modules/*/domain/**"]
+          deny:
+            - {pkg: database/sql, desc: domain must stay free of infrastructure}
+            - {pkg: net/http, desc: domain must stay free of infrastructure}
+            - {pkg: github.com/go-chi/chi, desc: domain must stay free of infrastructure}
+            - {pkg: github.com/a-h/templ, desc: domain must stay free of presentation}
+            - {pkg: /infrastructure, desc: domain must not import infrastructure}
+            - {pkg: /presentation, desc: domain must not import presentation}
+            - {pkg: /application, desc: domain must not import application}
+        application:
+          files: ["**/internal/modules/*/application/**"]
+          deny:
+            - {pkg: database/sql, desc: use cases depend on ports, not on SQL}
+            - {pkg: net/http, desc: use cases depend on ports, not on HTTP}
+            - {pkg: github.com/go-chi/chi, desc: use cases depend on ports, not on chi}
+            - {pkg: github.com/a-h/templ, desc: use cases know nothing of presentation}
+            - {pkg: /infrastructure, desc: use cases must not import infrastructure}
+            - {pkg: /presentation, desc: use cases must not import presentation}
+        core:
+          files: ["**/internal/core/**"]
+          deny:
+            - {pkg: iworkflow/internal/modules, desc: core must not import modules}
+    wrapcheck:
+      ignore-sig-regexps:
+        - \.Render\(
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters: [wrapcheck, noctx]
+      - path: _templ\.go
+        linters: [wrapcheck, errorlint, depguard]

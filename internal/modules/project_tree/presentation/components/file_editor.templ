@@ -1,0 +1,84 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/project_tree/presentation/state"
+)
+
+// FileEditor is the editor of one file: a form that saves the draft, its toolbar and the code editor.
+// Typing posts the draft to the state endpoint, which answers with out-of-band updates of the toolbar
+// and of the line marks in the gutter.
+templ FileEditor(v state.FileView) {
+	<form id={ v.Key() } class="flex min-h-0 flex-1 flex-col" hx-post={ state.PathFile } hx-target={ "#" + v.Key() } hx-swap="outerHTML">
+		<input type="hidden" name="scope" value={ v.ScopeWire() }/>
+		<input type="hidden" name="path" value={ v.Path }/>
+		@FileToolbar(v, false)
+		if v.Error != "" {
+			<div class="px-3 py-1">@coreui.ErrorText(v.Error)</div>
+		}
+		<div class="code-box code-box-edit">
+			<pre id={ gutterID(v) } class="code-gutter code-gutter-edit" aria-hidden="true" data-code-gutter>@GutterSpans(v)</pre>
+			<div class="code-stack">
+				<pre class="code-text code-layer" aria-hidden="true" data-code-layer><code data-code-text={ v.Draft } data-code-filename={ v.Name() }></code></pre>
+				<textarea
+					class="code-input"
+					name="content"
+					spellcheck="false"
+					autocapitalize="off"
+					autocomplete="off"
+					wrap="off"
+					aria-label={ msgFileContent.T(ctx) }
+					data-code-editor
+					hx-post={ state.PathFileState }
+					hx-trigger="input changed delay:300ms"
+					hx-include="closest form"
+					hx-swap="none"
+				>{ v.Draft }</textarea>
+			</div>
+		</div>
+	</form>
+}
+
+// FileToolbar holds Save, Discard, reload and the unsaved-changes label. Save and Discard are enabled
+// only while the draft differs from the content on disk.
+templ FileToolbar(v state.FileView, oob bool) {
+	<div id={ toolbarID(v) } class="flex items-center gap-2 border-b border-border px-3 py-1.5" { oobAttrs(oob)... }>
+		<button type="submit" class="btn-primary" disabled?={ !v.Dirty() }>{ msgSave.T(ctx) }</button>
+		<button
+			type="button"
+			class="btn-ghost"
+			disabled?={ !v.Dirty() }
+			hx-get={ state.FileBodyURL(v.ScopeWire(), v.Path) }
+			hx-target={ "#" + v.Key() }
+			hx-swap="outerHTML"
+		>{ msgDiscard.T(ctx) }</button>
+		<button
+			type="button"
+			class="icon-btn"
+			title={ msgReloadFromDisk.T(ctx) }
+			aria-label={ msgReloadFromDisk.T(ctx) }
+			hx-get={ state.FileBodyURL(v.ScopeWire(), v.Path) }
+			hx-target={ "#" + v.Key() }
+			hx-swap="outerHTML"
+		>↻</button>
+		if v.Dirty() {
+			<span class="text-xs text-muted">{ msgUnsavedChanges.T(ctx) }</span>
+		}
+	</div>
+}
+
+// GutterSpans is one gutter number per line, colored by its line mark.
+templ GutterSpans(v state.FileView) {
+	for i, number := range lineNumbers(v.Draft) {
+		if i > 0 {
+			{ "\n" }
+		}
+		<span class={ coreui.MarkClass(state.MarkAt(v.Marks, i)) }>{ number }</span>
+	}
+}
+
+// FileStateUpdate is the answer of the state endpoint: the toolbar and the gutter, out of band.
+templ FileStateUpdate(v state.FileView) {
+	@FileToolbar(v, true)
+	<div hx-swap-oob={ "innerHTML:#" + gutterID(v) }>@GutterSpans(v)</div>
+}

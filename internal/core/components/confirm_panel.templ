@@ -1,0 +1,18 @@
+package components
+
+
+// ConfirmPanel is an inline notice with a message and two actions (confirm / cancel).
+// ConfirmAttrs and CancelAttrs carry the behaviour (usually htmx attributes).
+templ ConfirmPanel(message string, confirmLabel string, pending bool, confirmAttrs templ.Attributes, cancelAttrs templ.Attributes) {
+	<div class="stack gap-2 rounded-xl border border-border/60 bg-surface/80 p-3 backdrop-blur-sm">
+		<p class="text-sm text-fg">{ message }</p>
+		<div class="row gap-2">
+			@BusyButton(BusyButtonProps{Busy: pending, Class: "btn-primary", Attrs: confirmAttrs}) {
+				{ confirmLabel }
+			}
+			<button type="button" class="btn-secondary" disabled?={ pending } { cancelAttrs... }>
+				{ msgCancel.T(ctx) }
+			</button>
+		</div>
+	</div>
+}

@@ -1,0 +1,109 @@
+package components
+
+import ui "iworkflow/internal/core/components"
+
+// TaskMergeRequestPanel is the merge/pull request panel of a task. It is a lazy container: when it
+// appears it loads its body from MergeRequestPath, and the body replaces it. The screen that embeds
+// it only passes the task id.
+templ TaskMergeRequestPanel(p TaskMergeRequestPanelProps) {
+	<div id={ MergeRequestPanelID(p.TaskID) } class="stack gap-3" hx-get={ MergeRequestPath(p.TaskID) } hx-trigger="load" hx-swap="outerHTML">
+		@ui.Loading(msgLoading.T(ctx))
+	</div>
+}
+
+// TaskMergeRequestBody is the panel content: the header, the notices, and either the form that opens
+// a request or the state of the existing one.
+templ TaskMergeRequestBody(p TaskMergeRequestBodyProps) {
+	<div id={ MergeRequestPanelID(p.TaskID) } class="stack gap-3">
+		<div class="row items-center justify-between">
+			<span class="action-section">{ p.Title }</span>
+			<button type="button" class="btn-secondary min-h-8 px-3 py-1 text-xs" hx-get={ MergeRequestPath(p.TaskID) } hx-target={ "#" + MergeRequestPanelID(p.TaskID) } hx-swap="outerHTML">{ p.RefreshLabel }</button>
+		</div>
+		if p.Error != "" {
+			@ui.ErrorText(p.Error)
+		}
+		if p.Notice != "" {
+			<p class="text-sm text-ok">{ p.Notice }</p>
+		}
+		if p.Create != nil {
+			@createRequestForm(p.TaskID, *p.Create)
+		}
+		if p.Status != nil {
+			@mergeRequestStatus(*p.Status)
+		}
+	</div>
+}
+
+// createRequestForm asks for an optional title and opens the request.
+templ createRequestForm(taskID string, c CreateRequestProps) {
+	<div class="stack gap-3">
+		<p class="muted text-sm">{ c.Intro }</p>
+		<form hx-post={ MergeRequestPath(taskID) } hx-target={ "#" + MergeRequestPanelID(taskID) } hx-swap="outerHTML" class="stack gap-3">
+			@ui.TextField(ui.FieldProps{Label: c.TitleLabel, Name: "title", Value: c.Title})
+			<p class="muted text-xs">{ c.Note }</p>
+			<div>
+				<button type="submit" class="btn-primary">{ c.Action }</button>
+			</div>
+		</form>
+	</div>
+}
+
+// mergeRequestStatus shows the request, its CI pipeline and, while it is open, the actions.
+templ mergeRequestStatus(s MergeRequestStatusProps) {
+	<div class="stack gap-3">
+		<div class="stack gap-1">
+			<span class="text-sm font-medium text-fg">{ s.Heading }</span>
+			<span class="muted text-xs">{ s.Branches }</span>
+			<div class="row flex-wrap items-center gap-2">
+				@ui.Badge(s.State.Text, s.State.Variant)
+				if s.ShowMergeStatus {
+					@ui.Badge(s.MergeStatus.Text, s.MergeStatus.Variant)
+				}
+				if s.HasConflicts {
+					@ui.Badge(s.ConflictLabel, "error")
+				}
+				<a class="text-sm underline" href={ s.WebURL } target="_blank" rel="noopener noreferrer">{ s.OpenLabel }</a>
+			</div>
+		</div>
+		if s.Pipeline != nil {
+			@pipelineView(*s.Pipeline)
+		} else {
+			<p class="muted text-sm">{ s.NoPipeline }</p>
+		}
+		if s.Open {
+			if s.Confirm {
+				@ui.ConfirmPanel(s.ConfirmMessage, s.MergeLabel, false,
+					templ.Attributes{"hx-post": MergePath(s.TaskID), "hx-target": "#" + MergeRequestPanelID(s.TaskID), "hx-swap": "outerHTML"},
+					templ.Attributes{"hx-get": MergeRequestPath(s.TaskID), "hx-target": "#" + MergeRequestPanelID(s.TaskID), "hx-swap": "outerHTML"})
+			} else {
+				<div class="row items-center gap-2">
+					<button type="button" class="btn-primary" hx-get={ MergeRequestPath(s.TaskID) + "?confirm=1" } hx-target={ "#" + MergeRequestPanelID(s.TaskID) } hx-swap="outerHTML">{ s.MergeButton }</button>
+				</div>
+			}
+			<div class="row items-center gap-2">
+				<button type="button" class="btn-secondary" hx-post={ PushPath(s.TaskID) } hx-target={ "#" + MergeRequestPanelID(s.TaskID) } hx-swap="outerHTML">{ s.PushLabel }</button>
+			</div>
+		}
+	</div>
+}
+
+// pipelineView shows the CI run and its jobs.
+templ pipelineView(p PipelineProps) {
+	<div class="stack gap-2">
+		<div class="row items-center gap-2">
+			<span class="text-sm font-medium text-fg">{ p.Title }</span>
+			@ui.Badge(p.Status.Text, p.Status.Variant)
+			<a class="text-sm underline" href={ p.WebURL } target="_blank" rel="noopener noreferrer">{ p.OpenLabel }</a>
+		</div>
+		<ul class="stack gap-1">
+			for _, job := range p.Jobs {
+				<li class="row items-center gap-2 text-sm">
+					@ui.Badge(job.Status.Text, job.Status.Variant)
+					<span class="text-fg">{ job.Name }</span>
+					<span class="muted">{ job.StageLabel }</span>
+					<a class="text-sm underline" href={ job.WebURL } target="_blank" rel="noopener noreferrer">{ job.LogLabel }</a>
+				</li>
+			}
+		</ul>
+	</div>
+}

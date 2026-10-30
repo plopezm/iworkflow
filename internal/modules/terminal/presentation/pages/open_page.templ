@@ -1,0 +1,57 @@
+package pages
+
+import (
+	"context"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/core/i18n"
+)
+
+// Back is the link back to a listing, shown when a terminal cannot be opened.
+type Back struct {
+	Href  string
+	Label i18n.Msg
+}
+
+// BackToWorkspaces is the way back from a workspace terminal.
+func BackToWorkspaces() Back {
+	return Back{Href: "/workspaces", Label: msgBackToWorkspaces}
+}
+
+// BackToBoard is the way back from a task terminal.
+func BackToBoard() Back {
+	return Back{Href: "/", Label: msgBackToBoard}
+}
+
+// Opening is the placeholder of a new terminal tab. Its content posts to postPath on load: that call opens
+// the session and answers with the redirect that turns this tab into the session. Opening the session
+// on load, instead of while the page renders, avoids a session left behind by a render that never
+// reaches the browser.
+func Opening(ctx context.Context, postPath string) templ.Component {
+	return openingTerminal(msgOpeningTerminal.T(ctx), msgOpeningLoading.T(ctx), postPath)
+}
+
+// OpenFailed is the answer when a terminal could not be opened: the error and the way back.
+func OpenFailed(ctx context.Context, message string, back Back) templ.Component {
+	return openFailed(message, back.Href, back.Label.T(ctx))
+}
+
+templ openingTerminal(title string, loadingText string, postPath string) {
+	<section class="stack p-4 animate-slide-up">
+		@shared.Card(title) {
+			<div hx-post={ postPath } hx-trigger="load" hx-target="this" hx-swap="innerHTML">
+				@shared.Loading(loadingText)
+			</div>
+		}
+	</section>
+}
+
+templ openFailed(message string, backHref string, backLabel string) {
+	<div class="stack">
+		@shared.ErrorText(message)
+		@link.Tab(link.Props{Href: backHref, Class: "btn-secondary w-fit"}) {
+			{ backLabel }
+		}
+	</div>
+}

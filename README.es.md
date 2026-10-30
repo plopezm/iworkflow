@@ -22,7 +22,7 @@
 - **Mobile-first**: consulta el progreso, responde a un agente e integra desde el móvil (con Tailscale).
 - **Espacio de trabajo con pestañas**: tablero, tarea, diff, terminal y editor de archivos en pestañas arrastrables y divisibles.
 
-iworkflow no impone ningún flujo: cada agente usa la configuración y los plugins que ya tengas instalados y el `AGENTS.md` del proyecto. Internamente, los agentes se manejan por RPC (o ACP / stream-json, según el runtime). Está construido con Rust, Leptos (SSR + hidratación), Diesel y SQLite.
+iworkflow no impone ningún flujo: cada agente usa la configuración y los plugins que ya tengas instalados y el `AGENTS.md` del proyecto. Internamente, los agentes se manejan por RPC (o ACP / stream-json, según el runtime). Está construido con Go (`net/http` + `chi`), SSR con `templ` y `htmx`, Tailwind CSS, `sqlc` y SQLite (`modernc.org/sqlite`).
 
 ## Índice
 
@@ -55,12 +55,12 @@ El servidor corre en tu ordenador y el móvil es solo un navegador, así que nec
 
 ## Arranque rápido
 
-Requisitos: `git`, una toolchain de Rust (edición 2024, Rust 1.85 o superior), [`cargo-leptos`](https://github.com/leptos-rs/cargo-leptos) (`cargo install cargo-leptos --locked`), el target `wasm32-unknown-unknown` (`rustup target add wasm32-unknown-unknown`) y al menos un CLI de agente instalado y con sesión iniciada (`gentle-shell`, `pi`, `claude` o `agent` para Cursor).
+Requisitos: `git`, Go (1.23 o superior), `templ`, `tailwindcss` y al menos un CLI de agente instalado y con sesión iniciada (`gentle-shell`, `pi`, `claude` o `agent` para Cursor).
 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
 cd iworkflow
-cargo leptos watch          # http://127.0.0.1:3000
+make dev                    # http://127.0.0.1:9000
 ```
 
 1. **Workspaces** → registra una carpeta con git (necesita al menos un commit).
@@ -82,6 +82,7 @@ La interfaz es un espacio de trabajo tipo IDE: cada pantalla (tablero, tarea, di
 - Los ficheros y carpetas modificados, añadidos, sin seguimiento, borrados o en conflicto se colorean según `git status`.
 - Mientras editas, el margen izquierdo marca las líneas añadidas, modificadas y borradas respecto a `HEAD` (como en VS Code).
 - Al **editar una tarea**, los límites de CPU y memoria están en *Opciones avanzadas*.
+- **Proyectos relacionados:** las pantallas de crear y editar tarea listan los demás workspaces en *Proyectos relacionados*. La tarea guarda los que marques; al arrancar, su agente recibe sus rutas y la indicación de no modificarlas, puede leer sus ficheros y, si existen, consultar el codegraph de cada proyecto (`.codegraph/`) y su memoria engram (solo si `engram` está instalado). Claude además recibe las carpetas con `--add-dir`, y sus herramientas de edición (`Edit`, `Write`, `NotebookEdit`) tienen denegado escribir en ellas. Los comandos de shell no están aislados, así que no es una garantía absoluta. Al escribir `@` en el prompt se completan ficheros del proyecto actual y de los marcados, con la forma `@<proyecto>:<ruta>` (los espacios del nombre pasan a guiones).
 
 ## Tablero por workspace
 
@@ -366,12 +367,12 @@ Consejos:
 Guía de la arquitectura y del código en [ARCHITECTURE.es.md](ARCHITECTURE.es.md); reglas del proyecto en [AGENTS.md](AGENTS.md). Comprobaciones:
 
 ```bash
-cargo fmt --all -- --check
-cargo clippy --features ssr --all-targets -- -D warnings
-cargo clippy --features hydrate --target wasm32-unknown-unknown --lib -- -D warnings
-cargo test --features ssr
-PLAYWRIGHT_MODULE=/ruta/node_modules/playwright ./end2end/run_smoke.sh   # UI con agente falso
-PLAYWRIGHT_MODULE=/ruta/node_modules/playwright ./end2end/run_tests.sh [módulo]   # suite e2e por caso de uso (mocks de Jira y GitLab, agentes falsos)
+make test                                      # go test -p 2 -race ./...
+make vet                                       # go vet ./...
+make lint                                      # golangci-lint run
+make e2e                                       # suite completa e2e Playwright en navegador (o FILTER=<name>)
+make electron-build                            # empaquetar app de escritorio (dist/electron)
+make electron-dev                              # abrir ventana de Electron en desarrollo
 ```
 
 ## Licencia

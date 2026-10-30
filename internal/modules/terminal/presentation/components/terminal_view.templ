@@ -1,0 +1,16 @@
+package components
+
+// TerminalView is the xterm.js surface of one session with the special-key bar under it.
+// web/static/js/terminal_view.js mounts xterm on the element that carries the session id, and the
+// connection, the scrollback replay and the reconnection belong to web/static/terminal.js.
+// The padding stays outside the xterm container: FitAddon does not subtract it from the available
+// height, and it would cut the last row.
+templ TerminalView(sessionID string) {
+	<div data-terminal-view class="flex min-h-0 flex-1 flex-col gap-1.5 sm:gap-2">
+		<div class="min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-[var(--c-bg,#09090b)] p-1 sm:p-1.5">
+			<div data-terminal-session={ sessionID } class="h-full w-full bg-[var(--c-bg,#09090b)]"></div>
+		</div>
+		@KeyBar()
+	</div>
+	<script type="module" src="/static/js/terminal_view.js"></script>
+}

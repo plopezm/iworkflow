@@ -1,0 +1,104 @@
+package components
+
+import (
+	"fmt"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+templ GraphArrowDefs(scope string) {
+	<defs>
+		<marker
+			id={ MarkerID(scope, ArrowDone) }
+			class="graph-arrow-done"
+			viewBox="0 0 10 10"
+			refX="9"
+			refY="5"
+			markerWidth="12"
+			markerHeight="12"
+			markerUnits="userSpaceOnUse"
+			orient="auto"
+		>
+			<path d="M 0 1 L 10 5 L 0 9 z"></path>
+		</marker>
+		<marker
+			id={ MarkerID(scope, ArrowWorking) }
+			class="graph-arrow-working"
+			viewBox="0 0 10 10"
+			refX="9"
+			refY="5"
+			markerWidth="12"
+			markerHeight="12"
+			markerUnits="userSpaceOnUse"
+			orient="auto"
+		>
+			<path d="M 0 1 L 10 5 L 0 9 z"></path>
+		</marker>
+		<marker
+			id={ MarkerID(scope, ArrowPending) }
+			class="graph-arrow-pending"
+			viewBox="0 0 10 10"
+			refX="9"
+			refY="5"
+			markerWidth="12"
+			markerHeight="12"
+			markerUnits="userSpaceOnUse"
+			orient="auto"
+		>
+			<path d="M 0 1 L 10 5 L 0 9 z"></path>
+		</marker>
+		<marker
+			id={ MarkerID(scope, ArrowActive) }
+			class="graph-arrow-active"
+			viewBox="0 0 10 10"
+			refX="9"
+			refY="5"
+			markerWidth="12"
+			markerHeight="12"
+			markerUnits="userSpaceOnUse"
+			orient="auto"
+		>
+			<path d="M 0 1 L 10 5 L 0 9 z"></path>
+		</marker>
+	</defs>
+}
+
+templ GraphEdgeLine(edge state.EdgeView, markerScope string, from state.Point, to state.Point, selected bool, deleteAttrs templ.Attributes) {
+	{{
+		path := state.EdgePath(from, to)
+		middle := state.EdgeMidpoint(from, to)
+	}}
+	<g id={ "edge-" + markerScope + "-" + edge.Key() } class={ EdgeClass(edge.State, selected) } data-edge-key={ edge.Key() }>
+		<path
+			class="graph-edge-hit"
+			d={ path }
+		></path>
+		<path
+			class="graph-edge-line"
+			d={ path }
+			marker-end={ ArrowMarker(edge.State, selected, markerScope) }
+		></path>
+		if edge.Label != nil && *edge.Label != "" {
+			<text
+				class="graph-edge-label"
+				x={ fmt.Sprintf("%.2f", middle.X) }
+				y={ fmt.Sprintf("%.2f", middle.Y - 10.0) }
+				text-anchor="middle"
+			>
+				{ *edge.Label }
+			</text>
+		}
+		if selected {
+			<g
+				class="graph-edge-delete"
+				transform={ fmt.Sprintf("translate(%.2f, %.2f)", middle.X, middle.Y) }
+				role="button"
+				aria-label={ msgRemoveDependency.T(ctx) }
+				{ deleteAttrs... }
+			>
+				<title>{ msgRemoveDependency.T(ctx) }</title>
+				<circle r={ fmt.Sprintf("%.1f", DeleteRadius) }></circle>
+				<path d="M -4 -4 L 4 4 M 4 -4 L -4 4"></path>
+			</g>
+		}
+	</g>
+}

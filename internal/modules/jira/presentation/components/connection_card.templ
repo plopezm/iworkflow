@@ -1,0 +1,21 @@
+package components
+
+import (
+	ui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// JiraConnectionCard renders the connection card with summary or form.
+templ JiraConnectionCard(view state.ConnectionCardView) {
+	<div id="jira-connection-card">
+		@ui.Card(msgCardTitle.T(ctx)) {
+			if view.Err != "" && !view.Editing && view.Stored == nil {
+				@ui.ErrorText(view.Err)
+			} else if view.Editing || view.Stored == nil {
+				@JiraConnectionForm(view)
+			} else {
+				@JiraConnectionSummary(view)
+			}
+		}
+	</div>
+}

@@ -1,0 +1,9 @@
+package components
+
+// KeepAlive mounts its content the first time it is shown and keeps it (hidden) afterwards, so
+// unsaved form state survives switching tabs. The content is fetched from Src when first active.
+templ KeepAlive(p KeepAliveProps) {
+	<div class={ paneClass(p.Active, p.ActiveClass) } data-keep-alive data-src={ p.Src } { p.Attrs... }>
+		{ children... }
+	</div>
+}

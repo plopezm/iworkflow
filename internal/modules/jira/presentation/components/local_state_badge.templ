@@ -1,0 +1,12 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// LocalStateBadge renders the badge for an issue's local state (New, Converted, Ignored).
+templ LocalStateBadge(localState string) {
+	@shared.Badge(state.LocalStateLabel(localState, i18n.StateFrom(ctx).Locale), state.LocalStateVariant(localState))
+}

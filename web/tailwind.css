@@ -1,0 +1,1747 @@
+@import "tailwindcss";
+@source "../internal/**/*.templ";
+@source "./static/**/*.js";
+
+@theme {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-surface-3: var(--c-surface-3);
+  --color-border: var(--c-border);
+  --color-fg: var(--c-fg);
+  --color-muted: var(--c-muted);
+  --color-accent: var(--c-accent);
+  --color-on-accent: var(--c-on-accent);
+  --color-ok: var(--c-ok);
+  --color-warn: var(--c-warn);
+  --color-error: var(--c-error);
+  --color-purple: var(--c-purple);
+  --color-pink: var(--c-pink);
+
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --font-display: var(--font-ui);
+
+  /* Flat, softly rounded panels. */
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  --color-stage-backlog: var(--c-stage-backlog);
+  --color-stage-working: var(--c-stage-working);
+  --color-stage-attention: var(--c-stage-attention);
+  --color-stage-review: var(--c-stage-review);
+  --color-stage-done: var(--c-stage-done);
+
+  /* Custom animations */
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-slide-up: slide-up 0.3s ease-out;
+  --animate-slide-down: slide-down 0.3s ease-out;
+  --animate-slide-in-right: slide-in-right 0.3s ease-out;
+  --animate-scale-in: scale-in 0.2s ease-out;
+  --animate-pulse-glow: pulse-glow 2s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-gradient-shift: gradient-shift 8s ease infinite;
+  --animate-bounce-soft: bounce-soft 0.6s ease-in-out;
+}
+
+/* Orca-style palette: flat neutral surfaces, hairline borders, a restrained accent.
+   Dark is the primary look; light mirrors it with cool greys. */
+:root {
+  color-scheme: light;
+  --c-bg: #ffffff;
+  --c-surface: #f6f6f7;
+  --c-surface-2: #ececee;
+  --c-surface-3: #e1e1e5;
+  --c-border: #dcdce1;
+  --c-fg: #18181b;
+  --c-muted: #6b6b76;
+  --c-accent: #18181b;
+  --c-on-accent: #fafafa;
+  --c-ok: #1f8f55;
+  --c-warn: #b7791f;
+  --c-error: #d1384f;
+  --c-purple: #6d4fc2;
+  --c-pink: #be3f80;
+  --c-stage-backlog: #8b8b96;
+  --c-stage-working: #b7791f;
+  --c-stage-attention: #d1384f;
+  --c-stage-review: #2b78c8;
+  --c-stage-done: #1f8f55;
+  --c-grid: transparent;
+  --c-grain-opacity: 0;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --c-bg: #09090b;
+  --c-surface: #111113;
+  --c-surface-2: #19191c;
+  --c-surface-3: #242428;
+  --c-border: #26262b;
+  --c-fg: #e8e8ea;
+  --c-muted: #8b8b94;
+  --c-accent: #e8e8ea;
+  --c-on-accent: #09090b;
+  --c-ok: #5fd38d;
+  --c-warn: #f0b429;
+  --c-error: #ff6b78;
+  --c-purple: #b9a0ff;
+  --c-pink: #f28dbd;
+  --c-stage-backlog: #8b8b94;
+  --c-stage-working: #f0b429;
+  --c-stage-attention: #ff6b78;
+  --c-stage-review: #6cb6ff;
+  --c-stage-done: #5fd38d;
+  --c-grid: transparent;
+  --c-grain-opacity: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+html {
+  /* Stop iOS from rescaling text on rotation / reflow. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Remove the 300ms tap delay and double-tap zoom on interactive elements. */
+a,
+button,
+summary,
+[role="button"],
+input,
+select,
+textarea,
+label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+select {
+  color-scheme: inherit;
+}
+
+html,
+body {
+  touch-action: manipulation;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.grid-bg {
+  background: var(--color-bg);
+}
+
+/* ── Typography helpers ────────────────────────── */
+.page-title {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.page-title em {
+  font-style: italic;
+  color: var(--color-accent);
+}
+.eyebrow {
+  @apply text-[11px] font-medium text-muted;
+}
+
+/* ── Keyframes ─────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 30%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-accent) 0%, transparent); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+@keyframes bounce-soft {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+
+/* ── Layout primitives ─────────────────────────── */
+.stack {
+  @apply flex flex-col gap-3;
+}
+.row {
+  @apply flex flex-wrap items-center gap-2;
+}
+.muted {
+  @apply text-sm text-muted;
+}
+
+/* ── Buttons ────────────────────────────────────── */
+/* In the components layer so utilities (e.g. `md:hidden`, `rounded-full`) can override them. */
+@layer components {
+.btn-primary {
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-accent bg-accent px-3 py-1.5 text-xs font-medium text-on-accent transition-colors duration-150 hover:opacity-90 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-secondary {
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-fg transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-danger {
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md border border-error bg-error px-3 py-1.5 text-xs font-medium text-bg transition-colors duration-150 hover:brightness-110 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-ghost {
+  @apply inline-flex min-h-8 cursor-pointer items-center justify-center gap-1.5 rounded-md bg-transparent px-3 py-1.5 text-xs font-medium text-muted transition-colors duration-150 hover:bg-surface-2 hover:text-fg active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+}
+}
+
+/* ── Busy state ─────────────────────────────────── */
+/* Any control marked `.is-busy` (see `BusyButton`) shows a spinner and ignores clicks. */
+.spinner {
+  @apply inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 border-current border-t-transparent;
+  animation: spin 0.7s linear infinite;
+}
+.is-busy {
+  @apply pointer-events-none opacity-70;
+}
+.is-busy::before {
+  content: '';
+  @apply inline-block h-3.5 w-3.5 shrink-0 rounded-full border-2 border-current border-t-transparent;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner, .is-busy::before { animation-duration: 2s; }
+}
+
+/* ── Flat bordered surfaces ─────────────────────── */
+/* In the components layer so utilities (e.g. stage rails) can override the border. */
+@layer components {
+.card {
+  @apply relative shrink-0 overflow-hidden rounded-lg border border-border bg-surface p-3 transition-colors duration-150;
+}
+}
+article.card:hover {
+  border-color: color-mix(in srgb, var(--color-fg) 28%, var(--color-border));
+}
+.card-title {
+  @apply text-xs font-semibold text-muted;
+}
+.task-title {
+  @apply text-xl leading-tight font-semibold text-fg;
+}
+
+.section-header {
+  @apply flex items-center gap-2;
+}
+
+/* ── Sidebar menus & right-panel tabs ───────────── */
+.menu-item {
+  @apply block w-full cursor-pointer rounded px-2.5 py-1.5 text-left text-xs whitespace-nowrap text-fg hover:bg-surface-3 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
+}
+.menu-item[aria-current="page"] {
+  @apply text-accent;
+}
+.tab {
+  @apply flex min-h-8 shrink-0 cursor-pointer items-center rounded-md border border-transparent bg-transparent px-3 py-1 text-xs text-muted transition-colors duration-150 hover:text-fg;
+}
+.tab-selected {
+  @apply bg-surface-3 text-fg;
+}
+
+/* ── Sidebar navigation rows ─────────────────────── */
+.sidebar-nav {
+  @apply flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] text-muted transition-colors duration-100 hover:bg-surface-2 hover:text-fg;
+}
+.sidebar-nav-active {
+  @apply bg-surface-2 text-fg;
+}
+.sidebar-nav-icon {
+  @apply inline-block w-4 text-center text-sm;
+}
+
+/* ── Explorer-style tree rows ────────────────────── */
+.tree-row {
+  @apply flex h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 pr-2 text-left text-[13px] text-fg transition-colors duration-100 hover:bg-surface-2;
+}
+.tree-row.git-modified {
+  @apply text-warn;
+}
+.tree-row.git-added {
+  @apply text-ok;
+}
+.tree-row.git-deleted {
+  @apply text-error line-through;
+}
+.tree-row.git-conflicted {
+  @apply text-error font-semibold;
+}
+.tree-row-muted {
+  @apply text-muted;
+}
+.tree-chevron {
+  @apply h-3.5 w-3.5 shrink-0 text-muted transition-transform duration-100;
+}
+.tree-chevron-open {
+  transform: rotate(90deg);
+}
+.tree-chevron-spacer {
+  @apply inline-block h-3.5 w-3.5 shrink-0;
+}
+.tree-icon {
+  @apply h-4 w-4 shrink-0 text-muted;
+}
+.tree-panel-header {
+  @apply flex h-10 shrink-0 items-center gap-2 border-b border-border px-3;
+}
+.icon-btn {
+  @apply flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40;
+}
+
+/* ── Action list (task actions) ──────────────────── */
+.action-list {
+  @apply flex flex-col py-1;
+}
+.action-section {
+  @apply px-3 pt-3 pb-1 text-[11px] font-medium text-muted;
+}
+.action-row {
+  @apply flex min-h-9 w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-left text-[13px] text-fg transition-colors duration-100 hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
+}
+.action-row-primary {
+  @apply font-medium;
+}
+.action-row-danger {
+  @apply text-error hover:bg-error/10;
+}
+.action-icon {
+  @apply inline-flex w-4 shrink-0 items-center justify-center text-sm text-muted;
+}
+.action-row-danger .action-icon {
+  @apply text-error;
+}
+.action-hint {
+  @apply ml-auto truncate text-[11px] text-muted;
+}
+
+/* ── Dock: tab groups and splits ─────────────────── */
+.dock-group {
+  @apply relative flex min-h-0 min-w-0 flex-1 flex-col bg-bg;
+}
+.dock-tabbar {
+  @apply relative z-20 flex h-9 shrink-0 items-stretch border-b border-border bg-surface;
+}
+.dock-tabs {
+  @apply flex min-w-0 flex-1 overflow-x-auto;
+  scrollbar-width: none;
+}
+.dock-tabs::-webkit-scrollbar {
+  display: none;
+}
+.dock-tab {
+  @apply relative flex h-full max-w-56 min-w-28 shrink-0 cursor-pointer items-center gap-1.5 border-r border-border px-3 text-xs text-muted transition-colors duration-100 select-none hover:bg-surface-2 hover:text-fg;
+}
+.dock-tab-active {
+  @apply bg-bg text-fg hover:bg-bg;
+}
+.dock-tab-active::after {
+  content: "";
+  @apply absolute inset-x-0 bottom-0 h-0.5 bg-muted;
+}
+.dock-group-focused .dock-tab-active::after {
+  @apply bg-accent;
+}
+.dock-tab-icon {
+  @apply inline-block w-3.5 shrink-0 text-center text-[11px] opacity-80;
+}
+.dock-tab-close {
+  @apply flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-sm leading-none text-muted opacity-0 transition-opacity hover:bg-surface-3 hover:text-fg group-hover:opacity-100;
+}
+.dock-tab-active .dock-tab-close {
+  @apply opacity-100;
+}
+.dock-icon-btn {
+  @apply flex h-full w-9 shrink-0 cursor-pointer items-center justify-center text-base text-muted transition-colors hover:bg-surface-2 hover:text-fg;
+}
+.dock-divider {
+  @apply relative z-10 shrink-0 bg-border transition-colors hover:bg-accent/60;
+  touch-action: none;
+}
+.dock-divider::after {
+  content: "";
+  position: absolute;
+}
+.dock-divider-row {
+  @apply w-px cursor-col-resize;
+}
+.dock-divider-row::after {
+  inset: 0 -3px;
+}
+.dock-divider-col {
+  @apply h-px cursor-row-resize;
+}
+.dock-divider-col::after {
+  inset: -3px 0;
+}
+.dock-drop-zone {
+  @apply pointer-events-auto rounded-md border-2 border-transparent;
+}
+.dock-drop-zone-hot {
+  @apply border-accent bg-accent/15;
+}
+body.dock-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+body.dock-resizing iframe,
+body.dock-resizing .xterm {
+  pointer-events: none;
+}
+
+/* ── Form controls ──────────────────────────────── */
+.input {
+  @apply w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-fg transition-shadow placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
+}
+.input:focus-visible,
+.composer textarea:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 22%, transparent);
+}
+.input-lg {
+  @apply px-4 py-3 text-base leading-relaxed;
+}
+
+/* ── Filter chips ───────────────────────────────── */
+.chip {
+  @apply flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md border border-border bg-surface px-2.5 py-1 text-[11px] text-muted transition-colors duration-150 hover:border-accent/50 hover:text-fg;
+}
+.chip-selected {
+  @apply border-accent bg-accent/10 text-accent;
+}
+
+/* ── Compact pill selects (nav settings) ───────── */
+.select-pill {
+  @apply relative flex min-h-9 w-full cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface py-1 pl-2.5 pr-6 text-xs text-muted transition-colors duration-150 hover:border-accent/50 hover:text-fg focus-within:border-accent;
+}
+.select-pill-icon {
+  @apply flex h-4 w-4 shrink-0 items-center justify-center text-muted;
+}
+.select-pill-input {
+  @apply w-full min-w-0 flex-1 cursor-pointer appearance-none truncate border-none bg-transparent text-fg outline-none;
+}
+/* The native dropdown list ignores the transparent pill; paint it with theme colors. */
+select option,
+select optgroup,
+.select-pill-input option,
+.select-pill-input optgroup {
+  @apply bg-surface text-fg;
+}
+.select-pill-input optgroup {
+  @apply font-semibold text-muted;
+}
+.select-pill-input:disabled {
+  @apply cursor-not-allowed opacity-50;
+}
+.select-pill-chevron {
+  @apply pointer-events-none absolute right-2.5 h-3 w-3 shrink-0 text-muted;
+}
+.select-pill-skeleton {
+  @apply h-9 w-full shrink-0 animate-pulse rounded-md border border-border bg-surface-2;
+}
+
+.select-pill-compact {
+  @apply min-h-6.5 py-0.5 pl-2 pr-5 text-[10px] font-mono rounded bg-surface/90 border-border/70 hover:bg-surface hover:border-accent/40;
+}
+.select-pill-compact .select-pill-icon {
+  @apply h-3.5 w-3.5;
+}
+.select-pill-compact .select-pill-icon svg {
+  @apply h-3.5 w-3.5;
+}
+.select-pill-compact .select-pill-chevron {
+  @apply right-1.5 h-2.5 w-2.5;
+}
+.select-pill-profile {
+  @apply min-h-7 py-0.5 pl-2 pr-5 text-[11px] font-semibold rounded bg-surface/90 border-border/70 hover:bg-surface hover:border-accent/40 text-fg;
+}
+.select-pill-profile .select-pill-icon {
+  @apply h-3.5 w-3.5 text-accent;
+}
+.select-pill-profile .select-pill-icon svg {
+  @apply h-3.5 w-3.5;
+}
+.select-pill-profile .select-pill-chevron {
+  @apply right-1.5 h-2.5 w-2.5;
+}
+
+/* ── Badges (status + stage) ────────────────────── */
+.badge {
+  @apply inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[11px] font-semibold;
+}
+.badge-ok {
+  @apply border-ok/40 bg-ok/10 text-ok;
+}
+.badge-warn {
+  @apply border-warn/40 bg-warn/10 text-warn;
+}
+.badge-error {
+  @apply border-error/40 bg-error/10 text-error;
+}
+.badge-info {
+  @apply border-accent/40 bg-accent/10 text-accent;
+}
+.badge-muted {
+  @apply border-border/60 bg-surface-2/80 text-muted;
+}
+.badge-backlog {
+  @apply border-stage-backlog/40 bg-stage-backlog/10 text-stage-backlog;
+}
+.badge-working {
+  @apply border-stage-working/40 bg-stage-working/10 text-stage-working;
+}
+.badge-attention {
+  @apply border-stage-attention/40 bg-stage-attention/10 text-stage-attention;
+}
+.badge-review {
+  @apply border-stage-review/40 bg-stage-review/10 text-stage-review;
+}
+.badge-done {
+  @apply border-stage-done/40 bg-stage-done/10 text-stage-done;
+}
+
+/* ── Data tables ────────────────────────────────── */
+.data-table {
+  @apply w-full border-collapse text-sm;
+}
+.data-table th {
+  @apply border-b-2 border-border px-3 py-2.5 text-left text-[11px] font-medium text-muted;
+}
+.data-table td {
+  @apply border-b border-border px-3 py-2.5 align-top;
+}
+.data-table tbody tr {
+  @apply transition-colors duration-150 hover:bg-surface-2/50;
+}
+
+/* ── Transcript & agent widgets ─────────────────── */
+.transcript {
+  @apply flex flex-col gap-3;
+}
+.msg {
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-3 animate-fade-in;
+}
+.msg-role {
+  @apply mb-1.5 text-[11px] font-semibold text-muted;
+}
+.msg-user {
+  @apply border-l-[3px] border-l-accent bg-surface-2/60;
+}
+.msg-assistant {
+  @apply border-l-[3px] border-l-ok;
+}
+.msg.streaming {
+  @apply border-dashed opacity-80;
+}
+.msg.streaming .msg-role::after {
+  content: ' · escribiendo';
+  @apply animate-pulse text-accent;
+}
+.markdown {
+  @apply text-sm leading-relaxed break-words;
+}
+.markdown > * + * {
+  @apply mt-2;
+}
+.markdown ul {
+  @apply list-disc pl-5;
+}
+.markdown ol {
+  @apply list-decimal pl-5;
+}
+.markdown a {
+  @apply text-accent underline;
+}
+.markdown code {
+  @apply rounded bg-surface-2 px-1 font-mono text-xs;
+}
+.markdown pre {
+  @apply overflow-x-auto rounded-md border border-border bg-surface-2 p-2;
+}
+.markdown pre code {
+  @apply bg-transparent p-0;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  font-family: var(--font-display);
+  @apply text-lg leading-tight font-normal;
+}
+.markdown blockquote {
+  @apply border-l-2 border-border pl-3 text-muted;
+}
+.markdown table {
+  @apply border-collapse text-xs;
+}
+.markdown th,
+.markdown td {
+  @apply border border-border px-2 py-1;
+}
+.tool {
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface p-2.5 text-sm;
+}
+.tool summary {
+  @apply cursor-pointer font-mono text-muted transition-colors hover:text-fg;
+}
+.tool-running {
+  @apply border-l-[3px] border-l-accent;
+}
+.tool-ok {
+  @apply border-l-[3px] border-l-ok;
+}
+.tool-error {
+  @apply border-l-[3px] border-l-error;
+}
+.tool-args {
+  @apply mt-2 flex flex-col gap-1.5 text-xs;
+}
+.tool-arg {
+  @apply flex flex-col gap-0.5;
+}
+.tool-arg dt {
+  @apply text-[11px] text-muted;
+}
+.tool-arg code,
+.tool-arg pre {
+  @apply rounded bg-surface-2 px-2 py-1 font-mono text-xs;
+}
+.tool-output {
+  @apply mt-2 max-h-96 overflow-auto;
+}
+.thinking summary,
+.prompt summary {
+  @apply cursor-pointer text-muted transition-colors hover:text-fg;
+}
+.notice {
+  @apply relative shrink-0 overflow-hidden rounded-md border border-border bg-surface px-3 py-2 text-sm;
+}
+.notice-info {
+  @apply border-accent/30 text-accent;
+}
+.notice-warn {
+  @apply border-warn/30 text-warn;
+}
+.notice-error {
+  @apply border-error/30 text-error;
+}
+.progress-track {
+  @apply relative h-2 w-full overflow-hidden rounded-full bg-surface-2;
+}
+.progress-bar {
+  @apply absolute inset-y-0 w-2/5 rounded-full bg-accent;
+  animation: progress-slide 1.4s ease-in-out infinite;
+}
+@keyframes progress-slide {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+.status-line {
+  @apply flex flex-wrap items-center gap-2 text-sm;
+}
+.dialog-panel {
+  @apply border-warn/40;
+}
+.dialog-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-warn) 20%, transparent), transparent 60%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.composer textarea {
+  @apply w-full min-h-[4.5rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
+}
+
+/* ── Composer autocomplete ──────────────────────── */
+.composer-field {
+  @apply relative;
+}
+.composer-menu {
+  @apply absolute bottom-full left-0 z-20 mb-1 max-h-56 w-full overflow-y-auto rounded-md border border-border bg-surface py-1 text-sm shadow-lg;
+}
+.composer-menu-item {
+  @apply flex min-h-8 cursor-pointer items-center justify-between gap-3 px-3 py-1 text-fg;
+}
+.composer-menu-item.is-active {
+  @apply bg-surface-2 text-accent;
+}
+.composer-menu-hint,
+.composer-menu-empty {
+  @apply text-xs text-muted;
+}
+.composer-menu-empty {
+  @apply px-3 py-2;
+}
+.composer-mode {
+  @apply inline-flex w-fit overflow-hidden rounded-md border border-border text-xs;
+}
+.composer-mode-option {
+  @apply min-h-7 cursor-pointer px-3 text-muted hover:text-fg;
+}
+.composer-mode-option.is-active {
+  @apply bg-surface-2 text-accent;
+}
+.composer-refs {
+  @apply flex flex-wrap gap-1.5;
+}
+.composer-ref {
+  @apply flex min-h-7 max-w-full items-center gap-1 rounded-md border border-border bg-surface px-2 text-xs text-fg;
+}
+.composer-ref-remove {
+  @apply cursor-pointer px-1 text-muted hover:text-fg;
+}
+
+/* ── Diff view ──────────────────────────────────── */
+.diff {
+  @apply overflow-x-auto rounded-md border border-border bg-surface p-3 font-mono text-xs whitespace-pre;
+}
+.diff div {
+  @apply min-h-[1.4em] px-2 transition-colors duration-100;
+}
+.diff div:hover {
+  @apply bg-surface-2/40;
+}
+.diff-file {
+  @apply mt-3 border-b border-border/40 pb-1 font-semibold text-accent;
+}
+.diff-meta {
+  @apply text-muted;
+}
+.diff-hunk {
+  color: var(--color-purple);
+}
+.diff-add {
+  @apply bg-ok/8 text-ok;
+}
+.diff-del {
+  @apply bg-error/8 text-error;
+}
+.diff-ctx {
+  @apply text-muted/60;
+}
+
+/* ── Diff view: toolbar, file tree, per-file cards ── */
+.diff-toolbar {
+  @apply flex flex-wrap items-center gap-2;
+}
+.diff-segmented {
+  @apply inline-flex overflow-hidden rounded-md border border-border;
+}
+.diff-segment {
+  @apply min-h-9 cursor-pointer bg-surface px-3 py-1.5 text-[11px] font-medium text-muted transition-colors duration-150 hover:text-fg;
+}
+.diff-segment + .diff-segment {
+  @apply border-l border-border;
+}
+.diff-segment-active {
+  @apply bg-accent/15 text-accent;
+}
+.diff-summary {
+  @apply rounded-md border border-border bg-surface;
+}
+.diff-summary-toggle {
+  @apply flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-xs font-medium text-fg hover:bg-surface-2/60;
+}
+.diff-layout {
+  @apply flex flex-col gap-3 @2xl:flex-row @2xl:items-start;
+}
+.diff-sidebar {
+  @apply max-h-64 overflow-y-auto rounded-md border border-border bg-surface @2xl:sticky @2xl:top-0 @2xl:max-h-[calc(100vh-10rem)] @2xl:w-64 @2xl:min-w-40 @2xl:shrink-0;
+}
+.diff-resizer {
+  @apply hidden touch-none rounded-full bg-border transition-colors hover:bg-accent/60 @2xl:sticky @2xl:top-0 @2xl:block @2xl:h-[calc(100vh-10rem)] @2xl:w-1 @2xl:shrink-0 @2xl:cursor-col-resize;
+}
+.diff-cards {
+  @apply flex min-w-0 flex-1 flex-col gap-3;
+}
+.diff-tree {
+  @apply py-1 text-xs;
+}
+.diff-tree-row {
+  @apply flex h-7 w-full min-w-0 cursor-pointer items-center gap-1.5 pr-2 text-left text-[13px] text-fg transition-colors duration-100 hover:bg-surface-2;
+}
+.diff-tree-row-selected {
+  @apply bg-surface-3;
+}
+.diff-counts {
+  @apply inline-flex shrink-0 gap-1 font-mono text-[11px];
+}
+.diff-status {
+  @apply inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border text-[11px] font-semibold;
+}
+.diff-status-added {
+  @apply border-ok/40 bg-ok/10 text-ok;
+}
+.diff-status-modified {
+  @apply border-warn/40 bg-warn/10 text-warn;
+}
+.diff-status-deleted {
+  @apply border-error/40 bg-error/10 text-error;
+}
+.diff-status-renamed {
+  color: var(--color-purple);
+  border-color: color-mix(in srgb, var(--color-purple) 40%, transparent);
+  background: color-mix(in srgb, var(--color-purple) 10%, transparent);
+}
+.diff-card {
+  @apply scroll-mt-2 overflow-hidden rounded-md border border-border bg-surface;
+}
+.diff-card-selected {
+  @apply border-accent;
+}
+.diff-card-header {
+  @apply flex items-center gap-2 border-b border-border bg-surface-2/60 pr-2;
+}
+.diff-card-toggle {
+  @apply flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-3 py-2 text-left;
+}
+.diff-scroll {
+  @apply overflow-x-auto;
+}
+.diff-table {
+  @apply w-full border-collapse font-mono text-xs;
+}
+.diff-col-head {
+  @apply w-1/2 border-b border-border px-2 py-1 text-left text-[11px] font-semibold text-muted;
+}
+.diff-num {
+  @apply w-10 min-w-10 select-none px-2 text-right align-top text-[11px] text-muted/70;
+}
+.diff-table td.diff-num:nth-child(3) {
+  @apply border-l border-border;
+}
+.diff-sign {
+  @apply w-4 select-none text-center align-top text-muted;
+}
+.diff-cell {
+  @apply px-2 align-top break-all whitespace-pre-wrap text-fg/90;
+}
+.diff-cell-add {
+  @apply bg-ok/10;
+}
+.diff-cell-del {
+  @apply bg-error/10;
+}
+.diff-cell-empty {
+  @apply bg-surface-2/40;
+}
+.diff-hunk-row td {
+  @apply bg-surface-2/60 px-2 py-0.5 text-[11px];
+  color: var(--color-purple);
+}
+.diff-editor-input {
+  @apply w-full resize-y rounded-md border border-border bg-bg px-3 py-2 font-mono text-xs text-fg focus-visible:border-accent focus-visible:outline-none disabled:opacity-60;
+  tab-size: 4;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* ── Code viewer / editor (VS Code Dark+ / Light+ token colors) ───────── */
+:root {
+  --tok-keyword: #0000ff;
+  --tok-control: #af00db;
+  --tok-string: #a31515;
+  --tok-number: #098658;
+  --tok-comment: #008000;
+  --tok-function: #795e26;
+  --tok-type: #267f99;
+  --tok-variable: #001080;
+  --tok-tag: #800000;
+  --tok-attr: #e50000;
+  --tok-regexp: #811f3f;
+  --tok-add: #098658;
+  --tok-del: #a31515;
+}
+:root[data-theme="dark"] {
+  --tok-keyword: #569cd6;
+  --tok-control: #c586c0;
+  --tok-string: #ce9178;
+  --tok-number: #b5cea8;
+  --tok-comment: #6a9955;
+  --tok-function: #dcdcaa;
+  --tok-type: #4ec9b0;
+  --tok-variable: #9cdcfe;
+  --tok-tag: #569cd6;
+  --tok-attr: #9cdcfe;
+  --tok-regexp: #d16969;
+  --tok-add: #b5cea8;
+  --tok-del: #ce9178;
+}
+.code-box {
+  @apply flex min-h-0 flex-1 bg-bg font-mono text-xs;
+  line-height: 1.25rem;
+  tab-size: 4;
+}
+.code-box-view {
+  @apply overflow-auto;
+}
+.code-box-edit {
+  @apply overflow-hidden;
+}
+.code-gutter,
+.code-text,
+.code-input {
+  @apply m-0 font-mono text-xs;
+  line-height: 1.25rem;
+  tab-size: 4;
+  white-space: pre;
+}
+.code-gutter {
+  @apply select-none border-r border-border bg-bg px-3 py-3 text-right text-muted;
+  min-width: 3.25rem;
+  position: sticky;
+  left: 0;
+}
+.code-gutter-edit {
+  @apply shrink-0 overflow-hidden;
+  position: static;
+  /* Same extra tail as the editor layers so both scroll the same distance. */
+  padding-bottom: 3rem;
+}
+/* Change bars (VS Code style): a 3px bar on the left edge of the line number. */
+.code-gutter-edit span {
+  display: inline-block;
+  box-sizing: border-box;
+  /* Span the gutter padding so the bar sits on the gutter's left edge. */
+  width: calc(100% + 1.5rem);
+  margin: 0 -0.75rem;
+  padding: 0 0.75rem;
+}
+.gm-added {
+  box-shadow: inset 3px 0 0 var(--color-ok);
+}
+.gm-modified {
+  box-shadow: inset 3px 0 0 var(--color-warn);
+}
+.gm-deleted {
+  box-shadow: inset 0 2px 0 0 var(--color-error);
+}
+.code-text {
+  @apply px-3 py-3 text-fg;
+  min-width: max-content;
+}
+.code-stack {
+  @apply relative min-w-0 flex-1;
+}
+.code-layer {
+  @apply absolute inset-0 overflow-hidden;
+  padding-bottom: 3rem;
+  padding-right: 3rem;
+  min-width: 0;
+  pointer-events: none;
+}
+.code-input {
+  @apply absolute inset-0 h-full w-full resize-none overflow-auto border-0 bg-transparent px-3 py-3 outline-none;
+  padding-bottom: 3rem;
+  padding-right: 3rem;
+  color: transparent;
+  caret-color: var(--c-fg);
+  -webkit-text-fill-color: transparent;
+}
+.code-input::selection {
+  background: color-mix(in srgb, var(--c-accent) 28%, transparent);
+  -webkit-text-fill-color: transparent;
+}
+.code-input:disabled {
+  @apply opacity-60;
+}
+.code-text .hljs-comment,
+.code-text .hljs-quote {
+  color: var(--tok-comment);
+  font-style: italic;
+}
+.code-text .hljs-keyword,
+.code-text .hljs-literal,
+.code-text .hljs-selector-tag,
+.code-text .hljs-doctag {
+  color: var(--tok-keyword);
+}
+.code-text .hljs-meta,
+.code-text .hljs-meta .hljs-keyword {
+  color: var(--tok-control);
+}
+.code-text .hljs-string,
+.code-text .hljs-meta .hljs-string,
+.code-text .hljs-template-tag {
+  color: var(--tok-string);
+}
+.code-text .hljs-number,
+.code-text .hljs-symbol,
+.code-text .hljs-bullet {
+  color: var(--tok-number);
+}
+.code-text .hljs-title,
+.code-text .hljs-title.function_,
+.code-text .hljs-section {
+  color: var(--tok-function);
+}
+.code-text .hljs-title.class_,
+.code-text .hljs-type,
+.code-text .hljs-built_in,
+.code-text .hljs-title.class_.inherited__ {
+  color: var(--tok-type);
+}
+.code-text .hljs-variable,
+.code-text .hljs-params,
+.code-text .hljs-property,
+.code-text .hljs-template-variable,
+.code-text .hljs-selector-id,
+.code-text .hljs-selector-class {
+  color: var(--tok-variable);
+}
+.code-text .hljs-tag,
+.code-text .hljs-name {
+  color: var(--tok-tag);
+}
+.code-text .hljs-attr,
+.code-text .hljs-attribute,
+.code-text .hljs-selector-attr,
+.code-text .hljs-selector-pseudo {
+  color: var(--tok-attr);
+}
+.code-text .hljs-regexp,
+.code-text .hljs-link {
+  color: var(--tok-regexp);
+}
+.code-text .hljs-addition {
+  color: var(--tok-add);
+}
+.code-text .hljs-deletion {
+  color: var(--tok-del);
+}
+.code-text .hljs-emphasis {
+  font-style: italic;
+}
+.code-text .hljs-strong {
+  font-weight: 700;
+}
+
+/* ── Scrollbar styling ──────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-border/60;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-border;
+}
+
+/* ── Mobile improvements ────────────────────────── */
+@media (max-width: 640px) {
+  /* iOS Safari zooms the page when focusing a field under 16px; this prevents it. */
+  input,
+  select,
+  textarea,
+  .input,
+  .composer textarea,
+  .select-pill-input {
+    font-size: 16px;
+  }
+  /* Touch targets: 44px minimum (Apple HIG). */
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-ghost,
+  .select-pill,
+  .select-pill-skeleton {
+    min-height: 2.75rem;
+  }
+  .tab,
+  .chip {
+    min-height: 2.75rem;
+  }
+  .menu-item {
+    @apply py-3;
+  }
+  .card {
+    @apply p-3;
+  }
+  .msg {
+    @apply p-2.5;
+  }
+  .input {
+    @apply rounded-lg py-2.5;
+  }
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-ghost {
+    @apply rounded-lg;
+  }
+  .chip {
+    @apply rounded-full py-1.5;
+  }
+}
+
+/* ── Utility: line-clamp for mobile ─────────────── */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* ── Orchestrated entrance ──────────────────────── */
+.reveal > * {
+  animation: slide-up 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.reveal > *:nth-child(1) { animation-delay: 0.02s; }
+.reveal > *:nth-child(2) { animation-delay: 0.07s; }
+.reveal > *:nth-child(3) { animation-delay: 0.12s; }
+.reveal > *:nth-child(4) { animation-delay: 0.17s; }
+.reveal > *:nth-child(5) { animation-delay: 0.22s; }
+.reveal > *:nth-child(6) { animation-delay: 0.27s; }
+.reveal > *:nth-child(n + 7) { animation-delay: 0.32s; }
+
+/* Live "on air" dot for working tasks. */
+.live-dot {
+  @apply inline-block h-1.5 w-1.5 rounded-full bg-current;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: live-ping 1.6s ease-out infinite;
+}
+@keyframes live-ping {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 60%, transparent); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── Printable diff report ──────────────────────── */
+.print-report {
+  @apply fixed inset-0 z-[100] flex flex-col overflow-hidden bg-bg;
+}
+.print-report-toolbar {
+  @apply flex shrink-0 gap-2 border-b border-border bg-surface p-3;
+}
+.print-report-page {
+  @apply mx-auto w-full max-w-4xl flex-1 overflow-y-auto p-6;
+}
+.print-report-page h1 {
+  @apply mb-3 text-2xl font-semibold;
+}
+.print-report-page h2 {
+  @apply mb-2 mt-5 text-lg font-semibold;
+}
+.print-report-block {
+  @apply whitespace-pre-wrap break-words rounded-md bg-surface-2/40 p-3 text-sm;
+}
+.print-report-file {
+  @apply mt-4;
+}
+
+@media print {
+  /* Only the report (its portal container in <body>) is printed. */
+  body > *:not(:has(.print-report)) {
+    display: none !important;
+  }
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .print-report {
+    position: static !important;
+    display: block !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .print-report-toolbar {
+    display: none !important;
+  }
+  .print-report-page {
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+  .print-report,
+  .print-report * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #111;
+  }
+  .print-report .print-report-block,
+  .print-report .diff {
+    background: #fff !important;
+    border: 1px solid #ccc !important;
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .print-report .diff div {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .print-report .diff-add {
+    background: #e6ffed !important;
+    color: #14532d !important;
+  }
+  .print-report .diff-del {
+    background: #ffeef0 !important;
+    color: #7f1d1d !important;
+  }
+  .print-report .diff-hunk {
+    color: #6b21a8 !important;
+  }
+  .print-report .diff-file {
+    color: #1d4ed8 !important;
+    break-after: avoid;
+  }
+  .print-report .diff-meta,
+  .print-report .diff-ctx {
+    color: #555 !important;
+  }
+  .print-report-file {
+    break-inside: auto;
+  }
+}
+
+/* ── Task graph board ───────────────────────────── */
+/* Pannable/zoomable canvas: dotted grid background (size and offset follow the viewport via
+   inline style), a transformed layer holding the SVG edges and the HTML nodes. */
+.graph-canvas {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  overscroll-behavior: contain;
+  background-color: var(--color-bg);
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-fg) 20%, transparent) 1px,
+    transparent 1.4px
+  );
+  background-size: 24px 24px;
+}
+.graph-canvas-busy {
+  cursor: grabbing;
+}
+.graph-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.graph-edges {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Nodes */
+.graph-node {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor: grab;
+}
+.graph-node > article.card {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 6px 16px -8px rgb(0 0 0 / 0.18);
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.graph-node:hover > article.card {
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.08), 0 10px 22px -8px rgb(0 0 0 / 0.26);
+}
+.graph-node-selected > article.card {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), 0 10px 22px -8px rgb(0 0 0 / 0.3);
+}
+.graph-node-target > article.card {
+  border-color: var(--color-ok);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-ok) 45%, transparent);
+}
+.graph-node-attention > article.card {
+  border-color: color-mix(in srgb, var(--color-stage-attention) 55%, var(--color-border));
+}
+.graph-waiting-dot {
+  display: inline-block;
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Ports */
+.graph-port {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  height: 0.875rem;
+  width: 0.875rem;
+  transform: translateY(-50%);
+  border-radius: 9999px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.15s ease;
+}
+.graph-port-in {
+  left: -0.4375rem;
+}
+.graph-port-out {
+  right: -0.4375rem;
+  cursor: crosshair;
+  padding: 0;
+}
+.graph-port-out:hover,
+.graph-node-selected .graph-port,
+.graph-node-target .graph-port-in {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  transform: translateY(-50%) scale(1.25);
+}
+
+/* "Add next / parallel" shortcuts under a node */
+.graph-node-tools {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 0.375rem;
+  padding-top: 0.375rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.graph-node:hover .graph-node-tools,
+.graph-node:focus-within .graph-node-tools,
+.graph-node-selected .graph-node-tools {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .graph-node-tools {
+    opacity: 1;
+  }
+  /* Larger touch target for the ports; the visible dot stays the same size. */
+  .graph-port::after {
+    content: "";
+    position: absolute;
+    inset: -0.875rem;
+  }
+}
+/* On touch screens the browser would otherwise claim the gesture for scrolling and fire
+   pointercancel, breaking pan, node drag and edge creation. */
+.task-graph-canvas,
+.graph-node,
+.graph-node > article.card,
+.graph-port {
+  touch-action: none;
+}
+.graph-tool {
+  display: inline-flex;
+  min-height: 1.5rem;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  padding: 0.125rem 0.5rem;
+  font-size: 11px;
+  color: var(--color-muted);
+  transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
+}
+.graph-tool:hover {
+  border-color: var(--color-accent);
+  color: var(--color-fg);
+  background: var(--color-surface-2);
+}
+
+/* Edges: colour follows the predecessor (merged = done, working = flowing, pending = muted). */
+.graph-edge-line {
+  fill: none;
+  stroke: var(--color-border);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke 0.2s ease, stroke-width 0.15s ease;
+}
+.graph-edge-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.graph-edge-done .graph-edge-line {
+  stroke: var(--color-ok);
+}
+.graph-edge-working .graph-edge-line {
+  stroke: var(--color-stage-working);
+  stroke-dasharray: 7 6;
+  animation: graph-edge-flow 0.9s linear infinite;
+}
+.graph-edge-pending .graph-edge-line {
+  stroke: color-mix(in srgb, var(--color-muted) 55%, var(--color-border));
+  stroke-dasharray: 2 5;
+}
+.graph-edge:hover .graph-edge-line,
+.graph-edge-selected .graph-edge-line {
+  stroke-width: 3;
+}
+.graph-edge-selected .graph-edge-line {
+  stroke: var(--color-accent);
+}
+.graph-edge-preview {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  stroke-dasharray: 4 5;
+  pointer-events: none;
+}
+.graph-edge-label {
+  fill: var(--color-muted);
+  font-size: 11px;
+  pointer-events: none;
+}
+.graph-edge-delete {
+  cursor: pointer;
+  pointer-events: all;
+}
+.graph-edge-delete circle {
+  fill: var(--color-surface);
+  stroke: var(--color-error);
+  stroke-width: 1.5;
+}
+.graph-edge-delete path {
+  fill: none;
+  stroke: var(--color-error);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+}
+.graph-edge-delete:hover circle {
+  fill: color-mix(in srgb, var(--color-error) 14%, var(--color-surface));
+}
+.graph-arrow-done {
+  fill: var(--color-ok);
+}
+.graph-arrow-working {
+  fill: var(--color-stage-working);
+}
+.graph-arrow-pending {
+  fill: color-mix(in srgb, var(--color-muted) 55%, var(--color-border));
+}
+.graph-arrow-active {
+  fill: var(--color-accent);
+}
+@keyframes graph-edge-flow {
+  to {
+    stroke-dashoffset: -13;
+  }
+}
+
+/* Zoom controls */
+.zoom-controls {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.25);
+}
+.zoom-fit-btn {
+  box-shadow: 0 4px 14px -6px rgb(0 0 0 / 0.25);
+}
+.zoom-control {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-muted);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.zoom-control:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}
+.zoom-readout {
+  min-width: 3rem;
+  text-align: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted);
+}
+
+/* Empty board call to action */
+.graph-empty {
+  display: flex;
+  max-width: 24rem;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 92%, transparent);
+  padding: 1.5rem;
+  text-align: center;
+}
+
+/* Board body: loose-tasks panel on the left, graph canvas on the right */
+.board-body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
+}
+.board-panes {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+.board-canvas {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 0%;
+}
+
+/* Collapsible side panel (fixed width, scrollable body) */
+.side-panel {
+  display: flex;
+  width: 280px;
+  flex: none;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.side-panel-collapsed {
+  width: auto;
+}
+.side-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  border-bottom: 1px solid var(--color-border);
+}
+.side-panel-collapsed .side-panel-header {
+  border-bottom: 0;
+}
+.side-panel-collapsed .side-panel-title {
+  display: none;
+}
+.side-panel-title {
+  min-width: 0;
+  flex: 1 1 0%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-fg);
+}
+.side-panel-toggle {
+  display: inline-flex;
+  height: 1.5rem;
+  width: 1.5rem;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-muted);
+}
+.side-panel-toggle:hover {
+  background: var(--color-surface-2);
+  color: var(--color-fg);
+}
+.side-panel-body {
+  min-height: 0;
+  flex: 1 1 0%;
+  overflow-y: auto;
+}
+.side-panel-body[hidden] {
+  display: none;
+}
+
+/* Loose task cards: draggable onto the canvas */
+.loose-card {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+.loose-tasks-container,
+.loose-list {
+  touch-action: pan-y;
+}
+.loose-card-attention {
+  border-color: color-mix(in srgb, var(--color-stage-attention) 55%, var(--color-border));
+}
+.loose-ghost {
+  position: fixed;
+  z-index: 60;
+  max-width: 16rem;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-accent);
+  background: var(--color-surface);
+  padding: 0.375rem 0.625rem;
+  font-size: 12px;
+  color: var(--color-fg);
+  box-shadow: 0 10px 22px -8px rgb(0 0 0 / 0.35);
+}
+
+/* Segmented control (sub-tabs); only shown on narrow screens by .board-tabs */
+.segmented {
+  display: inline-flex;
+  gap: 0.125rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  padding: 0.125rem;
+}
+.segment {
+  min-height: 1.75rem;
+  flex: 1 1 0%;
+  cursor: pointer;
+  border-radius: calc(var(--radius-md) - 2px);
+  padding: 0.125rem 0.75rem;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+.segment-selected {
+  background: var(--color-surface);
+  color: var(--color-fg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
+}
+.board-tabs {
+  display: none;
+}
+
+/* Narrow screens: sub-tabs instead of two panels. The inactive pane stays laid out (hidden,
+   not removed) so the canvas keeps its size for fit and "Add to graph".
+   767px is Tailwind's `md` (768px) minus one: keep it in sync with NARROW_BREAKPOINT_PX in
+   src/modules/tasks/presentation/state/loose_drag.rs (the only Rust copy). */
+@media (max-width: 767px) {
+  .board-tabs {
+    display: flex;
+    margin: 0.5rem 0.75rem;
+  }
+  .board-panes > .side-panel,
+  .board-panes > .board-canvas {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    max-height: none;
+    border-right: 0;
+  }
+  .board-panes > .side-panel {
+    z-index: 2;
+  }
+  .board-panes[data-tab="graph"] > .side-panel,
+  .board-panes[data-tab="loose"] > .board-canvas {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .side-panel-toggle {
+    display: none;
+  }
+  .side-panel-collapsed .side-panel-title {
+    display: block;
+  }
+  .side-panel-body[hidden] {
+    display: block;
+  }
+  .loose-card {
+    cursor: default;
+    touch-action: pan-y;
+  }
+}

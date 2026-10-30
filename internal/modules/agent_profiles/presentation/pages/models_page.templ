@@ -1,0 +1,25 @@
+package pages
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/agent_profiles/presentation/components"
+	"iworkflow/internal/modules/agent_profiles/presentation/state"
+)
+
+// ModelsPage is the body of the models tab: the global routing editor and the button that creates a
+// role, which the editor offers as an agent to add.
+templ ModelsPage(view state.ModelsView) {
+	<div class="flex h-full min-h-0 flex-col">
+		<div class="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2.5">
+			<h1 class="page-title">{ ModelsTitle.T(ctx) }</h1>
+			<button type="button" class="btn-secondary" hx-get={ view.NewRoleURL } hx-target="#models-dialog" hx-swap="outerHTML">{ CreateRole.T(ctx) }</button>
+		</div>
+		<div class="stack min-h-0 flex-1 overflow-y-auto p-4">
+			<p class="muted text-sm">{ ModelsHelp.T(ctx) }</p>
+			@coreui.Card(GlobalRouting.T(ctx)) {
+				@components.RoutingEditor(view.Editor)
+			}
+		</div>
+		<div id="models-dialog"></div>
+	</div>
+}

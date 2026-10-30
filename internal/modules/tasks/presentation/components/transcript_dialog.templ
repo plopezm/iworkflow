@@ -1,0 +1,66 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TranscriptDialog is a dialog of the transcript. While the agent waits for it, it asks the answer: each control posts
+// the answer to the task and the answer replaces this element (data-dialog). Once answered or closed it is a line of
+// the transcript. notice is the answer of a refused or undeliverable answer, shown with the controls so the user can
+// answer again.
+templ TranscriptDialog(taskID string, item state.DialogItem, notice string) {
+	if item.Resolved {
+		<div class="notice notice-info" data-dialog>{ dialogText(ctx, item) }</div>
+	} else {
+		<section class="card dialog-panel stack gap-2" data-dialog>
+			<h3 class="card-title whitespace-pre-wrap break-words">{ "❓ " + item.Request.Title }</h3>
+			<div class="notice notice-info">{ dialogText(ctx, item) }</div>
+			@dialogControls(taskID, item.Request)
+			if notice != "" {
+				<div role="alert">
+					@shared.ErrorText(notice)
+				</div>
+			}
+			<div class="row">
+				<button type="button" class="btn-secondary" { answerAttrs(taskID, item.Request.ID, cancelAnswer())... }>{ msgDialogCancel.T(ctx) }</button>
+			</div>
+		</section>
+	}
+}
+
+// dialogControls are the controls that answer a pending dialog, by its kind. Select, confirm and cancel post their
+// answer as hx-vals; input and editor post a form with the text in its value field.
+templ dialogControls(taskID string, request dto.TranscriptDialog) {
+	switch kind := request.Kind.(type) {
+	case dto.TranscriptSelectDialog:
+		<div class="stack gap-2">
+			for _, option := range kind.Options {
+				<button type="button" class="btn-secondary min-h-9 w-full rounded-lg px-3 py-2 text-left text-sm whitespace-normal break-words" { answerAttrs(taskID, request.ID, valueAnswer(option))... }>{ option }</button>
+			}
+		</div>
+	case dto.TranscriptConfirmDialog:
+		if kind.Message != nil {
+			<p>{ *kind.Message }</p>
+		}
+		<div class="row gap-2">
+			<button type="button" class="btn-primary" { answerAttrs(taskID, request.ID, confirmAnswer(true))... }>{ msgDialogYes.T(ctx) }</button>
+			<button type="button" class="btn-secondary" { answerAttrs(taskID, request.ID, confirmAnswer(false))... }>{ msgDialogNo.T(ctx) }</button>
+		</div>
+	case dto.TranscriptInputDialog:
+		<form class="row gap-2" { answerFormAttrs(taskID, request.ID)... }>
+			<input type="hidden" name="kind" value={ dialogKindValue }/>
+			<input type="text" name="value" class="input min-w-0 flex-1" placeholder={ valueOr(kind.Placeholder) }/>
+			<button type="submit" class="btn-primary">{ msgSend.T(ctx) }</button>
+		</form>
+	case dto.TranscriptEditorDialog:
+		<form class="stack" { answerFormAttrs(taskID, request.ID)... }>
+			<input type="hidden" name="kind" value={ dialogKindValue }/>
+			<textarea name="value" class="input">{ valueOr(kind.Prefill) }</textarea>
+			<div class="row">
+				<button type="submit" class="btn-primary">{ msgSend.T(ctx) }</button>
+			</div>
+		</form>
+	}
+}

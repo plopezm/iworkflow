@@ -1,0 +1,104 @@
+package components
+
+import (
+	"strconv"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// LaneSection renders a collapsible group of issues fed by one JQL query.
+templ LaneSection(lane state.LaneView) {
+	{{
+		countLabel := state.LaneCountLabel(len(lane.Issues), lane.Total, i18n.StateFrom(ctx).Locale)
+		emptyMsg := state.EmptyLaneMessage(lane.Total, i18n.StateFrom(ctx).Locale)
+		isCollapsed := lane.Lane.Collapsed
+	}}
+	<section class="overflow-hidden rounded-xl border border-border bg-surface/60">
+		<header class="flex items-center gap-1 pr-2">
+			<button
+				type="button"
+				class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors duration-150 hover:bg-surface-2"
+				aria-expanded={ strconv.FormatBool(!isCollapsed) }
+				hx-post={ "/jira/lanes/" + lane.Lane.ID + "/collapse" }
+				hx-target="#jira-board"
+				hx-swap="outerHTML"
+			>
+				<span
+					class={ "inline-block w-3 shrink-0 text-xs text-muted transition-transform duration-200", templ.KV("rotate-90", !isCollapsed) }
+				>
+					▶
+				</span>
+				<span class="shrink-0 text-sm font-semibold text-fg">{ lane.Lane.Name }</span>
+				<span class="badge badge-muted shrink-0 tabular-nums">{ countLabel }</span>
+				if lane.Lane.IsDefault {
+					<span class="eyebrow shrink-0">{ msgAssignedToMe.T(ctx) }</span>
+				} else {
+					<code
+						class="hidden min-w-0 truncate font-mono text-[11px] text-muted md:inline"
+						title={ lane.Lane.JQL }
+					>
+						{ lane.Lane.JQL }
+					</code>
+				}
+			</button>
+			if !lane.Lane.IsDefault {
+				<button
+					type="button"
+					class="btn-ghost"
+					title={ msgEditLane.T(ctx) }
+					hx-get={ "/jira/lanes/" + lane.Lane.ID + "/edit" }
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+				>
+					{ msgEditShort.T(ctx) }
+				</button>
+				<button
+					type="button"
+					class="btn-ghost"
+					title={ msgDeleteLane.T(ctx) }
+					hx-get={ "/jira/lanes/" + lane.Lane.ID + "/confirm-delete" }
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+				>
+					{ msgDeleteShort.T(ctx) }
+				</button>
+			}
+		</header>
+		<div
+			class={ "grid transition-[grid-template-rows] duration-200 ease-out", templ.KV("grid-rows-[0fr]", isCollapsed), templ.KV("grid-rows-[1fr]", !isCollapsed) }
+		>
+			<div class="min-h-0 overflow-hidden">
+				<div class="stack border-t border-border p-3">
+					if lane.ConfirmingDelete {
+						@shared.ConfirmPanel(
+							msgDeleteNotice.T(ctx),
+							msgDeleteLane.T(ctx),
+							false,
+							templ.Attributes{
+								"hx-post":   "/jira/lanes/" + lane.Lane.ID + "/delete",
+								"hx-target": "#jira-board",
+								"hx-swap":   "outerHTML",
+							},
+							templ.Attributes{
+								"hx-get":    "/jira/lanes/cancel",
+								"hx-target": "#jira-board",
+								"hx-swap":   "outerHTML",
+							},
+						)
+					}
+					if len(lane.Issues) == 0 {
+						<p class="muted">{ emptyMsg }</p>
+					} else {
+						<ul class="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+							for _, issue := range lane.Issues {
+								@IssueRow(issue)
+							}
+						</ul>
+					}
+				</div>
+			</div>
+		</div>
+	</section>
+}

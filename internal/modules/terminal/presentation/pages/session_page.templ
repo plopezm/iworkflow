@@ -1,0 +1,32 @@
+package pages
+
+import (
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/terminal/presentation/components"
+	"iworkflow/internal/modules/terminal/presentation/state"
+)
+
+// SessionPage is the full-height terminal of one session. Closing it posts the request and, on
+// success, the dock returns the tab to the sessions list.
+templ SessionPage(view state.SessionPage) {
+	<section class="stack h-full min-h-0 gap-1.5 sm:gap-2 px-1.5 sm:px-3 pt-1.5 sm:pt-3 pb-1 sm:pb-2">
+		<header class="row justify-between gap-1.5">
+			<h1 class="page-title truncate text-base sm:text-xl">{ view.Title }</h1>
+			<div class="row shrink-0 gap-1.5">
+				@link.Tab(link.Props{Href: state.TerminalsPath, Class: "btn-secondary min-h-8 px-2 sm:px-2.5 py-1 text-xs"}) {
+					{ msgAllTerminals.T(ctx) }
+				}
+				<button
+					type="button"
+					class="btn-danger min-h-8 px-2 sm:px-2.5 py-1 text-xs"
+					hx-post={ "/terminal/sessions/" + view.ID + "/close/page" }
+					hx-target="#terminal-session-status"
+					hx-swap="innerHTML"
+					hx-disabled-elt="this"
+				>{ msgCloseSession.T(ctx) }</button>
+			</div>
+		</header>
+		<div id="terminal-session-status"></div>
+		@components.TerminalView(view.ID)
+	</section>
+}

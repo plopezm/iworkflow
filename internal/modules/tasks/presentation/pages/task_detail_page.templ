@@ -1,0 +1,68 @@
+package pages
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TaskDetailPage is the detail tab of a task: its header, then its backlog body or its transcript with the right collapsible
+// panel of task tabs, and the result slot where a leaving action answers.
+templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody templ.Component) {
+	<div id={ state.Scoped("task-detail", view.Scope) } class="flex h-full min-h-0">
+		<div class="flex min-w-0 flex-1 flex-col">
+			<div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2.5">
+				<div class="min-w-0 flex-1">
+					@components.TaskHeader(view)
+				</div>
+				if view.Task.Stage != state.StageBacklog {
+					<button
+						type="button"
+						class="btn-secondary min-h-9 px-3 py-1 text-xs md:hidden"
+						data-mobile-open
+						data-target={ state.Scoped("task-panel", view.Scope) }
+					>
+						{ msgPanel.T(ctx) }
+					</button>
+				}
+			</div>
+			if view.Task.Stage == state.StageBacklog {
+				<div class="min-h-0 flex-1 overflow-y-auto p-4">
+					@components.BacklogView(view)
+				</div>
+			} else {
+				<div class="flex min-h-0 flex-1 flex-col">
+					@components.TranscriptPanel(view)
+					if view.CanMessage {
+						<div class="shrink-0 border-t border-border bg-surface p-4">
+							@components.Composer(state.NewComposerView(view.Scope, view.Task.ID, view.Transcript))
+						</div>
+					}
+				</div>
+			}
+		</div>
+		if view.Task.Stage != state.StageBacklog {
+			@coreui.CollapsePanel(coreui.CollapsePanelProps{
+				Side:       coreui.RightPanel,
+				Open:       true,
+				Width:      "md:w-[26rem]",
+				Label:      msgTaskPanel.T(ctx),
+				ID:         state.Scoped("task-panel", view.Scope),
+				PersistKey: "iwf-task-panel-" + view.Task.ID,
+			}) {
+				<div class="flex shrink-0 items-center justify-between border-b border-border px-3 py-2 md:hidden">
+					<span class="text-xs font-bold tracking-widest uppercase">{ msgTask.T(ctx) }</span>
+					<button
+						type="button"
+						class="btn-ghost min-h-8 px-2 py-1 text-xs"
+						data-overlay-close
+					>
+						{ msgClose.T(ctx) }
+					</button>
+				</div>
+				@components.TaskTabRegion(tabs, actionsBody, filesBody, changesBody, codeHostBody)
+			}
+		}
+		<div id={ state.Scoped("task-detail-result", view.Scope) }></div>
+	</div>
+}

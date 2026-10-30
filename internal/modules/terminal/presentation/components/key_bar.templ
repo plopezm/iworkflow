@@ -1,0 +1,31 @@
+package components
+
+// KeyBar is the row of special-key buttons. Each button carries its key name in data-terminal-key;
+// web/static/js/terminal_view.js sends it to the terminal. The buttons do not take the focus from
+// the terminal, which the script enforces on mousedown.
+templ KeyBar() {
+	<div class="grid shrink-0 grid-cols-9 gap-1 sm:gap-1.5" role="toolbar" aria-label={ msgSpecialKeys.T(ctx) }>
+		for _, key := range terminalKeys {
+			<button
+				type="button"
+				class="btn-secondary min-h-9 sm:min-h-10 px-0 py-1"
+				aria-label={ key.Label }
+				title={ key.Label }
+				data-terminal-key={ key.Key }
+			>
+				<svg
+					class="h-4 w-4 sm:h-5 sm:w-5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					stroke-width="2"
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					aria-hidden="true"
+				>
+					@templ.Raw(key.Icon)
+				</svg>
+			</button>
+		}
+	</div>
+}

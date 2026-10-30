@@ -1,0 +1,146 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/agents_files/presentation/state"
+)
+
+// FileList is the list region of the "Files" card. Actions swap it as a whole (delete, upload).
+templ FileList(list state.FileList) {
+	<div id="agents-files-list" class="stack">
+		@fileListBody(list)
+	</div>
+}
+
+// FileListOOB is the same region sent as an out-of-band swap, next to the upload form.
+templ FileListOOB(list state.FileList) {
+	<div id="agents-files-list" class="stack" hx-swap-oob="true">
+		@fileListBody(list)
+	</div>
+}
+
+// fileListBody shows the error, if any, then the files, or the empty message when there is no error
+// and no file.
+templ fileListBody(list state.FileList) {
+	if list.Error != "" {
+		@coreui.ErrorText(list.Error)
+	}
+	if len(list.Items) > 0 {
+		for _, item := range list.Items {
+			@FileItem(item)
+		}
+	} else if list.Error == "" {
+		<p class="muted">{ msgNoFiles.T(ctx) }</p>
+	}
+}
+
+// FileItem is one stored AGENTS.md: its data, the "add to project" controls and the feedback of the
+// last attempt. It is the swap target of the per-file requests.
+templ FileItem(item state.FileItem) {
+	<article id={ "agents-file-" + item.ID } class="card stack gap-2 animate-slide-up">
+		<div class="row justify-between">
+			<span class="font-medium text-fg">{ item.Description }</span>
+			<button
+				type="button"
+				class="btn-danger min-h-9 rounded-lg px-2.5 py-1 text-xs"
+				hx-delete={ fileURL(item.ID) }
+				hx-confirm={ msgConfirmDelete.Fmt(ctx, map[string]string{"description": item.Description}) }
+				hx-target="#agents-files-list"
+				hx-swap="outerHTML"
+			>
+				{ msgDelete.T(ctx) }
+			</button>
+		</div>
+		<span class="muted">{ state.FormatCreatedAt(item.CreatedAt) }</span>
+		<code class="break-all font-mono text-xs text-muted">{ item.Path }</code>
+		if len(item.Projects) > 0 {
+			<div class="stack gap-2 sm:flex-row sm:items-end">
+				<div class="min-w-0 sm:flex-1">
+					@coreui.SelectField(coreui.SelectFieldProps{
+						Label:       msgProject.T(ctx),
+						Name:        "project_id",
+						Value:       item.SelectedProjectID,
+						Placeholder: msgPickProject.T(ctx),
+						Options:     projectOptions(item.Projects),
+						Attrs: templ.Attributes{
+							"id":          projectSelectID(item.ID),
+							"hx-get":      fileURL(item.ID) + "/apply-button",
+							"hx-trigger":  "change",
+							"hx-target":   "#" + applyButtonID(item.ID),
+							"hx-swap":     "outerHTML",
+						},
+					})
+				</div>
+				@ApplyButton(item.ID, item.SelectedProjectID)
+			</div>
+		} else {
+			<p class="muted">{ msgNoWorkspaces.T(ctx) }</p>
+		}
+		@feedbackView(item)
+	</article>
+}
+
+// ApplyButton is "Add to project". It stays disabled until a project is chosen. It sends the selected
+// project, and the response replaces the whole file card.
+templ ApplyButton(fileID string, selectedProjectID string) {
+	@coreui.BusyButton(coreui.BusyButtonProps{
+		Class:    "btn-secondary",
+		Disabled: selectedProjectID == "",
+		Attrs: templ.Attributes{
+			"id":               applyButtonID(fileID),
+			"hx-post":          fileURL(fileID) + "/apply",
+			"hx-include":       "#" + projectSelectID(fileID),
+			"hx-target":        "closest article",
+			"hx-swap":          "outerHTML",
+			"hx-disabled-elt":  "this",
+		},
+	}) {
+		{ msgAddToProject.T(ctx) }
+	}
+}
+
+// feedbackView shows the error of the last apply, then its outcome: the overwrite prompt, or the
+// result with a close button.
+templ feedbackView(item state.FileItem) {
+	if item.ApplyError != "" {
+		@coreui.ErrorText(item.ApplyError)
+	}
+	if item.Feedback == state.FeedbackTargetExists {
+		@coreui.ConfirmPanel(
+			state.FeedbackMessage(ctx, item.Feedback),
+			msgOverwrite.T(ctx),
+			false,
+			templ.Attributes{
+				"hx-post":    fileURL(item.ID) + "/apply",
+				"hx-vals":    `{"overwrite":"true"}`,
+				"hx-include": "#" + projectSelectID(item.ID),
+				"hx-target":  "closest article",
+				"hx-swap":    "outerHTML",
+			},
+			templ.Attributes{
+				"hx-get":     fileURL(item.ID) + "/card",
+				"hx-include": "#" + projectSelectID(item.ID),
+				"hx-target":  "closest article",
+				"hx-swap":    "outerHTML",
+			},
+		)
+	} else if item.Feedback == state.FeedbackCommitted || item.Feedback == state.FeedbackNotCommitted {
+		<div class="row justify-between">
+			if item.Feedback == state.FeedbackCommitted {
+				<p class="text-sm text-ok">{ state.FeedbackMessage(ctx, item.Feedback) }</p>
+			} else {
+				<p class="text-sm text-warn">{ state.FeedbackMessage(ctx, item.Feedback) }</p>
+			}
+			<button
+				type="button"
+				class="btn-ghost"
+				hx-get={ fileURL(item.ID) + "/card" }
+				hx-include={ "#" + projectSelectID(item.ID) }
+				hx-target="closest article"
+				hx-swap="outerHTML"
+			>
+				{ msgClose.T(ctx) }
+			</button>
+		</div>
+	}
+}

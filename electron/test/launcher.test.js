@@ -100,6 +100,7 @@ test('reads the address the server announces in its startup log', () => {
   assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en http://127.0.0.1:9100'), { host: '127.0.0.1', port: 9100 });
   assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en http://0.0.0.0:9000'), { host: '0.0.0.0', port: 9000 });
   assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en http://[::1]:9000'), { host: '::1', port: 9000 });
+  assert.deepEqual(extractListenAddr('time=2026-10-28T20:00:00.000+01:00 level=INFO msg=listening url=http://127.0.0.1:9100'), { host: '127.0.0.1', port: 9100 });
 });
 
 test('ignores log lines that are not the listen announcement', () => {

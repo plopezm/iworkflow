@@ -1,0 +1,26 @@
+package pages
+
+import (
+	"iworkflow/internal/modules/agent_profiles/presentation/components"
+	"iworkflow/internal/modules/agent_profiles/presentation/state"
+)
+
+// ProfilesPage is the body of the profiles tab: the list and the roles on the left, the selected
+// profile on the right. The dialog host sits at the end, empty until a dialog is opened.
+templ ProfilesPage(view state.ProfilesView) {
+	<div class="flex h-full min-h-0 flex-col">
+		<div class="flex shrink-0 items-center border-b border-border bg-surface px-4 py-2.5">
+			<h1 class="page-title">{ TabTitle.T(ctx) }</h1>
+		</div>
+		<div class="min-h-0 flex-1 overflow-y-auto">
+			<div class="grid gap-4 p-4 lg:grid-cols-[18rem_1fr]">
+				<div class="stack">
+					@components.ProfilesList(view.List, false)
+					@components.RolesCard(view.Roles, false)
+				</div>
+				@components.ProfileDetail(view.Detail, false)
+			</div>
+		</div>
+		<div id="profiles-dialog"></div>
+	</div>
+}

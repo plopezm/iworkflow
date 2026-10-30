@@ -7,7 +7,7 @@ const DEFAULT_SITE_ADDR = '127.0.0.1:9000';
 const LOOPBACK_HOST = '127.0.0.1';
 const TOKEN_LENGTH = 64;
 const TOKEN_PATTERN = new RegExp(`[?&]token=([0-9a-fA-F]{${TOKEN_LENGTH}})(?![0-9a-zA-Z])`);
-const LISTEN_PATTERN = /escuchando en http:\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
+const LISTEN_PATTERN = /(?:escuchando en |msg=listening url=)http:\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
 /** Exit code with which the server asks its supervisor to start it again. */
 const RESTART_EXIT_CODE = 75;
 const MAC_EXTRA_PATHS = ['/opt/homebrew/bin', '/usr/local/bin'];

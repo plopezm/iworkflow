@@ -1,0 +1,21 @@
+package pages
+
+import (
+	"iworkflow/internal/modules/tasks/presentation/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// BoardPage is the board tab: the toolbar, the list of the workspace, the notice of the last create and
+// the slot of the create dialog. The list refreshes on the task stream, which the shell connects once for
+// the whole page (see the sidebar), so the board does not open a second stream. The notice and the slot carry the
+// scope of this board instance, so several open boards keep their own.
+templ BoardPage(view state.BoardView) {
+	<div class="flex h-full min-h-0 flex-col">
+		@components.BoardToolbar(view)
+		<div id={ state.Scoped("board-notice", view.Scope) }></div>
+		<div class="board-body min-h-0 flex-1 overflow-hidden">
+			@components.BoardList(view)
+		</div>
+		<div id={ state.Scoped("board-create-slot", view.Scope) }></div>
+	</div>
+}

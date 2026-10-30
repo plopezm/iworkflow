@@ -1,0 +1,62 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/project_tree/presentation/state"
+)
+
+// GitChangesPanel is the source-control list of a scope: the changes split into staged, unstaged and
+// untracked, the per-file and per-group stage toggles, and the commit form. The list polls itself while
+// it is displayed; the commit form sits outside the polled part.
+templ GitChangesPanel(p GitChangesPanelProps) {
+	<div id={ gitRootID(p.View) } class="flex h-full min-h-0 flex-col bg-surface" data-testid="git-changes" data-git-root>
+		<style>[data-git-root]:not(:has([data-git-staged])) [data-git-commit] { display: none; }</style>
+		<div class="tree-panel-header">
+			<h1 class="min-w-0 flex-1 truncate text-sm font-semibold">{ msgGitChanges.T(ctx) }</h1>
+			<button
+				type="button"
+				class="icon-btn"
+				title={ msgReload.T(ctx) }
+				aria-label={ msgReload.T(ctx) }
+				hx-get={ state.ChangesURL(wireOf(p.View)) }
+				hx-target={ "#" + gitBodyID(p.View) }
+				hx-swap="innerHTML"
+			>↻</button>
+		</div>
+		@GitErrorSlot(p.View, false)
+		@CommitForm(p.View)
+		<div
+			id={ gitBodyID(p.View) }
+			class="min-h-0 flex-1 overflow-y-auto py-1"
+			hx-get={ state.ChangesURL(wireOf(p.View)) }
+			hx-trigger={ pollTrigger() }
+			hx-swap="innerHTML"
+		>
+			@GitChangesBody(p.View)
+		</div>
+	</div>
+}
+
+// GitChangesBody is the list of changes: the load error, the empty message, or the sections. It is the
+// swap target of every stage, unstage and refresh request.
+templ GitChangesBody(v state.GitView) {
+	if v.LoadError != "" {
+		<div class="px-3 py-2">@coreui.ErrorText(v.LoadError)</div>
+	} else if v.Groups.Empty() {
+		<p class="px-3 py-2 text-xs text-muted" data-testid="git-empty">{ msgNoChanges.T(ctx) }</p>
+	} else {
+		@ChangeSection(v, "git-section-staged", msgStaged, v.Groups.Staged, unstageToggle(), true)
+		@ChangeSection(v, "git-section-unstaged", msgGitChanges, v.Groups.Unstaged, stageToggle(), false)
+		@ChangeSection(v, "git-section-untracked", msgUntrackedFiles, v.Groups.Untracked, stageToggle(), false)
+	}
+}
+
+// GitErrorSlot is the place of the last action error. As an out-of-band swap it replaces the slot of
+// the panel after an action; the empty slot clears a previous failure.
+templ GitErrorSlot(v state.GitView, oob bool) {
+	<div id={ gitErrorID(v) } { oobAttrs(oob)... }>
+		if v.ActionError != "" {
+			<div class="px-3 py-2">@coreui.ErrorText(v.ActionError)</div>
+		}
+	</div>
+}

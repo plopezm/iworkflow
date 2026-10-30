@@ -1,0 +1,9 @@
+package link
+
+
+// Tab renders the link. Children are its label.
+templ Tab(p Props) {
+	<a href={ templ.SafeURL(p.Href) } class={ p.Class } { p.Attributes()... }>
+		{ children... }
+	</a>
+}

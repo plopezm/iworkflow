@@ -1,0 +1,74 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// BoardSidebar is the board part of the sidebar: the workspaces, each linked to its board with the
+// workspace tools in its menu, and the tasks that need the user.
+// The fragment refreshes itself when the task stream reports a change, when a board refresh is announced and
+// after any request to the workspaces screen, so a workspace registered there shows up without a reload.
+templ BoardSidebar(rows state.SidebarRows) {
+	<div
+		id="board-sidebar"
+		class="contents"
+		hx-get="/board/sidebar"
+		hx-trigger="sse:changed, sse:removed, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body"
+		hx-sync="this:replace"
+		hx-target="this"
+		hx-swap="innerHTML"
+	>
+		@SidebarBody(rows)
+	</div>
+}
+
+// SidebarBody is the content of the board part of the sidebar. It is what /board/sidebar answers; the element that
+// listens to the task stream stays in the page and swaps only this content.
+templ SidebarBody(rows state.SidebarRows) {
+	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgWorkspaces.T(ctx), Count: len(rows.Workspaces)}) {
+		if rows.LoadError != "" {
+			@shared.ErrorText(rows.LoadError)
+		}
+		for _, workspace := range rows.Workspaces {
+			@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle}, workspaceMenu(workspace.ID))
+		}
+		if len(rows.Workspaces) == 0 {
+			<div class="stack gap-1.5">
+				<p class="muted">{ msgNoWorkspacesYet.T(ctx) }</p>
+				@link.Tab(link.Props{Href: "/workspaces", Class: "btn-ghost min-h-9 px-3 py-1.5 text-xs"}) {
+					{ msgRegisterWorkspace.T(ctx) }
+				}
+			</div>
+		}
+	}
+	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgNeedsAttentionSection.T(ctx), Count: len(rows.Attention)}) {
+		for _, task := range rows.Attention {
+			@shared.SidebarItem(shared.SidebarItemProps{Href: state.TaskPath(task.ID), Title: task.Title, Subtitle: task.Subtitle, Highlight: true}, taskMenu(task.ID))
+		}
+		if len(rows.Attention) == 0 {
+			<p class="muted">{ msgNothingNeedsAttention.T(ctx) }</p>
+		}
+	}
+}
+
+// workspaceMenu is the "…" menu of a workspace row: its files, its terminal and the workspaces screen.
+templ workspaceMenu(workspaceID string) {
+	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID, Class: "menu-item"}) {
+		{ msgViewFiles.T(ctx) }
+	}
+	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID + "/terminal", Class: "menu-item"}) {
+		{ msgOpenTerminal.T(ctx) }
+	}
+	@link.Tab(link.Props{Href: "/workspaces", Class: "menu-item"}) {
+		{ msgManageWorkspaces.T(ctx) }
+	}
+}
+
+// taskMenu is the "…" menu of a task row: its detail.
+templ taskMenu(taskID string) {
+	@link.Tab(link.Props{Href: state.TaskPath(taskID), Class: "menu-item"}) {
+		{ msgOpenTask.T(ctx) }
+	}
+}

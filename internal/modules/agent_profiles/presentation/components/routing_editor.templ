@@ -1,0 +1,72 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/agent_profiles/presentation/state"
+)
+
+// RoutingEditor is the form that edits the routing of a profile or of the global routing: one row per
+// agent with its model and reasoning level. Row actions (add, remove) re-render the whole form with
+// the draft the user has typed, so nothing is lost; Save persists it.
+templ RoutingEditor(editor state.EditorView) {
+	<form id={ editor.FormID } class="stack gap-3" hx-post={ editor.SaveURL } hx-target={ hashID(editor.FormID) } hx-swap="outerHTML">
+		if editor.Error != "" {
+			@coreui.ErrorText(editor.Error)
+		}
+		<ul class="stack gap-2">
+			for _, row := range editor.Rows {
+				@routingRow(editor, row)
+			}
+		</ul>
+		<div class="row flex-wrap gap-2">
+			<select id={ editor.AddSelectID } name="add_agent" class="input w-auto" aria-label={ msgAgentToAdd.T(ctx) }>
+				@addAgentOptions(editor)
+			</select>
+			<button type="button" class="btn-secondary" hx-post={ editor.RowsURL } hx-vals={ valsJSON(map[string]string{"action": state.ActionAddRow}) } hx-include={ hashID(editor.FormID) } hx-target={ hashID(editor.FormID) } hx-swap="outerHTML">{ msgAddRow.T(ctx) }</button>
+			<button type="submit" class="btn-primary ml-auto">{ msgSaveRouting.T(ctx) }</button>
+		</div>
+	</form>
+}
+
+// AddAgentSelect is the "agent to add" select alone. Role creation sends it out of band, so the
+// list of addable agents follows the new role without rebuilding the editor draft.
+templ AddAgentSelect(editor state.EditorView, oob bool) {
+	<select id={ editor.AddSelectID } name="add_agent" class="input w-auto" aria-label={ msgAgentToAdd.T(ctx) } { oobAttrs(oob)... }>
+		@addAgentOptions(editor)
+	</select>
+}
+
+templ addAgentOptions(editor state.EditorView) {
+	<option value="">{ msgAddAgent.T(ctx) }</option>
+	for _, agent := range editor.Addable {
+		<option value={ agent }>{ agent }</option>
+	}
+}
+
+templ routingRow(editor state.EditorView, row state.RoutingRow) {
+	<li class="card stack gap-2">
+		<div class="row justify-between">
+			<span class="font-medium text-fg">{ row.Agent }</span>
+			<button type="button" class="btn-danger min-h-9 rounded-lg px-2.5 py-1 text-xs" hx-post={ editor.RowsURL } hx-vals={ valsJSON(map[string]string{"action": state.ActionRemoveRow, "target": row.Agent}) } hx-include={ hashID(editor.FormID) } hx-target={ hashID(editor.FormID) } hx-swap="outerHTML">{ msgRemove.T(ctx) }</button>
+		</div>
+		<input type="hidden" name="agent" value={ row.Agent }/>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgModel.T(ctx) }</span>
+			<select class="input" name="model">
+				<option value="" selected?={ row.Model == "" }>{ msgInherit.T(ctx) }</option>
+				for _, option := range state.ModelChoices(editor.Models, row.Model) {
+					<option value={ option.Value } selected?={ option.Value == row.Model }>{ option.Label }</option>
+				}
+			</select>
+		</label>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgReasoning.T(ctx) }</span>
+			<select class="input" name="thinking">
+				<option value="" selected?={ row.Thinking == "" }>{ msgInherit.T(ctx) }</option>
+				for _, level := range state.ThinkingChoices(editor.Levels, row.Thinking) {
+					<option value={ level } selected?={ level == row.Thinking }>{ level }</option>
+				}
+			</select>
+		</label>
+	</li>
+}

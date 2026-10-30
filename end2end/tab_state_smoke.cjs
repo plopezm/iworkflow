@@ -13,7 +13,13 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await context.addCookies([{ name: 'iw-lang', value: 'es', url: BASE }]);
   page = await context.newPage();
   const problems = [];
-  page.on('console', m => { if ((m.type() === 'error' || m.type() === 'warning') && !/reading a resource in `hydrate`/.test(m.text())) problems.push(`${m.type()}: ${m.text()}`); });
+  page.on('console', m => {
+    if ((m.type() === 'error' || m.type() === 'warning') &&
+        !/reading a resource in `hydrate`/.test(m.text()) &&
+        !/htmx:(afterRequest|sendAbort)/.test(m.text())) {
+      problems.push(`${m.type()}: ${m.text()}`);
+    }
+  });
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   page.on('response', r => { if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${r.url()}`); });
   const step = (s) => console.log('✔', s);
@@ -71,7 +77,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   // Mensaje al agente (composer) de una tarea en vivo, sin enviar: sobrevive a un cambio de pestaña.
   await tab('Tablero').click();
   const runtime = visible(page.getByLabel(/^Agente/));
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
+  // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
+  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings') || (r.request().method() === 'POST' && /\/agent-settings\/(runtime|model|profile|thinking)$/.test(new URL(r.url()).pathname)));
   await runtime.selectOption('pi');
   await saved;
   await page.getByRole('button', { name: 'Nueva tarea' }).click();

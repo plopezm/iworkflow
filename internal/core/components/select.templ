@@ -1,0 +1,31 @@
+package components
+
+// OptionSelect is a compact pill drop-down with optional option groups. The empty first option
+// is DefaultLabel; the selected option is Value.
+templ OptionSelect(p OptionSelectProps) {
+	<label class={ optionSelectClass(p.Class) } title={ currentLabel(p) }>
+		<span class="sr-only">{ p.Label }</span>
+		if p.Icon != "" {
+			<span class="select-pill-icon" aria-hidden="true">@templ.Raw(p.Icon)</span>
+		}
+		<select class="select-pill-input" disabled?={ p.Disabled } { p.Attrs... }>
+			<option value="" selected?={ p.Value == "" }>{ p.DefaultLabel }</option>
+			for _, group := range GroupOptions(p.Options) {
+				if group.Name != "" {
+					<optgroup label={ group.Name }>
+						for _, option := range group.Options {
+							<option value={ option.Value } selected?={ option.Value == p.Value }>{ option.Label }</option>
+						}
+					</optgroup>
+				} else {
+					for _, option := range group.Options {
+						<option value={ option.Value } selected?={ option.Value == p.Value }>{ option.Label }</option>
+					}
+				}
+			}
+		</select>
+		<svg class="select-pill-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+			<path d="M5.5 8L10 12.5L14.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+		</svg>
+	</label>
+}

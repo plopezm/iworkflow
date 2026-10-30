@@ -1,0 +1,74 @@
+package components
+
+import ui "iworkflow/internal/core/components"
+
+// LimitsPath is the URL that loads the resource limits card (the settings section fetches it).
+const LimitsPath = "/agent-settings/limits"
+
+// Endpoints of the card controls. Each control posts its value and the response replaces the card.
+const (
+	memoryLimitEndpoint  = "/agent-settings/limits/memory"
+	cpuLimitEndpoint     = "/agent-settings/limits/cpu"
+	limitsEnabledEndpoint = "/agent-settings/limits/enabled"
+)
+
+// ResourceLimitsCard is the card with the RAM and CPU caps. The switch turns every cap off at once;
+// the values are kept while it is off.
+templ ResourceLimitsCard(p ResourceLimitsProps) {
+	<div id={ LimitsID }>
+		@ui.Card(p.Title) {
+			if !p.Loaded {
+				@ui.ErrorText(p.Error)
+			} else {
+				if p.Notice != "" {
+					@ui.ErrorText(p.Notice)
+				}
+				<p class="muted text-sm">{ p.Help }</p>
+				<label class="row items-center gap-2 text-sm text-fg">
+					<input
+						type="checkbox"
+						name="enabled"
+						value="true"
+						class="h-4 w-4"
+						checked?={ p.Enabled }
+						hx-post={ limitsEnabledEndpoint }
+						hx-trigger="change"
+						hx-target={ "#" + LimitsID }
+						hx-swap="outerHTML"
+					/>
+					{ p.Switch }
+				</label>
+				<div class="row flex-wrap gap-2">
+					@ui.NumberInput(ui.NumberInputProps{
+						Label:       "RAM",
+						Name:        "value",
+						Value:       p.MemoryMB,
+						Unit:        "MiB",
+						Placeholder: p.NoLimitText,
+						Disabled:    !p.Enabled,
+						Attrs: map[string]any{
+							"hx-post":    memoryLimitEndpoint,
+							"hx-trigger": "change",
+							"hx-target":  "#" + LimitsID,
+							"hx-swap":    "outerHTML",
+						},
+					})
+					@ui.NumberInput(ui.NumberInputProps{
+						Label:       "CPU",
+						Name:        "value",
+						Value:       p.CPUPercent,
+						Unit:        "%",
+						Placeholder: p.NoLimitText,
+						Disabled:    !p.Enabled,
+						Attrs: map[string]any{
+							"hx-post":    cpuLimitEndpoint,
+							"hx-trigger": "change",
+							"hx-target":  "#" + LimitsID,
+							"hx-swap":    "outerHTML",
+						},
+					})
+				</div>
+			}
+		}
+	</div>
+}

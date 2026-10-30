@@ -1,0 +1,48 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// DiffFileTree is the tree of the changed files. A file links to its card; a folder is a native details element, so
+// it folds without a request.
+templ DiffFileTree(nodes []state.TreeNode, scope string) {
+	<nav class="diff-tree" aria-label={ msgChangedFiles.T(ctx) }>
+		<ul>
+			for _, node := range nodes {
+				@diffTreeNode(node, 0, scope)
+			}
+		</ul>
+	</nav>
+}
+
+// diffTreeNode is one row of the tree and, for a folder, its children one level deeper.
+templ diffTreeNode(node state.TreeNode, depth int, scope string) {
+	if node.Dir {
+		<li>
+			<details open>
+				<summary class="diff-tree-row" style={ indentStyle(depth) }>
+					@shared.TreeIcon(true, true)
+					<span class="min-w-0 flex-1 truncate" title={ node.Path }>{ node.Name }</span>
+					@DiffCounts(node.Additions, node.Deletions)
+				</summary>
+				<ul>
+					for _, child := range node.Children {
+						@diffTreeNode(child, depth+1, scope)
+					}
+				</ul>
+			</details>
+		</li>
+	} else {
+		<li>
+			<a href={ templ.SafeURL("#" + state.CardID(scope, node.Path)) } class="diff-tree-row" style={ indentStyle(depth) } title={ node.Path }>
+				<span class="tree-chevron-spacer" aria-hidden="true"></span>
+				@shared.TreeIcon(false, false)
+				<span class="min-w-0 flex-1 truncate">{ node.Name }</span>
+				@DiffStatusBadge(node.Status)
+				@DiffCounts(node.Additions, node.Deletions)
+			</a>
+		</li>
+	}
+}

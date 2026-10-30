@@ -1,0 +1,110 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// Composer is the message box of a task that accepts messages, below its transcript. The element stays in the page
+// with its data attributes; its body, inside it, is what a send answers (see ComposerBody).
+templ Composer(view state.ComposerView) {
+	<div
+		id={ view.ID() }
+		class="stack composer"
+		data-composer
+		data-files-path={ view.FilesPath() }
+		data-commands={ composerCommandsJSON(ctx) }
+		data-remove-label={ msgRemoveReference.T(ctx) }
+	>
+		<div id={ view.BodyID() } class="contents">
+			@ComposerBody(view)
+		</div>
+	</div>
+}
+
+// ComposerBody is the content of the composer: the mode switch, when the runtime reports a mode, and the message form.
+// The send form answers it, so the field clears; a mode change answers only the switch, so the text typed meanwhile
+// stays. The browser script (composer.js) adds the menus and the references; the server decides what a message means.
+templ ComposerBody(view state.ComposerView) {
+	<div id={ view.ModeID() }>
+		@ComposerModeContents(view)
+	</div>
+	<form
+			class="stack"
+			hx-post={ view.MessagesPath() }
+			hx-encoding="multipart/form-data"
+			hx-target={ "#" + view.BodyID() }
+			hx-swap="innerHTML"
+			hx-disabled-elt="find button[type=submit]"
+		>
+			if view.Notice != "" {
+				@shared.ErrorText(view.Notice)
+			}
+			<input type="hidden" name="mode" value="steer"/>
+			<div class="composer-field relative">
+				<ul class="composer-menu" role="listbox" aria-label={ msgSuggestions.T(ctx) } data-composer-menu hidden></ul>
+				<textarea
+					name="message"
+					rows="3"
+					class="w-full resize-y rounded border border-border bg-surface p-2"
+					placeholder={ msgComposerPlaceholder.T(ctx) }
+					data-composer-input
+					data-image-paste
+				>{ view.Draft }</textarea>
+			</div>
+			<ul class="composer-refs flex flex-wrap gap-1" data-composer-refs hidden></ul>
+			<div class="stack gap-2" data-image-picker>
+				<input type="file" name="images" multiple accept={ acceptedImages } class="sr-only" data-image-input/>
+				<div class="flex flex-wrap gap-2" data-image-previews></div>
+			</div>
+			<div class="flex items-center justify-between gap-2">
+				<button type="button" class="btn-secondary" data-composer-attach>{ msgAttach.T(ctx) }</button>
+				<button type="submit" class="btn-primary" data-composer-send>{ msgSend.T(ctx) }</button>
+			</div>
+		</form>
+}
+
+// ComposerModeContents is the mode switch: the two modes, the reported one active, and the answer of a refused change.
+// It is what a mode change answers, inside the element of the switch.
+templ ComposerModeContents(view state.ComposerView) {
+	if view.HasMode() {
+		<div class="composer-mode flex gap-1" role="group" aria-label={ msgModeLabel.T(ctx) }>
+			@composerModeOption(view, "agent", msgModeAgent)
+			@composerModeOption(view, "plan", msgModePlan)
+		</div>
+	}
+	if view.ModeNotice != "" {
+		@shared.ErrorText(view.ModeNotice)
+	}
+}
+
+// composerModeOption is one mode of the switch. A click posts the mode it names to the task.
+templ composerModeOption(view state.ComposerView, mode string, label i18n.Msg) {
+	<button
+		type="button"
+		class={ composerModeClass(view.Mode == mode) }
+		aria-pressed={ ariaBool(view.Mode == mode) }
+		hx-post={ view.ModePath() }
+		hx-vals={ modeValuesJSON(mode) }
+		hx-target={ "#" + view.ModeID() }
+		hx-swap="innerHTML"
+	>{ label.T(ctx) }</button>
+}
+
+// ComposerFileItems are the suggestions of the @ completion: one item per file, or the note that nothing matches.
+// A file of a related project shows its project label first, muted. The menu script inserts the reference of the
+// item the user picks.
+templ ComposerFileItems(items []ComposerFileItem) {
+	if len(items) == 0 {
+		<li class="composer-menu-empty">{ msgNoFiles.T(ctx) }</li>
+	}
+	for _, item := range items {
+		<li class="composer-menu-item" role="option" data-composer-item data-insert={ "@" + item.Insert }>
+			if item.Project != "" {
+				<span class="composer-menu-hint">{ item.Project }</span>
+			}
+			<span class="truncate">{ item.Label }</span>
+		</li>
+	}
+}
