@@ -76,3 +76,11 @@ test('checkVisibility resets to bottom on transition to visible', () => {
   mod.checkVisibility(scroller);
   assert.equal(scroller.scrollTop, scroller.scrollHeight, 'must go back to bottom when entering again');
 });
+
+test('keepDetailsOpen vetoes the open attribute of a details inside a transcript only', () => {
+  const inTranscript = { tagName: 'DETAILS', closest: (sel) => (sel === '[data-follow-bottom]' ? {} : null) };
+  const elsewhere = { tagName: 'DETAILS', closest: () => null };
+  assert.equal(mod.keepDetailsOpen('open', inTranscript), false);
+  assert.equal(mod.keepDetailsOpen('open', elsewhere), undefined);
+  assert.equal(mod.keepDetailsOpen('class', inTranscript), undefined);
+});

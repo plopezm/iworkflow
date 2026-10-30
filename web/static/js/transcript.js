@@ -44,6 +44,17 @@ function watchVisibility(scroller) {
   visibilityObserver.observe(scroller);
 }
 
+// keepDetailsOpen is the idiomorph hook that stops a refresh from closing (or opening) a <details> of the transcript:
+// the open state is the reader's, and the refreshed HTML never carries it.
+export function keepDetailsOpen(name, node) {
+  if (name === 'open' && node?.tagName === 'DETAILS' && node.closest?.('[data-follow-bottom]')) return false;
+  return undefined;
+}
+
+if (typeof globalThis.Idiomorph !== 'undefined') {
+  globalThis.Idiomorph.defaults.callbacks.beforeAttributeUpdated = keepDetailsOpen;
+}
+
 // pin follows the bottom of every transcript under root.
 export function pin(root) {
   if (!root) return;

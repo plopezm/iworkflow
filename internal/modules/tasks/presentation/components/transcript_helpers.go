@@ -46,6 +46,12 @@ func isLaunchNotice(message string) bool {
 	return strings.Contains(message, "args=") || strings.Contains(message, "cwd=")
 }
 
+// transcriptItemID is the stable id of the item at a position of the transcript. The history only grows at its end,
+// so the id of an item never changes and a refresh morphs the same element instead of replacing it.
+func transcriptItemID(taskID string, index int) string {
+	return "tr-" + taskID + "-" + strconv.Itoa(index)
+}
+
 // transcriptItem is the view of one item of the transcript. The task id is what a dialog answers to.
 func transcriptItem(taskID string, item state.TranscriptItem) templ.Component {
 	switch typed := item.(type) {

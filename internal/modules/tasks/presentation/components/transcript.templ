@@ -6,7 +6,7 @@ import (
 )
 
 // TranscriptPanel is the conversation of the task on its detail page. The scroller opens the task stream after the
-// cursor, and the body inside it listens to the stream: a refresh answers TranscriptBody and swaps only the body, so
+// cursor, and the body inside it listens to the stream: a refresh answers TranscriptBody and morphs only the body, so open details and selections survive, so
 // the element that listens stays in the page and the events that arrive meanwhile are not lost.
 templ TranscriptPanel(view state.TaskDetailView) {
 	<div
@@ -22,7 +22,7 @@ templ TranscriptPanel(view state.TaskDetailView) {
 			hx-trigger="sse:message delay:300ms"
 			hx-sync="this:replace"
 			hx-target="this"
-			hx-swap="innerHTML"
+			hx-swap="morph:innerHTML"
 			data-follow-bottom
 		>
 			if view.TranscriptError != "" {
@@ -40,8 +40,10 @@ templ TranscriptBody(taskID string, transcript state.Transcript) {
 	if len(transcript.Items) == 0 {
 		<p class="muted">{ msgTranscriptNoActivity.T(ctx) }</p>
 	}
-	for _, item := range transcript.Items {
-		@transcriptItem(taskID, item)
+	for index, item := range transcript.Items {
+		<div id={ transcriptItemID(taskID, index) } class="contents">
+			@transcriptItem(taskID, item)
+		</div>
 	}
 }
 
