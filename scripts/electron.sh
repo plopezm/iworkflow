@@ -60,6 +60,13 @@ build() {
 }
 
 dev() {
+  local bin
+  bin="$(server_binary)"
+  if [[ -f "$ROOT/bin/$bin" ]]; then
+    mkdir -p "$DIST_DIR/site"
+    cp "$ROOT/bin/$bin" "$DIST_DIR/$bin"
+    cp -r "$ROOT/web/static"/* "$DIST_DIR/site/"
+  fi
   require_server_package
   cd "$ELECTRON_DIR"
   npm ci
