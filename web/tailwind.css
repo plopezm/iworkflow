@@ -1401,6 +1401,20 @@ select optgroup,
   .graph-node-tools {
     opacity: 1;
   }
+  /* Larger touch target for the ports; the visible dot stays the same size. */
+  .graph-port::after {
+    content: "";
+    position: absolute;
+    inset: -0.875rem;
+  }
+}
+/* On touch screens the browser would otherwise claim the gesture for scrolling and fire
+   pointercancel, breaking pan, node drag and edge creation. */
+.task-graph-canvas,
+.graph-node,
+.graph-node > article.card,
+.graph-port {
+  touch-action: none;
 }
 .graph-tool {
   display: inline-flex;
