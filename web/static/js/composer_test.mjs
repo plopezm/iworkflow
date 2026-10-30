@@ -74,3 +74,12 @@ test('removing a reference keeps the rest of the message', () => {
   assert.equal(removeReference('see @a.rs and @b.rs now', 'a.rs'), 'see and @b.rs now');
   assert.equal(removeReference('@a.rs', 'a.rs'), '');
 });
+
+test('a reference to a related project keeps its label and path as one token', () => {
+  assert.equal(atEnd('look at @api:src/ma').query, 'api:src/ma');
+  assert.deepEqual(
+    references('see @api:src/main.go and @src/a.rs @api:src/main.go'),
+    ['api:src/main.go', 'src/a.rs'],
+  );
+  assert.equal(removeReference('see @api:src/main.go now', 'api:src/main.go'), 'see now');
+});

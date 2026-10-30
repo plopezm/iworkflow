@@ -248,6 +248,7 @@ test('a file request inside a form with workspace_id appends the workspace', asy
     if (sel === 'form') {
       return {
         querySelector: (q) => (q === 'select[name="workspace_id"]' ? wsSelect : null),
+        querySelectorAll: () => [],
       };
     }
     return box.composer;
@@ -262,3 +263,63 @@ test('a file request inside a form with workspace_id appends the workspace', asy
   assert.ok(requests[0].url.includes('workspace_id=ws-123'), `url should contain workspace_id, got: ${requests[0].url}`);
 });
 
+
+// A related-project checkbox of the create or edit form, with the workspace id it carries as its value.
+const relatedCheckbox = (value, checked) => element(['input[name="related_project_id"]'], { value, checked });
+
+// Puts the composer in a form with the given related-project checkboxes and, optionally, a workspace select.
+function inFormWith(box, checkboxes, workspaceSelect = null) {
+  const form = {
+    querySelector: (selector) => (selector === 'select[name="workspace_id"]' ? workspaceSelect : null),
+    querySelectorAll: (selector) => (selector === 'input[name="related_project_id"]' ? checkboxes : []),
+  };
+  box.composer.closest = (selector) => (selector === 'form' ? form : box.composer);
+}
+
+test('a file request outside a form with related checkboxes sends no related params', async () => {
+  const box = messageBox();
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, '/tasks/t1/composer/files?q=a');
+});
+
+test('a file request in a form with related checkboxes sends the checked ones, in order', async () => {
+  const box = messageBox();
+  inFormWith(box, [relatedCheckbox('ws-a', true), relatedCheckbox('ws-b', false), relatedCheckbox('ws-c', true)]);
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+
+  assert.equal(requests[0].url, '/tasks/t1/composer/files?q=a&related_form=1&related=ws-a&related=ws-c');
+});
+
+test('a form whose related checkboxes are all unchecked asks with related_form and no related ids', async () => {
+  const box = messageBox();
+  inFormWith(box, [relatedCheckbox('ws-a', false)]);
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+
+  assert.equal(requests[0].url, '/tasks/t1/composer/files?q=a&related_form=1');
+});
+
+test('the workspace of the form and the related ids are encoded and sent together', async () => {
+  const box = messageBox();
+  inFormWith(box, [relatedCheckbox('ws/2', true)], element(['select'], { value: 'ws 1' }));
+  const doc = documentWith([box.composer]);
+  installComposer(doc);
+  const requests = fileRequests();
+
+  type(doc, box, '@a');
+
+  assert.equal(requests[0].url, '/tasks/t1/composer/files?q=a&workspace_id=ws%201&related_form=1&related=ws%2F2');
+});

@@ -249,12 +249,42 @@ func (r *TaskRepository) RecordDiffRange(ctx context.Context, id models.TaskID, 
 
 // UpdateDetailsIfBacklog changes the editable fields only while the task is in backlog.
 func (r *TaskRepository) UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions) (bool, error) {
+	updated, err := r.queries.UpdateTaskDetailsIfBacklog(ctx, r.detailsParams(id, title, prompt, priority, limits, baseBranch, agent))
+	if err != nil {
+		return false, dbError(err)
+	}
+	return updated > 0, nil
+}
+
+// UpdateDetailsAndRelatedIfBacklog changes the editable fields and replaces the related workspaces in one
+// BEGIN IMMEDIATE transaction. When the related rows fail, the details roll back with them.
+func (r *TaskRepository) UpdateDetailsAndRelatedIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions, workspaceIDs []string) (bool, error) {
+	var updated bool
+	err := r.withImmediateTx(ctx, func(queries *gen.Queries) error {
+		changed, err := queries.UpdateTaskDetailsIfBacklog(ctx, r.detailsParams(id, title, prompt, priority, limits, baseBranch, agent))
+		if err != nil {
+			return dbError(err)
+		}
+		if changed == 0 {
+			return nil
+		}
+		updated = true
+		return replaceRelatedProjects(ctx, queries, id, workspaceIDs)
+	})
+	if err != nil {
+		return false, err
+	}
+	return updated, nil
+}
+
+// detailsParams maps the editable fields of a task to the columns of UpdateTaskDetailsIfBacklog.
+func (r *TaskRepository) detailsParams(id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions) gen.UpdateTaskDetailsIfBacklogParams {
 	var runtime *string
 	if agent.Runtime != nil {
 		s := agent.Runtime.String()
 		runtime = &s
 	}
-	updated, err := r.queries.UpdateTaskDetailsIfBacklog(ctx, gen.UpdateTaskDetailsIfBacklogParams{
+	return gen.UpdateTaskDetailsIfBacklogParams{
 		Title:              title,
 		Prompt:             prompt,
 		Priority:           priority.String(),
@@ -268,11 +298,7 @@ func (r *TaskRepository) UpdateDetailsIfBacklog(ctx context.Context, id models.T
 		AgentProfile:       agent.Profile,
 		UpdatedAt:          formatTimestamp(r.clock()),
 		ID:                 id.String(),
-	})
-	if err != nil {
-		return false, dbError(err)
 	}
-	return updated > 0, nil
 }
 
 // ClaimForStart moves a backlog task to starting and fixes its plan in one conditional update. Two

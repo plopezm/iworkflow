@@ -37,3 +37,36 @@ func TestHasAdvancedLimitsOpensTheOptionsOnlyWhenALimitIsSet(t *testing.T) {
 	assert.True(t, state.HasAdvancedLimits("512", ""))
 	assert.True(t, state.HasAdvancedLimits("", "150"))
 }
+
+func TestRelatedProjectChoicesListEveryWorkspaceButTheOwnAndMarkTheChosenOnes(t *testing.T) {
+	t.Parallel()
+	workspaces := []dto.WorkspaceOptionDTO{
+		{ID: "own", Name: "app", Path: "/repos/app"},
+		{ID: "api", Name: "api", Path: "/repos/api"},
+		{ID: "web", Name: "web", Path: "/repos/web"},
+	}
+
+	choices := state.RelatedProjectChoices(workspaces, "own", []string{"web"})
+
+	assert.Equal(t, []state.RelatedProjectChoice{
+		{ID: "api", Name: "api", Path: "/repos/api"},
+		{ID: "web", Name: "web", Path: "/repos/web", Selected: true},
+	}, choices)
+}
+
+func TestRelatedProjectChoicesListEveryWorkspaceWhenTheOwnOneIsNotChosenYet(t *testing.T) {
+	t.Parallel()
+	workspaces := []dto.WorkspaceOptionDTO{{ID: "api", Name: "api"}, {ID: "web", Name: "web"}}
+
+	choices := state.RelatedProjectChoices(workspaces, "", nil)
+
+	assert.Len(t, choices, 2)
+	assert.False(t, choices[0].Selected)
+}
+
+func TestRelatedProjectChoicesNeverMarkTheOwnWorkspaceAndListNothingWhenItIsTheOnlyOne(t *testing.T) {
+	t.Parallel()
+	workspaces := []dto.WorkspaceOptionDTO{{ID: "own", Name: "app"}}
+
+	assert.Empty(t, state.RelatedProjectChoices(workspaces, "own", []string{"own"}))
+}

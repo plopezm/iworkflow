@@ -60,7 +60,7 @@ func dialogResolved(id models.TaskID, dialogID string) models.TaskEvent {
 
 // answerRouter mounts the composer with the answer use case, the way the module does.
 func answerRouter(answerer *fakeAnswerer, history *fakeHistory) chi.Router {
-	handlers := NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: history, Answer: answerer}, nil, nil)
+	handlers := NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: history, Answer: answerer}, nil, nil, nil)
 	router := chi.NewRouter()
 	handlers.Mount(router)
 	return router
@@ -314,7 +314,7 @@ func TestAnswerToAnUnknownOrResolvedDialogDeliversNothing(t *testing.T) {
 func TestAnswerRouteIsMountedOnlyWithTheAnswerUseCase(t *testing.T) {
 	t.Parallel()
 	id := taskID(t)
-	handlers := NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: &fakeHistory{}}, nil, nil)
+	handlers := NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: &fakeHistory{}}, nil, nil, nil)
 	router := chi.NewRouter()
 	handlers.Mount(router)
 	recorder, _ := serve(router, answerRequest(t, id, "d1", url.Values{"kind": {"cancelled"}}, i18n.En))
@@ -369,7 +369,7 @@ func TestTwoAnswersToOneDialogDeliverItOnce(t *testing.T) {
 	}
 	answerer := &sharedAnswerer{dialogs: dialogs}
 	router := chi.NewRouter()
-	NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: dialogs, Answer: answerer}, nil, nil).Mount(router)
+	NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: dialogs, Answer: answerer}, nil, nil, nil).Mount(router)
 	form := url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}
 	first := answerRequest(t, id, "d1", form, i18n.En)
 	second := answerRequest(t, id, "d1", form, i18n.En)
@@ -415,7 +415,7 @@ func TestADeliveryBlockedOnOneDialogDoesNotBlockAnotherDialog(t *testing.T) {
 	}}
 	answerer := &blockingAnswerer{blockedID: "a", started: make(chan struct{}), release: make(chan struct{})}
 	router := chi.NewRouter()
-	NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: history, Answer: answerer}, nil, nil).Mount(router)
+	NewComposerHandlers(ComposerUseCases{Send: &fakeSender{}, Mode: &fakeModes{}, History: history, Answer: answerer}, nil, nil, nil).Mount(router)
 	form := url.Values{"kind": {"confirmed"}, "confirmed": {"true"}}
 	slow := answerRequest(t, id, "a", form, i18n.En)
 	other := answerRequest(t, id, "b", form, i18n.En)

@@ -28,6 +28,10 @@ type TaskRepository interface {
 	// UpdateDetailsIfBacklog changes title, prompt, priority, limits, base branch and agent options only while the
 	// task is in backlog. It returns false, changing nothing, when the task is missing or left backlog.
 	UpdateDetailsIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions) (bool, error)
+	// UpdateDetailsAndRelatedIfBacklog does what UpdateDetailsIfBacklog does and replaces the related workspaces with
+	// workspaceIDs, in one transaction: either both change or neither does. It returns false, changing nothing, when the
+	// task is missing or left backlog. A failing workspace id (for example one that does not exist) is an error.
+	UpdateDetailsAndRelatedIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions, workspaceIDs []string) (bool, error)
 	// ClaimForStart atomically moves a backlog task to starting and fixes its plan (branch, worktree
 	// path and base branch) in one conditional update. It returns false, changing nothing, when the
 	// task is missing or left backlog, so two concurrent starts cannot claim the same task.

@@ -170,6 +170,8 @@ type NewTask struct {
 	Images []ImageAttachment
 	// StartNow asks for the task to start (worktree and agent) right after it is created.
 	StartNow bool
+	// RelatedProjectIDs are the workspaces (other projects) the task relates to, in the order the user chose.
+	RelatedProjectIDs []string
 }
 
 // Validated normalizes the input (trimmed texts, derived title) and checks its invariants.
@@ -197,6 +199,10 @@ func (n NewTask) Validated() (NewTask, error) {
 	if err != nil {
 		return NewTask{}, err
 	}
+	related, err := validateRelatedProjects(n.WorkspaceID, n.RelatedProjectIDs)
+	if err != nil {
+		return NewTask{}, err
+	}
 	var baseBranch *string
 	if n.BaseBranch != nil {
 		trimmed := strings.TrimSpace(*n.BaseBranch)
@@ -210,16 +216,40 @@ func (n NewTask) Validated() (NewTask, error) {
 		priority = DefaultTaskPriority
 	}
 	return NewTask{
-		WorkspaceID: strings.TrimSpace(n.WorkspaceID),
-		Title:       title,
-		Prompt:      prompt,
-		Priority:    priority,
-		Limits:      limits,
-		Agent:       agent,
-		BaseBranch:  baseBranch,
-		Images:      images,
-		StartNow:    n.StartNow,
+		WorkspaceID:       strings.TrimSpace(n.WorkspaceID),
+		Title:             title,
+		Prompt:            prompt,
+		Priority:          priority,
+		Limits:            limits,
+		Agent:             agent,
+		BaseBranch:        baseBranch,
+		Images:            images,
+		StartNow:          n.StartNow,
+		RelatedProjectIDs: related,
 	}, nil
+}
+
+// validateRelatedProjects trims the workspace ids, drops the blank ones and the task's own workspace, rejects
+// anything that is not a UUID and removes duplicates, keeping the order of the first occurrence.
+func validateRelatedProjects(ownWorkspaceID string, workspaceIDs []string) ([]string, error) {
+	own := strings.TrimSpace(ownWorkspaceID)
+	var related []string
+	seen := make(map[string]struct{}, len(workspaceIDs))
+	for _, raw := range workspaceIDs {
+		id := strings.TrimSpace(raw)
+		if id == "" || id == own {
+			continue
+		}
+		if _, err := uuid.Parse(id); err != nil {
+			return nil, werrors.InvalidRelatedProject(id)
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		related = append(related, id)
+	}
+	return related, nil
 }
 
 // deriveTitle is the first line of the prompt, trimmed and cut to the title limit.

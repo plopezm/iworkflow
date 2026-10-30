@@ -3,6 +3,7 @@ package claude
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"iworkflow/internal/modules/tasks/domain/models"
@@ -15,6 +16,8 @@ const (
 	resumeFlag = "--continue"
 	modelFlag  = "--model"
 	effortFlag = "--effort"
+	addDirFlag = "--add-dir"
+	deniedFlag = "--disallowedTools"
 )
 
 // streamJSONArgs puts claude in non-interactive mode, with stream-json input and output, and leaves the
@@ -61,7 +64,8 @@ func (a *StreamRuntimeAdapter) WithStopTimeout(timeout time.Duration) *StreamRun
 }
 
 // launchArgs returns the agent arguments: the base ones, the resume flag, the model (an alias or a full
-// name; the provider does not apply to Claude) and the effort level. The base slice is never modified.
+// name; the provider does not apply to Claude), the effort level, one --add-dir per related project folder and,
+// after them, one --disallowedTools=Edit rule per folder. The base slice is never modified.
 func launchArgs(baseArgs []string, resume bool, options models.LaunchOptions) []string {
 	args := make([]string, 0, len(baseArgs)+len(resumeFlag)+2)
 	args = append(args, baseArgs...)
@@ -71,7 +75,21 @@ func launchArgs(baseArgs []string, resume bool, options models.LaunchOptions) []
 	if options.Model != nil {
 		args = append(args, modelFlag, options.Model.Model)
 	}
-	return append(args, effortArgs(options)...)
+	args = append(args, effortArgs(options)...)
+	// One flag per directory: --add-dir takes a variadic list, so a shared flag would swallow the next argument.
+	for _, dir := range options.AddDirs {
+		args = append(args, addDirFlag, dir)
+	}
+	// --add-dir grants write access too, so the Edit rule (which covers every file-editing tool) denies it in the
+	// same folders. The value is joined with "=": --disallowedTools is variadic and would swallow the next argument.
+	// A comma would split the rule, so a folder with one is left without it (the prompt still asks not to edit).
+	for _, dir := range options.AddDirs {
+		if strings.Contains(dir, ",") {
+			continue
+		}
+		args = append(args, deniedFlag+"=Edit(/"+strings.TrimRight(dir, "/")+"/**)")
+	}
+	return args
 }
 
 // effortArgs maps the thinking level to `--effort`, which Claude accepts as low|medium|high|xhigh|max.

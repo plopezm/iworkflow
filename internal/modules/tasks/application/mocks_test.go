@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -68,17 +69,24 @@ type fakeRepository struct {
 	subagents     []models.SubagentActivity
 	usageLimits   []models.UsageLimitState
 	// detailsResult, when set, is returned by UpdateDetailsIfBacklog instead of the real check.
-	detailsResult  *bool
-	deleteResult   *bool
-	activeFilter   *string
-	donePage       [2]int64
-	doneWorkspace  *string
-	eventsTask     models.TaskID
-	diffRanges     []models.DiffRange
-	recordRangeErr error
-	eventsAfter    *int64
-	insertErr      error
-	appendErr      error
+	detailsResult *bool
+	// relatedByTask holds the related workspace ids written by UpdateDetailsAndRelatedIfBacklog.
+	relatedByTask map[models.TaskID][]string
+	// updateDetailsCalls counts UpdateDetailsAndRelatedIfBacklog calls; updateDetailsRelatedErr makes them fail
+	// without changing anything, as a rolled-back transaction does.
+	updateDetailsCalls      int
+	insertCalls             int
+	updateDetailsRelatedErr error
+	deleteResult            *bool
+	activeFilter            *string
+	donePage                [2]int64
+	doneWorkspace           *string
+	eventsTask              models.TaskID
+	diffRanges              []models.DiffRange
+	recordRangeErr          error
+	eventsAfter             *int64
+	insertErr               error
+	appendErr               error
 	// claimResult and revertResult, when set, are returned instead of the real conditional check.
 	claimResult  *bool
 	claimErr     error
@@ -95,7 +103,7 @@ type fakeRepository struct {
 }
 
 func newFakeRepository(tasks ...models.Task) *fakeRepository {
-	repo := &fakeRepository{tasks: map[models.TaskID]models.Task{}}
+	repo := &fakeRepository{tasks: map[models.TaskID]models.Task{}, relatedByTask: map[models.TaskID][]string{}}
 	for _, task := range tasks {
 		repo.tasks[task.ID] = task
 	}
@@ -103,6 +111,7 @@ func newFakeRepository(tasks ...models.Task) *fakeRepository {
 }
 
 func (r *fakeRepository) Insert(_ context.Context, task models.Task) error {
+	r.insertCalls++
 	if r.insertErr != nil {
 		return r.insertErr
 	}
@@ -181,6 +190,21 @@ func (r *fakeRepository) UpdateDetailsIfBacklog(_ context.Context, id models.Tas
 	}
 	task.Title, task.Prompt, task.Priority, task.Limits, task.BaseBranch, task.Agent = title, prompt, priority, limits, baseBranch, agent
 	r.tasks[id] = task
+	return true, nil
+}
+
+func (r *fakeRepository) UpdateDetailsAndRelatedIfBacklog(_ context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions, workspaceIDs []string) (bool, error) {
+	r.updateDetailsCalls++
+	if r.updateDetailsRelatedErr != nil {
+		return false, r.updateDetailsRelatedErr
+	}
+	task, ok := r.tasks[id]
+	if !ok || task.Status != models.StatusBacklog {
+		return false, nil
+	}
+	task.Title, task.Prompt, task.Priority, task.Limits, task.BaseBranch, task.Agent = title, prompt, priority, limits, baseBranch, agent
+	r.tasks[id] = task
+	r.relatedByTask[id] = append([]string(nil), workspaceIDs...)
 	return true, nil
 }
 
@@ -686,4 +710,47 @@ func (r *fakeRepository) List(_ context.Context, workspaceID *string) ([]models.
 		}
 	}
 	return tasks, nil
+}
+
+// fakeRelatedProjects keeps the related projects of each task in memory. The failure fields inject errors.
+type fakeRelatedProjects struct {
+	stored       map[string][]string
+	replaceCalls int
+	failReplace  bool
+	failList     bool
+}
+
+func newFakeRelatedProjects() *fakeRelatedProjects {
+	return &fakeRelatedProjects{stored: map[string][]string{}}
+}
+
+func (f *fakeRelatedProjects) Replace(_ context.Context, id models.TaskID, workspaceIDs []string) error {
+	f.replaceCalls++
+	if f.failReplace {
+		return errors.New("replace related projects failed")
+	}
+	f.stored[id.String()] = append([]string(nil), workspaceIDs...)
+	return nil
+}
+
+func (f *fakeRelatedProjects) ListByTask(_ context.Context, id models.TaskID) ([]string, error) {
+	if f.failList {
+		return nil, errors.New("list related projects failed")
+	}
+	return append([]string(nil), f.stored[id.String()]...), nil
+}
+
+// knownWorkspaces is a workspace lookup over a fixed set of workspaces, keyed by id.
+type knownWorkspaces map[string]models.WorkspaceRef
+
+func (k knownWorkspaces) Find(_ context.Context, workspaceID string) (*models.WorkspaceRef, error) {
+	ref, ok := k[workspaceID]
+	if !ok {
+		return nil, nil
+	}
+	return &ref, nil
+}
+
+func (k knownWorkspaces) List(_ context.Context) ([]models.WorkspaceRef, error) {
+	return nil, nil
 }

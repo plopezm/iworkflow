@@ -53,6 +53,7 @@ const (
 	kindInvalidTrigger
 	kindInvalidPosition
 	kindAnswerNotRecorded
+	kindInvalidRelatedProject
 )
 
 // Error returns the message shown to the user.
@@ -118,6 +119,8 @@ func (e Error) Error() string {
 		return "posición de nodo inválida"
 	case kindAnswerNotRecorded:
 		return "la respuesta llegó al agente, pero no se pudo registrar"
+	case kindInvalidRelatedProject:
+		return "proyecto relacionado inválido: " + e.detail
 	default:
 		return "error desconocido: " + e.detail
 	}
@@ -237,3 +240,8 @@ func InvalidPosition() Error { return Error{kind: kindInvalidPosition} }
 
 // AnswerNotRecorded means an answer reached the agent but its resolution could not be recorded: the agent has it.
 func AnswerNotRecorded() Error { return Error{kind: kindAnswerNotRecorded} }
+
+// InvalidRelatedProject means a related project is not a workspace identifier.
+func InvalidRelatedProject(value string) Error {
+	return Error{kind: kindInvalidRelatedProject, detail: value}
+}

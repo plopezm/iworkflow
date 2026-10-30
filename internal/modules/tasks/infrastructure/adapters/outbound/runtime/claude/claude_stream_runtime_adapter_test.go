@@ -59,3 +59,53 @@ func TestClaudeStreamRuntimeAdapterLaunchArgsAppendResumeModelAndEffortWithoutPr
 		launchArgs([]string{"-p"}, true, options),
 	)
 }
+
+func TestClaudeStreamRuntimeAdapterAddDirsBecomeOneFlagPerDirectoryAfterTheOtherFlags(t *testing.T) {
+	// Related projects: each readable project is one --add-dir, so that the variadic flag never swallows an argument.
+	high := "high"
+	options := models.LaunchOptions{
+		Thinking: &high,
+		AddDirs:  []string{"/repos/api", "/repos/web"},
+	}
+
+	require.Equal(t,
+		[]string{
+			"-p", "--effort", "high",
+			"--add-dir", "/repos/api", "--add-dir", "/repos/web",
+			"--disallowedTools=Edit(//repos/api/**)",
+			"--disallowedTools=Edit(//repos/web/**)",
+		},
+		launchArgs([]string{"-p"}, false, options),
+	)
+	require.Equal(t,
+		[]string{
+			"-p", "--continue", "--add-dir", "/repos/api",
+			"--disallowedTools=Edit(//repos/api/**)",
+		},
+		launchArgs([]string{"-p"}, true, models.LaunchOptions{AddDirs: []string{"/repos/api"}}),
+	)
+}
+
+func TestClaudeStreamRuntimeAdapterRelatedDirectoriesDenyOnlyTheEditToolsForAPathWithSpaces(t *testing.T) {
+	// The edit tools are denied per directory. Shell commands are not restricted by these rules.
+	require.Equal(t,
+		[]string{
+			"--add-dir", "/srv/my project",
+			"--disallowedTools=Edit(//srv/my project/**)",
+		},
+		launchArgs(nil, false, models.LaunchOptions{AddDirs: []string{"/srv/my project"}}),
+	)
+}
+
+func TestClaudeStreamRuntimeAdapterNoAddDirsAddsNoFlag(t *testing.T) {
+	assert.Equal(t, []string{"-p"}, launchArgs([]string{"-p"}, false, models.LaunchOptions{AddDirs: []string{}}))
+	assert.Equal(t, []string{"-p"}, launchArgs([]string{"-p"}, false, models.LaunchOptions{}))
+}
+
+func TestClaudeStreamRuntimeAdapterRelatedDirectoryWithACommaGetsNoDenyRule(t *testing.T) {
+	// A comma would split the --disallowedTools value into two malformed rules, so the folder is added without one.
+	require.Equal(t,
+		[]string{"--add-dir", "/srv/a,b"},
+		launchArgs(nil, false, models.LaunchOptions{AddDirs: []string{"/srv/a,b"}}),
+	)
+}

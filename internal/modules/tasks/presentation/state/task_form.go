@@ -1,6 +1,8 @@
 package state
 
 import (
+	"slices"
+
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 )
@@ -23,6 +25,33 @@ func BranchChoices(branches []dto.BranchOptionDTO, selected string) []BranchChoi
 	}
 	if selected != "" && !listed {
 		choices = append(choices, BranchChoice{Name: selected})
+	}
+	return choices
+}
+
+// RelatedProjectChoice is one row of the related projects list: a workspace the task may relate to.
+type RelatedProjectChoice struct {
+	ID       string
+	Name     string
+	Path     string
+	Selected bool
+}
+
+// RelatedProjectChoices are the rows of the related projects list: every workspace except the task's own one,
+// in the order the workspaces list them, with the chosen ones marked. The own workspace is never a choice,
+// because a task does not relate to the project it runs in.
+func RelatedProjectChoices(workspaces []dto.WorkspaceOptionDTO, own string, selected []string) []RelatedProjectChoice {
+	choices := make([]RelatedProjectChoice, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		if workspace.ID == own {
+			continue
+		}
+		choices = append(choices, RelatedProjectChoice{
+			ID:       workspace.ID,
+			Name:     workspace.Name,
+			Path:     workspace.Path,
+			Selected: slices.Contains(selected, workspace.ID),
+		})
 	}
 	return choices
 }
@@ -59,7 +88,9 @@ type EditForm struct {
 	Agent         AgentFormState
 	ShowAdvanced  bool
 	Existing      []dto.TaskAttachmentDTO
-	Error         string
+	// RelatedProjects are the workspaces the task may relate to, with the stored ones marked.
+	RelatedProjects []RelatedProjectChoice
+	Error           string
 	// BoardPath is where the page goes after a save (the board of the task's workspace).
 	BoardPath string
 }

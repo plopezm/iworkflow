@@ -282,6 +282,12 @@ func TestLaunchOptionsMinimalCapabilitiesDropModelAndThinkingButKeepRuntime(t *t
 	assert.Nil(t, restricted.Thinking)
 }
 
+func TestLaunchOptionsMinimalCapabilitiesKeepTheRelatedProjectDirectories(t *testing.T) {
+	t.Parallel()
+	options := models.LaunchOptions{AddDirs: []string{"/repos/api", "/repos/web"}}
+	assert.Equal(t, []string{"/repos/api", "/repos/web"}, options.RestrictedTo(models.MinimalAgentCapabilities()).AddDirs)
+}
+
 func fullLaunchOptions(t *testing.T) models.LaunchOptions {
 	t.Helper()
 	runtime, err := models.ParseRuntimeID("pi")

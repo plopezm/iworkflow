@@ -22,6 +22,8 @@ type UpdateInput struct {
 	BaseBranch *string
 	Images     []models.ImageAttachment
 	RemoveIDs  []string
+	// RelatedProjectIDs replaces the stored related projects; an empty list clears them.
+	RelatedProjectIDs []string
 }
 
 // UpdateTask edits the title, prompt, priority, limits and base branch of a task in backlog (same
@@ -48,15 +50,20 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 		return models.Task{}, invalidState("editar", task.Status)
 	}
 	validated, err := models.NewTask{
-		WorkspaceID: task.WorkspaceID,
-		Title:       input.Title,
-		Prompt:      input.Prompt,
-		Priority:    input.Priority,
-		Limits:      input.Limits,
-		Agent:       input.Agent,
-		BaseBranch:  input.BaseBranch,
+		WorkspaceID:       task.WorkspaceID,
+		Title:             input.Title,
+		Prompt:            input.Prompt,
+		Priority:          input.Priority,
+		Limits:            input.Limits,
+		Agent:             input.Agent,
+		BaseBranch:        input.BaseBranch,
+		RelatedProjectIDs: input.RelatedProjectIDs,
 	}.Validated()
 	if err != nil {
+		return models.Task{}, err
+	}
+	// Read-only check before the write: a missing related workspace must not reach the transaction.
+	if err := ensureWorkspacesExist(ctx, u.lifecycle, validated.RelatedProjectIDs); err != nil {
 		return models.Task{}, err
 	}
 	// As on creation: without a chosen branch, the workspace base branch.
@@ -90,7 +97,8 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 			return models.Task{}, werrors.InvalidAttachment(fmt.Sprintf("máximo %d imágenes por tarea", models.MaxImagesPerMessage))
 		}
 	}
-	updated, err := u.lifecycle.Repository().UpdateDetailsIfBacklog(ctx, id, validated.Title, validated.Prompt, validated.Priority, validated.Limits, baseBranch, validated.Agent)
+	// The details and the related projects are one write: a failure leaves both as they were.
+	updated, err := u.lifecycle.Repository().UpdateDetailsAndRelatedIfBacklog(ctx, id, validated.Title, validated.Prompt, validated.Priority, validated.Limits, baseBranch, validated.Agent, validated.RelatedProjectIDs)
 	if err != nil {
 		return models.Task{}, err
 	}

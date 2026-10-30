@@ -82,6 +82,7 @@ The interface is an IDE-like workspace: every screen (board, task, diff, termina
 - Modified, added, untracked, deleted or conflicted files and folders are colored according to `git status`.
 - While you edit, the left gutter marks added, modified and deleted lines against `HEAD` (as in VS Code).
 - When **editing a task**, the CPU and memory limits live under *Advanced options*.
+- **Related projects:** the create and edit task screens list the other workspaces under *Related projects*. A task keeps the ones you tick; when its agent starts it is told their paths and not to modify them, may read their files, and, when present, query each project's codegraph (`.codegraph/`) and its engram memory (only if `engram` is installed). Claude also gets the folders through `--add-dir`, and its edit tools (`Edit`, `Write`, `NotebookEdit`) are denied inside them. Shell commands are not sandboxed, so this is not a hard guarantee. Typing `@` in the prompt completes files of the current project and of the ticked ones, written as `@<project>:<path>` (spaces in the project name become dashes).
 
 ## Workspace board
 

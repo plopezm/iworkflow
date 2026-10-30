@@ -48,11 +48,13 @@ type BoardUseCases struct {
 	Delete          *application.DeleteTask
 	ListAttachments *application.ListTaskAttachments
 	ListBranches    *application.ListWorkspaceBranches
-	Workspaces      outbound.WorkspaceLookup
-	GetGraph        *application.GetTaskGraph
-	SetPosition     *application.SetTaskPosition
-	DetachFromGraph *application.DetachTaskFromGraph
-	AgentCatalog    outbound.AgentCatalogPort
+	// ListRelatedProjects reads the workspaces a task relates to, so the edit page marks them.
+	ListRelatedProjects *application.ListTaskRelatedProjects
+	Workspaces          outbound.WorkspaceLookup
+	GetGraph            *application.GetTaskGraph
+	SetPosition         *application.SetTaskPosition
+	DetachFromGraph     *application.DetachTaskFromGraph
+	AgentCatalog        outbound.AgentCatalogPort
 }
 
 // BoardHandlers serves the board tabs and their htmx requests. Every htmx response is a 200: htmx 2 does
@@ -254,23 +256,24 @@ func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.
 	}
 	hasAgentOverrides := input.AgentRuntime != "" || input.AgentModel != "" || input.AgentThinking != "" || input.AgentProfile != ""
 	return state.CreateForm{
-		Scope:         scope,
-		Workspaces:    workspaces,
-		WorkspaceID:   input.WorkspaceID,
-		Title:         input.Title,
-		Prompt:        input.Prompt,
-		Priority:      priorityOrDefault(input.Priority),
-		BaseBranch:    input.BaseBranch,
-		DefaultBranch: defaultBranchOf(workspaces, input.WorkspaceID),
-		Branches:      branches,
-		MemoryLimit:   input.MemoryLimit,
-		CPULimit:      input.CPULimit,
-		Agent:         agentState,
-		ShowAdvanced:  input.ShowAdvanced || hasAgentOverrides,
-		StartNow:      input.StartNow,
-		LinkKind:      input.LinkKind,
-		LinkAnchor:    input.LinkAnchor,
-		Error:         message,
+		Scope:           scope,
+		Workspaces:      workspaces,
+		WorkspaceID:     input.WorkspaceID,
+		Title:           input.Title,
+		Prompt:          input.Prompt,
+		Priority:        priorityOrDefault(input.Priority),
+		BaseBranch:      input.BaseBranch,
+		DefaultBranch:   defaultBranchOf(workspaces, input.WorkspaceID),
+		Branches:        branches,
+		MemoryLimit:     input.MemoryLimit,
+		CPULimit:        input.CPULimit,
+		Agent:           agentState,
+		ShowAdvanced:    input.ShowAdvanced || hasAgentOverrides,
+		StartNow:        input.StartNow,
+		LinkKind:        input.LinkKind,
+		LinkAnchor:      input.LinkAnchor,
+		RelatedProjects: state.RelatedProjectChoices(workspaces, input.WorkspaceID, input.RelatedProjectIDs),
+		Error:           message,
 	}
 }
 
@@ -415,7 +418,7 @@ func (h *BoardHandlers) workspaceOptions(ctx context.Context) ([]dto.WorkspaceOp
 	}
 	options := make([]dto.WorkspaceOptionDTO, 0, len(refs))
 	for _, ref := range refs {
-		options = append(options, dto.WorkspaceOptionDTO{ID: ref.ID, Name: ref.Name, BaseBranch: ref.BaseBranch})
+		options = append(options, dto.WorkspaceOptionDTO{ID: ref.ID, Name: ref.Name, Path: ref.Path, BaseBranch: ref.BaseBranch})
 	}
 	return options, nil
 }

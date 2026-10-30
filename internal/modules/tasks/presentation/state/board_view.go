@@ -77,7 +77,9 @@ type CreateForm struct {
 	StartNow      bool
 	LinkKind      string
 	LinkAnchor    string
-	Error         string
+	// RelatedProjects are the workspaces the task may relate to, with the ones the user chose marked.
+	RelatedProjects []RelatedProjectChoice
+	Error           string
 }
 
 // DefaultPriority is the priority the create dialog selects first.
