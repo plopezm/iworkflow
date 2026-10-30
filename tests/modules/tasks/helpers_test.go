@@ -43,11 +43,12 @@ func (c *testClock) advance(d time.Duration) {
 
 // Repo bundles a migrated database with the repository built on it.
 type Repo struct {
-	DB          *sql.DB
-	Tasks       *persistence.TaskRepository
-	Attachments *persistence.TaskAttachmentRepository
-	Graph       *persistence.TaskGraphRepository
-	clock       *testClock
+	DB              *sql.DB
+	Tasks           *persistence.TaskRepository
+	Attachments     *persistence.TaskAttachmentRepository
+	Graph           *persistence.TaskGraphRepository
+	RelatedProjects *persistence.TaskRelatedProjectRepository
+	clock           *testClock
 }
 
 // advance moves the repository clock forward.
@@ -60,11 +61,12 @@ func newRepo(t *testing.T) *Repo {
 	db := dbtest.New(t)
 	clock := newTestClock()
 	return &Repo{
-		DB:          db,
-		Tasks:       persistence.NewTaskRepository(db, clock.Now),
-		Attachments: persistence.NewTaskAttachmentRepository(db, clock.Now),
-		Graph:       persistence.NewTaskGraphRepository(db, clock.Now),
-		clock:       clock,
+		DB:              db,
+		Tasks:           persistence.NewTaskRepository(db, clock.Now),
+		Attachments:     persistence.NewTaskAttachmentRepository(db, clock.Now),
+		Graph:           persistence.NewTaskGraphRepository(db, clock.Now),
+		RelatedProjects: persistence.NewTaskRelatedProjectRepository(db),
+		clock:           clock,
 	}
 }
 

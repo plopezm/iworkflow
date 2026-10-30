@@ -355,3 +355,39 @@ func repeat(text string, times int) string {
 func int32Ptr(value int32) *int32 {
 	return &value
 }
+
+// Related projects are normalized: blanks and the task's own workspace are dropped, duplicates keep the first place.
+func TestValidatedNormalizesRelatedProjects(t *testing.T) {
+	t.Parallel()
+	own := uuid.NewString()
+	first := uuid.NewString()
+	second := uuid.NewString()
+	tests := []struct {
+		name string
+		ids  []string
+		want []string
+	}{
+		{name: "nothing", ids: nil, want: nil},
+		{name: "keeps order", ids: []string{second, first}, want: []string{second, first}},
+		{name: "trims and drops blanks", ids: []string{"  " + first + " ", "", "   "}, want: []string{first}},
+		{name: "drops duplicates keeping the first", ids: []string{first, second, first}, want: []string{first, second}},
+		{name: "drops the own workspace", ids: []string{own, first}, want: []string{first}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			validated, err := models.NewTask{WorkspaceID: own, Title: "t", Prompt: "p", RelatedProjectIDs: tt.ids}.Validated()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, validated.RelatedProjectIDs)
+		})
+	}
+}
+
+// A related project that is not a UUID rejects the whole input.
+func TestValidatedRejectsNonUUIDRelatedProject(t *testing.T) {
+	t.Parallel()
+	_, err := models.NewTask{WorkspaceID: uuid.NewString(), Title: "t", Prompt: "p", RelatedProjectIDs: []string{uuid.NewString(), "no-es-uuid"}}.Validated()
+
+	assert.ErrorIs(t, err, werrors.InvalidRelatedProject("no-es-uuid"))
+}

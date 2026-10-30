@@ -87,17 +87,19 @@ type Deps struct {
 // the stream handlers. The event queue starts a worker goroutine: call ShutdownEvents when the
 // application stops. The agents the module starts are stopped with StopAgents.
 type Module struct {
-	Get             *application.GetTask
-	List            *application.ListTasks
-	ListDone        *application.ListDoneTasks
-	Create          *application.CreateTask
-	Update          *application.UpdateTask
-	Delete          *application.DeleteTask
-	AnswerDialog    *application.AnswerDialog
-	GetSubagents    *application.GetTaskSubagents
-	DeleteWorkspace *application.DeleteWorkspaceTasks
-	AgentEvents     *application.HandleAgentEvent
-	Lifecycle       *application.TaskLifecycle
+	Get      *application.GetTask
+	List     *application.ListTasks
+	ListDone *application.ListDoneTasks
+	Create   *application.CreateTask
+	Update   *application.UpdateTask
+	// ListRelatedProjects returns the workspaces a task relates to (the edit and create forms and the agent context).
+	ListRelatedProjects *application.ListTaskRelatedProjects
+	Delete              *application.DeleteTask
+	AnswerDialog        *application.AnswerDialog
+	GetSubagents        *application.GetTaskSubagents
+	DeleteWorkspace     *application.DeleteWorkspaceTasks
+	AgentEvents         *application.HandleAgentEvent
+	Lifecycle           *application.TaskLifecycle
 	// The agent life cycle of a task: start, messages, mode, abort and the terminal actions. Finish, reset and
 	// discard stop the agent of the task and remove its worktree.
 	Start        *application.StartTask
@@ -198,6 +200,7 @@ func NewModule(deps Deps) (*Module, error) {
 	getEvents := application.NewGetTaskEvents(repository)
 	graph := persistence.NewTaskGraphRepository(deps.DB, persistence.Clock(clock))
 	attachments := persistence.NewTaskAttachmentRepository(deps.DB, persistence.Clock(clock))
+	relatedProjects := persistence.NewTaskRelatedProjectRepository(deps.DB)
 	taskFiles := files.NewFsTaskFile()
 	getAttachment := application.NewGetTaskAttachment(attachments, attachmentStorage)
 	cleanup := application.NewAttachmentCleanup(attachments, attachmentStorage)
@@ -210,8 +213,9 @@ func NewModule(deps Deps) (*Module, error) {
 	resumeTask := application.NewResumeTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink)
 	resumeRateLimited := application.NewResumeRateLimitedTasks(lifecycle, agentRuntime, resumeTask, send)
 	// The create, edit and delete of the board are the same use cases the module exposes; each is built once.
-	createTask := application.NewCreateTask(lifecycle, worktrees, start, attachments, attachmentStorage, newUUID, clock)
-	updateTask := application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID)
+	createTask := application.NewCreateTask(lifecycle, worktrees, start, attachments, relatedProjects, attachmentStorage, newUUID, clock)
+	updateTask := application.NewUpdateTask(lifecycle, attachments, relatedProjects, attachmentStorage, newUUID)
+	listRelatedProjects := application.NewListTaskRelatedProjects(relatedProjects, deps.Workspaces)
 	deleteTask := application.NewDeleteTask(lifecycle, attachmentStorage)
 	addDependency := application.NewAddTaskDependency(lifecycle, graph, successors)
 	listAttachments := application.NewListTaskAttachments(attachments)
@@ -283,54 +287,55 @@ func NewModule(deps Deps) (*Module, error) {
 	}, clock)
 
 	return &Module{
-		Get:               getTask,
-		List:              application.NewListTasks(repository),
-		ListDone:          application.NewListDoneTasks(repository),
-		Create:            createTask,
-		Update:            updateTask,
-		Delete:            deleteTask,
-		AnswerDialog:      answerDialog,
-		GetSubagents:      getSubagents,
-		DeleteWorkspace:   application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
-		Start:             start,
-		Send:              send,
-		SetAgentMode:      setAgentMode,
-		Abort:             abortTask,
-		Finish:            finishTask,
-		Reset:             resetTask,
-		Discard:           discardTask,
-		Reconcile:         application.NewReconcileTasks(lifecycle, worktrees),
-		ListAttachments:   listAttachments,
-		GetAttachment:     getAttachment,
-		Cleanup:           cleanup,
-		Attachments:       httpinbound.NewAttachmentHandler(getAttachment),
-		GetFile:           application.NewGetTaskFile(lifecycle, taskFiles),
-		SaveFile:          application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
-		Worktrees:         worktrees,
-		GetDiff:           application.NewGetTaskDiff(lifecycle, worktrees),
-		Merge:             mergeTask,
-		SweepWorktrees:    application.NewSweepOrphanWorktrees(repository, worktrees),
-		ListBranches:      application.NewListWorkspaceBranches(lifecycle, worktrees),
-		Lifecycle:         lifecycle,
-		AgentEvents:       agentEvents,
-		GetEvents:         getEvents,
-		EventSink:         eventSink,
-		Subscriber:        bus,
-		Streams:           httpinbound.NewTaskStreams(getTask, getEvents, bus),
-		Board:             board,
-		Detail:            detail,
-		Diff:              diff,
-		Composer:          composer,
-		Graph:             graphHandlers,
-		AddDependency:     addDependency,
-		RemoveDependency:  removeDependency,
-		DetachFromGraph:   detachFromGraph,
-		GetGraph:          getGraph,
-		SetPosition:       setPosition,
-		Successors:        successors,
-		ResumeTask:        resumeTask,
-		ResumeRateLimited: resumeRateLimited,
-		runtime:           agentRuntime,
+		Get:                 getTask,
+		List:                application.NewListTasks(repository),
+		ListDone:            application.NewListDoneTasks(repository),
+		Create:              createTask,
+		Update:              updateTask,
+		ListRelatedProjects: listRelatedProjects,
+		Delete:              deleteTask,
+		AnswerDialog:        answerDialog,
+		GetSubagents:        getSubagents,
+		DeleteWorkspace:     application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
+		Start:               start,
+		Send:                send,
+		SetAgentMode:        setAgentMode,
+		Abort:               abortTask,
+		Finish:              finishTask,
+		Reset:               resetTask,
+		Discard:             discardTask,
+		Reconcile:           application.NewReconcileTasks(lifecycle, worktrees),
+		ListAttachments:     listAttachments,
+		GetAttachment:       getAttachment,
+		Cleanup:             cleanup,
+		Attachments:         httpinbound.NewAttachmentHandler(getAttachment),
+		GetFile:             application.NewGetTaskFile(lifecycle, taskFiles),
+		SaveFile:            application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
+		Worktrees:           worktrees,
+		GetDiff:             application.NewGetTaskDiff(lifecycle, worktrees),
+		Merge:               mergeTask,
+		SweepWorktrees:      application.NewSweepOrphanWorktrees(repository, worktrees),
+		ListBranches:        application.NewListWorkspaceBranches(lifecycle, worktrees),
+		Lifecycle:           lifecycle,
+		AgentEvents:         agentEvents,
+		GetEvents:           getEvents,
+		EventSink:           eventSink,
+		Subscriber:          bus,
+		Streams:             httpinbound.NewTaskStreams(getTask, getEvents, bus),
+		Board:               board,
+		Detail:              detail,
+		Diff:                diff,
+		Composer:            composer,
+		Graph:               graphHandlers,
+		AddDependency:       addDependency,
+		RemoveDependency:    removeDependency,
+		DetachFromGraph:     detachFromGraph,
+		GetGraph:            getGraph,
+		SetPosition:         setPosition,
+		Successors:          successors,
+		ResumeTask:          resumeTask,
+		ResumeRateLimited:   resumeRateLimited,
+		runtime:             agentRuntime,
 	}, nil
 }
 

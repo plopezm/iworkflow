@@ -70,6 +70,32 @@ func TestMigrationsRevertCleanly(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// The related projects migration must revert and re-apply on its own, without touching the older schema.
+func TestRelatedProjectsMigrationDownAndUpAgain(t *testing.T) {
+	ctx := context.Background()
+	handle := dbtest.New(t)
+	files, err := db.MigrationsFS()
+	require.NoError(t, err)
+	provider, err := goose.NewProvider(goose.DialectSQLite3, handle, files)
+	require.NoError(t, err)
+
+	_, err = provider.Down(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, tableCount(t, handle, "task_related_projects"), "Down must drop the table")
+
+	_, err = provider.Up(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, tableCount(t, handle, "task_related_projects"), "Up must create the table again")
+}
+
+func tableCount(t *testing.T, handle *sql.DB, name string) int {
+	t.Helper()
+	var count int
+	require.NoError(t, handle.QueryRowContext(context.Background(),
+		`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&count))
+	return count
+}
+
 // The Go schema must equal the schema the Rust (Diesel) migrations produce (spec S5).
 func TestSchemaMatchesLegacyDieselMigrations(t *testing.T) {
 	legacy := legacyDatabase(t)

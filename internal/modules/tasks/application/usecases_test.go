@@ -26,7 +26,7 @@ func newInput(prompt string) models.NewTask {
 // createUseCase wires CreateTask over the fakes.
 func createUseCase(repo *fakeRepository, starter *fakeStarter, attachments *fakeAttachments, storage *fakeStorage) (*application.CreateTask, *application.TaskLifecycle) {
 	lifecycle, _ := newLifecycle(repo)
-	return application.NewCreateTask(lifecycle, fakeLayout{}, starter, attachments, storage, newUUID, clock), lifecycle
+	return application.NewCreateTask(lifecycle, fakeLayout{}, starter, attachments, newFakeRelatedProjects(), storage, newUUID, clock), lifecycle
 }
 
 // Rust: create_task::creates_task_in_backlog_without_starting_it
@@ -202,7 +202,7 @@ func TestCreateTaskRejectsEmptyPrompt(t *testing.T) {
 // updateUseCase wires UpdateTask over the fakes.
 func updateUseCase(repo *fakeRepository, attachments *fakeAttachments, storage *fakeStorage) *application.UpdateTask {
 	lifecycle, _ := newLifecycle(repo)
-	return application.NewUpdateTask(lifecycle, attachments, storage, newUUID)
+	return application.NewUpdateTask(lifecycle, attachments, newFakeRelatedProjects(), storage, newUUID)
 }
 
 func baseUpdate(title string, prompt string) application.UpdateInput {

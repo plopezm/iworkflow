@@ -19,13 +19,14 @@ type WorktreeLayout interface {
 // CreateTask creates a task in backlog (no worktree, no agent). When StartNow is set it delegates to the
 // start use case. If the start fails, the task still exists in backlog and the error comes back in StartError.
 type CreateTask struct {
-	lifecycle   *TaskLifecycle
-	worktrees   WorktreeLayout
-	startTask   inbound.StartTaskUseCase
-	attachments outbound.TaskAttachmentRepository
-	storage     outbound.AttachmentStorage
-	newUUID     UUIDGenerator
-	clock       Clock
+	lifecycle       *TaskLifecycle
+	worktrees       WorktreeLayout
+	startTask       inbound.StartTaskUseCase
+	attachments     outbound.TaskAttachmentRepository
+	relatedProjects outbound.TaskRelatedProjectRepository
+	storage         outbound.AttachmentStorage
+	newUUID         UUIDGenerator
+	clock           Clock
 }
 
 // NewCreateTask builds the use case.
@@ -34,18 +35,20 @@ func NewCreateTask(
 	worktrees WorktreeLayout,
 	startTask inbound.StartTaskUseCase,
 	attachments outbound.TaskAttachmentRepository,
+	relatedProjects outbound.TaskRelatedProjectRepository,
 	storage outbound.AttachmentStorage,
 	newUUID UUIDGenerator,
 	clock Clock,
 ) *CreateTask {
 	return &CreateTask{
-		lifecycle:   lifecycle,
-		worktrees:   worktrees,
-		startTask:   startTask,
-		attachments: attachments,
-		storage:     storage,
-		newUUID:     newUUID,
-		clock:       clock,
+		lifecycle:       lifecycle,
+		worktrees:       worktrees,
+		startTask:       startTask,
+		attachments:     attachments,
+		relatedProjects: relatedProjects,
+		storage:         storage,
+		newUUID:         newUUID,
+		clock:           clock,
 	}
 }
 
@@ -94,6 +97,12 @@ func (u *CreateTask) Execute(ctx context.Context, input models.NewTask) (models.
 	if err := u.lifecycle.Repository().Insert(ctx, task); err != nil {
 		return models.CreatedTask{}, err
 	}
+	if err := u.storeRelatedProjects(ctx, id, validated.RelatedProjectIDs); err != nil {
+		if _, cleanupErr := u.lifecycle.Repository().DeleteIfBacklog(ctx, id); cleanupErr != nil {
+			slog.Warn("could not delete the task after its related projects failed to save", "task_id", id.String(), "cleanup_error", cleanupErr, "save_error", err)
+		}
+		return models.CreatedTask{}, err
+	}
 	if len(validated.Images) > 0 {
 		if err := u.storeImages(ctx, id, validated.Images); err != nil {
 			if _, cleanupErr := u.lifecycle.Repository().DeleteIfBacklog(ctx, id); cleanupErr != nil {
@@ -113,6 +122,14 @@ func (u *CreateTask) Execute(ctx context.Context, input models.NewTask) (models.
 		return models.CreatedTask{Task: task, StartError: startErr}, nil
 	}
 	return models.CreatedTask{Task: started}, nil
+}
+
+// storeRelatedProjects checks that every related workspace exists and then stores the list in one write.
+func (u *CreateTask) storeRelatedProjects(ctx context.Context, id models.TaskID, workspaceIDs []string) error {
+	if err := ensureWorkspacesExist(ctx, u.lifecycle, workspaceIDs); err != nil {
+		return err
+	}
+	return u.relatedProjects.Replace(ctx, id, workspaceIDs)
 }
 
 // storeImages writes the files first and then their metadata. When anything fails, the files written

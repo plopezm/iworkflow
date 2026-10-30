@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"strings"
 	"sync"
@@ -686,4 +687,47 @@ func (r *fakeRepository) List(_ context.Context, workspaceID *string) ([]models.
 		}
 	}
 	return tasks, nil
+}
+
+// fakeRelatedProjects keeps the related projects of each task in memory. The failure fields inject errors.
+type fakeRelatedProjects struct {
+	stored       map[string][]string
+	replaceCalls int
+	failReplace  bool
+	failList     bool
+}
+
+func newFakeRelatedProjects() *fakeRelatedProjects {
+	return &fakeRelatedProjects{stored: map[string][]string{}}
+}
+
+func (f *fakeRelatedProjects) Replace(_ context.Context, id models.TaskID, workspaceIDs []string) error {
+	f.replaceCalls++
+	if f.failReplace {
+		return errors.New("replace related projects failed")
+	}
+	f.stored[id.String()] = append([]string(nil), workspaceIDs...)
+	return nil
+}
+
+func (f *fakeRelatedProjects) ListByTask(_ context.Context, id models.TaskID) ([]string, error) {
+	if f.failList {
+		return nil, errors.New("list related projects failed")
+	}
+	return append([]string(nil), f.stored[id.String()]...), nil
+}
+
+// knownWorkspaces is a workspace lookup over a fixed set of workspaces, keyed by id.
+type knownWorkspaces map[string]models.WorkspaceRef
+
+func (k knownWorkspaces) Find(_ context.Context, workspaceID string) (*models.WorkspaceRef, error) {
+	ref, ok := k[workspaceID]
+	if !ok {
+		return nil, nil
+	}
+	return &ref, nil
+}
+
+func (k knownWorkspaces) List(_ context.Context) ([]models.WorkspaceRef, error) {
+	return nil, nil
 }

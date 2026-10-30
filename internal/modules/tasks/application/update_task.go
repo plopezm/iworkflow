@@ -22,20 +22,23 @@ type UpdateInput struct {
 	BaseBranch *string
 	Images     []models.ImageAttachment
 	RemoveIDs  []string
+	// RelatedProjectIDs replaces the stored related projects; an empty list clears them.
+	RelatedProjectIDs []string
 }
 
 // UpdateTask edits the title, prompt, priority, limits and base branch of a task in backlog (same
 // validation as on creation), removes the images asked for and adds the new ones.
 type UpdateTask struct {
-	lifecycle   *TaskLifecycle
-	attachments outbound.TaskAttachmentRepository
-	storage     outbound.AttachmentStorage
-	newUUID     UUIDGenerator
+	lifecycle       *TaskLifecycle
+	attachments     outbound.TaskAttachmentRepository
+	relatedProjects outbound.TaskRelatedProjectRepository
+	storage         outbound.AttachmentStorage
+	newUUID         UUIDGenerator
 }
 
 // NewUpdateTask builds the use case.
-func NewUpdateTask(lifecycle *TaskLifecycle, attachments outbound.TaskAttachmentRepository, storage outbound.AttachmentStorage, newUUID UUIDGenerator) *UpdateTask {
-	return &UpdateTask{lifecycle: lifecycle, attachments: attachments, storage: storage, newUUID: newUUID}
+func NewUpdateTask(lifecycle *TaskLifecycle, attachments outbound.TaskAttachmentRepository, relatedProjects outbound.TaskRelatedProjectRepository, storage outbound.AttachmentStorage, newUUID UUIDGenerator) *UpdateTask {
+	return &UpdateTask{lifecycle: lifecycle, attachments: attachments, relatedProjects: relatedProjects, storage: storage, newUUID: newUUID}
 }
 
 // Execute applies the update and returns the task as it now is.
@@ -48,15 +51,20 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 		return models.Task{}, invalidState("editar", task.Status)
 	}
 	validated, err := models.NewTask{
-		WorkspaceID: task.WorkspaceID,
-		Title:       input.Title,
-		Prompt:      input.Prompt,
-		Priority:    input.Priority,
-		Limits:      input.Limits,
-		Agent:       input.Agent,
-		BaseBranch:  input.BaseBranch,
+		WorkspaceID:       task.WorkspaceID,
+		Title:             input.Title,
+		Prompt:            input.Prompt,
+		Priority:          input.Priority,
+		Limits:            input.Limits,
+		Agent:             input.Agent,
+		BaseBranch:        input.BaseBranch,
+		RelatedProjectIDs: input.RelatedProjectIDs,
 	}.Validated()
 	if err != nil {
+		return models.Task{}, err
+	}
+	// Read-only check before the write: a missing related workspace must not leave the new details saved.
+	if err := ensureWorkspacesExist(ctx, u.lifecycle, validated.RelatedProjectIDs); err != nil {
 		return models.Task{}, err
 	}
 	// As on creation: without a chosen branch, the workspace base branch.
@@ -96,6 +104,9 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 	}
 	if !updated {
 		return models.Task{}, u.lifecycle.Conflict(ctx, id, "editar")
+	}
+	if err := u.relatedProjects.Replace(ctx, id, validated.RelatedProjectIDs); err != nil {
+		return models.Task{}, err
 	}
 	if len(removableIDs) > 0 {
 		if err := u.removeAttachments(ctx, id, removableIDs); err != nil {
