@@ -12,7 +12,12 @@ permissions:
   contents: read
 
 env:
-  CARGO_TERM_COLOR: always
+  # Pinned to the versions that produced the committed generated code (go.mod / sqlc headers).
+  TEMPL_VERSION: v0.3.1070
+  SQLC_VERSION: v1.31.1
+  TAILWIND_VERSION: v4.3.3
+  # The server is pure Go (modernc sqlite): no C toolchain, so binaries are static on every OS.
+  CGO_ENABLED: "0"
 
 jobs:
   build:
@@ -26,7 +31,9 @@ jobs:
       matrix:
         include:
           - name: linux-x86_64
-            os: ubuntu-22.04 # oldest hosted runner: keeps the glibc requirement low
+            os: ubuntu-22.04 # oldest hosted runner: keeps the AppImage (Electron) glibc requirement low
+            tailwind: tailwindcss-linux-x64
+            tailwind_sha256: dc61b3ac6b8c9ca874c0cc4c57b2409791a64c5540404ca5f5367360babc313a
             bin: iworkflow
             archive: tar.gz
             installer: AppImage
@@ -37,43 +44,76 @@ jobs:
             archive: zip
             installer: exe
             update_meta: server-dist/electron/latest.yml
-            # Statically link the MSVC runtime so no VC++ redistributable is needed.
-            # Scoped to the host target so the wasm build is unaffected.
-            rustflags: "-C target-feature=+crt-static"
+            tailwind: tailwindcss-windows-x64.exe
+            tailwind_sha256: e0e260ce048014e9268f6237ff18f8ccf02cef521cbd0ae04e82c2cdf7aa3955
           - name: macos-arm64
             os: macos-latest
+            tailwind: tailwindcss-macos-arm64
+            tailwind_sha256: cdf646702987a743464dff4d9c60fd4480d1c1e73dd819a9a67f1078815dce9d
             bin: iworkflow
             archive: tar.gz
             installer: dmg
           - name: macos-x86_64
             os: macos-15-intel
+            tailwind: tailwindcss-macos-x64
+            tailwind_sha256: 7922e0953f2110c05976e3bf58f14e643d90427575e766b7d433f5f80cbee7e1
             bin: iworkflow
             archive: tar.gz
             installer: dmg
-    env:
-      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: ${{ matrix.rustflags }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
         with:
-          targets: wasm32-unknown-unknown
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
 
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          key: ${{ matrix.name }}
+      - name: Install code generators
+        run: |
+          set -euo pipefail
+          go install "github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}"
+          go install "github.com/sqlc-dev/sqlc/cmd/sqlc@${SQLC_VERSION}"
+          # Tailwind standalone CLI (no Node needed for the CSS build), exposed as `tailwindcss`.
+          # The expected SHA-256 is pinned per asset in the matrix; bump both with TAILWIND_VERSION.
+          BIN_DIR="$HOME/.local/bin"
+          GO_BIN_DIR="$(go env GOPATH)/bin"
+          mkdir -p "$BIN_DIR"
+          EXT=""
+          if [ "${{ runner.os }}" = "Windows" ]; then EXT=".exe"; fi
+          curl -fsSL -o "$BIN_DIR/tailwindcss$EXT" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/${{ matrix.tailwind }}"
+          if command -v sha256sum >/dev/null; then
+            ACTUAL="$(sha256sum "$BIN_DIR/tailwindcss$EXT" | cut -d' ' -f1)"
+          else
+            ACTUAL="$(shasum -a 256 "$BIN_DIR/tailwindcss$EXT" | cut -d' ' -f1)"
+          fi
+          if [ "$ACTUAL" != "${{ matrix.tailwind_sha256 }}" ]; then
+            echo "Tailwind checksum mismatch for ${{ matrix.tailwind }}: got $ACTUAL" >&2
+            exit 1
+          fi
+          chmod +x "$BIN_DIR/tailwindcss$EXT"
+          # $GITHUB_PATH takes native paths: Git Bash POSIX paths (/c/Users/...) would not resolve on Windows.
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            BIN_DIR="$(cygpath -w "$BIN_DIR")"
+            GO_BIN_DIR="$(cygpath -w "$GO_BIN_DIR")"
+          fi
+          echo "$BIN_DIR" >> "$GITHUB_PATH"
+          echo "$GO_BIN_DIR" >> "$GITHUB_PATH"
 
-      - name: Install cargo-leptos
-        uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2
-        with:
-          tool: cargo-leptos
+      # scripts/prod.sh drives `make generate`; the Windows runner may not ship GNU make.
+      - name: Ensure make
+        run: command -v make >/dev/null || choco install make -y --no-progress
 
-      # Same steps as `scripts/prod.sh build`.
+      # Same steps as `scripts/prod.sh build`: templ + sqlc + tailwind, then go build into $DIST_DIR/site.
       - name: Build (release)
-        run: cargo leptos build --release
+        run: DIST_DIR="$PWD/server-dist" ./scripts/prod.sh build
+
+      # The packaged server must at least start and exit 0; --help does not bind a port or touch the DB.
+      - name: Smoke test binary
+        run: ./server-dist/${{ matrix.bin }} --help
 
       - name: Package
         id: package
@@ -84,8 +124,8 @@ jobs:
           set -euo pipefail
           NAME="iworkflow-${REF_LABEL}-${{ matrix.name }}"
           mkdir -p "dist/$NAME"
-          cp "target/release/${{ matrix.bin }}" "dist/$NAME/"
-          cp -r target/site "dist/$NAME/site"
+          cp "server-dist/${{ matrix.bin }}" "dist/$NAME/"
+          cp -r server-dist/site "dist/$NAME/site"
           cd dist
           if [ "${{ matrix.archive }}" = "zip" ]; then
             7z a -tzip "$NAME.zip" "$NAME" > /dev/null
@@ -116,9 +156,6 @@ jobs:
         id: installer
         run: |
           set -euo pipefail
-          mkdir -p server-dist
-          cp "target/release/${{ matrix.bin }}" server-dist/
-          cp -r target/site server-dist/site
           DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1 ./scripts/electron.sh build
           echo "glob=server-dist/electron/iworkflow-*.${{ matrix.installer }}*" >> "$GITHUB_OUTPUT"
 
