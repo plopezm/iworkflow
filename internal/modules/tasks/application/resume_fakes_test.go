@@ -191,6 +191,8 @@ type resumeFixture struct {
 	worktrees *fakeWorktree
 	settings  *fakeLaunchSettings
 	sink      *resumeSink
+	related   *fakeRelatedProjects
+	probe     *fakeRelatedProbe
 }
 
 func newResumeFixture(tasks ...models.Task) *resumeFixture {
@@ -204,11 +206,14 @@ func newResumeFixture(tasks ...models.Task) *resumeFixture {
 		worktrees: &fakeWorktree{exists: true},
 		settings:  &fakeLaunchSettings{},
 		sink:      &resumeSink{},
+		related:   newFakeRelatedProjects(),
+		probe:     &fakeRelatedProbe{},
 	}
 }
 
 func (f *resumeFixture) resumeTask() *application.ResumeTask {
-	return application.NewResumeTask(f.lifecycle, f.worktrees, f.runtime, f.settings, f.sink)
+	related := application.NewPrepareRelatedLaunch(application.NewListTaskRelatedProjects(f.related, relatedWorkspaces()), f.probe)
+	return application.NewResumeTask(f.lifecycle, f.worktrees, f.runtime, f.settings, f.sink, related)
 }
 
 func (f *resumeFixture) rateLimited() *application.ResumeRateLimitedTasks {

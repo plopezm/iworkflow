@@ -45,6 +45,9 @@ type LaunchOptions struct {
 	Limits ResourceLimits
 	// LimitsDisabled is the general settings switch: when true no limit is applied.
 	LimitsDisabled bool
+	// AddDirs are the absolute paths of the related projects the agent may read. Only the claude runtime turns them
+	// into a flag (--add-dir); pi and cursor receive no flag and learn the paths from the prompt section only.
+	AddDirs []string
 }
 
 // WithTaskLimits applies the task's own limits over the global ones, per resource.

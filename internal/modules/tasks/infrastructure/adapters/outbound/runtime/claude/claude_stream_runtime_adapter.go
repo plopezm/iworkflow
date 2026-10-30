@@ -15,6 +15,7 @@ const (
 	resumeFlag = "--continue"
 	modelFlag  = "--model"
 	effortFlag = "--effort"
+	addDirFlag = "--add-dir"
 )
 
 // streamJSONArgs puts claude in non-interactive mode, with stream-json input and output, and leaves the
@@ -61,7 +62,8 @@ func (a *StreamRuntimeAdapter) WithStopTimeout(timeout time.Duration) *StreamRun
 }
 
 // launchArgs returns the agent arguments: the base ones, the resume flag, the model (an alias or a full
-// name; the provider does not apply to Claude) and the effort level. The base slice is never modified.
+// name; the provider does not apply to Claude), the effort level and one --add-dir per related project folder.
+// The base slice is never modified.
 func launchArgs(baseArgs []string, resume bool, options models.LaunchOptions) []string {
 	args := make([]string, 0, len(baseArgs)+len(resumeFlag)+2)
 	args = append(args, baseArgs...)
@@ -71,7 +73,12 @@ func launchArgs(baseArgs []string, resume bool, options models.LaunchOptions) []
 	if options.Model != nil {
 		args = append(args, modelFlag, options.Model.Model)
 	}
-	return append(args, effortArgs(options)...)
+	args = append(args, effortArgs(options)...)
+	// One flag per directory: --add-dir takes a variadic list, so a shared flag would swallow the next argument.
+	for _, dir := range options.AddDirs {
+		args = append(args, addDirFlag, dir)
+	}
+	return args
 }
 
 // effortArgs maps the thinking level to `--effort`, which Claude accepts as low|medium|high|xhigh|max.

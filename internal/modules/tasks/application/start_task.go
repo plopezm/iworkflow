@@ -25,6 +25,7 @@ type StartTask struct {
 	sink           inbound.AgentEventSink
 	attachments    outbound.TaskAttachmentRepository
 	storage        outbound.AttachmentStorage
+	related        *PrepareRelatedLaunch
 	newUUID        UUIDGenerator
 	clock          Clock
 }
@@ -40,6 +41,7 @@ func NewStartTask(
 	sink inbound.AgentEventSink,
 	attachments outbound.TaskAttachmentRepository,
 	storage outbound.AttachmentStorage,
+	related *PrepareRelatedLaunch,
 	newUUID UUIDGenerator,
 	clock Clock,
 ) *StartTask {
@@ -51,6 +53,7 @@ func NewStartTask(
 		sink:           sink,
 		attachments:    attachments,
 		storage:        storage,
+		related:        related,
 		newUUID:        newUUID,
 		clock:          clock,
 	}
@@ -154,7 +157,8 @@ func (u *StartTask) abandonClaim(ctx context.Context, id models.TaskID, createEr
 }
 
 // launch prepares the launch options, starts the agent in the worktree and sends it the initial prompt. The images
-// are read before the agent starts, so a missing file never leaves a running agent without its prompt.
+// are read before the agent starts, so a missing file never leaves a running agent without its prompt. The related
+// projects of the task are described at the end of the prompt and allowed as folders of the agent.
 func (u *StartTask) launch(ctx context.Context, task models.Task) error {
 	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, task.Agent)
 	if err != nil {
@@ -166,10 +170,13 @@ func (u *StartTask) launch(ctx context.Context, task models.Task) error {
 	if err != nil {
 		return err
 	}
+	related := u.related.Execute(ctx, task.ID)
+	options.AddDirs = related.AddDirs
 	if err = u.runtime.Start(ctx, task.ID, task.WorktreePath, false, options, u.sink); err != nil {
 		return err
 	}
-	return u.runtime.Send(ctx, task.ID, models.PromptCommand{Message: task.Prompt, Images: images})
+	prompt := models.AppendPromptSection(task.Prompt, related.PromptSection)
+	return u.runtime.Send(ctx, task.ID, models.PromptCommand{Message: prompt, Images: images})
 }
 
 // loadImages reads the images of the initial prompt from the storage. A file that cannot be read aborts the start.

@@ -23,20 +23,23 @@ type ResumeTask struct {
 	runtime        outbound.AgentRuntime
 	launchSettings outbound.LaunchSettings
 	sink           inbound.AgentEventSink
+	related        *PrepareRelatedLaunch
 
 	// mu guards inFlight. It is never held while the agent is started.
 	mu       sync.Mutex
 	inFlight map[models.TaskID]struct{}
 }
 
-// NewResumeTask builds the use case on its ports. The sink receives the events of the restarted agent.
-func NewResumeTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runtime outbound.AgentRuntime, launchSettings outbound.LaunchSettings, sink inbound.AgentEventSink) *ResumeTask {
+// NewResumeTask builds the use case on its ports. The sink receives the events of the restarted agent, and related
+// supplies the folders of the related projects the resumed agent may read.
+func NewResumeTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runtime outbound.AgentRuntime, launchSettings outbound.LaunchSettings, sink inbound.AgentEventSink, related *PrepareRelatedLaunch) *ResumeTask {
 	return &ResumeTask{
 		lifecycle:      lifecycle,
 		worktrees:      worktrees,
 		runtime:        runtime,
 		launchSettings: launchSettings,
 		sink:           sink,
+		related:        related,
 		inFlight:       make(map[models.TaskID]struct{}),
 	}
 }
@@ -73,6 +76,8 @@ func (u *ResumeTask) Execute(ctx context.Context, id models.TaskID) error {
 		return werrors.Unsupported("el agente no permite reanudar la sesión anterior")
 	}
 	options := prepared.WithTaskLimits(task.Limits).RestrictedTo(capabilities)
+	// The prompt is not sent again on resume: the section about the related projects is only given on start.
+	options.AddDirs = u.related.Execute(ctx, id).AddDirs
 	if err := u.runtime.Start(ctx, id, task.WorktreePath, true, options, u.sink); err != nil {
 		return err
 	}

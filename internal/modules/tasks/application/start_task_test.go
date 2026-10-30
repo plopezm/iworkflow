@@ -25,6 +25,8 @@ type startFixture struct {
 	settings    *fakeLaunchSettings
 	attachments *fakeAttachments
 	storage     *fakeStorage
+	related     *fakeRelatedProjects
+	probe       *fakeRelatedProbe
 }
 
 func newStartFixture(tasks ...models.Task) *startFixture {
@@ -39,12 +41,15 @@ func newStartFixture(tasks ...models.Task) *startFixture {
 		settings:    &fakeLaunchSettings{},
 		attachments: &fakeAttachments{},
 		storage:     &fakeStorage{},
+		related:     newFakeRelatedProjects(),
+		probe:       &fakeRelatedProbe{},
 	}
 }
 
 // start builds the use case with the given identifier generator; newUUID is the default one.
 func (f *startFixture) start(generate application.UUIDGenerator) *application.StartTask {
-	return application.NewStartTask(f.lifecycle, f.worktrees, f.runtime, f.settings, &resumeSink{}, f.attachments, f.storage, generate, clock)
+	related := application.NewPrepareRelatedLaunch(application.NewListTaskRelatedProjects(f.related, relatedWorkspaces()), f.probe)
+	return application.NewStartTask(f.lifecycle, f.worktrees, f.runtime, f.settings, &resumeSink{}, f.attachments, f.storage, related, generate, clock)
 }
 
 // fixedUUID returns the same identifier every time, so branch and folder names are predictable.

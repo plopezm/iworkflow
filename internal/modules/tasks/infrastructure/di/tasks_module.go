@@ -22,6 +22,7 @@ import (
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/files"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/git"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/probe"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/claude"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/cursor"
@@ -201,21 +202,22 @@ func NewModule(deps Deps) (*Module, error) {
 	graph := persistence.NewTaskGraphRepository(deps.DB, persistence.Clock(clock))
 	attachments := persistence.NewTaskAttachmentRepository(deps.DB, persistence.Clock(clock))
 	relatedProjects := persistence.NewTaskRelatedProjectRepository(deps.DB)
+	listRelatedProjects := application.NewListTaskRelatedProjects(relatedProjects, deps.Workspaces)
+	relatedLaunch := application.NewPrepareRelatedLaunch(listRelatedProjects, probe.NewRelatedProjectProbe())
 	taskFiles := files.NewFsTaskFile()
 	getAttachment := application.NewGetTaskAttachment(attachments, attachmentStorage)
 	cleanup := application.NewAttachmentCleanup(attachments, attachmentStorage)
 	eventSink := application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity)
 
 	// The start use case is the one the UI and the graph trigger share, so that every start claims the task the same way.
-	start := application.NewStartTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, attachments, attachmentStorage, newUUID, clock)
+	start := application.NewStartTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, attachments, attachmentStorage, relatedLaunch, newUUID, clock)
 	successors := application.NewTriggerSuccessors(repository, graph, start, clock)
 	send := application.NewSendMessage(lifecycle, agentRuntime)
-	resumeTask := application.NewResumeTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink)
+	resumeTask := application.NewResumeTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, relatedLaunch)
 	resumeRateLimited := application.NewResumeRateLimitedTasks(lifecycle, agentRuntime, resumeTask, send)
 	// The create, edit and delete of the board are the same use cases the module exposes; each is built once.
 	createTask := application.NewCreateTask(lifecycle, worktrees, start, attachments, relatedProjects, attachmentStorage, newUUID, clock)
 	updateTask := application.NewUpdateTask(lifecycle, attachments, relatedProjects, attachmentStorage, newUUID)
-	listRelatedProjects := application.NewListTaskRelatedProjects(relatedProjects, deps.Workspaces)
 	deleteTask := application.NewDeleteTask(lifecycle, attachmentStorage)
 	addDependency := application.NewAddTaskDependency(lifecycle, graph, successors)
 	listAttachments := application.NewListTaskAttachments(attachments)

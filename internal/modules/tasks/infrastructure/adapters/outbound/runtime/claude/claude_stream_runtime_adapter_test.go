@@ -59,3 +59,25 @@ func TestClaudeStreamRuntimeAdapterLaunchArgsAppendResumeModelAndEffortWithoutPr
 		launchArgs([]string{"-p"}, true, options),
 	)
 }
+
+func TestClaudeStreamRuntimeAdapterAddDirsBecomeOneFlagPerDirectoryAfterTheOtherFlags(t *testing.T) {
+	// Related projects: each readable project is one --add-dir, so that the variadic flag never swallows an argument.
+	high := "high"
+	options := models.LaunchOptions{
+		Thinking: &high,
+		AddDirs:  []string{"/repos/api", "/repos/web"},
+	}
+
+	require.Equal(t,
+		[]string{"-p", "--effort", "high", "--add-dir", "/repos/api", "--add-dir", "/repos/web"},
+		launchArgs([]string{"-p"}, false, options),
+	)
+	require.Equal(t,
+		[]string{"-p", "--continue", "--add-dir", "/repos/api"},
+		launchArgs([]string{"-p"}, true, models.LaunchOptions{AddDirs: []string{"/repos/api"}}),
+	)
+}
+
+func TestClaudeStreamRuntimeAdapterNoAddDirsAddsNoFlag(t *testing.T) {
+	assert.Equal(t, []string{"-p"}, launchArgs([]string{"-p"}, false, models.LaunchOptions{AddDirs: []string{}}))
+}
