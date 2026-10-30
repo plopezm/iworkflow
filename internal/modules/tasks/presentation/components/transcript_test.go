@@ -123,7 +123,7 @@ func TestTranscriptPanelListensToTheTaskStreamAndSwapsOnlyItsBody(t *testing.T) 
 	assert.Contains(t, html, `sse-connect="/api/tasks/t-1/events?after=5"`)
 	assert.Contains(t, html, `hx-get="/tasks/t-1/transcript"`)
 	assert.Contains(t, html, `hx-trigger="sse:message delay:300ms"`)
-	assert.Contains(t, html, `hx-swap="innerHTML"`)
+	assert.Contains(t, html, `hx-swap="morph:innerHTML"`)
 	assert.Contains(t, html, `hx-sync="this:replace"`)
 }
 
@@ -135,4 +135,17 @@ func TestTranscriptPanelShowsTheReasonWhenTheHistoryCannotBeRead(t *testing.T) {
 
 	assert.Contains(t, html, "base de datos bloqueada")
 	assert.NotContains(t, html, "Sin actividad todavía.")
+}
+
+// Rule: a refresh morphs the transcript and every item keeps a stable id, so a details the reader opened stays open.
+func TestTranscriptBodyGivesEveryItemAStableID(t *testing.T) {
+	t.Parallel()
+
+	html := bodyOf(t,
+		agentEvent(dto.TranscriptUserMessage{Text: "uno"}),
+		agentEvent(dto.TranscriptToolStarted{CallID: "c1", ToolName: "bash", Args: `{"command":"ls"}`}),
+	)
+
+	assert.Contains(t, html, `id="tr-t1-0"`)
+	assert.Contains(t, html, `id="tr-t1-1"`)
 }
