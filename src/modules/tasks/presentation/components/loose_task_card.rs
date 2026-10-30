@@ -122,7 +122,7 @@ pub fn LooseTaskCard(
                 <TaskCardActions task=task.clone() handlers busy />
                 <button
                     type="button"
-                    class="graph-tool ml-auto"
+                    class="graph-tool ml-auto !border-fg/40"
                     on:click=move |_| on_add_to_graph.run(add_id.clone())
                 >
                     <span aria-hidden="true">"＋"</span>

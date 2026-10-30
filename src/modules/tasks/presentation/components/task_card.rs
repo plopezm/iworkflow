@@ -160,7 +160,7 @@ pub fn TaskCardActions(
                 .then(|| {
                     view! {
                         <button
-                            class="btn-ghost min-h-8 px-2.5 py-1 text-xs"
+                            class="btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs"
                             on:click=move |_| handlers.edit.run(edit_task.clone())
                         >
                             {EDIT.get()}
@@ -172,7 +172,7 @@ pub fn TaskCardActions(
                 .then(|| {
                     view! {
                         <button
-                            class="btn-ghost min-h-8 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
+                            class="btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
                             disabled=move || delete_busy.get()
                             class:is-busy=move || delete_busy.get()
                             on:click=move |_| {
@@ -201,7 +201,7 @@ pub fn TaskCardActions(
         view! {
             <TabLink
                 href=format!("/tasks/{id}")
-                class="btn-ghost min-h-8 px-2.5 py-1 text-xs"
+                class="btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs"
             >
                 {OPEN.get()}
             </TabLink>
