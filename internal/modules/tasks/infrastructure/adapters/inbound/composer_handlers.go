@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -67,14 +68,18 @@ type TaskReader interface {
 	Execute(ctx context.Context, id models.TaskID) (models.Task, error)
 }
 
-// StoredRelatedProjects lists the related projects of a task, in the order they were stored. *application.ListTaskRelatedProjects
-// satisfies it.
+// StoredRelatedProjects lists at most limit related projects of a task, in the order they were stored, and stops
+// looking them up at that limit. *application.ListTaskRelatedProjects satisfies it.
 type StoredRelatedProjects interface {
-	Execute(ctx context.Context, id models.TaskID) ([]models.WorkspaceRef, error)
+	ExecuteUpTo(ctx context.Context, id models.TaskID, limit int) ([]models.WorkspaceRef, error)
 }
 
 // relatedProjectLimit caps the related projects whose files the @ completion offers. The first ones in order win.
 const relatedProjectLimit = 10
+
+// relatedSearchTimeout bounds the file search of each related project, so one slow or broken project cannot stall
+// the whole @ menu.
+const relatedSearchTimeout = 3 * time.Second
 
 // ComposerUseCases are what the composer reads and changes. Answer is what the dialogs of the transcript answer to;
 // without it the answer route is not mounted. Task and RelatedProjects are read by the @ completion: the workspace the
@@ -96,12 +101,14 @@ type ComposerHandlers struct {
 	workspaceFiles WorkspaceFileSearch
 	workspaces     outbound.WorkspaceLookup
 	answers        dialogLocks
+	// searchTimeout is the budget of one related project search; relatedSearchTimeout unless a test shortens it.
+	searchTimeout time.Duration
 }
 
 // NewComposerHandlers builds the handlers over their use cases, the file searches of the @ completion and the lookup
 // that resolves the related projects a form asks for.
 func NewComposerHandlers(uc ComposerUseCases, files FileSearch, workspaceFiles WorkspaceFileSearch, workspaces outbound.WorkspaceLookup) *ComposerHandlers {
-	return &ComposerHandlers{uc: uc, files: files, workspaceFiles: workspaceFiles, workspaces: workspaces}
+	return &ComposerHandlers{uc: uc, files: files, workspaceFiles: workspaceFiles, workspaces: workspaces, searchTimeout: relatedSearchTimeout}
 }
 
 // Mount registers the endpoints of the composer: the message, the mode switch, the file suggestions and the answer of
@@ -292,13 +299,13 @@ func (h *ComposerHandlers) requestedRelatedProjects(ctx context.Context, ids []s
 	return refs
 }
 
-// storedRelatedProjects is the stored list of related projects of a task, without its own workspace, repeats and the
-// projects beyond the limit. A list that cannot be read offers no related projects.
+// storedRelatedProjects is the stored list of related projects of a task, without its own workspace and repeats. The
+// lookups stop at the limit, as the form's list does. A list that cannot be read offers no related projects.
 func (h *ComposerHandlers) storedRelatedProjects(ctx context.Context, id models.TaskID, own string) []models.WorkspaceRef {
 	if h.uc.RelatedProjects == nil {
 		return nil
 	}
-	stored, err := h.uc.RelatedProjects.Execute(ctx, id)
+	stored, err := h.uc.RelatedProjects.ExecuteUpTo(ctx, id, relatedProjectLimit)
 	if err != nil {
 		slog.Warn("could not read the related projects of the task for the @ completion", "task_id", id.String(), "error", err)
 		return nil
@@ -336,7 +343,7 @@ func (h *ComposerHandlers) relatedFileItems(ctx context.Context, refs []models.W
 	labels := models.RelatedProjectLabels(refs)
 	var items []components.ComposerFileItem
 	for index, ref := range refs {
-		found, err := h.workspaceFiles(ctx, ref.ID, query)
+		found, err := h.searchRelatedFiles(ctx, ref.ID, query)
 		if err != nil {
 			slog.Warn("could not search the files of a related project for the @ completion", "workspace_id", ref.ID, "error", err)
 			continue
@@ -350,6 +357,14 @@ func (h *ComposerHandlers) relatedFileItems(ctx context.Context, refs []models.W
 		}
 	}
 	return items
+}
+
+// searchRelatedFiles searches one related project within its own deadline. The deadline ends this search only; the
+// other projects of the menu keep their own budget.
+func (h *ComposerHandlers) searchRelatedFiles(ctx context.Context, workspaceID string, query string) ([]string, error) {
+	searchCtx, cancel := context.WithTimeout(ctx, h.searchTimeout)
+	defer cancel()
+	return h.workspaceFiles(searchCtx, workspaceID, query)
 }
 
 // switchMode parses the wire name of a mode and asks the agent to switch to it.

@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
@@ -30,11 +31,12 @@ func NewPrepareRelatedLaunch(listRelated *ListTaskRelatedProjects, probe outboun
 // Execute returns the launch context of the task. A task without related projects, or whose list cannot be read,
 // gets an empty RelatedLaunch.
 func (u *PrepareRelatedLaunch) Execute(ctx context.Context, id models.TaskID) RelatedLaunch {
-	refs, err := u.listRelated.Execute(ctx, id)
+	listed, err := u.listRelated.Execute(ctx, id)
 	if err != nil {
 		slog.Warn("could not read the related projects; the task starts without them", "task_id", id.String(), "error", err)
 		return RelatedLaunch{}
 	}
+	refs := withPath(id, listed)
 	if len(refs) == 0 {
 		return RelatedLaunch{}
 	}
@@ -53,4 +55,18 @@ func (u *PrepareRelatedLaunch) Execute(ctx context.Context, id models.TaskID) Re
 		PromptSection: models.RelatedProjectsPrompt(projects, u.probe.EngramAvailable(ctx)),
 		AddDirs:       addDirs,
 	}
+}
+
+// withPath keeps the projects that have a folder. A blank path would be an empty --add-dir value and a dead end in
+// the prompt, so such a project is left out with a warning.
+func withPath(id models.TaskID, refs []models.WorkspaceRef) []models.WorkspaceRef {
+	kept := make([]models.WorkspaceRef, 0, len(refs))
+	for _, ref := range refs {
+		if strings.TrimSpace(ref.Path) == "" {
+			slog.Warn("a related project has no path; the task starts without it", "task_id", id.String(), "workspace_id", ref.ID)
+			continue
+		}
+		kept = append(kept, ref)
+	}
+	return kept
 }

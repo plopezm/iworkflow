@@ -16,9 +16,11 @@ function toggleBlock(toggle) {
 
 /**
  * Hides and unchecks the related project row of the workspace the form's select names, so the task cannot relate to
- * the project it runs in. The server drops that choice too; this only keeps the list honest.
+ * the project it runs in. The server drops that choice too; this only keeps the list honest. Without a select (the
+ * edit page, which has no workspace choice) there is nothing to sync.
  */
 export function syncOwnProject(select) {
+  if (!select) return;
   const form = select.closest('form');
   const inputs = form?.querySelectorAll('[data-related-projects] input[name="related_project_id"]') ?? [];
   for (const input of inputs) {
@@ -56,25 +58,35 @@ function takePastedImages(textarea, files) {
   input.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-// The create dialog and the edit page arrive through htmx, so their related projects list is synced when it loads.
-document.addEventListener('htmx:load', (event) => {
-  if (!(event.target instanceof Element)) return;
-  for (const select of event.target.querySelectorAll('select[name="workspace_id"]')) syncOwnProject(select);
-});
+// The documents the listeners are connected to: a second install on the same document does nothing.
+const installed = new WeakSet();
 
-document.addEventListener('change', (event) => {
-  const target = event.target;
-  if (target instanceof HTMLSelectElement && target.name === 'workspace_id') syncOwnProject(target);
-  if (!(target instanceof HTMLInputElement)) return;
-  if (target.matches('[data-toggle-target]')) toggleBlock(target);
-  if (target.matches('[data-image-input]')) previewImages(target);
-});
+/** Connects the task forms of the document. The page calls it once through the module bottom; a repeat does nothing. */
+export function installTaskForm(doc) {
+  if (installed.has(doc)) return;
+  installed.add(doc);
+  // The create dialog and the edit page arrive through htmx, so their related projects list is synced when it loads.
+  doc.addEventListener('htmx:load', (event) => {
+    if (!(event.target instanceof Element)) return;
+    for (const select of event.target.querySelectorAll('select[name="workspace_id"]')) syncOwnProject(select);
+  });
 
-document.addEventListener('paste', (event) => {
-  const target = event.target;
-  if (!(target instanceof HTMLTextAreaElement) || !target.matches('[data-image-paste]')) return;
-  const images = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'));
-  if (images.length === 0) return;
-  event.preventDefault();
-  takePastedImages(target, images);
-});
+  doc.addEventListener('change', (event) => {
+    const target = event.target;
+    if (target instanceof HTMLSelectElement && target.name === 'workspace_id') syncOwnProject(target);
+    if (!(target instanceof HTMLInputElement)) return;
+    if (target.matches('[data-toggle-target]')) toggleBlock(target);
+    if (target.matches('[data-image-input]')) previewImages(target);
+  });
+
+  doc.addEventListener('paste', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLTextAreaElement) || !target.matches('[data-image-paste]')) return;
+    const images = Array.from(event.clipboardData?.files ?? []).filter((file) => file.type.startsWith('image/'));
+    if (images.length === 0) return;
+    event.preventDefault();
+    takePastedImages(target, images);
+  });
+}
+
+installTaskForm(document);

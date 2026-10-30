@@ -29,16 +29,15 @@ type UpdateInput struct {
 // UpdateTask edits the title, prompt, priority, limits and base branch of a task in backlog (same
 // validation as on creation), removes the images asked for and adds the new ones.
 type UpdateTask struct {
-	lifecycle       *TaskLifecycle
-	attachments     outbound.TaskAttachmentRepository
-	relatedProjects outbound.TaskRelatedProjectRepository
-	storage         outbound.AttachmentStorage
-	newUUID         UUIDGenerator
+	lifecycle   *TaskLifecycle
+	attachments outbound.TaskAttachmentRepository
+	storage     outbound.AttachmentStorage
+	newUUID     UUIDGenerator
 }
 
 // NewUpdateTask builds the use case.
-func NewUpdateTask(lifecycle *TaskLifecycle, attachments outbound.TaskAttachmentRepository, relatedProjects outbound.TaskRelatedProjectRepository, storage outbound.AttachmentStorage, newUUID UUIDGenerator) *UpdateTask {
-	return &UpdateTask{lifecycle: lifecycle, attachments: attachments, relatedProjects: relatedProjects, storage: storage, newUUID: newUUID}
+func NewUpdateTask(lifecycle *TaskLifecycle, attachments outbound.TaskAttachmentRepository, storage outbound.AttachmentStorage, newUUID UUIDGenerator) *UpdateTask {
+	return &UpdateTask{lifecycle: lifecycle, attachments: attachments, storage: storage, newUUID: newUUID}
 }
 
 // Execute applies the update and returns the task as it now is.
@@ -63,7 +62,7 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 	if err != nil {
 		return models.Task{}, err
 	}
-	// Read-only check before the write: a missing related workspace must not leave the new details saved.
+	// Read-only check before the write: a missing related workspace must not reach the transaction.
 	if err := ensureWorkspacesExist(ctx, u.lifecycle, validated.RelatedProjectIDs); err != nil {
 		return models.Task{}, err
 	}
@@ -98,15 +97,13 @@ func (u *UpdateTask) Execute(ctx context.Context, id models.TaskID, input Update
 			return models.Task{}, werrors.InvalidAttachment(fmt.Sprintf("máximo %d imágenes por tarea", models.MaxImagesPerMessage))
 		}
 	}
-	updated, err := u.lifecycle.Repository().UpdateDetailsIfBacklog(ctx, id, validated.Title, validated.Prompt, validated.Priority, validated.Limits, baseBranch, validated.Agent)
+	// The details and the related projects are one write: a failure leaves both as they were.
+	updated, err := u.lifecycle.Repository().UpdateDetailsAndRelatedIfBacklog(ctx, id, validated.Title, validated.Prompt, validated.Priority, validated.Limits, baseBranch, validated.Agent, validated.RelatedProjectIDs)
 	if err != nil {
 		return models.Task{}, err
 	}
 	if !updated {
 		return models.Task{}, u.lifecycle.Conflict(ctx, id, "editar")
-	}
-	if err := u.relatedProjects.Replace(ctx, id, validated.RelatedProjectIDs); err != nil {
-		return models.Task{}, err
 	}
 	if len(removableIDs) > 0 {
 		if err := u.removeAttachments(ctx, id, removableIDs); err != nil {

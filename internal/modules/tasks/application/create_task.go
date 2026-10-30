@@ -62,6 +62,10 @@ func (u *CreateTask) Execute(ctx context.Context, input models.NewTask) (models.
 	if err != nil {
 		return models.CreatedTask{}, err
 	}
+	// Read-only check before any write: an unknown related workspace stores no task row at all.
+	if err := ensureWorkspacesExist(ctx, u.lifecycle, validated.RelatedProjectIDs); err != nil {
+		return models.CreatedTask{}, err
+	}
 	taskUUID, err := u.newUUID()
 	if err != nil {
 		return models.CreatedTask{}, err
@@ -97,7 +101,7 @@ func (u *CreateTask) Execute(ctx context.Context, input models.NewTask) (models.
 	if err := u.lifecycle.Repository().Insert(ctx, task); err != nil {
 		return models.CreatedTask{}, err
 	}
-	if err := u.storeRelatedProjects(ctx, id, validated.RelatedProjectIDs); err != nil {
+	if err := u.relatedProjects.Replace(ctx, id, validated.RelatedProjectIDs); err != nil {
 		if _, cleanupErr := u.lifecycle.Repository().DeleteIfBacklog(ctx, id); cleanupErr != nil {
 			slog.Warn("could not delete the task after its related projects failed to save", "task_id", id.String(), "cleanup_error", cleanupErr, "save_error", err)
 		}
@@ -122,14 +126,6 @@ func (u *CreateTask) Execute(ctx context.Context, input models.NewTask) (models.
 		return models.CreatedTask{Task: task, StartError: startErr}, nil
 	}
 	return models.CreatedTask{Task: started}, nil
-}
-
-// storeRelatedProjects checks that every related workspace exists and then stores the list in one write.
-func (u *CreateTask) storeRelatedProjects(ctx context.Context, id models.TaskID, workspaceIDs []string) error {
-	if err := ensureWorkspacesExist(ctx, u.lifecycle, workspaceIDs); err != nil {
-		return err
-	}
-	return u.relatedProjects.Replace(ctx, id, workspaceIDs)
 }
 
 // storeImages writes the files first and then their metadata. When anything fails, the files written

@@ -149,6 +149,12 @@ func (r *RetryingTaskRepository) UpdateDetailsIfBacklog(ctx context.Context, id 
 	})
 }
 
+func (r *RetryingTaskRepository) UpdateDetailsAndRelatedIfBacklog(ctx context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions, workspaceIDs []string) (bool, error) {
+	return retry(r, ctx, "update_details_and_related_if_backlog", func() (bool, error) {
+		return r.inner.UpdateDetailsAndRelatedIfBacklog(ctx, id, title, prompt, priority, limits, baseBranch, agent, workspaceIDs)
+	})
+}
+
 func (r *RetryingTaskRepository) ClaimForStart(ctx context.Context, id models.TaskID, branch string, worktreePath string, baseBranch string) (bool, error) {
 	return retry(r, ctx, "claim_for_start", func() (bool, error) {
 		return r.inner.ClaimForStart(ctx, id, branch, worktreePath, baseBranch)

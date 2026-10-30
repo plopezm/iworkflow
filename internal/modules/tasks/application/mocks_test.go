@@ -69,17 +69,24 @@ type fakeRepository struct {
 	subagents     []models.SubagentActivity
 	usageLimits   []models.UsageLimitState
 	// detailsResult, when set, is returned by UpdateDetailsIfBacklog instead of the real check.
-	detailsResult  *bool
-	deleteResult   *bool
-	activeFilter   *string
-	donePage       [2]int64
-	doneWorkspace  *string
-	eventsTask     models.TaskID
-	diffRanges     []models.DiffRange
-	recordRangeErr error
-	eventsAfter    *int64
-	insertErr      error
-	appendErr      error
+	detailsResult *bool
+	// relatedByTask holds the related workspace ids written by UpdateDetailsAndRelatedIfBacklog.
+	relatedByTask map[models.TaskID][]string
+	// updateDetailsCalls counts UpdateDetailsAndRelatedIfBacklog calls; updateDetailsRelatedErr makes them fail
+	// without changing anything, as a rolled-back transaction does.
+	updateDetailsCalls      int
+	insertCalls             int
+	updateDetailsRelatedErr error
+	deleteResult            *bool
+	activeFilter            *string
+	donePage                [2]int64
+	doneWorkspace           *string
+	eventsTask              models.TaskID
+	diffRanges              []models.DiffRange
+	recordRangeErr          error
+	eventsAfter             *int64
+	insertErr               error
+	appendErr               error
 	// claimResult and revertResult, when set, are returned instead of the real conditional check.
 	claimResult  *bool
 	claimErr     error
@@ -96,7 +103,7 @@ type fakeRepository struct {
 }
 
 func newFakeRepository(tasks ...models.Task) *fakeRepository {
-	repo := &fakeRepository{tasks: map[models.TaskID]models.Task{}}
+	repo := &fakeRepository{tasks: map[models.TaskID]models.Task{}, relatedByTask: map[models.TaskID][]string{}}
 	for _, task := range tasks {
 		repo.tasks[task.ID] = task
 	}
@@ -104,6 +111,7 @@ func newFakeRepository(tasks ...models.Task) *fakeRepository {
 }
 
 func (r *fakeRepository) Insert(_ context.Context, task models.Task) error {
+	r.insertCalls++
 	if r.insertErr != nil {
 		return r.insertErr
 	}
@@ -182,6 +190,21 @@ func (r *fakeRepository) UpdateDetailsIfBacklog(_ context.Context, id models.Tas
 	}
 	task.Title, task.Prompt, task.Priority, task.Limits, task.BaseBranch, task.Agent = title, prompt, priority, limits, baseBranch, agent
 	r.tasks[id] = task
+	return true, nil
+}
+
+func (r *fakeRepository) UpdateDetailsAndRelatedIfBacklog(_ context.Context, id models.TaskID, title string, prompt string, priority models.TaskPriority, limits models.ResourceLimits, baseBranch string, agent models.TaskAgentOptions, workspaceIDs []string) (bool, error) {
+	r.updateDetailsCalls++
+	if r.updateDetailsRelatedErr != nil {
+		return false, r.updateDetailsRelatedErr
+	}
+	task, ok := r.tasks[id]
+	if !ok || task.Status != models.StatusBacklog {
+		return false, nil
+	}
+	task.Title, task.Prompt, task.Priority, task.Limits, task.BaseBranch, task.Agent = title, prompt, priority, limits, baseBranch, agent
+	r.tasks[id] = task
+	r.relatedByTask[id] = append([]string(nil), workspaceIDs...)
 	return true, nil
 }
 

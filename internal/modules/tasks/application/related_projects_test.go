@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -41,10 +42,10 @@ func createWithRelated(repo *fakeRepository, related *fakeRelatedProjects, known
 	return application.NewCreateTask(lifecycle, fakeLayout{}, &fakeStarter{}, &fakeAttachments{}, related, &fakeStorage{}, newUUID, clock)
 }
 
-// updateWithRelated wires UpdateTask over the fakes, with the given related projects store and workspaces.
-func updateWithRelated(repo *fakeRepository, related *fakeRelatedProjects, known knownWorkspaces) *application.UpdateTask {
+// updateWithRelated wires UpdateTask over the fakes and the given workspaces.
+func updateWithRelated(repo *fakeRepository, known knownWorkspaces) *application.UpdateTask {
 	lifecycle := application.NewTaskLifecycle(repo, &fakePublisher{}, known, clock)
-	return application.NewUpdateTask(lifecycle, &fakeAttachments{}, related, &fakeStorage{}, newUUID)
+	return application.NewUpdateTask(lifecycle, &fakeAttachments{}, &fakeStorage{}, newUUID)
 }
 
 func TestCreateTaskStoresRelatedProjectsInOrder(t *testing.T) {
@@ -100,7 +101,8 @@ func TestCreateTaskRejectedRelatedProjectsStoreNothing(t *testing.T) {
 			_, err := createWithRelated(repo, related, knownWorkspacesWith(known)).Execute(context.Background(), input)
 
 			require.ErrorIs(t, err, tt.wantErr)
-			assert.Empty(t, repo.tasks, "the task inserted before the check is deleted again")
+			assert.Equal(t, 0, repo.insertCalls, "the related workspaces are checked before the task is inserted")
+			assert.Empty(t, repo.tasks)
 			assert.Empty(t, related.stored)
 		})
 	}
@@ -140,21 +142,20 @@ func TestUpdateTaskReplacesRelatedProjects(t *testing.T) {
 			t.Parallel()
 			task := newTask(models.StatusBacklog)
 			repo := newFakeRepository(task)
-			related := newFakeRelatedProjects()
-			related.stored[task.ID.String()] = []string{first, second}
+			repo.relatedByTask[task.ID] = []string{first, second}
 			input := baseUpdate("editada", "prompt")
 			input.RelatedProjectIDs = tt.input
 
-			_, err := updateWithRelated(repo, related, knownWorkspacesWith(first, second, third)).Execute(context.Background(), task.ID, input)
+			_, err := updateWithRelated(repo, knownWorkspacesWith(first, second, third)).Execute(context.Background(), task.ID, input)
 
 			require.NoError(t, err)
-			assertStored(t, tt.wantStored, related.stored[task.ID.String()])
+			assertStored(t, tt.wantStored, repo.relatedByTask[task.ID])
 			assert.Equal(t, "editada", repo.tasks[task.ID].Title)
 		})
 	}
 }
 
-// A rejected edit changes neither the task nor its related projects.
+// A rejected edit changes neither the task nor its related projects, and never reaches the write.
 func TestUpdateTaskRejectedRelatedProjectsChangeNothing(t *testing.T) {
 	t.Parallel()
 	first := uuid.NewString()
@@ -172,17 +173,16 @@ func TestUpdateTaskRejectedRelatedProjectsChangeNothing(t *testing.T) {
 			t.Parallel()
 			task := newTask(models.StatusBacklog)
 			repo := newFakeRepository(task)
-			related := newFakeRelatedProjects()
-			related.stored[task.ID.String()] = []string{first}
+			repo.relatedByTask[task.ID] = []string{first}
 			input := baseUpdate("no debe guardarse", "prompt")
 			input.RelatedProjectIDs = tt.input
 
-			_, err := updateWithRelated(repo, related, knownWorkspacesWith(first)).Execute(context.Background(), task.ID, input)
+			_, err := updateWithRelated(repo, knownWorkspacesWith(first)).Execute(context.Background(), task.ID, input)
 
 			require.ErrorIs(t, err, tt.wantErr)
 			assert.Equal(t, task.Title, repo.tasks[task.ID].Title, "the details are not saved")
-			assert.Equal(t, []string{first}, related.stored[task.ID.String()])
-			assert.Equal(t, 0, related.replaceCalls)
+			assert.Equal(t, []string{first}, repo.relatedByTask[task.ID])
+			assert.Equal(t, 0, repo.updateDetailsCalls)
 		})
 	}
 }
@@ -193,32 +193,33 @@ func TestUpdateTaskOutsideBacklogKeepsRelatedProjects(t *testing.T) {
 	first, second := uuid.NewString(), uuid.NewString()
 	task := newTask(models.StatusRunning)
 	repo := newFakeRepository(task)
-	related := newFakeRelatedProjects()
-	related.stored[task.ID.String()] = []string{first}
+	repo.relatedByTask[task.ID] = []string{first}
 	input := baseUpdate("no", "prompt")
 	input.RelatedProjectIDs = []string{second}
 
-	_, err := updateWithRelated(repo, related, knownWorkspacesWith(first, second)).Execute(context.Background(), task.ID, input)
+	_, err := updateWithRelated(repo, knownWorkspacesWith(first, second)).Execute(context.Background(), task.ID, input)
 
 	require.Error(t, err)
-	assert.Equal(t, []string{first}, related.stored[task.ID.String()])
-	assert.Equal(t, 0, related.replaceCalls)
+	assert.Equal(t, []string{first}, repo.relatedByTask[task.ID])
+	assert.NotEqual(t, "no", repo.tasks[task.ID].Title)
 }
 
-func TestUpdateTaskReturnsTheReplaceError(t *testing.T) {
+// The details and the related list are written by one repository call. When that call fails, neither changes.
+func TestUpdateTaskFailedAtomicWriteKeepsDetailsAndRelatedProjects(t *testing.T) {
 	t.Parallel()
-	first := uuid.NewString()
+	first, second := uuid.NewString(), uuid.NewString()
 	task := newTask(models.StatusBacklog)
 	repo := newFakeRepository(task)
-	related := newFakeRelatedProjects()
-	related.failReplace = true
+	repo.relatedByTask[task.ID] = []string{first}
+	repo.updateDetailsRelatedErr = errors.New("write failed")
 	input := baseUpdate("editada", "prompt")
-	input.RelatedProjectIDs = []string{first}
+	input.RelatedProjectIDs = []string{second}
 
-	_, err := updateWithRelated(repo, related, knownWorkspacesWith(first)).Execute(context.Background(), task.ID, input)
+	_, err := updateWithRelated(repo, knownWorkspacesWith(first, second)).Execute(context.Background(), task.ID, input)
 
-	require.Error(t, err)
-	assert.Equal(t, 1, related.replaceCalls)
+	require.ErrorIs(t, err, repo.updateDetailsRelatedErr)
+	assert.Equal(t, task.Title, repo.tasks[task.ID].Title, "the details written before the failure are rolled back")
+	assert.Equal(t, []string{first}, repo.relatedByTask[task.ID])
 }
 
 func TestListTaskRelatedProjectsReturnsStoredOrder(t *testing.T) {
@@ -253,6 +254,62 @@ func TestListTaskRelatedProjectsSkipsMissingWorkspaces(t *testing.T) {
 	require.Len(t, refs, 2)
 	assert.Equal(t, first, refs[0].ID)
 	assert.Equal(t, second, refs[1].ID)
+}
+
+// countingWorkspaces resolves like knownWorkspaces, except that the lookup of broken fails, and it counts the lookups.
+type countingWorkspaces struct {
+	known   knownWorkspaces
+	broken  string
+	lookups int
+}
+
+func (c *countingWorkspaces) Find(ctx context.Context, workspaceID string) (*models.WorkspaceRef, error) {
+	c.lookups++
+	if workspaceID == c.broken {
+		return nil, errors.New("workspace lookup broke")
+	}
+	return c.known.Find(ctx, workspaceID)
+}
+
+func (c *countingWorkspaces) List(ctx context.Context) ([]models.WorkspaceRef, error) {
+	return c.known.List(ctx)
+}
+
+// One related workspace whose lookup fails does not fail the list: the others are still returned, in order.
+func TestListTaskRelatedProjectsSkipsAFailingLookup(t *testing.T) {
+	t.Parallel()
+	first, broken, second := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	task := newTask(models.StatusBacklog)
+	related := newFakeRelatedProjects()
+	related.stored[task.ID.String()] = []string{first, broken, second}
+	workspaces := &countingWorkspaces{known: knownWorkspacesWith(first, second), broken: broken}
+	useCase := application.NewListTaskRelatedProjects(related, workspaces)
+
+	refs, err := useCase.Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	require.Len(t, refs, 2)
+	assert.Equal(t, first, refs[0].ID)
+	assert.Equal(t, second, refs[1].ID)
+}
+
+// ExecuteUpTo stops resolving at the limit, so a long stored list costs at most that many lookups.
+func TestListTaskRelatedProjectsUpToStopsAtTheLimit(t *testing.T) {
+	t.Parallel()
+	first, second, third := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	task := newTask(models.StatusBacklog)
+	related := newFakeRelatedProjects()
+	related.stored[task.ID.String()] = []string{first, second, third}
+	workspaces := &countingWorkspaces{known: knownWorkspacesWith(first, second, third)}
+	useCase := application.NewListTaskRelatedProjects(related, workspaces)
+
+	refs, err := useCase.ExecuteUpTo(context.Background(), task.ID, 2)
+
+	require.NoError(t, err)
+	require.Len(t, refs, 2)
+	assert.Equal(t, first, refs[0].ID)
+	assert.Equal(t, second, refs[1].ID)
+	assert.Equal(t, 2, workspaces.lookups, "the third workspace is never looked up")
 }
 
 func TestListTaskRelatedProjectsEdgeCases(t *testing.T) {

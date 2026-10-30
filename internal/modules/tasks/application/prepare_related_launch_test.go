@@ -131,6 +131,38 @@ func TestPrepareRelatedLaunchSkipsMissingProjectsInAddDirs(t *testing.T) {
 	assert.NotContains(t, launch.PromptSection, "gone")
 }
 
+// A related project whose path is blank has no folder to give the agent: it is in neither the prompt nor the
+// folders, and the codegraph probe never asks about it.
+func TestPrepareRelatedLaunchLeavesOutAProjectWithoutPath(t *testing.T) {
+	t.Parallel()
+	known := relatedWorkspaces()
+	known["ws-blank"] = models.WorkspaceRef{ID: "ws-blank", Name: "blank", Path: " \t ", BaseBranch: "main"}
+	task := newTask(models.StatusBacklog)
+	related := newFakeRelatedProjects()
+	related.stored[task.ID.String()] = []string{"ws-blank", "ws-api"}
+	probe := &fakeRelatedProbe{}
+
+	launch := prepareWith(related, known, probe).Execute(context.Background(), task.ID)
+
+	assert.Equal(t, []string{"/repos/api"}, launch.AddDirs, "an empty --add-dir value would be wrong")
+	assert.Contains(t, launch.PromptSection, "`@api`")
+	assert.NotContains(t, launch.PromptSection, "blank")
+	assert.Equal(t, []string{"/repos/api"}, probe.asked)
+}
+
+func TestPrepareRelatedLaunchWithOnlyBlankPathsChangesNothing(t *testing.T) {
+	t.Parallel()
+	known := knownWorkspaces{ownWorkspace: {ID: ownWorkspace, Name: "demo", Path: "/repos/demo", BaseBranch: "main"}, "ws-blank": {ID: "ws-blank", Name: "blank", Path: ""}}
+	task := newTask(models.StatusBacklog)
+	related := newFakeRelatedProjects()
+	related.stored[task.ID.String()] = []string{"ws-blank"}
+
+	launch := prepareWith(related, known, &fakeRelatedProbe{engram: true}).Execute(context.Background(), task.ID)
+
+	assert.Empty(t, launch.PromptSection)
+	assert.Empty(t, launch.AddDirs)
+}
+
 func TestPrepareRelatedLaunchListFailureStartsWithoutProjects(t *testing.T) {
 	t.Parallel()
 	task := newTask(models.StatusBacklog)

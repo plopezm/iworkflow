@@ -217,7 +217,7 @@ func NewModule(deps Deps) (*Module, error) {
 	resumeRateLimited := application.NewResumeRateLimitedTasks(lifecycle, agentRuntime, resumeTask, send)
 	// The create, edit and delete of the board are the same use cases the module exposes; each is built once.
 	createTask := application.NewCreateTask(lifecycle, worktrees, start, attachments, relatedProjects, attachmentStorage, newUUID, clock)
-	updateTask := application.NewUpdateTask(lifecycle, attachments, relatedProjects, attachmentStorage, newUUID)
+	updateTask := application.NewUpdateTask(lifecycle, attachments, attachmentStorage, newUUID)
 	deleteTask := application.NewDeleteTask(lifecycle, attachmentStorage)
 	addDependency := application.NewAddTaskDependency(lifecycle, graph, successors)
 	listAttachments := application.NewListTaskAttachments(attachments)

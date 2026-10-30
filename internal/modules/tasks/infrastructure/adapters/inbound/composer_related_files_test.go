@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"regexp"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -75,14 +76,38 @@ func (f *fakeTaskReader) Execute(context.Context, models.TaskID) (models.Task, e
 	return f.task, f.err
 }
 
-// fakeStoredProjects answers the stored related projects of the task, or its error.
+// fakeStoredProjects answers the stored related projects of the task, or its error. It records the limits asked for.
 type fakeStoredProjects struct {
-	refs []models.WorkspaceRef
-	err  error
+	refs   []models.WorkspaceRef
+	err    error
+	limits []int
 }
 
-func (f *fakeStoredProjects) Execute(context.Context, models.TaskID) ([]models.WorkspaceRef, error) {
-	return f.refs, f.err
+func (f *fakeStoredProjects) ExecuteUpTo(_ context.Context, _ models.TaskID, limit int) ([]models.WorkspaceRef, error) {
+	f.limits = append(f.limits, limit)
+	if f.err != nil {
+		return nil, f.err
+	}
+	if limit > 0 && len(f.refs) > limit {
+		return f.refs[:limit], nil
+	}
+	return f.refs, nil
+}
+
+// stalledSearch answers every workspace from files, except stalled: that search waits until its context ends.
+// It gives up after five seconds, so a search that ignores its context fails the test instead of hanging it.
+func stalledSearch(files *fakeFiles, stalled string) WorkspaceFileSearch {
+	return func(ctx context.Context, workspaceID string, query string) ([]string, error) {
+		if workspaceID != stalled {
+			return files.search(ctx, workspaceID, query)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(5 * time.Second):
+			return nil, errors.New("the search was not cancelled")
+		}
+	}
 }
 
 // currentFiles is the file search of the task's own project, used by the detail composer.
@@ -274,6 +299,47 @@ func TestTheTaskMenuOffersTheStoredRelatedProjectsWithoutTheOwnOne(t *testing.T)
 
 	assert.Equal(t, []string{"main.go", "api:src/main.go", "web:index.ts"}, insertedRefs(body))
 	assert.Equal(t, []string{"ws-api", "ws-web"}, files.asked, "the own project is not searched as a related one")
+}
+
+// A stalled search is cut off at the search timeout: its project is skipped and the other projects still answer.
+func TestAStalledRelatedSearchTimesOutAndTheOtherProjectsStillAnswer(t *testing.T) {
+	t.Parallel()
+	files := relatedFixtures()
+	handlers := NewComposerHandlers(ComposerUseCases{}, nil, stalledSearch(files, "ws-api"), relatedWorkspaces())
+	handlers.searchTimeout = 20 * time.Millisecond
+	router := chi.NewRouter()
+	handlers.Mount(router)
+
+	started := time.Now()
+	recorder, body := serve(router, httptest.NewRequest(http.MethodGet,
+		"/board/tasks/composer/files?workspace_id=own&related_form=1&related=ws-api&related=ws-web", nil))
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, []string{"README.md", "web:index.ts"}, insertedRefs(body))
+	assert.Less(t, time.Since(started), 2*time.Second, "the stalled project must not hold up the menu")
+}
+
+// The stored list asks for at most the related project limit, as the form does, so the menu never resolves more.
+func TestTheTaskMenuBoundsTheStoredListAtTheLimit(t *testing.T) {
+	t.Parallel()
+	refs := make([]models.WorkspaceRef, 0, 12)
+	files := &fakeFiles{files: map[string][]string{}}
+	for index := range 12 {
+		id := "ws-p" + string(rune('a'+index))
+		refs = append(refs, models.WorkspaceRef{ID: id, Name: "p" + string(rune('a'+index))})
+		files.files[id] = []string{"f.go"}
+	}
+	stored := &fakeStoredProjects{refs: refs}
+	uc := ComposerUseCases{
+		Task:            &fakeTaskReader{task: models.Task{ID: taskID(t), WorkspaceID: "own"}},
+		RelatedProjects: stored,
+	}
+	router := relatedRouter(uc, currentFiles("main.go"), files, &fakeWorkspaces{byID: map[string]models.WorkspaceRef{}})
+
+	_, body := serve(router, httptest.NewRequest(http.MethodGet, "/tasks/"+taskID(t).String()+"/composer/files?q=", nil))
+
+	assert.Equal(t, []int{relatedProjectLimit}, stored.limits)
+	assert.Len(t, insertedRefs(body), 1+relatedProjectLimit, "the own file plus ten related files")
 }
 
 func TestTheTaskMenuRelatedFormOverridesTheStoredList(t *testing.T) {

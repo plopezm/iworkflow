@@ -146,6 +146,57 @@ func TestRelatedProjectsCascadeWhenWorkspaceIsDeleted(t *testing.T) {
 	assert.Equal(t, []string{f.second}, stored)
 }
 
+// The details and the related list change in one transaction: a related workspace that does not exist rolls
+// back the new title as well, and the stored list stays as it was.
+func TestUpdateDetailsAndRelatedRollsBackTheDetailsWhenARelatedWorkspaceFails(t *testing.T) {
+	t.Parallel()
+	f := newRelatedFixture(t)
+	require.NoError(t, f.repo.RelatedProjects.Replace(bg(), f.task.ID, []string{f.first}))
+
+	updated, err := f.repo.Tasks.UpdateDetailsAndRelatedIfBacklog(bg(), f.task.ID, "nuevo", "prompt", models.DefaultTaskPriority, models.ResourceLimits{}, "main", models.TaskAgentOptions{}, []string{f.second, uuid.NewString()})
+
+	require.Error(t, err)
+	assert.False(t, updated)
+	assert.Equal(t, f.task.Title, storedTitle(t, f.repo, f.task.ID), "the details written before the failure are rolled back")
+	stored, listErr := f.repo.RelatedProjects.ListByTask(bg(), f.task.ID)
+	require.NoError(t, listErr)
+	assert.Equal(t, []string{f.first}, stored, "the stored list is not replaced by a partial one")
+}
+
+// On success the details and the list both change, and the list keeps the chosen order.
+func TestUpdateDetailsAndRelatedChangesBothWhenItSucceeds(t *testing.T) {
+	t.Parallel()
+	f := newRelatedFixture(t)
+	require.NoError(t, f.repo.RelatedProjects.Replace(bg(), f.task.ID, []string{f.first}))
+
+	updated, err := f.repo.Tasks.UpdateDetailsAndRelatedIfBacklog(bg(), f.task.ID, "nuevo", "prompt", models.DefaultTaskPriority, models.ResourceLimits{}, "main", models.TaskAgentOptions{}, []string{f.third, f.second})
+
+	require.NoError(t, err)
+	assert.True(t, updated)
+	assert.Equal(t, "nuevo", storedTitle(t, f.repo, f.task.ID))
+	stored, listErr := f.repo.RelatedProjects.ListByTask(bg(), f.task.ID)
+	require.NoError(t, listErr)
+	assert.Equal(t, []string{f.third, f.second}, stored)
+}
+
+// A task that left backlog is not changed, and its related list is not touched either.
+func TestUpdateDetailsAndRelatedOutsideBacklogChangesNothing(t *testing.T) {
+	t.Parallel()
+	f := newRelatedFixture(t)
+	running := newTask(t, f.ownerWS, "en curso", models.StatusRunning)
+	insertTask(t, f.repo, running)
+	require.NoError(t, f.repo.RelatedProjects.Replace(bg(), running.ID, []string{f.first}))
+
+	updated, err := f.repo.Tasks.UpdateDetailsAndRelatedIfBacklog(bg(), running.ID, "no", "prompt", models.DefaultTaskPriority, models.ResourceLimits{}, "main", models.TaskAgentOptions{}, []string{f.second})
+
+	require.NoError(t, err)
+	assert.False(t, updated)
+	assert.Equal(t, "en curso", storedTitle(t, f.repo, running.ID))
+	stored, listErr := f.repo.RelatedProjects.ListByTask(bg(), running.ID)
+	require.NoError(t, listErr)
+	assert.Equal(t, []string{f.first}, stored)
+}
+
 // assertRowCount checks the result of a COUNT query with one bound argument.
 func assertRowCount(t *testing.T, repo *Repo, query string, arg string, want int) {
 	t.Helper()

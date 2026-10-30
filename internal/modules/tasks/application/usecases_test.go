@@ -202,7 +202,7 @@ func TestCreateTaskRejectsEmptyPrompt(t *testing.T) {
 // updateUseCase wires UpdateTask over the fakes.
 func updateUseCase(repo *fakeRepository, attachments *fakeAttachments, storage *fakeStorage) *application.UpdateTask {
 	lifecycle, _ := newLifecycle(repo)
-	return application.NewUpdateTask(lifecycle, attachments, newFakeRelatedProjects(), storage, newUUID)
+	return application.NewUpdateTask(lifecycle, attachments, storage, newUUID)
 }
 
 func baseUpdate(title string, prompt string) application.UpdateInput {

@@ -27,21 +27,27 @@ func NewTaskRelatedProjectRepository(db *sql.DB) *TaskRelatedProjectRepository {
 // Replace swaps the related projects of the task for workspaceIDs, keeping their order.
 func (r *TaskRelatedProjectRepository) Replace(ctx context.Context, taskID models.TaskID, workspaceIDs []string) error {
 	return withImmediateTx(ctx, r.db, func(queries *gen.Queries) error {
-		if err := queries.DeleteTaskRelatedProjects(ctx, taskID.String()); err != nil {
+		return replaceRelatedProjects(ctx, queries, taskID, workspaceIDs)
+	})
+}
+
+// replaceRelatedProjects rewrites the related rows of a task inside the transaction behind queries. Callers that
+// write more than one table use it so that the list changes together with the rest.
+func replaceRelatedProjects(ctx context.Context, queries *gen.Queries, taskID models.TaskID, workspaceIDs []string) error {
+	if err := queries.DeleteTaskRelatedProjects(ctx, taskID.String()); err != nil {
+		return dbError(err)
+	}
+	for index, workspaceID := range workspaceIDs {
+		err := queries.InsertTaskRelatedProject(ctx, gen.InsertTaskRelatedProjectParams{
+			TaskID:      taskID.String(),
+			WorkspaceID: workspaceID,
+			Position:    int64(index),
+		})
+		if err != nil {
 			return dbError(err)
 		}
-		for index, workspaceID := range workspaceIDs {
-			err := queries.InsertTaskRelatedProject(ctx, gen.InsertTaskRelatedProjectParams{
-				TaskID:      taskID.String(),
-				WorkspaceID: workspaceID,
-				Position:    int64(index),
-			})
-			if err != nil {
-				return dbError(err)
-			}
-		}
-		return nil
-	})
+	}
+	return nil
 }
 
 // ListByTask returns the related workspace ids of the task in the stored order.
