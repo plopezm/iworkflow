@@ -145,6 +145,10 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 	if err != nil {
 		return state.EditForm{}, false, err
 	}
+	related, err := h.uc.ListRelatedProjects.Execute(ctx, id)
+	if err != nil {
+		return state.EditForm{}, false, fmt.Errorf("list the related projects: %w", err)
+	}
 	// A failed branch listing does not stop the page: the task keeps its base branch, and the failure is shown.
 	branches, branchErr := h.branchesOf(ctx, task.WorkspaceID)
 	view := dto.TaskFromDomain(task, h.now())
@@ -158,25 +162,35 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 	}
 	hasAgentOverrides := !task.Agent.IsZero()
 	form := state.EditForm{
-		TaskID:        id.String(),
-		WorkspaceID:   task.WorkspaceID,
-		Title:         view.Title,
-		Prompt:        view.Prompt,
-		Priority:      view.Priority,
-		BaseBranch:    view.BaseBranch,
-		DefaultBranch: defaultBranchOf(workspaces, task.WorkspaceID),
-		Branches:      branches,
-		MemoryLimit:   limitText(view.MemoryLimitMB),
-		CPULimit:      limitText(view.CPUPercent),
-		Agent:         agentState,
-		ShowAdvanced:  view.MemoryLimitMB != nil || view.CPUPercent != nil || hasAgentOverrides,
-		Existing:      existing,
-		BoardPath:     state.BoardPath(task.WorkspaceID),
+		TaskID:          id.String(),
+		WorkspaceID:     task.WorkspaceID,
+		Title:           view.Title,
+		Prompt:          view.Prompt,
+		Priority:        view.Priority,
+		BaseBranch:      view.BaseBranch,
+		DefaultBranch:   defaultBranchOf(workspaces, task.WorkspaceID),
+		Branches:        branches,
+		MemoryLimit:     limitText(view.MemoryLimitMB),
+		CPULimit:        limitText(view.CPUPercent),
+		Agent:           agentState,
+		ShowAdvanced:    view.MemoryLimitMB != nil || view.CPUPercent != nil || hasAgentOverrides,
+		Existing:        existing,
+		RelatedProjects: state.RelatedProjectChoices(workspaces, task.WorkspaceID, workspaceIDs(related)),
+		BoardPath:       state.BoardPath(task.WorkspaceID),
 	}
 	if branchErr != nil {
 		form.Error = branchErr.Error()
 	}
 	return form, true, nil
+}
+
+// workspaceIDs are the ids of the workspaces, in their order.
+func workspaceIDs(workspaces []models.WorkspaceRef) []string {
+	ids := make([]string, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		ids = append(ids, workspace.ID)
+	}
+	return ids
 }
 
 // keptImages counts the stored images that a save keeps: the ones not marked for removal.

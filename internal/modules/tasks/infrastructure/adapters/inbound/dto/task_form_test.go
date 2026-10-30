@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/modules/tasks/application"
+	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
 )
 
@@ -303,4 +304,68 @@ func TestToNewTaskIgnoresAgentOptionsWhileAdvancedIsHidden(t *testing.T) {
 	input, _, err := form.ToNewTask()
 	require.NoError(t, err)
 	assert.True(t, input.Agent.IsZero(), "agent options must be empty when advanced options are hidden")
+}
+
+// relatedProjectsRequest builds the multipart form a browser sends for the related projects checkboxes: one
+// related_project_id field per checked workspace, in the order they were sent.
+func relatedProjectsRequest(t *testing.T, ids ...string) *http.Request {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("workspace_id", uuid.NewString()))
+	require.NoError(t, writer.WriteField("prompt", "p"))
+	for _, id := range ids {
+		require.NoError(t, writer.WriteField("related_project_id", id))
+	}
+	require.NoError(t, writer.Close())
+	request := httptest.NewRequest(http.MethodPost, "/board/tasks", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	return request
+}
+
+func TestParseTaskFormReadsEveryRelatedProjectInOrder(t *testing.T) {
+	t.Parallel()
+	first, second := uuid.NewString(), uuid.NewString()
+
+	form, err := ParseTaskForm(httptest.NewRecorder(), relatedProjectsRequest(t, first, second))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{first, second}, form.RelatedProjectIDs)
+}
+
+func TestParseTaskFormHasNoRelatedProjectsWhenNoneIsChecked(t *testing.T) {
+	t.Parallel()
+
+	form, err := ParseTaskForm(httptest.NewRecorder(), relatedProjectsRequest(t))
+
+	require.NoError(t, err)
+	assert.Empty(t, form.RelatedProjectIDs)
+}
+
+func TestToNewTaskAndToUpdatePassTheRelatedProjectsOn(t *testing.T) {
+	t.Parallel()
+	ids := []string{uuid.NewString(), uuid.NewString()}
+	form := validForm()
+	form.RelatedProjectIDs = ids
+
+	input, _, err := form.ToNewTask()
+	require.NoError(t, err)
+	update, err := form.ToUpdate(0)
+	require.NoError(t, err)
+
+	assert.Equal(t, ids, input.RelatedProjectIDs)
+	assert.Equal(t, ids, update.RelatedProjectIDs)
+}
+
+func TestAnInvalidRelatedProjectIsRefusedByTheDomainBeforeAnythingIsStored(t *testing.T) {
+	t.Parallel()
+	valid := uuid.NewString()
+	form := validForm()
+	form.RelatedProjectIDs = []string{valid, "no-es-uuid"}
+
+	input, _, err := form.ToNewTask()
+
+	require.NoError(t, err, "the form layer keeps the ids; the domain owns their rule")
+	_, err = input.Validated()
+	assert.ErrorIs(t, err, werrors.InvalidRelatedProject("no-es-uuid"))
 }

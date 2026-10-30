@@ -32,6 +32,28 @@ templ BranchSelect(id string, choices []state.BranchChoice, value string, defaul
 	</div>
 }
 
+// RelatedProjectsField is the "Related projects" list: one checkbox per workspace the task may relate to, each with
+// its path in muted text. The checkbox value and its data-workspace-id are the workspace id; the create dialog hides
+// the row of the workspace the task belongs to (web/static/js/task_form.js). It renders nothing when there is no other
+// workspace.
+templ RelatedProjectsField(projects []state.RelatedProjectChoice) {
+	if len(projects) > 0 {
+		<fieldset class="stack gap-2" data-related-projects>
+			<legend class="text-sm font-medium text-fg">{ msgRelatedProjects.T(ctx) }</legend>
+			<p class="text-xs text-muted">{ msgRelatedProjectsHint.T(ctx) }</p>
+			for _, project := range projects {
+				<label class="row min-h-10 items-center gap-2 text-sm text-fg">
+					<input type="checkbox" name="related_project_id" value={ project.ID } data-workspace-id={ project.ID } class="h-5 w-5" checked?={ project.Selected }/>
+					<span class="stack gap-0.5">
+						<span>{ project.Name }</span>
+						<span class="text-xs text-muted">{ project.Path }</span>
+					</span>
+				</label>
+			}
+		</fieldset>
+	}
+}
+
 // branchLabel is the text of a branch option: remote branches say so.
 func branchLabel(ctx context.Context, choice state.BranchChoice) string {
 	if choice.Remote {
@@ -173,6 +195,7 @@ templ CreateTaskDialog(form state.CreateForm) {
 				</select>
 			</label>
 			@BranchSelect(state.Scoped("board-branch-slot", form.Scope), branchChoices(form), form.BaseBranch, form.DefaultBranch)
+			@RelatedProjectsField(form.RelatedProjects)
 			@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
 			@TaskPromptField(msgPrompt.T(ctx), state.Scoped("board-create-prompt", form.Scope), form.Prompt, "/board/tasks/composer/files")
 			@ImagePicker()
@@ -204,6 +227,7 @@ func branchChoices(form state.CreateForm) []state.BranchChoice {
 templ TaskEditFields(form state.EditForm) {
 	@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
 	@BranchSelect(state.Scoped("task-edit-branch", form.Scope), state.BranchChoices(form.Branches, form.BaseBranch), form.BaseBranch, form.DefaultBranch)
+	@RelatedProjectsField(form.RelatedProjects)
 	@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
 	@AdvancedOptions(state.Scoped("task-edit-advanced-limits", form.Scope), form.Scope, form.ShowAdvanced, form.MemoryLimit, form.CPULimit, form.Agent)
 	@TaskPromptField(msgPrompt.T(ctx), state.Scoped("task-edit-prompt", form.Scope), form.Prompt, state.TaskPath(form.TaskID)+"/composer/files")

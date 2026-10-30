@@ -9,6 +9,7 @@ import (
 type WorkspaceOptionDTO struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
+	Path       string `json:"path"`
 	BaseBranch string `json:"base_branch"`
 }
 

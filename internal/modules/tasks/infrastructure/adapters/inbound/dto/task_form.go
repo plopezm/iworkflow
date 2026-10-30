@@ -27,6 +27,7 @@ const (
 	maxFormBytes        = models.MaxImagesPerMessage*models.MaxImageBytes + 1<<20
 	formMemoryBytes     = 1 << 20
 	imagesField         = "images"
+	relatedProjectField = "related_project_id"
 )
 
 // Link kinds as the form sends them.
@@ -56,7 +57,10 @@ type TaskForm struct {
 	LinkKind     string
 	LinkAnchor   string
 	RemoveIDs    []string
-	Images       []FormImage
+	// RelatedProjectIDs are the workspaces the task relates to, as the repeated related_project_id fields sent them.
+	// The domain trims them, drops the blank ones and the task's own workspace, and rejects the invalid ones.
+	RelatedProjectIDs []string
+	Images            []FormImage
 }
 
 // FormImage is an uploaded image. Its type is the one the bytes sniff to, not the one the browser declared.
@@ -78,22 +82,23 @@ func ParseTaskForm(w http.ResponseWriter, r *http.Request) (TaskForm, error) {
 		return TaskForm{}, err
 	}
 	form := TaskForm{
-		WorkspaceID:   first(values, "workspace_id"),
-		Title:         first(values, "title"),
-		Prompt:        first(values, "prompt"),
-		Priority:      first(values, "priority"),
-		BaseBranch:    first(values, "base_branch"),
-		MemoryLimit:   first(values, "memory_limit_mb"),
-		CPULimit:      first(values, "cpu_limit_percent"),
-		AgentRuntime:  first(values, "agent_runtime"),
-		AgentModel:    first(values, "agent_model"),
-		AgentThinking: first(values, "agent_thinking"),
-		AgentProfile:  first(values, "agent_profile"),
-		StartNow:      first(values, "start_now") == "on",
-		ShowAdvanced:  first(values, "show_advanced") == "on",
-		LinkKind:      first(values, "link_kind"),
-		LinkAnchor:    first(values, "link_anchor"),
-		RemoveIDs:     values["remove_attachment_ids"],
+		WorkspaceID:       first(values, "workspace_id"),
+		Title:             first(values, "title"),
+		Prompt:            first(values, "prompt"),
+		Priority:          first(values, "priority"),
+		BaseBranch:        first(values, "base_branch"),
+		MemoryLimit:       first(values, "memory_limit_mb"),
+		CPULimit:          first(values, "cpu_limit_percent"),
+		AgentRuntime:      first(values, "agent_runtime"),
+		AgentModel:        first(values, "agent_model"),
+		AgentThinking:     first(values, "agent_thinking"),
+		AgentProfile:      first(values, "agent_profile"),
+		StartNow:          first(values, "start_now") == "on",
+		ShowAdvanced:      first(values, "show_advanced") == "on",
+		LinkKind:          first(values, "link_kind"),
+		LinkAnchor:        first(values, "link_anchor"),
+		RemoveIDs:         values["remove_attachment_ids"],
+		RelatedProjectIDs: values[relatedProjectField],
 	}
 	images, err := readImages(files[imagesField])
 	if err != nil {
@@ -197,6 +202,7 @@ func (f TaskForm) ToNewTask() (models.NewTask, *application.TaskLink, error) {
 	input.WorkspaceID = f.WorkspaceID
 	input.Images = images
 	input.StartNow = f.StartNow
+	input.RelatedProjectIDs = f.RelatedProjectIDs
 	return input, link, nil
 }
 
@@ -219,14 +225,15 @@ func (f TaskForm) ToUpdate(kept int) (application.UpdateInput, error) {
 		removed = append(removed, id)
 	}
 	return application.UpdateInput{
-		Title:      input.Title,
-		Prompt:     input.Prompt,
-		Priority:   input.Priority,
-		Limits:     input.Limits,
-		Agent:      input.Agent,
-		BaseBranch: input.BaseBranch,
-		Images:     images,
-		RemoveIDs:  removed,
+		Title:             input.Title,
+		Prompt:            input.Prompt,
+		Priority:          input.Priority,
+		Limits:            input.Limits,
+		Agent:             input.Agent,
+		BaseBranch:        input.BaseBranch,
+		Images:            images,
+		RemoveIDs:         removed,
+		RelatedProjectIDs: f.RelatedProjectIDs,
 	}, nil
 }
 

@@ -225,20 +225,21 @@ func NewModule(deps Deps) (*Module, error) {
 	detachFromGraph := application.NewDetachTaskFromGraph(graph, successors)
 	setPosition := application.NewSetTaskPosition(graph)
 	board := httpinbound.NewBoardHandlers(httpinbound.BoardUseCases{
-		List:            application.NewListTasks(repository),
-		ListDone:        application.NewListDoneTasks(repository),
-		Get:             getTask,
-		CreateLinked:    application.NewCreateLinkedTask(createTask, addDependency, getGraph),
-		Update:          updateTask,
-		Start:           start,
-		Delete:          deleteTask,
-		ListAttachments: listAttachments,
-		ListBranches:    application.NewListWorkspaceBranches(lifecycle, worktrees),
-		Workspaces:      deps.Workspaces,
-		GetGraph:        getGraph,
-		SetPosition:     setPosition,
-		DetachFromGraph: detachFromGraph,
-		AgentCatalog:    deps.AgentCatalog,
+		List:                application.NewListTasks(repository),
+		ListDone:            application.NewListDoneTasks(repository),
+		Get:                 getTask,
+		CreateLinked:        application.NewCreateLinkedTask(createTask, addDependency, getGraph),
+		Update:              updateTask,
+		Start:               start,
+		Delete:              deleteTask,
+		ListAttachments:     listAttachments,
+		ListBranches:        application.NewListWorkspaceBranches(lifecycle, worktrees),
+		ListRelatedProjects: listRelatedProjects,
+		Workspaces:          deps.Workspaces,
+		GetGraph:            getGraph,
+		SetPosition:         setPosition,
+		DetachFromGraph:     detachFromGraph,
+		AgentCatalog:        deps.AgentCatalog,
 	}, clock)
 	abortTask := application.NewAbortTask(lifecycle, agentRuntime)
 	finishTask := application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup)
