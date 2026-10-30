@@ -38,13 +38,13 @@ lint:
 
 electron: electron-build
 
-electron-build:
+electron-build: build
 	./scripts/electron.sh build
 
-electron-dev:
+electron-dev: build
 	./scripts/electron.sh dev
 
-electron-test:
+electron-test: build
 	npm --prefix electron test
 
 e2e:
