@@ -35,7 +35,10 @@ func TestRelatedProjectsPromptListsEachProjectWithItsLabelAndPath(t *testing.T) 
 	assert.Contains(t, section, "`@web-app` -> `/repos/web` (web-app)")
 	assert.Less(t, strings.Index(section, "@api"), strings.Index(section, "@web-app"), "the stored order is kept")
 	assert.Contains(t, section, "MAY read")
-	assert.Contains(t, section, "MUST NOT edit")
+	assert.Contains(t, section, "Do not modify files of related projects")
+	assert.Contains(t, section, "The edit tools are denied there")
+	assert.Contains(t, section, "shell commands are not sandboxed")
+	assert.NotContains(t, section, "MUST NOT", "the prompt must not claim a guarantee it does not enforce")
 	assert.Contains(t, section, "`@<label>:<relative/path>`")
 }
 

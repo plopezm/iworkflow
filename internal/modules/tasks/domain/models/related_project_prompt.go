@@ -19,8 +19,9 @@ func RelatedProjectsPrompt(projects []RelatedProject, engramAvailable bool) stri
 	}
 	var builder strings.Builder
 	builder.WriteString("## Related projects\n\n")
-	builder.WriteString("This task relates to the projects listed below. You MAY read their files and use them as reference, ")
-	builder.WriteString("but you MUST NOT edit them: every change belongs to the worktree of this task.\n\n")
+	builder.WriteString("This task relates to the projects listed below. You MAY read their files and use them as reference.\n")
+	builder.WriteString("Do not modify files of related projects: every change belongs to the worktree of this task. ")
+	builder.WriteString("The edit tools are denied there, but shell commands are not sandboxed, so respect this rule in every command.\n\n")
 	hasCodegraph := false
 	for _, project := range projects {
 		builder.WriteString("- `@" + project.Label + "` -> `" + project.Ref.Path + "` (" + project.Ref.Name + ")")
@@ -38,7 +39,7 @@ func RelatedProjectsPrompt(projects []RelatedProject, engramAvailable bool) stri
 	if engramAvailable {
 		builder.WriteString("\nThe engram memory of a related project can be consulted: call `mem_current_project` with `cwd` set to ")
 		builder.WriteString("its absolute path, then pass the returned name as `project` to `mem_search` or `mem_context`. ")
-		builder.WriteString("This access is read-only: do not save into the memory of a related project unless the user asks you to.\n")
+		builder.WriteString("Use this access read-only: do not save into the memory of a related project unless the user asks you to.\n")
 	}
 	builder.WriteString("\nTo use the HTTP or code API of a related project, read its sources; no new endpoint is provided for it.\n")
 	return builder.String()
