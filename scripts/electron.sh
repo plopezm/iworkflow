@@ -14,13 +14,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 ELECTRON_DIR="$ROOT/electron"
-
-server_binary() {
-  case "$(uname -s)" in
-    MINGW* | MSYS* | CYGWIN*) echo "iworkflow.exe" ;;
-    *) echo "iworkflow" ;;
-  esac
-}
+# shellcheck source=scripts/lib.sh
+source "$ROOT/scripts/lib.sh"
 
 builder_platform() {
   case "$(uname -s)" in

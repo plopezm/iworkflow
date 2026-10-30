@@ -13,14 +13,16 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
-BIN_NAME="iworkflow"
+# shellcheck source=scripts/lib.sh
+source "$ROOT/scripts/lib.sh"
+BIN_FILE="$(server_binary)"
 
 build() {
   cd "$ROOT"
   make generate
   rm -rf "$DIST_DIR"
   mkdir -p "$DIST_DIR"
-  go build -p 2 -ldflags="-s -w" -o "$DIST_DIR/$BIN_NAME" ./cmd/iworkflow
+  go build -p 2 -ldflags="-s -w" -o "$DIST_DIR/$BIN_FILE" ./cmd/iworkflow
   cp -r web/static "$DIST_DIR/site"
   echo "Packaged into $DIST_DIR"
 }
@@ -30,7 +32,7 @@ run() {
     echo "No build found in $DIST_DIR; run '$0 build' first." >&2
     exit 1
   }
-  if [[ ! -x "$DIST_DIR/$BIN_NAME" || ! -d "$DIST_DIR/site" ]]; then
+  if [[ ! -x "$DIST_DIR/$BIN_FILE" || ! -d "$DIST_DIR/site" ]]; then
     echo "Incomplete build in $DIST_DIR; run '$0 build' first." >&2
     exit 1
   fi
@@ -40,7 +42,7 @@ run() {
   export LEPTOS_SITE_ADDR="${LEPTOS_SITE_ADDR:-0.0.0.0:9000}"
   export LEPTOS_ENV="PROD"
   echo "Serving on http://$LEPTOS_SITE_ADDR"
-  exec "$DIST_DIR/$BIN_NAME" "$@"
+  exec "$DIST_DIR/$BIN_FILE" "$@"
 }
 
 case "${1:-all}" in
