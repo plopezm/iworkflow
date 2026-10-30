@@ -36,7 +36,7 @@ templ LooseTaskCard(task dto.TaskDTO, scope string) {
 		<div class="mt-auto flex flex-wrap items-center gap-1">
 			<button
 				type="button"
-				class="btn-ghost min-h-7 px-2 py-0.5 text-xs"
+				class="btn-ghost min-h-7 border border-fg/40 px-2 py-0.5 text-xs"
 				title={ msgAddToGraph.T(ctx) }
 				aria-label={ msgAddToGraph.T(ctx) }
 				hx-post={ state.ScopedPath(state.BoardTaskPath(task.ID)+"/add-to-graph", scope) }

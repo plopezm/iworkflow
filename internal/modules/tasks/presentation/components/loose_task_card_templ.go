@@ -221,7 +221,7 @@ func LooseTaskCard(task dto.TaskDTO, scope string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"mt-auto flex flex-wrap items-center gap-1\"><button type=\"button\" class=\"btn-ghost min-h-7 px-2 py-0.5 text-xs\" title=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"mt-auto flex flex-wrap items-center gap-1\"><button type=\"button\" class=\"btn-ghost min-h-7 border border-fg/40 px-2 py-0.5 text-xs\" title=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

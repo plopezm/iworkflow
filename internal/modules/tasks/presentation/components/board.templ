@@ -44,7 +44,7 @@ templ TaskCard(task dto.TaskDTO, scope string) {
 // activeActions are the card buttons of an active or completed task: open the task tab and, if available, its terminal.
 templ activeActions(task dto.TaskDTO, scope string) {
 	<div class="row justify-end gap-2">
-		@link.Tab(link.Props{Href: state.TaskPath(task.ID), Class: "btn-ghost min-h-8 px-2.5 py-1 text-xs", Role: "button"}) {
+		@link.Tab(link.Props{Href: state.TaskPath(task.ID), Class: "btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs", Role: "button"}) {
 			{ msgOpen.T(ctx) }
 		}
 		if task.Actions.CanOpenTerminal {
@@ -69,14 +69,14 @@ templ backlogActions(task dto.TaskDTO, scope string) {
 			>{ msgStart.T(ctx) }</button>
 		}
 		if task.Actions.CanEdit {
-			@link.Tab(link.Props{Href: state.TaskPath(task.ID) + "/edit", Class: "btn-ghost min-h-8 px-2.5 py-1 text-xs", Role: "button"}) {
+			@link.Tab(link.Props{Href: state.TaskPath(task.ID) + "/edit", Class: "btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs", Role: "button"}) {
 				{ msgEdit.T(ctx) }
 			}
 		}
 		if task.Actions.CanDelete {
 			<button
 				type="button"
-				class="btn-ghost min-h-8 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
+				class="btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error"
 				hx-post={ state.ScopedPath(state.BoardTaskPath(task.ID)+"/delete", scope) }
 				hx-confirm={ msgConfirmDelete.T(ctx) }
 				hx-swap="none"

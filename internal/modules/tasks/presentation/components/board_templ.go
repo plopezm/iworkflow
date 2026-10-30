@@ -273,7 +273,7 @@ func activeActions(task dto.TaskDTO, scope string) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.TaskPath(task.ID), Class: "btn-ghost min-h-8 px-2.5 py-1 text-xs", Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.TaskPath(task.ID), Class: "btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs", Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -397,13 +397,13 @@ func backlogActions(task dto.TaskDTO, scope string) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = link.Tab(link.Props{Href: state.TaskPath(task.ID) + "/edit", Class: "btn-ghost min-h-8 px-2.5 py-1 text-xs", Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = link.Tab(link.Props{Href: state.TaskPath(task.ID) + "/edit", Class: "btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs", Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var20), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
 		if task.Actions.CanDelete {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<button type=\"button\" class=\"btn-ghost min-h-8 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error\" hx-post=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "<button type=\"button\" class=\"btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs hover:bg-error/10 hover:text-error\" hx-post=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
