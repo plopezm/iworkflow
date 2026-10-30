@@ -36,9 +36,9 @@ templ shellPage(boardSidebar templ.Component) {
 templ sidebar(boardSidebar templ.Component) {
 	<div class="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
 		<span class="live-dot text-accent" aria-hidden="true"></span>
-		@link.Tab(link.Props{Href: "/", Class: "flex-1 text-sm font-semibold tracking-tight"}) {
+		<span class="flex-1 text-sm font-semibold tracking-tight">
 			{ msgBrand.T(ctx) }
-		}
+		</span>
 		@components.SidebarToggle(components.SidebarToggleProps{Class: "hidden md:flex"})
 	</div>
 	<div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">

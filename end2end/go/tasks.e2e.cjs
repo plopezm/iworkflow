@@ -39,8 +39,7 @@ async function registerWs(ctx, name, { origin } = {}) {
 // Abre el tablero del workspace `name` desde la barra lateral.
 async function openBoard(ctx, name) {
   await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.locator('select[name=workspace]:visible').selectOption({ label: `${name} (main)` });
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name }).first().click();
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await sleep(300);
 }

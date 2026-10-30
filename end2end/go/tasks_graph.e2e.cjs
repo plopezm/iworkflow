@@ -34,11 +34,12 @@ async function registerWs(ctx, name) {
 
 async function getWsId(ctx, name) {
   await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  const select = ctx.page.locator('select[name=workspace]:visible');
-  await select.selectOption({ label: `${name} (main)` });
-  await sleep(300);
-  return await select.inputValue();
+  const link = ctx.page.locator('#board-sidebar').getByRole('link', { name }).first();
+  await link.waitFor({ timeout: 10000 });
+  await link.click();
+  await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+  const href = await link.getAttribute('href');
+  return href.replace('/board/', '');
 }
 
 module.exports = {

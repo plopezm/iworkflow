@@ -93,8 +93,8 @@ async function waitForValue(locator, needle, { timeout = 10000 } = {}) {
 // Crea una tarea sobre el workspace wsName (start_now => worktree + agente) y devuelve su id.
 async function createTask(ctx, wsName, prompt) {
   await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.getByLabel(/^Agente/).selectOption({ index: 1 }); // pi
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name: wsName }).first().click();
+  await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await ctx.page.getByRole('button', { name: /Nueva tarea/ }).first().click();
   // El select de workspace es el cuyo valor contenga "wsName (main)".
   const wsIdx = await ctx.page.evaluate((name) => {

@@ -82,11 +82,7 @@ async function startedTask(ctx, name, prompt) {
   await ctx.page.getByRole('button', { name: /Registrar|Register/ }).first().click();
   await ctx.page.getByText(dir).first().waitFor({ timeout: 12000 });
   await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  // Choosing the workspace refreshes the list of the board: the new-task button is used once that answer has arrived.
-  const listed = ctx.page.waitForResponse((r) => r.url().includes('/board/frame'), { timeout: 10000 });
-  await ctx.page.locator('[id^="board-controls-"]:visible select[name=workspace]').selectOption({ label: `${name} (main)` });
-  await listed;
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name }).first().click();
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   const knownHrefs = await taskHrefs(ctx.page);
   await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();

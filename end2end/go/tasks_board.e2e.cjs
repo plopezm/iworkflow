@@ -34,11 +34,10 @@ async function registerWs(ctx, name) {
   return { name, dir };
 }
 
-// Opens the board from the navigation bar and selects the workspace in its switcher.
+// Opens the board from the sidebar by clicking on the workspace item.
 async function openBoard(ctx, name) {
   await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.locator('select[name=workspace]:visible').selectOption({ label: `${name} (main)` });
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name }).first().click();
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await sleep(300);
 }
@@ -74,9 +73,10 @@ module.exports = {
         const ws = await registerWs(ctx, `tb-create-${tag}`);
         await openBoard(ctx, ws.name);
         await createFromDialog(ctx, ws.name, { prompt });
-        const card = ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"] a', { hasText: prompt }).first();
+        const card = ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first();
         await card.waitFor({ timeout: 10000 });
-        ctx.assert(/\/tasks\/[0-9a-f-]{36}$/.test(await card.getAttribute('href')), 'la tarjeta debe enlazar a /tasks/<id>');
+        const link = card.locator('a[href*="/tasks/"]').first();
+        ctx.assert(/\/tasks\/[0-9a-f-]{36}/.test(await link.getAttribute('href')), 'la tarjeta debe enlazar a /tasks/<id>');
       },
     },
     {
@@ -88,7 +88,7 @@ module.exports = {
         const firstPrompt = `only-a-${tag}`;
         await createFromDialog(ctx, first.name, { prompt: firstPrompt });
         await ctx.page.locator('[id^="board-list-"]:visible').getByText(firstPrompt).first().waitFor({ timeout: 10000 });
-        await ctx.page.locator('select[name=workspace]:visible').selectOption({ label: `${second.name} (main)` });
+        await openBoard(ctx, second.name);
         await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
         await sleep(500);
         ctx.assert((await ctx.page.locator('[id^="board-list-"]:visible').getByText(firstPrompt).count()) === 0,
@@ -101,7 +101,7 @@ module.exports = {
         const ws = await registerWs(ctx, `tb-live-${tag}`);
         await openBoard(ctx, ws.name);
         const prompt = `live-${tag}`;
-        const workspaceId = await ctx.page.locator('select[name=workspace]:visible').inputValue();
+        const workspaceId = await ctx.page.locator('input[name=workspace]').first().inputValue();
         // A create that does not come from this page: the stream must carry the change to the board.
         await ctx.page.evaluate(async ({ workspaceId, prompt }) => {
           const body = new URLSearchParams({ workspace_id: workspaceId, prompt });

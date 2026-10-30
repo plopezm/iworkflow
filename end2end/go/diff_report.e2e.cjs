@@ -32,8 +32,7 @@ async function registerWs(ctx, name) {
 
 async function openBoard(ctx, name) {
   await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.locator('aside').getByRole('link', { name: new RegExp(name) }).first().click();
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name }).first().click();
   await sleep(500);
 }
 

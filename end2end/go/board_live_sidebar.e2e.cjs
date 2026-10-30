@@ -34,11 +34,10 @@ async function registerWs(ctx, name) {
   return { name, dir };
 }
 
-// Opens the board from the navigation bar and selects the workspace in its switcher.
+// Opens the board from the sidebar by clicking on the workspace item.
 async function openBoard(ctx, name) {
   await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.locator('select[name=workspace]:visible').selectOption({ label: `${name} (main)` });
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name }).first().click();
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await sleep(300);
 }

@@ -86,27 +86,7 @@ templ backlogActions(task dto.TaskDTO, scope string) {
 	</div>
 }
 
-// WorkspaceSwitcher is the workspace select of the toolbar, labelled by its title as the Rust switcher is.
-// Changing it refreshes the list through the form that holds it (see BoardToolbar). It carries no
-// aria-label of its own, so the "Workspace" label of the create dialog stays the only one with that name.
-templ WorkspaceSwitcher(workspaces []dto.WorkspaceOptionDTO, selected string, id string) {
-	<label class="select-pill max-w-xs" title={ msgSwitchWorkspace.T(ctx) }>
-		<span class="sr-only">{ msgSwitchWorkspace.T(ctx) }</span>
-		<select id={ id } name="workspace" class="select-pill-input">
-			if selected == "" {
-				<option value="" selected>{ msgSelectWorkspace.T(ctx) }</option>
-			}
-			for _, workspace := range workspaces {
-				<option value={ workspace.ID } selected?={ workspace.ID == selected }>{ workspace.Name + " (" + workspace.BaseBranch + ")" }</option>
-			}
-		</select>
-		<svg class="select-pill-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-			<path d="M5.5 8L10 12.5L14.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
-		</svg>
-	</label>
-}
-
-// BoardToolbar is the bar over the list: the workspace switcher, the completed toggle and the create
+// BoardToolbar is the bar over the list: the completed toggle and the create
 // button. The form refreshes the list of its own board whenever one of its controls changes. Every target names
 // the elements of this board instance (see state.Scoped), so another open board is never touched.
 templ BoardToolbar(view state.BoardView) {
@@ -119,10 +99,9 @@ templ BoardToolbar(view state.BoardView) {
 		hx-trigger="change"
 	>
 		<input type="hidden" name="scope" value={ view.Scope }/>
+		<input type="hidden" id={ state.Scoped("board-workspace", view.Scope) } name="workspace" value={ view.Choice.ID }/>
 		<h1 class="page-title">{ msgBoard.T(ctx) }</h1>
-		<div class="min-w-0 flex-1">
-			@WorkspaceSwitcher(view.Workspaces, view.Choice.ID, state.Scoped("board-workspace", view.Scope))
-		</div>
+		<div class="min-w-0 flex-1"></div>
 		<label role="button" class={ toggleClass("btn-secondary cursor-pointer", view.ShowCompleted, "border-accent text-accent") }>
 			<input type="checkbox" name="completed" value="1" class="sr-only" checked?={ view.ShowCompleted }/>
 			<span aria-hidden="true">✓</span>
@@ -141,6 +120,8 @@ templ BoardToolbar(view state.BoardView) {
 		<button
 			type="button"
 			class="btn-primary"
+			title={ msgNewTask.T(ctx) }
+			aria-label={ msgNewTask.T(ctx) }
 			hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
 			hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
 			hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }

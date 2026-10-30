@@ -34,15 +34,6 @@ async function registerWs(ctx, name) {
   return { name, dir };
 }
 
-// Opens the home board from the navigation bar and selects the workspace in its (visible) switcher.
-async function openHomeBoard(ctx, name) {
-  await ctx.goto('/');
-  await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  await ctx.page.locator('select[name=workspace]:visible').first().selectOption({ label: `${name} (main)` });
-  await ctx.page.locator('[data-stage]:visible').first().waitFor({ timeout: 10000 });
-  await sleep(300);
-}
-
 // ---- tests ----
 module.exports = {
   name: 'board_tabs',
@@ -51,12 +42,15 @@ module.exports = {
       name: 'two_tabs: "Nueva tarea" abre el diálogo en el tablero visible y la tarea aparece en su lista',
       fn: async (ctx) => {
         const page = ctx.page;
-        const ws = await registerWs(ctx, `bt-two-${tag}`);
-        await openHomeBoard(ctx, ws.name);
-        // The workspace board opens as a second tab; the home board stays in the document, hidden.
-        await page.locator('aside').getByRole('link', { name: ws.name }).first().click();
-        await page.locator('select[name=workspace]').nth(1).waitFor({ state: 'attached', timeout: 10000 });
-        ctx.assert((await page.locator('select[name=workspace]').count()) === 2, 'los dos tableros deben estar abiertos a la vez');
+        const ws1 = await registerWs(ctx, `bt-one-${tag}`);
+        const ws2 = await registerWs(ctx, `bt-two-${tag}`);
+        await ctx.goto('/');
+        await page.locator('#board-sidebar').getByRole('link', { name: ws1.name }).first().click();
+        await page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+        // The second workspace board opens as a second tab; the first stays in the document, hidden.
+        await page.locator('#board-sidebar').getByRole('link', { name: ws2.name }).first().click();
+        await page.locator('input[name=workspace]').nth(1).waitFor({ state: 'attached', timeout: 10000 });
+        ctx.assert((await page.locator('input[name=workspace]').count()) === 2, 'los dos tableros deben estar abiertos a la vez');
 
         // Role queries match only what is visible, so this is the button of the visible board.
         await page.getByRole('button', { name: 'Nueva tarea' }).first().click();
@@ -64,7 +58,7 @@ module.exports = {
         const dialogWorkspace = page.getByLabel(/^Workspace/);
         await dialogWorkspace.waitFor({ state: 'attached', timeout: 10000 });
         ctx.assert(await dialogWorkspace.isVisible(), 'el diálogo debe abrirse en el tablero visible, no en la pestaña oculta');
-        await dialogWorkspace.selectOption({ label: `${ws.name} (main)` });
+        await dialogWorkspace.selectOption({ label: `${ws2.name} (main)` });
 
         const prompt = `two-tabs-${tag}`;
         await page.locator('textarea[name=prompt]:visible').fill(prompt);

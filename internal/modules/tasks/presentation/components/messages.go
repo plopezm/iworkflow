@@ -20,7 +20,6 @@ var (
 	msgNoWorkspaces    = i18n.Msg{En: "Register a workspace to start planning tasks.", Es: "Registra un workspace para empezar a planificar tareas.", Zh: "注册一个工作区以开始规划任务。", De: "Registriere einen Workspace, um Aufgaben zu planen.", Fr: "Enregistrez un espace de travail pour planifier des tâches."}
 	msgGoWorkspaces    = i18n.Msg{En: "Go to Workspaces", Es: "Ir a Workspaces", Zh: "前往工作区", De: "Zu den Workspaces", Fr: "Aller aux espaces de travail"}
 	msgWorkspaceGone   = i18n.Msg{En: "This workspace no longer exists. Pick another one above.", Es: "Este workspace ya no existe. Elige otro arriba.", Zh: "此工作区已不存在。请在上方选择其他工作区。", De: "Dieser Workspace existiert nicht mehr. Wähle oben einen anderen.", Fr: "Cet espace de travail n'existe plus. Choisissez-en un autre ci-dessus."}
-	msgSwitchWorkspace = i18n.Msg{En: "Switch workspace", Es: "Cambiar de workspace", Zh: "切换工作区", De: "Workspace wechseln", Fr: "Changer d'espace de travail"}
 	msgSelectWorkspace = i18n.Msg{En: "Select a workspace…", Es: "Selecciona un workspace…", Zh: "选择一个工作区…", De: "Workspace auswählen…", Fr: "Sélectionnez un espace de travail…"}
 	msgTitleOptional   = i18n.Msg{En: "Title (optional)", Es: "Título (opcional)", Zh: "标题（可选）", De: "Titel (optional)", Fr: "Titre (facultatif)"}
 	msgPrompt          = i18n.Msg{En: "Prompt", Es: "Prompt", Zh: "提示词", De: "Prompt", Fr: "Prompt"}
