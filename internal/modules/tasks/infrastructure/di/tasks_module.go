@@ -271,11 +271,13 @@ func NewModule(deps Deps) (*Module, error) {
 	setAgentMode := application.NewSetAgentMode(lifecycle, agentRuntime)
 	answerDialog := application.NewAnswerDialog(lifecycle, agentRuntime)
 	composer := httpinbound.NewComposerHandlers(httpinbound.ComposerUseCases{
-		Send:    send,
-		Mode:    setAgentMode,
-		History: getEvents,
-		Answer:  answerDialog,
-	}, deps.FileSearch, deps.WorkspaceFileSearch)
+		Send:            send,
+		Mode:            setAgentMode,
+		History:         getEvents,
+		Answer:          answerDialog,
+		Task:            getTask,
+		RelatedProjects: listRelatedProjects,
+	}, deps.FileSearch, deps.WorkspaceFileSearch, deps.Workspaces)
 	removeDependency := application.NewRemoveTaskDependency(graph, successors)
 	listTasks := application.NewListTasks(repository)
 	listDoneTasks := application.NewListDoneTasks(repository)

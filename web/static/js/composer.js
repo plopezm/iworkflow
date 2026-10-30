@@ -148,13 +148,24 @@ const cancelFiles = (composer) => {
   fileRequests.delete(composer);
 };
 
-/** Loads the files that match a query from the server of the task. */
+/**
+ * Loads the files that match a query from the server: the project of the form and the related projects it checks.
+ * A form without related checkboxes (the detail composer) sends no related params: the server uses the stored list.
+ */
 async function fetchFiles(composer, query, signal) {
   const separator = (composer.dataset.filesPath || '').includes('?') ? '&' : '?';
   let url = `${composer.dataset.filesPath}${separator}q=${encodeURIComponent(query)}`;
-  const workspaceSelect = composer.closest('form')?.querySelector('select[name="workspace_id"]');
+  const form = composer.closest('form');
+  const workspaceSelect = form?.querySelector('select[name="workspace_id"]');
   if (workspaceSelect?.value) {
     url += `&workspace_id=${encodeURIComponent(workspaceSelect.value)}`;
+  }
+  const relatedBoxes = form?.querySelectorAll('input[name="related_project_id"]') ?? [];
+  if (relatedBoxes.length > 0) {
+    url += '&related_form=1';
+    for (const box of relatedBoxes) {
+      if (box.checked) url += `&related=${encodeURIComponent(box.value)}`;
+    }
   }
   const response = await fetch(url, {
     headers: { 'HX-Request': 'true' },

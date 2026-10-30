@@ -78,7 +78,7 @@ func modeReported(id models.TaskID, mode string) []models.TaskEvent {
 
 // composerRouter mounts the composer handlers the way the module does, so the path parameters are read as in production.
 func composerRouter(senders *fakeSender, modes *fakeModes, history *fakeHistory, files FileSearch) chi.Router {
-	handlers := NewComposerHandlers(ComposerUseCases{Send: senders, Mode: modes, History: history}, files, nil)
+	handlers := NewComposerHandlers(ComposerUseCases{Send: senders, Mode: modes, History: history}, files, nil, nil)
 	router := chi.NewRouter()
 	handlers.Mount(router)
 	return router
@@ -450,7 +450,7 @@ func TestWorkspaceFileSuggestionsAreAnsweredAsMenuItems(t *testing.T) {
 		askedQuery = query
 		return []string{"README.md", "src/main.go"}, nil
 	}
-	handlers := NewComposerHandlers(ComposerUseCases{}, nil, wsFiles)
+	handlers := NewComposerHandlers(ComposerUseCases{}, nil, wsFiles, nil)
 	router := chi.NewRouter()
 	handlers.Mount(router)
 
@@ -471,7 +471,7 @@ func TestWorkspaceFileSuggestionsWithoutWorkspaceReturnNoFiles(t *testing.T) {
 	t.Parallel()
 	handlers := NewComposerHandlers(ComposerUseCases{}, nil, func(_ context.Context, _ string, _ string) ([]string, error) {
 		return []string{"should-not-reach"}, nil
-	})
+	}, nil)
 	router := chi.NewRouter()
 	handlers.Mount(router)
 

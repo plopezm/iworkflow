@@ -103,13 +103,38 @@ func TestComposerSendNoticeIsShownInsideTheForm(t *testing.T) {
 
 func TestComposerFileItemsAnswerTheSuggestionsOrTheEmptyState(t *testing.T) {
 	t.Parallel()
-	suggestions := renderComposerIn(t, i18n.En, components.ComposerFileItems([]string{"README.md"}))
+	suggestions := renderComposerIn(t, i18n.En, components.ComposerFileItems([]components.ComposerFileItem{
+		{Insert: "README.md", Label: "README.md"},
+	}))
 	assert.Contains(t, suggestions, `class="composer-menu-item"`)
 	assert.Contains(t, suggestions, `data-insert="@README.md"`, "a suggestion inserts its reference")
+	assert.NotContains(t, suggestions, "composer-menu-hint", "a file of the current project has no project badge")
 
 	empty := renderComposerIn(t, i18n.En, components.ComposerFileItems(nil))
 	assert.Contains(t, empty, "No matching files")
 	assert.NotContains(t, empty, `composer-menu-item`)
+}
+
+func TestComposerFileItemsOfARelatedProjectShowTheirProjectAndInsertTheLabelledReference(t *testing.T) {
+	t.Parallel()
+	menu := renderComposerIn(t, i18n.En, components.ComposerFileItems([]components.ComposerFileItem{
+		{Insert: "api:src/main.go", Label: "src/main.go", Project: "api"},
+	}))
+
+	assert.Contains(t, menu, `data-insert="@api:src/main.go"`, "the reference names the project the file belongs to")
+	assert.Contains(t, menu, `<span class="composer-menu-hint">api</span>`, "the project is a muted badge before the path")
+	assert.Contains(t, menu, `<span class="truncate">src/main.go</span>`)
+}
+
+func TestComposerFileItemsEscapeTheirPathsAndLabels(t *testing.T) {
+	t.Parallel()
+	menu := renderComposerIn(t, i18n.En, components.ComposerFileItems([]components.ComposerFileItem{
+		{Insert: `a"<b>.go`, Label: `a"<b>.go`, Project: "<i>"},
+	}))
+
+	assert.NotContains(t, menu, "<b>")
+	assert.NotContains(t, menu, "<i>")
+	assert.Contains(t, menu, "&lt;b&gt;")
 }
 
 func TestComposerCommandsCarryTheirLocalizedDescriptions(t *testing.T) {

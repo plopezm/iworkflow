@@ -92,15 +92,19 @@ templ composerModeOption(view state.ComposerView, mode string, label i18n.Msg) {
 	>{ label.T(ctx) }</button>
 }
 
-// ComposerFileItems are the suggestions of the @ completion: one item per path, or the note that nothing matches.
-// The menu script inserts the reference of the item the user picks.
-templ ComposerFileItems(paths []string) {
-	if len(paths) == 0 {
+// ComposerFileItems are the suggestions of the @ completion: one item per file, or the note that nothing matches.
+// A file of a related project shows its project label first, muted. The menu script inserts the reference of the
+// item the user picks.
+templ ComposerFileItems(items []ComposerFileItem) {
+	if len(items) == 0 {
 		<li class="composer-menu-empty">{ msgNoFiles.T(ctx) }</li>
 	}
-	for _, path := range paths {
-		<li class="composer-menu-item" role="option" data-composer-item data-insert={ "@" + path }>
-			<span class="truncate">{ path }</span>
+	for _, item := range items {
+		<li class="composer-menu-item" role="option" data-composer-item data-insert={ "@" + item.Insert }>
+			if item.Project != "" {
+				<span class="composer-menu-hint">{ item.Project }</span>
+			}
+			<span class="truncate">{ item.Label }</span>
 		</li>
 	}
 }
