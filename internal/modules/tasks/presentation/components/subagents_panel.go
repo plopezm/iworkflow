@@ -66,18 +66,7 @@ func subagentCount(active uint32) string {
 	return strconv.FormatUint(uint64(active), 10)
 }
 
-// subagentRowClass is the row of a subagent in the list; the selected one is highlighted.
-func subagentRowClass(selected bool) string {
-	if selected {
-		return "stack w-full gap-1 rounded-lg border border-border/60 bg-surface-2 p-2 text-left transition-colors"
-	}
-	return "stack w-full gap-1 rounded-lg border border-border/60 p-2 text-left transition-colors hover:bg-surface-2"
-}
-
-// subagentAriaPressed is the pressed state of a row, read by assistive technology.
-func subagentAriaPressed(selected bool) string {
-	if selected {
-		return "true"
-	}
-	return "false"
+// subagentRowClass is the row of a subagent in the list: a full-width touch target.
+func subagentRowClass() string {
+	return "stack min-h-14 w-full gap-1 rounded-lg border border-border/60 p-3 text-left transition-colors hover:bg-surface-2"
 }

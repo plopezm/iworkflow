@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,9 +86,9 @@ func TestSubagentsPanelRefreshesWhileItStaysOpenAndKeepsTheScope(t *testing.T) {
 	rec := getSubagentsPanel(t, reader, i18n.En, "/tasks/"+id+"/subagents?scope=abc123")
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), `hx-get="/tasks/`+id+`/subagents?scope=abc123"`)
+	assert.Contains(t, rec.Body.String(), `hx-get="/tasks/`+id+`/subagents?body=1&amp;scope=abc123"`)
 	assert.Contains(t, rec.Body.String(), `hx-trigger="sse:message from:body delay:300ms"`)
-	assert.Contains(t, rec.Body.String(), `hx-get="/tasks/`+id+`/subagents?scope=abc123&amp;selected=s1"`, "each row opens its detail")
+	assert.Contains(t, rec.Body.String(), `hx-get="/tasks/`+id+`/subagents?body=1&amp;scope=abc123&amp;selected=s1"`, "each row opens its detail")
 }
 
 func TestSubagentsPanelShowsTheSelectedSubagentWithItsPromptAndThread(t *testing.T) {
@@ -158,4 +159,34 @@ func TestSubagentsPanelShowsARunningToolCallAndItsError(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `badge-error">error<`, "the call failed")
 	assert.Contains(t, rec.Body.String(), `{&#34;path&#34;:&#34;auth.rs&#34;}`, "the arguments of the call")
 	assert.Contains(t, rec.Body.String(), "permission denied", "the output of the call")
+}
+
+// The first request opens the dialog; the refresh and the navigation ask for the body alone, so a dialog the user
+// closed is never reopened, and the detail offers a way back to the list.
+func TestSubagentsOpenAsADialogAndTheBodyAloneDoesNotReopenIt(t *testing.T) {
+	t.Parallel()
+	id := newDiffTaskForTest(t).ID.String()
+	reader := &subagentsReaderFake{list: subagentsOfTheTask()}
+
+	opened := getSubagentsPanel(t, reader, i18n.En, "/tasks/"+id+"/subagents?scope=abc123")
+	body := getSubagentsPanel(t, reader, i18n.En, "/tasks/"+id+"/subagents?body=1&scope=abc123&selected=s1")
+
+	assert.Contains(t, opened.Body.String(), `role="dialog"`)
+	assert.NotContains(t, body.Body.String(), `role="dialog"`, "the body never brings the dialog back")
+	assert.Contains(t, body.Body.String(), `id="task-subagents-body-abc123"`)
+	assert.Contains(t, body.Body.String(), "revisa los tests", "the selected detail")
+	assert.Contains(t, body.Body.String(), `hx-get="/tasks/`+id+`/subagents?body=1&amp;scope=abc123"`, "the way back to the list")
+	assert.Contains(t, body.Body.String(), "Back")
+}
+
+func TestSubagentsListShowsTheWorkingOnesFirst(t *testing.T) {
+	t.Parallel()
+	id := newDiffTaskForTest(t).ID.String()
+	list := subagentsOfTheTask()
+	list[0], list[1] = list[1], list[0] // the finished one arrives first
+	reader := &subagentsReaderFake{list: list}
+
+	rec := getSubagentsPanel(t, reader, i18n.En, "/tasks/"+id+"/subagents?body=1")
+
+	assert.Less(t, strings.Index(rec.Body.String(), "claude · tests"), strings.Index(rec.Body.String(), "Completed"))
 }
