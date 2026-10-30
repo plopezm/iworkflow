@@ -6,13 +6,25 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// SubagentsPanel is the list of the subagents of a task, with the detail of the selected one. It refreshes itself
-// while it stays open: every stream event asks for the list again with the same selection, as the transcript does.
+// SubagentsPanel is the dialog of the subagents of a task: a bottom sheet on mobile and a centred dialog on desktop.
+// It replaces the host of the actions tab; the content refreshes and navigates on its own (SubagentsBody), so closing
+// the dialog is not undone by a refresh.
 templ SubagentsPanel(view state.SubagentsView) {
+	<div id={ state.Scoped("task-subagents", view.Scope) }>
+		@shared.Modal(shared.ModalProps{Title: msgSubagents.T(ctx), Open: true}) {
+			@SubagentsBody(view)
+		}
+	</div>
+}
+
+// SubagentsBody is the content of the dialog: the list of subagents, or the detail of the selected one with a way back
+// to the list. It refreshes itself while it stays open: every stream event asks for it again with the same selection,
+// as the transcript does.
+templ SubagentsBody(view state.SubagentsView) {
 	<div
-		id={ state.Scoped("task-subagents", view.Scope) }
-		class="stack gap-2"
-		hx-get={ state.SubagentsPath(view.TaskID, view.Scope, view.Selected) }
+		id={ state.Scoped("task-subagents-body", view.Scope) }
+		class="stack gap-3"
+		hx-get={ state.SubagentsBodyPath(view.TaskID, view.Scope, view.Selected) }
 		hx-trigger="sse:message from:body delay:300ms"
 		hx-sync="this:replace"
 		hx-target="this"
@@ -20,16 +32,31 @@ templ SubagentsPanel(view state.SubagentsView) {
 	>
 		if len(view.Subagents) == 0 {
 			<p class="muted">{ msgSubagentsEmpty.T(ctx) }</p>
+		} else if view.Detail != nil {
+			<button
+				type="button"
+				class="btn-ghost min-h-10 self-start"
+				hx-get={ state.SubagentsBodyPath(view.TaskID, view.Scope, "") }
+				hx-target={ "#" + state.Scoped("task-subagents-body", view.Scope) }
+				hx-swap="outerHTML"
+			>← { msgSubagentsBack.T(ctx) }</button>
+			<div class="stack gap-1">
+				<div class="row justify-between gap-2">
+					<span class="text-sm font-semibold break-words">{ subagentDisplayName(*view.Detail) }</span>
+					@shared.Badge(subagentStatusLabel(ctx, view.Detail.Status), subagentStatusVariant(view.Detail.Status))
+				</div>
+				<span class="text-[11px] text-muted">{ subagentActivity(ctx, view.Detail.Turns, view.Detail.ToolCalls) }</span>
+			</div>
+			@subagentDetail(*view.Detail)
 		} else {
-			<ul class="stack gap-1">
+			<ul class="stack gap-2">
 				for _, subagent := range view.Subagents {
 					<li>
 						<button
 							type="button"
-							class={ subagentRowClass(subagent.ID == view.Selected) }
-							aria-pressed={ subagentAriaPressed(subagent.ID == view.Selected) }
-							hx-get={ state.SubagentsPath(view.TaskID, view.Scope, subagent.ID) }
-							hx-target={ "#" + state.Scoped("task-subagents", view.Scope) }
+							class={ subagentRowClass() }
+							hx-get={ state.SubagentsBodyPath(view.TaskID, view.Scope, subagent.ID) }
+							hx-target={ "#" + state.Scoped("task-subagents-body", view.Scope) }
 							hx-swap="outerHTML"
 						>
 							<div class="row justify-between gap-2">
@@ -44,9 +71,6 @@ templ SubagentsPanel(view state.SubagentsView) {
 					</li>
 				}
 			</ul>
-			if view.Detail != nil {
-				@subagentDetail(*view.Detail)
-			}
 		}
 	</div>
 }

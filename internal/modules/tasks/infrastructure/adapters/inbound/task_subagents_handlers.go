@@ -20,7 +20,7 @@ type SubagentsReader interface {
 	Execute(ctx context.Context, id models.TaskID) ([]models.SubagentTask, error)
 }
 
-// subagents answers the subagents panel of a task. The selected subagent is the one whose detail is open; a failed read
+// subagents answers the subagents dialog of a task, or only its content when body is set (refresh and navigation). The selected subagent is the one whose detail is open; a failed read
 // is shown in the place of the panel.
 func (h *DetailHandlers) subagents(w http.ResponseWriter, r *http.Request) {
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
@@ -39,5 +39,9 @@ func (h *DetailHandlers) subagents(w http.ResponseWriter, r *http.Request) {
 		subagents = append(subagents, dto.SubagentFromDomain(subagent))
 	}
 	view := state.NewSubagentsView(scope, id.String(), subagents, r.URL.Query().Get("selected"))
+	if r.URL.Query().Get("body") == "1" {
+		web.Render(w, r, http.StatusOK, components.SubagentsBody(view))
+		return
+	}
 	web.Render(w, r, http.StatusOK, components.SubagentsPanel(view))
 }
