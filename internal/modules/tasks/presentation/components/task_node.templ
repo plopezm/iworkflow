@@ -1,7 +1,7 @@
 package components
 
 import (
-	"fmt"
+	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
@@ -58,33 +58,15 @@ templ TaskNode(node state.NodeView, position state.Point, scope string) {
 			aria-label={ msgOutputPort.T(ctx) }
 		></button>
 		<div class="graph-node-tools">
-			<button
-				type="button"
-				class="graph-tool"
-				title={ msgAddNext.T(ctx) }
-				aria-label={ msgAddNext.T(ctx) }
-				hx-get={ state.ScopedPath(fmt.Sprintf("/board/tasks/new?link_kind=next&link_anchor=%s", node.Task.ID), scope) }
-				hx-include={ "#" + state.Scoped("board-workspace", scope) }
-				hx-target={ "#" + state.Scoped("board-create-slot", scope) }
-				hx-swap="innerHTML"
-			>
+			@link.Tab(link.Props{Href: state.NewLinkedTaskPath(node.Task.WorkspaceID, "next", node.Task.ID), Class: "graph-tool", Role: "button"}) {
 				<span aria-hidden="true">→+</span>
 				{ msgNextShort.T(ctx) }
-			</button>
+			}
 			if node.CanAddParallel() {
-				<button
-					type="button"
-					class="graph-tool"
-					title={ msgAddParallel.T(ctx) }
-					aria-label={ msgAddParallel.T(ctx) }
-					hx-get={ state.ScopedPath(fmt.Sprintf("/board/tasks/new?link_kind=parallel&link_anchor=%s", node.Task.ID), scope) }
-					hx-include={ "#" + state.Scoped("board-workspace", scope) }
-					hx-target={ "#" + state.Scoped("board-create-slot", scope) }
-					hx-swap="innerHTML"
-				>
+				@link.Tab(link.Props{Href: state.NewLinkedTaskPath(node.Task.WorkspaceID, "parallel", node.Task.ID), Class: "graph-tool", Role: "button"}) {
 					<span aria-hidden="true">⇉</span>
 					{ msgParallelShort.T(ctx) }
-				</button>
+				}
 			}
 			<button
 				type="button"

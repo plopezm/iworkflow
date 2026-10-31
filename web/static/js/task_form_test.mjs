@@ -19,7 +19,7 @@ Object.assign(globalThis, {
   HTMLTextAreaElement: FakeTextArea,
 });
 
-const { syncOwnProject, installTaskForm } = await import('./task_form.js');
+const { syncOwnProject, installTaskForm, filterRelatedProjects } = await import('./task_form.js');
 
 // One related project row: the label that wraps the checkbox, and the checkbox with its workspace id.
 function projectRow(workspaceId, checked = false) {
@@ -184,4 +184,48 @@ test('installing the task form twice on a document connects each listener once',
     paste: doc.listenerCount('paste'),
   };
   assert.deepEqual(counts, { change: 1, 'htmx:load': 1, paste: 1 });
+});
+
+// A related projects dialog with the given rows (name and path text) and its empty note.
+function relatedDialog(texts, filterValue) {
+  const rows = texts.map((text) => ({ dataset: { relatedText: text }, hidden: false, style: { display: '' } }));
+  const empty = { hidden: true };
+  const root = {
+    querySelectorAll: (selector) => (selector === '[data-related-row]' ? rows : []),
+    querySelector: (selector) => (selector === '[data-related-empty]' ? empty : null),
+  };
+  return { rows, empty, filter: { value: filterValue, closest: (selector) => (selector === '[data-related-projects]' ? root : null) } };
+}
+
+test('the related projects filter keeps the rows whose name or path contains the text, ignoring case', () => {
+  const { rows, empty, filter } = relatedDialog(['api /repos/api', 'web /home/me/Sites'], '  SITES ');
+
+  filterRelatedProjects(filter);
+
+  assert.equal(rows[0].style.display, 'none');
+  assert.equal(rows[1].style.display, '');
+  assert.equal(empty.hidden, true, 'a match hides the empty note');
+});
+
+test('the related projects filter shows the empty note when nothing matches and every row when cleared', () => {
+  const dialog = relatedDialog(['api /repos/api', 'web /repos/web'], 'zzz');
+
+  filterRelatedProjects(dialog.filter);
+  assert.equal(dialog.empty.hidden, false);
+  assert.deepEqual(dialog.rows.map((row) => row.style.display), ['none', 'none']);
+
+  dialog.filter.value = '';
+  filterRelatedProjects(dialog.filter);
+  assert.equal(dialog.empty.hidden, true);
+  assert.deepEqual(dialog.rows.map((row) => row.style.display), ['', '']);
+});
+
+test('the related projects filter does not offer the row of the own project, which stays hidden', () => {
+  const { rows, empty, filter } = relatedDialog(['app /repos/app'], 'app');
+  rows[0].hidden = true;
+
+  filterRelatedProjects(filter);
+
+  assert.equal(rows[0].hidden, true, 'the filter never unhides it');
+  assert.equal(empty.hidden, false, 'with nothing offered the empty note shows');
 });

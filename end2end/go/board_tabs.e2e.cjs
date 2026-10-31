@@ -39,7 +39,7 @@ module.exports = {
   name: 'board_tabs',
   tests: [
     {
-      name: 'two_tabs: "Nueva tarea" abre el diálogo en el tablero visible y la tarea aparece en su lista',
+      name: 'two_tabs: "Nueva tarea" abre su pestaña desde el tablero visible y la tarea aparece en su lista',
       fn: async (ctx) => {
         const page = ctx.page;
         const ws1 = await registerWs(ctx, `bt-one-${tag}`);
@@ -57,7 +57,7 @@ module.exports = {
 
         const dialogWorkspace = page.getByLabel(/^Workspace/);
         await dialogWorkspace.waitFor({ state: 'attached', timeout: 10000 });
-        ctx.assert(await dialogWorkspace.isVisible(), 'el diálogo debe abrirse en el tablero visible, no en la pestaña oculta');
+        ctx.assert(await dialogWorkspace.isVisible(), 'la pestaña de nueva tarea debe mostrar el formulario');
         await dialogWorkspace.selectOption({ label: `${ws2.name} (main)` });
 
         const prompt = `two-tabs-${tag}`;

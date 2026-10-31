@@ -58,11 +58,11 @@ module.exports = {
 
         const prompt = `live-sidebar-${tag}`;
         await page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${target.name} (main)` });
-        await page.locator('#modal-panel textarea[name=prompt]').fill(prompt);
+        await page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${target.name} (main)` });
+        await page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill(prompt);
         await page.getByRole('checkbox', { name: /Iniciar ahora/ }).first().check();
-        await page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-        await page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+        await page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
         // The id is read from the list of the target workspace, which the sidebar links to.
         const boardHref = await page.locator(`#board-sidebar a[href^="/board/"]`, { hasText: target.name }).first().getAttribute('href');

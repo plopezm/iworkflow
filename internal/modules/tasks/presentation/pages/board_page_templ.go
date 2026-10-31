@@ -13,8 +13,7 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// BoardPage is the board tab: the toolbar, the list of the workspace, the notice of the last create and
-// the slot of the create dialog. The list refreshes on the task stream, which the shell connects once for
+// BoardPage is the board tab: the toolbar, the list of the workspace and the notice. The list refreshes on the task stream, which the shell connects once for
 // the whole page (see the sidebar), so the board does not open a second stream. The notice and the slot carry the
 // scope of this board instance, so several open boards keep their own.
 func BoardPage(view state.BoardView) templ.Component {
@@ -53,7 +52,7 @@ func BoardPage(view state.BoardView) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.Scoped("board-notice", view.Scope))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/pages/board_page.templ`, Line: 15, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/pages/board_page.templ`, Line: 14, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -67,20 +66,7 @@ func BoardPage(view state.BoardView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div><div id=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.Scoped("board-create-slot", view.Scope))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/pages/board_page.templ`, Line: 19, Col: 57}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

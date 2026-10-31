@@ -117,19 +117,10 @@ templ BoardToolbar(view state.BoardView) {
 			<span aria-hidden="true">⤢</span>
 			<span class="hidden sm:inline">{ msgFitView.T(ctx) }</span>
 		</button>
-		<button
-			type="button"
-			class="btn-primary"
-			title={ msgNewTask.T(ctx) }
-			aria-label={ msgNewTask.T(ctx) }
-			hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
-			hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
-			hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
-			hx-swap="innerHTML"
-		>
+		@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}) {
 			<span class="text-lg leading-none">+</span>
 			<span class="hidden sm:inline">{ msgNewTask.T(ctx) }</span>
-		</button>
+		}
 	</form>
 }
 
@@ -196,16 +187,9 @@ templ BoardListBody(view state.BoardView) {
 								<div class="graph-empty pointer-events-auto stack items-center gap-3 p-8 text-center bg-surface/90 rounded-lg border border-border shadow-lg">
 									<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
 									<p class="muted max-w-sm text-xs">{ msgEmptyHint.T(ctx) }</p>
-									<button
-										type="button"
-										class="btn-primary"
-										hx-get={ state.ScopedPath("/board/tasks/new", view.Scope) }
-										hx-include={ "#" + state.Scoped("board-workspace", view.Scope) }
-										hx-target={ "#" + state.Scoped("board-create-slot", view.Scope) }
-										hx-swap="innerHTML"
-									>
+									@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Role: "button"}) {
 										{ msgCreateFirst.T(ctx) }
-									</button>
+									}
 								</div>
 							</div>
 						</div>
@@ -235,20 +219,6 @@ templ BoardListBody(view state.BoardView) {
 				}
 		}
 	}
-}
-
-// CreateTaskResult is the answer of a create. It is swapped into the dialog slot, which it empties (the dialog
-// closes), so it must not repeat the slot id. The failures that happened after the task was created (its start,
-// its dependencies) go to the notice slot of the same board instance, which the response clears out of band.
-templ CreateTaskResult(scope string, startError string, linkErrors []string) {
-	<div id={ state.Scoped("board-notice", scope) } hx-swap-oob="true">
-		if startError != "" {
-			@shared.ErrorText(msgStartFailed.Fmt(ctx, map[string]string{"error": startError}))
-		}
-		for _, linkError := range linkErrors {
-			@shared.ErrorText(msgLinkFailedCreate.Fmt(ctx, map[string]string{"error": linkError}))
-		}
-	</div>
 }
 
 // BoardNotice is an out-of-band answer that shows one failure in the notice slot of its board instance (empty

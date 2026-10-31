@@ -4,6 +4,7 @@ import (
 	"context"
 
 	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
@@ -32,25 +33,43 @@ templ BranchSelect(id string, choices []state.BranchChoice, value string, defaul
 	</div>
 }
 
-// RelatedProjectsField is the "Related projects" list: one checkbox per workspace the task may relate to, each with
-// its path in muted text. The checkbox value and its data-workspace-id are the workspace id; the create dialog hides
-// the row of the workspace the task belongs to (web/static/js/task_form.js). It renders nothing when there is no other
-// workspace.
+// RelatedProjectsField is the "Related projects" field: a button that opens a dialog to choose the workspaces the task
+// may relate to, with a filter, and a summary of the chosen ones. The dialog holds one checkbox per workspace, each with
+// its path in muted text; it stays inside the form, so the chosen checkboxes are submitted even when it is closed. The
+// checkbox value and its data-workspace-id are the workspace id; the create page hides the row of the workspace the task
+// belongs to (web/static/js/task_form.js, which also filters the rows and keeps the summary). It renders nothing when
+// there is no other workspace.
 templ RelatedProjectsField(projects []state.RelatedProjectChoice) {
 	if len(projects) > 0 {
-		<fieldset class="stack gap-2" data-related-projects>
-			<legend class="text-sm font-medium text-fg">{ msgRelatedProjects.T(ctx) }</legend>
+		<div class="stack gap-2" data-related-projects>
+			<span class="text-sm font-medium text-fg">{ msgRelatedProjects.T(ctx) }</span>
 			<p class="text-xs text-muted">{ msgRelatedProjectsHint.T(ctx) }</p>
-			for _, project := range projects {
-				<label class="row min-h-10 items-center gap-2 text-sm text-fg">
-					<input type="checkbox" name="related_project_id" value={ project.ID } data-workspace-id={ project.ID } class="h-5 w-5" checked?={ project.Selected }/>
-					<span class="stack gap-0.5">
-						<span>{ project.Name }</span>
-						<span class="text-xs text-muted">{ project.Path }</span>
-					</span>
-				</label>
+			<div class="row flex-wrap items-center gap-2">
+				<button type="button" class="btn-secondary self-start" data-related-open>
+					<span>{ msgChooseProjects.T(ctx) }</span>
+					<span class="text-xs text-muted" data-related-count></span>
+				</button>
+				<ul class="flex flex-wrap gap-1" data-related-summary></ul>
+			</div>
+			@shared.Modal(shared.ModalProps{Title: msgRelatedProjects.T(ctx), Open: false}) {
+				<input type="search" class="input" placeholder={ msgFilterProjects.T(ctx) } aria-label={ msgFilterProjects.T(ctx) } autocomplete="off" data-related-filter/>
+				<div class="stack max-h-[50vh] overflow-y-auto" data-related-list>
+					for _, project := range projects {
+						<label class="row min-h-10 items-center gap-2 text-sm text-fg" data-related-row data-related-name={ project.Name } data-related-text={ project.Name + " " + project.Path }>
+							<input type="checkbox" name="related_project_id" value={ project.ID } data-workspace-id={ project.ID } class="h-5 w-5" checked?={ project.Selected }/>
+							<span class="stack gap-0.5">
+								<span>{ project.Name }</span>
+								<span class="text-xs text-muted">{ project.Path }</span>
+							</span>
+						</label>
+					}
+					<p class="text-sm text-muted" data-related-empty hidden>{ msgNoProjects.T(ctx) }</p>
+				</div>
+				<div class="row justify-end">
+					<button type="button" class="btn-primary" data-modal-close>{ msgDone.T(ctx) }</button>
+				</div>
 			}
-		</fieldset>
+		</div>
 	}
 }
 
@@ -164,58 +183,71 @@ templ LimitFields(id string, advanced bool, memory string, cpu string) {
 	@AdvancedOptions(id, "", advanced, memory, cpu, state.AgentFormState{})
 }
 
-// CreateTaskDialog is the create dialog: workspace, base branch, title, prompt, images, priority, the advanced
-// limits and the start toggle. A linked create hides the start toggle, because a linked task waits for its
-// predecessors. Submitting replaces the slot with CreateTaskResult; an error keeps the dialog open.
-templ CreateTaskDialog(form state.CreateForm) {
-	@shared.Modal(shared.ModalProps{Title: msgNewTask.T(ctx), Open: true}) {
-		<form class="stack gap-3" hx-post={ state.ScopedPath("/board/tasks", form.Scope) } hx-encoding="multipart/form-data" hx-target={ "#" + state.Scoped("board-create-slot", form.Scope) } hx-swap="innerHTML" hx-disabled-elt="find button[type=submit]">
-			if form.LinkKind != "" {
-				<input type="hidden" name="link_kind" value={ form.LinkKind }/>
-				<input type="hidden" name="link_anchor" value={ form.LinkAnchor }/>
-			}
-			<label class="stack gap-1.5">
-				<span class="text-sm font-medium text-fg">{ msgWorkspace.T(ctx) }</span>
-				<select
-					class="input"
-					name="workspace_id"
-					required
-					aria-label={ msgWorkspace.T(ctx) }
-					hx-get={ state.ScopedPath("/board/tasks/branches", form.Scope) }
-					hx-target={ "#" + state.Scoped("board-branch-slot", form.Scope) }
-					hx-swap="outerHTML"
-					hx-trigger="change"
-				>
-					if form.WorkspaceID == "" {
-						<option value="" selected>{ msgSelectWorkspace.T(ctx) }</option>
-					}
-					for _, workspace := range form.Workspaces {
-						<option value={ workspace.ID } selected?={ workspace.ID == form.WorkspaceID }>{ workspace.Name + " (" + workspace.BaseBranch + ")" }</option>
-					}
-				</select>
-			</label>
-			@BranchSelect(state.Scoped("board-branch-slot", form.Scope), branchChoices(form), form.BaseBranch, form.DefaultBranch)
-			@RelatedProjectsField(form.RelatedProjects)
-			@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
-			@TaskPromptField(msgPrompt.T(ctx), state.Scoped("board-create-prompt", form.Scope), form.Prompt, "/board/tasks/composer/files")
-			@ImagePicker()
-			@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
-			@AdvancedOptions(state.Scoped("board-advanced-limits", form.Scope), form.Scope, form.ShowAdvanced, form.MemoryLimit, form.CPULimit, form.Agent)
-			if form.LinkKind == "" {
-				<label class="row min-h-10 items-center gap-2 text-sm text-fg">
-					<input type="checkbox" name="start_now" value="on" class="h-5 w-5" checked?={ form.StartNow }/>
-					<span>{ msgStartNow.T(ctx) }</span>
-				</label>
-			}
-			if form.Error != "" {
-				@shared.ErrorText(form.Error)
-			}
-			<div class="row justify-end gap-2">
-				<button type="button" class="btn-ghost" hx-get={ state.ScopedPath("/board/tasks/new/close", form.Scope) } hx-target={ "#" + state.Scoped("board-create-slot", form.Scope) } hx-swap="innerHTML">{ msgCancel.T(ctx) }</button>
-				<button type="submit" class="btn-primary">{ msgCreateTask.T(ctx) }</button>
-			</div>
-		</form>
+// CreateTaskFields are the fields of the create page: workspace, base branch, related projects, title, prompt, images,
+// priority, the advanced limits and the start toggle. A linked create hides the start toggle, because a linked task
+// waits for its predecessors. The create page wraps them in its own form.
+templ CreateTaskFields(form state.CreateForm) {
+	if form.LinkKind != "" {
+		<input type="hidden" name="link_kind" value={ form.LinkKind }/>
+		<input type="hidden" name="link_anchor" value={ form.LinkAnchor }/>
 	}
+	<label class="stack gap-1.5">
+		<span class="text-sm font-medium text-fg">{ msgWorkspace.T(ctx) }</span>
+		<select
+			class="input"
+			name="workspace_id"
+			required
+			aria-label={ msgWorkspace.T(ctx) }
+			hx-get={ state.ScopedPath("/board/tasks/branches", form.Scope) }
+			hx-target={ "#" + state.Scoped("board-branch-slot", form.Scope) }
+			hx-swap="outerHTML"
+			hx-trigger="change"
+		>
+			if form.WorkspaceID == "" {
+				<option value="" selected>{ msgSelectWorkspace.T(ctx) }</option>
+			}
+			for _, workspace := range form.Workspaces {
+				<option value={ workspace.ID } selected?={ workspace.ID == form.WorkspaceID }>{ workspace.Name + " (" + workspace.BaseBranch + ")" }</option>
+			}
+		</select>
+	</label>
+	@BranchSelect(state.Scoped("board-branch-slot", form.Scope), branchChoices(form), form.BaseBranch, form.DefaultBranch)
+	@RelatedProjectsField(form.RelatedProjects)
+	@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
+	@TaskPromptField(msgPrompt.T(ctx), state.Scoped("board-create-prompt", form.Scope), form.Prompt, "/board/tasks/composer/files")
+	@ImagePicker()
+	@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
+	@AdvancedOptions(state.Scoped("board-advanced-limits", form.Scope), form.Scope, form.ShowAdvanced, form.MemoryLimit, form.CPULimit, form.Agent)
+	if form.LinkKind == "" {
+		<label class="row min-h-10 items-center gap-2 text-sm text-fg">
+			<input type="checkbox" name="start_now" value="on" class="h-5 w-5" checked?={ form.StartNow }/>
+			<span>{ msgStartNow.T(ctx) }</span>
+		</label>
+	}
+}
+
+// TaskCreated is the answer of a create. A clean create ends the create tab and opens the board of the workspace (the
+// data-dock-leave hook). A failure after the task was created (its start, its dependencies) keeps the tab, so the
+// user reads it, and offers the way to the board.
+templ TaskCreated(boardPath string, startError string, linkErrors []string) {
+	if startError == "" && len(linkErrors) == 0 {
+		<p class="sr-only" data-dock-leave={ boardPath }></p>
+	} else {
+		if startError != "" {
+			@shared.ErrorText(msgStartFailed.Fmt(ctx, map[string]string{"error": startError}))
+		}
+		for _, linkError := range linkErrors {
+			@shared.ErrorText(msgLinkFailedCreate.Fmt(ctx, map[string]string{"error": linkError}))
+		}
+		@link.Tab(link.Props{Href: boardPath, Class: "btn-secondary self-start", Role: "button"}) {
+			{ msgBoard.T(ctx) }
+		}
+	}
+}
+
+// CreateTitle is the title of the create tab.
+func CreateTitle(ctx context.Context) string {
+	return msgNewTask.T(ctx)
 }
 
 // branchChoices are the base branch options of a create form.

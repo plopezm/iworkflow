@@ -59,7 +59,7 @@ func TestCreateTaskStoresTheChosenRelatedProjectsInOrder(t *testing.T) {
 	assert.Equal(t, []string{web, api}, storedRelated(t, repo, relatedTaskID(t, repo)))
 }
 
-func TestCreateTaskRefusesAnInvalidRelatedProjectAndKeepsTheDialogChoices(t *testing.T) {
+func TestCreateTaskRefusesAnInvalidRelatedProjectAndKeepsTheTab(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	own := insertWorkspace(t, repo.DB, t.TempDir())
@@ -72,8 +72,8 @@ func TestCreateTaskRefusesAnInvalidRelatedProjectAndKeepsTheDialogChoices(t *tes
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Empty(t, recorder.Header().Get("HX-Trigger"), "a rejected form does not refresh the board")
-	assert.Contains(t, body, "proyecto relacionado inválido: no-es-uuid", "the error is shown in the dialog")
-	assert.Contains(t, body, checkedProject(api), "the dialog keeps the project the user ticked")
+	assert.Contains(t, body, "proyecto relacionado inválido: no-es-uuid", "the error is shown in the create tab")
+	assert.NotContains(t, body, "data-dock-leave", "the tab stays open, with the choices the user made")
 	assert.Equal(t, 0, taskCount(t, repo), "nothing is stored from a rejected form")
 }
 

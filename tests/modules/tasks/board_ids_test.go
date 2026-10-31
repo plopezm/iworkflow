@@ -2,7 +2,6 @@ package tasks_test
 
 import (
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -18,7 +17,6 @@ import (
 var (
 	elementIDPattern = regexp.MustCompile(`\sid="([^"]+)"`)
 	targetIDPattern  = regexp.MustCompile(`hx-target="#([^"]+)"|data-toggle-target="([^"]+)"`)
-	createGetPattern = regexp.MustCompile(`hx-get="(/board/tasks/new[^"]*)"`)
 )
 
 // TestTwoOpenBoardsShareNoElementID renders the home board and a workspace board into one document, as the dock
@@ -41,29 +39,31 @@ func TestTwoOpenBoardsShareNoElementID(t *testing.T) {
 	}
 }
 
-// TestEachBoardTargetsOnlyItsOwnElements checks, for each open board and for the create dialog it opens, that every
+// TestEachBoardTargetsOnlyItsOwnElements checks, for each open board and for the create tab it opens, that every
 // htmx target and toggle names an element of the same instance, so htmx never resolves it in another tab.
 func TestEachBoardTargetsOnlyItsOwnElements(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
-	module, router := boardRouter(t, repo)
+	module, _ := boardRouter(t, repo)
 
 	home := renderTab(t, module, "board", dock.Params{})
 	workspace := renderTab(t, module, "board_workspace", dock.Params{"id": workspaceID})
 
-	homeDialog := openDialog(t, router, home)
-	workspaceDialog := openDialog(t, router, workspace)
+	homeDialog := renderTab(t, module, "task_new", dock.Params{})
+	workspaceDialog := renderTab(t, module, "task_new_workspace", dock.Params{"id": workspaceID})
+	assert.Regexp(t, `data-dock-path="/board/[^"]*new"`, home, "the home board opens the create tab")
+	assert.Contains(t, workspace, `data-dock-path="/board/`+workspaceID+`/new"`, "the workspace board opens the create tab of its workspace")
 	document := home + workspace
 
 	assertTargetsResolve(t, "home board", home, document)
 	assertTargetsResolve(t, "workspace board", workspace, document)
-	assertTargetsResolve(t, "home board's create dialog", home+homeDialog, document+homeDialog)
-	assertTargetsResolve(t, "workspace board's create dialog", workspace+workspaceDialog, document+workspaceDialog)
+	assertTargetsResolve(t, "home board's create tab", home+homeDialog, document+homeDialog)
+	assertTargetsResolve(t, "workspace board's create tab", workspace+workspaceDialog, document+workspaceDialog)
 }
 
 // TestScopedRequestsRenderTheIdsOfTheirOwnInstance checks that every board request renders the elements of the instance
-// that asked for it: the list, the create dialog and its answers, and the notice of a card action.
+// that asked for it: the list, the create tab and its answers, and the notice of a card action.
 func TestScopedRequestsRenderTheIdsOfTheirOwnInstance(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
@@ -75,31 +75,14 @@ func TestScopedRequestsRenderTheIdsOfTheirOwnInstance(t *testing.T) {
 	assert.NotContains(t, frame, `id="board-list"`)
 
 	_, list := doRequest(t, router, http.MethodGet, "/board/list?workspace="+workspaceID+"&scope=k3", nil)
-	assert.Contains(t, list, `hx-target="#board-create-slot-k3"`, "the content of the list answers to its own instance")
 	assert.NotContains(t, list, `id="board-list"`)
-
-	_, dialog := doRequest(t, router, http.MethodGet, "/board/tasks/new?workspace="+workspaceID+"&scope=k3", nil)
-	assert.Contains(t, dialog, `hx-post="/board/tasks?scope=k3"`, "the dialog submits to its own instance")
-	assert.Contains(t, dialog, `hx-target="#board-create-slot-k3"`)
-	assert.Contains(t, dialog, `id="board-branch-slot-k3"`)
-	assert.Contains(t, dialog, `id="board-advanced-limits-k3"`)
-	assert.Contains(t, dialog, `data-toggle-target="board-advanced-limits-k3"`)
 
 	_, branches := doRequest(t, router, http.MethodGet, "/board/tasks/branches?workspace_id="+workspaceID+"&scope=k3", nil)
 	assert.Contains(t, branches, `id="board-branch-slot-k3"`, "the branch select replaces its own instance's slot")
 
-	_, closed := doRequest(t, router, http.MethodGet, "/board/tasks/new/close?scope=k3", nil)
-	assert.Contains(t, closed, `id="board-notice-k3" hx-swap-oob="true"`, "the notice is cleared in its own instance")
-
 	_, notice := doRequest(t, router, http.MethodPost, "/board/tasks/not-a-task/delete?scope=k3", nil)
 	assert.Contains(t, notice, `id="board-notice-k3" hx-swap-oob="true"`, "a card action answers in its own instance")
 
-	_, created := doRequest(t, router, http.MethodPost, "/board/tasks?scope=k3", url.Values{
-		"workspace_id": {workspaceID},
-		"prompt":       {"Scoped create"},
-	})
-	assert.Contains(t, created, `id="board-notice-k3" hx-swap-oob="true"`, "a created task reports to its own instance")
-	assert.NotContains(t, created, `id="board-notice"`)
 }
 
 // TestBoardTabTargetsItsOwnListAndSlots checks that the board tab names the same scope in its ids and in the
@@ -117,7 +100,6 @@ func TestBoardTabTargetsItsOwnListAndSlots(t *testing.T) {
 	scope := match[1]
 	assert.Regexp(t, regexp.MustCompile(`hx-get="/board/list\?[^"]*scope=`+scope+`[^"]*"`), board, "the list refreshes with its own scope")
 	assert.Contains(t, board, `hx-target="#board-list-`+scope+`"`)
-	assert.Contains(t, board, `hx-target="#board-create-slot-`+scope+`"`)
 	assert.Contains(t, board, `id="board-notice-`+scope+`"`)
 }
 
@@ -150,11 +132,21 @@ func assertTargetsResolve(t *testing.T, name string, markup string, document str
 	}
 }
 
-// openDialog answers the create request that the board's "New task" button makes, as the browser would send it.
-func openDialog(t *testing.T, router http.Handler, board string) string {
-	t.Helper()
-	match := createGetPattern.FindStringSubmatch(board)
-	require.NotNil(t, match, "the board must offer the create dialog")
-	_, body := doRequest(t, router, http.MethodGet, match[1], nil)
-	return body
+// TestCreateTabNamesItsOwnScopeInIdsAndAddresses checks that the create tab submits to its own instance and that its
+// result, branch slot and toggles carry the same scope.
+func TestCreateTabNamesItsOwnScopeInIdsAndAddresses(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	module, _ := boardRouter(t, repo)
+
+	tab := renderTab(t, module, "task_new_workspace", dock.Params{"id": workspaceID})
+
+	match := regexp.MustCompile(`hx-post="/board/tasks\?scope=([a-z0-9]+)"`).FindStringSubmatch(tab)
+	require.NotNil(t, match, "the create tab submits to its own instance")
+	scope := match[1]
+	assert.Contains(t, tab, `hx-target="#task-create-result-`+scope+`"`)
+	assert.Contains(t, tab, `id="task-create-result-`+scope+`"`)
+	assert.Contains(t, tab, `id="board-branch-slot-`+scope+`"`)
+	assert.Contains(t, tab, `data-toggle-target="board-advanced-limits-`+scope+`"`)
 }

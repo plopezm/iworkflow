@@ -41,13 +41,43 @@ func TestRelatedProjectsFieldRendersOneCheckboxPerWorkspaceWithItsPath(t *testin
 	body := renderRelatedIn(t, i18n.En, components.RelatedProjectsField(projects))
 
 	assert.Contains(t, body, `data-related-projects`)
-	assert.Contains(t, body, `<legend class="text-sm font-medium text-fg">Related projects</legend>`)
+	assert.Contains(t, body, `<span class="text-sm font-medium text-fg">Related projects</span>`)
 	assert.Contains(t, body, "read their files and, when available, their engram and codegraph")
 	input := relatedInput(t, body, "api-id")
 	assert.Contains(t, input, `name="related_project_id"`)
 	assert.Contains(t, input, `value="api-id"`)
 	assert.NotContains(t, input, "checked", "an unchosen project is not checked")
 	assert.Contains(t, body, `<span class="text-xs text-muted">/repos/api</span>`, "the path is shown muted under the name")
+}
+
+func TestRelatedProjectsFieldOffersAButtonAndAClosedDialogWithAFilter(t *testing.T) {
+	t.Parallel()
+	projects := []state.RelatedProjectChoice{{ID: "api-id", Name: "api", Path: "/repos/api"}}
+
+	body := renderRelatedIn(t, i18n.En, components.RelatedProjectsField(projects))
+
+	button := strings.Index(body, `data-related-open`)
+	dialog := strings.Index(body, `data-modal`)
+	filter := strings.Index(body, `data-related-filter`)
+	checkbox := strings.Index(body, `name="related_project_id"`)
+	require.True(t, button >= 0 && dialog >= 0 && filter >= 0 && checkbox >= 0)
+	assert.Less(t, button, dialog, "the button comes before the dialog it opens")
+	assert.Less(t, dialog, filter)
+	assert.Less(t, filter, checkbox, "the filter sits above the list")
+	assert.Contains(t, body, `style="display: none;"`, "the dialog starts closed")
+	assert.Contains(t, body, "Choose projects")
+	assert.Contains(t, body, `placeholder="Filter projects"`)
+	assert.Contains(t, body, `data-related-text="api /repos/api"`, "the filter matches the name and the path")
+}
+
+func TestRelatedProjectsFieldDialogIsLocalised(t *testing.T) {
+	t.Parallel()
+	projects := []state.RelatedProjectChoice{{ID: "api-id", Name: "api", Path: "/repos/api"}}
+
+	body := renderRelatedIn(t, i18n.Es, components.RelatedProjectsField(projects))
+
+	assert.Contains(t, body, "Elegir proyectos")
+	assert.Contains(t, body, "Filtrar proyectos")
 }
 
 func TestRelatedProjectsFieldChecksTheChosenProjects(t *testing.T) {
@@ -101,7 +131,7 @@ func TestCreateDialogPlacesTheRelatedProjectsAfterTheBaseBranchAndBeforeThePromp
 		RelatedProjects: []state.RelatedProjectChoice{{ID: "api-id", Name: "api", Path: "/repos/api", Selected: true}},
 	}
 
-	body := renderRelatedIn(t, i18n.En, components.CreateTaskDialog(form))
+	body := renderRelatedIn(t, i18n.En, components.CreateTaskFields(form))
 
 	branch := strings.Index(body, `name="base_branch"`)
 	related := strings.Index(body, `data-related-projects`)

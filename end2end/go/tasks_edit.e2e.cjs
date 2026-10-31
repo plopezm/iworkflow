@@ -48,15 +48,15 @@ async function openBoard(ctx, name) {
 async function fillDialog(ctx, ws, { title, prompt }) {
   const page = ctx.page;
   await page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-  await page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws} (main)` });
-  if (title) await page.locator('#modal-panel input[name=title]').fill(title);
-  await page.locator('#modal-panel textarea[name=prompt]').fill(prompt);
+  await page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws} (main)` });
+  if (title) await page.locator('form:has(select[name=workspace_id]):visible input[name=title]').fill(title);
+  await page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill(prompt);
 }
 
 // Submits the create dialog and waits until it closes.
 async function submitDialog(ctx) {
-  await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-  await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+  await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
+  await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 }
 
 // Opens the edit tab of the backlog card that shows the prompt.
@@ -79,8 +79,8 @@ module.exports = {
         await openBoard(ctx, ws.name);
         const prompt = `adjunto-${tag}`;
         await fillDialog(ctx, ws.name, { prompt });
-        await ctx.page.locator('#modal-panel input[type=file]').first().setInputFiles({ name: `captura-${tag}.png`, mimeType: 'image/png', buffer: PNG });
-        await ctx.page.locator(`#modal-panel img[alt="captura-${tag}.png"]`).first().waitFor({ timeout: 10000 });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible input[type=file]').first().setInputFiles({ name: `captura-${tag}.png`, mimeType: 'image/png', buffer: PNG });
+        await ctx.page.locator(`form:has(select[name=workspace_id]):visible img[alt="captura-${tag}.png"]`).first().waitFor({ timeout: 10000 });
         await submitDialog(ctx);
         await ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first().waitFor({ timeout: 10000 });
         await openEditFromCard(ctx, prompt);
@@ -112,8 +112,8 @@ module.exports = {
         execSync(`git -C '${ws.dir}' branch rama-extra-${tag}`, { stdio: 'ignore' });
         await openBoard(ctx, ws.name);
         await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
-        const select = ctx.page.locator('#modal-panel select[name=base_branch]');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        const select = ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=base_branch]');
         await select.waitFor({ timeout: 15000 });
         const started = Date.now();
         let listed = false;

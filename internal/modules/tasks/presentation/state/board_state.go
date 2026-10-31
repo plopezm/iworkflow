@@ -219,9 +219,25 @@ func ChooseWorkspace(requested string, workspaces []dto.WorkspaceOptionDTO) Work
 	return WorkspaceChoice{Kind: ChoiceMissing, ID: requested}
 }
 
-// BoardPath is the address of the board of a workspace.
+// BoardPath is the address of the board of a workspace; without one it is the home board.
 func BoardPath(workspaceID string) string {
+	if workspaceID == "" {
+		return "/"
+	}
 	return "/board/" + workspaceID
+}
+
+// NewTaskPath is the address of the create tab for a workspace; an empty workspace opens it with none chosen.
+func NewTaskPath(workspaceID string) string {
+	if workspaceID == "" {
+		return "/board/new"
+	}
+	return "/board/" + workspaceID + "/new"
+}
+
+// NewLinkedTaskPath is the address of the create tab of a task linked to an anchor task: kind is "next" or "parallel".
+func NewLinkedTaskPath(workspaceID string, kind string, anchorID string) string {
+	return NewTaskPath(workspaceID) + "/" + kind + "/" + anchorID
 }
 
 // TaskPath is the address of the detail of a task.

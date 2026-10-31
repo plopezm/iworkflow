@@ -60,7 +60,7 @@ func listAddress(base string, scope string, workspaceID string, showCompleted bo
 // CreateForm is the state of the create dialog: what the user typed and the error to show. A linked create
 // carries the link (LinkKind is "next" or "parallel", LinkAnchor the task it is linked to).
 type CreateForm struct {
-	// Scope names the elements of the board instance that opened the dialog (see Scoped).
+	// Scope names the elements of the create page instance (see Scoped).
 	Scope         string
 	Workspaces    []dto.WorkspaceOptionDTO
 	WorkspaceID   string
@@ -80,6 +80,8 @@ type CreateForm struct {
 	// RelatedProjects are the workspaces the task may relate to, with the ones the user chose marked.
 	RelatedProjects []RelatedProjectChoice
 	Error           string
+	// BoardPath is where the page goes on cancel (the board of the workspace, or the home board).
+	BoardPath string
 }
 
 // DefaultPriority is the priority the create dialog selects first.
