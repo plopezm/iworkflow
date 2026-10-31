@@ -197,3 +197,14 @@ func TestTheFilesTabOfATaskEmbedsTheProjectTree(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NotContains(t, rec.Body.String(), "no están disponibles")
 }
+
+func TestTranscriptionsEndpointIsMountedAndReportsAMissingModel(t *testing.T) {
+	request := httptest.NewRequest(http.MethodPost, "/transcriptions", strings.NewReader("not a wav"))
+	rec := httptest.NewRecorder()
+
+	newRouter(t).ServeHTTP(rec, request)
+
+	// The body is rejected before the (absent) model is looked for: the route exists and answers JSON.
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
+}

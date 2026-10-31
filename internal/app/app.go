@@ -38,6 +38,7 @@ import (
 	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
 	terminaldi "iworkflow/internal/modules/terminal/infrastructure/di"
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
+	transcriptiondi "iworkflow/internal/modules/transcription/infrastructure/di"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
 	workspacespages "iworkflow/internal/modules/workspaces/presentation/pages"
 )
@@ -59,16 +60,17 @@ type Deps struct {
 
 // App is the assembled server: the router and the modules it mounts.
 type App struct {
-	logger     *slog.Logger
-	staticDir  string
-	guard      *prefsinbound.AccessGuard
-	prefs      *prefsdi.Module
-	workspaces *workspacesdi.Module
-	terminal   *terminaldi.Module
-	tasks      *tasksdi.Module
-	loops      *taskLoops
-	modules    []web.Module
-	dock       *dock.Handlers
+	logger        *slog.Logger
+	staticDir     string
+	guard         *prefsinbound.AccessGuard
+	prefs         *prefsdi.Module
+	workspaces    *workspacesdi.Module
+	transcription *transcriptiondi.Module
+	terminal      *terminaldi.Module
+	tasks         *tasksdi.Module
+	loops         *taskLoops
+	modules       []web.Module
+	dock          *dock.Handlers
 }
 
 // New composes the modules. The order matters only for the ports the modules share: the workspaces
@@ -172,6 +174,11 @@ func New(deps Deps) (*App, error) {
 		Workspaces: &jiraWorkspaceCatalog{list: workspaces.List, get: workspaces.Get},
 	})
 
+	transcription := transcriptiondi.NewModule(transcriptiondi.Deps{
+		ModelDir: deps.Config.ASRModelDir,
+		Logger:   deps.Logger,
+	})
+
 	routes := make([]dock.Route, 0, 24)
 	// The board owns the home address, so it precedes the not-migrated catch-alls below.
 	routes = append(routes, tasks.Tabs()...)
@@ -190,16 +197,17 @@ func New(deps Deps) (*App, error) {
 	}
 
 	return &App{
-		logger:     deps.Logger,
-		staticDir:  deps.StaticDir,
-		guard:      guard,
-		prefs:      prefs,
-		workspaces: workspaces,
-		terminal:   terminal,
-		tasks:      tasks,
-		loops:      newTaskLoops(),
-		modules:    []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule},
-		dock:       dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
+		logger:        deps.Logger,
+		staticDir:     deps.StaticDir,
+		guard:         guard,
+		prefs:         prefs,
+		workspaces:    workspaces,
+		transcription: transcription,
+		terminal:      terminal,
+		tasks:         tasks,
+		loops:         newTaskLoops(),
+		modules:       []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule, transcription},
+		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }
 
@@ -221,6 +229,7 @@ func (a *App) shutdownSteps() []shutdownStep {
 		{name: "wait for the worktree removals", run: func(ctx context.Context) error { a.tasks.WaitWorktreeCleanup(ctx); return nil }},
 		{name: "persist the agent events", run: func(context.Context) error { a.tasks.FlushEvents(); return nil }},
 		{name: "close the agent event queue", run: func(context.Context) error { a.tasks.ShutdownEvents(); return nil }},
+		{name: "free the transcription model", run: a.transcription.Shutdown},
 		{name: "shutdown terminals", run: a.terminal.Shutdown},
 	}
 }
