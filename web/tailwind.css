@@ -707,7 +707,7 @@ select optgroup,
   pointer-events: none;
 }
 .composer textarea {
-  @apply w-full min-h-[4.5rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
+  @apply w-full min-h-[9rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
 }
 
 /* ── Composer autocomplete ──────────────────────── */
@@ -758,6 +758,16 @@ select optgroup,
 }
 .composer-mic[aria-pressed='true'] {
   @apply border-error text-error;
+}
+/* Touch screens give a textarea no native resize handle: the grip stretches it (composer_resize.js). */
+.composer-grip {
+  @apply absolute bottom-1 right-1 hidden h-7 w-7 touch-none cursor-row-resize rounded-md border border-border bg-surface;
+  background-image: linear-gradient(135deg, transparent 45%, var(--color-muted) 45% 55%, transparent 55%);
+}
+@media (pointer: coarse) {
+  .composer-grip {
+    display: block;
+  }
 }
 .composer-mic-time {
   @apply font-mono text-xs tabular-nums;

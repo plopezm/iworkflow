@@ -19,6 +19,7 @@ func NewServerRuntime(info listen.Info) *ServerRuntime {
 func (r *ServerRuntime) Status() models.ServerStatus {
 	return models.ServerStatus{
 		Port:          r.info.Addr.Port(),
+		TLSPort:       r.info.TLSPort,
 		Exposed:       r.info.IsExposed(),
 		LockedByEnv:   r.info.LockedByEnv,
 		TokenRequired: r.info.TokenRequired,

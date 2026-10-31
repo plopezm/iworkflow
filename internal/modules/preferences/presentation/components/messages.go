@@ -117,6 +117,20 @@ var (
 		De: "Scanne diesen Code mit dem Smartphone, um iworkflow zu öffnen:",
 		Fr: "Scannez ce code avec votre téléphone pour ouvrir iworkflow :",
 	}
+	secureTitle = i18n.Msg{
+		En: "HTTPS (recommended: the microphone works)",
+		Es: "HTTPS (recomendado: el micrófono funciona)",
+		Zh: "HTTPS（推荐：麦克风可用）",
+		De: "HTTPS (empfohlen: das Mikrofon funktioniert)",
+		Fr: "HTTPS (recommandé : le microphone fonctionne)",
+	}
+	plainTitle = i18n.Msg{
+		En: "Plain HTTP (the microphone is not available)",
+		Es: "HTTP plano (el micrófono no está disponible)",
+		Zh: "普通 HTTP（麦克风不可用）",
+		De: "Einfaches HTTP (das Mikrofon ist nicht verfügbar)",
+		Fr: "HTTP simple (le microphone n'est pas disponible)",
+	}
 	interfaceLabel = i18n.Msg{
 		En: "Network interface",
 		Es: "Interfaz de red",

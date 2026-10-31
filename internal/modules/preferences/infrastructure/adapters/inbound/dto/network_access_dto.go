@@ -11,6 +11,10 @@ type AccessTargetDTO struct {
 	AccessURL string `json:"access_url"`
 	// QRSVG is the inline SVG of the QR code for AccessURL.
 	QRSVG *string `json:"qr_svg"`
+	// SecureURL is the same link over HTTPS; empty when the server has no HTTPS listener.
+	SecureURL string `json:"secure_url"`
+	// SecureQRSVG is the inline SVG of the QR code for SecureURL.
+	SecureQRSVG *string `json:"secure_qr_svg"`
 }
 
 // NetworkAccessDTO is what the settings card needs to show and toggle network access.

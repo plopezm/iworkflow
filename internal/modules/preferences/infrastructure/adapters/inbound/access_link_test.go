@@ -28,3 +28,7 @@ func TestIPv6HostsAreBracketed(t *testing.T) {
 	require.Equal(t, "http://[fd00::1]:9000", inbound.BuildAccessURL("fd00::1", 9000, nil))
 	require.Equal(t, "http://[fd00::1]:9000", inbound.BuildAccessURL("[fd00::1]", 9000, nil))
 }
+
+func TestSchemeURLUsesTheGivenScheme(t *testing.T) {
+	require.Equal(t, "https://192.168.1.5:9443", inbound.BuildSchemeURL("https", "192.168.1.5", 9443, nil))
+}

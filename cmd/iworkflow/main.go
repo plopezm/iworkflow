@@ -211,6 +211,15 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		LockedByEnv:   locked,
 		TokenRequired: !addr.Addr().IsLoopback() && prefs.RequireToken,
 	}
+	// HTTPS is opt-in and runs next to the plain HTTP listener: browsers only expose the microphone of the voice
+	// dictation in a secure context, while the desktop app keeps using HTTP.
+	secure, err := secureListener(os.Getenv, cfg.DatabaseURL, addr, listenOn)
+	if err != nil {
+		return err
+	}
+	if secure != nil {
+		info.TLSPort = secure.port
+	}
 
 	application, err := app.New(app.Deps{
 		DB:          handle,
@@ -227,11 +236,23 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	// The modules release what they hold once serving has ended. The release is registered only after the bind has
 	// succeeded: a failed bind has started nothing, and a failed start releases inside bindThenStart.
 	release := func() { shutdownApplication(ctx, logger, application) }
+	listeners := []net.Listener{}
 	listener, err := bindThenStart(ctx, addr.String(), listenOn, application.Start, release)
 	if err != nil {
 		return err
 	}
 	defer release()
+	listeners = append(listeners, listener)
+	if secure != nil {
+		tlsListener, tlsErr := secure.open(ctx)
+		if tlsErr != nil {
+			_ = listener.Close()
+			return tlsErr
+		}
+		listeners = append(listeners, tlsListener)
+		logger.Info("listening", "url", "https://"+secure.addr.String())
+		logger.Info("serving HTTPS next to HTTP", "https_port", secure.port)
+	}
 	logAccess(ctx, logger, info, prefs)
 	logger.Info("listening", "url", "http://"+addr.String())
 	if options.OpenBrowser {
@@ -245,7 +266,7 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		Handler:           application.Router(),
 		ReadHeaderTimeout: readHeaderLimit,
 	}
-	return serveUntilStopped(ctx, logger, server, listener, restartHandle)
+	return serveUntilStopped(ctx, logger, server, listeners, restartHandle)
 }
 
 // bindFunc opens the listener of the server, startFunc starts the application.
@@ -320,6 +341,9 @@ func logAccess(ctx context.Context, logger *slog.Logger, info listen.Info, prefs
 		host = ip.String()
 	}
 	logger.Info("access token", "token", prefs.Token.Value(), "link", app.AccessLink(host, info.Addr.Port(), prefs.Token))
+	if info.TLSPort != 0 {
+		logger.Info("access link over HTTPS", "link", app.SecureAccessLink(host, info.TLSPort, prefs.Token))
+	}
 	if info.TokenRequired {
 		logger.Info("network access is protected by a token", "link", app.AccessLink(host, info.Addr.Port(), prefs.Token))
 		return
@@ -331,9 +355,11 @@ func logAccess(ctx context.Context, logger *slog.Logger, info listen.Info, prefs
 
 // serveUntilStopped serves until a signal, a restart request or a serve failure, then shuts down.
 // Open event streams do not end on their own, so the shutdown has a deadline and then forces the close.
-func serveUntilStopped(ctx context.Context, logger *slog.Logger, server *http.Server, listener net.Listener, restartHandle *restart.Handle) error {
-	serveErr := make(chan error, 1)
-	go func() { serveErr <- server.Serve(listener) }()
+func serveUntilStopped(ctx context.Context, logger *slog.Logger, server *http.Server, listeners []net.Listener, restartHandle *restart.Handle) error {
+	serveErr := make(chan error, len(listeners))
+	for _, listener := range listeners {
+		go func() { serveErr <- server.Serve(listener) }()
+	}
 
 	select {
 	case err := <-serveErr:
@@ -350,8 +376,10 @@ func serveUntilStopped(ctx context.Context, logger *slog.Logger, server *http.Se
 		logger.Warn("open connections after the shutdown deadline; forcing the shutdown", "timeout", shutdownTimeout, "error", err)
 		_ = server.Close()
 	}
-	if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
-		return fmt.Errorf("serve: %w", err)
+	for range listeners {
+		if err := <-serveErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("serve: %w", err)
+		}
 	}
 	return nil
 }

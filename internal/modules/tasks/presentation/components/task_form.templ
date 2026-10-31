@@ -292,12 +292,12 @@ templ TaskPromptField(label string, id string, value string, filesPath string) {
 		<label class="text-sm font-medium text-fg" for={ id }>
 			{ label }
 		</label>
-		<div class="composer-field relative">
+		<div class="composer-field relative" data-composer-field>
 			<ul class="composer-menu" role="listbox" aria-label={ msgSuggestions.T(ctx) } data-composer-menu hidden></ul>
 			<textarea
 				id={ id }
 				name="prompt"
-				class="input input-lg min-h-[50vh] resize-y"
+				class="input input-lg resize-y"
 				placeholder={ msgPromptHint.T(ctx) }
 				required
 				data-composer-input
@@ -318,6 +318,7 @@ templ TaskPromptField(label string, id string, value string, filesPath string) {
 				</svg>
 				<span class="composer-mic-time" data-dictation-elapsed hidden></span>
 			</button>
+			<span class="composer-grip" data-composer-grip aria-hidden="true"></span>
 		</div>
 		<div class="stack gap-2 rounded-md border border-border bg-surface p-3 text-sm" data-dictation-panel hidden>
 			<p class="text-muted" role="status" aria-live="polite" data-dictation-status></p>

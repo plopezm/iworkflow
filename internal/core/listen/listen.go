@@ -31,6 +31,8 @@ type Info struct {
 	LockedByEnv bool
 	// TokenRequired means the running server demands the access token (only meaningful while exposed).
 	TokenRequired bool
+	// TLSPort is the port of the HTTPS listener that runs next to the HTTP one; 0 when HTTPS is off.
+	TLSPort uint16
 }
 
 // IsExposed reports whether the server accepts connections from other machines.

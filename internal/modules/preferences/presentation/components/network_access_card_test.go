@@ -151,3 +151,28 @@ func TestErrorFragmentKeepsTheSwapTargetId(t *testing.T) {
 	require.Contains(t, html, `id="network-access"`)
 	require.Contains(t, html, "error de almacenamiento: closed")
 }
+
+func TestTargetOffersHTTPSFirstAndPlainHTTPAsAnOption(t *testing.T) {
+	secure := "<svg>secure</svg>"
+	plain := "<svg>plain</svg>"
+	target := dto.AccessTargetDTO{
+		Interface: "eth0", Address: "192.168.1.5",
+		AccessURL: "http://192.168.1.5:9000", QRSVG: &plain,
+		SecureURL: "https://192.168.1.5:9443", SecureQRSVG: &secure,
+	}
+	html := render(t, components.NetworkTarget(&target, false))
+
+	require.Contains(t, html, "https://192.168.1.5:9443")
+	require.Contains(t, html, "http://192.168.1.5:9000")
+	require.Less(t, strings.Index(html, "https://192.168.1.5:9443"), strings.Index(html, "http://192.168.1.5:9000"))
+	require.Less(t, strings.Index(html, secure), strings.Index(html, plain))
+	require.NotContains(t, html, "<details open")
+}
+
+func TestTargetWithoutHTTPSShowsOnlyTheHTTPLink(t *testing.T) {
+	target := dto.AccessTargetDTO{Interface: "eth0", Address: "192.168.1.5", AccessURL: "http://192.168.1.5:9000"}
+	html := render(t, components.NetworkTarget(&target, false))
+
+	require.Contains(t, html, "http://192.168.1.5:9000")
+	require.NotContains(t, html, "<details")
+}

@@ -65,3 +65,8 @@ func LoadPreferences(ctx context.Context, db *sql.DB, logger *slog.Logger) (Pref
 func AccessLink(host string, port uint16, token prefsmodels.AccessToken) string {
 	return prefsinbound.BuildAccessURL(host, port, &token)
 }
+
+// SecureAccessLink is AccessLink over HTTPS, for the HTTPS listener.
+func SecureAccessLink(host string, port uint16, token prefsmodels.AccessToken) string {
+	return prefsinbound.BuildSchemeURL("https", host, port, &token)
+}

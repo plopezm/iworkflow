@@ -173,6 +173,9 @@ Environment variables (`.env` is supported, see `.env.example`):
 | `IWF_AGENTS_FILES_DIR` | `agents-files` next to the database (`AGENTS.md` library) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contains `profiles.json` and `models.json`) |
 | `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (one `<role>.md` per agent role) |
+| `IWF_TLS` | unset (plain HTTP). `auto` serves HTTPS with a self-signed certificate created in `tls/` next to the database and reused (see [HTTPS](#https)) |
+| `IWF_TLS_PORT` | HTTP port + 443 (HTTPS listener port when TLS is on) |
+| `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key; set both or neither. They win over `IWF_TLS=auto` |
 
 The default data directories (`attachments`, `agents-files`, `cursor-sessions`) hang off the database folder: if you change `IWF_DATABASE_URL`, they move with it. On Windows the home directory is taken from `USERPROFILE` when `HOME` is missing.
 
@@ -182,6 +185,20 @@ The prompt field of the create and edit task forms has a microphone button. Reco
 
 1. `make model` downloads the pre-converted model (about 840 MB) into `~/.iworkflow/models/` (or `IWF_ASR_MODEL_DIR`) and verifies it against the sha256 sums pinned in `asr-model.sha256`.
 2. The speech recognizer is the only cgo code in the project, behind the `sherpa` build tag. `make build`, `make dev` and `make dist` enable it (`GO_TAGS=sherpa`); `make build GO_TAGS=` gives a CGO-free binary where dictation answers "not available". `make dist` also copies the sherpa-onnx shared libraries of the current OS next to the binary (`lib/` on Linux and macOS, the same folder on Windows). Only one transcription runs at a time; a second request gets `429` and is retried by the user.
+
+### HTTPS
+
+Browsers expose the microphone (voice dictation) only in a secure context: `https://` or `localhost`. Over plain `http://` on the network the mic button reports that recording is not available. HTTPS is opt-in:
+
+```bash
+make dev-https                 # like make dev, over HTTPS
+make run-https                 # like make run, over HTTPS (after make dist)
+IWF_TLS=auto ./iworkflow       # any other way to start it
+```
+
+With `IWF_TLS=auto` the server creates a self-signed certificate on first use in `~/.iworkflow/tls/` (next to the database), valid for `localhost`, `127.0.0.1` and the machine's network IP. It is reused until it nears expiry (30 days) or the IP changes, and then recreated at the next start. The browser warns about an untrusted certificate: accept it once per device. To use your own certificate, set `IWF_TLS_CERT` and `IWF_TLS_KEY`.
+
+With TLS on the server opens **two listeners** with the same app: HTTP on the usual port (the desktop app keeps using it) and HTTPS on the HTTP port plus 443 (`9000` → `9443`; override with `IWF_TLS_PORT`, 1024–65535). **Settings → Network access** shows the HTTPS link and QR code first, and plain HTTP (no microphone) as a collapsed option. `--addr` / `IWORKFLOW_ADDR` set the HTTP address only; HTTPS uses the same host.
 
 ### Agent runtimes
 

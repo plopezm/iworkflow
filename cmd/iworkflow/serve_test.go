@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/netip"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -127,4 +128,24 @@ func TestVersionIsStampedAtBuildTime(t *testing.T) {
 			assert.Equal(t, tt.want, strings.TrimSpace(string(got)))
 		})
 	}
+}
+
+func TestSecureListenerIsOffWithoutTLSVariables(t *testing.T) {
+	secure, err := secureListener(func(string) string { return "" }, filepath.Join(t.TempDir(), "w.db"), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
+	require.NoError(t, err)
+	assert.Nil(t, secure)
+}
+
+func TestSecureListenerUsesTheHTTPHostAndAShiftedPort(t *testing.T) {
+	env := func(key string) string {
+		if key == "IWF_TLS" {
+			return "auto"
+		}
+		return ""
+	}
+	secure, err := secureListener(env, filepath.Join(t.TempDir(), "w.db"), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
+	require.NoError(t, err)
+	require.NotNil(t, secure)
+	assert.Equal(t, uint16(9443), secure.port)
+	assert.Equal(t, "127.0.0.1:9443", secure.addr.String())
 }

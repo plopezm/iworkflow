@@ -6,9 +6,11 @@
 // menus and keys are delegated from the document, so it works wherever the composer is rendered.
 import { installComposer } from './composer.js';
 import { installDictation } from './dictation.js';
+import { installComposerResize } from './composer_resize.js';
 
 installComposer(document);
 installDictation(document);
+installComposerResize(document);
 
 /** Shows or hides the block a toggle names in data-toggle-target, following the toggle. */
 function toggleBlock(toggle) {
