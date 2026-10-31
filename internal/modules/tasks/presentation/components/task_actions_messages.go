@@ -8,7 +8,7 @@ var (
 	msgActions         = i18n.Msg{En: "Actions", Es: "Acciones", Zh: "操作", De: "Aktionen", Fr: "Actions"}
 	msgSectionAgent    = i18n.Msg{En: "Agent", Es: "Agente", Zh: "智能体", De: "Agent", Fr: "Agent"}
 	msgSectionDanger   = i18n.Msg{En: "Danger zone", Es: "Zona de peligro", Zh: "危险区域", De: "Gefahrenzone", Fr: "Zone dangereuse"}
-	msgFinishAndReview = i18n.Msg{En: "Finish and review", Es: "Finalizar y revisar", Zh: "完成并审查", De: "Abschließen und überprüfen", Fr: "Terminer et réviser"}
+	msgFinishAndReview = i18n.Msg{En: "Finish and review", Es: "Finalizar", Zh: "完成并审查", De: "Abschließen und überprüfen", Fr: "Terminer et réviser"}
 	msgResumeAgent     = i18n.Msg{En: "Resume agent", Es: "Reanudar agente", Zh: "恢复智能体", De: "Agent fortsetzen", Fr: "Reprendre l’agent"}
 	msgAbortRun        = i18n.Msg{En: "Abort run", Es: "Abortar ejecución", Zh: "中止运行", De: "Ausführung abbrechen", Fr: "Interrompre l’exécution"}
 	msgReset           = i18n.Msg{En: "Reset", Es: "Restablecer", Zh: "重置", De: "Zurücksetzen", Fr: "Réinitialiser"}

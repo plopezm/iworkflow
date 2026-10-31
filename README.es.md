@@ -69,7 +69,7 @@ make dev                    # http://127.0.0.1:9000
    - enviar mensajes (prompt si está esperando; *steer* o *follow-up* si está trabajando),
    - responder diálogos del agente (`ask_user_question`, confirmaciones…),
    - abortar la ejecución en curso.
-4. **Finalizar y revisar** → cierra el agente, commitea lo pendiente y muestra el diff.
+4. **Finalizar** → cierra el agente, commitea lo pendiente y muestra el diff.
 5. **Merge** (integra con `--no-ff` y borra el worktree) o **Descartar**.
 
 > **Seguridad:** iworkflow solo se protege con un token compartido sobre HTTP y lanza agentes que ejecutan comandos con tu usuario. No lo expongas a redes no confiables; consulta [Producción](#producción) y [Tailscale](#desarrollar-desde-el-móvil-con-tailscale). El desarrollo escucha en `127.0.0.1:3000`; el script de producción en `0.0.0.0:9000`.

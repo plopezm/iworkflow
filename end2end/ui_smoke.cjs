@@ -114,7 +114,7 @@ let page;
   await page.getByRole('tab', { name: 'Acciones' }).click();
   step('las pestañas del panel de la tarea conservan su estado');
 
-  await page.getByRole('button', { name: 'Finalizar y revisar' }).click();
+  await page.getByRole('button', { name: 'Finalizar' }).click();
   await page.getByText('Pendiente de revisión').first().waitFor();
   step('finalizada: pendiente de revisión');
 

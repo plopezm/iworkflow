@@ -66,7 +66,7 @@ async function liveTask(ctx, key) {
   return t;
 }
 
-// Finaliza la tarea en vivo: responde el diálogo si sigue pendiente y pulsa "Finalizar y revisar".
+// Finaliza la tarea en vivo: responde el diálogo si sigue pendiente y pulsa "Finalizar".
 async function finishedTask(ctx, key) {
   const t = await liveTask(ctx, key);
   const page = ctx.page;
@@ -74,7 +74,7 @@ async function finishedTask(ctx, key) {
   if (await pendingDialog.first().isVisible().catch(() => false)) {
     await page.getByRole('button', { name: 'Sí' }).first().click();
   }
-  await page.getByRole('button', { name: 'Finalizar y revisar' }).click();
+  await page.getByRole('button', { name: 'Finalizar' }).click();
   await page.getByText('Pendiente de revisión').first().waitFor({ timeout: 25000 });
   return t;
 }
