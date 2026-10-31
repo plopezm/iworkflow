@@ -42,6 +42,7 @@ type DetailUseCases struct {
 	Events          HistoryReader
 	ListAttachments AttachmentLister
 	Panels          ProjectPanels
+	CommittedDiff   TaskDiffGetter
 	Start           *application.StartTask
 	Abort           *application.AbortTask
 	Resume          *application.ResumeTask
@@ -97,6 +98,7 @@ func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Get("/tasks/{id}/transcript", h.transcript)
 	r.Get("/tasks/{id}/subagents", h.subagents)
 	r.Get("/tasks/{id}/tabs/{tab}", h.tab)
+	r.Get("/tasks/{id}/changes/{sub}", h.changesSub)
 }
 
 // title is the tab title: the title of the task, or the plain name when the task cannot be read.

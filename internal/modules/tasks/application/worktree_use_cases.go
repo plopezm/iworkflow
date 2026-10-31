@@ -52,6 +52,44 @@ func (u *GetTaskDiff) Execute(ctx context.Context, id models.TaskID) (models.Tas
 	return u.worktrees.Diff(ctx, workspace.Path, task.BaseBranch, task.Branch)
 }
 
+// GetTaskCommittedDiff returns the commits of a task against its base, without the uncommitted changes of its
+// worktree. A merged task is regenerated from the commit range recorded when it was integrated.
+type GetTaskCommittedDiff struct {
+	lifecycle *TaskLifecycle
+	worktrees outbound.Worktree
+}
+
+// NewGetTaskCommittedDiff builds the use case.
+func NewGetTaskCommittedDiff(lifecycle *TaskLifecycle, worktrees outbound.Worktree) *GetTaskCommittedDiff {
+	return &GetTaskCommittedDiff{lifecycle: lifecycle, worktrees: worktrees}
+}
+
+// Execute returns the committed diff of the task.
+func (u *GetTaskCommittedDiff) Execute(ctx context.Context, id models.TaskID) (models.TaskDiff, error) {
+	task, err := u.lifecycle.Load(ctx, id)
+	if err != nil {
+		return models.TaskDiff{}, err
+	}
+	if task.Status == models.StatusMerged && task.DiffRange != nil {
+		workspace, err := u.lifecycle.Workspace(ctx, task.WorkspaceID)
+		if err != nil {
+			return models.TaskDiff{}, err
+		}
+		return u.worktrees.DiffRange(ctx, workspace.Path, *task.DiffRange)
+	}
+	if task.Status.IsClosed() {
+		return models.TaskDiff{}, invalidState("ver diff", task.Status)
+	}
+	if u.worktrees.Exists(ctx, task.WorktreePath) {
+		return u.worktrees.DiffCommitted(ctx, task.WorktreePath, task.BaseBranch)
+	}
+	workspace, err := u.lifecycle.Workspace(ctx, task.WorkspaceID)
+	if err != nil {
+		return models.TaskDiff{}, err
+	}
+	return u.worktrees.Diff(ctx, workspace.Path, task.BaseBranch, task.Branch)
+}
+
 // MergeTask integrates the branch of a task into its base after the manual review, and removes the
 // worktree. A conflict leaves the task in Conflict with its worktree. When the task has an open merge
 // request in the provider, that request is merged remotely (after pushing the pending changes) instead.

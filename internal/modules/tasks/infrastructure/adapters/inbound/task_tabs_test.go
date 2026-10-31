@@ -139,6 +139,80 @@ func TestTaskTabsServeTheChangesOfTheTaskWorktree(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), "changes of task:"+task.ID.String())
 }
 
+// committedDiffFake answers the committed diff of the task, or fails.
+type committedDiffFake struct {
+	diff models.TaskDiff
+	err  error
+}
+
+func (f committedDiffFake) Execute(_ context.Context, _ models.TaskID) (models.TaskDiff, error) {
+	return f.diff, f.err
+}
+
+const committedPatch = "diff --git a/internal/a.go b/internal/a.go\nnew file mode 100644\n--- /dev/null\n+++ b/internal/a.go\n@@ -0,0 +1,2 @@\n+one\n+two\n"
+
+func TestTaskChangesTabOpensOnTheUncommittedSubTabWithItsStrip(t *testing.T) {
+	t.Parallel()
+	task := newRunningTaskForTabs(t)
+	h := newTabsDetailForTest(task, nil, tabsPanelsFake{})
+
+	body := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/tabs/changes?scope=s1").Body.String()
+
+	assert.Contains(t, body, "changes of task:"+task.ID.String())
+	assert.Contains(t, body, `hx-get="/tasks/`+task.ID.String()+`/changes/committed?scope=s1"`)
+	assert.Contains(t, body, "Committed")
+}
+
+func TestTaskChangesCommittedSubTabListsCommitsAndFiles(t *testing.T) {
+	t.Parallel()
+	task := newRunningTaskForTabs(t)
+	h := newTabsDetailForTest(task, nil, tabsPanelsFake{})
+	h.uc.CommittedDiff = committedDiffFake{diff: models.TaskDiff{Commits: []string{"abc123 add a"}, Patch: committedPatch}}
+
+	recorder := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/changes/committed")
+
+	body := recorder.Body.String()
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, "abc123 add a")
+	assert.Contains(t, body, `data-path="internal/a.go"`)
+	assert.Contains(t, body, "/tasks/"+task.ID.String()+"/files/internal/a.go")
+	assert.Contains(t, body, "+2")
+	assert.NotContains(t, body, "changes of task:")
+}
+
+func TestTaskChangesCommittedSubTabSaysWhenThereAreNoCommits(t *testing.T) {
+	t.Parallel()
+	task := newRunningTaskForTabs(t)
+	h := newTabsDetailForTest(task, nil, tabsPanelsFake{})
+	h.uc.CommittedDiff = committedDiffFake{}
+
+	body := serveTabs(t, h, i18n.Es, "/tasks/"+task.ID.String()+"/changes/committed").Body.String()
+
+	assert.Contains(t, body, "Sin commits respecto a la rama base.")
+}
+
+func TestTaskChangesCommittedSubTabHidesTheInternalReadError(t *testing.T) {
+	t.Parallel()
+	task := newRunningTaskForTabs(t)
+	h := newTabsDetailForTest(task, nil, tabsPanelsFake{})
+	h.uc.CommittedDiff = committedDiffFake{err: errors.New("fatal: secret internal path")}
+
+	body := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/changes/committed").Body.String()
+
+	assert.Contains(t, body, "The diff of the task could not be read.")
+	assert.NotContains(t, body, "secret internal path")
+}
+
+func TestTaskChangesRefusesASubTabTheStripDoesNotShow(t *testing.T) {
+	t.Parallel()
+	task := newRunningTaskForTabs(t)
+	h := newTabsDetailForTest(task, nil, tabsPanelsFake{})
+
+	recorder := serveTabs(t, h, i18n.En, "/tasks/"+task.ID.String()+"/changes/other")
+
+	assert.Equal(t, http.StatusNotFound, recorder.Code)
+}
+
 func TestTaskTabsServeTheMergeRequestPanelOfTheTask(t *testing.T) {
 	t.Parallel()
 	task := newRunningTaskForTabs(t)
@@ -202,7 +276,8 @@ func TestDetailTabOpensOnTheActionsTabAndNamesTheOthers(t *testing.T) {
 
 	assert.Contains(t, body, `hx-get="/tasks/`+task.ID.String()+`/tabs/files?scope=`)
 	assert.Contains(t, body, `hx-get="/tasks/`+task.ID.String()+`/tabs/changes?scope=`)
-	assert.Equal(t, 1, strings.Count(body, `aria-selected="true"`))
+	// One selected tab in the strip of the page, and one in the strip of the kept Changes pane.
+	assert.Equal(t, 2, strings.Count(body, `aria-selected="true"`))
 }
 
 func TestTaskTabsAnswerAnInvalidTaskWithoutItsTabs(t *testing.T) {

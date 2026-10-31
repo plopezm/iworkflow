@@ -259,6 +259,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Discard:         discardTask,
 		Delete:          deleteTask,
 		Panels:          deps.Panels,
+		CommittedDiff:   application.NewGetTaskCommittedDiff(lifecycle, worktrees),
 		Merge:           mergeTask,
 		Subagents:       getSubagents,
 	}, clock)

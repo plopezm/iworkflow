@@ -146,6 +146,11 @@ func (c *CachingWorktree) DiffLive(ctx context.Context, worktree string, baseBra
 	return c.inner.DiffLive(ctx, worktree, baseBranch)
 }
 
+// DiffCommitted delegates to the inner worktree: the tip of the worktree moves with every commit of the agent.
+func (c *CachingWorktree) DiffCommitted(ctx context.Context, worktree string, baseBranch string) (models.TaskDiff, error) {
+	return c.inner.DiffCommitted(ctx, worktree, baseBranch)
+}
+
 // DiffFingerprint delegates to the inner worktree.
 func (c *CachingWorktree) DiffFingerprint(ctx context.Context, repo string, baseBranch string, branch string) (string, error) {
 	return c.inner.DiffFingerprint(ctx, repo, baseBranch, branch)
