@@ -19,7 +19,7 @@ Object.assign(globalThis, {
   HTMLTextAreaElement: FakeTextArea,
 });
 
-const { syncOwnProject, installTaskForm, filterRelatedProjects } = await import('./task_form.js');
+const { syncOwnProject, installTaskForm, filterRelatedProjects, mergeFiles, withoutFile } = await import('./task_form.js');
 
 // One related project row: the label that wraps the checkbox, and the checkbox with its workspace id.
 function projectRow(workspaceId, checked = false) {
@@ -228,4 +228,18 @@ test('the related projects filter does not offer the row of the own project, whi
 
   assert.equal(rows[0].hidden, true, 'the filter never unhides it');
   assert.equal(empty.hidden, false, 'with nothing offered the empty note shows');
+});
+
+// Picking images again adds to the ones already chosen instead of replacing them, and a picture picked twice stays once.
+test('mergeFiles keeps the chosen files and adds only the new ones', () => {
+  const a = { name: 'a.png', size: 1, lastModified: 1 };
+  const b = { name: 'b.png', size: 2, lastModified: 2 };
+  const c = { name: 'c.png', size: 3, lastModified: 3 };
+  assert.deepEqual(mergeFiles([a, b], [b, c]), [a, b, c]);
+  assert.deepEqual(mergeFiles([], [a]), [a]);
+});
+
+test('withoutFile drops one file and ignores an index outside the list', () => {
+  assert.deepEqual(withoutFile(['a', 'b', 'c'], 1), ['a', 'c']);
+  assert.deepEqual(withoutFile(['a'], 5), ['a']);
 });
