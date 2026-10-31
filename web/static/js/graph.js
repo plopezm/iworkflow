@@ -223,9 +223,21 @@ export function initGraphCanvases(root = document) {
 	setupLooseTasks(root);
 }
 
+const claimedCanvases = new WeakSet();
+
+/**
+ * Claims a canvas for its setup: true the first time, false afterwards. The claim is kept outside the DOM on
+ * purpose. The board list is morphed on each refresh and a morph removes the attributes the server does not send,
+ * so a flag stored on the element is lost, the canvas is set up again and each of its handlers runs twice.
+ */
+export function claimCanvas(canvas) {
+	if (claimedCanvases.has(canvas)) return false;
+	claimedCanvases.add(canvas);
+	return true;
+}
+
 function setupCanvas(canvas) {
-	if (canvas.dataset.graphInitialized) return;
-	canvas.dataset.graphInitialized = "true";
+	if (!claimCanvas(canvas)) return;
 
 	let viewport = { ...DEFAULT_VIEWPORT };
 	let isPanning = false;

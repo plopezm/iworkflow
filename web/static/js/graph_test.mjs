@@ -12,6 +12,7 @@ import {
 	fitCanvasView,
 	extractEdgeEndpoints,
 	isCanvasVisible,
+	claimCanvas,
 } from "./graph.js";
 
 test("screenToCanvas and canvasToScreen are inverse", () => {
@@ -199,3 +200,17 @@ test("isCanvasVisible returns false when hidden in narrow screen loose tab", () 
 });
 
 
+
+// The board list is morphed on each refresh, and morphing drops attributes the server does not send: a canvas
+// must stay claimed after that, or it is set up again and every click handler runs twice (a selection toggles
+// itself off). The claim lives outside the DOM.
+test("claimCanvas claims a canvas once, even when its attributes are wiped by a morph", () => {
+	const canvas = { dataset: {} };
+
+	assert.equal(claimCanvas(canvas), true);
+	assert.equal(claimCanvas(canvas), false);
+
+	canvas.dataset = {};
+	assert.equal(claimCanvas(canvas), false, "wiping the attributes does not release the claim");
+	assert.equal(claimCanvas({ dataset: {} }), true, "another canvas is claimed on its own");
+});
