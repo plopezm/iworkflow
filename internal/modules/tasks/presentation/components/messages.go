@@ -95,3 +95,18 @@ func priorityLabel(priority string) i18n.Msg {
 		return msgPriorityNormal
 	}
 }
+
+// Texts of the voice dictation of the prompt field (web/static/js/dictation.js). The script reads the translated labels
+// from the data attributes of the composer, so every one of them is rendered there.
+var (
+	msgDictationRecord       = i18n.Msg{En: "Record audio", Es: "Grabar audio", Zh: "录音", De: "Audio aufnehmen", Fr: "Enregistrer l’audio"}
+	msgDictationStop         = i18n.Msg{En: "Stop recording", Es: "Detener la grabación", Zh: "停止录音", De: "Aufnahme beenden", Fr: "Arrêter l’enregistrement"}
+	msgDictationRecording    = i18n.Msg{En: "Recording…", Es: "Grabando…", Zh: "正在录音…", De: "Nehme auf…", Fr: "Enregistrement…"}
+	msgDictationQuestion     = i18n.Msg{En: "Is the recording OK?", Es: "¿Está bien la grabación?", Zh: "录音正常吗？", De: "Ist die Aufnahme in Ordnung?", Fr: "L’enregistrement est-il correct ?"}
+	msgDictationConfirm      = i18n.Msg{En: "Transcribe", Es: "Transcribir", Zh: "转写", De: "Transkribieren", Fr: "Transcrire"}
+	msgDictationDiscard      = i18n.Msg{En: "Discard", Es: "Descartar", Zh: "丢弃", De: "Verwerfen", Fr: "Supprimer"}
+	msgDictationTranscribing = i18n.Msg{En: "Transcribing…", Es: "Transcribiendo…", Zh: "正在转写…", De: "Wird transkribiert…", Fr: "Transcription en cours…"}
+	msgDictationUnsupported  = i18n.Msg{En: "Audio recording is not available here. It needs a secure connection (HTTPS or localhost) and a browser with microphone support.", Es: "La grabación de audio no está disponible aquí. Necesita una conexión segura (HTTPS o localhost) y un navegador con micrófono.", Zh: "此处无法录音。需要安全连接（HTTPS 或 localhost）和支持麦克风的浏览器。", De: "Audioaufnahme ist hier nicht verfügbar. Sie braucht eine sichere Verbindung (HTTPS oder localhost) und einen Browser mit Mikrofonunterstützung.", Fr: "L’enregistrement audio n’est pas disponible ici. Il requiert une connexion sécurisée (HTTPS ou localhost) et un navigateur compatible avec le micro."}
+	msgDictationDenied       = i18n.Msg{En: "Microphone access was denied or is not available.", Es: "Se denegó el acceso al micrófono o no está disponible.", Zh: "麦克风访问被拒绝或不可用。", De: "Der Mikrofonzugriff wurde verweigert oder ist nicht verfügbar.", Fr: "L’accès au micro a été refusé ou n’est pas disponible."}
+	msgDictationError        = i18n.Msg{En: "The recording could not be transcribed. Check it and try again.", Es: "No se pudo transcribir la grabación. Revísala e inténtalo de nuevo.", Zh: "无法转写该录音。请检查后重试。", De: "Die Aufnahme konnte nicht transkribiert werden. Prüfe sie und versuche es erneut.", Fr: "L’enregistrement n’a pas pu être transcrit. Vérifiez-le et réessayez."}
+)

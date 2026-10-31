@@ -18,6 +18,14 @@ github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs
 github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
+github.com/k2-fsa/sherpa-onnx-go v1.13.8 h1:fyX96YdrMmK/DlBrGLmBat3OqRNsnVBFsRK5djCtVSg=
+github.com/k2-fsa/sherpa-onnx-go v1.13.8/go.mod h1:Sq4gTn8pkMsxfFPPFCBjmMzuRzWA8pHQUwW8gOp2OHs=
+github.com/k2-fsa/sherpa-onnx-go-linux v1.13.8 h1:33xcR9pYuD/VZ2luCWP1PJ4uLLeYM0i5GWGgM1lZjP8=
+github.com/k2-fsa/sherpa-onnx-go-linux v1.13.8/go.mod h1:NXEH2rsBgTdqY59YpPq6CtSBlBAXy/8a9FmpLERU97I=
+github.com/k2-fsa/sherpa-onnx-go-macos v1.13.8 h1:TQFOntGvoH+L+9HpmKukq6cDag674W7YQr3680KK0Q8=
+github.com/k2-fsa/sherpa-onnx-go-macos v1.13.8/go.mod h1:ZOhUAXC62Unj0ZNfu6zxSFKcW96aXf7P3BsqiUyOBbE=
+github.com/k2-fsa/sherpa-onnx-go-windows v1.13.8 h1:PjALQ7qHH6wmGyVeHMhGESh+EAtC/24rzZIth4PXcEs=
+github.com/k2-fsa/sherpa-onnx-go-windows v1.13.8/go.mod h1:5AX7TU8+P/gInjglY1ijtWUM2b8iyR0QX4yEngzMe64=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/mfridman/interpolate v0.0.2 h1:pnuTK7MQIxxFz1Gr+rjSIx9u7qVjf5VOoM/u6BbAxPY=

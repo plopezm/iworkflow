@@ -18,6 +18,8 @@ const (
 	defaultWorktreesDir      = "worktrees"
 	defaultAgentsFilesDir    = "agents-files"
 	defaultAttachmentsDir    = "attachments"
+	defaultModelsDir         = "models"
+	defaultASRModelName      = "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
 	defaultGentlePiConfigDir = ".pi/gentle-ai"
 	defaultPiAgentsDir       = ".pi/agent/agents"
 )
@@ -49,6 +51,8 @@ type Config struct {
 	AgentsFilesDir string
 	// AttachmentsDir stores the images attached to tasks.
 	AttachmentsDir string
+	// ASRModelDir is the folder of the pre-converted Qwen3-ASR model that transcribes the recorded prompts.
+	ASRModelDir string
 	// PiAgentsDir holds pi's `<role>.md` agent files.
 	PiAgentsDir string
 }
@@ -76,6 +80,7 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		GentlePiConfigHome: valueOr(getenv("IWF_GENTLE_PI_CONFIG_HOME"), filepath.Join(home, defaultGentlePiConfigDir)),
 		AgentsFilesDir:     subdir("IWF_AGENTS_FILES_DIR", defaultAgentsFilesDir),
 		AttachmentsDir:     subdir("IWF_ATTACHMENTS_DIR", defaultAttachmentsDir),
+		ASRModelDir:        asrModelDir(getenv("IWF_ASR_MODEL_DIR"), databaseURL, dataDir),
 		PiAgentsDir:        valueOr(getenv("IWF_PI_AGENTS_DIR"), filepath.Join(home, defaultPiAgentsDir)),
 	}, nil
 }
@@ -106,4 +111,12 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// asrModelDir is the env value, else the default model inside the models folder next to the database.
+func asrModelDir(envValue, databaseURL, dataDir string) string {
+	if strings.TrimSpace(envValue) != "" {
+		return envValue
+	}
+	return filepath.Join(dataSubdir("", databaseURL, dataDir, defaultModelsDir), defaultASRModelName)
 }

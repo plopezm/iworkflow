@@ -267,13 +267,27 @@ templ TaskEditFields(form state.EditForm) {
 	@ImagePicker()
 }
 
-// TaskPromptField renders the prompt textarea with @ file completion and reference chips, matching the chat composer.
+// TaskPromptField renders the prompt textarea with @ file completion, reference chips and voice dictation, matching the
+// chat composer. The mic records audio and the review panel lets the user listen to it before it is transcribed
+// (web/static/js/dictation.js); the labels the script shows are carried by the data attributes of the root.
 templ TaskPromptField(label string, id string, value string, filesPath string) {
 	<div
 		class="stack gap-1.5 composer"
 		data-composer
 		data-files-path={ filesPath }
 		data-remove-label={ msgRemoveReference.T(ctx) }
+		data-dictation
+		data-dictation-path="/transcriptions"
+		data-label-record={ msgDictationRecord.T(ctx) }
+		data-label-stop={ msgDictationStop.T(ctx) }
+		data-label-recording={ msgDictationRecording.T(ctx) }
+		data-label-question={ msgDictationQuestion.T(ctx) }
+		data-label-confirm={ msgDictationConfirm.T(ctx) }
+		data-label-discard={ msgDictationDiscard.T(ctx) }
+		data-label-transcribing={ msgDictationTranscribing.T(ctx) }
+		data-label-unsupported={ msgDictationUnsupported.T(ctx) }
+		data-label-denied={ msgDictationDenied.T(ctx) }
+		data-label-error={ msgDictationError.T(ctx) }
 	>
 		<label class="text-sm font-medium text-fg" for={ id }>
 			{ label }
@@ -289,6 +303,30 @@ templ TaskPromptField(label string, id string, value string, filesPath string) {
 				data-composer-input
 				data-image-paste
 			>{ value }</textarea>
+			<button
+				type="button"
+				class="composer-mic"
+				aria-label={ msgDictationRecord.T(ctx) }
+				aria-pressed="false"
+				title={ msgDictationRecord.T(ctx) }
+				data-dictation-mic
+			>
+				<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+					<rect x="9" y="3" width="6" height="12" rx="3"></rect>
+					<path d="M5 11a7 7 0 0 0 14 0"></path>
+					<path d="M12 18v3"></path>
+				</svg>
+				<span class="composer-mic-time" data-dictation-elapsed hidden></span>
+			</button>
+		</div>
+		<div class="stack gap-2 rounded-md border border-border bg-surface p-3 text-sm" data-dictation-panel hidden>
+			<p class="text-muted" role="status" aria-live="polite" data-dictation-status></p>
+			<audio class="w-full" controls hidden data-dictation-audio></audio>
+			<p class="font-medium text-fg" data-dictation-question hidden></p>
+			<div class="row flex-wrap gap-2" data-dictation-actions hidden>
+				<button type="button" class="btn-primary" data-dictation-confirm></button>
+				<button type="button" class="btn-ghost" data-dictation-discard></button>
+			</div>
 		</div>
 		<ul class="composer-refs flex flex-wrap gap-1" data-composer-refs hidden></ul>
 	</div>
