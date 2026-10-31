@@ -127,8 +127,6 @@ type Module struct {
 	// The files of the worktrees, read and saved from the diff view.
 	GetFile  *application.GetTaskFile
 	SaveFile *application.SaveTaskFile
-	// GetEvents reads the persisted history of a task after a cursor.
-	GetEvents *application.GetTaskEvents
 	// EventSink is what the agent runtimes report their events to: queued, so that a slow database
 	// never blocks a runtime reader. Flush and ShutdownEvents belong to it.
 	EventSink *application.QueuedAgentEventSink
@@ -324,10 +322,9 @@ func NewModule(deps Deps) (*Module, error) {
 		ListBranches:        application.NewListWorkspaceBranches(lifecycle, worktrees),
 		Lifecycle:           lifecycle,
 		AgentEvents:         agentEvents,
-		GetEvents:           getEvents,
 		EventSink:           eventSink,
 		Subscriber:          bus,
-		Streams:             httpinbound.NewTaskStreams(getTask, getEvents, bus),
+		Streams:             httpinbound.NewTaskStreams(bus),
 		Board:               board,
 		Detail:              detail,
 		Diff:                diff,
@@ -417,7 +414,6 @@ func (d Deps) validate() error {
 // Routes mounts the live streams and the attachment content. It satisfies web.Module, so the composition root
 // mounts it under the same access and token middlewares as the other modules.
 func (m *Module) Routes(r chi.Router) {
-	r.Get(httpinbound.TaskEventsRoute, m.Streams.TaskEvents)
 	r.Get(httpinbound.BoardEventsRoute, m.Streams.BoardEvents)
 	r.Get(httpinbound.AttachmentRoute, m.Attachments.Serve)
 	m.Board.Mount(r)

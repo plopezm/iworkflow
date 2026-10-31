@@ -25,7 +25,7 @@ templ SubagentsBody(view state.SubagentsView) {
 		id={ state.Scoped("task-subagents-body", view.Scope) }
 		class="stack gap-3"
 		hx-get={ state.SubagentsBodyPath(view.TaskID, view.Scope, view.Selected) }
-		hx-trigger="sse:message from:body delay:300ms"
+		hx-trigger={ state.BodyActivityTrigger(view.TaskID) }
 		hx-sync="this:replace"
 		hx-target="this"
 		hx-swap="outerHTML"

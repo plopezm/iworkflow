@@ -380,7 +380,7 @@ func (h *ComposerHandlers) switchMode(ctx context.Context, id models.TaskID, wir
 // the mode unknown, so the switch stays hidden and a message is an ordinary message; the read error is returned so the
 // answer can say so.
 func (h *ComposerHandlers) composerView(ctx context.Context, scope string, id models.TaskID) (state.ComposerView, error) {
-	transcript, _, err := foldHistory(ctx, h.uc.History, id)
+	transcript, err := foldHistory(ctx, h.uc.History, id)
 	if err != nil {
 		return state.ComposerView{Scope: scope, TaskID: id.String()}, err
 	}

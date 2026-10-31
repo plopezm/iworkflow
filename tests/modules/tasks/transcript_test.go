@@ -3,7 +3,6 @@ package tasks_test
 import (
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -63,26 +62,27 @@ func TestTranscriptEndpointShowsAMalformedIdentifierAsAnError(t *testing.T) {
 	assert.NotContains(t, response.Body.String(), "msg-user")
 }
 
-// The page keeps the element that listens to the task stream, and the stream starts after the last persisted
-// message the page already shows. A backlog task has no transcript: it has never run.
-func TestDetailPageOpensTheTaskStreamAfterTheShownHistory(t *testing.T) {
+// The detail page opens no stream of its own (each one would hold a browser connection for good): its transcript
+// listens to the stream of the page, for the activity of its task only. A backlog task has no transcript yet.
+func TestDetailPageSharesThePageStreamInsteadOfOpeningOne(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
 	task := newTask(t, workspaceID, "con-historial", models.StatusIdle)
 	insertTask(t, repo, task)
-	last := recordHistory(t, repo, task.ID, models.UserMessage{Text: "primero"}, models.AssistantMessage{Text: "segundo"})
+	recordHistory(t, repo, task.ID, models.UserMessage{Text: "primero"}, models.AssistantMessage{Text: "segundo"})
 	module, _ := boardRouter(t, repo)
 
 	body := renderDetailTab(t, module, i18n.Es, task.ID.String())
 
-	assert.Contains(t, body, `sse-connect="/api/tasks/`+task.ID.String()+`/events?after=`+strconv.FormatInt(last, 10)+`"`)
+	assert.NotContains(t, body, "sse-connect")
 	assert.Contains(t, body, `hx-get="/tasks/`+task.ID.String()+`/transcript"`)
+	assert.Contains(t, body, `hx-trigger="sse:activity[event.detail.data==&#39;`+task.ID.String()+`&#39;]`)
 	assert.Contains(t, body, "primero")
 	assert.Contains(t, body, "segundo")
 }
 
-func TestDetailPageWithoutHistoryStreamsFromTheBeginning(t *testing.T) {
+func TestDetailPageWithoutHistoryShowsTheEmptyTranscript(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
@@ -92,6 +92,6 @@ func TestDetailPageWithoutHistoryStreamsFromTheBeginning(t *testing.T) {
 
 	body := renderDetailTab(t, module, i18n.Es, task.ID.String())
 
-	assert.Contains(t, body, `sse-connect="/api/tasks/`+task.ID.String()+`/events"`)
+	assert.NotContains(t, body, "sse-connect")
 	assert.Contains(t, body, "Sin actividad todavía.")
 }

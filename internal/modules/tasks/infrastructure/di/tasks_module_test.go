@@ -126,7 +126,7 @@ func TestRoutesMountTheStreamsAndTheAttachmentsAtTheRustPaths(t *testing.T) {
 		got[method+" "+route] = route
 		return nil
 	}))
-	assert.Contains(t, got, http.MethodGet+" /api/tasks/{id}/events")
+	assert.NotContains(t, got, http.MethodGet+" /api/tasks/{id}/events")
 	assert.Contains(t, got, http.MethodGet+" /api/tasks/events")
 	assert.Contains(t, got, http.MethodGet+" /api/tasks/{task_id}/attachments/{attachment_id}")
 }

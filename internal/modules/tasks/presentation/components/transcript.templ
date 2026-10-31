@@ -5,21 +5,20 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// TranscriptPanel is the conversation of the task on its detail page. The scroller opens the task stream after the
-// cursor, and the body inside it listens to the stream: a refresh answers TranscriptBody and morphs only the body, so open details and selections survive, so
-// the element that listens stays in the page and the events that arrive meanwhile are not lost.
+// TranscriptPanel is the conversation of the task on its detail page. It opens no stream: the body listens to the
+// stream of the page (see state.ActivityTrigger), so any number of open tasks share one connection. A refresh answers
+// TranscriptBody and morphs only the body, so open details and selections survive, and the element that listens stays
+// in the page.
 templ TranscriptPanel(view state.TaskDetailView) {
 	<div
 		id={ state.Scoped("task-transcript-scroll", view.Scope) }
 		class="min-h-0 flex-1 overflow-y-auto p-4"
-		hx-ext="sse,morph"
-		sse-connect={ state.TaskEventsPath(view.Task.ID, view.TranscriptCursor) }
 	>
 		<div
 			id={ state.Scoped("task-transcript", view.Scope) }
 			class="transcript stack"
 			hx-get={ state.TranscriptPath(view.Task.ID) }
-			hx-trigger="sse:message delay:300ms"
+			hx-trigger={ state.ActivityTrigger(view.Task.ID) }
 			hx-sync="this:replace"
 			hx-target="this"
 			hx-swap="morph:innerHTML"

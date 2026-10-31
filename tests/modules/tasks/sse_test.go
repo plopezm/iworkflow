@@ -85,12 +85,11 @@ func (r *frameReader) expectNext(t *testing.T, id string, event string, dataCont
 	return next
 }
 
-// streamServer mounts the task and board streams of the module on a local router, the way the composition
+// streamServer mounts the page stream of the module on a local router, the way the composition
 // root will mount them.
 func streamServer(t *testing.T, module *di.Module) *httptest.Server {
 	t.Helper()
 	router := chi.NewRouter()
-	router.Get(inbound.TaskEventsRoute, module.Streams.TaskEvents)
 	router.Get(inbound.BoardEventsRoute, module.Streams.BoardEvents)
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
@@ -120,103 +119,18 @@ func recordTask(t *testing.T, module *di.Module, id models.TaskID, event models.
 	require.NoError(t, module.Lifecycle.Record(bg(), id, event))
 }
 
-// Rust: sse (fresh stream: reset, persisted history with ids, then live events)
-func TestTaskStreamSendsResetHistoryThenLiveEvents(t *testing.T) {
-	t.Parallel()
-	_, module, task := runningTaskWithModule(t)
-	recordTask(t, module, task.ID, models.UserMessage{Text: "uno"})
-	recordTask(t, module, task.ID, models.UserMessage{Text: "dos"})
-	server := streamServer(t, module)
-
-	reader := openStream(t, server.URL+"/api/tasks/"+task.ID.String()+"/events", nil)
-	reader.expectNext(t, "", "reset", "reset")
-	reader.expectNext(t, "1", "message", `"text":"uno"`)
-	reader.expectNext(t, "2", "message", `"text":"dos"`)
-
-	recordTask(t, module, task.ID, models.UserMessage{Text: "en vivo"})
-	reader.expectNext(t, "3", "message", `"text":"en vivo"`)
-}
-
-// Live events that are not persisted carry no id, and events of other tasks are not delivered.
-func TestTaskStreamDeliversOnlyItsOwnLiveEvents(t *testing.T) {
-	t.Parallel()
-	repo, module, task := runningTaskWithModule(t)
-	other := newTask(t, insertWorkspace(t, repo.DB, "/repos/other"), "otra", models.StatusRunning)
-	insertTask(t, repo, other)
-	server := streamServer(t, module)
-
-	reader := openStream(t, server.URL+"/api/tasks/"+task.ID.String()+"/events", nil)
-	reader.expectNext(t, "", "reset", "reset")
-
-	recordTask(t, module, other.ID, models.UserMessage{Text: "ajena"})
-	recordTask(t, module, task.ID, models.TextDelta{Delta: "tecleo"})
-	reader.expectNext(t, "", "message", `"delta":"tecleo"`)
-}
-
-// Rust: sse (Last-Event-ID resumes after the cursor, without a reset and without duplicates)
-func TestTaskStreamResumesAfterLastEventID(t *testing.T) {
-	t.Parallel()
-	_, module, task := runningTaskWithModule(t)
-	for _, text := range []string{"uno", "dos", "tres"} {
-		recordTask(t, module, task.ID, models.UserMessage{Text: text})
-	}
-	server := streamServer(t, module)
-
-	reader := openStream(t, server.URL+"/api/tasks/"+task.ID.String()+"/events", map[string]string{"Last-Event-ID": "1"})
-	reader.expectNext(t, "2", "message", `"text":"dos"`)
-	reader.expectNext(t, "3", "message", `"text":"tres"`)
-
-	recordTask(t, module, task.ID, models.UserMessage{Text: "cuatro"})
-	reader.expectNext(t, "4", "message", `"text":"cuatro"`)
-}
-
-// ?after= is the query alternative; a Last-Event-ID that is not a sequence number is ignored.
-func TestTaskStreamAcceptsAfterQueryAndIgnoresAnInvalidLastEventID(t *testing.T) {
-	t.Parallel()
-	_, module, task := runningTaskWithModule(t)
-	for _, text := range []string{"uno", "dos", "tres"} {
-		recordTask(t, module, task.ID, models.UserMessage{Text: text})
-	}
-	server := streamServer(t, module)
-	url := server.URL + "/api/tasks/" + task.ID.String() + "/events?after=2"
-
-	reader := openStream(t, url, map[string]string{"Last-Event-ID": "not-a-number"})
-	reader.expectNext(t, "3", "message", `"text":"tres"`)
-}
-
-func TestTaskStreamRejectsMalformedAndUnknownTasks(t *testing.T) {
-	t.Parallel()
-	_, module, _ := runningTaskWithModule(t)
-	server := streamServer(t, module)
-
-	bad, err := http.Get(server.URL + "/api/tasks/not-an-id/events")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusBadRequest, bad.StatusCode)
-	require.NoError(t, bad.Body.Close())
-
-	unknown := newTaskID(t)
-	missing, err := http.Get(server.URL + "/api/tasks/" + unknown.String() + "/events")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNotFound, missing.StatusCode)
-	require.NoError(t, missing.Body.Close())
-}
-
 // A subscriber that fell behind is told to reconnect ("lagged") and the stream ends. The client then
-// resumes from its last id, so the events it missed come from the history.
-func TestTaskStreamEndsWithLaggedWhenTheSubscriberOverflowed(t *testing.T) {
+// reconnects, and the "reset" of the new stream makes what it shows refetch, so nothing stays stale.
+func TestPageStreamEndsWithLaggedWhenTheSubscriberOverflowed(t *testing.T) {
 	t.Parallel()
-	_, module, task := runningTaskWithModule(t)
-	recordTask(t, module, task.ID, models.UserMessage{Text: "uno"})
-	overflowed := overflowingSubscriber{}
-	streams := inbound.NewTaskStreams(module.Get, module.GetEvents, overflowed)
+	streams := inbound.NewTaskStreams(overflowingSubscriber{})
 	router := chi.NewRouter()
-	router.Get(inbound.TaskEventsRoute, streams.TaskEvents)
+	router.Get(inbound.BoardEventsRoute, streams.BoardEvents)
 	server := httptest.NewServer(router)
 	t.Cleanup(server.Close)
 
-	reader := openStream(t, server.URL+"/api/tasks/"+task.ID.String()+"/events", nil)
+	reader := openStream(t, server.URL+inbound.BoardEventsRoute, nil)
 	reader.expectNext(t, "", "reset", "reset")
-	reader.expectNext(t, "1", "message", `"text":"uno"`)
 	reader.expectNext(t, "", "lagged", "lagged")
 	_, open := reader.next(t)
 	assert.False(t, open, "the stream must end after lagged")
@@ -239,8 +153,9 @@ func (s closedOverflowed) Events() <-chan models.TaskEvent { return s.events }
 func (closedOverflowed) Overflowed() bool                  { return true }
 func (closedOverflowed) Close()                            {}
 
-// The board stream announces the status changes and removals of any task, and nothing else.
-func TestBoardStreamAnnouncesStatusChangesAndRemovalsOnly(t *testing.T) {
+// The board stream announces the status changes and removals of any task, and an "activity" notice for every
+// other event of any task: it is the only stream a page needs, so the open transcripts share one connection.
+func TestBoardStreamAnnouncesChangesRemovalsAndActivity(t *testing.T) {
 	t.Parallel()
 	_, module, task := runningTaskWithModule(t)
 	server := streamServer(t, module)
@@ -248,9 +163,11 @@ func TestBoardStreamAnnouncesStatusChangesAndRemovalsOnly(t *testing.T) {
 	reader := openStream(t, server.URL+inbound.BoardEventsRoute, nil)
 	reader.expectNext(t, "", "reset", "reset")
 
-	recordTask(t, module, task.ID, models.TextDelta{Delta: "no se anuncia"})
+	recordTask(t, module, task.ID, models.TextDelta{Delta: "no se anuncia como cambio"})
+	reader.expectNext(t, "", "activity", task.ID.String())
 	require.NoError(t, module.Lifecycle.Transition(bg(), task.ID, models.StatusIdle, nil))
 	reader.expectNext(t, "", "changed", task.ID.String())
+	reader.expectNext(t, "", "activity", task.ID.String())
 
 	require.NoError(t, module.Lifecycle.NotifyRemoved(bg(), task.ID))
 	reader.expectNext(t, "", "removed", task.ID.String())

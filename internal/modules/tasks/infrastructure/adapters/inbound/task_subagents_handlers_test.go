@@ -87,7 +87,7 @@ func TestSubagentsPanelRefreshesWhileItStaysOpenAndKeepsTheScope(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), `hx-get="/tasks/`+id+`/subagents?body=1&amp;scope=abc123"`)
-	assert.Contains(t, rec.Body.String(), `hx-trigger="sse:message from:body delay:300ms"`)
+	assert.Contains(t, rec.Body.String(), `hx-trigger="sse:activity[event.detail.data==&#39;`+id+`&#39;] from:body delay:300ms, sse:reset from:body delay:300ms"`)
 	assert.Contains(t, rec.Body.String(), `hx-get="/tasks/`+id+`/subagents?body=1&amp;scope=abc123&amp;selected=s1"`, "each row opens its detail")
 }
 

@@ -25,7 +25,7 @@ func renderTranscript(t *testing.T, component templ.Component) string {
 
 func bodyOf(t *testing.T, events ...dto.TranscriptEventDTO) string {
 	t.Helper()
-	transcript, _ := state.FoldTranscript(events)
+	transcript := state.FoldTranscript(events)
 	return renderTranscript(t, components.TranscriptBody("t1", transcript))
 }
 
@@ -111,18 +111,18 @@ func TestTranscriptBodyShowsTheExitCodeOrItsAbsence(t *testing.T) {
 	assert.Contains(t, bodyOf(t, agentEvent(dto.TranscriptProcessExited{Code: nil})), "Agente detenido (sin código)")
 }
 
-// Rule: the page keeps the element that listens to the task stream and swaps only its body. The stream starts after
-// the cursor and the refresh is asked again on each event, after a short pause.
-func TestTranscriptPanelListensToTheTaskStreamAndSwapsOnlyItsBody(t *testing.T) {
+// Rule: the page keeps the element that listens to the stream of the page and swaps only its body. It opens no stream
+// of its own: each open one would hold a browser connection for good. The refresh is asked again on each event of its
+// task, after a short pause.
+func TestTranscriptPanelListensToThePageStreamAndSwapsOnlyItsBody(t *testing.T) {
 	t.Parallel()
-	cursor := int64(5)
-	view := state.TaskDetailView{Task: dto.TaskDTO{ID: "t-1"}, TranscriptCursor: &cursor}
+	view := state.TaskDetailView{Task: dto.TaskDTO{ID: "t-1"}}
 
 	html := renderTranscript(t, components.TranscriptPanel(view))
 
-	assert.Contains(t, html, `sse-connect="/api/tasks/t-1/events?after=5"`)
+	assert.NotContains(t, html, "sse-connect")
 	assert.Contains(t, html, `hx-get="/tasks/t-1/transcript"`)
-	assert.Contains(t, html, `hx-trigger="sse:message delay:300ms"`)
+	assert.Contains(t, html, `hx-trigger="sse:activity[event.detail.data==&#39;t-1&#39;] delay:300ms, sse:reset delay:300ms"`)
 	assert.Contains(t, html, `hx-swap="morph:innerHTML"`)
 	assert.Contains(t, html, `hx-sync="this:replace"`)
 }

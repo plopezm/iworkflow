@@ -49,7 +49,7 @@ func TestTaskRoutesAreMountedAtTheRustPaths(t *testing.T) {
 		return nil
 	}))
 
-	assert.True(t, routes["GET /api/tasks/{id}/events"], "task events stream")
+	assert.False(t, routes["GET /api/tasks/{id}/events"], "the page shares one stream, tasks have none of their own")
 	assert.True(t, routes["GET /api/tasks/events"], "board events stream")
 	assert.True(t, routes["GET /api/tasks/{task_id}/attachments/{attachment_id}"], "attachment content")
 }

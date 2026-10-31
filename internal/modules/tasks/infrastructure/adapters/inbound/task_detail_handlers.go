@@ -136,12 +136,11 @@ func (h *DetailHandlers) detailTab(ctx context.Context, rawID string) templ.Comp
 // still renders.
 func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Task, notice string) state.TaskDetailView {
 	view := state.TaskDetailView{Scope: scope, Task: dto.TaskFromDomain(task, h.now()), Notice: notice, CanMessage: task.Status.AcceptsMessages()}
-	transcript, cursor, transcriptErr := h.loadTranscript(ctx, task.ID)
+	transcript, transcriptErr := h.loadTranscript(ctx, task.ID)
 	if transcriptErr != nil {
 		view.TranscriptError = transcriptErr.Error()
 	} else {
 		view.Transcript = transcript
-		view.TranscriptCursor = cursor
 	}
 	stored, err := h.uc.ListAttachments.Execute(ctx, task.ID)
 	if err != nil {
@@ -156,23 +155,21 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 }
 
 // loadTranscript reads the history of a task and folds it into the transcript the page shows.
-func (h *DetailHandlers) loadTranscript(ctx context.Context, id models.TaskID) (state.Transcript, *int64, error) {
+func (h *DetailHandlers) loadTranscript(ctx context.Context, id models.TaskID) (state.Transcript, error) {
 	return foldHistory(ctx, h.uc.Events, id)
 }
 
-// foldHistory reads the history of a task and folds it into a transcript. The cursor is the last sequence number of
-// the history, where the live stream resumes.
-func foldHistory(ctx context.Context, history HistoryReader, id models.TaskID) (state.Transcript, *int64, error) {
+// foldHistory reads the history of a task and folds it into a transcript.
+func foldHistory(ctx context.Context, history HistoryReader, id models.TaskID) (state.Transcript, error) {
 	events, err := history.Execute(ctx, id, nil)
 	if err != nil {
-		return state.Transcript{}, nil, fmt.Errorf("read the history of the task: %w", err)
+		return state.Transcript{}, fmt.Errorf("read the history of the task: %w", err)
 	}
 	mapped, err := dto.TranscriptEventsFromDomain(events)
 	if err != nil {
-		return state.Transcript{}, nil, fmt.Errorf("map the history of the task: %w", err)
+		return state.Transcript{}, fmt.Errorf("map the history of the task: %w", err)
 	}
-	transcript, cursor := state.FoldTranscript(mapped)
-	return transcript, cursor, nil
+	return state.FoldTranscript(mapped), nil
 }
 
 // transcript answers the body of the transcript of a task. A failed read is shown in its place.
@@ -182,7 +179,7 @@ func (h *DetailHandlers) transcript(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return
 	}
-	transcript, _, err := h.loadTranscript(r.Context(), id)
+	transcript, err := h.loadTranscript(r.Context(), id)
 	if err != nil {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return

@@ -216,7 +216,7 @@ func (h *DiffHandlers) explained(ctx context.Context, id models.TaskID, scope st
 	if view.Diff.Patch == "" && len(view.Diff.Commits) == 0 {
 		return components.DiffView(view)
 	}
-	transcript, _, err := foldHistory(ctx, h.uc.History, id)
+	transcript, err := foldHistory(ctx, h.uc.History, id)
 	if err != nil {
 		return diffFailure(ctx, id, err)
 	}
@@ -238,7 +238,7 @@ func (h *DiffHandlers) polled(ctx context.Context, id models.TaskID, scope strin
 	if err != nil {
 		return diffFailure(ctx, id, err)
 	}
-	transcript, _, err := foldHistory(ctx, h.uc.History, id)
+	transcript, err := foldHistory(ctx, h.uc.History, id)
 	if err != nil {
 		return diffFailure(ctx, id, err)
 	}

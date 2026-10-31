@@ -59,7 +59,7 @@ func (h *ComposerHandlers) answerDialog(w http.ResponseWriter, r *http.Request) 
 	// reads. Answers to other dialogs do not wait for it.
 	release := h.answers.lock(dialogKey{task: id.String(), dialog: dialogID})
 	defer release()
-	transcript, _, err := foldHistory(ctx, h.uc.History, id)
+	transcript, err := foldHistory(ctx, h.uc.History, id)
 	if err != nil {
 		slog.Error("could not read the history of the dialog", "error", err)
 		web.Render(w, r, http.StatusOK, shared.ErrorText(msgHistoryUnavailable.T(ctx)))

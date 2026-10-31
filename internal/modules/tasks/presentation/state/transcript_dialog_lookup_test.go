@@ -15,7 +15,7 @@ func TestTranscriptDialogFindsTheLatestDialogWithTheID(t *testing.T) {
 	request := func(id, title string) dto.TranscriptEventDTO {
 		return dto.TranscriptEventDTO{Agent: dto.TranscriptDialogRequested{Request: dto.TranscriptDialog{ID: id, Title: title}}}
 	}
-	transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
+	transcript := state.FoldTranscript([]dto.TranscriptEventDTO{
 		request("d1", "primero"),
 		{Agent: dto.TranscriptDialogResolved{DialogID: "d1"}},
 		request("d2", "otro"),

@@ -124,7 +124,7 @@ func TestTranscriptDialogLeftOpenWhenTheTurnEndsIsClosedByTheTurn(t *testing.T) 
 		"status without live agent": transcriptStatus("interrupted", false),
 	}
 	for name, endOfTurn := range cases {
-		transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
+		transcript := state.FoldTranscript([]dto.TranscriptEventDTO{
 			transcriptAgent(transcriptDialog("d1")),
 			endOfTurn,
 		})
@@ -139,7 +139,7 @@ func TestTranscriptDialogLeftOpenWhenTheTurnEndsIsClosedByTheTurn(t *testing.T) 
 // not turn it into an answer.
 func TestTranscriptDialogOpenWhenTheRunSettlesIsClosedByTheTurn(t *testing.T) {
 	t.Parallel()
-	transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
+	transcript := state.FoldTranscript([]dto.TranscriptEventDTO{
 		transcriptAgent(transcriptDialog("d1")),
 		transcriptAgent(dto.TranscriptAssistantMessage{Text: "turno cerrado"}),
 		transcriptAgent(dto.TranscriptRunSettled{}),
@@ -154,7 +154,7 @@ func TestTranscriptDialogOpenWhenTheRunSettlesIsClosedByTheTurn(t *testing.T) {
 // A dialog answered before the turn ends keeps its answer: the turn does not close it.
 func TestTranscriptDialogAnsweredBeforeTheTurnEndsIsNotClosedByTheTurn(t *testing.T) {
 	t.Parallel()
-	transcript, _ := state.FoldTranscript([]dto.TranscriptEventDTO{
+	transcript := state.FoldTranscript([]dto.TranscriptEventDTO{
 		transcriptAgent(transcriptDialog("d1")),
 		transcriptAgent(dto.TranscriptDialogResolved{DialogID: "d1"}),
 		transcriptAgent(dto.TranscriptProcessExited{Code: nil}),

@@ -27,7 +27,7 @@ func dialogRequest(id string, kind dto.TranscriptDialogKind) dto.TranscriptEvent
 // JSON values can be compared as written.
 func dialogBody(t *testing.T, locale i18n.Locale, events ...dto.TranscriptEventDTO) string {
 	t.Helper()
-	transcript, _ := state.FoldTranscript(events)
+	transcript := state.FoldTranscript(events)
 	ctx := i18n.WithState(context.Background(), i18n.State{Locale: locale, Chosen: true})
 	var out bytes.Buffer
 	require.NoError(t, components.TranscriptBody(dialogTestTask, transcript).Render(ctx, &out))

@@ -4,15 +4,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// Rule: the history is folded in order, and the cursor of the live stream is the last sequence number that was
-// persisted; events without a sequence number never move it.
-func TestFoldTranscriptReturnsTheLastPersistedSequenceAsCursor(t *testing.T) {
+// Rule: the history is folded in order; an event that is not persisted (a text delta) still shows as the text being
+// streamed.
+func TestFoldTranscriptFoldsTheHistoryInOrder(t *testing.T) {
 	t.Parallel()
 	first, second := int64(4), int64(9)
 	history := []dto.TranscriptEventDTO{
@@ -21,31 +20,25 @@ func TestFoldTranscriptReturnsTheLastPersistedSequenceAsCursor(t *testing.T) {
 		{Agent: dto.TranscriptTextDelta{Delta: "no persistido"}},
 	}
 
-	transcript, cursor := state.FoldTranscript(history)
+	transcript := state.FoldTranscript(history)
 
-	require.NotNil(t, cursor)
-	assert.Equal(t, int64(9), *cursor)
 	assert.Len(t, transcript.Items, 2)
 	assert.Equal(t, "no persistido", transcript.StreamingText)
 }
 
-func TestFoldTranscriptOfAnEmptyHistoryHasNoCursor(t *testing.T) {
+func TestFoldTranscriptOfAnEmptyHistoryIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	transcript, cursor := state.FoldTranscript(nil)
-
-	assert.Nil(t, cursor)
-	assert.Empty(t, transcript.Items)
+	assert.Empty(t, state.FoldTranscript(nil).Items)
 }
 
-// Rule: the live stream starts after the cursor, so the history the page shows is not sent twice; without a cursor it
-// starts from the beginning.
-func TestTaskEventsPathStartsAfterTheCursor(t *testing.T) {
+// Rule: a task view shares the page stream: it refreshes on the activity of its own task only, and when the stream
+// reconnects.
+func TestActivityTriggerListensToItsOwnTaskAndToReconnections(t *testing.T) {
 	t.Parallel()
-	seq := int64(12)
 
-	assert.Equal(t, "/api/tasks/t-1/events", state.TaskEventsPath("t-1", nil))
-	assert.Equal(t, "/api/tasks/t-1/events?after=12", state.TaskEventsPath("t-1", &seq))
+	assert.Equal(t, "sse:activity[event.detail.data=='t-1'] delay:300ms, sse:reset delay:300ms", state.ActivityTrigger("t-1"))
+	assert.Equal(t, "sse:activity[event.detail.data=='t-1'] from:body delay:300ms, sse:reset from:body delay:300ms", state.BodyActivityTrigger("t-1"))
 }
 
 func TestTranscriptPathAnswersTheBodyOfTheTask(t *testing.T) {
