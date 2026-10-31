@@ -19,7 +19,7 @@ type NetworkAccessDTO struct {
 	Enabled bool `json:"enabled"`
 	// Active reports whether the running server is reachable from other machines right now.
 	Active bool `json:"active"`
-	// LockedByEnv is set when LEPTOS_SITE_ADDR pins the address, so the saved choice has no effect.
+	// LockedByEnv is set when --addr or IWORKFLOW_ADDR pins the address, so the saved choice has no effect.
 	LockedByEnv bool `json:"locked_by_env"`
 	// Port is the port the running server listens on.
 	Port uint16 `json:"port"`

@@ -41,11 +41,11 @@ var (
 		Fr: "Autoriser l'accès depuis d'autres appareils du réseau",
 	}
 	lockedByEnv = i18n.Msg{
-		En: "The address is fixed by the IWORKFLOW_ADDR (LEPTOS_SITE_ADDR) environment variable, so this setting has no effect.",
-		Es: "La dirección está fijada por la variable de entorno IWORKFLOW_ADDR (LEPTOS_SITE_ADDR), así que este ajuste no tiene efecto.",
-		Zh: "地址由环境变量 IWORKFLOW_ADDR (LEPTOS_SITE_ADDR) 固定，因此此设置不起作用。",
-		De: "Die Adresse ist durch die Umgebungsvariable IWORKFLOW_ADDR (LEPTOS_SITE_ADDR) festgelegt, daher hat diese Einstellung keine Wirkung.",
-		Fr: "L'adresse est fixée par la variable d'environnement IWORKFLOW_ADDR (LEPTOS_SITE_ADDR) ; ce réglage n'a donc aucun effet.",
+		En: "The address is fixed by the --addr option or the IWORKFLOW_ADDR environment variable, so this setting has no effect.",
+		Es: "La dirección está fijada por la opción --addr o la variable de entorno IWORKFLOW_ADDR, así que este ajuste no tiene efecto.",
+		Zh: "地址由 --addr 选项或环境变量 IWORKFLOW_ADDR 固定，因此此设置不起作用。",
+		De: "Die Adresse ist durch die Option --addr oder die Umgebungsvariable IWORKFLOW_ADDR festgelegt, daher hat diese Einstellung keine Wirkung.",
+		Fr: "L'adresse est fixée par l'option --addr ou la variable d'environnement IWORKFLOW_ADDR ; ce réglage n'a donc aucun effet.",
 	}
 	restartPending = i18n.Msg{
 		En: "Restart the server to apply the change.",

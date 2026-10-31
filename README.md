@@ -192,17 +192,19 @@ On startup, `iworkflow` opens the web UI in the browser (`http://<host>:<port>` 
 | Argument | Effect |
 |---|---|
 | `--no-open` | Starts only the server, without opening the browser. |
+| `--addr HOST:PORT` | Listen address (also the `IWORKFLOW_ADDR` variable). Pins the address: the saved network settings are ignored. Default `127.0.0.1:3000` (`:9000` when packaged). |
+| `--site-root DIR` | Folder with the static assets. Default: `site/` next to the executable, else `web/static`. |
 | `-h`, `--help` | Shows the help. |
 
-Examples: `./iworkflow --no-open`, `./scripts/prod.sh run --no-open`, `cargo leptos watch -- --no-open`.
+Examples: `./iworkflow --no-open`, `make run ARGS=--no-open`, `make dev ARGS=--no-open`.
 
-In development (`cargo leptos watch`) the server listens only on `127.0.0.1`.
+In development (`make dev`) the server listens only on `127.0.0.1`.
 
 ### Access from other devices
 
-By default the server listens only on `127.0.0.1` (this computer). To reach it from your phone, turn on **Settings → Network access** and restart the server: it then listens on `0.0.0.0` with the same port, and the card shows the address to open on the phone. The choice is stored in the database. The same card lets you change the **server port** (1024–65535, saved in the database and applied on the next start; a packaged server defaults to 9000). If `LEPTOS_SITE_ADDR` is set, it always wins and neither setting has an effect. The card shows a **QR code** and a selector with the machine's network interfaces (for example ethernet and Tailscale, each with its IP): pick the one your phone can reach and scan the code. With the token required, iworkflow opens already signed in; without it, the code just holds the plain address.
+By default the server listens only on `127.0.0.1` (this computer). To reach it from your phone, turn on **Settings → Network access** and restart the server: it then listens on `0.0.0.0` with the same port, and the card shows the address to open on the phone. The choice is stored in the database. The same card lets you change the **server port** (1024–65535, saved in the database and applied on the next start; a packaged server defaults to 9000). If `--addr` or `IWORKFLOW_ADDR` is set, it always wins and neither setting has an effect. The card shows a **QR code** and a selector with the machine's network interfaces (for example ethernet and Tailscale, each with its IP): pick the one your phone can reach and scan the code. With the token required, iworkflow opens already signed in; without it, the code just holds the plain address.
 
-Whenever the server is reachable from the network (this setting, or a non-loopback `LEPTOS_SITE_ADDR` such as the `0.0.0.0:9000` of `scripts/prod.sh`) it demands an **access token** by default:
+Whenever the server is reachable from the network (this setting, or a non-loopback `--addr` such as the `0.0.0.0:9000` of `make dist` / `make run`) it demands an **access token** by default:
 
 - The QR code and the link on the card carry the token (`http://<ip>:<port>/?token=…`) and follow the selected interface. Opening it stores the token in a cookie and redirects to a clean URL, so it does not stay in the address bar or the history. Without the cookie, the server shows a login page where you can paste the token.
 - At startup the server logs that link, which is how you get it on a machine without a browser.
@@ -216,62 +218,61 @@ The token is a shared secret over plain HTTP: on an untrusted network it can be 
 
 ## Production
 
-Prerequisites: the Rust toolchain, `cargo-leptos` (`cargo install cargo-leptos --locked`) and the `wasm32-unknown-unknown` target (`rustup target add wasm32-unknown-unknown`).
+Prerequisites: Go, GNU make, `templ`, `sqlc` and the Tailwind CSS CLI (the same ones as `make generate`).
 
-`scripts/prod.sh` builds and runs the app in release mode:
-
-```bash
-./scripts/prod.sh build     # 1. compile in release and package into dist/
-./scripts/prod.sh run       # 2. start what is already packaged
-./scripts/prod.sh           # both steps in a row (build + run)
-```
-
-Typical flow: run `build` once (and again after every update), then `run` whenever you want to start the server. Arguments after `run` are passed to the binary (e.g. `--no-open`, see [Executable arguments](#executable-arguments)). The server listens on `http://0.0.0.0:9000` by default; change it with `LEPTOS_SITE_ADDR`:
+The Makefile builds and runs the app in release mode:
 
 ```bash
-LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run --no-open
-DIST_DIR=/opt/iworkflow ./scripts/prod.sh build     # package somewhere else
+make dist     # 1. compile in release and package into dist/
+make run      # 2. start what is already packaged
+make prod     # both steps in a row (dist + run)
 ```
 
-`build` runs `cargo leptos build --release` and copies the `iworkflow` binary and the
-`site/` folder (WASM, JS and CSS) into `dist/`. Both are required: without
-`site/` the page is served but does not hydrate.
+Typical flow: run `make dist` once (and again after every update), then `make run` whenever you want to start the server. `ARGS` is passed to the binary (e.g. `ARGS=--no-open`, see [Executable arguments](#executable-arguments)). The server listens on `http://0.0.0.0:9000` by default; change it with `SITE_ADDR`:
 
-`run` exports the Leptos variables (`LEPTOS_SITE_ROOT`, `LEPTOS_ENV=PROD`…) and
-starts the binary from the current directory, so the `.env` in that directory
-is applied too. Variables specific to the script:
+```bash
+make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
+make dist DIST_DIR=/opt/iworkflow     # package somewhere else
+```
+
+`make dist` regenerates templ, sqlc and CSS, builds a stripped `iworkflow` binary and copies
+the static `site/` folder into `dist/`. Both are required.
+
+`make run` starts the binary with `--addr` and `--site-root` from the current directory, so the `.env` in that directory
+is applied too. Make variables:
 
 | Variable | Default |
 |---|---|
 | `DIST_DIR` | `dist/` at the repo root |
-| `LEPTOS_SITE_ADDR` | `0.0.0.0:9000` (all interfaces) |
+| `SITE_ADDR` | `0.0.0.0:9000` (all interfaces) |
+| `ARGS` | none (flags for the binary) |
 
 > **Security:** the app launches agents that run commands as your user. Its only
 > protection is the access token (see [Access from other devices](#access-from-other-devices)),
 > which is demanded whenever the bind is not loopback unless you switch it off, and it travels
 > over plain HTTP. Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
 > reverse proxy with TLS. To limit it to the local machine:
-> `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
+> `make run SITE_ADDR=127.0.0.1:3000`.
 
 To deploy on another machine, just copy `dist/` and launch it with
-`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow`
+`./iworkflow --addr 0.0.0.0:9000`
 from inside that folder.
 
 ## Desktop app (Electron)
 
-For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `scripts/electron.sh` builds an installer for the platform it runs on (Linux: AppImage, macOS: `.dmg`, Windows: NSIS `.exe`). There is no separate "mobile server" to build: the installer already contains the same `iworkflow` binary, so a phone connects to the server running inside the app (see [Using it from your phone](#using-it-from-your-phone)).
+For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `make electron-build` builds an installer for the platform it runs on (Linux: AppImage, macOS: `.dmg`, Windows: NSIS `.exe`). There is no separate "mobile server" to build: the installer already contains the same `iworkflow` binary, so a phone connects to the server running inside the app (see [Using it from your phone](#using-it-from-your-phone)).
 
 ### Build the installer
 
-Prerequisites (once): the ones of [Production](#production) (Rust, `cargo-leptos`, the `wasm32-unknown-unknown` target), `git` and Node.js 22+ with npm. Cross-building is not supported: build each installer on its own platform.
+Prerequisites (once): the ones of [Production](#production), `git` and Node.js 22+ with npm. Cross-building is not supported: build each installer on its own platform.
 
 ```bash
-./scripts/electron.sh build
+make electron-build
 ```
 
 It runs, in order:
 
-1. `scripts/prod.sh build`: `cargo leptos build --release`, leaving the binary and `site/` in `dist/`.
+1. `make dist`: release build, leaving the binary and `site/` in `dist/`.
 2. Copies both into `electron/resources/server/` (outside the asar archive, so the binary stays executable).
 3. `npm ci` and `electron-builder` for the current platform.
 4. Writes the installer to `dist/electron/`: `iworkflow-<version>-linux-x86_64.AppImage`, `iworkflow-<version>-mac-arm64.dmg` (or `mac-x64`) or `iworkflow-<version>-win-x64.exe`.
@@ -279,12 +280,12 @@ It runs, in order:
 Other forms:
 
 ```bash
-SKIP_SERVER_BUILD=1 ./scripts/electron.sh build   # reuse the server already in dist/
-DIST_DIR=/some/dir ./scripts/electron.sh build    # use another server package / output location
-./scripts/electron.sh dev                         # open the window on dist/ without building an installer
+make electron-build SKIP_SERVER_BUILD=1   # reuse the server already in dist/
+make electron-build DIST_DIR=/some/dir    # use another server package / output location
+make electron-dev                         # open the window on dist/ without building an installer
 ```
 
-On macOS the `.dmg` is built for the architecture of the Mac that builds it (Apple Silicon or Intel); it needs the Xcode Command Line Tools. On Windows run it from **Git Bash** (with the MSVC Rust toolchain). The release build of the server takes a few minutes; limit parallelism with `CARGO_BUILD_JOBS=2` on small machines.
+On macOS the `.dmg` is built for the architecture of the Mac that builds it (Apple Silicon or Intel); it needs the Xcode Command Line Tools. On Windows run it from **Git Bash** (with GNU make installed).
 
 ### Run it
 
@@ -303,11 +304,11 @@ The server inside the app is the regular one, so phone access works exactly as i
 2. **Quit the app completely** (tray icon → **Quit and stop server**, or **File → Quit**) and start it again. Closing only the window is not enough: the server keeps running and reads this setting only at startup. It now listens on `0.0.0.0:9000`.
 3. Scan the **QR code** on the same card with the phone (same local network, or the same [Tailscale](#developing-from-your-phone-with-tailscale) tailnet). It opens already signed in with the access token.
 
-You can also pin the address before launching, e.g. `LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow-*.AppImage`; then the saved setting is ignored.
+You can also pin the address before launching, e.g. `IWORKFLOW_ADDR=0.0.0.0:9000 ./iworkflow-*.AppImage`; then the saved setting is ignored.
 
 ### Behaviour
 
-- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `LEPTOS_SITE_ADDR`, same access token. The window signs itself in when a token is required.
+- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `IWORKFLOW_ADDR`, same access token. The window signs itself in when a token is required.
 - The server listens on `127.0.0.1:9000` by default; change the port in **Settings → Network access**. The app reads the address the server announces at startup, so it follows the saved port. If the port is busy the app shows an error; free it or choose another one.
 - **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On macOS the icon lives in the menu bar and clicking the Dock icon shows the window again (**iworkflow → Quit** or Cmd+Q stops the server). On a Linux desktop without tray support, closing the window quits the app.
 - External links open in the system browser; the window itself only shows the local server.
@@ -324,19 +325,19 @@ The app checks the latest GitHub release 15 seconds after start and every 6 hour
 
 ### Release workflow
 
-`.github/workflows/release.yml` builds the server archives and, on the same Linux, macOS (Apple Silicon and Intel) and Windows runners, the desktop installers: it runs the launcher tests (`npm test` in `electron/`), then `scripts/electron.sh build` over the server it just compiled, and uploads `iworkflow-desktop-<platform>`. Pushing a `v*` tag publishes everything in a GitHub release; it can also be started by hand (*Run workflow*). The installer version comes from `electron/package.json`: keep it equal to `Cargo.toml`. The workflow also uploads `latest-linux.yml` / `latest.yml` (and the `.blockmap` files) next to the installers: they are what `electron-updater` reads, so a release without them cannot update Windows or Linux installs. macOS has none.
+`.github/workflows/release.yml` builds the server archives and, on the same Linux, macOS (Apple Silicon and Intel) and Windows runners, the desktop installers: it runs the launcher tests (`npm test` in `electron/`), then `make electron-build` over the server it just compiled, and uploads `iworkflow-desktop-<platform>`. Pushing a `v*` tag publishes everything in a GitHub release; it can also be started by hand (*Run workflow*). The installer version comes from `electron/package.json`: change it with `make bump-version VERSION=x.y.z`. The workflow also uploads `latest-linux.yml` / `latest.yml` (and the `.blockmap` files) next to the installers: they are what `electron-updater` reads, so a release without them cannot update Windows or Linux installs. macOS has none.
 
 ## Developing from your phone with Tailscale
 
 [Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow is protected only by a shared token over plain HTTP and launches agents that run commands as your user.
 
 1. Install Tailscale on the computer that runs iworkflow and on the phone (App Store / Google Play), and sign in to the **same account** on both.
-2. Start the server listening on the Tailscale interface (or all interfaces, which is the default of `scripts/prod.sh`):
+2. Start the server listening on the Tailscale interface (or all interfaces, which is the default of `make dist` / `make run`):
 
    ```bash
-   ./scripts/prod.sh run                                        # binds 0.0.0.0:9000
+   make run                                        # binds 0.0.0.0:9000
    # or only reachable from this machine and the tailnet via Tailscale Serve (see below)
-   LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run --no-open
+   make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
    ```
 
 3. Find the computer's tailnet name or IP:
@@ -372,7 +373,9 @@ make test                                      # go test -p 2 -race ./...
 make vet                                       # go vet ./...
 make lint                                      # golangci-lint run
 make e2e                                       # full browser Playwright e2e suite (or FILTER=<name>)
+make dist                                      # release package (dist/)
 make electron-build                            # package desktop app (dist/electron)
+make bump-version VERSION=x.y.z                # set the app version
 make electron-dev                              # run Electron window in development
 ```
 

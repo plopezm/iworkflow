@@ -27,10 +27,9 @@ import (
 )
 
 const (
-	// defaultSiteAddr is the address the Leptos configuration used; the packaged defaults move it.
+	// defaultSiteAddr is the development address; the packaged defaults move the port.
 	defaultSiteAddr string = "127.0.0.1:3000"
 	defaultSiteRoot string = "web/static"
-	siteRootVar     string = "LEPTOS_SITE_ROOT"
 	readHeaderLimit        = 10 * time.Second
 	shutdownTimeout        = 10 * time.Second
 	exitUsage              = 2
@@ -130,17 +129,17 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		return fmt.Errorf("migrate database: %w", err)
 	}
 
-	siteOptions, err := siteOptionsFromEnv()
+	siteOptions, addrPinned, err := siteOptionsFrom(options)
 	if err != nil {
 		return err
 	}
 	// The bind address is read once at start-up: the saved network-access choice applies after a
-	// restart, and an explicit IWORKFLOW_ADDR (or LEPTOS_SITE_ADDR) always takes precedence.
+	// restart, and an explicit --addr (or IWORKFLOW_ADDR) always takes precedence.
 	prefs, err := app.LoadPreferences(ctx, handle, logger)
 	if err != nil {
 		return fmt.Errorf("load preferences: %w", err)
 	}
-	_, locked := listen.LookupSiteAddr()
+	locked := addrPinned
 	addr := listen.ResolveListenAddr(siteOptions.SiteAddr, locked, prefs.NetworkAccess, prefs.SavedPort)
 	info := listen.Info{
 		Addr:          addr,
@@ -226,21 +225,26 @@ func shutdownApplication(ctx context.Context, logger *slog.Logger, application *
 	}
 }
 
-// siteOptionsFromEnv returns the site settings: the environment wins, then the packaged defaults.
-func siteOptionsFromEnv() (site.Options, error) {
-	value, ok := listen.LookupSiteAddr()
-	if !ok {
+// siteOptionsFrom returns the site settings and whether the address was pinned: the command line
+// wins, then the environment, then the packaged defaults.
+func siteOptionsFrom(options launch.Options) (site.Options, bool, error) {
+	value := options.Addr
+	if value == "" {
+		value, _ = listen.LookupSiteAddr()
+	}
+	pinned := value != ""
+	if !pinned {
 		value = defaultSiteAddr
 	}
 	addr, err := netip.ParseAddrPort(value)
 	if err != nil {
-		return site.Options{}, fmt.Errorf("invalid %s: %w", listen.PrimarySiteAddrVar, err)
+		return site.Options{}, false, fmt.Errorf("invalid listen address (--addr or %s): %w", listen.SiteAddrVar, err)
 	}
 	root := defaultSiteRoot
-	if value, ok := os.LookupEnv(siteRootVar); ok {
-		root = value
+	if options.SiteRoot != "" {
+		root = options.SiteRoot
 	}
-	return site.WithPackagedDefaults(site.Options{SiteRoot: root, SiteAddr: addr}), nil
+	return site.WithPackagedDefaults(site.Options{SiteRoot: root, SiteAddr: addr}, options.SiteRoot != "", pinned), pinned, nil
 }
 
 // logAccess tells the operator how other devices reach the server, and warns when it is open

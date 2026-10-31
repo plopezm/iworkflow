@@ -8,19 +8,24 @@ import (
 	"net/netip"
 	"os/exec"
 	"runtime"
+	"strings"
 )
 
 const (
-	noOpenFlag string = "--no-open"
-	helpFlag   string = "-h"
-	helpLong   string = "--help"
+	noOpenFlag   string = "--no-open"
+	addrFlag     string = "--addr"
+	siteRootFlag string = "--site-root"
+	helpFlag     string = "-h"
+	helpLong     string = "--help"
 )
 
 // Usage is the help text printed with --help.
 const Usage string = "Uso: iworkflow [OPCIONES]\n\n" +
 	"Opciones:\n" +
-	"  --no-open    Arranca solo el servidor, sin abrir la web en el navegador\n" +
-	"  -h, --help   Muestra esta ayuda"
+	"  --no-open            Arranca solo el servidor, sin abrir la web en el navegador\n" +
+	"  --addr DIR:PUERTO    Dirección de escucha (también IWORKFLOW_ADDR); fija el valor y ignora el ajuste guardado\n" +
+	"  --site-root RUTA     Carpeta con los recursos estáticos (por defecto, site/ junto al ejecutable)\n" +
+	"  -h, --help           Muestra esta ayuda"
 
 // ErrBrowserFailed is wrapped when the system opener cannot be started.
 var ErrBrowserFailed = errors.New("no se pudo abrir el navegador")
@@ -39,6 +44,10 @@ func (e *UnknownArgumentError) Error() string {
 type Options struct {
 	// OpenBrowser opens the web UI once the server listens.
 	OpenBrowser bool
+	// Addr is the --addr value; empty when the option was not given.
+	Addr string
+	// SiteRoot is the --site-root value; empty when the option was not given.
+	SiteRoot string
 }
 
 // Command is what the executable should do after reading its arguments: show usage, or run the server.
@@ -49,20 +58,49 @@ type Command struct {
 	Options Options
 }
 
-// Parse reads the arguments (without the executable name). The browser opens by default.
+// MissingValueError reports an option that needs a value and did not get one.
+type MissingValueError struct {
+	Flag string
+}
+
+// Error includes the usage text so the user sees the valid options.
+func (e *MissingValueError) Error() string {
+	return fmt.Sprintf("falta el valor de %s\n\n%s", e.Flag, Usage)
+}
+
+// Parse reads the arguments (without the executable name). The browser opens by default. Valued
+// options accept both `--addr value` and `--addr=value`.
 func Parse(args []string) (Command, error) {
-	openBrowser := true
-	for _, arg := range args {
-		switch arg {
-		case noOpenFlag:
-			openBrowser = false
-		case helpFlag, helpLong:
+	options := Options{OpenBrowser: true}
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		name, value, hasValue := strings.Cut(arg, "=")
+		switch {
+		case arg == noOpenFlag:
+			options.OpenBrowser = false
+		case arg == helpFlag || arg == helpLong:
 			return Command{Help: true}, nil
+		case name == addrFlag || name == siteRootFlag:
+			if !hasValue {
+				if index+1 >= len(args) {
+					return Command{}, &MissingValueError{Flag: name}
+				}
+				index++
+				value = args[index]
+			}
+			if value == "" {
+				return Command{}, &MissingValueError{Flag: name}
+			}
+			if name == addrFlag {
+				options.Addr = value
+			} else {
+				options.SiteRoot = value
+			}
 		default:
 			return Command{}, &UnknownArgumentError{Arg: arg}
 		}
 	}
-	return Command{Options: Options{OpenBrowser: openBrowser}}, nil
+	return Command{Options: options}, nil
 }
 
 // BrowserURL returns the local URL to open for addr. An unspecified address (0.0.0.0, ::) cannot

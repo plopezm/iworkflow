@@ -14,7 +14,7 @@
 //
 // Prerequisites to run against the Go server: the parent wires internal/app with this module and the
 // /settings page (including the Red tab and the Idioma section); the server starts with the same
-// environment as the Rust smoke run (LEPTOS_SITE_ADDR pinned, so the network controls are locked).
+// environment as the previous smoke run (IWORKFLOW_ADDR pinned, so the network controls are locked).
 //
 // Patrones de selector (verificados contra la UI real):
 //   - La barra del agente es un <label class="select-pill"> por control, con un
@@ -25,7 +25,7 @@
 //     (English, Español, 中文, Deutsch, Français), que no se traduce con la UI.
 //
 // ADVERTENCIA (verificación): en el entorno smoke el acceso desde la red está BLOQUEADO
-// porque LEPTOS_SITE_ADDR está fijado (end2end/run_tests.sh). Entonces la tarjeta Red
+// porque IWORKFLOW_ADDR está fijado (end2end/run_tests.sh). Entonces la tarjeta Red
 // es estática: el badge "Solo este equipo", el aviso de bloqueo y un checkbox "Permitir..."
 // DESHABILITADO; el campo de puerto está DESHABILITADO; y la sección de token / el botón
 // "Reiniciar ahora" NO se renderizan (sólo aparecen cuando hay acceso desde la red /
@@ -67,10 +67,10 @@ async function gotoRed(ctx) {
     .waitFor({ timeout: 10000 });
 }
 
-// En el entorno smoke, el acceso desde la red está bloqueado por LEPTOS_SITE_ADDR.
+// En el entorno smoke, el acceso desde la red está bloqueado por IWORKFLOW_ADDR.
 async function isNetworkLocked(ctx) {
   const n = await ctx
-    .page.getByText(/LEPTOS_SITE_ADDR|fijada por la variable de entorno/)
+    .page.getByText(/IWORKFLOW_ADDR|fijada por la variable de entorno/)
     .first()
     .count()
     .catch(() => 0);
@@ -167,11 +167,11 @@ module.exports = {
         await checkbox.waitFor({ timeout: 10000 });
         const deshab = await checkbox.isDisabled();
         if (deshab) {
-          // Entorno bloqueado (LEPTOS_SITE_ADDR): el control existe pero no se puede guardar.
+          // Entorno bloqueado (IWORKFLOW_ADDR): el control existe pero no se puede guardar.
           ctx.assert(deshab, 'se esperaba el control deshabilitado (bloqueado)');
           ctx.assert(
             (await isNetworkLocked(ctx)),
-            'el control está bloqueado pero falta el aviso de bloqueo (LEPTOS_SITE_ADDR)'
+            'el control está bloqueado pero falta el aviso de bloqueo (IWORKFLOW_ADDR)'
           );
           // No se finge una guardación: la afirmación es el estado real (bloqueado).
         } else {
@@ -208,7 +208,7 @@ module.exports = {
         );
         if (deshab) {
           ctx.assert(deshab, 'se esperaba el campo de puerto bloqueado');
-          ctx.assert(await isNetworkLocked(ctx), 'falta el aviso de bloqueo (LEPTOS_SITE_ADDR)');
+          ctx.assert(await isNetworkLocked(ctx), 'falta el aviso de bloqueo (IWORKFLOW_ADDR)');
         } else {
           // Entorno desbloqueado: guarda un puerto único y verifica la reflexión.
           const original = valor;

@@ -8,24 +8,17 @@ import (
 	"net/netip"
 	"os"
 	"path/filepath"
-
-	"iworkflow/internal/core/listen"
 )
 
 const (
-	siteDirName   string = "site"
-	outputName    string = "iworkflow"
-	siteRootVar   string = "LEPTOS_SITE_ROOT"
-	outputNameVar string = "LEPTOS_OUTPUT_NAME"
-	packagedPort  uint16 = 9000
+	siteDirName  string = "site"
+	packagedPort uint16 = 9000
 )
 
 // Options are the site settings the server runs with.
 type Options struct {
 	// SiteRoot is the directory with the static assets.
 	SiteRoot string
-	// OutputName is the base name of the built assets.
-	OutputName string
 	// SiteAddr is the address the server listens on.
 	SiteAddr netip.AddrPort
 }
@@ -40,12 +33,9 @@ func BundledSiteRoot(exeDir string) (string, bool) {
 	return candidate, true
 }
 
-// ApplyPackagedDefaults fills in the options the environment did not set explicitly. An empty
-// exeDir means the executable location is unknown.
-func ApplyPackagedDefaults(options Options, exeDir string, siteRootSet bool, outputNameSet bool) Options {
-	if !outputNameSet {
-		options.OutputName = outputName
-	}
+// ApplyPackagedDefaults replaces the site root with the one bundled next to the executable unless
+// it was set explicitly. An empty exeDir means the executable location is unknown.
+func ApplyPackagedDefaults(options Options, exeDir string, siteRootSet bool) Options {
 	if !siteRootSet && exeDir != "" {
 		if root, ok := BundledSiteRoot(exeDir); ok {
 			options.SiteRoot = root
@@ -54,8 +44,8 @@ func ApplyPackagedDefaults(options Options, exeDir string, siteRootSet bool, out
 	return options
 }
 
-// ApplyPackagedPort moves the listen port to the packaged default unless the environment pinned
-// the address. The host is kept (loopback), so the network-access setting still decides exposure.
+// ApplyPackagedPort moves the listen port to the packaged default unless the address was set
+// explicitly. The host is kept (loopback), so the network-access setting still decides exposure.
 func ApplyPackagedPort(options Options, siteAddrSet bool) Options {
 	if !siteAddrSet {
 		options.SiteAddr = netip.AddrPortFrom(options.SiteAddr.Addr(), packagedPort)
@@ -63,16 +53,13 @@ func ApplyPackagedPort(options Options, siteAddrSet bool) Options {
 	return options
 }
 
-// WithPackagedDefaults applies the packaged defaults using the real environment and executable path.
-func WithPackagedDefaults(options Options) Options {
+// WithPackagedDefaults applies the packaged defaults using the real executable path.
+func WithPackagedDefaults(options Options, siteRootSet bool, siteAddrSet bool) Options {
 	exeDir := ""
 	// Without an executable path the defaults keep the configured site root, as before.
 	if exe, err := os.Executable(); err == nil {
 		exeDir = filepath.Dir(exe)
 	}
-	_, siteRootSet := os.LookupEnv(siteRootVar)
-	_, outputNameSet := os.LookupEnv(outputNameVar)
-	_, siteAddrSet := listen.LookupSiteAddr()
-	options = ApplyPackagedDefaults(options, exeDir, siteRootSet, outputNameSet)
+	options = ApplyPackagedDefaults(options, exeDir, siteRootSet)
 	return ApplyPackagedPort(options, siteAddrSet)
 }
