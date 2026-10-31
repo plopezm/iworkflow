@@ -23,7 +23,7 @@ comma := ,
 # Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
 SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))
 
-.PHONY: model generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-test e2e e2e-smoke
+.PHONY: model generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-dev-https electron-test e2e e2e-smoke
 
 generate: templ sqlc css
 
@@ -119,6 +119,13 @@ electron-dev: build
 	cp bin/$(BIN_FILE) $(DIST_DIR)/$(BIN_FILE)
 	cp -r web/static/* $(DIST_DIR)/site/
 	cd electron && npm ci && IWF_SERVER_DIR="$(abspath $(DIST_DIR))" npx electron .
+
+# Same as electron-dev with HTTPS also served, so other devices can reach the microphone. The window keeps using HTTP.
+electron-dev-https: build
+	mkdir -p $(DIST_DIR)/site
+	cp bin/$(BIN_FILE) $(DIST_DIR)/$(BIN_FILE)
+	cp -r web/static/* $(DIST_DIR)/site/
+	cd electron && npm ci && IWF_TLS=auto IWF_SERVER_DIR="$(abspath $(DIST_DIR))" npx electron .
 
 electron-test:
 	npm --prefix electron test
