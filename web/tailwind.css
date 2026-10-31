@@ -749,6 +749,20 @@ select optgroup,
   @apply cursor-pointer px-1 text-muted hover:text-fg;
 }
 
+/* ── Voice dictation of the prompt ──────────────── */
+.composer-field > textarea {
+  @apply pr-12;
+}
+.composer-mic {
+  @apply absolute right-2 top-2 inline-flex h-8 min-w-8 cursor-pointer items-center justify-center gap-1 rounded-md border border-border bg-surface px-2 text-muted hover:text-fg focus-visible:border-accent focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50;
+}
+.composer-mic[aria-pressed='true'] {
+  @apply border-error text-error;
+}
+.composer-mic-time {
+  @apply font-mono text-xs tabular-nums;
+}
+
 /* ── Diff view ──────────────────────────────────── */
 .diff {
   @apply overflow-x-auto rounded-md border border-border bg-surface p-3 font-mono text-xs whitespace-pre;
