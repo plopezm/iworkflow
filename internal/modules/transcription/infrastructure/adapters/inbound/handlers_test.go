@@ -127,3 +127,39 @@ func TestOtherMethodsAreNotAllowed(t *testing.T) {
 
 	require.Equal(t, http.StatusMethodNotAllowed, recorder.Code)
 }
+
+// blockingTranscriber holds Execute until released, so a second request finds the endpoint busy.
+type blockingTranscriber struct {
+	started chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingTranscriber) Execute(context.Context, application.TranscribeInput) (models.Transcript, error) {
+	close(b.started)
+	<-b.release
+	return models.Transcript{Text: "ok"}, nil
+}
+
+func TestPostAnswersTooManyRequestsWhileAnotherTranscriptionRuns(t *testing.T) {
+	blocking := &blockingTranscriber{started: make(chan struct{}), release: make(chan struct{})}
+	router := chi.NewRouter()
+	router.Use(web.Locale)
+	inbound.NewHandlers(blocking).Routes(router)
+	first := httptest.NewRecorder()
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		router.ServeHTTP(first, httptest.NewRequest(http.MethodPost, inbound.TranscriptionsPath, strings.NewReader("a")))
+	}()
+	<-blocking.started
+
+	second := httptest.NewRecorder()
+	router.ServeHTTP(second, httptest.NewRequest(http.MethodPost, inbound.TranscriptionsPath, strings.NewReader("b")))
+
+	require.Equal(t, http.StatusTooManyRequests, second.Code)
+	require.Equal(t, "5", second.Header().Get("Retry-After"))
+	require.Equal(t, "Another recording is being transcribed. Try again in a moment.", decode(t, second)["error"])
+	close(blocking.release)
+	<-finished
+	require.Equal(t, http.StatusOK, first.Code)
+}

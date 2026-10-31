@@ -21,7 +21,8 @@ const (
 	// TranscriptionsPath is the endpoint the recorder posts the WAV to.
 	TranscriptionsPath = "/transcriptions"
 	// MaxBodyBytes is the largest body read: MaxSeconds of 16 kHz 16-bit mono audio plus the WAV header and slack.
-	MaxBodyBytes = models.MaxSeconds*models.SampleRate*2 + 4096
+	retryAfterSeconds = "5"
+	MaxBodyBytes      = models.MaxSeconds*models.SampleRate*2 + 4096
 )
 
 // transcriber is the use case the handler consumes.
@@ -33,11 +34,14 @@ type transcriber interface {
 type Handlers struct {
 	transcribe transcriber
 	logger     *slog.Logger
+	// running admits one transcription at a time: the model uses every thread it is given, so a queue of waiting
+	// requests would only hold memory and workers while the CPU is saturated. The others are told to come back.
+	running chan struct{}
 }
 
 // NewHandlers builds the handlers. The logger records the failures the user is not told about; nil logs nothing.
 func NewHandlers(transcribe transcriber, logger ...*slog.Logger) *Handlers {
-	handlers := &Handlers{transcribe: transcribe, logger: slog.New(slog.DiscardHandler)}
+	handlers := &Handlers{transcribe: transcribe, logger: slog.New(slog.DiscardHandler), running: make(chan struct{}, 1)}
 	if len(logger) > 0 && logger[0] != nil {
 		handlers.logger = logger[0]
 	}
@@ -51,6 +55,14 @@ func (h *Handlers) Routes(r chi.Router) {
 
 // post reads the WAV body, transcribes it and answers {"text": ...} or {"error": ...}.
 func (h *Handlers) post(w http.ResponseWriter, r *http.Request) {
+	select {
+	case h.running <- struct{}{}:
+		defer func() { <-h.running }()
+	default:
+		w.Header().Set("Retry-After", retryAfterSeconds)
+		h.write(w, http.StatusTooManyRequests, dto.ErrorResponse{Error: msgBusy.T(r.Context())})
+		return
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, int64(MaxBodyBytes))
 	wav, err := io.ReadAll(r.Body)
 	if err != nil {

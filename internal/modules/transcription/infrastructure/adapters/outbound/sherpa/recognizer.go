@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 
 	transcriptionerrors "iworkflow/internal/modules/transcription/domain/errors"
 )
@@ -30,25 +29,45 @@ type engine interface {
 
 // Recognizer loads the model on the first transcription (the model takes seconds and hundreds of MB, so a
 // server that never transcribes never pays for it) and keeps it for the next ones. A failed load is not
-// remembered: downloading the model later makes the next call work.
+// remembered: downloading the model later makes the next call work. After Close it stays unavailable.
 type Recognizer struct {
 	modelDir string
 
-	mu     sync.Mutex
+	// slot is the lock around engine and closed: a one-place channel, so a caller waiting for it can still give up when
+	// its context ends (a sync.Mutex cannot be abandoned).
+	slot   chan struct{}
 	engine engine
+	closed bool
 }
 
 // NewRecognizer builds the adapter for the model folder. It reads nothing until the first Recognize.
 func NewRecognizer(modelDir string) *Recognizer {
-	return &Recognizer{modelDir: modelDir}
+	return &Recognizer{modelDir: modelDir, slot: make(chan struct{}, 1)}
 }
+
+// acquire takes the slot, or returns the error of ctx when it ends first.
+func (r *Recognizer) acquire(ctx context.Context) error {
+	select {
+	case r.slot <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("wait for the recognizer: %w", ctx.Err())
+	}
+}
+
+func (r *Recognizer) release() { <-r.slot }
 
 // Recognize transcribes the samples. Calls run one at a time: the model uses all the threads it is given.
 func (r *Recognizer) Recognize(ctx context.Context, samples []float32, sampleRate int) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	if err := ctx.Err(); err != nil {
 		return "", fmt.Errorf("recognize: %w", err)
+	}
+	if err := r.acquire(ctx); err != nil {
+		return "", err
+	}
+	defer r.release()
+	if r.closed {
+		return "", fmt.Errorf("the recognizer was closed: %w", transcriptionerrors.ErrUnavailable)
 	}
 	if r.engine == nil {
 		loaded, err := r.load()
@@ -64,10 +83,12 @@ func (r *Recognizer) Recognize(ctx context.Context, samples []float32, sampleRat
 	return text, nil
 }
 
-// Close frees the loaded model, if any.
+// Close frees the loaded model, if any, and makes every later Recognize unavailable. It waits for a running
+// transcription to finish.
 func (r *Recognizer) Close() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.slot <- struct{}{}
+	defer r.release()
+	r.closed = true
 	if r.engine != nil {
 		r.engine.close()
 		r.engine = nil
