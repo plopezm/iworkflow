@@ -89,24 +89,22 @@ templ ImagePicker() {
 			<span>{ msgAttach.T(ctx) }</span>
 			<input type="file" name="images" multiple accept={ acceptedImages } class="sr-only" data-image-input/>
 		</label>
-		<div class="flex flex-wrap gap-2" data-image-previews></div>
+		<div class="flex flex-wrap gap-2" data-image-previews data-remove-label={ msgRemoveImage.T(ctx) }></div>
 	</div>
 }
 
-// ExistingAttachments lists the images the task already has. Each one has a checkbox that removes it on save.
+// ExistingAttachments lists the images the task already has. Each one has a button that marks it for removal on save (through a hidden checkbox).
 templ ExistingAttachments(items []dto.TaskAttachmentDTO) {
 	if len(items) > 0 {
 		<fieldset class="stack gap-2">
 			<legend class="text-sm font-medium text-fg">{ msgAttachedImages.T(ctx) }</legend>
 			<div class="flex flex-wrap gap-2">
 				for _, item := range items {
-					<label class="stack items-center gap-1 text-xs text-muted">
+					<div class="relative" data-existing-image>
 						<img src={ item.URL } alt={ item.Name } class="h-16 w-16 rounded object-cover"/>
-						<span class="row items-center gap-1">
-							<input type="checkbox" name="remove_attachment_ids" value={ item.ID } aria-label={ msgRemoveImage.Fmt(ctx, map[string]string{"name": item.Name}) }/>
-							<span>{ msgDelete.T(ctx) }</span>
-						</span>
-					</label>
+						<input type="checkbox" name="remove_attachment_ids" value={ item.ID } class="sr-only" tabindex="-1" aria-hidden="true"/>
+						<button type="button" class="composer-ref-remove absolute -right-1 -top-1" data-existing-image-toggle aria-pressed="false" aria-label={ msgRemoveImage.Fmt(ctx, map[string]string{"name": item.Name}) }>×</button>
+					</div>
 				}
 			</div>
 		</fieldset>

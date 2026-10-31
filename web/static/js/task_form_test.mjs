@@ -19,7 +19,7 @@ Object.assign(globalThis, {
   HTMLTextAreaElement: FakeTextArea,
 });
 
-const { syncOwnProject, installTaskForm, filterRelatedProjects } = await import('./task_form.js');
+const { syncOwnProject, installTaskForm, filterRelatedProjects, mergeFiles, withoutFile, imageLabel } = await import('./task_form.js');
 
 // One related project row: the label that wraps the checkbox, and the checkbox with its workspace id.
 function projectRow(workspaceId, checked = false) {
@@ -228,4 +228,140 @@ test('the related projects filter does not offer the row of the own project, whi
 
   assert.equal(rows[0].hidden, true, 'the filter never unhides it');
   assert.equal(empty.hidden, false, 'with nothing offered the empty note shows');
+});
+
+// Picking images again adds to the ones already chosen instead of replacing them, and a picture picked twice stays once.
+test('mergeFiles keeps the chosen files and adds only the new ones', () => {
+  const a = { name: 'a.png', size: 1, lastModified: 1 };
+  const b = { name: 'b.png', size: 2, lastModified: 2 };
+  const c = { name: 'c.png', size: 3, lastModified: 3 };
+  assert.deepEqual(mergeFiles([a, b], [b, c]), [a, b, c]);
+  assert.deepEqual(mergeFiles([], [a]), [a]);
+});
+
+test('withoutFile drops one file and ignores an index outside the list', () => {
+  assert.deepEqual(withoutFile(['a', 'b', 'c'], 1), ['a', 'c']);
+  assert.deepEqual(withoutFile(['a'], 5), ['a']);
+});
+
+test('imageLabel fills the name as it is, even when it holds replacement patterns', () => {
+  assert.equal(imageLabel('Remove image {name}', 'a$&b.png'), 'Remove image a$&b.png');
+  assert.equal(imageLabel(undefined, 'a.png'), '');
+});
+
+// Stand-ins for the browser pieces the image picker uses: a data transfer, object URLs and the elements it creates.
+const urls = { created: [], revoked: [] };
+globalThis.DataTransfer = class {
+  constructor() {
+    this.list = [];
+    this.items = { add: (file) => this.list.push(file) };
+  }
+  get files() {
+    return this.list;
+  }
+};
+globalThis.URL.createObjectURL = (file) => {
+  urls.created.push(file.name);
+  return `blob:${file.name}`;
+};
+globalThis.URL.revokeObjectURL = (url) => urls.revoked.push(url);
+globalThis.document.createElement = () => {
+  const element = { dataset: {}, attrs: {}, children: [] };
+  element.setAttribute = (name, value) => (element.attrs[name] = value);
+  element.append = (...nodes) => element.children.push(...nodes);
+  return element;
+};
+
+// A picker: the file input, the container of the previews and the button inside a preview that removes it.
+function imagePicker() {
+  const previews = { dataset: { removeLabel: 'Remove {name}' }, children: [] };
+  previews.replaceChildren = (...nodes) => (previews.children = nodes);
+  const picker = { querySelector: (selector) => (selector === '[data-image-previews]' ? previews : input) };
+  const input = Object.assign(new FakeInput(), {
+    files: [],
+    matches: (selector) => selector === '[data-image-input]',
+    closest: (selector) => (selector === '[data-image-picker]' ? picker : null),
+  });
+  const removeButton = (index) => ({
+    closest: (selector) => (selector === '[data-image-remove]' ? { dataset: { imageRemove: String(index) }, closest: () => picker } : null),
+  });
+  return { input, previews, picker, removeButton };
+}
+
+const named = (name) => ({ name, size: name.length, lastModified: 1 });
+
+test('picking images again keeps the ones already chosen and shows a removable preview for each', () => {
+  const doc = documentWith();
+  installTaskForm(doc);
+  const { input, previews } = imagePicker();
+
+  input.files = [named('a.png')];
+  doc.dispatch('change', { target: input });
+  input.files = [named('b.png')];
+  doc.dispatch('change', { target: input });
+
+  assert.deepEqual(input.files.map((f) => f.name), ['a.png', 'b.png']);
+  assert.equal(previews.children.length, 2);
+  assert.equal(previews.children[1].children[1].attrs['aria-label'], 'Remove b.png');
+});
+
+test('the remove button of a preview drops that image and releases the object URLs of the previews it replaces', () => {
+  const doc = documentWith();
+  installTaskForm(doc);
+  const { input, previews, removeButton } = imagePicker();
+  input.files = [named('a.png'), named('b.png')];
+  doc.dispatch('change', { target: input });
+  urls.revoked.length = 0;
+
+  doc.dispatch('click', { target: removeButton(0) });
+
+  assert.deepEqual(input.files.map((f) => f.name), ['b.png']);
+  assert.equal(previews.children.length, 1);
+  assert.deepEqual(urls.revoked, ['blob:a.png', 'blob:b.png']);
+});
+
+test('resetting the form empties the picker so the next pick starts from nothing', () => {
+  const doc = documentWith();
+  installTaskForm(doc);
+  const { input, previews } = imagePicker();
+  input.files = [named('a.png')];
+  doc.dispatch('change', { target: input });
+
+  urls.revoked.length = 0;
+  doc.dispatch('reset', { target: { querySelectorAll: () => [input] } });
+  assert.deepEqual(urls.revoked, ['blob:a.png'], 'the object URLs of the previews are released');
+  assert.equal(previews.children.length, 0);
+  input.files = [named('b.png')];
+  doc.dispatch('change', { target: input });
+
+  assert.deepEqual(input.files.map((f) => f.name), ['b.png']);
+  assert.equal(previews.children.length, 1);
+});
+
+test('the button of an image the task already has marks it for removal and a second press undoes it', () => {
+  const doc = documentWith();
+  installTaskForm(doc);
+  const classes = new Set();
+  const checkbox = { checked: false };
+  const item = {
+    querySelector: (selector) => (selector === 'input[name="remove_attachment_ids"]' ? checkbox : null),
+    classList: { toggle: (name, on) => (on ? classes.add(name) : classes.delete(name)) },
+  };
+  const button = {
+    attrs: {},
+    setAttribute(name, value) {
+      this.attrs[name] = value;
+    },
+    closest: (selector) => (selector === '[data-existing-image]' ? item : null),
+  };
+  const target = { closest: (selector) => (selector === '[data-existing-image-toggle]' ? button : null) };
+
+  doc.dispatch('click', { target });
+  assert.equal(checkbox.checked, true);
+  assert.equal(classes.has('opacity-40'), true);
+  assert.equal(button.attrs['aria-pressed'], 'true');
+
+  doc.dispatch('click', { target });
+  assert.equal(checkbox.checked, false);
+  assert.equal(classes.has('opacity-40'), false);
 });

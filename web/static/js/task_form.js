@@ -73,31 +73,103 @@ function openRelatedDialog(button) {
   root.querySelector('[data-related-filter]')?.focus();
 }
 
-/** Shows the chosen files of an image input as previews inside its picker. */
-function previewImages(input) {
-  const picker = input.closest('[data-image-picker]');
-  const previews = picker?.querySelector('[data-image-previews]');
+/** The identity of a chosen file: the same picture picked twice is kept once. */
+function fileKey(file) {
+  return `${file.name}:${file.size}:${file.lastModified}`;
+}
+
+/** Returns the files already chosen followed by the new ones that are not among them. */
+export function mergeFiles(chosen, incoming) {
+  const seen = new Set(chosen.map(fileKey));
+  const merged = [...chosen];
+  for (const file of incoming) {
+    if (seen.has(fileKey(file))) continue;
+    seen.add(fileKey(file));
+    merged.push(file);
+  }
+  return merged;
+}
+
+/** Returns the files without the one at index; an index outside the list leaves it as it is. */
+export function withoutFile(files, index) {
+  return files.filter((_, i) => i !== index);
+}
+
+/** Fills the {name} placeholder of a translated label; the name is inserted as it is, whatever characters it holds. */
+export function imageLabel(template, name) {
+  return (template ?? '').replace('{name}', () => name);
+}
+
+// The browser replaces the files of an input on every pick, so the picker keeps its own list and writes it back.
+const chosenImages = new WeakMap();
+// The object URLs of the previews on show, released when the previews are redrawn or cleared.
+const previewUrls = new WeakMap();
+
+/** Releases the object URLs of the previews of the input. */
+function releasePreviews(input) {
+  for (const url of previewUrls.get(input) ?? []) URL.revokeObjectURL(url);
+  previewUrls.delete(input);
+}
+
+/** Sets the files of the input to the list and shows them as previews, each with a button that removes it. */
+function showImages(input, files) {
+  chosenImages.set(input, files);
+  const transfer = new DataTransfer();
+  for (const file of files) transfer.items.add(file);
+  input.files = transfer.files;
+  const previews = input.closest('[data-image-picker]')?.querySelector('[data-image-previews]');
   if (!previews) return;
+  releasePreviews(input);
+  const urls = [];
+  previewUrls.set(input, urls);
   previews.replaceChildren(
-    ...Array.from(input.files, (file) => {
+    ...files.map((file, index) => {
+      const item = document.createElement('div');
+      item.className = 'relative';
       const image = document.createElement('img');
-      image.src = URL.createObjectURL(file);
+      const url = URL.createObjectURL(file);
+      urls.push(url);
+      image.src = url;
       image.alt = file.name;
       image.className = 'h-16 w-16 rounded object-cover';
-      return image;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'composer-ref-remove absolute -right-1 -top-1';
+      remove.dataset.imageRemove = String(index);
+      remove.setAttribute('aria-label', imageLabel(previews.dataset.removeLabel, file.name));
+      remove.textContent = '×';
+      item.append(image, remove);
+      return item;
     }),
   );
+}
+
+/** Forgets the chosen images of the input, as a form reset empties it behind the picker's back. */
+function resetImages(input) {
+  showImages(input, []);
+}
+
+/** Adds files to the ones the picker of the input already holds. */
+function addImages(input, files) {
+  showImages(input, mergeFiles(chosenImages.get(input) ?? [], files));
 }
 
 /** Adds the pasted image files to the input of the picker that belongs to the form of the textarea. */
 function takePastedImages(textarea, files) {
   const input = textarea.closest('form')?.querySelector('[data-image-input]');
   if (!input || files.length === 0) return;
-  const transfer = new DataTransfer();
-  for (const file of input.files) transfer.items.add(file);
-  for (const file of files) transfer.items.add(file);
-  input.files = transfer.files;
+  addImages(input, files);
   input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+/** Marks or unmarks an image the task already has for removal on save. */
+function toggleExistingImage(button) {
+  const item = button.closest('[data-existing-image]');
+  const checkbox = item?.querySelector('input[name="remove_attachment_ids"]');
+  if (!checkbox) return;
+  checkbox.checked = !checkbox.checked;
+  item.classList.toggle('opacity-40', checkbox.checked);
+  button.setAttribute('aria-pressed', String(checkbox.checked));
 }
 
 // The documents the listeners are connected to: a second install on the same document does nothing.
@@ -117,6 +189,11 @@ export function installTaskForm(doc) {
   doc.addEventListener('click', (event) => {
     const button = event.target?.closest?.('[data-related-open]');
     if (button) openRelatedDialog(button);
+    const existing = event.target?.closest?.('[data-existing-image-toggle]');
+    if (existing) toggleExistingImage(existing);
+    const remove = event.target?.closest?.('[data-image-remove]');
+    const input = remove?.closest('[data-image-picker]')?.querySelector('[data-image-input]');
+    if (input) showImages(input, withoutFile(chosenImages.get(input) ?? [], Number(remove.dataset.imageRemove)));
   });
 
   doc.addEventListener('input', (event) => {
@@ -137,7 +214,12 @@ export function installTaskForm(doc) {
     if (!(target instanceof HTMLInputElement)) return;
     if (target.name === 'related_project_id') syncRelatedSummary(target.closest?.('[data-related-projects]'));
     if (target.matches('[data-toggle-target]')) toggleBlock(target);
-    if (target.matches('[data-image-input]')) previewImages(target);
+    if (target.matches('[data-image-input]') && target.closest('[data-image-picker]')) addImages(target, Array.from(target.files));
+  });
+
+  // A reset empties the file input without a change event, so the picker's own list is emptied with it.
+  doc.addEventListener('reset', (event) => {
+    for (const input of event.target?.querySelectorAll?.('[data-image-picker] [data-image-input]') ?? []) resetImages(input);
   });
 
   doc.addEventListener('paste', (event) => {
