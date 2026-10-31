@@ -7,12 +7,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,6 +26,8 @@ import (
 	"iworkflow/internal/core/gitx"
 	"iworkflow/internal/core/launch"
 	"iworkflow/internal/core/listen"
+	"iworkflow/internal/core/logfile"
+	"iworkflow/internal/core/logx"
 	"iworkflow/internal/core/restart"
 	"iworkflow/internal/core/site"
 )
@@ -34,6 +40,12 @@ const (
 	shutdownTimeout        = 10 * time.Second
 	exitUsage              = 2
 	logLevelVar     string = "IWF_LOG_LEVEL"
+	logFileVar      string = "IWF_LOG_FILE"
+	logMaxMBVar     string = "IWF_LOG_MAX_MB"
+	logBackupsVar   string = "IWF_LOG_BACKUPS"
+	logFileOff      string = "off"
+	defaultLogMaxMB        = 10
+	defaultBackups         = 5
 )
 
 // version is stamped at build time (-ldflags "-X main.version=...") from electron/package.json.
@@ -42,14 +54,58 @@ var version string = "dev"
 func main() {
 	// Loaded first, like the Rust server: the file can set the log level and every IWF_* variable.
 	dotEnvPath, dotEnvErr := loadDotEnv()
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel(os.Getenv(logLevelVar))}))
+	logOutput, closeLog, logFileErr := openLogOutput(os.Getenv)
+	defer closeLog()
+	logger := slog.New(logx.NewStackHandler(slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: logLevel(os.Getenv(logLevelVar))})))
+	// Many handlers log through the package-level slog functions; this sends them to the same file.
+	slog.SetDefault(logger)
+	if logFileErr != nil {
+		logger.Warn("could not open the log file; logging to stderr only", "error", logFileErr)
+	}
 	if dotEnvErr != nil {
 		logger.Warn("could not read the .env file", "error", dotEnvErr)
 	} else if dotEnvPath != "" {
 		logger.Debug("loaded the .env file", "path", dotEnvPath)
 	}
 	logger.Debug("iworkflow version", "version", version)
-	os.Exit(run(logger, os.Args[1:]))
+	code := run(logger, os.Args[1:])
+	closeLog()
+	os.Exit(code) // os.Exit skips deferred calls, so the log file is closed explicitly above
+}
+
+// openLogOutput returns stderr teed into a size-rotated, gzip-compressed log file. The file is
+// IWF_LOG_FILE (default ~/.iworkflow/logs/iworkflow.log; "off" disables it), rotates past
+// IWF_LOG_MAX_MB megabytes and keeps IWF_LOG_BACKUPS compressed backups. When the file cannot be
+// opened it returns stderr, the close function and the error.
+func openLogOutput(getenv func(string) string) (io.Writer, func(), error) {
+	noop := func() {}
+	path := strings.TrimSpace(getenv(logFileVar))
+	if path == logFileOff {
+		return os.Stderr, noop, nil
+	}
+	if path == "" {
+		home := getenv("HOME")
+		if home == "" {
+			return os.Stderr, noop, nil
+		}
+		path = filepath.Join(home, ".iworkflow", "logs", "iworkflow.log")
+	}
+	maxMB := positiveInt(getenv(logMaxMBVar), defaultLogMaxMB)
+	backups := positiveInt(getenv(logBackupsVar), defaultBackups)
+	file, err := logfile.Open(path, int64(maxMB)<<20, backups)
+	if err != nil {
+		return os.Stderr, noop, fmt.Errorf("log file %s: %w", path, err)
+	}
+	return io.MultiWriter(os.Stderr, file), func() { _ = file.Close() }, nil // closing at exit: nothing to recover
+}
+
+// positiveInt parses a positive integer, else returns fallback.
+func positiveInt(value string, fallback int) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed < 1 {
+		return fallback
+	}
+	return parsed
 }
 
 // loadDotEnv loads the .env of the working folder or its ancestors. A missing folder is not fatal.
