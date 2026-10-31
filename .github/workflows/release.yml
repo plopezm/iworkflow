@@ -16,8 +16,9 @@ env:
   TEMPL_VERSION: v0.3.1070
   SQLC_VERSION: v1.31.1
   TAILWIND_VERSION: v4.3.3
-  # The server is pure Go (modernc sqlite): no C toolchain, so binaries are static on every OS.
-  CGO_ENABLED: "0"
+  # The default `sherpa` build tag (audio transcription) links sherpa-onnx through cgo, so a C toolchain is
+  # required; the hosted runners ship one (gcc, clang, mingw).
+  CGO_ENABLED: "1"
 
 jobs:
   build:
