@@ -95,20 +95,13 @@ async function createTask(ctx, wsName, prompt) {
   await ctx.goto('/');
   await ctx.page.locator('#board-sidebar').getByRole('link', { name: wsName }).first().click();
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+  // "Nueva tarea" abre el formulario en una pestaña del dock: su form es el visible con select[name=workspace_id].
   await ctx.page.getByRole('button', { name: /Nueva tarea/ }).first().click();
-  // El select de workspace es el cuyo valor contenga "wsName (main)".
-  const wsIdx = await ctx.page.evaluate((name) => {
-    const sels = [...document.querySelectorAll('select')];
-    for (let i = 0; i < sels.length; i++) {
-      if ([...sels[i].options].some((o) => o.text.includes(name + ' (main)'))) return i;
-    }
-    return -1;
-  }, wsName);
-  ctx.assert(wsIdx >= 0, `no hay select de workspace con "${wsName}"`);
-  await ctx.page.locator('select').nth(wsIdx).selectOption({ label: wsName + ' (main)' });
-  await ctx.page.locator('textarea').first().fill(prompt);
-  await ctx.page.getByRole('checkbox', { name: /Iniciar ahora/ }).first().check();
-  await ctx.page.getByRole('button', { name: /Crear tarea/ }).first().click({ timeout: 10000 });
+  const form = 'form:has(select[name=workspace_id]):visible';
+  await ctx.page.locator(`${form} select[name=workspace_id]`).selectOption({ label: wsName + ' (main)' });
+  await ctx.page.locator(`${form} textarea[name=prompt]`).fill(prompt);
+  await ctx.page.locator(`${form} input[name=start_now]`).check();
+  await ctx.page.locator(`${form} button[type=submit]`, { hasText: /Crear tarea/ }).click({ timeout: 10000 });
   await ctx.page.waitForTimeout(6000); // worktree + agente (falso) terminan casi al instante
   const taskId = await ctx.page.evaluate(() => {
     const links = [...document.querySelectorAll('a[href*="/tasks/"]')];

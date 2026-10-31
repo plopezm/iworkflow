@@ -54,7 +54,8 @@ async function createTask(ctx, ws, prompt, { start = false, title } = {}) {
   if (start) await page.getByLabel('Iniciar ahora').check();
   await page.getByRole('button', { name: 'Crear tarea' }).click();
   await page.getByRole('button', { name: 'Crear tarea' }).waitFor({ state: 'detached', timeout: 15000 });
-  await page.locator('a[href*="/tasks/"]', { hasText: prompt }).first().waitFor({ state: 'attached', timeout: 15000 });
+  // A backlog card has no link around its text: its task links are the "Editar" button and the card itself is the target.
+  await page.locator('.task-card:visible', { hasText: prompt }).first().waitFor({ state: 'attached', timeout: 15000 });
   if (start) await sleep(2000);
   await openBoard(ctx, ws);
 }
@@ -65,11 +66,11 @@ async function taskDetail(ctx, key, prompt, opts = {}) {
   await registerWs(ctx, name, opts);
   await openBoard(ctx, name);
   await createTask(ctx, name, prompt, opts);
-  const link = ctx.page.locator('a[href*="/tasks/"]', { hasText: prompt }).locator('visible=true').first();
+  const link = ctx.page.locator('.task-card:visible', { hasText: prompt }).locator('a[href*="/tasks/"]').first();
   await link.waitFor({ timeout: 15000 });
   const href = await link.getAttribute('href');
   const id = (href.match(/\/tasks\/([0-9a-f-]{36})/) || [])[1];
-  await ctx.goto(href);
+  await ctx.goto(`/tasks/${id}`);
   await ctx.page.waitForURL(/\/tasks\/[0-9a-f-]{36}/, { timeout: 15000, waitUntil: 'commit' });
   ctx.assert(id, `no se obtuvo el id de la tarea "${prompt}"`);
   return { ws: name, id };

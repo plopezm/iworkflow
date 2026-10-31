@@ -39,14 +39,15 @@ async function openDialog(ctx, name) {
 }
 
 // Dispatches a paste on the prompt with the given clipboard files and text; returns whether the script took it.
+// The prompt is resolved by a Playwright locator: its :visible pseudo-class is not valid in document.querySelector.
 function paste(ctx, files, text) {
-  return ctx.page.evaluate(({ files, text, base64 }) => {
+  return ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').first().evaluate((textarea, { files, text, base64 }) => {
     const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
     const data = new DataTransfer();
     for (const name of files) data.items.add(new File([bytes], name, { type: 'image/png' }));
     if (text) data.setData('text/plain', text);
     const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
-    document.querySelector('form:has(select[name=workspace_id]):visible textarea[name=prompt]').dispatchEvent(event);
+    textarea.dispatchEvent(event);
     return event.defaultPrevented;
   }, { files, text, base64: PNG_BASE64 });
 }
