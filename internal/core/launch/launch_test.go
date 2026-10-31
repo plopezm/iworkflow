@@ -25,6 +25,7 @@ func TestParse(t *testing.T) {
 		{"no-open flag disables the browser", []string{"--no-open"}, Command{Options: Options{OpenBrowser: false}}},
 		{"short help flag requests usage", []string{"-h"}, Command{Help: true}},
 		{"long help flag requests usage", []string{"--help"}, Command{Help: true}},
+		{"version flag requests the version", []string{"--version"}, Command{Version: true}},
 		{"help wins after no-open", []string{"--no-open", "--help"}, Command{Help: true}},
 		{"addr takes the next argument", []string{"--addr", "0.0.0.0:9000"}, Command{Options: Options{OpenBrowser: true, Addr: "0.0.0.0:9000"}}},
 		{"addr accepts the equals form", []string{"--addr=127.0.0.1:4000", "--no-open"}, Command{Options: Options{Addr: "127.0.0.1:4000"}}},

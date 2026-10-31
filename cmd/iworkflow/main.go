@@ -36,6 +36,9 @@ const (
 	logLevelVar     string = "IWF_LOG_LEVEL"
 )
 
+// version is stamped at build time (-ldflags "-X main.version=...") from electron/package.json.
+var version string = "dev"
+
 func main() {
 	// Loaded first, like the Rust server: the file can set the log level and every IWF_* variable.
 	dotEnvPath, dotEnvErr := loadDotEnv()
@@ -45,6 +48,7 @@ func main() {
 	} else if dotEnvPath != "" {
 		logger.Debug("loaded the .env file", "path", dotEnvPath)
 	}
+	logger.Debug("iworkflow version", "version", version)
 	os.Exit(run(logger, os.Args[1:]))
 }
 
@@ -78,6 +82,11 @@ func run(logger *slog.Logger, args []string) int {
 	}
 	if command.Help {
 		fmt.Println(launch.Usage)
+		return 0
+	}
+
+	if command.Version {
+		fmt.Println(version)
 		return 0
 	}
 

@@ -17,6 +17,7 @@ const (
 	siteRootFlag string = "--site-root"
 	helpFlag     string = "-h"
 	helpLong     string = "--help"
+	versionFlag  string = "--version"
 )
 
 // Usage is the help text printed with --help.
@@ -25,6 +26,7 @@ const Usage string = "Uso: iworkflow [OPCIONES]\n\n" +
 	"  --no-open            Arranca solo el servidor, sin abrir la web en el navegador\n" +
 	"  --addr DIR:PUERTO    Dirección de escucha (también IWORKFLOW_ADDR); fija el valor y ignora el ajuste guardado\n" +
 	"  --site-root RUTA     Carpeta con los recursos estáticos (por defecto, site/ junto al ejecutable)\n" +
+	"  --version            Muestra la versión\n" +
 	"  -h, --help           Muestra esta ayuda"
 
 // ErrBrowserFailed is wrapped when the system opener cannot be started.
@@ -50,10 +52,12 @@ type Options struct {
 	SiteRoot string
 }
 
-// Command is what the executable should do after reading its arguments: show usage, or run the server.
+// Command is what the executable should do after reading its arguments: show usage or the version, or run the server.
 type Command struct {
 	// Help means print Usage and exit; Options is then ignored.
 	Help bool
+	// Version means print the build version and exit; Options is then ignored.
+	Version bool
 	// Options are used when the server runs.
 	Options Options
 }
@@ -80,6 +84,8 @@ func Parse(args []string) (Command, error) {
 			options.OpenBrowser = false
 		case arg == helpFlag || arg == helpLong:
 			return Command{Help: true}, nil
+		case arg == versionFlag:
+			return Command{Version: true}, nil
 		case name == addrFlag || name == siteRootFlag:
 			if !hasValue {
 				if index+1 >= len(args) {

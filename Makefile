@@ -10,6 +10,8 @@ SITE_ADDR ?= 0.0.0.0:9000
 ARGS ?=
 # SKIP_SERVER_BUILD=1 makes electron-build reuse the server already in $(DIST_DIR).
 SKIP_SERVER_BUILD ?=
+# Single source of truth for the release version: electron/package.json (set by `make bump-version`).
+APP_VERSION ?= $(shell sed -n 's/^  "version": "\(.*\)",/\1/p' electron/package.json | head -n1)
 
 .PHONY: generate templ sqlc css build dist run prod dev test lint fmt vet bump-version electron electron-build electron-dev electron-test e2e e2e-smoke
 
@@ -36,9 +38,10 @@ dev: generate
 
 # Release package: stripped binary plus the static site, in $(DIST_DIR).
 dist: generate
+	@test -n "$(APP_VERSION)" || { echo "Cannot read the version from electron/package.json; pass APP_VERSION=X.Y.Z" >&2; exit 1; }
 	rm -rf $(DIST_DIR)
 	mkdir -p $(DIST_DIR)
-	go build -ldflags="-s -w" -o $(DIST_DIR)/$(BIN_FILE) ./cmd/iworkflow
+	go build -ldflags="-s -w -X main.version=$(APP_VERSION)" -o $(DIST_DIR)/$(BIN_FILE) ./cmd/iworkflow
 	cp -r web/static $(DIST_DIR)/site
 	@echo "Packaged into $(DIST_DIR)"
 

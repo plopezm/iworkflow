@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -98,4 +101,30 @@ func TestBindThenStartFreesThePortWhenTheStartFails(t *testing.T) {
 	again, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", addr)
 	require.NoError(t, err, "the port must be free after a failed start")
 	require.NoError(t, again.Close())
+}
+
+// TestVersionIsStampedAtBuildTime builds the binary like `make dist` does and checks that --version
+// reports the value passed through -ldflags, and "dev" without it.
+func TestVersionIsStampedAtBuildTime(t *testing.T) {
+	tests := []struct {
+		name    string
+		ldflags string
+		want    string
+	}{
+		{"unstamped build reports dev", "", "dev"},
+		{"stamped build reports the stamped version", "-X main.version=1.2.3", "1.2.3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			bin := filepath.Join(t.TempDir(), "iworkflow")
+			build := exec.Command("go", "build", "-ldflags", tt.ldflags, "-o", bin, ".")
+			out, err := build.CombinedOutput()
+			require.NoError(t, err, string(out))
+
+			got, err := exec.Command(bin, "--version").Output()
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, strings.TrimSpace(string(got)))
+		})
+	}
 }
