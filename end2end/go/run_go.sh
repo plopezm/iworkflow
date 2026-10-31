@@ -112,9 +112,7 @@ GITLAB_MOCK_PORT="$(free_port)"
     IWF_PI_BIN="$ROOT/tests/fixtures/smoke_pi.sh" \
     IWF_CURSOR_BIN="$ROOT/tests/fixtures/smoke_cursor.sh" \
     IWF_CLAUDE_BIN="$ROOT/tests/fixtures/smoke_claude.sh" \
-    LEPTOS_SITE_ROOT="$ROOT/web/static" \
-    LEPTOS_SITE_ADDR="127.0.0.1:$PORT" \
-    "$WORK/iworkflow" > "$WORK/server.log" 2>&1
+    "$WORK/iworkflow" --addr "127.0.0.1:$PORT" --site-root "$ROOT/web/static" > "$WORK/server.log" 2>&1
 ) &
 SERVER_PID=$!
 

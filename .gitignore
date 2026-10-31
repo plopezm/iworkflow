@@ -8,7 +8,7 @@ end2end/node_modules
 end2end/playwright-report
 end2end/test-results
 
-# Release package (scripts/prod.sh)
+# Release package (make dist)
 /dist
 
 # Internal ODD working notes (kept locally, not published)

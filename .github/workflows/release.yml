@@ -103,13 +103,13 @@ jobs:
           echo "$BIN_DIR" >> "$GITHUB_PATH"
           echo "$GO_BIN_DIR" >> "$GITHUB_PATH"
 
-      # scripts/prod.sh drives `make generate`; the Windows runner may not ship GNU make.
+      # `make dist` needs GNU make; the Windows runner may not ship it.
       - name: Ensure make
         run: command -v make >/dev/null || choco install make -y --no-progress
 
-      # Same steps as `scripts/prod.sh build`: templ + sqlc + tailwind, then go build into $DIST_DIR/site.
+      # templ + sqlc + tailwind, then go build into $DIST_DIR with its site/.
       - name: Build (release)
-        run: DIST_DIR="$PWD/server-dist" ./scripts/prod.sh build
+        run: make dist DIST_DIR="$PWD/server-dist"
 
       # The packaged server must at least start and exit 0; --help does not bind a port or touch the DB.
       - name: Smoke test binary
@@ -141,7 +141,7 @@ jobs:
           path: ${{ steps.package.outputs.file }}
           if-no-files-found: error
 
-      # Desktop installer (Electron) wrapping the server built above. See scripts/electron.sh.
+      # Desktop installer (Electron) wrapping the server built above. See the electron-build target of the Makefile.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -156,7 +156,7 @@ jobs:
         id: installer
         run: |
           set -euo pipefail
-          DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1 ./scripts/electron.sh build
+          make electron-build DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1
           echo "glob=server-dist/electron/iworkflow-*.${{ matrix.installer }}*" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
