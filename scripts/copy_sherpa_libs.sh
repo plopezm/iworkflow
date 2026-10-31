@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Copies the sherpa-onnx shared libraries of the current OS and architecture next to a packaged server.
 # Usage: scripts/copy_sherpa_libs.sh <dist-dir>
+#   SHERPA_LIBS_SOURCE=<dir> reads the libraries from <dir> instead of the Go module (used by the tests).
 #   linux, darwin: <dist-dir>/lib (the binary finds them through its rpath, see the dist target of the Makefile)
 #   windows:       <dist-dir> itself (Windows loads the DLLs from the folder of the executable)
 set -euo pipefail
@@ -24,8 +25,15 @@ case "$goos" in
   *) echo "no sherpa-onnx libraries for GOOS=$goos" >&2; exit 1 ;;
 esac
 
-source_dir="$(go list -m -f '{{.Dir}}' "$module")/lib/$triple"
+source_dir="${SHERPA_LIBS_SOURCE:-$(go list -m -f '{{.Dir}}' "$module")/lib/$triple}"
 [ -d "$source_dir" ] || { echo "missing $source_dir" >&2; exit 1; }
 mkdir -p "$target"
-# -L follows symlinks, so the package holds real files.
-find "$source_dir" -maxdepth 1 -name "$pattern" -exec cp -L {} "$target"/ \;
+# -L follows symlinks, so the package holds real files. An empty folder is an error: a package without the libraries
+# starts and then fails to load the recognizer.
+copied=0
+while IFS= read -r -d '' library; do
+  cp -L "$library" "$target"/
+  copied=$((copied + 1))
+done < <(find "$source_dir" -maxdepth 1 -name "$pattern" -print0)
+[ "$copied" -gt 0 ] || { echo "no $pattern libraries in $source_dir" >&2; exit 1; }
+echo "copied $copied sherpa-onnx libraries to $target"

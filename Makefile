@@ -79,6 +79,7 @@ prod: dist run
 
 test:
 	go test -p 2 ./...
+	./scripts/copy_sherpa_libs_test.sh
 
 vet:
 	go vet ./...
