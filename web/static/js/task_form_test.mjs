@@ -327,7 +327,10 @@ test('resetting the form empties the picker so the next pick starts from nothing
   input.files = [named('a.png')];
   doc.dispatch('change', { target: input });
 
+  urls.revoked.length = 0;
   doc.dispatch('reset', { target: { querySelectorAll: () => [input] } });
+  assert.deepEqual(urls.revoked, ['blob:a.png'], 'the object URLs of the previews are released');
+  assert.equal(previews.children.length, 0);
   input.files = [named('b.png')];
   doc.dispatch('change', { target: input });
 
