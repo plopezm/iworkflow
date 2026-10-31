@@ -17,23 +17,24 @@ import (
 // fakeWorktree is the git port seen by the use cases. Calls are recorded; the *Err fields inject failures.
 type fakeWorktree struct {
 	outbound.Worktree
-	exists        bool
-	pinErr        error
-	mergeOutcome  models.MergeOutcome
-	mergeErr      error
-	removeErr     error
-	removed       []string
-	merged        []string
-	pinned        []string
-	diffCalls     []string
-	liveCalls     []string
-	rangeCalls    []models.DiffRange
-	sweepKeep     []string
-	sweepRemoved  int
-	sweepErr      error
-	branches      []models.BranchOption
-	branchesErr   error
-	branchesAsked []string
+	exists         bool
+	pinErr         error
+	mergeOutcome   models.MergeOutcome
+	mergeErr       error
+	removeErr      error
+	removed        []string
+	merged         []string
+	pinned         []string
+	diffCalls      []string
+	liveCalls      []string
+	committedCalls []string
+	rangeCalls     []models.DiffRange
+	sweepKeep      []string
+	sweepRemoved   int
+	sweepErr       error
+	branches       []models.BranchOption
+	branchesErr    error
+	branchesAsked  []string
 	// created records the Create calls of the start tests; createErr fails them.
 	created     []worktreeCreate
 	createErr   error
@@ -98,6 +99,11 @@ func (w *fakeWorktree) Diff(_ context.Context, repo string, base string, branch 
 func (w *fakeWorktree) DiffLive(_ context.Context, worktree string, base string) (models.TaskDiff, error) {
 	w.liveCalls = append(w.liveCalls, worktree+"|"+base)
 	return models.TaskDiff{Patch: "live"}, nil
+}
+
+func (w *fakeWorktree) DiffCommitted(_ context.Context, worktree string, base string) (models.TaskDiff, error) {
+	w.committedCalls = append(w.committedCalls, worktree+"|"+base)
+	return models.TaskDiff{Patch: "worktree-committed"}, nil
 }
 
 func (w *fakeWorktree) DiffRange(_ context.Context, _ string, rng models.DiffRange) (models.TaskDiff, error) {
@@ -394,6 +400,52 @@ func TestGetTaskDiffReadsTheBranchWithoutAWorktree(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "committed", diff.Patch)
 	assert.Equal(t, []string{"/repos/demo|main|" + task.Branch}, worktrees.diffCalls)
+}
+
+func TestGetTaskCommittedDiffReadsOnlyTheCommitsWhileTheWorktreeExists(t *testing.T) {
+	task := newTask(models.StatusRunning)
+	worktrees := &fakeWorktree{exists: true}
+	lifecycle, _ := newLifecycle(newFakeRepository(task))
+
+	diff, err := application.NewGetTaskCommittedDiff(lifecycle, worktrees).Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, "worktree-committed", diff.Patch)
+	assert.Equal(t, []string{task.WorktreePath + "|" + task.BaseBranch}, worktrees.committedCalls)
+	assert.Empty(t, worktrees.liveCalls)
+}
+
+func TestGetTaskCommittedDiffReadsTheBranchWithoutAWorktree(t *testing.T) {
+	task := newTask(models.StatusFailed)
+	worktrees := &fakeWorktree{exists: false}
+	lifecycle, _ := newLifecycle(newFakeRepository(task))
+
+	diff, err := application.NewGetTaskCommittedDiff(lifecycle, worktrees).Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, "committed", diff.Patch)
+	assert.Equal(t, []string{"/repos/demo|main|" + task.Branch}, worktrees.diffCalls)
+}
+
+func TestGetTaskCommittedDiffOfMergedTaskUsesTheRecordedRange(t *testing.T) {
+	task := newTask(models.StatusMerged)
+	task.DiffRange = &models.DiffRange{BaseSHA: "a", HeadSHA: "b"}
+	worktrees := &fakeWorktree{}
+	lifecycle, _ := newLifecycle(newFakeRepository(task))
+
+	diff, err := application.NewGetTaskCommittedDiff(lifecycle, worktrees).Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, "range", diff.Patch)
+}
+
+func TestGetTaskCommittedDiffOfDiscardedTaskIsRefused(t *testing.T) {
+	task := newTask(models.StatusDiscarded)
+	lifecycle, _ := newLifecycle(newFakeRepository(task))
+
+	_, err := application.NewGetTaskCommittedDiff(lifecycle, &fakeWorktree{}).Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.InvalidState("ver diff", ""))
 }
 
 // Rust: sweep_orphan_worktrees: the keep set is the worktree path of every open task; closed ones are not.

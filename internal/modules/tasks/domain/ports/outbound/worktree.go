@@ -22,6 +22,9 @@ type Worktree interface {
 	// DiffLive returns the diff of the worktree against the divergence point with baseBranch: commits of
 	// the branch plus uncommitted changes, including untracked new files.
 	DiffLive(ctx context.Context, worktree string, baseBranch string) (models.TaskDiff, error)
+	// DiffCommitted returns the diff of the commits of the worktree branch against the divergence point with
+	// baseBranch: uncommitted and untracked changes are left out.
+	DiffCommitted(ctx context.Context, worktree string, baseBranch string) (models.TaskDiff, error)
 	// DiffFingerprint is a cheap fingerprint of Diff: it changes if and only if the diff changes.
 	DiffFingerprint(ctx context.Context, repo string, baseBranch string, branch string) (string, error)
 	// PinRange fixes the commit range of branch against baseBranch and creates pinRef at the tip so the

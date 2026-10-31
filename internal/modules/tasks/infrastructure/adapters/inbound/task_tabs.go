@@ -187,7 +187,58 @@ func (h *DetailHandlers) tabBody(ctx context.Context, scope string, task models.
 	}
 	wire := state.TaskPanelScope(task.ID.String())
 	if tab == state.TaskTabChanges {
-		return h.uc.Panels.ChangesPanel(ctx, wire)
+		return h.changesRegion(ctx, scope, task, state.ChangesSubUncommitted)
 	}
 	return h.uc.Panels.TreePanel(ctx, wire)
+}
+
+// changesSub answers the region of the Changes tab with one sub-tab active. A sub-tab the strip does not show is not
+// found; a task that no longer exists says so.
+func (h *DetailHandlers) changesSub(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	sub, ok := state.ParseChangesSub(chi.URLParam(r, "sub"))
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		return
+	}
+	task, err := h.uc.Get.Execute(ctx, id)
+	if errors.Is(err, werrors.NotFound("")) {
+		web.Render(w, r, http.StatusOK, components.TaskGone())
+		return
+	}
+	if err != nil {
+		slog.Error("could not read the task of a changes sub-tab", "task", id.String(), "error", err)
+		web.Render(w, r, http.StatusOK, shared.ErrorText(msgTaskUnavailable.T(ctx)))
+		return
+	}
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
+	web.Render(w, r, http.StatusOK, h.changesRegion(ctx, scope, task, sub))
+}
+
+// changesRegion is the Changes tab of a task with one sub-tab active: the uncommitted changes of its worktree, or the
+// commits of its branch against its base.
+func (h *DetailHandlers) changesRegion(ctx context.Context, scope string, task models.Task, sub string) templ.Component {
+	changes := state.TaskChanges{Scope: scope, TaskID: task.ID.String(), Active: sub}
+	if sub == state.ChangesSubCommitted {
+		return components.TaskChangesRegion(changes, components.CommittedChangesBody(h.committedChanges(ctx, task.ID)))
+	}
+	return components.TaskChangesRegion(changes, h.uc.Panels.ChangesPanel(ctx, state.TaskPanelScope(task.ID.String())))
+}
+
+// committedChanges reads the commits of a task against its base. A failed read is shown in place of the list; its
+// text is internal, so it is logged and not shown.
+func (h *DetailHandlers) committedChanges(ctx context.Context, id models.TaskID) state.CommittedChanges {
+	if h.uc.CommittedDiff == nil {
+		return state.CommittedChanges{TaskID: id.String(), Failure: msgDiffUnavailable.T(ctx)}
+	}
+	diff, err := h.uc.CommittedDiff.Execute(ctx, id)
+	if err != nil {
+		return state.CommittedChanges{TaskID: id.String(), Failure: diffFailureText(ctx, id, err)}
+	}
+	return state.NewCommittedChanges(id.String(), diff.Commits, diff.Patch, diff.Truncated)
 }

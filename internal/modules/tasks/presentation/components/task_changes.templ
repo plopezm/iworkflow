@@ -1,0 +1,73 @@
+package components
+
+import (
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TaskChangesRegion is the Changes tab of a task: the strip of its sub-tabs and the body of the active one.
+templ TaskChangesRegion(changes state.TaskChanges, body templ.Component) {
+	<div id={ changes.RegionID() } class="flex min-h-0 flex-1 flex-col" data-testid="task-changes">
+		@coreui.TabBar(changesSubItems(ctx, changes), changes.Active)
+		<div class="min-h-0 flex-1 overflow-y-auto">
+			if body != nil {
+				@body
+			}
+		</div>
+	</div>
+}
+
+// CommittedChangesBody is the Committed sub-tab: the commits of the task branch against its base and the files they
+// changed, each file linking to its tab.
+templ CommittedChangesBody(view state.CommittedChanges) {
+	if view.Failure != "" {
+		<div class="px-3 py-2">@coreui.ErrorText(view.Failure)</div>
+	} else if view.Empty() {
+		<p class="px-3 py-2 text-xs text-muted" data-testid="committed-empty">{ msgCommittedEmpty.T(ctx) }</p>
+	} else {
+		<section data-testid="committed-commits">
+			<div class="flex h-8 items-center px-3 text-xs font-semibold uppercase tracking-wide text-muted">{ committedCommitsTitle(ctx, len(view.Commits)) }</div>
+			<ul>
+				for _, commit := range view.Commits {
+					<li class="truncate px-3 py-0.5 text-xs" title={ commit } data-testid="committed-commit">{ commit }</li>
+				}
+			</ul>
+		</section>
+		<section data-testid="committed-files">
+			<div class="flex h-8 items-center px-3 text-xs font-semibold uppercase tracking-wide text-muted">{ committedFilesTitle(ctx, len(view.Files)) }</div>
+			<ul>
+				for _, file := range view.Files {
+					<li data-testid="committed-file" data-path={ file.Path }>
+						<div class="tree-row gap-2 pl-3">
+							if file.Status != state.FileStatusDeleted {
+								<a
+									href={ templ.SafeURL(committedFileHref(view.TaskID, file.Path)) }
+									class="flex min-w-0 flex-1 items-center gap-2"
+									{ link.Props{Href: committedFileHref(view.TaskID, file.Path), Beside: true}.Attributes()... }
+								>
+									@committedFileSummary(file)
+								</a>
+							} else {
+								<div class="flex min-w-0 flex-1 items-center gap-2">
+									@committedFileSummary(file)
+								</div>
+							}
+							<span class="text-xs text-muted">{ committedCounts(file) }</span>
+							<span class="text-xs font-semibold" aria-hidden="true">{ state.StatusLetter(file.Status) }</span>
+						</div>
+					</li>
+				}
+			</ul>
+		</section>
+		if view.Truncated {
+			<p class="px-3 py-2 text-xs text-muted">{ msgTruncated.T(ctx) }</p>
+		}
+	}
+}
+
+templ committedFileSummary(file state.FileDiff) {
+	@coreui.TreeIcon(false, false)
+	<span class="truncate" title={ file.Path }>{ committedFileName(file.Path) }</span>
+	<span class="min-w-0 flex-1 truncate text-xs text-muted">{ committedParentDir(file.Path) }</span>
+}

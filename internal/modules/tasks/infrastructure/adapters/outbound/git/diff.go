@@ -93,6 +93,19 @@ func (a *WorktreeAdapter) DiffLive(ctx context.Context, worktree string, baseBra
 	return truncateDiff(stat, patch, splitLines(log)), nil
 }
 
+// DiffCommitted is the diff of the commits of a worktree against the merge base with baseBranch. Unlike
+// DiffLive it leaves out the uncommitted changes and the untracked files.
+func (a *WorktreeAdapter) DiffCommitted(ctx context.Context, worktree string, baseBranch string) (models.TaskDiff, error) {
+	if err := checkRefArgument(baseBranch); err != nil {
+		return models.TaskDiff{}, err
+	}
+	mergeBase, err := git(ctx, worktree, "merge-base", baseBranch, "HEAD")
+	if err != nil {
+		return models.TaskDiff{}, err
+	}
+	return buildDiff(ctx, worktree, mergeBase+"..HEAD", mergeBase+"..HEAD")
+}
+
 // untrackedPatch is the diff of a file that is not tracked, as if it were added. `git diff --no-index`
 // exits with 1 when the files differ, so its exit status is not an error: only its output is used.
 func untrackedPatch(ctx context.Context, worktree string, file string, extra []string) (string, error) {

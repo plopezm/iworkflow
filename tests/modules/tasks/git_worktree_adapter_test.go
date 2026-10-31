@@ -110,6 +110,30 @@ func TestDiffLiveIncludesCommitsUncommittedAndUntrackedChanges(t *testing.T) {
 	assert.Contains(t, gitCmd(t, f.worktree, "status", "--porcelain"), "?? untracked.txt")
 }
 
+func TestDiffCommittedLeavesOutUncommittedAndUntrackedChanges(t *testing.T) {
+	f := newWorktreeFixture(t)
+	f.commitFile(t, "committed.txt", "uno\n", "pi: committed")
+	require.NoError(t, os.WriteFile(filepath.Join(f.worktree, "README.md"), []byte("editado sin commit\n"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(f.worktree, "untracked.txt"), []byte("nuevo\n"), 0o644))
+
+	diff, err := f.adapter.DiffCommitted(bg(), f.worktree, "main")
+
+	require.NoError(t, err)
+	assert.Contains(t, diff.Patch, "+uno")
+	assert.NotContains(t, diff.Patch, "editado sin commit")
+	assert.NotContains(t, diff.Patch, "untracked.txt")
+	assert.Contains(t, diff.Stat, "committed.txt")
+	assert.Len(t, diff.Commits, 1)
+}
+
+func TestDiffCommittedIsEmptyWithoutCommits(t *testing.T) {
+	f := newWorktreeFixture(t)
+	diff, err := f.adapter.DiffCommitted(bg(), f.worktree, "main")
+	require.NoError(t, err)
+	assert.Empty(t, diff.Patch)
+	assert.Empty(t, diff.Commits)
+}
+
 // Rust: diff_live_is_empty_for_a_clean_worktree
 func TestDiffLiveIsEmptyForACleanWorktree(t *testing.T) {
 	f := newWorktreeFixture(t)
