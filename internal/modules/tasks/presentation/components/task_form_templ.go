@@ -1541,7 +1541,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "</label><div class=\"composer-field relative\"><ul class=\"composer-menu\" role=\"listbox\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 107, "</label><div class=\"composer-field relative\" data-composer-field><ul class=\"composer-menu\" role=\"listbox\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1567,7 +1567,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "\" name=\"prompt\" class=\"input input-lg min-h-[50vh] resize-y\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 109, "\" name=\"prompt\" class=\"input input-lg resize-y\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1619,7 +1619,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "\" data-dictation-mic><svg class=\"h-4 w-4\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"12\" rx=\"3\"></rect> <path d=\"M5 11a7 7 0 0 0 14 0\"></path> <path d=\"M12 18v3\"></path></svg> <span class=\"composer-mic-time\" data-dictation-elapsed hidden></span></button></div><div class=\"stack gap-2 rounded-md border border-border bg-surface p-3 text-sm\" data-dictation-panel hidden><p class=\"text-muted\" role=\"status\" aria-live=\"polite\" data-dictation-status></p><audio class=\"w-full\" controls hidden data-dictation-audio></audio><p class=\"font-medium text-fg\" data-dictation-question hidden></p><div class=\"row flex-wrap gap-2\" data-dictation-actions hidden><button type=\"button\" class=\"btn-primary\" data-dictation-confirm></button> <button type=\"button\" class=\"btn-ghost\" data-dictation-discard></button></div></div><ul class=\"composer-refs flex flex-wrap gap-1\" data-composer-refs hidden></ul></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 113, "\" data-dictation-mic><svg class=\"h-4 w-4\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><rect x=\"9\" y=\"3\" width=\"6\" height=\"12\" rx=\"3\"></rect> <path d=\"M5 11a7 7 0 0 0 14 0\"></path> <path d=\"M12 18v3\"></path></svg> <span class=\"composer-mic-time\" data-dictation-elapsed hidden></span></button> <span class=\"composer-grip\" data-composer-grip aria-hidden=\"true\"></span></div><div class=\"stack gap-2 rounded-md border border-border bg-surface p-3 text-sm\" data-dictation-panel hidden><p class=\"text-muted\" role=\"status\" aria-live=\"polite\" data-dictation-status></p><audio class=\"w-full\" controls hidden data-dictation-audio></audio><p class=\"font-medium text-fg\" data-dictation-question hidden></p><div class=\"row flex-wrap gap-2\" data-dictation-actions hidden><button type=\"button\" class=\"btn-primary\" data-dictation-confirm></button> <button type=\"button\" class=\"btn-ghost\" data-dictation-discard></button></div></div><ul class=\"composer-refs flex flex-wrap gap-1\" data-composer-refs hidden></ul></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1657,7 +1657,7 @@ func TaskSaved(boardPath string) templ.Component {
 		var templ_7745c5c3_Var85 string
 		templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.ResolveAttributeValue(boardPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 338, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 339, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var85)
 		if templ_7745c5c3_Err != nil {
@@ -1730,7 +1730,7 @@ func BranchSlotFailed(id string, message string) templ.Component {
 		var templ_7745c5c3_Var88 string
 		templ_7745c5c3_Var88, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 348, Col: 13}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 349, Col: 13}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var88)
 		if templ_7745c5c3_Err != nil {
