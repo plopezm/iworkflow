@@ -24,22 +24,6 @@ var (
 		Fr: "Supprimer la dépendance",
 	}
 
-	msgAddNext = i18n.Msg{
-		En: "Add next task",
-		Es: "Añadir tarea siguiente",
-		Zh: "添加后续任务",
-		De: "Nächste Aufgabe hinzufügen",
-		Fr: "Ajouter la tâche suivante",
-	}
-
-	msgAddParallel = i18n.Msg{
-		En: "Add parallel task",
-		Es: "Añadir tarea en paralelo",
-		Zh: "添加并行任务",
-		De: "Parallele Aufgabe hinzufügen",
-		Fr: "Ajouter une tâche parallèle",
-	}
-
 	msgNextShort = i18n.Msg{
 		En: "Next",
 		Es: "Siguiente",

@@ -78,11 +78,11 @@ module.exports = {
         
         // Create a task via form
         await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
-        await ctx.page.locator('#modal-panel input[name=title]').fill('Tarea para Grafo');
-        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill('Prompt grafo');
-        await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-        await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible input[name=title]').fill('Tarea para Grafo');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill('Prompt grafo');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
         // Load the graph endpoint with the real workspace ID
         await ctx.goto(`/board/graph?workspace=${encodeURIComponent(wsId)}`);
@@ -105,11 +105,11 @@ module.exports = {
 
         // Create a task
         await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
-        await ctx.page.locator('#modal-panel input[name=title]').fill('Tarea Origen');
-        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill('Prompt origen');
-        await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-        await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible input[name=title]').fill('Tarea Origen');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill('Prompt origen');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
         // Add to graph
         const addBtn = ctx.page.locator('button', { hasText: 'Añadir al grafo' }).first();
@@ -122,12 +122,12 @@ module.exports = {
 
         // Hover over node to reveal tools
         await node.hover();
-        const nextBtn = node.locator('button.graph-tool', { hasText: 'Siguiente' }).first();
+        const nextBtn = node.locator('.graph-tool', { hasText: 'Siguiente' }).first();
         await nextBtn.waitFor({ state: 'visible', timeout: 5000 });
         await nextBtn.click();
 
-        // Modal opens configured to link next task
-        await ctx.page.locator('#modal-panel').waitFor({ state: 'visible', timeout: 10000 });
+        // The create tab opens configured to link the next task
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'visible', timeout: 10000 });
       },
     },
     {
@@ -143,19 +143,19 @@ module.exports = {
 
         // Create Task A
         await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
-        await ctx.page.locator('#modal-panel input[name=title]').fill('Tarea Pred');
-        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill('Prompt pred');
-        await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-        await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible input[name=title]').fill('Tarea Pred');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill('Prompt pred');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
         // Create Task B
         await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
-        await ctx.page.locator('#modal-panel input[name=title]').fill('Tarea Succ');
-        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill('Prompt succ');
-        await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-        await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible input[name=title]').fill('Tarea Succ');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill('Prompt succ');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
         // Place both tasks on canvas via API
         const tasks = await ctx.page.evaluate(async () => {

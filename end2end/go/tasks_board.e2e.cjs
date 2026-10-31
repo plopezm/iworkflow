@@ -46,11 +46,11 @@ async function openBoard(ctx, name) {
 async function createFromDialog(ctx, ws, { title, prompt }) {
   const page = ctx.page;
   await page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-  await page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws} (main)` });
-  if (title) await page.locator('#modal-panel input[name=title]').fill(title);
-  await page.locator('#modal-panel textarea[name=prompt]').fill(prompt);
-  await page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-  await page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+  await page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws} (main)` });
+  if (title) await page.locator('form:has(select[name=workspace_id]):visible input[name=title]').fill(title);
+  await page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill(prompt);
+  await page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
+  await page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 }
 
 // ---- tests ----

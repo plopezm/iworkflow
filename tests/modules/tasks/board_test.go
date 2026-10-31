@@ -147,7 +147,7 @@ func TestTabsOwnTheHomeTheEditTabTheWorkspaceAddressesTheDetailAndTheDiff(t *tes
 		names = append(names, route.Name+" "+route.Pattern)
 	}
 
-	assert.Equal(t, []string{"board /", "task_edit /tasks/{id}/edit", "board_workspace /board/{id}", "task_detail /tasks/{id}", "task_files /tasks/{id}/files", "task_file /tasks/{id}/files/{path...}", "task_diff /tasks/{id}/diff"}, names)
+	assert.Equal(t, []string{"board /", "task_edit /tasks/{id}/edit", "task_new /board/new", "task_new_workspace /board/{id}/new", "task_new_linked /board/{id}/new/{kind}/{anchor}", "board_workspace /board/{id}", "task_detail /tasks/{id}", "task_files /tasks/{id}/files", "task_file /tasks/{id}/files/{path...}", "task_diff /tasks/{id}/diff"}, names)
 }
 
 func TestBoardRendersEveryStageAndTheTaskLinks(t *testing.T) {
@@ -302,14 +302,13 @@ func TestCreateTaskRoundTripRefreshesTheBoard(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, "board:refresh", recorder.Header().Get("HX-Trigger"))
-	assert.NotContains(t, body, `name="prompt"`, "a created task closes the dialog")
-	assert.NotContains(t, body, `id="board-create-slot"`, "the response is swapped into the slot, so it must not repeat the slot id")
-	assert.Contains(t, body, `id="board-notice" hx-swap-oob="true"`, "the notice slot is cleared out of band")
+	assert.NotContains(t, body, `name="prompt"`, "a created task does not show the form again")
+	assert.Contains(t, body, `data-dock-leave="/board/`+workspaceID+`"`, "a clean create ends the tab and opens the board")
 	_, list := doRequest(t, router, http.MethodGet, "/board/list?workspace="+workspaceID, nil)
 	assert.Contains(t, list, "Fix the login", "the new task shows on the board")
 }
 
-func TestCreateTaskWithoutPromptKeepsTheDialogOpen(t *testing.T) {
+func TestCreateTaskWithoutPromptShowsTheError(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
@@ -322,36 +321,34 @@ func TestCreateTaskWithoutPromptKeepsTheDialogOpen(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code, "htmx swaps only 2xx responses: the error is the fragment")
 	assert.Empty(t, recorder.Header().Get("HX-Trigger"))
-	assert.Contains(t, body, "el prompt es obligatorio", "the domain error is visible in the dialog")
-	assert.Contains(t, body, `name="prompt"`, "the dialog is shown again")
-	assert.Contains(t, body, `value="No prompt"`, "the typed title is kept")
+	assert.Contains(t, body, "el prompt es obligatorio", "the domain error is visible in the create tab")
+	assert.NotContains(t, body, "data-dock-leave", "the tab stays open")
 	_, list := doRequest(t, router, http.MethodGet, "/board/list?workspace="+workspaceID, nil)
 	assert.NotContains(t, list, "No prompt", "nothing was created")
 }
 
-func TestNewTaskDialogSelectsTheWorkspaceTheBoardShows(t *testing.T) {
+func TestNewTaskTabSelectsTheWorkspaceOfItsAddress(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
-	_, router := boardRouter(t, repo)
+	module, _ := boardRouter(t, repo)
 
-	_, body := doRequest(t, router, http.MethodGet, "/board/tasks/new?workspace="+workspaceID, nil)
+	body := renderTab(t, module, "task_new_workspace", dock.Params{"id": workspaceID})
 
 	assert.Contains(t, body, `<option value="`+workspaceID+`" selected`)
 	assert.Contains(t, body, "demo (main)", "the option names the workspace and its base branch")
 }
 
-func TestCloseNewTaskEmptiesTheDialogSlot(t *testing.T) {
+func TestNewTaskTabWithoutWorkspaceAsksForOne(t *testing.T) {
 	t.Parallel()
-	_, router := boardRouter(t, newRepo(t))
+	repo := newRepo(t)
+	insertWorkspace(t, repo.DB, t.TempDir())
+	module, _ := boardRouter(t, repo)
 
-	recorder, body := doRequest(t, router, http.MethodGet, "/board/tasks/new/close", nil)
+	body := renderTab(t, module, "task_new", dock.Params{})
 
-	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.NotContains(t, body, `id="board-create-slot"`, "the slot is emptied by the swap, not refilled with its own id")
-	assert.NotContains(t, body, `<form`, "the dialog is closed")
-	assert.Contains(t, body, `id="board-notice" hx-swap-oob="true"`, "the notice slot is cleared out of band")
-	assert.NotContains(t, body, `text-error`, "no notice without a failed start")
+	assert.Contains(t, body, `name="workspace_id"`)
+	assert.Contains(t, body, `<option value="" selected>`)
 }
 
 func TestSidebarLinksEachWorkspaceToItsBoardAndListsTheTasksThatNeedTheUser(t *testing.T) {

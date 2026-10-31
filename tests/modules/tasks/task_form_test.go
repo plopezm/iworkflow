@@ -124,7 +124,7 @@ func TestCreateTaskRejectsEveryInvalidFormAndStoresNothing(t *testing.T) {
 		"six images":                   {images: sixImages(), want: "at most 5 images"},
 		"text instead of an image": {
 			images: map[string][]byte{"notes.png": []byte("just text, not a picture")},
-			want:   "image/",
+			want:   "notes.png",
 		},
 		"image over the size limit": {
 			images: map[string][]byte{"huge.png": append(append([]byte{}, formPNG...), make([]byte, 4*1024*1024)...)},
@@ -151,7 +151,7 @@ func TestCreateTaskRejectsEveryInvalidFormAndStoresNothing(t *testing.T) {
 			require.Equal(t, http.StatusOK, recorder.Code, "htmx swaps only 2xx responses: the error is the fragment")
 			assert.Empty(t, recorder.Header().Get("HX-Trigger"), "a rejected form does not refresh the board")
 			assert.Contains(t, body, test.want)
-			assert.Contains(t, body, `name="prompt"`, "the dialog stays open")
+			assert.NotContains(t, body, "data-dock-leave", "the create tab stays open")
 			assert.Equal(t, 0, taskCount(t, repo), "nothing is stored from a rejected form")
 		})
 	}
@@ -260,27 +260,27 @@ func TestCreateLinkedTaskShowsAnAnchorThatIsNotATask(t *testing.T) {
 	assert.Equal(t, 0, taskCount(t, repo))
 }
 
-func TestNewTaskDialogCarriesTheLinkOfTheAddress(t *testing.T) {
+func TestNewTaskTabCarriesTheLinkOfTheAddress(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
 	anchor := uuid.NewString()
-	_, router := boardRouter(t, repo)
+	module, _ := boardRouter(t, repo)
 
-	_, body := doRequest(t, router, http.MethodGet, "/board/tasks/new?workspace="+workspaceID+"&link_kind=parallel&link_anchor="+anchor, nil)
+	body := renderTab(t, module, "task_new_linked", dock.Params{"id": workspaceID, "kind": "parallel", "anchor": anchor})
 
 	assert.Contains(t, body, `name="link_kind" value="parallel"`)
 	assert.Contains(t, body, `name="link_anchor" value="`+anchor+`"`)
-	assert.NotContains(t, body, `name="start_now"`, "a linked dialog does not offer the start toggle")
+	assert.NotContains(t, body, `name="start_now"`, "a linked create does not offer the start toggle")
 }
 
-func TestNewTaskDialogLabelsTheLimitsWithTheirUnitAsPlainText(t *testing.T) {
+func TestNewTaskTabLabelsTheLimitsWithTheirUnitAsPlainText(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
-	_, router := boardRouter(t, repo)
+	module, _ := boardRouter(t, repo)
 
-	_, body := doRequest(t, router, http.MethodGet, "/board/tasks/new?workspace="+workspaceID, nil)
+	body := renderTab(t, module, "task_new_workspace", dock.Params{"id": workspaceID})
 
 	assert.Contains(t, body, `>Max. RAM (MiB)</span>`)
 	assert.Contains(t, body, `>Max. CPU (% of one core)</span>`)

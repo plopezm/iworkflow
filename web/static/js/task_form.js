@@ -31,6 +31,48 @@ export function syncOwnProject(select) {
   }
 }
 
+/** Shows the chosen related projects as chips and their count next to the button that opens the dialog. */
+export function syncRelatedSummary(root) {
+  const summary = root?.querySelector?.('[data-related-summary]');
+  const count = root?.querySelector?.('[data-related-count]');
+  if (!summary || !count) return;
+  const chosen = Array.from(root.querySelectorAll('input[name="related_project_id"]')).filter((input) => input.checked);
+  count.textContent = chosen.length > 0 ? `(${chosen.length})` : '';
+  summary.replaceChildren(
+    ...chosen.map((input) => {
+      const chip = document.createElement('li');
+      chip.className = 'rounded border border-border px-2 py-0.5 text-xs text-fg';
+      chip.textContent = input.closest?.('[data-related-row]')?.dataset.relatedName ?? input.value;
+      return chip;
+    }),
+  );
+}
+
+/** Keeps the rows of the related projects dialog whose name or path contains the filter text (case-insensitive). */
+export function filterRelatedProjects(filter) {
+  const root = filter.closest?.('[data-related-projects]');
+  if (!root) return;
+  const needle = filter.value.trim().toLowerCase();
+  let visible = 0;
+  for (const row of root.querySelectorAll('[data-related-row]')) {
+    const match = row.dataset.relatedText.toLowerCase().includes(needle);
+    // An inline display rule, so it never fights the hidden attribute that keeps the own project out of the list.
+    row.style.display = match ? '' : 'none';
+    if (match && !row.hidden) visible += 1;
+  }
+  const empty = root.querySelector('[data-related-empty]');
+  if (empty) empty.hidden = visible > 0;
+}
+
+/** Opens the related projects dialog and focuses its filter. */
+function openRelatedDialog(button) {
+  const root = button.closest('[data-related-projects]');
+  const modal = root?.querySelector('[data-modal]');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  root.querySelector('[data-related-filter]')?.focus();
+}
+
 /** Shows the chosen files of an image input as previews inside its picker. */
 function previewImages(input) {
   const picker = input.closest('[data-image-picker]');
@@ -69,12 +111,31 @@ export function installTaskForm(doc) {
   doc.addEventListener('htmx:load', (event) => {
     if (!(event.target instanceof Element)) return;
     for (const select of event.target.querySelectorAll('select[name="workspace_id"]')) syncOwnProject(select);
+    for (const root of event.target.querySelectorAll('[data-related-projects]')) syncRelatedSummary(root);
+  });
+
+  doc.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('[data-related-open]');
+    if (button) openRelatedDialog(button);
+  });
+
+  doc.addEventListener('input', (event) => {
+    if (event.target?.matches?.('[data-related-filter]')) filterRelatedProjects(event.target);
+  });
+
+  // Enter in the filter must not submit the form behind the dialog.
+  doc.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && event.target?.matches?.('[data-related-filter]')) event.preventDefault();
   });
 
   doc.addEventListener('change', (event) => {
     const target = event.target;
-    if (target instanceof HTMLSelectElement && target.name === 'workspace_id') syncOwnProject(target);
+    if (target instanceof HTMLSelectElement && target.name === 'workspace_id') {
+      syncOwnProject(target);
+      for (const root of target.closest('form')?.querySelectorAll?.('[data-related-projects]') ?? []) syncRelatedSummary(root);
+    }
     if (!(target instanceof HTMLInputElement)) return;
+    if (target.name === 'related_project_id') syncRelatedSummary(target.closest?.('[data-related-projects]'));
     if (target.matches('[data-toggle-target]')) toggleBlock(target);
     if (target.matches('[data-image-input]')) previewImages(target);
   });

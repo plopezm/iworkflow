@@ -27,7 +27,6 @@ var (
 	msgPriority        = i18n.Msg{En: "Priority", Es: "Prioridad", Zh: "优先级", De: "Priorität", Fr: "Priorité"}
 	msgStartNow        = i18n.Msg{En: "Start now", Es: "Iniciar ahora", Zh: "立即开始", De: "Jetzt starten", Fr: "Démarrer maintenant"}
 	msgCancel          = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
-	msgCreateTask      = i18n.Msg{En: "Create task", Es: "Crear tarea", Zh: "创建任务", De: "Aufgabe erstellen", Fr: "Créer la tâche"}
 	msgStartFailed     = i18n.Msg{En: "Task created in To do, but it could not be started: {error}", Es: "Tarea creada en Por hacer, pero no se pudo iniciar: {error}", Zh: "任务已创建在“待办”中，但无法启动：{error}", De: "Aufgabe in „Zu erledigen“ erstellt, konnte aber nicht gestartet werden: {error}", Fr: "Tâche créée dans « À faire », mais impossible de la démarrer : {error}"}
 	msgOpen            = i18n.Msg{En: "Open", Es: "Abrir", Zh: "打开", De: "Öffnen", Fr: "Ouvrir"}
 	msgTerminal        = i18n.Msg{En: "Terminal", Es: "Terminal", Zh: "终端", De: "Terminal", Fr: "Terminal"}

@@ -10,6 +10,10 @@ var (
 	msgBaseBranch          = i18n.Msg{En: "Base branch", Es: "Rama base", Zh: "基础分支", De: "Basis-Branch", Fr: "Branche de base"}
 	msgRelatedProjects     = i18n.Msg{En: "Related projects", Es: "Proyectos relacionados", Zh: "关联项目", De: "Verwandte Projekte", Fr: "Projets liés"}
 	msgRelatedProjectsHint = i18n.Msg{En: "The agent can read their files and, when available, their engram and codegraph. @ also completes their files.", Es: "El agente puede leer sus ficheros y, si están disponibles, su engram y su codegraph. @ también completa sus ficheros.", Zh: "智能体可以读取这些项目的文件，若可用还可读取其 engram 和 codegraph。输入 @ 时也会补全其文件。", De: "Der Agent kann deren Dateien lesen und, falls verfügbar, auch deren engram und codegraph. @ vervollständigt außerdem deren Dateien.", Fr: "L’agent peut lire leurs fichiers et, si disponibles, leur engram et leur codegraph. @ complète aussi leurs fichiers."}
+	msgChooseProjects      = i18n.Msg{En: "Choose projects", Es: "Elegir proyectos", Zh: "选择项目", De: "Projekte wählen", Fr: "Choisir des projets"}
+	msgFilterProjects      = i18n.Msg{En: "Filter projects", Es: "Filtrar proyectos", Zh: "筛选项目", De: "Projekte filtern", Fr: "Filtrer les projets"}
+	msgNoProjects          = i18n.Msg{En: "No project matches.", Es: "Ningún proyecto coincide.", Zh: "没有匹配的项目。", De: "Kein Projekt passt.", Fr: "Aucun projet ne correspond."}
+	msgDone                = i18n.Msg{En: "Done", Es: "Hecho", Zh: "完成", De: "Fertig", Fr: "Terminé"}
 	msgWorkspaceBranch     = i18n.Msg{En: "Workspace branch ({branch})", Es: "Rama del workspace ({branch})", Zh: "工作区分支（{branch}）", De: "Branch des Workspace ({branch})", Fr: "Branche de l’espace de travail ({branch})"}
 	msgDerivedFromPrompt   = i18n.Msg{En: "Derived from the prompt", Es: "Se deriva del prompt", Zh: "由提示词生成", De: "Wird aus dem Prompt abgeleitet", Fr: "Déduit du prompt"}
 	msgAdvancedOptions     = i18n.Msg{En: "Advanced options", Es: "Opciones avanzadas", Zh: "高级选项", De: "Erweiterte Optionen", Fr: "Options avancées"}

@@ -164,7 +164,7 @@ func TestComposerTextsExistInTheFiveShippedLanguages(t *testing.T) {
 func TestTaskPromptFieldRendersComposerAttributesForCreateAndEdit(t *testing.T) {
 	t.Parallel()
 
-	createDialog := renderComposerIn(t, i18n.Es, components.CreateTaskDialog(state.CreateForm{
+	createDialog := renderComposerIn(t, i18n.Es, components.CreateTaskFields(state.CreateForm{
 		Scope:       "c1",
 		WorkspaceID: "ws-1",
 		Prompt:      "Hola @README.md",

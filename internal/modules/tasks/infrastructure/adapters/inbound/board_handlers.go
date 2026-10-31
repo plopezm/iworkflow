@@ -28,9 +28,12 @@ import (
 
 // Dock route names of the board. The shell opens them by path; a module link can reuse them by name.
 const (
-	BoardRouteName          = "board"
-	BoardWorkspaceRouteName = "board_workspace"
-	TaskEditRouteName       = "task_edit"
+	BoardRouteName            = "board"
+	BoardWorkspaceRouteName   = "board_workspace"
+	TaskEditRouteName         = "task_edit"
+	TaskNewRouteName          = "task_new"
+	TaskNewWorkspaceRouteName = "task_new_workspace"
+	TaskNewLinkedRouteName    = "task_new_linked"
 )
 
 // boardRefreshEvent is the htmx event the list refreshes on after a create (see BoardList).
@@ -95,6 +98,39 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 			},
 		},
 		{
+			Name:    TaskNewRouteName,
+			Pattern: "/board/new",
+			Icon:    "+",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return components.CreateTitle(ctx)
+			},
+			Render: func(ctx context.Context, _ dock.Params) templ.Component {
+				return h.createTab(ctx, "", "", "")
+			},
+		},
+		{
+			Name:    TaskNewWorkspaceRouteName,
+			Pattern: "/board/{id}/new",
+			Icon:    "+",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return components.CreateTitle(ctx)
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return h.createTab(ctx, params["id"], "", "")
+			},
+		},
+		{
+			Name:    TaskNewLinkedRouteName,
+			Pattern: "/board/{id}/new/{kind}/{anchor}",
+			Icon:    "+",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return components.CreateTitle(ctx)
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return h.createTab(ctx, params["id"], params["kind"], params["anchor"])
+			},
+		},
+		{
 			Name:    BoardWorkspaceRouteName,
 			Pattern: "/board/{id}",
 			Icon:    "▦",
@@ -114,8 +150,6 @@ func (h *BoardHandlers) Mount(r chi.Router) {
 	r.Get("/board/list", h.list)
 	r.Get("/board/frame", h.frame)
 	r.Get("/board/sidebar", h.sidebar)
-	r.Get("/board/tasks/new", h.newTask)
-	r.Get("/board/tasks/new/close", h.closeNewTask)
 	r.Get("/board/tasks/branches", h.branches)
 	r.Get("/board/tasks/agent-options", h.agentOptions)
 	r.Post("/board/tasks", h.createTask)
@@ -182,45 +216,35 @@ func (h *BoardHandlers) sidebar(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, components.SidebarBody(h.sidebarRows(r.Context())))
 }
 
-// newTask opens the create dialog, with the workspace the board shows selected. A link in the address (link_kind
-// and link_anchor) makes the new task a successor of the anchor, as the graph asks for it.
-func (h *BoardHandlers) newTask(w http.ResponseWriter, r *http.Request) {
-	query := r.URL.Query()
-	input := dto.TaskForm{
-		WorkspaceID: query.Get("workspace"),
-		Priority:    state.DefaultPriority,
-		LinkKind:    query.Get("link_kind"),
-		LinkAnchor:  query.Get("link_anchor"),
+// createTab is the create tab, with the workspace of its address selected. A link in the address (kind and anchor)
+// makes the new task a successor of the anchor task, as the graph asks for it; a kind that is not a link is ignored.
+func (h *BoardHandlers) createTab(ctx context.Context, workspaceID string, kind string, anchor string) templ.Component {
+	input := dto.TaskForm{WorkspaceID: workspaceID, Priority: state.DefaultPriority}
+	if kind == string(state.NewTaskLinkNext) || kind == string(state.NewTaskLinkParallel) {
+		input.LinkKind = kind
+		input.LinkAnchor = anchor
 	}
-	scope := state.SanitizeScope(query.Get("scope"))
-	web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(r.Context(), scope, input, "")))
+	return pages.TaskCreatePage(h.createForm(ctx, newScope(), input, ""))
 }
 
-// closeNewTask closes the create dialog without creating anything.
-func (h *BoardHandlers) closeNewTask(w http.ResponseWriter, r *http.Request) {
-	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
-	web.Render(w, r, http.StatusOK, components.CreateTaskResult(scope, "", nil))
-}
-
-// createTask creates the task from the dialog, linked when the form says so. A form that does not validate, or a
-// create that fails, keeps the dialog open with what was typed and the error. A created task closes the dialog,
-// refreshes the list and shows what failed after the creation: its start and its dependencies.
+// createTask creates the task from the create tab, linked when the form says so. A form that does not validate, or a
+// create that fails, keeps the page and what was typed, with the error shown in place of the result. A created task
+// refreshes the list and, when nothing failed after the creation (its start, its dependencies), returns to the board.
 func (h *BoardHandlers) createTask(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
 	form, err := dto.ParseTaskForm(w, r)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, scope, dto.TaskForm{}, boundaryText(ctx, err))))
+		web.Render(w, r, http.StatusOK, components.TaskEditResult(boundaryText(ctx, err)))
 		return
 	}
 	newTask, link, err := form.ToNewTask()
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, scope, form, boundaryText(ctx, err))))
+		web.Render(w, r, http.StatusOK, components.TaskEditResult(boundaryText(ctx, err)))
 		return
 	}
 	result, err := h.uc.CreateLinked.Execute(ctx, newTask, link)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.CreateTaskDialog(h.createForm(ctx, scope, form, boundaryText(ctx, err))))
+		web.Render(w, r, http.StatusOK, components.TaskEditResult(boundaryText(ctx, err)))
 		return
 	}
 	startError := ""
@@ -232,7 +256,7 @@ func (h *BoardHandlers) createTask(w http.ResponseWriter, r *http.Request) {
 		linkErrors = append(linkErrors, linkErr.Error())
 	}
 	web.Trigger(w, boardRefreshEvent)
-	web.Render(w, r, http.StatusOK, components.CreateTaskResult(scope, startError, linkErrors))
+	web.Render(w, r, http.StatusOK, components.TaskCreated(state.BoardPath(form.WorkspaceID), startError, linkErrors))
 }
 
 // createForm rebuilds the dialog state from what was typed, with the error to show. A failed workspace read
@@ -274,6 +298,7 @@ func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.
 		LinkAnchor:      input.LinkAnchor,
 		RelatedProjects: state.RelatedProjectChoices(workspaces, input.WorkspaceID, input.RelatedProjectIDs),
 		Error:           message,
+		BoardPath:       state.BoardPath(input.WorkspaceID),
 	}
 }
 

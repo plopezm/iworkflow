@@ -35,7 +35,7 @@ async function openDialog(ctx, name) {
   await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await sleep(300);
   await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-  await ctx.page.locator('#modal-panel textarea[name=prompt]').waitFor({ timeout: 10000 });
+  await ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').waitFor({ timeout: 10000 });
 }
 
 // Dispatches a paste on the prompt with the given clipboard files and text; returns whether the script took it.
@@ -46,7 +46,7 @@ function paste(ctx, files, text) {
     for (const name of files) data.items.add(new File([bytes], name, { type: 'image/png' }));
     if (text) data.setData('text/plain', text);
     const event = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true });
-    document.querySelector('#modal-panel textarea[name=prompt]').dispatchEvent(event);
+    document.querySelector('form:has(select[name=workspace_id]):visible textarea[name=prompt]').dispatchEvent(event);
     return event.defaultPrevented;
   }, { files, text, base64: PNG_BASE64 });
 }
@@ -60,8 +60,8 @@ module.exports = {
         await openDialog(ctx, `tp-image-${tag}`);
         const taken = await paste(ctx, [`pegada-${tag}.png`], '');
         ctx.assert(taken, 'el pegado de una imagen debe interceptarse');
-        await ctx.page.locator(`#modal-panel img[alt="pegada-${tag}.png"]`).first().waitFor({ timeout: 10000 });
-        const count = await ctx.page.locator('#modal-panel input[type=file]').first().evaluate((input) => input.files.length);
+        await ctx.page.locator(`form:has(select[name=workspace_id]):visible img[alt="pegada-${tag}.png"]`).first().waitFor({ timeout: 10000 });
+        const count = await ctx.page.locator('form:has(select[name=workspace_id]):visible input[type=file]').first().evaluate((input) => input.files.length);
         ctx.assert(count === 1, `el selector debe tener 1 imagen y tiene ${count}`);
       },
     },
@@ -71,8 +71,8 @@ module.exports = {
         await openDialog(ctx, `tp-two-${tag}`);
         await paste(ctx, [`uno-${tag}.png`], '');
         await paste(ctx, [`dos-${tag}.png`], '');
-        await ctx.page.locator(`#modal-panel img[alt="dos-${tag}.png"]`).first().waitFor({ timeout: 10000 });
-        const count = await ctx.page.locator('#modal-panel input[type=file]').first().evaluate((input) => input.files.length);
+        await ctx.page.locator(`form:has(select[name=workspace_id]):visible img[alt="dos-${tag}.png"]`).first().waitFor({ timeout: 10000 });
+        const count = await ctx.page.locator('form:has(select[name=workspace_id]):visible input[type=file]').first().evaluate((input) => input.files.length);
         ctx.assert(count === 2, `el selector debe tener 2 imágenes y tiene ${count}`);
       },
     },
@@ -82,7 +82,7 @@ module.exports = {
         await openDialog(ctx, `tp-text-${tag}`);
         const taken = await paste(ctx, [], 'texto normal');
         ctx.assert(!taken, 'el pegado de texto debe seguir su curso normal');
-        const count = await ctx.page.locator('#modal-panel input[type=file]').first().evaluate((input) => input.files.length);
+        const count = await ctx.page.locator('form:has(select[name=workspace_id]):visible input[type=file]').first().evaluate((input) => input.files.length);
         ctx.assert(count === 0, `no debe añadirse ninguna imagen y hay ${count}`);
       },
     },

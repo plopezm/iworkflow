@@ -256,8 +256,8 @@ module.exports = {
         execSync(`git -C '${ws.dir}' branch rama-extra-${tag}`, { stdio: 'ignore' });
         await openBoard(ctx, ws.name);
         await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
-        const select = ctx.page.locator('#modal-panel select[name=base_branch]');
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+        const select = ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=base_branch]');
         await select.waitFor({ timeout: 15000 });
         const started = Date.now();
         let listed = false;

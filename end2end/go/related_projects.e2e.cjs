@@ -53,24 +53,31 @@ async function openBoard(ctx, name) {
   await sleep(300);
 }
 
-// Opens the create dialog of the board and chooses the workspace in its select.
+// Opens the create tab of the board and chooses the workspace in its select.
 async function openCreate(ctx, ws) {
   await openBoard(ctx, ws.name);
   await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-  await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
+  await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${ws.name} (main)` });
 }
 
 // The id of a workspace, read from the option of the create dialog select (its value is the workspace id).
 async function workspaceId(ctx, name) {
-  const id = await ctx.page.locator('#modal-panel select[name=workspace_id] option').evaluateAll(
+  const id = await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id] option').evaluateAll(
     (options, label) => options.find((option) => option.textContent === label)?.value ?? '',
     `${name} (main)`,
   );
   return id;
 }
 
+// The create tab: the visible form that holds the workspace select.
+const CREATE = 'form:has(select[name=workspace_id]):visible';
+
+// Opens the related projects dialog of the visible form (the button "Elegir proyectos") and closes it ("Hecho").
+const openRelated = (ctx) => ctx.page.locator('form:has([data-related-projects]):visible [data-related-open]').click();
+const closeRelated = (ctx) => ctx.page.locator('form:has([data-related-projects]):visible [data-modal]:visible').getByRole('button', { name: 'Hecho' }).click();
+
 // The checkbox of a related project in the create dialog.
-const dialogBox = (ctx, id) => ctx.page.locator(`#modal-panel input[name="related_project_id"][value="${id}"]`);
+const dialogBox = (ctx, id) => ctx.page.locator(`${CREATE} input[name="related_project_id"][value="${id}"]`);
 
 // The checkbox of a related project in the edit form (the form that holds the related list; only the visible one).
 const editBox = (ctx, id) => ctx.page.locator(`form:has([data-related-projects]):visible input[name="related_project_id"][value="${id}"]`);
@@ -78,10 +85,10 @@ const editBox = (ctx, id) => ctx.page.locator(`form:has([data-related-projects])
 // The @ menu item that inserts a file. Only visible items count: hidden composers keep their menus in the DOM.
 const menuItem = (ctx, insert) => ctx.page.locator(`[data-composer-item][data-insert="${insert}"]:visible`);
 
-// Submits the create dialog and waits until it closes.
+// Submits the create tab and waits until it closes.
 async function submitDialog(ctx) {
-  await ctx.page.locator('#modal-panel button[type=submit]', { hasText: 'Crear tarea' }).click();
-  await ctx.page.locator('#modal-panel').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
+  await ctx.page.locator(`${CREATE} button[type=submit]`, { hasText: 'Crear tarea' }).click();
+  await ctx.page.locator(CREATE).waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 }
 
 // Opens the edit tab of the backlog card that shows the prompt.
@@ -110,14 +117,14 @@ module.exports = {
       fn: async (ctx) => {
         const solo = await registerWs(ctx, 'rp-solo', { guide: false });
         await openCreate(ctx, solo);
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').waitFor({ timeout: 10000 });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').waitFor({ timeout: 10000 });
         const ownId = await workspaceId(ctx, solo.name);
         ctx.assert(ownId !== '', 'el workspace no aparece en el select del modal');
-        const ids = await ctx.page.locator('#modal-panel select[name=workspace_id] option').evaluateAll(
+        const ids = await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id] option').evaluateAll(
           (options) => options.map((option) => option.value).filter((value) => value !== ''),
         );
         const others = ids.filter((id) => id !== ownId);
-        const lists = await ctx.page.locator('#modal-panel [data-related-projects]').count();
+        const lists = await ctx.page.locator('form:has(select[name=workspace_id]):visible [data-related-projects]').count();
         // With no other workspace the list is not rendered at all. With others (a shared database) it is rendered.
         ctx.assert(
           lists === (others.length > 0 ? 1 : 0),
@@ -133,15 +140,18 @@ module.exports = {
         // Open the dialog from the board of A: the list is rendered for A, so A is not listed and B is.
         await openBoard(ctx, a.name);
         await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').waitFor({ state: 'visible', timeout: 10000 });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').waitFor({ state: 'visible', timeout: 10000 });
         const idA = await workspaceId(ctx, a.name);
         const idB = await workspaceId(ctx, b.name);
         ctx.assert(idA && idB, 'los workspaces no aparecen en el select del modal');
-        await ctx.page.locator('#modal-panel [data-related-projects]').waitFor({ state: 'visible', timeout: 10000 });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible [data-related-projects]').waitFor({ state: 'visible', timeout: 10000 });
+        await openRelated(ctx);
         await dialogBox(ctx, idB).waitFor({ state: 'visible', timeout: 5000 });
         ctx.assert((await dialogBox(ctx, idA).count()) === 0, 'el proyecto propio aparece en la lista de relacionados');
+        await closeRelated(ctx);
         // Choosing B in the workspace select hides it, so the task cannot relate to the project it runs in.
-        await ctx.page.locator('#modal-panel select[name=workspace_id]').selectOption({ label: `${b.name} (main)` });
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible select[name=workspace_id]').selectOption({ label: `${b.name} (main)` });
+        await openRelated(ctx);
         await dialogBox(ctx, idB).waitFor({ state: 'hidden', timeout: 5000 });
         ctx.assert(!(await dialogBox(ctx, idB).isChecked()), 'B sigue marcado tras elegirlo como proyecto propio');
       },
@@ -153,8 +163,10 @@ module.exports = {
         const b = await registerWs(ctx, 'rp-b', { guide: true });
         await openCreate(ctx, a);
         const idB = await workspaceId(ctx, b.name);
+        await openRelated(ctx);
         await dialogBox(ctx, idB).check();
-        const prompt = ctx.page.locator('#modal-panel textarea[name=prompt]');
+        await closeRelated(ctx);
+        const prompt = ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]');
         // The current project's files still come first: README.md belongs to A.
         await prompt.fill('@READ');
         await menuItem(ctx, '@README.md').waitFor({ timeout: 10000 });
@@ -173,32 +185,40 @@ module.exports = {
         const b = await registerWs(ctx, 'rp-b', { guide: true });
         await openCreate(ctx, a);
         const idB = await workspaceId(ctx, b.name);
+        await openRelated(ctx);
         await dialogBox(ctx, idB).check();
+        await closeRelated(ctx);
         const prompt = `rp-edit-${tag}`;
-        await ctx.page.locator('#modal-panel textarea[name=prompt]').fill(prompt);
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible textarea[name=prompt]').fill(prompt);
         // Create the task without starting it.
-        await ctx.page.locator('#modal-panel input[name=start_now]').uncheck();
+        await ctx.page.locator('form:has(select[name=workspace_id]):visible input[name=start_now]').uncheck();
         await submitDialog(ctx);
         await openEditFromCard(ctx, prompt);
 
         // B was checked when the task was created, so the edit page pre-checks it.
+        await openRelated(ctx);
         const box = editBox(ctx, idB);
         await box.waitFor({ state: 'visible', timeout: 10000 });
         ctx.assert(await box.isChecked(), 'B no aparece marcado al editar la tarea');
 
         // Untick and save: the reopened edit page shows it unchecked.
         await box.uncheck();
+        await closeRelated(ctx);
         await saveEdit(ctx);
         await openEditFromCard(ctx, prompt);
+        await openRelated(ctx);
         await editBox(ctx, idB).waitFor({ state: 'visible', timeout: 10000 });
         ctx.assert(!(await editBox(ctx, idB).isChecked()), 'B sigue marcado tras desmarcarlo y guardar');
 
         // Tick again and save: the reopened edit page shows it checked.
         await editBox(ctx, idB).check();
+        await closeRelated(ctx);
         await saveEdit(ctx);
         await openEditFromCard(ctx, prompt);
+        await openRelated(ctx);
         await editBox(ctx, idB).waitFor({ state: 'visible', timeout: 10000 });
         ctx.assert(await editBox(ctx, idB).isChecked(), 'B no sigue marcado tras volver a marcarlo y guardar');
+        await closeRelated(ctx);
 
         // @ on the edit page offers B's file while B is ticked...
         const insert = `@${b.name}:docs/guide.md`;
@@ -206,11 +226,34 @@ module.exports = {
         await menuItem(ctx, insert).waitFor({ timeout: 10000 });
 
         // ...and stops offering it once B is unticked (the form decides, before any save).
+        await openRelated(ctx);
         await editBox(ctx, idB).uncheck();
+        await closeRelated(ctx);
         await editPrompt(ctx).fill('@READ');
         // The answer has arrived when the own project's README.md is listed; B's file must not be among them.
         await menuItem(ctx, '@README.md').waitFor({ timeout: 10000 });
         ctx.assert((await menuItem(ctx, insert).count()) === 0, 'B sigue ofreciendo su fichero con B desmarcado');
+      },
+    },
+    {
+      name: 'related_projects: el diálogo filtra los proyectos por nombre o ruta y resume los elegidos',
+      fn: async (ctx) => {
+        const a = await registerWs(ctx, 'rp-a', { guide: false });
+        const b = await registerWs(ctx, 'rp-b', { guide: true });
+        await openCreate(ctx, a);
+        const idB = await workspaceId(ctx, b.name);
+        await openRelated(ctx);
+        const filter = ctx.page.locator(`${CREATE} [data-related-filter]`);
+        await filter.fill(b.name);
+        await dialogBox(ctx, idB).waitFor({ state: 'visible', timeout: 5000 });
+        await filter.fill(`sin-coincidencias-${tag}`);
+        await dialogBox(ctx, idB).waitFor({ state: 'hidden', timeout: 5000 });
+        await ctx.page.locator(`${CREATE} [data-related-empty]`).waitFor({ state: 'visible', timeout: 5000 });
+        await filter.fill('');
+        await dialogBox(ctx, idB).check();
+        await closeRelated(ctx);
+        const chips = await ctx.page.locator(`${CREATE} [data-related-summary] li`).allTextContents();
+        ctx.assert(chips.includes(b.name), `el resumen no muestra ${b.name}: ${chips.join(',')}`);
       },
     },
   ],

@@ -1,0 +1,39 @@
+package pages
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/tasks/presentation/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TaskCreatePage is the create tab of a task: its fields and the create. A create that succeeds closes the tab and
+// returns to the board (see components.TaskCreated).
+templ TaskCreatePage(form state.CreateForm) {
+	<div class="h-full min-h-0 overflow-y-auto">
+		<div class="mx-auto w-full max-w-5xl p-4 pb-10 md:p-6 md:pb-12">
+			<form
+				class="card stack gap-4 p-5 md:p-6"
+				hx-post={ state.ScopedPath("/board/tasks", form.Scope) }
+				hx-encoding="multipart/form-data"
+				hx-target={ "#" + state.Scoped("task-create-result", form.Scope) }
+				hx-swap="innerHTML"
+				hx-disabled-elt="find button[type=submit]"
+			>
+				<h1 class="page-title">{ components.CreateTitle(ctx) }</h1>
+				@components.CreateTaskFields(form)
+				<div id={ state.Scoped("task-create-result", form.Scope) } class="stack gap-2">
+					if form.Error != "" {
+						@shared.ErrorText(form.Error)
+					}
+				</div>
+				<div class="row justify-end gap-2">
+					@link.Tab(link.Props{Href: form.BoardPath, Class: "btn-secondary"}) {
+						{ msgCancel.T(ctx) }
+					}
+					<button type="submit" class="btn-primary">{ msgCreateTask.T(ctx) }</button>
+				</div>
+			</form>
+		</div>
+	</div>
+}
