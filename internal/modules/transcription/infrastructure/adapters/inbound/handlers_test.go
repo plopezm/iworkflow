@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -162,4 +164,50 @@ func TestPostAnswersTooManyRequestsWhileAnotherTranscriptionRuns(t *testing.T) {
 	close(blocking.release)
 	<-finished
 	require.Equal(t, http.StatusOK, first.Code)
+}
+
+func TestPostWithASlowBodyDoesNotHoldTheTranscriptionSlot(t *testing.T) {
+	router := chi.NewRouter()
+	router.Use(web.Locale)
+	inbound.NewHandlers(&fakeTranscriber{transcript: models.Transcript{Text: "ok"}}).Routes(router)
+	pipeReader, pipeWriter := io.Pipe()
+	reading := make(chan struct{})
+	slow := httptest.NewRequest(http.MethodPost, inbound.TranscriptionsPath, &signalReader{Reader: pipeReader, reading: reading})
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		router.ServeHTTP(httptest.NewRecorder(), slow)
+	}()
+
+	<-reading // the slow request is now inside the handler, waiting for its body
+	other := httptest.NewRecorder()
+	router.ServeHTTP(other, httptest.NewRequest(http.MethodPost, inbound.TranscriptionsPath, strings.NewReader("fast")))
+
+	require.Equal(t, http.StatusOK, other.Code, "a client still uploading must not make the others wait")
+	require.NoError(t, pipeWriter.Close())
+	<-finished
+}
+
+func TestPostFreesTheSlotWhenItFinishes(t *testing.T) {
+	router := chi.NewRouter()
+	router.Use(web.Locale)
+	inbound.NewHandlers(&fakeTranscriber{transcript: models.Transcript{Text: "ok"}}).Routes(router)
+
+	for range 3 {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, inbound.TranscriptionsPath, strings.NewReader("x")))
+		require.Equal(t, http.StatusOK, recorder.Code)
+	}
+}
+
+// signalReader closes reading on its first Read, so a test knows the handler reached the body.
+type signalReader struct {
+	io.Reader
+	reading chan struct{}
+	once    sync.Once
+}
+
+func (s *signalReader) Read(p []byte) (int, error) {
+	s.once.Do(func() { close(s.reading) })
+	return s.Reader.Read(p) //nolint:wrapcheck // a transparent reader wrapper
 }

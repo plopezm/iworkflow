@@ -55,14 +55,6 @@ func (h *Handlers) Routes(r chi.Router) {
 
 // post reads the WAV body, transcribes it and answers {"text": ...} or {"error": ...}.
 func (h *Handlers) post(w http.ResponseWriter, r *http.Request) {
-	select {
-	case h.running <- struct{}{}:
-		defer func() { <-h.running }()
-	default:
-		w.Header().Set("Retry-After", retryAfterSeconds)
-		h.write(w, http.StatusTooManyRequests, dto.ErrorResponse{Error: msgBusy.T(r.Context())})
-		return
-	}
 	r.Body = http.MaxBytesReader(w, r.Body, int64(MaxBodyBytes))
 	wav, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -77,6 +69,15 @@ func (h *Handlers) post(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(wav) == 0 {
 		h.fail(w, r, transcriptionerrors.ErrInvalidAudio)
+		return
+	}
+	// The slot is taken once the body is in: a client still uploading must not make the others wait.
+	select {
+	case h.running <- struct{}{}:
+		defer func() { <-h.running }()
+	default:
+		w.Header().Set("Retry-After", retryAfterSeconds)
+		h.write(w, http.StatusTooManyRequests, dto.ErrorResponse{Error: msgBusy.T(r.Context())})
 		return
 	}
 	transcript, err := h.transcribe.Execute(r.Context(), application.TranscribeInput{WAV: wav})
