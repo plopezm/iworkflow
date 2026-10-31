@@ -3,11 +3,19 @@
 // audio to the 16 kHz mono WAV the server takes; the server validates it and decides what an error is.
 // Events are delegated from the document, so the mic keeps working after htmx replaces the composer.
 
-/** The longest recording the server takes, in milliseconds: the recording stops itself at this point. */
-export const MAX_RECORDING_MS = 60_000;
+/** The longest recording the server takes, in seconds. */
+const SERVER_MAX_SECONDS = 60;
+
+/** The recording stops itself here, 5 s short of the server limit: the recorder adds latency after the stop. */
+export const MAX_RECORDING_MS = 55_000;
 
 /** The sample rate of the WAV the server takes. */
 export const SAMPLE_RATE = 16000;
+
+/** The samples of a recording of `seconds`, at least one and never more than the server takes. */
+export function frameCount(seconds) {
+  return Math.min(Math.max(1, Math.ceil(seconds * SAMPLE_RATE)), SERVER_MAX_SECONDS * SAMPLE_RATE);
+}
 
 const IDLE = 'idle';
 const RECORDING = 'recording';
@@ -295,7 +303,7 @@ async function encodeRecording(blob) {
     const channels = Array.from({ length: decoded.numberOfChannels }, (_, index) => decoded.getChannelData(index));
     const source = context.createBuffer(1, decoded.length, decoded.sampleRate);
     source.copyToChannel(downmix(channels), 0);
-    const frames = Math.max(1, Math.ceil(decoded.duration * SAMPLE_RATE));
+    const frames = frameCount(decoded.duration);
     const offline = new OfflineAudioContext(1, frames, SAMPLE_RATE);
     const player = offline.createBufferSource();
     player.buffer = source;

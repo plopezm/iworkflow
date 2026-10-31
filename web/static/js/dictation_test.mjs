@@ -3,7 +3,7 @@
 // the flow of the controller, driven through small stand-ins for the DOM and for the recorder, the decoder and fetch.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { appendParagraph, createDictation, downmix, encodeWav, formatElapsed, installDictation, MAX_RECORDING_MS } from './dictation.js';
+import { appendParagraph, createDictation, downmix, encodeWav, formatElapsed, frameCount, installDictation, MAX_RECORDING_MS, SAMPLE_RATE } from './dictation.js';
 
 // A DOM element stand-in: only the properties and methods the controller reads or writes.
 function fakeElement() {
@@ -206,7 +206,6 @@ test('formatElapsed shows minutes and zero-padded seconds', () => {
   assert.equal(formatElapsed(0), '0:00');
   assert.equal(formatElapsed(4999), '0:04');
   assert.equal(formatElapsed(65_000), '1:05');
-  assert.equal(MAX_RECORDING_MS, 60_000);
 });
 
 test('confirm sends the WAV once and inserts the transcribed text as a new paragraph', async () => {
@@ -437,4 +436,14 @@ test('installDictation routes the clicks of the document to the controller of th
   assert.equal(deps.calls.record, 1, 'the mic click starts a recording');
   installDictation(doc, deps);
   assert.equal(deps.calls.record, 1, 'a second install on the same document does nothing');
+});
+
+test('the recording stops with a margin below the 60 s the server takes, so recorder latency never exceeds it', () => {
+  assert.ok(MAX_RECORDING_MS <= 58_000);
+});
+
+test('frameCount never exceeds the 60 s the server accepts, whatever the decoded duration', () => {
+  assert.equal(frameCount(1), SAMPLE_RATE);
+  assert.equal(frameCount(0), 1);
+  assert.equal(frameCount(60.4), 60 * SAMPLE_RATE);
 });
