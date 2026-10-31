@@ -19,17 +19,26 @@ GO_TAGS ?= sherpa
 GO_BUILD_TAGS := $(if $(strip $(GO_TAGS)),-tags $(GO_TAGS),)
 ASR_MODEL_NAME ?= sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25
 ASR_MODELS_DIR ?= $(HOME)/.iworkflow/models
+comma := ,
+# Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
+SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))
 
 .PHONY: model generate templ sqlc css build dist run prod dev test lint fmt vet bump-version electron electron-build electron-dev electron-test e2e e2e-smoke
 
 generate: templ sqlc css
 
-# Step 1 of the transcription feature: download the pre-converted Qwen3-ASR model (about 840 MB) once.
+# Step 1 of the transcription feature: download the pre-converted Qwen3-ASR model (about 840 MB) once. The files are
+# checked against the pinned sha256 sums in asr-model.sha256; a download that does not match is removed.
+SHA256 := $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || echo "shasum -a 256")
+
 model:
-	@test -f $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)/decoder.int8.onnx && echo "Model already in $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)" || { \
+	@test -f $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)/decoder.int8.onnx || { \
 		mkdir -p $(ASR_MODELS_DIR) && \
 		curl -fL --retry 3 -o $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$(ASR_MODEL_NAME).tar.bz2 && \
 		tar xjf $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2 -C $(ASR_MODELS_DIR) && rm $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2; }
+	@cd $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME) && $(SHA256) -c $(CURDIR)/asr-model.sha256 >/dev/null || { \
+		echo "The model in $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME) does not match asr-model.sha256; delete it and run 'make model' again." >&2; exit 1; }
+	@echo "Model verified in $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)"
 
 # One generation per .templ file, run from the root: `-f` keeps the file names recorded in the generated code
 # relative to the root, as they are committed. A root-level `templ generate` (or `-path <dir>`) records them
@@ -55,9 +64,9 @@ dist: generate
 	@test -n "$(APP_VERSION)" || { echo "Cannot read the version from electron/package.json; pass APP_VERSION=X.Y.Z" >&2; exit 1; }
 	rm -rf $(DIST_DIR)
 	mkdir -p $(DIST_DIR)
-	CGO_LDFLAGS='-Wl,-rpath,$$ORIGIN/lib' go build $(GO_BUILD_TAGS) -ldflags="-s -w -X main.version=$(APP_VERSION)" -o $(DIST_DIR)/$(BIN_FILE) ./cmd/iworkflow
+	CGO_LDFLAGS='$(SHERPA_RPATH)' go build $(GO_BUILD_TAGS) -ldflags="-s -w -X main.version=$(APP_VERSION)" -o $(DIST_DIR)/$(BIN_FILE) ./cmd/iworkflow
 	cp -r web/static $(DIST_DIR)/site
-	@$(if $(findstring sherpa,$(GO_TAGS)),mkdir -p $(DIST_DIR)/lib && cp -L $$(go list -m -f '{{.Dir}}' github.com/k2-fsa/sherpa-onnx-go-linux)/lib/$$(uname -m)-unknown-linux-gnu/*.so $(DIST_DIR)/lib/,true)
+	@$(if $(findstring sherpa,$(GO_TAGS)),./scripts/copy_sherpa_libs.sh $(DIST_DIR),true)
 	@echo "Packaged into $(DIST_DIR)"
 
 # Start what `make dist` packaged. Pass flags with ARGS="--no-open"; listen address with SITE_ADDR.

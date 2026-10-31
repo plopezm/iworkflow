@@ -179,8 +179,8 @@ Los directorios por defecto de datos (`attachments`, `agents-files`, `cursor-ses
 
 El campo Prompt de los formularios de crear y editar tarea tiene un botón de micrófono. Grabas, escuchas la grabación y la confirmas; el servidor la transcribe con [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) y el modelo Qwen3-ASR 0.6B, y el texto se añade al prompt como un párrafo nuevo. El navegador necesita un origen seguro (HTTPS o `localhost`) para abrir el micrófono y las grabaciones se limitan a 60 segundos.
 
-1. `make model` descarga el modelo ya convertido (unos 840 MB) en `~/.iworkflow/models/` (o `IWF_ASR_MODEL_DIR`).
-2. El reconocedor es el único código cgo del proyecto, tras el build tag `sherpa`. `make build`, `make dev` y `make dist` lo activan (`GO_TAGS=sherpa`); `make build GO_TAGS=` genera un binario sin CGO donde el dictado responde "no disponible". `make dist` copia también las librerías compartidas de sherpa-onnx a `lib/` junto al binario.
+1. `make model` descarga el modelo ya convertido (unos 840 MB) en `~/.iworkflow/models/` (o `IWF_ASR_MODEL_DIR`) y lo verifica con las sumas sha256 fijadas en `asr-model.sha256`.
+2. El reconocedor es el único código cgo del proyecto, tras el build tag `sherpa`. `make build`, `make dev` y `make dist` lo activan (`GO_TAGS=sherpa`); `make build GO_TAGS=` genera un binario sin CGO donde el dictado responde "no disponible". `make dist` copia también las librerías compartidas de sherpa-onnx del sistema actual junto al binario (`lib/` en Linux y macOS, la misma carpeta en Windows). Solo se transcribe una grabación a la vez; una segunda petición recibe `429` y el usuario la reintenta.
 
 ### Runtimes de agente
 

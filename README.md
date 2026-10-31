@@ -180,8 +180,8 @@ The default data directories (`attachments`, `agents-files`, `cursor-sessions`) 
 
 The prompt field of the create and edit task forms has a microphone button. Record, listen to the recording, confirm it and the server transcribes it with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and the Qwen3-ASR 0.6B model; the text is appended to the prompt as a new paragraph. The browser needs a secure origin (HTTPS or `localhost`) to open the microphone, and recordings are limited to 60 seconds.
 
-1. `make model` downloads the pre-converted model (about 840 MB) into `~/.iworkflow/models/` (or `IWF_ASR_MODEL_DIR`).
-2. The speech recognizer is the only cgo code in the project, behind the `sherpa` build tag. `make build`, `make dev` and `make dist` enable it (`GO_TAGS=sherpa`); `make build GO_TAGS=` gives a CGO-free binary where dictation answers "not available". `make dist` also copies the sherpa-onnx shared libraries to `lib/` next to the binary.
+1. `make model` downloads the pre-converted model (about 840 MB) into `~/.iworkflow/models/` (or `IWF_ASR_MODEL_DIR`) and verifies it against the sha256 sums pinned in `asr-model.sha256`.
+2. The speech recognizer is the only cgo code in the project, behind the `sherpa` build tag. `make build`, `make dev` and `make dist` enable it (`GO_TAGS=sherpa`); `make build GO_TAGS=` gives a CGO-free binary where dictation answers "not available". `make dist` also copies the sherpa-onnx shared libraries of the current OS next to the binary (`lib/` on Linux and macOS, the same folder on Windows). Only one transcription runs at a time; a second request gets `429` and is retried by the user.
 
 ### Agent runtimes
 
