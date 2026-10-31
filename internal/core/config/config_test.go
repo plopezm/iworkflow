@@ -83,3 +83,20 @@ func TestRelativeDatabaseFallsBackToTheDataFolder(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "/home/u/.iworkflow/agents-files", cfg.AgentsFilesDir)
 }
+
+func TestASRModelDirDefaultsToTheQwen3ModelUnderTheModelsFolder(t *testing.T) {
+	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u"}))
+
+	require.NoError(t, err)
+	require.Equal(t, "/home/u/.iworkflow/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25", cfg.ASRModelDir)
+}
+
+func TestASRModelDirFollowsTheCustomDatabaseAndTheOverride(t *testing.T) {
+	next, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_DATABASE_URL": "/srv/iwf/app.db"}))
+	require.NoError(t, err)
+	require.Equal(t, "/srv/iwf/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25", next.ASRModelDir)
+
+	custom, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_ASR_MODEL_DIR": "/m/qwen"}))
+	require.NoError(t, err)
+	require.Equal(t, "/m/qwen", custom.ASRModelDir)
+}

@@ -13,9 +13,23 @@ SKIP_SERVER_BUILD ?=
 # Single source of truth for the release version: electron/package.json (set by `make bump-version`).
 APP_VERSION ?= $(shell sed -n 's/^  "version": "\(.*\)",/\1/p' electron/package.json | head -n1)
 
-.PHONY: generate templ sqlc css build dist run prod dev test lint fmt vet bump-version electron electron-build electron-dev electron-test e2e e2e-smoke
+# Audio transcription (sherpa-onnx, Qwen3-ASR). The cgo adapter sits behind the `sherpa` build tag; the default
+# GO_TAGS enable it, `make build GO_TAGS=` gives a CGO-free binary where transcription reports "unavailable".
+GO_TAGS ?= sherpa
+GO_BUILD_TAGS := $(if $(strip $(GO_TAGS)),-tags $(GO_TAGS),)
+ASR_MODEL_NAME ?= sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25
+ASR_MODELS_DIR ?= $(HOME)/.iworkflow/models
+
+.PHONY: model generate templ sqlc css build dist run prod dev test lint fmt vet bump-version electron electron-build electron-dev electron-test e2e e2e-smoke
 
 generate: templ sqlc css
+
+# Step 1 of the transcription feature: download the pre-converted Qwen3-ASR model (about 840 MB) once.
+model:
+	@test -f $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)/decoder.int8.onnx && echo "Model already in $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)" || { \
+		mkdir -p $(ASR_MODELS_DIR) && \
+		curl -fL --retry 3 -o $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$(ASR_MODEL_NAME).tar.bz2 && \
+		tar xjf $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2 -C $(ASR_MODELS_DIR) && rm $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2; }
 
 # One generation per .templ file, run from the root: `-f` keeps the file names recorded in the generated code
 # relative to the root, as they are committed. A root-level `templ generate` (or `-path <dir>`) records them
@@ -31,18 +45,19 @@ css:
 	tailwindcss -i web/tailwind.css -o web/static/app.css --minify
 
 build: generate
-	go build -o bin/$(BIN_FILE) ./cmd/iworkflow
+	go build $(GO_BUILD_TAGS) -o bin/$(BIN_FILE) ./cmd/iworkflow
 
 dev: generate
-	go run ./cmd/iworkflow $(ARGS)
+	go run $(GO_BUILD_TAGS) ./cmd/iworkflow $(ARGS)
 
 # Release package: stripped binary plus the static site, in $(DIST_DIR).
 dist: generate
 	@test -n "$(APP_VERSION)" || { echo "Cannot read the version from electron/package.json; pass APP_VERSION=X.Y.Z" >&2; exit 1; }
 	rm -rf $(DIST_DIR)
 	mkdir -p $(DIST_DIR)
-	go build -ldflags="-s -w -X main.version=$(APP_VERSION)" -o $(DIST_DIR)/$(BIN_FILE) ./cmd/iworkflow
+	CGO_LDFLAGS='-Wl,-rpath,$$ORIGIN/lib' go build $(GO_BUILD_TAGS) -ldflags="-s -w -X main.version=$(APP_VERSION)" -o $(DIST_DIR)/$(BIN_FILE) ./cmd/iworkflow
 	cp -r web/static $(DIST_DIR)/site
+	@$(if $(findstring sherpa,$(GO_TAGS)),mkdir -p $(DIST_DIR)/lib && cp -L $$(go list -m -f '{{.Dir}}' github.com/k2-fsa/sherpa-onnx-go-linux)/lib/$$(uname -m)-unknown-linux-gnu/*.so $(DIST_DIR)/lib/,true)
 	@echo "Packaged into $(DIST_DIR)"
 
 # Start what `make dist` packaged. Pass flags with ARGS="--no-open"; listen address with SITE_ADDR.
