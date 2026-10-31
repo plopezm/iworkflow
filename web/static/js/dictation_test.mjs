@@ -447,3 +447,40 @@ test('frameCount never exceeds the 60 s the server accepts, whatever the decoded
   assert.equal(frameCount(0), 1);
   assert.equal(frameCount(60.4), 60 * SAMPLE_RATE);
 });
+
+test('a composer removed while the permission prompt is open releases the microphone it receives', async () => {
+  const root = fakeRoot();
+  const deps = fakeDeps();
+  let grant;
+  deps.record = () => new Promise((resolve) => (grant = resolve));
+  const dictation = createDictation(root, deps);
+
+  const starting = dictation.toggle();
+  root.isConnected = false;
+  grant(fakeSession(deps.calls));
+  await starting;
+
+  assert.equal(deps.calls.releases, 1);
+  assert.equal(deps.limit.fn, null);
+});
+
+test('a composer removed while recording releases the microphone on the next tick', async () => {
+  const root = fakeRoot();
+  const deps = fakeDeps();
+  let tick = null;
+  deps.timers.setInterval = (fn) => {
+    tick = fn;
+    return 'tick';
+  };
+  const dictation = createDictation(root, deps);
+  await dictation.toggle();
+  assert.equal(deps.calls.releases, 0);
+
+  root.isConnected = false;
+  tick();
+
+  assert.equal(deps.calls.releases, 1);
+  assert.equal(deps.limit.fn, null);
+  await dictation.toggle();
+  assert.equal(deps.calls.record, 2, 'the controller is idle again after being abandoned');
+});

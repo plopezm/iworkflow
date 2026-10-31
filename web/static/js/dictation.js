@@ -136,6 +136,17 @@ export function createDictation(root, deps = browserDeps()) {
     timers = null;
   }
 
+  // The composer left the document (htmx replaced it): nobody can stop or review a recording any more, so the microphone
+  // is released and the timers are cleared. Stand-ins without isConnected count as connected.
+  const detached = () => root.isConnected === false;
+
+  function abandon() {
+    clearTimers();
+    session?.release();
+    session = null;
+    state = IDLE;
+  }
+
   // Shows the recording for the user to listen to; nothing is sent yet.
   function review(blob) {
     recording = blob;
@@ -174,12 +185,16 @@ export function createDictation(root, deps = browserDeps()) {
     } finally {
       starting = false;
     }
+    if (detached()) {
+      opened.release();
+      return undefined;
+    }
     session = opened;
     startedAt = deps.now();
     state = RECORDING;
     timers = {
       limit: deps.timers.setTimeout(() => stop(), MAX_RECORDING_MS),
-      tick: deps.timers.setInterval(render, 1000),
+      tick: deps.timers.setInterval(() => (detached() ? abandon() : render()), 1000),
     };
     return render();
   }
