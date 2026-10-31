@@ -21,7 +21,7 @@ Guía para leer el código de iworkflow, pensada para alguien con experiencia s�
 11. [Estrategia de tests](#11-estrategia-de-tests)
 12. [Ruta de lectura recomendada](#12-ruta-de-lectura-recomendada)
 
-También: [Glosario rápido](#glosario-rápido) · [Rust para desarrolladores Java](docs/rust-for-java.es.md)
+También: [Glosario rápido](#glosario-rápido)
 
 ---
 
@@ -91,7 +91,6 @@ Las transiciones se validan con métodos del propio enum (`can_start`, `can_fini
 
 ## 2. Rust para un desarrollador Java
 
-La tabla de equivalencias Java ↔ Rust y los conceptos sin equivalente directo (ownership, `Arc`, `Send + Sync`, macros…) están en [docs/rust-for-java.es.md](docs/rust-for-java.es.md). Échale un vistazo primero si vienes de Java.
 
 ---
 

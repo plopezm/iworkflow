@@ -12,9 +12,8 @@ import (
 
 func base() Options {
 	return Options{
-		SiteRoot:   "target/site",
-		OutputName: "other",
-		SiteAddr:   netip.MustParseAddrPort("127.0.0.1:3000"),
+		SiteRoot: "target/site",
+		SiteAddr: netip.MustParseAddrPort("127.0.0.1:3000"),
 	}
 }
 
@@ -22,37 +21,30 @@ func TestSiteDirNextToTheExecutableIsUsed(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "site"), 0o750))
 
-	got := ApplyPackagedDefaults(base(), dir, false, true)
+	got := ApplyPackagedDefaults(base(), dir, false)
 
 	assert.Equal(t, filepath.Join(dir, "site"), got.SiteRoot)
-	assert.Equal(t, "other", got.OutputName)
 }
 
 func TestExplicitSiteRootWins(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "site"), 0o750))
 
-	got := ApplyPackagedDefaults(base(), dir, true, true)
+	got := ApplyPackagedDefaults(base(), dir, true)
 
 	assert.Equal(t, "target/site", got.SiteRoot)
 }
 
 func TestMissingSiteDirKeepsDefaultRoot(t *testing.T) {
-	got := ApplyPackagedDefaults(base(), t.TempDir(), false, true)
+	got := ApplyPackagedDefaults(base(), t.TempDir(), false)
 
 	assert.Equal(t, "target/site", got.SiteRoot)
 }
 
 func TestNoExecutableDirKeepsDefaultRoot(t *testing.T) {
-	got := ApplyPackagedDefaults(base(), "", false, true)
+	got := ApplyPackagedDefaults(base(), "", false)
 
 	assert.Equal(t, "target/site", got.SiteRoot)
-}
-
-func TestOutputNameDefaultsToTheBinaryName(t *testing.T) {
-	got := ApplyPackagedDefaults(base(), "", true, false)
-
-	assert.Equal(t, "iworkflow", got.OutputName)
 }
 
 func TestPackagedPortIsUsedWhenTheAddressIsNotPinned(t *testing.T) {

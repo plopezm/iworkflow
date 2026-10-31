@@ -214,12 +214,12 @@ function createTray(updater) {
 
 /** The address is pinned by the environment, or announced by the server once it is bound. */
 async function startAndFindAddr() {
-  if (process.env.LEPTOS_SITE_ADDR) {
+  if (process.env.IWORKFLOW_ADDR) {
     const addr = parseSiteAddr(process.env);
     if (!(await isPortFree(addr))) {
       throw new Error(
         `Port ${addr.port} is already in use (another iworkflow instance?). ` +
-          'Close it, or set LEPTOS_SITE_ADDR to another address.',
+          'Close it, or set IWORKFLOW_ADDR to another address.',
       );
     }
     startServer(() => {});

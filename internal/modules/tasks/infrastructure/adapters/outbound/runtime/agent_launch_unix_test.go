@@ -16,7 +16,7 @@ import (
 // Rust: agent_process.rs::build_command_clears_the_environment_down_to_session_variables_and_extras
 func TestBuildCommandClearsTheEnvironmentDownToSessionVariablesAndExtras(t *testing.T) {
 	hostEnv := []env.Var{
-		{Key: "LEPTOS_ENV", Value: "dev"},
+		{Key: "APP_ENV", Value: "dev"},
 		{Key: "CARGO_MANIFEST_DIR", Value: "/src"},
 		{Key: "VIRTUAL_ENV", Value: "/venv"},
 		{Key: "PATH", Value: "/venv/bin"},

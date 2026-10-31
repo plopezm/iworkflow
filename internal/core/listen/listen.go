@@ -10,21 +10,12 @@ import (
 	"os"
 )
 
-// PrimarySiteAddrVar is the preferred environment variable for the bind address.
-const PrimarySiteAddrVar string = "IWORKFLOW_ADDR"
+// SiteAddrVar is the environment variable for the bind address; the --addr option wins over it.
+const SiteAddrVar string = "IWORKFLOW_ADDR"
 
-// LegacySiteAddrVar was kept from Leptos for backwards compatibility.
-const LegacySiteAddrVar string = "LEPTOS_SITE_ADDR"
-
-// SiteAddrVar points to PrimarySiteAddrVar.
-const SiteAddrVar string = PrimarySiteAddrVar
-
-// LookupSiteAddr checks IWORKFLOW_ADDR first, falling back to LEPTOS_SITE_ADDR.
+// LookupSiteAddr returns the address from IWORKFLOW_ADDR when it is set and not empty.
 func LookupSiteAddr() (string, bool) {
-	if val, ok := os.LookupEnv(PrimarySiteAddrVar); ok && val != "" {
-		return val, true
-	}
-	if val, ok := os.LookupEnv(LegacySiteAddrVar); ok && val != "" {
+	if val, ok := os.LookupEnv(SiteAddrVar); ok && val != "" {
 		return val, true
 	}
 	return "", false
@@ -36,7 +27,7 @@ var routeProbe netip.AddrPort = netip.AddrPortFrom(netip.AddrFrom4([4]byte{192, 
 // Info describes where the running server listens and what decided it.
 type Info struct {
 	Addr netip.AddrPort
-	// LockedByEnv means LEPTOS_SITE_ADDR was set, so the saved preference is ignored.
+	// LockedByEnv means --addr or IWORKFLOW_ADDR was set, so the saved preference is ignored.
 	LockedByEnv bool
 	// TokenRequired means the running server demands the access token (only meaningful while exposed).
 	TokenRequired bool
@@ -47,7 +38,7 @@ func (i Info) IsExposed() bool {
 	return !i.Addr.Addr().IsLoopback()
 }
 
-// ResolveListenAddr chooses the bind address. An explicit environment address always wins.
+// ResolveListenAddr chooses the bind address. An explicit address (option or environment) always wins.
 // Otherwise a saved port (if any) replaces the configured one, opting in to network access listens
 // on every IPv4 interface, and the default stays on the configured host.
 func ResolveListenAddr(configured netip.AddrPort, envLocked bool, networkAccess bool, savedPort *uint16) netip.AddrPort {

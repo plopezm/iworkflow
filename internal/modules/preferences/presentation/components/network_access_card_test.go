@@ -48,7 +48,7 @@ func TestEnvironmentLockDisablesTheControlsAndExplainsWhy(t *testing.T) {
 
 	html := render(t, components.NetworkAccessCard(view))
 
-	require.Contains(t, html, "LEPTOS_SITE_ADDR")
+	require.Contains(t, html, "IWORKFLOW_ADDR")
 	require.Contains(t, html, "disabled")
 	require.NotContains(t, html, "Reiniciar ahora", "a pinned address never asks for a restart")
 }

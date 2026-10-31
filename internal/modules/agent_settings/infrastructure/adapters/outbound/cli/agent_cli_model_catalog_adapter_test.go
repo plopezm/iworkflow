@@ -60,7 +60,7 @@ func TestListModelsCommandRunsTheBinaryInALoginShellWithACleanEnv(t *testing.T) 
 	if runtime.GOOS == "windows" {
 		t.Skip("POSIX login shell")
 	}
-	vars := []string{"SHELL=/bin/zsh", "HOME=/home/u", "LEPTOS_ENV=dev"}
+	vars := []string{"SHELL=/bin/zsh", "HOME=/home/u", "APP_ENV=dev"}
 
 	command := listModelsCommand(context.Background(), "my pi", vars)
 

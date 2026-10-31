@@ -8,7 +8,7 @@ import (
 
 func TestSessionEnvDropsVariablesSetByTheParent(t *testing.T) {
 	vars := []string{
-		"LEPTOS_SITE_ADDR=127.0.0.1:3000",
+		"IWORKFLOW_ADDR=127.0.0.1:3000",
 		"IWF_DATABASE_URL=x.db",
 		"CARGO_MANIFEST_DIR=/src",
 		"RUST_LOG=debug",

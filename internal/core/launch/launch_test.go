@@ -26,6 +26,9 @@ func TestParse(t *testing.T) {
 		{"short help flag requests usage", []string{"-h"}, Command{Help: true}},
 		{"long help flag requests usage", []string{"--help"}, Command{Help: true}},
 		{"help wins after no-open", []string{"--no-open", "--help"}, Command{Help: true}},
+		{"addr takes the next argument", []string{"--addr", "0.0.0.0:9000"}, Command{Options: Options{OpenBrowser: true, Addr: "0.0.0.0:9000"}}},
+		{"addr accepts the equals form", []string{"--addr=127.0.0.1:4000", "--no-open"}, Command{Options: Options{Addr: "127.0.0.1:4000"}}},
+		{"site-root takes a value", []string{"--site-root", "dist/site"}, Command{Options: Options{OpenBrowser: true, SiteRoot: "dist/site"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -46,13 +49,19 @@ func TestParseRejectsUnknownArgumentWithUsage(t *testing.T) {
 	assert.EqualError(t, err, "argumento desconocido: --nope\n\n"+Usage)
 }
 
-func TestUsageText(t *testing.T) {
-	want := "Uso: iworkflow [OPCIONES]\n\n" +
-		"Opciones:\n" +
-		"  --no-open    Arranca solo el servidor, sin abrir la web en el navegador\n" +
-		"  -h, --help   Muestra esta ayuda"
+func TestParseRejectsAValuedOptionWithoutValue(t *testing.T) {
+	for _, args := range [][]string{{"--addr"}, {"--site-root="}, {"--addr", ""}} {
+		_, err := Parse(args)
 
-	assert.Equal(t, want, Usage)
+		var missing *MissingValueError
+		require.ErrorAs(t, err, &missing, args)
+	}
+}
+
+func TestUsageText(t *testing.T) {
+	for _, flag := range []string{"--no-open", "--addr", "--site-root", "-h, --help"} {
+		assert.Contains(t, Usage, flag)
+	}
 }
 
 func TestBrowserURLMapsUnspecifiedAddressesToLoopback(t *testing.T) {

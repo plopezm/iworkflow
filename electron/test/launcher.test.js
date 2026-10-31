@@ -16,19 +16,19 @@ const {
   isTrustedUrl,
 } = require('../src/launcher');
 
-test('defaults to the server default address when LEPTOS_SITE_ADDR is unset', () => {
+test('defaults to the server default address when IWORKFLOW_ADDR is unset', () => {
   assert.equal(DEFAULT_SITE_ADDR, '127.0.0.1:9000');
   assert.deepEqual(parseSiteAddr({}), { host: '127.0.0.1', port: 9000 });
 });
 
-test('reads an explicit LEPTOS_SITE_ADDR', () => {
-  assert.deepEqual(parseSiteAddr({ LEPTOS_SITE_ADDR: '0.0.0.0:9000' }), { host: '0.0.0.0', port: 9000 });
-  assert.deepEqual(parseSiteAddr({ LEPTOS_SITE_ADDR: '[::]:9100' }), { host: '::', port: 9100 });
+test('reads an explicit IWORKFLOW_ADDR', () => {
+  assert.deepEqual(parseSiteAddr({ IWORKFLOW_ADDR: '0.0.0.0:9000' }), { host: '0.0.0.0', port: 9000 });
+  assert.deepEqual(parseSiteAddr({ IWORKFLOW_ADDR: '[::]:9100' }), { host: '::', port: 9100 });
 });
 
-test('rejects a malformed LEPTOS_SITE_ADDR', () => {
-  assert.throws(() => parseSiteAddr({ LEPTOS_SITE_ADDR: 'nonsense' }), /LEPTOS_SITE_ADDR/);
-  assert.throws(() => parseSiteAddr({ LEPTOS_SITE_ADDR: '127.0.0.1:99999' }), /LEPTOS_SITE_ADDR/);
+test('rejects a malformed IWORKFLOW_ADDR', () => {
+  assert.throws(() => parseSiteAddr({ IWORKFLOW_ADDR: 'nonsense' }), /IWORKFLOW_ADDR/);
+  assert.throws(() => parseSiteAddr({ IWORKFLOW_ADDR: '127.0.0.1:99999' }), /IWORKFLOW_ADDR/);
 });
 
 test('binary name depends on the platform', () => {
@@ -42,16 +42,15 @@ test('the server is started without opening a browser', () => {
 
 test('server env never pins the listen address, so the saved network setting still applies', () => {
   const env = buildServerEnv({ PATH: '/usr/bin', HOME: '/home/u' }, 'linux');
-  assert.equal(env.LEPTOS_SITE_ADDR, undefined);
+  assert.equal(env.IWORKFLOW_ADDR, undefined);
   assert.equal(env.PATH, '/usr/bin');
   assert.equal(env.HOME, '/home/u');
-  assert.equal(env.LEPTOS_ENV, 'PROD');
   assert.equal(env.NO_COLOR, '1');
 });
 
 test('server env keeps an address the user pinned and does not touch the database path', () => {
-  const env = buildServerEnv({ LEPTOS_SITE_ADDR: '0.0.0.0:9000', IWF_DATABASE_URL: '/data/x.db' }, 'linux');
-  assert.equal(env.LEPTOS_SITE_ADDR, '0.0.0.0:9000');
+  const env = buildServerEnv({ IWORKFLOW_ADDR: '0.0.0.0:9000', IWF_DATABASE_URL: '/data/x.db' }, 'linux');
+  assert.equal(env.IWORKFLOW_ADDR, '0.0.0.0:9000');
   assert.equal(env.IWF_DATABASE_URL, '/data/x.db');
   const untouched = buildServerEnv({}, 'linux');
   assert.equal(untouched.IWF_DATABASE_URL, undefined);

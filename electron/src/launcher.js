@@ -15,11 +15,11 @@ const UNSPECIFIED_HOSTS = new Set(['0.0.0.0', '::', '']);
 
 /** Host and port the server will listen on, following the same default as the binary. */
 function parseSiteAddr(env) {
-  const raw = env.LEPTOS_SITE_ADDR || DEFAULT_SITE_ADDR;
+  const raw = env.IWORKFLOW_ADDR || DEFAULT_SITE_ADDR;
   const match = /^(?:\[([^\]]*)\]|([^:]*)):(\d+)$/.exec(raw);
   const port = match ? Number(match[3]) : NaN;
   if (!match || port < 1 || port > 65535) {
-    throw new Error(`Invalid LEPTOS_SITE_ADDR: ${raw}`);
+    throw new Error(`Invalid IWORKFLOW_ADDR: ${raw}`);
   }
   return { host: match[1] ?? match[2], port };
 }
@@ -34,13 +34,13 @@ function serverArgs() {
 }
 
 /**
- * Environment for the server process. It deliberately leaves `LEPTOS_SITE_ADDR` and
+ * Environment for the server process. It deliberately leaves `IWORKFLOW_ADDR` and
  * `IWF_DATABASE_URL` alone: the saved network-access choice decides the bind address and the
  * database stays where it always was. `IWF_SUPERVISED` tells it that the shell respawns it
  * after a restart request, so it exits instead of starting a copy of itself.
  */
 function buildServerEnv(base, platform = process.platform) {
-  const env = { ...base, LEPTOS_ENV: 'PROD', NO_COLOR: '1', IWF_SUPERVISED: '1' };
+  const env = { ...base, NO_COLOR: '1', IWF_SUPERVISED: '1' };
   if (platform === 'darwin') env.PATH = withMacPaths(base.PATH);
   return env;
 }

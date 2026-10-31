@@ -21,7 +21,7 @@ A guide to reading the iworkflow code, aimed at someone with solid Java experien
 11. [Testing strategy](#11-testing-strategy)
 12. [Recommended reading path](#12-recommended-reading-path)
 
-Also: [Quick glossary](#quick-glossary) · [Rust for Java developers](docs/rust-for-java.md)
+Also: [Quick glossary](#quick-glossary)
 
 ---
 
@@ -91,7 +91,6 @@ Transitions are validated by methods on the enum itself (`can_start`, `can_finis
 
 ## 2. Rust for a Java developer
 
-The Java ↔ Rust equivalence table and the concepts with no direct equivalent (ownership, `Arc`, `Send + Sync`, macros…) live in [docs/rust-for-java.md](docs/rust-for-java.md). Skim it first if you come from Java.
 
 ---
 

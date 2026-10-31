@@ -12,7 +12,7 @@ files:
   - package.json
   - src/**
   - build/icon.png
-# The packaged server (binary + site/) is copied by scripts/electron.sh into resources/server.
+# The packaged server (binary + site/) is copied by `make electron-build` into resources/server.
 # It lives outside the asar archive so the binary stays executable.
 extraResources:
   - from: resources/server

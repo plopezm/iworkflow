@@ -29,7 +29,7 @@ func envMap(entries []string) map[string]string {
 
 func TestShellCommandIsALoginShellWithACleanEnvironment(t *testing.T) {
 	vars := kv(
-		"LEPTOS_SITE_ADDR", "127.0.0.1:3000",
+		"IWORKFLOW_ADDR", "127.0.0.1:3000",
 		"CARGO_MANIFEST_DIR", "/src",
 		"VIRTUAL_ENV", "/venv",
 		"PATH", "/venv/bin:/usr/bin",
@@ -42,7 +42,7 @@ func TestShellCommandIsALoginShellWithACleanEnvironment(t *testing.T) {
 	require.Equal(t, []string{"/bin/zsh", "-l"}, cmd.Args)
 	require.Equal(t, "/tmp", cmd.Dir)
 	got := envMap(cmd.Env)
-	require.NotContains(t, got, "LEPTOS_SITE_ADDR")
+	require.NotContains(t, got, "IWORKFLOW_ADDR")
 	require.NotContains(t, got, "CARGO_MANIFEST_DIR")
 	require.NotContains(t, got, "VIRTUAL_ENV")
 	require.Equal(t, env.DefaultPath, got["PATH"])

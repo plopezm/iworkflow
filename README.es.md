@@ -191,17 +191,19 @@ Al arrancar, `iworkflow` abre la web en el navegador (`http://<host>:<puerto>` d
 | Argumento | Efecto |
 |---|---|
 | `--no-open` | Arranca solo el servidor, sin abrir el navegador. |
+| `--addr DIR:PUERTO` | Dirección de escucha (también la variable `IWORKFLOW_ADDR`). La fija: se ignoran los ajustes de red guardados. Por defecto `127.0.0.1:3000` (`:9000` empaquetado). |
+| `--site-root RUTA` | Carpeta con los recursos estáticos. Por defecto `site/` junto al ejecutable, o `web/static`. |
 | `-h`, `--help` | Muestra la ayuda. |
 
-Ejemplos: `./iworkflow --no-open`, `./scripts/prod.sh run --no-open`, `cargo leptos watch -- --no-open`.
+Ejemplos: `./iworkflow --no-open`, `make run ARGS=--no-open`, `make dev ARGS=--no-open`.
 
-En desarrollo (`cargo leptos watch`) el servidor escucha solo en `127.0.0.1`.
+En desarrollo (`make dev`) el servidor escucha solo en `127.0.0.1`.
 
 ### Acceso desde otros dispositivos
 
-Por defecto el servidor escucha solo en `127.0.0.1` (este equipo). Para usarlo desde el móvil, activa **Configuración → Acceso desde la red** y reinicia el servidor: pasa a escuchar en `0.0.0.0` con el mismo puerto, y la tarjeta muestra la dirección que abrir en el móvil. La elección se guarda en la base de datos. La misma tarjeta permite cambiar el **puerto del servidor** (1024–65535, se guarda en la base de datos y se aplica en el próximo arranque; un servidor empaquetado usa 9000 por defecto). Si `LEPTOS_SITE_ADDR` está definida, tiene prioridad y ninguno de los dos ajustes surte efecto. La tarjeta muestra un **código QR** y un selector con las interfaces de red del equipo (por ejemplo ethernet y Tailscale, cada una con su IP): elige la que el móvil pueda alcanzar y escanea el código. Con el token exigido, iworkflow se abre ya autenticado; sin él, el código contiene solo la dirección.
+Por defecto el servidor escucha solo en `127.0.0.1` (este equipo). Para usarlo desde el móvil, activa **Configuración → Acceso desde la red** y reinicia el servidor: pasa a escuchar en `0.0.0.0` con el mismo puerto, y la tarjeta muestra la dirección que abrir en el móvil. La elección se guarda en la base de datos. La misma tarjeta permite cambiar el **puerto del servidor** (1024–65535, se guarda en la base de datos y se aplica en el próximo arranque; un servidor empaquetado usa 9000 por defecto). Si `--addr` o `IWORKFLOW_ADDR` está definida, tiene prioridad y ninguno de los dos ajustes surte efecto. La tarjeta muestra un **código QR** y un selector con las interfaces de red del equipo (por ejemplo ethernet y Tailscale, cada una con su IP): elige la que el móvil pueda alcanzar y escanea el código. Con el token exigido, iworkflow se abre ya autenticado; sin él, el código contiene solo la dirección.
 
-Siempre que el servidor sea accesible desde la red (este ajuste, o un `LEPTOS_SITE_ADDR` que no sea loopback, como el `0.0.0.0:9000` de `scripts/prod.sh`) exige por defecto un **token de acceso**:
+Siempre que el servidor sea accesible desde la red (este ajuste, o un `--addr` que no sea loopback, como el `0.0.0.0:9000` de `make dist` / `make run`) exige por defecto un **token de acceso**:
 
 - El QR y el enlace de la tarjeta llevan el token (`http://<ip>:<puerto>/?token=…`) y siguen a la interfaz seleccionada. Al abrirlo se guarda en una cookie y se redirige a una URL limpia, así que no queda en la barra de direcciones ni en el historial. Sin la cookie, el servidor muestra una página de acceso donde pegar el token.
 - Al arrancar, el servidor escribe ese enlace en el log, que es la forma de obtenerlo en una máquina sin navegador.
@@ -215,62 +217,61 @@ El token es un secreto compartido sobre HTTP sin cifrar: en una red no fiable pu
 
 ## Producción
 
-Requisitos: la toolchain de Rust, `cargo-leptos` (`cargo install cargo-leptos --locked`) y el target `wasm32-unknown-unknown` (`rustup target add wasm32-unknown-unknown`).
+Requisitos: Go, GNU make, `templ`, `sqlc` y la CLI de Tailwind CSS (los mismos que `make generate`).
 
-`scripts/prod.sh` compila y ejecuta la app en modo release:
-
-```bash
-./scripts/prod.sh build     # 1. compila en release y empaqueta en dist/
-./scripts/prod.sh run       # 2. arranca lo ya empaquetado
-./scripts/prod.sh           # ambos pasos seguidos (build + run)
-```
-
-Flujo habitual: ejecuta `build` una vez (y de nuevo tras cada actualización) y `run` cada vez que quieras arrancar el servidor. Los argumentos tras `run` se pasan al binario (p. ej. `--no-open`, ver [Argumentos del ejecutable](#argumentos-del-ejecutable)). Por defecto escucha en `http://0.0.0.0:9000`; se cambia con `LEPTOS_SITE_ADDR`:
+El Makefile compila y ejecuta la app en modo release:
 
 ```bash
-LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run --no-open
-DIST_DIR=/opt/iworkflow ./scripts/prod.sh build     # empaquetar en otra ruta
+make dist     # 1. compila en release y empaqueta en dist/
+make run      # 2. arranca lo ya empaquetado
+make prod     # ambos pasos seguidos (dist + run)
 ```
 
-`build` ejecuta `cargo leptos build --release` y copia en `dist/` el binario
-`iworkflow` y la carpeta `site/` (WASM, JS y CSS). Ambos son necesarios: sin
-`site/` la página se sirve pero no hidrata.
+Flujo habitual: ejecuta `make dist` una vez (y de nuevo tras cada actualización) y `make run` cada vez que quieras arrancar el servidor. `ARGS` se pasa al binario (p. ej. `ARGS=--no-open`, ver [Argumentos del ejecutable](#argumentos-del-ejecutable)). Por defecto escucha en `http://0.0.0.0:9000`; se cambia con `SITE_ADDR`:
 
-`run` exporta las variables de Leptos (`LEPTOS_SITE_ROOT`, `LEPTOS_ENV=PROD`…) y
-arranca el binario desde el directorio actual, así que el `.env` de ese directorio
-también se aplica. Variables propias del script:
+```bash
+make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
+make dist DIST_DIR=/opt/iworkflow     # empaquetar en otra ruta
+```
+
+`make dist` regenera templ, sqlc y CSS, compila el binario `iworkflow` sin símbolos y copia
+la carpeta estática `site/` en `dist/`. Ambos son necesarios.
+
+`make run` arranca el binario con `--addr` y `--site-root` desde el directorio actual, así que el `.env` de ese directorio
+también se aplica. Variables de make:
 
 | Variable | Por defecto |
 |---|---|
 | `DIST_DIR` | `dist/` en la raíz del repo |
-| `LEPTOS_SITE_ADDR` | `0.0.0.0:9000` (todas las interfaces) |
+| `SITE_ADDR` | `0.0.0.0:9000` (todas las interfaces) |
+| `ARGS` | ninguno (flags del binario) |
 
 > **Seguridad:** la app lanza agentes que ejecutan comandos con tu usuario. Su única
 > protección es el token de acceso (ver [Acceso desde otros dispositivos](#acceso-desde-otros-dispositivos)),
 > que se exige siempre que el bind no sea loopback salvo que lo desactives, y viaja por HTTP sin
 > cifrar. Restringe el acceso con firewall, red privada (Tailscale/WireGuard) o un
 > reverse proxy con TLS. Para limitarlo a la máquina local:
-> `LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run`.
+> `make run SITE_ADDR=127.0.0.1:3000`.
 
 Para desplegar en otra máquina basta con copiar `dist/` y lanzarlo con
-`LEPTOS_SITE_ROOT=site LEPTOS_ENV=PROD LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow`
+`./iworkflow --addr 0.0.0.0:9000`
 desde dentro de esa carpeta.
 
 ## Aplicación de escritorio (Electron)
 
-Para quien no quiera usar la terminal, `electron/` envuelve el mismo servidor en una ventana de escritorio y `scripts/electron.sh` construye un instalador para la plataforma en la que se ejecuta (Linux: AppImage, macOS: `.dmg`, Windows: `.exe` NSIS). No hay un «servidor para el móvil» que compilar aparte: el instalador ya contiene el mismo binario `iworkflow`, así que el móvil se conecta al servidor que corre dentro de la app (ver [Usarlo desde el móvil](#usarlo-desde-el-móvil)).
+Para quien no quiera usar la terminal, `electron/` envuelve el mismo servidor en una ventana de escritorio y `make electron-build` construye un instalador para la plataforma en la que se ejecuta (Linux: AppImage, macOS: `.dmg`, Windows: `.exe` NSIS). No hay un «servidor para el móvil» que compilar aparte: el instalador ya contiene el mismo binario `iworkflow`, así que el móvil se conecta al servidor que corre dentro de la app (ver [Usarlo desde el móvil](#usarlo-desde-el-móvil)).
 
 ### Construir el instalador
 
-Requisitos (una vez): los de [Producción](#producción) (Rust, `cargo-leptos`, el target `wasm32-unknown-unknown`), `git` y Node.js 22+ con npm. No hay compilación cruzada: construye cada instalador en su propia plataforma.
+Requisitos (una vez): los de [Producción](#producción), `git` y Node.js 22+ con npm. No hay compilación cruzada: construye cada instalador en su propia plataforma.
 
 ```bash
-./scripts/electron.sh build
+make electron-build
 ```
 
 Ejecuta, en orden:
 
-1. `scripts/prod.sh build`: `cargo leptos build --release`, dejando el binario y `site/` en `dist/`.
+1. `make dist`: build release, dejando el binario y `site/` en `dist/`.
 2. Copia ambos a `electron/resources/server/` (fuera del archivo asar, para que el binario siga siendo ejecutable).
 3. `npm ci` y `electron-builder` para la plataforma actual.
 4. Escribe el instalador en `dist/electron/`: `iworkflow-<versión>-linux-x86_64.AppImage`, `iworkflow-<versión>-mac-arm64.dmg` (o `mac-x64`) o `iworkflow-<versión>-win-x64.exe`.
@@ -278,12 +279,12 @@ Ejecuta, en orden:
 Otras formas:
 
 ```bash
-SKIP_SERVER_BUILD=1 ./scripts/electron.sh build   # reutiliza el servidor ya presente en dist/
-DIST_DIR=/otra/ruta ./scripts/electron.sh build   # usa otro paquete de servidor / ubicación de salida
-./scripts/electron.sh dev                         # abre la ventana sobre dist/ sin construir instalador
+make electron-build SKIP_SERVER_BUILD=1   # reutiliza el servidor ya presente en dist/
+DIST_DIR=/otra/ruta make electron-build   # usa otro paquete de servidor / ubicación de salida
+make electron-dev                         # abre la ventana sobre dist/ sin construir instalador
 ```
 
-En macOS el `.dmg` se genera para la arquitectura del Mac que lo compila (Apple Silicon o Intel) y requiere las Xcode Command Line Tools. En Windows ejecútalo desde **Git Bash** (con la toolchain MSVC de Rust). El build release del servidor tarda unos minutos; en máquinas pequeñas limita el paralelismo con `CARGO_BUILD_JOBS=2`.
+En macOS el `.dmg` se genera para la arquitectura del Mac que lo compila (Apple Silicon o Intel) y requiere las Xcode Command Line Tools. En Windows ejecútalo desde **Git Bash** (con GNU make instalado).
 
 ### Ejecutarlo
 
@@ -302,11 +303,11 @@ El servidor de la app es el normal, así que el acceso desde el móvil funciona 
 2. **Cierra la app del todo** (icono de la bandeja → **Quit and stop server**, o **File → Quit**) y vuelve a abrirla. Cerrar solo la ventana no basta: el servidor sigue en marcha y lee este ajuste únicamente al arrancar. Ahora escucha en `0.0.0.0:9000`.
 3. Escanea con el móvil el **código QR** de la misma tarjeta (misma red local, o el mismo tailnet de [Tailscale](#desarrollar-desde-el-móvil-con-tailscale)). Se abre ya autenticado con el token de acceso.
 
-También puedes fijar la dirección antes de lanzar, p. ej. `LEPTOS_SITE_ADDR=0.0.0.0:9000 ./iworkflow-*.AppImage`; entonces se ignora el ajuste guardado.
+También puedes fijar la dirección antes de lanzar, p. ej. `IWORKFLOW_ADDR=0.0.0.0:9000 ./iworkflow-*.AppImage`; entonces se ignora el ajuste guardado.
 
 ### Comportamiento
 
-- La app arranca el servidor incluido (`--no-open`) y lo muestra en una ventana. El servidor no cambia: misma base de datos (`~/.iworkflow/workspaces.db`), mismo `LEPTOS_SITE_ADDR`, mismo token de acceso. La ventana entra sola cuando se exige token.
+- La app arranca el servidor incluido (`--no-open`) y lo muestra en una ventana. El servidor no cambia: misma base de datos (`~/.iworkflow/workspaces.db`), mismo `IWORKFLOW_ADDR`, mismo token de acceso. La ventana entra sola cuando se exige token.
 - Por defecto el servidor escucha en `127.0.0.1:9000`; cambia el puerto en **Configuración → Acceso desde la red**. La app lee la dirección que el servidor anuncia al arrancar, así que sigue al puerto guardado. Si el puerto está ocupado la app muestra un error; libéralo o elige otro.
 - **Cerrar la ventana solo la oculta**, así que un móvil conectado por la red local o Tailscale sigue funcionando. Para detener el servidor usa el icono de la bandeja (**Quit and stop server**) o **File → Quit**. En macOS el icono está en la barra de menús y pulsar el icono del Dock vuelve a mostrar la ventana (**iworkflow → Quit** o Cmd+Q detiene el servidor). En un escritorio Linux sin bandeja, cerrar la ventana cierra la app.
 - Los enlaces externos se abren en el navegador del sistema; la ventana solo muestra el servidor local.
@@ -323,19 +324,19 @@ La app consulta el último release de GitHub 15 segundos después de arrancar, c
 
 ### Workflow de release
 
-`.github/workflows/release.yml` construye los archivos del servidor y, en los mismos runners de Linux, macOS (Apple Silicon e Intel) y Windows, los instaladores de escritorio: ejecuta los tests del lanzador (`npm test` en `electron/`), después `scripts/electron.sh build` sobre el servidor que acaba de compilar, y sube `iworkflow-desktop-<plataforma>`. Al subir un tag `v*` se publica todo en una release de GitHub; también puede lanzarse a mano (*Run workflow*). La versión del instalador sale de `electron/package.json`: mantenla igual que `Cargo.toml`. El workflow sube también `latest-linux.yml` / `latest.yml` (y los `.blockmap`) junto a los instaladores: son lo que lee `electron-updater`, así que un release sin ellos no puede actualizar instalaciones de Windows ni Linux. macOS no tiene.
+`.github/workflows/release.yml` construye los archivos del servidor y, en los mismos runners de Linux, macOS (Apple Silicon e Intel) y Windows, los instaladores de escritorio: ejecuta los tests del lanzador (`npm test` en `electron/`), después `make electron-build` sobre el servidor que acaba de compilar, y sube `iworkflow-desktop-<plataforma>`. Al subir un tag `v*` se publica todo en una release de GitHub; también puede lanzarse a mano (*Run workflow*). La versión del instalador sale de `electron/package.json`: cámbiala con `make bump-version VERSION=x.y.z`. El workflow sube también `latest-linux.yml` / `latest.yml` (y los `.blockmap`) junto a los instaladores: son lo que lee `electron-updater`, así que un release sin ellos no puede actualizar instalaciones de Windows ni Linux. macOS no tiene.
 
 ## Desarrollar desde el móvil con Tailscale
 
 [Tailscale](https://tailscale.com) crea una red privada (tailnet) entre tus dispositivos, de modo que el móvil alcanza el servidor que corre en tu ordenador sin abrir puertos a internet. Es importante porque iworkflow solo se protege con un token compartido sobre HTTP y lanza agentes que ejecutan comandos con tu usuario.
 
 1. Instala Tailscale en el ordenador que ejecuta iworkflow y en el móvil (App Store / Google Play) e inicia sesión con la **misma cuenta** en ambos.
-2. Arranca el servidor escuchando en la interfaz de Tailscale (o en todas, que es el valor por defecto de `scripts/prod.sh`):
+2. Arranca el servidor escuchando en la interfaz de Tailscale (o en todas, que es el valor por defecto de `make dist` / `make run`):
 
    ```bash
-   ./scripts/prod.sh run                                        # bind a 0.0.0.0:9000
+   make run                                        # bind a 0.0.0.0:9000
    # o solo accesible en esta máquina y, vía Tailscale Serve, en la tailnet (ver abajo)
-   LEPTOS_SITE_ADDR=127.0.0.1:3000 ./scripts/prod.sh run --no-open
+   make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
    ```
 
 3. Obtén el nombre o la IP del ordenador en la tailnet:
