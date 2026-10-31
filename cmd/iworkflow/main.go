@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ import (
 	"iworkflow/internal/core/logx"
 	"iworkflow/internal/core/restart"
 	"iworkflow/internal/core/site"
+	"iworkflow/internal/core/tlsx"
 )
 
 const (
@@ -224,6 +226,19 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	if err != nil {
 		return fmt.Errorf("compose application: %w", err)
 	}
+	// HTTPS is opt-in: browsers only expose the microphone of the voice dictation in a secure context.
+	tlsHosts := []string{}
+	if ip, ok := listen.LocalNetworkIP(ctx); ok {
+		tlsHosts = append(tlsHosts, ip.String())
+	}
+	tlsConfig, err := tlsx.Config(os.Getenv, filepath.Join(filepath.Dir(cfg.DatabaseURL), "tls"), tlsHosts, time.Now())
+	if err != nil {
+		return fmt.Errorf("configure TLS: %w", err)
+	}
+	scheme := "http"
+	if tlsConfig != nil {
+		scheme = "https"
+	}
 	// The modules release what they hold once serving has ended. The release is registered only after the bind has
 	// succeeded: a failed bind has started nothing, and a failed start releases inside bindThenStart.
 	release := func() { shutdownApplication(ctx, logger, application) }
@@ -233,9 +248,16 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	}
 	defer release()
 	logAccess(ctx, logger, info, prefs)
-	logger.Info("listening", "url", "http://"+addr.String())
+	logger.Info("listening", "url", scheme+"://"+addr.String())
+	if tlsConfig != nil {
+		listener = tls.NewListener(listener, tlsConfig)
+		logger.Info("serving HTTPS: the access links above use http://, replace it with https://")
+	}
 	if options.OpenBrowser {
 		url := launch.BrowserURL(addr)
+		if tlsConfig != nil {
+			url = "https" + strings.TrimPrefix(url, "http")
+		}
 		if err := launch.OpenBrowser(ctx, url); err != nil {
 			logger.Warn("open the URL manually in the browser", "url", url, "error", err)
 		}

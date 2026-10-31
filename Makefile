@@ -23,7 +23,7 @@ comma := ,
 # Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
 SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))
 
-.PHONY: model generate templ sqlc css build dist run prod dev test lint fmt vet bump-version electron electron-build electron-dev electron-test e2e e2e-smoke
+.PHONY: model generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-test e2e e2e-smoke
 
 generate: templ sqlc css
 
@@ -59,6 +59,11 @@ build: generate
 dev: generate
 	go run $(GO_BUILD_TAGS) ./cmd/iworkflow $(ARGS)
 
+# Same as dev over HTTPS, which browsers need to expose the microphone of the voice dictation to other devices. The server
+# creates a self-signed certificate in ~/.iworkflow/tls on first use and reuses it; browsers ask to accept it once.
+dev-https: generate
+	IWF_TLS=auto go run $(GO_BUILD_TAGS) ./cmd/iworkflow $(ARGS)
+
 # Release package: stripped binary plus the static site, in $(DIST_DIR).
 dist: generate
 	@test -n "$(APP_VERSION)" || { echo "Cannot read the version from electron/package.json; pass APP_VERSION=X.Y.Z" >&2; exit 1; }
@@ -74,6 +79,12 @@ run:
 	@test -x $(DIST_DIR)/$(BIN_FILE) && test -d $(DIST_DIR)/site || { echo "No complete build in $(DIST_DIR); run 'make dist' first." >&2; exit 1; }
 	@echo "Serving on http://$(SITE_ADDR)"
 	$(DIST_DIR)/$(BIN_FILE) --addr $(SITE_ADDR) --site-root $(abspath $(DIST_DIR))/site $(ARGS)
+
+# Same as run over HTTPS (see dev-https).
+run-https:
+	@test -x $(DIST_DIR)/$(BIN_FILE) && test -d $(DIST_DIR)/site || { echo "No complete build in $(DIST_DIR); run 'make dist' first." >&2; exit 1; }
+	@echo "Serving on https://$(SITE_ADDR)"
+	IWF_TLS=auto $(DIST_DIR)/$(BIN_FILE) --addr $(SITE_ADDR) --site-root $(abspath $(DIST_DIR))/site $(ARGS)
 
 prod: dist run
 
