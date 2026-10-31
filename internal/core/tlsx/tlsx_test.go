@@ -62,3 +62,30 @@ func TestConfigLoadsAGivenPair(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, cfg)
 }
+
+func TestResolvePort(t *testing.T) {
+	cases := map[string]struct {
+		env  map[string]string
+		http uint16
+		want uint16
+		bad  bool
+	}{
+		"default offset": {nil, 9000, 9443, false},
+		"override":       {map[string]string{tlsx.PortVar: "8443"}, 9000, 8443, false},
+		"not a number":   {map[string]string{tlsx.PortVar: "x"}, 9000, 0, true},
+		"same as http":   {map[string]string{tlsx.PortVar: "9000"}, 9000, 0, true},
+		"overflow":       {nil, 65300, 0, true},
+		"privileged":     {map[string]string{tlsx.PortVar: "443"}, 9000, 0, true},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got, err := tlsx.ResolvePort(env(tc.env), tc.http)
+			if tc.bad {
+				assert.ErrorIs(t, err, tlsx.ErrBadPort)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}

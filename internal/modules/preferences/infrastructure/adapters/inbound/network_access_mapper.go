@@ -34,6 +34,12 @@ func toAccessTargets(status models.NetworkAccessStatus) []dto.AccessTargetDTO {
 		if svg, ok := RenderQRSVG(url); ok {
 			target.QRSVG = &svg
 		}
+		if status.TLSPort != 0 {
+			target.SecureURL = BuildSchemeURL("https", network.Address, status.TLSPort, status.Token)
+			if svg, ok := RenderQRSVG(target.SecureURL); ok {
+				target.SecureQRSVG = &svg
+			}
+		}
 		targets = append(targets, target)
 	}
 	return targets

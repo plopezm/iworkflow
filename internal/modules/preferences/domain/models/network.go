@@ -12,6 +12,8 @@ type NetworkInterface struct {
 type ServerStatus struct {
 	// Port is the port the running server listens on.
 	Port uint16
+	// TLSPort is the port of the HTTPS listener, 0 when there is none.
+	TLSPort uint16
 	// Exposed reports whether the running server accepts connections from other machines.
 	Exposed bool
 	// LockedByEnv reports whether the address is pinned by the environment, so saved choices have no
@@ -32,6 +34,8 @@ type NetworkAccessStatus struct {
 	LockedByEnv bool
 	// Port is the port the running server listens on.
 	Port uint16
+	// TLSPort is the port of the HTTPS listener of the running server, 0 when there is none.
+	TLSPort uint16
 	// ConfiguredPort is the saved port, or the running one when none was saved.
 	ConfiguredPort uint16
 	// Targets lists the interfaces, preferred one first. It is never filtered by access state here.

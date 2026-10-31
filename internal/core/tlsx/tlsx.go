@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -24,6 +25,10 @@ const (
 	// CertVar and KeyVar name the PEM files of a certificate the operator provides.
 	CertVar string = "IWF_TLS_CERT"
 	KeyVar  string = "IWF_TLS_KEY"
+	// PortVar overrides the HTTPS port, which is the HTTP port plus DefaultPortOffset otherwise.
+	PortVar string = "IWF_TLS_PORT"
+	// DefaultPortOffset is added to the HTTP port to get the HTTPS one: 9000 gives 9443.
+	DefaultPortOffset uint16 = 443
 	// AutoVar set to "auto" makes the server create and reuse a self-signed certificate in the data folder.
 	AutoVar string = "IWF_TLS"
 
@@ -136,4 +141,25 @@ func reusable(certPath string, keyPath string, hosts []string, now time.Time) bo
 		}
 	}
 	return true
+}
+
+// ErrBadPort reports an HTTPS port that is not a number in 1024-65535 or that equals the HTTP port.
+var ErrBadPort error = errors.New("invalid HTTPS port")
+
+// ResolvePort returns the HTTPS port: IWF_TLS_PORT when set, else httpPort plus DefaultPortOffset.
+func ResolvePort(getenv func(string) string, httpPort uint16) (uint16, error) {
+	const minPort, maxPort = 1024, 65535
+	raw := strings.TrimSpace(getenv(PortVar))
+	value := int(httpPort) + int(DefaultPortOffset)
+	if raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil {
+			return 0, fmt.Errorf("%s=%q: %w", PortVar, raw, ErrBadPort)
+		}
+		value = parsed
+	}
+	if value < minPort || value > maxPort || value == int(httpPort) {
+		return 0, fmt.Errorf("port %d: %w", value, ErrBadPort)
+	}
+	return uint16(value), nil
 }

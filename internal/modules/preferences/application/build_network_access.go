@@ -65,6 +65,7 @@ func (u *BuildNetworkAccess) Execute(ctx context.Context) (models.NetworkAccessS
 		Active:         server.Exposed,
 		LockedByEnv:    server.LockedByEnv,
 		Port:           server.Port,
+		TLSPort:        server.TLSPort,
 		ConfiguredPort: configured,
 		Targets:        u.preferredFirst(ctx),
 		RequireToken:   require,

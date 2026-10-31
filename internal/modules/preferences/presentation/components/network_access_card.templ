@@ -144,21 +144,37 @@ templ NetworkAccessCard(view state.NetworkAccessView) {
 templ NetworkTarget(target *dto.AccessTargetDTO, requireToken bool) {
 	<div id={ targetID } class="stack gap-2">
 		if target != nil {
-			if requireToken {
-				<p class="text-sm text-fg">{ scanSignedIn.T(ctx) }</p>
+			if target.SecureURL != "" {
+				<p class="text-sm font-medium text-fg">{ secureTitle.T(ctx) }</p>
+				@accessLink(target.SecureQRSVG, target.SecureURL, requireToken)
+				<details class="stack gap-2">
+					<summary class="cursor-pointer text-sm text-muted">{ plainTitle.T(ctx) }</summary>
+					@accessLink(target.QRSVG, target.AccessURL, requireToken)
+				</details>
 			} else {
-				<p class="text-sm text-fg">{ scanPlain.T(ctx) }</p>
+				@accessLink(target.QRSVG, target.AccessURL, requireToken)
 			}
-			if target.QRSVG != nil {
-				<div class="w-48 max-w-full rounded bg-white p-2" role="img" aria-label={ qrLabel.T(ctx) }>
-					@templ.Raw(*target.QRSVG)
-				</div>
-			}
-			<code class="break-all text-xs">{ target.AccessURL }</code>
 			if requireToken {
 				<p class="muted text-sm">{ tokenSecretNote.T(ctx) }</p>
 			}
 		}
+	</div>
+}
+
+// accessLink is the scan hint, the QR code and the text of one link.
+templ accessLink(qr *string, url string, requireToken bool) {
+	<div class="stack gap-2">
+		if requireToken {
+			<p class="text-sm text-fg">{ scanSignedIn.T(ctx) }</p>
+		} else {
+			<p class="text-sm text-fg">{ scanPlain.T(ctx) }</p>
+		}
+		if qr != nil {
+			<div class="w-48 max-w-full rounded bg-white p-2" role="img" aria-label={ qrLabel.T(ctx) }>
+				@templ.Raw(*qr)
+			</div>
+		}
+		<code class="break-all text-xs">{ url }</code>
 	</div>
 }
 

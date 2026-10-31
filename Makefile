@@ -83,7 +83,7 @@ run:
 # Same as run over HTTPS (see dev-https).
 run-https:
 	@test -x $(DIST_DIR)/$(BIN_FILE) && test -d $(DIST_DIR)/site || { echo "No complete build in $(DIST_DIR); run 'make dist' first." >&2; exit 1; }
-	@echo "Serving on https://$(SITE_ADDR)"
+	@echo "Serving on http://$(SITE_ADDR) and HTTPS on the port +443"
 	IWF_TLS=auto $(DIST_DIR)/$(BIN_FILE) --addr $(SITE_ADDR) --site-root $(abspath $(DIST_DIR))/site $(ARGS)
 
 prod: dist run
