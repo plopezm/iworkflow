@@ -95,8 +95,21 @@ export function withoutFile(files, index) {
   return files.filter((_, i) => i !== index);
 }
 
+/** Fills the {name} placeholder of a translated label; the name is inserted as it is, whatever characters it holds. */
+export function imageLabel(template, name) {
+  return (template ?? '').replace('{name}', () => name);
+}
+
 // The browser replaces the files of an input on every pick, so the picker keeps its own list and writes it back.
 const chosenImages = new WeakMap();
+// The object URLs of the previews on show, released when the previews are redrawn or cleared.
+const previewUrls = new WeakMap();
+
+/** Releases the object URLs of the previews of the input. */
+function releasePreviews(input) {
+  for (const url of previewUrls.get(input) ?? []) URL.revokeObjectURL(url);
+  previewUrls.delete(input);
+}
 
 /** Sets the files of the input to the list and shows them as previews, each with a button that removes it. */
 function showImages(input, files) {
@@ -106,24 +119,34 @@ function showImages(input, files) {
   input.files = transfer.files;
   const previews = input.closest('[data-image-picker]')?.querySelector('[data-image-previews]');
   if (!previews) return;
+  releasePreviews(input);
+  const urls = [];
+  previewUrls.set(input, urls);
   previews.replaceChildren(
     ...files.map((file, index) => {
       const item = document.createElement('div');
       item.className = 'relative';
       const image = document.createElement('img');
-      image.src = URL.createObjectURL(file);
+      const url = URL.createObjectURL(file);
+      urls.push(url);
+      image.src = url;
       image.alt = file.name;
       image.className = 'h-16 w-16 rounded object-cover';
       const remove = document.createElement('button');
       remove.type = 'button';
       remove.className = 'composer-ref-remove absolute -right-1 -top-1';
       remove.dataset.imageRemove = String(index);
-      remove.setAttribute('aria-label', (previews.dataset.removeLabel ?? '').replace('{name}', file.name));
+      remove.setAttribute('aria-label', imageLabel(previews.dataset.removeLabel, file.name));
       remove.textContent = '×';
       item.append(image, remove);
       return item;
     }),
   );
+}
+
+/** Forgets the chosen images of the input, as a form reset empties it behind the picker's back. */
+function resetImages(input) {
+  showImages(input, []);
 }
 
 /** Adds files to the ones the picker of the input already holds. */
@@ -192,6 +215,11 @@ export function installTaskForm(doc) {
     if (target.name === 'related_project_id') syncRelatedSummary(target.closest?.('[data-related-projects]'));
     if (target.matches('[data-toggle-target]')) toggleBlock(target);
     if (target.matches('[data-image-input]') && target.closest('[data-image-picker]')) addImages(target, Array.from(target.files));
+  });
+
+  // A reset empties the file input without a change event, so the picker's own list is emptied with it.
+  doc.addEventListener('reset', (event) => {
+    for (const input of event.target?.querySelectorAll?.('[data-image-picker] [data-image-input]') ?? []) resetImages(input);
   });
 
   doc.addEventListener('paste', (event) => {
