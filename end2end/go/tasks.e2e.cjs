@@ -54,8 +54,8 @@ async function createTask(ctx, ws, prompt, { start = false, title } = {}) {
   if (start) await page.getByLabel('Iniciar ahora').check();
   await page.getByRole('button', { name: 'Crear tarea' }).click();
   await page.getByRole('button', { name: 'Crear tarea' }).waitFor({ state: 'detached', timeout: 15000 });
-  // A backlog card has no link around its text: its task links are the "Editar" button and the card itself is the target.
-  await page.locator('.task-card:visible', { hasText: prompt }).first().waitFor({ state: 'attached', timeout: 15000 });
+  // A backlog task is a loose card whose only task link is "Editar"; an active one is a card with a link to its detail.
+  await page.locator('[data-task-id]:visible', { hasText: prompt }).first().waitFor({ state: 'attached', timeout: 15000 });
   if (start) await sleep(2000);
   await openBoard(ctx, ws);
 }
@@ -66,7 +66,7 @@ async function taskDetail(ctx, key, prompt, opts = {}) {
   await registerWs(ctx, name, opts);
   await openBoard(ctx, name);
   await createTask(ctx, name, prompt, opts);
-  const link = ctx.page.locator('.task-card:visible', { hasText: prompt }).locator('a[href*="/tasks/"]').first();
+  const link = ctx.page.locator('[data-task-id]:visible', { hasText: prompt }).locator('a[href*="/tasks/"]').first();
   await link.waitFor({ timeout: 15000 });
   const href = await link.getAttribute('href');
   const id = (href.match(/\/tasks\/([0-9a-f-]{36})/) || [])[1];
@@ -280,14 +280,16 @@ module.exports = {
         await page.getByLabel(/^Workspace/).selectOption({ label: `${name} (main)` });
         await page.getByLabel('Prompt').fill(`adjunto-${tag}`);
         const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-        await page.locator('input[type=file]').first().setInputFiles({ name: `captura-${tag}.png`, mimeType: 'image/png', buffer: PNG });
+        await page.locator('form:has(select[name=workspace_id]):visible input[type=file]').first().setInputFiles({ name: `captura-${tag}.png`, mimeType: 'image/png', buffer: PNG });
         await page.getByAltText(`captura-${tag}.png`).first().waitFor({ timeout: 10000 });
         await page.getByRole('button', { name: 'Crear tarea' }).click();
         await page.getByRole('button', { name: 'Crear tarea' }).waitFor({ state: 'detached', timeout: 15000 });
         await openBoard(ctx, name);
-        const link = page.locator('a[href*="/tasks/"]', { hasText: `adjunto-${tag}` }).locator('visible=true').first();
+        const link = page.locator('[data-task-id]:visible', { hasText: `adjunto-${tag}` }).locator('a[href*="/tasks/"]').first();
         await link.waitFor({ timeout: 15000 });
-        await ctx.goto((await link.getAttribute('href')) + '/edit');
+        const id = ((await link.getAttribute('href')) || '').match(/\/tasks\/([0-9a-f-]{36})/)?.[1];
+        ctx.assert(id, `no se obtuvo el id de la tarea "adjunto-${tag}"`);
+        await ctx.goto(`/tasks/${id}/edit`);
         await page.locator(`img[alt="captura-${tag}.png"]`).first().waitFor({ state: 'attached', timeout: 15000 });
       },
     },

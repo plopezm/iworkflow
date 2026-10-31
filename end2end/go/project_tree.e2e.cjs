@@ -5,8 +5,8 @@
 //   * list_project_directory, read_project_file, write_project_file and read_project_file_base use the
 //     workspace view only. They pass once internal/app mounts the project_tree module (Routes and Tabs).
 //   * search_project_files, list_project_git_changes, stage/unstage and commit_project_changes open a
-//     task (createTask) and use its Cambios tab and composer. They need the tasks module (T11-T18), which
-//     is not migrated yet, so they fail until it is.
+//     task (createTask) and use its Cambios tab and composer. They create the task from the create tab of
+//     the dock (/board/<ws>/new), so they need the tasks module mounted.
 // Cubre los 9 casos de uso de project_tree alcanzables desde la UI:
 //   list_project_directory, read_project_file, write_project_file,
 //   read_project_file_base, search_project_files (tree/composer),

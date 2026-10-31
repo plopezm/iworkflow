@@ -147,14 +147,15 @@ module.exports = {
         const prompt = `iniciar-${tag}`;
         await fillDialog(ctx, ws.name, { prompt });
         await submitDialog(ctx);
-        const card = ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first();
+        // The card is the element with data-task-id: the loose panel container also carries data-stage="backlog".
+        const card = ctx.page.locator('[id^="board-list-"]:visible [data-task-id][data-stage="backlog"]', { hasText: prompt }).first();
         await card.waitFor({ timeout: 10000 });
         await card.getByRole('button', { name: 'Iniciar' }).click();
         // Either the task left backlog, or the failure is shown in the notice slot: never a silent click.
         const started = Date.now();
         let outcome = '';
         while (Date.now() - started < 20000 && !outcome) {
-          if ((await ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).count()) === 0) outcome = 'moved';
+          if ((await ctx.page.locator('[id^="board-list-"]:visible [data-task-id][data-stage="backlog"]', { hasText: prompt }).count()) === 0) outcome = 'moved';
           else if ((await ctx.page.locator('[id^="board-notice-"]:visible .text-error').count()) > 0) outcome = 'failed';
           else await sleep(400);
         }
