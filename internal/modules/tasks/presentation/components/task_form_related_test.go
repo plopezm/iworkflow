@@ -160,3 +160,23 @@ func TestEditFieldsPlaceTheRelatedProjectsAfterTheBaseBranchAndBeforeThePrompt(t
 	assert.Less(t, related, prompt)
 	assert.NotContains(t, relatedInput(t, body, "api-id"), "checked")
 }
+
+// Rule: the form disables its submit button while it posts (hx-disabled-elt on the form), and htmx hands that
+// attribute down to every element inside. A field that sends its own request has no submit button to find, which
+// htmx reports as an error on every change, so each of them names what it disables itself.
+func TestCreateFieldsThatRequestOptionsDisableThemselvesInsteadOfInheritingTheSubmitSelector(t *testing.T) {
+	t.Parallel()
+
+	body := renderRelatedIn(t, i18n.En, components.CreateTaskFields(state.CreateForm{}))
+
+	requesting := 0
+	for _, tag := range strings.Split(body, "<select")[1:] {
+		tag = tag[:strings.Index(tag, ">")]
+		if !strings.Contains(tag, "hx-get=") {
+			continue
+		}
+		requesting++
+		assert.Contains(t, tag, `hx-disabled-elt="this"`)
+	}
+	assert.GreaterOrEqual(t, requesting, 2, "the workspace and the agent selects request their options")
+}

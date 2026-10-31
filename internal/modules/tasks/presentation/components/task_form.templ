@@ -131,6 +131,7 @@ templ AdvancedOptions(id string, scope string, advanced bool, memory string, cpu
 				hx-target={ "#" + state.Scoped("task-agent-options", scope) }
 				hx-swap="innerHTML"
 				hx-trigger="change"
+				hx-disabled-elt="this"
 			>
 				<option value="" selected?={ agent.SelectedRuntime == "" }>{ agentDefaultLabel(ctx, agent.Catalog.DefaultRuntime) }</option>
 				for _, rt := range agent.Catalog.Runtimes {
@@ -202,6 +203,7 @@ templ CreateTaskFields(form state.CreateForm) {
 			hx-target={ "#" + state.Scoped("board-branch-slot", form.Scope) }
 			hx-swap="outerHTML"
 			hx-trigger="change"
+			hx-disabled-elt="this"
 		>
 			if form.WorkspaceID == "" {
 				<option value="" selected>{ msgSelectWorkspace.T(ctx) }</option>

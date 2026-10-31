@@ -735,7 +735,7 @@ func AdvancedOptions(id string, scope string, advanced bool, memory string, cpu 
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "\" hx-swap=\"innerHTML\" hx-trigger=\"change\"><option value=\"\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 57, "\" hx-swap=\"innerHTML\" hx-trigger=\"change\" hx-disabled-elt=\"this\"><option value=\"\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -752,7 +752,7 @@ func AdvancedOptions(id string, scope string, advanced bool, memory string, cpu 
 		var templ_7745c5c3_Var41 string
 		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(agentDefaultLabel(ctx, agent.Catalog.DefaultRuntime))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 135, Col: 117}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 136, Col: 117}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 		if templ_7745c5c3_Err != nil {
@@ -770,7 +770,7 @@ func AdvancedOptions(id string, scope string, advanced bool, memory string, cpu 
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.ResolveAttributeValue(rt)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 137, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 138, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 			if templ_7745c5c3_Err != nil {
@@ -793,7 +793,7 @@ func AdvancedOptions(id string, scope string, advanced bool, memory string, cpu 
 			var templ_7745c5c3_Var43 string
 			templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(rt)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 137, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 138, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 			if templ_7745c5c3_Err != nil {
@@ -811,7 +811,7 @@ func AdvancedOptions(id string, scope string, advanced bool, memory string, cpu 
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.Scoped("task-agent-options", scope))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 141, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 142, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 		if templ_7745c5c3_Err != nil {
@@ -970,7 +970,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.ResolveAttributeValue(form.LinkKind)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 191, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 192, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var48)
 			if templ_7745c5c3_Err != nil {
@@ -983,7 +983,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.ResolveAttributeValue(form.LinkAnchor)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 192, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 193, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var49)
 			if templ_7745c5c3_Err != nil {
@@ -1001,7 +1001,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(msgWorkspace.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 195, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 196, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
@@ -1014,7 +1014,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgWorkspace.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 200, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 201, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 		if templ_7745c5c3_Err != nil {
@@ -1027,7 +1027,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 		var templ_7745c5c3_Var52 string
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.ResolveAttributeValue(state.ScopedPath("/board/tasks/branches", form.Scope))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 201, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 202, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var52)
 		if templ_7745c5c3_Err != nil {
@@ -1040,13 +1040,13 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.ResolveAttributeValue("#" + state.Scoped("board-branch-slot", form.Scope))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 202, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 203, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var53)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\" hx-swap=\"outerHTML\" hx-trigger=\"change\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 77, "\" hx-swap=\"outerHTML\" hx-trigger=\"change\" hx-disabled-elt=\"this\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1058,7 +1058,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 			var templ_7745c5c3_Var54 string
 			templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(msgSelectWorkspace.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 207, Col: 57}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 209, Col: 57}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 			if templ_7745c5c3_Err != nil {
@@ -1077,7 +1077,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.ResolveAttributeValue(workspace.ID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 210, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 212, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 			if templ_7745c5c3_Err != nil {
@@ -1100,7 +1100,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(workspace.Name + " (" + workspace.BaseBranch + ")")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 210, Col: 134}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 212, Col: 134}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 			if templ_7745c5c3_Err != nil {
@@ -1161,7 +1161,7 @@ func CreateTaskFields(form state.CreateForm) templ.Component {
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(msgStartNow.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 224, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 226, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {
@@ -1208,7 +1208,7 @@ func TaskCreated(boardPath string, startError string, linkErrors []string) templ
 			var templ_7745c5c3_Var59 string
 			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.ResolveAttributeValue(boardPath)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 234, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 236, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var59)
 			if templ_7745c5c3_Err != nil {
@@ -1250,7 +1250,7 @@ func TaskCreated(boardPath string, startError string, linkErrors []string) templ
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(msgBoard.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 243, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 245, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
@@ -1364,7 +1364,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var64 string
 		templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.ResolveAttributeValue(filesPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 275, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 277, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var64)
 		if templ_7745c5c3_Err != nil {
@@ -1377,7 +1377,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var65 string
 		templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgRemoveReference.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 276, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 278, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var65)
 		if templ_7745c5c3_Err != nil {
@@ -1390,7 +1390,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var66 string
 		templ_7745c5c3_Var66, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 278, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 280, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var66)
 		if templ_7745c5c3_Err != nil {
@@ -1403,7 +1403,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var67 string
 		templ_7745c5c3_Var67, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 279, Col: 10}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 281, Col: 10}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var67))
 		if templ_7745c5c3_Err != nil {
@@ -1416,7 +1416,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var68 string
 		templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgSuggestions.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 282, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 284, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var68)
 		if templ_7745c5c3_Err != nil {
@@ -1429,7 +1429,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var69 string
 		templ_7745c5c3_Var69, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 284, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 286, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var69)
 		if templ_7745c5c3_Err != nil {
@@ -1442,7 +1442,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var70 string
 		templ_7745c5c3_Var70, templ_7745c5c3_Err = templ.ResolveAttributeValue(msgPromptHint.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 287, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 289, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var70)
 		if templ_7745c5c3_Err != nil {
@@ -1455,7 +1455,7 @@ func TaskPromptField(label string, id string, value string, filesPath string) te
 		var templ_7745c5c3_Var71 string
 		templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 291, Col: 11}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 293, Col: 11}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 		if templ_7745c5c3_Err != nil {
@@ -1499,7 +1499,7 @@ func TaskSaved(boardPath string) templ.Component {
 		var templ_7745c5c3_Var73 string
 		templ_7745c5c3_Var73, templ_7745c5c3_Err = templ.ResolveAttributeValue(boardPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 300, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 302, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var73)
 		if templ_7745c5c3_Err != nil {
@@ -1572,7 +1572,7 @@ func BranchSlotFailed(id string, message string) templ.Component {
 		var templ_7745c5c3_Var76 string
 		templ_7745c5c3_Var76, templ_7745c5c3_Err = templ.ResolveAttributeValue(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 310, Col: 13}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/task_form.templ`, Line: 312, Col: 13}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var76)
 		if templ_7745c5c3_Err != nil {
