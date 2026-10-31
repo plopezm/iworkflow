@@ -168,11 +168,19 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 | `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
 | `IWF_CURSOR_SESSIONS_DIR` | `cursor-sessions` junto a la base de datos (guarda el id de sesión ACP de cada tarea para reanudarla) |
 | `IWF_ATTACHMENTS_DIR` | `attachments` junto a la base de datos (imágenes adjuntas a las tareas; se borran al terminar la tarea) |
+| `IWF_ASR_MODEL_DIR` | `models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25` junto a la base de datos (modelo de voz del dictado; `make model` lo descarga) |
 | `IWF_AGENTS_FILES_DIR` | `agents-files` junto a la base de datos (biblioteca de `AGENTS.md`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
 | `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
 
 Los directorios por defecto de datos (`attachments`, `agents-files`, `cursor-sessions`) cuelgan de la carpeta de la base de datos: si cambias `IWF_DATABASE_URL`, se mueven con ella. En Windows el home se toma de `USERPROFILE` si falta `HOME`.
+
+### Dictado por voz
+
+El campo Prompt de los formularios de crear y editar tarea tiene un botón de micrófono. Grabas, escuchas la grabación y la confirmas; el servidor la transcribe con [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) y el modelo Qwen3-ASR 0.6B, y el texto se añade al prompt como un párrafo nuevo. El navegador necesita un origen seguro (HTTPS o `localhost`) para abrir el micrófono y las grabaciones se limitan a 60 segundos.
+
+1. `make model` descarga el modelo ya convertido (unos 840 MB) en `~/.iworkflow/models/` (o `IWF_ASR_MODEL_DIR`).
+2. El reconocedor es el único código cgo del proyecto, tras el build tag `sherpa`. `make build`, `make dev` y `make dist` lo activan (`GO_TAGS=sherpa`); `make build GO_TAGS=` genera un binario sin CGO donde el dictado responde "no disponible". `make dist` copia también las librerías compartidas de sherpa-onnx a `lib/` junto al binario.
 
 ### Runtimes de agente
 

@@ -169,11 +169,19 @@ Environment variables (`.env` is supported, see `.env.example`):
 | `IWF_CURSOR_BIN` | `agent` (`cursor` runtime: Cursor CLI in ACP server mode, `agent acp`; requires having signed in with `agent login`) |
 | `IWF_CURSOR_SESSIONS_DIR` | `cursor-sessions` next to the database (stores each task's ACP session id so it can be resumed) |
 | `IWF_ATTACHMENTS_DIR` | `attachments` next to the database (images attached to tasks; deleted when the task ends) |
+| `IWF_ASR_MODEL_DIR` | `models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25` next to the database (speech model for voice dictation; `make model` downloads it) |
 | `IWF_AGENTS_FILES_DIR` | `agents-files` next to the database (`AGENTS.md` library) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contains `profiles.json` and `models.json`) |
 | `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (one `<role>.md` per agent role) |
 
 The default data directories (`attachments`, `agents-files`, `cursor-sessions`) hang off the database folder: if you change `IWF_DATABASE_URL`, they move with it. On Windows the home directory is taken from `USERPROFILE` when `HOME` is missing.
+
+### Voice dictation
+
+The prompt field of the create and edit task forms has a microphone button. Record, listen to the recording, confirm it and the server transcribes it with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and the Qwen3-ASR 0.6B model; the text is appended to the prompt as a new paragraph. The browser needs a secure origin (HTTPS or `localhost`) to open the microphone, and recordings are limited to 60 seconds.
+
+1. `make model` downloads the pre-converted model (about 840 MB) into `~/.iworkflow/models/` (or `IWF_ASR_MODEL_DIR`).
+2. The speech recognizer is the only cgo code in the project, behind the `sherpa` build tag. `make build`, `make dev` and `make dist` enable it (`GO_TAGS=sherpa`); `make build GO_TAGS=` gives a CGO-free binary where dictation answers "not available". `make dist` also copies the sherpa-onnx shared libraries to `lib/` next to the binary.
 
 ### Agent runtimes
 
