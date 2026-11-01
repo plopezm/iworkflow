@@ -1,0 +1,188 @@
+package components
+
+import (
+	"context"
+	"strings"
+	"strconv"
+
+	ui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/open_with/presentation/state"
+)
+
+// Dialog is the "Open with" dialog of a task. It replaces its own host, so every action answers it again with the
+// refreshed list and the outcome of the action.
+templ Dialog(view state.DialogView) {
+	<div id={ state.HostID(view.Scope) }>
+		@ui.Modal(ui.ModalProps{Title: msgTitle.T(ctx), Open: true}) {
+			if view.Started != "" {
+				@ui.Badge(msgStartedPref.T(ctx)+": "+view.Started, "ok")
+			}
+			if view.Failure != "" {
+				@ui.ErrorText(view.Failure)
+			}
+			if len(view.Rows) == 0 {
+				<p class="muted text-sm">{ msgEmpty.T(ctx) }</p>
+			} else {
+				<ul class="stack gap-2" data-open-with-list>
+					for _, row := range view.Rows {
+						@launcherRow(view, row)
+					}
+				</ul>
+			}
+			if view.Picker != nil {
+				@picker(view)
+			}
+			@addForm(view)
+		}
+	</div>
+}
+
+templ launcherRow(view state.DialogView, row state.Row) {
+	<li class="row justify-between gap-2" data-launcher={ row.ID }>
+		<div class="stack gap-0.5 min-w-0">
+			<span class="text-sm font-semibold break-words">{ row.Name }</span>
+			<code class="text-[11px] text-muted break-all">{ row.Path }</code>
+			if row.Args > 0 || row.EnvVars > 0 {
+				<span class="text-[11px] text-muted">{ extras(ctx, row) }</span>
+			}
+		</div>
+		<div class="row gap-2">
+			<button
+				type="button"
+				class="btn-primary"
+				hx-post={ state.Path(view.TaskID, view.Scope, "/launchers/"+row.ID+"/launch") }
+				hx-target={ "#" + state.HostID(view.Scope) }
+				hx-swap="outerHTML"
+				hx-disabled-elt="this"
+			>{ msgOpen.T(ctx) }</button>
+			<button
+				type="button"
+				class="btn-danger"
+				hx-post={ state.Path(view.TaskID, view.Scope, "/launchers/"+row.ID+"/delete") }
+				hx-target={ "#" + state.HostID(view.Scope) }
+				hx-swap="outerHTML"
+				hx-confirm={ msgConfirmDel.T(ctx) }
+			>{ msgDelete.T(ctx) }</button>
+		</div>
+	</li>
+}
+
+templ addForm(view state.DialogView) {
+	<form
+		id={ state.FormID(view.Scope) }
+		class="stack gap-3"
+		hx-post={ state.Path(view.TaskID, view.Scope, "") }
+		hx-target={ "#" + state.HostID(view.Scope) }
+		hx-swap="outerHTML"
+	>
+		<span class="eyebrow">{ msgAddTitle.T(ctx) }</span>
+		@ui.TextField(ui.FieldProps{Label: msgNameLabel.T(ctx), Name: "name", Value: view.Entered.Name, Required: true})
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgPathLabel.T(ctx) }</span>
+			<span class="row gap-2">
+				<input type="text" name="path" class="input min-w-0 flex-1" placeholder={ msgPathHint.T(ctx) } value={ view.Entered.Path } required/>
+				<button
+					type="button"
+					class="btn-secondary"
+					hx-get={ state.BrowsePath(view.TaskID, view.Scope) }
+					hx-include="closest form"
+					hx-target={ "#" + state.HostID(view.Scope) }
+					hx-swap="outerHTML"
+				>{ msgBrowse.T(ctx) }</button>
+			</span>
+		</label>
+		@ui.TextArea(ui.FieldProps{Label: msgArgsLabel.T(ctx), Name: "args", Value: view.Entered.Args})
+		@ui.TextArea(ui.FieldProps{Label: msgEnvLabel.T(ctx), Name: "env", Value: view.Entered.Env})
+		<div class="row gap-2">
+			<button type="submit" class="btn-secondary">{ msgAdd.T(ctx) }</button>
+		</div>
+	</form>
+}
+
+func extras(ctx context.Context, row state.Row) string {
+	var parts []string
+	if row.Args > 0 {
+		parts = append(parts, strconv.Itoa(row.Args)+" "+msgWithArgs.T(ctx))
+	}
+	if row.EnvVars > 0 {
+		parts = append(parts, strconv.Itoa(row.EnvVars)+" "+msgWithEnv.T(ctx))
+	}
+	return strings.Join(parts, " · ")
+}
+
+// picker is the file picker of the server. It sits outside the add form, so Enter in its filter never adds an
+// application, and each request includes the values of the form to keep what the user typed.
+templ picker(view state.DialogView) {
+	<div class="stack gap-2 rounded-xl border border-border/60 p-3" data-open-with-picker>
+		<span class="eyebrow">{ msgPickerTitle.T(ctx) }</span>
+		<code class="text-[11px] text-muted break-all">{ view.Picker.Dir }</code>
+		<div class="row gap-2">
+			<button
+				type="button"
+				class="btn-ghost"
+				disabled?={ view.Picker.Parent == "" }
+				hx-get={ state.BrowsePath(view.TaskID, view.Scope) }
+				hx-vals={ pickerVals(view.Picker.Parent, "") }
+				hx-include={ "#" + state.FormID(view.Scope) }
+				hx-target={ "#" + state.HostID(view.Scope) }
+				hx-swap="outerHTML"
+			>{ msgUp.T(ctx) }</button>
+			<button
+				type="button"
+				class="btn-ghost"
+				hx-get={ state.ChoosePath(view.TaskID, view.Scope) }
+				hx-include={ "#" + state.FormID(view.Scope) }
+				hx-target={ "#" + state.HostID(view.Scope) }
+				hx-swap="outerHTML"
+			>{ msgCancel.T(ctx) }</button>
+		</div>
+		<input
+			class="input"
+			type="search"
+			name="filter"
+			aria-label={ msgFilter.T(ctx) }
+			placeholder={ msgFilter.T(ctx) }
+			value={ view.Picker.Filter }
+			hx-get={ state.BrowsePath(view.TaskID, view.Scope) }
+			hx-trigger="input changed delay:150ms, search"
+			hx-vals={ dirVals(view.Picker.Dir) }
+			hx-include={ "#" + state.FormID(view.Scope) }
+			hx-target={ "#" + state.PickerBodyID(view.Scope) }
+			hx-select={ "#" + state.PickerBodyID(view.Scope) }
+			hx-swap="outerHTML"
+		/>
+		<div id={ state.PickerBodyID(view.Scope) } class="stack gap-1 max-h-64 overflow-y-auto">
+			if view.Picker.Error != "" {
+				@ui.ErrorText(view.Picker.Error)
+			} else if len(view.Picker.Entries) == 0 {
+				<p class="muted text-sm">{ msgFolderEmpty.T(ctx) }</p>
+			}
+			for _, entry := range view.Picker.Entries {
+				if entry.IsDir {
+					<button
+						type="button"
+						class="btn-ghost justify-start text-left"
+						hx-get={ state.BrowsePath(view.TaskID, view.Scope) }
+						hx-vals={ pickerVals(entry.Path, "") }
+						hx-include={ "#" + state.FormID(view.Scope) }
+						hx-target={ "#" + state.HostID(view.Scope) }
+						hx-swap="outerHTML"
+					>📁 { entry.Name }</button>
+				} else {
+					<button
+						type="button"
+						class="btn-ghost justify-start text-left"
+						hx-get={ state.ChoosePath(view.TaskID, view.Scope) }
+						hx-vals={ chooseVals(entry.Path) }
+						hx-include={ "#" + state.FormID(view.Scope) }
+						hx-target={ "#" + state.HostID(view.Scope) }
+						hx-swap="outerHTML"
+					>{ entry.Name }</button>
+				}
+			}
+			if view.Picker.Truncated {
+				<p class="muted text-[11px]">{ msgTruncated.T(ctx) }</p>
+			}
+		</div>
+	</div>
+}
