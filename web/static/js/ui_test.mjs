@@ -1,7 +1,7 @@
 // Run with: node --test web/static/js/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveTheme, shouldArmToast, shouldLoadPane, sidebarIsOpen, sidebarToggleLabel, switchBoardTab, restoreBoardTab, BOARD_TAB_STORAGE_KEY } from './ui.js';
+import { openMobilePanels, reopenMobilePanels, resolveTheme, shouldArmToast, shouldLoadPane, sidebarIsOpen, sidebarToggleLabel, switchBoardTab, restoreBoardTab, BOARD_TAB_STORAGE_KEY } from './ui.js';
 
 test('a stored light or dark theme wins over the system preference', () => {
   assert.equal(resolveTheme('light', true), 'light');
@@ -201,4 +201,21 @@ test('restoreBoardTab restores saved tab on narrow screens and ignores on deskto
   globalThis.innerWidth = 400;
   restoreBoardTab(root);
   assert.equal(panes.attrs['data-tab'], 'loose');
+});
+
+test('a mobile panel open before a swap is found and opened again after it', () => {
+  const panel = { id: 'task-panel', attrs: {}, matches: () => false };
+  const overlay = { hidden: true };
+  const fresh = {
+    id: 'task-panel',
+    setAttribute(name, value) { this.attrs[name] = value; },
+    attrs: {},
+    querySelector: () => overlay,
+  };
+  const root = { matches: () => false, querySelectorAll: () => [panel] };
+  assert.deepEqual(openMobilePanels(root), ['task-panel']);
+  assert.deepEqual(openMobilePanels(null), []);
+  reopenMobilePanels(['task-panel', 'gone'], { getElementById: (id) => (id === 'task-panel' ? fresh : null) });
+  assert.equal('data-mobile-open' in fresh.attrs, true);
+  assert.equal(overlay.hidden, false);
 });
