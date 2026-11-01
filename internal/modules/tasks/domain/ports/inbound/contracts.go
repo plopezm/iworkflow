@@ -31,3 +31,10 @@ type RateLimitedResumer interface {
 	// Execute returns how many tasks were resumed.
 	Execute(ctx context.Context, now time.Time) (int, error)
 }
+
+// MergedTasksPruner deletes the merged tasks that finished long enough ago. The prune loop calls it on every tick;
+// now is the instant the retention is counted from.
+type MergedTasksPruner interface {
+	// Execute returns how many tasks were deleted.
+	Execute(ctx context.Context, now time.Time) (int, error)
+}

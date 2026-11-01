@@ -4,6 +4,7 @@ package outbound
 
 import (
 	"context"
+	"time"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 )
@@ -60,6 +61,9 @@ type TaskRepository interface {
 	// DeleteInactiveByWorkspace deletes every task of a workspace in one transaction when all of them
 	// are inactive, and returns their ids. When one is active it deletes nothing and returns false.
 	DeleteInactiveByWorkspace(ctx context.Context, workspaceID string) ([]models.TaskID, bool, error)
+	// DeleteMergedBefore deletes, in one statement, every merged task last updated before cutoff (and its
+	// events, attachments rows and graph rows, by cascade) and returns their ids.
+	DeleteMergedBefore(ctx context.Context, cutoff time.Time) ([]models.TaskID, error)
 	// AppendEvent persists an event and returns it with its sequence number.
 	AppendEvent(ctx context.Context, id models.TaskID, kind models.TaskEventKind) (models.TaskEvent, error)
 	// Events returns the persisted events with sequence greater than afterSeq, in order. A nil

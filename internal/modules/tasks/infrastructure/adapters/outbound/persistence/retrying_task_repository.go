@@ -214,6 +214,10 @@ func (r *RetryingTaskRepository) DeleteInactiveByWorkspace(ctx context.Context, 
 	return result.ids, result.deleted, nil
 }
 
+func (r *RetryingTaskRepository) DeleteMergedBefore(ctx context.Context, cutoff time.Time) ([]models.TaskID, error) {
+	return retry(r, ctx, "delete_merged_before", func() ([]models.TaskID, error) { return r.inner.DeleteMergedBefore(ctx, cutoff) })
+}
+
 func (r *RetryingTaskRepository) AppendEvent(ctx context.Context, id models.TaskID, kind models.TaskEventKind) (models.TaskEvent, error) {
 	return retry(r, ctx, "append_event", func() (models.TaskEvent, error) { return r.inner.AppendEvent(ctx, id, kind) })
 }

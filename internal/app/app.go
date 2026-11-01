@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -192,7 +193,7 @@ func New(deps Deps) (*App, error) {
 	routes = append(routes, workspaces.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
 	routes = append(routes, profiles.Tabs()...)
-	routes = append(routes, settings.Tabs(settingsSections(settings, codeHosting, jiraModule))...)
+	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
 	routes = append(routes, terminal.Tabs()...)
 	routes = append(routes, jiraModule.Tabs()...)
@@ -287,7 +288,7 @@ func (a *App) page(w http.ResponseWriter, r *http.Request) {
 }
 
 // settingsSections are the sections of the settings screen, in display order.
-func settingsSections(settings *agentsettingsdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module) []agentsettingspages.SettingsSection {
+func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module) []agentsettingspages.SettingsSection {
 	return []agentsettingspages.SettingsSection{
 		{
 			ID:    "language",
@@ -296,7 +297,7 @@ func settingsSections(settings *agentsettingsdi.Module, codeHosting *codehosting
 				return prefspages.LanguageSection(i18n.StateFrom(ctx).Locale)
 			},
 		},
-		settings.ResourcesSection(msgResources.T),
+		withPruneCard(settings.ResourcesSection(msgResources.T), tasks),
 		{
 			ID:    "network",
 			Label: msgSettingsNet.T,
@@ -380,4 +381,18 @@ func launcherMenu() templ.Component {
 // emptyGroup is the body of a group without tabs.
 func emptyGroup() templ.Component {
 	return emptyGroupBody()
+}
+
+// withPruneCard adds the card that switches the deletion of old merged tasks below the content of the resources section.
+func withPruneCard(section agentsettingspages.SettingsSection, tasks *tasksdi.Module) agentsettingspages.SettingsSection {
+	limits := section.Content
+	section.Content = func(ctx context.Context) templ.Component {
+		return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			if err := limits(ctx).Render(ctx, w); err != nil {
+				return err //nolint:wrapcheck // The render error passes through to the caller of the component.
+			}
+			return tasks.PruneSetting.Card(ctx).Render(ctx, w)
+		})
+	}
+	return section
 }

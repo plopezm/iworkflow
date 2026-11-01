@@ -21,16 +21,19 @@ const (
 	shutdownSlack = 5 * time.Second
 )
 
-// taskLoops are the background loops of the tasks module: the dependency graph and the usage-limit resume. They run
+// taskLoops are the background loops of the tasks module: the dependency graph, the usage-limit resume and the prune of old merged tasks. They run
 // in goroutines the application owns, on a context that outlives the HTTP server's drain, and Shutdown cancels them
 // and waits for every one.
 type taskLoops struct {
 	// graphTick and resumeTick are the intervals of the loops. They default to the Rust ones.
 	graphTick  time.Duration
 	resumeTick time.Duration
+	// pruneTick is the interval of the prune of the old merged tasks.
+	pruneTick time.Duration
 	// graphSweeps and resumeSweeps count the sweeps the loops started. The tests read them to see that the loops run.
 	graphSweeps  atomic.Int64
 	resumeSweeps atomic.Int64
+	pruneSweeps  atomic.Int64
 	// cancel stops both loops; nil until Start runs.
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -38,7 +41,7 @@ type taskLoops struct {
 
 // newTaskLoops returns the loops with the intervals of the Rust version.
 func newTaskLoops() *taskLoops {
-	return &taskLoops{graphTick: background.GraphTick, resumeTick: background.ResumeTick}
+	return &taskLoops{graphTick: background.GraphTick, resumeTick: background.ResumeTick, pruneTick: background.PruneTick}
 }
 
 // countedSuccessors counts the sweeps of the graph loop before it runs the trigger.
@@ -63,6 +66,18 @@ type countedResumer struct {
 func (c countedResumer) Execute(ctx context.Context, now time.Time) (int, error) {
 	c.sweeps.Add(1)
 	return c.inner.Execute(ctx, now) //nolint:wrapcheck // The loop classifies the error by its kind; wrapping is not needed.
+}
+
+// countedPruner counts the sweeps of the prune loop before it runs the pruner.
+type countedPruner struct {
+	inner  inbound.MergedTasksPruner
+	sweeps *atomic.Int64
+}
+
+// Execute counts the sweep and prunes. Errors pass through unchanged: the loop only logs them.
+func (c countedPruner) Execute(ctx context.Context, now time.Time) (int, error) {
+	c.sweeps.Add(1)
+	return c.inner.Execute(ctx, now) //nolint:wrapcheck // The loop logs the error as it is; it is not user-visible text.
 }
 
 // Start runs the startup steps of the tasks module and then starts its background loops. It runs before the server
@@ -90,14 +105,15 @@ func (a *App) Start(ctx context.Context) error {
 	return nil
 }
 
-// startLoops runs the two loops in goroutines the application owns. Their context is detached from the start-up
+// startLoops runs the three loops in goroutines the application owns. Their context is detached from the start-up
 // context, so the loops keep running while the HTTP server drains; Shutdown cancels them afterwards.
 func (a *App) startLoops(ctx context.Context) {
 	loopCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	a.loops.cancel = cancel
-	a.loops.wg.Add(2)
+	a.loops.wg.Add(3)
 	go a.runGraphLoop(loopCtx)
 	go a.runResumeLoop(loopCtx)
+	go a.runPruneLoop(loopCtx)
 }
 
 // runGraphLoop evaluates the dependency graph until ctx ends. The error is only returned for an invalid interval.
@@ -106,6 +122,16 @@ func (a *App) runGraphLoop(ctx context.Context) {
 	trigger := countedSuccessors{inner: a.tasks.Successors, sweeps: &a.loops.graphSweeps}
 	if err := background.RunGraphLoop(ctx, trigger, a.loops.graphTick); err != nil {
 		a.logger.Error("the dependency graph loop stopped with an error", "error", err)
+	}
+}
+
+// runPruneLoop deletes the old merged tasks until ctx ends, on the wall clock.
+func (a *App) runPruneLoop(ctx context.Context) {
+	defer a.loops.wg.Done()
+	pruner := countedPruner{inner: a.tasks.PruneMerged, sweeps: &a.loops.pruneSweeps}
+	clock := func() time.Time { return time.Now().UTC() }
+	if err := background.RunPruneLoop(ctx, pruner, clock, a.loops.pruneTick); err != nil {
+		a.logger.Error("the merged tasks prune loop stopped with an error", "error", err)
 	}
 }
 

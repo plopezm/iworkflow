@@ -143,3 +143,14 @@ SELECT id, status FROM tasks WHERE workspace_id = sqlc.arg(workspace_id);
 
 -- name: DeleteTasksByWorkspace :exec
 DELETE FROM tasks WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: DeleteMergedTasksBefore :many
+DELETE FROM tasks WHERE status = 'merged' AND updated_at < sqlc.arg(cutoff) RETURNING id;
+
+-- name: GetTaskPreference :one
+SELECT value FROM app_preferences WHERE key = sqlc.arg(key);
+
+-- name: UpsertTaskPreference :exec
+INSERT INTO app_preferences (key, value)
+VALUES (sqlc.arg(key), sqlc.arg(value))
+ON CONFLICT (key) DO UPDATE SET value = excluded.value;

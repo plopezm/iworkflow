@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -466,6 +467,25 @@ func (r *TaskRepository) DeleteInactiveByWorkspace(ctx context.Context, workspac
 		return nil, false, err
 	}
 	return ids, deleted, nil
+}
+
+// DeleteMergedBefore deletes the merged tasks last updated before cutoff in one statement and returns their ids.
+func (r *TaskRepository) DeleteMergedBefore(ctx context.Context, cutoff time.Time) ([]models.TaskID, error) {
+	rows, err := r.queries.DeleteMergedTasksBefore(ctx, formatTimestamp(cutoff))
+	if err != nil {
+		return nil, dbError(err)
+	}
+	ids := make([]models.TaskID, 0, len(rows))
+	for _, row := range rows {
+		parsed, parseErr := uuid.Parse(row)
+		if parseErr != nil {
+			// The row is already deleted: its id cannot name an attachment folder or a board card, so only the log keeps it.
+			slog.Warn("a pruned task has an id that is not a UUID; its attachments and board card were not cleaned", "task_id", row, "error", parseErr)
+			continue
+		}
+		ids = append(ids, models.TaskIDFromUUID(parsed))
+	}
+	return ids, nil
 }
 
 // AppendEvent persists an event and returns it with its sequence number.
