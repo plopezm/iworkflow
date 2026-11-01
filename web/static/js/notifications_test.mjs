@@ -23,3 +23,14 @@ test('Ctrl+S and Cmd+S save, other keys do not', () => {
   assert.equal(isSaveShortcut({ ctrlKey: false, metaKey: false, key: 's' }), false);
   assert.equal(isSaveShortcut({ ctrlKey: true, metaKey: false, key: 'a' }), false);
 });
+
+test('only tasks that were not already waiting raise a notification', async () => {
+  const { newlyNeedingAttention } = await import('./notifications.js');
+  const rows = [
+    { id: 'a', title: 'Task A', body: 'Needs attention' },
+    { id: 'b', title: 'Task B', body: 'Needs attention' },
+  ];
+  assert.deepEqual(newlyNeedingAttention(new Set(['a']), rows), [rows[1]]);
+  assert.deepEqual(newlyNeedingAttention(new Set(['a', 'b']), rows), []);
+  assert.deepEqual(newlyNeedingAttention(new Set(), []), []);
+});

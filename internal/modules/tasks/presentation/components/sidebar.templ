@@ -45,7 +45,9 @@ templ SidebarBody(rows state.SidebarRows) {
 	}
 	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgNeedsAttentionSection.T(ctx), Count: len(rows.Attention)}) {
 		for _, task := range rows.Attention {
-			@shared.SidebarItem(shared.SidebarItemProps{Href: state.TaskPath(task.ID), Title: task.Title, Subtitle: task.Subtitle, Highlight: true}, taskMenu(task.ID))
+			<div class="contents" data-attention-task={ task.ID } data-attention-title={ task.Title } data-attention-body={ stageLabel(state.StageAttention).T(ctx) }>
+				@shared.SidebarItem(shared.SidebarItemProps{Href: state.TaskPath(task.ID), Title: task.Title, Subtitle: task.Subtitle, Highlight: true}, taskMenu(task.ID))
+			</div>
 		}
 		if len(rows.Attention) == 0 {
 			<p class="muted">{ msgNothingNeedsAttention.T(ctx) }</p>
