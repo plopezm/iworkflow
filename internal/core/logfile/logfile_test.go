@@ -17,7 +17,7 @@ func readGzip(t *testing.T, path string) string {
 	t.Helper()
 	file, err := os.Open(path)
 	require.NoError(t, err)
-	defer file.Close()
+	defer func() { require.NoError(t, file.Close()) }()
 	reader, err := gzip.NewReader(file)
 	require.NoError(t, err)
 	data, err := io.ReadAll(reader)

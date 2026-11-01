@@ -125,7 +125,7 @@ func compress(src, dst string) (err error) {
 	if err != nil {
 		return fmt.Errorf("open log file to compress: %w", err)
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }() // read-only handle: a close failure loses nothing
 	tmp := dst + ".tmp"
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fileMode)
 	if err != nil {

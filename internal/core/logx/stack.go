@@ -11,8 +11,8 @@ import (
 
 const (
 	stackKey      string = "stack"
-	maxStackDepth        = 32
-	skipFrames           = 3 // runtime.Callers, captureStack and Handle
+	maxStackDepth int    = 32
+	skipFrames    int    = 3 // runtime.Callers, captureStack and Handle
 )
 
 // StackHandler adds a "stack" attribute to every record at error level or above. Expected failures

@@ -131,7 +131,7 @@ func TestVersionIsStampedAtBuildTime(t *testing.T) {
 }
 
 func TestSecureListenerIsOffWithoutTLSVariables(t *testing.T) {
-	secure, err := secureListener(func(string) string { return "" }, filepath.Join(t.TempDir(), "w.db"), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
+	secure, err := secureListener(context.Background(), func(string) string { return "" }, filepath.Join(t.TempDir(), "w.db"), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
 	require.NoError(t, err)
 	assert.Nil(t, secure)
 }
@@ -143,7 +143,7 @@ func TestSecureListenerUsesTheHTTPHostAndAShiftedPort(t *testing.T) {
 		}
 		return ""
 	}
-	secure, err := secureListener(env, filepath.Join(t.TempDir(), "w.db"), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
+	secure, err := secureListener(context.Background(), env, filepath.Join(t.TempDir(), "w.db"), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
 	require.NoError(t, err)
 	require.NotNil(t, secure)
 	assert.Equal(t, uint16(9443), secure.port)

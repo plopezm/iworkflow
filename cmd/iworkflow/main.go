@@ -213,7 +213,7 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	}
 	// HTTPS is opt-in and runs next to the plain HTTP listener: browsers only expose the microphone of the voice
 	// dictation in a secure context, while the desktop app keeps using HTTP.
-	secure, err := secureListener(os.Getenv, cfg.DatabaseURL, addr, listenOn)
+	secure, err := secureListener(ctx, os.Getenv, cfg.DatabaseURL, addr, listenOn)
 	if err != nil {
 		return err
 	}

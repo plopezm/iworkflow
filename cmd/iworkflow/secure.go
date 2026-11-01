@@ -23,9 +23,9 @@ type secureServer struct {
 
 // secureListener prepares the HTTPS listener from the environment, or returns nil when HTTPS is off. It listens on
 // the host of the HTTP address, on the port IWF_TLS_PORT or the HTTP port plus 443.
-func secureListener(getenv func(string) string, databaseURL string, httpAddr netip.AddrPort, bind bindFunc) (*secureServer, error) {
+func secureListener(ctx context.Context, getenv func(string) string, databaseURL string, httpAddr netip.AddrPort, bind bindFunc) (*secureServer, error) {
 	hosts := []string{}
-	if ip, ok := listen.LocalNetworkIP(context.Background()); ok {
+	if ip, ok := listen.LocalNetworkIP(ctx); ok {
 		hosts = append(hosts, ip.String())
 	}
 	config, err := tlsx.Config(getenv, filepath.Join(filepath.Dir(databaseURL), "tls"), hosts, time.Now())
