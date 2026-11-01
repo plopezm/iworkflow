@@ -54,3 +54,15 @@ func TestTaskPromptFieldRendersTheDictationControlOnTheCreateDialogToo(t *testin
 	assert.Contains(t, body, `data-dictation-path="/transcriptions"`)
 	assert.Contains(t, body, `data-dictation-mic`)
 }
+
+func TestComposerRendersTheDictationControlOnTheTaskExecutionScreen(t *testing.T) {
+	t.Parallel()
+	body := renderComposerIn(t, i18n.Es, components.Composer(state.ComposerView{TaskID: "t1"}))
+
+	assert.Contains(t, body, `data-dictation`)
+	assert.Contains(t, body, `data-dictation-path="/transcriptions"`)
+	assert.Contains(t, body, `data-dictation-mic`)
+	assert.Contains(t, body, `data-dictation-panel`)
+	assert.Contains(t, body, `data-label-record="Grabar audio"`)
+	assert.Contains(t, body, `data-label-error=`)
+}
