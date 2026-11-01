@@ -20,15 +20,25 @@ func render(t *testing.T, locale i18n.Locale, view state.DialogView) string {
 	return out.String()
 }
 
-func TestDialogWithoutRowsShowsTheEmptyMessageAndTheForm(t *testing.T) {
+func TestDialogCollapsesTheFormBehindAddNew(t *testing.T) {
 	body := render(t, i18n.En, state.DialogView{TaskID: "t1", Scope: "s"})
 
 	require.Contains(t, body, "No applications configured yet")
 	require.Contains(t, body, `id="task-open-with-s"`)
-	require.Contains(t, body, `hx-post="/open-with/tasks/t1?scope=s"`)
-	require.Contains(t, body, "Browse…")
+	require.Contains(t, body, "Add new +")
+	require.Contains(t, body, `hx-get="/open-with/tasks/t1/new?scope=s"`)
+	require.NotContains(t, body, `hx-post="/open-with/tasks/t1?scope=s"`)
+	require.NotContains(t, body, "Browse…")
 	require.NotContains(t, body, "data-open-with-list")
 	require.NotContains(t, body, "data-open-with-picker")
+}
+
+func TestDialogAddingShowsTheFormWithoutAddNew(t *testing.T) {
+	body := render(t, i18n.En, state.DialogView{TaskID: "t1", Scope: "s", Adding: true})
+
+	require.Contains(t, body, `hx-post="/open-with/tasks/t1?scope=s"`)
+	require.Contains(t, body, "Browse…")
+	require.NotContains(t, body, "data-open-with-new")
 }
 
 func TestDialogListsRowsWithTheirActionsAndSummary(t *testing.T) {
@@ -44,7 +54,7 @@ func TestDialogListsRowsWithTheirActionsAndSummary(t *testing.T) {
 
 func TestDialogShowsTheOutcomeAndKeepsTheTypedValues(t *testing.T) {
 	body := render(t, i18n.En, state.DialogView{
-		TaskID: "t1", Started: "Editor", Failure: "the path is required",
+		TaskID: "t1", Started: "Editor", Failure: "the path is required", Adding: true,
 		Entered: state.Entered{Name: "Mine", Path: "code", Args: "--x", Env: "A=1"},
 	})
 

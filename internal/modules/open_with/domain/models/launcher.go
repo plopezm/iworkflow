@@ -83,7 +83,8 @@ type LaunchSpec struct {
 	Dir  string
 }
 
-// SpecIn builds the launch spec of the launcher for a working directory.
+// SpecIn builds the launch spec of the launcher for a directory: it is the working directory and the last
+// argument, so the application opens that directory.
 func (l Launcher) SpecIn(dir string) LaunchSpec {
-	return LaunchSpec{Path: l.path, Args: l.Args(), Env: l.Env(), Dir: dir}
+	return LaunchSpec{Path: l.path, Args: append(l.Args(), dir), Env: l.Env(), Dir: dir}
 }

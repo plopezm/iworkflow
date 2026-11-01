@@ -58,7 +58,7 @@ func TestLaunchStartsTheLauncherInTheWorktree(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, []models.LaunchSpec{{
-		Path: "/usr/bin/code", Args: []string{"--new-window"}, Env: []models.EnvVar{{Name: "K", Value: "v"}}, Dir: "/work/tree",
+		Path: "/usr/bin/code", Args: []string{"--new-window", "/work/tree"}, Env: []models.EnvVar{{Name: "K", Value: "v"}}, Dir: "/work/tree",
 	}}, starter.specs)
 }
 

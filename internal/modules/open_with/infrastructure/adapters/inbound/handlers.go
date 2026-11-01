@@ -40,6 +40,7 @@ func NewHandlers(uc UseCases) *Handlers { return &Handlers{uc: uc} }
 //
 //	GET  /open-with/tasks/{id}                              the dialog
 //	POST /open-with/tasks/{id}                              add an application (form)
+//	GET  /open-with/tasks/{id}/new                          the dialog with the add form open
 //	GET  /open-with/tasks/{id}/browse                       the dialog with the file picker (dir, filter + the form values)
 //	GET  /open-with/tasks/{id}/choose                       the dialog without the picker (file fills the path field)
 //	POST /open-with/tasks/{id}/launchers/{launcher}/launch  open the worktree with the application
@@ -47,6 +48,7 @@ func NewHandlers(uc UseCases) *Handlers { return &Handlers{uc: uc} }
 func (h *Handlers) Mount(r chi.Router) {
 	r.Get("/open-with/tasks/{id}", h.show)
 	r.Post("/open-with/tasks/{id}", h.create)
+	r.Get("/open-with/tasks/{id}/new", h.showNew)
 	r.Get("/open-with/tasks/{id}/browse", h.browse)
 	r.Get("/open-with/tasks/{id}/choose", h.choose)
 	r.Post("/open-with/tasks/{id}/launchers/{launcher}/launch", h.launch)
@@ -55,6 +57,10 @@ func (h *Handlers) Mount(r chi.Router) {
 
 func (h *Handlers) show(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, state.DialogView{}, "", nil)
+}
+
+func (h *Handlers) showNew(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, state.DialogView{Adding: true}, "", nil)
 }
 
 // enteredFrom reads the add form values the picker requests carry.
@@ -79,7 +85,7 @@ func (h *Handlers) browse(w http.ResponseWriter, r *http.Request) {
 	if dir == "" && picker.Error != "" {
 		picker = h.pickerAt(r.Context(), "", filter) // the typed path leads nowhere: start at home
 	}
-	h.render(w, r, state.DialogView{Entered: entered, Picker: &picker}, "", nil)
+	h.render(w, r, state.DialogView{Adding: true, Entered: entered, Picker: &picker}, "", nil)
 }
 
 // choose closes the picker; a file fills the path field, no file keeps what was typed.
@@ -89,7 +95,7 @@ func (h *Handlers) choose(w http.ResponseWriter, r *http.Request) {
 	if file := query.Get("file"); file != "" {
 		entered.Path = file
 	}
-	h.render(w, r, state.DialogView{Entered: entered}, "", nil)
+	h.render(w, r, state.DialogView{Adding: true, Entered: entered}, "", nil)
 }
 
 // pickerAt lists a folder for the picker; a failure is shown inside it.
@@ -121,7 +127,7 @@ func (h *Handlers) create(w http.ResponseWriter, r *http.Request) {
 		_, err = h.uc.Create.Execute(r.Context(), input)
 	}
 	if err != nil {
-		h.render(w, r, state.DialogView{Entered: entered}, "", err)
+		h.render(w, r, state.DialogView{Adding: true, Entered: entered}, "", err)
 		return
 	}
 	h.render(w, r, state.DialogView{}, "", nil)
