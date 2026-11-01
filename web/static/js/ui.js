@@ -83,6 +83,25 @@ export function sidebarToggleLabel(dataset, collapsed) {
 }
 
 // Only the first call of a toast arms the timer; a toast that already has one is left alone.
+// openMobilePanels returns the ids of the panels under root that are open as a mobile overlay.
+export function openMobilePanels(root) {
+  if (!root?.querySelectorAll) return [];
+  const panels = [...root.querySelectorAll('[data-collapse-root][data-mobile-open]')];
+  if (root.matches?.('[data-collapse-root][data-mobile-open]')) panels.unshift(root);
+  return panels.map((panel) => panel.id).filter(Boolean);
+}
+
+// reopenMobilePanels opens again, as a mobile overlay, the panels a swap replaced while they were open.
+export function reopenMobilePanels(ids, doc = document) {
+  for (const id of ids) {
+    const root = doc.getElementById(id);
+    if (!root) continue;
+    root.setAttribute('data-mobile-open', '');
+    const overlay = root.querySelector('[data-overlay-close]');
+    if (overlay) overlay.hidden = false;
+  }
+}
+
 export function shouldArmToast(toast) {
   return toast.dataset.toastArmed === undefined;
 }
@@ -371,7 +390,16 @@ function init() {
   configureHtmx();
   document.addEventListener('click', onClick);
   document.addEventListener('keydown', onKeyDown);
+  // A swap that replaces an open mobile panel (a task action answers the whole task) must not close it.
+  let reopen = [];
+  document.body.addEventListener('htmx:beforeSwap', (event) => {
+    reopen = openMobilePanels(event.detail?.target);
+  });
   document.body.addEventListener('htmx:afterSettle', (event) => {
+    if (reopen.length > 0) {
+      reopenMobilePanels(reopen);
+      reopen = [];
+    }
     if (event.target instanceof Element) {
       armToasts(event.target);
       loadPanes(event.target);
