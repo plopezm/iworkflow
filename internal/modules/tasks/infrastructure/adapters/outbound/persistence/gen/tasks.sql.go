@@ -151,6 +151,17 @@ func (q *Queries) GetTaskByID(ctx context.Context, id string) (Task, error) {
 	return i, err
 }
 
+const getTaskPreference = `-- name: GetTaskPreference :one
+SELECT value FROM app_preferences WHERE key = ?1
+`
+
+func (q *Queries) GetTaskPreference(ctx context.Context, key string) (string, error) {
+	row := q.db.QueryRowContext(ctx, getTaskPreference, key)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertTask = `-- name: InsertTask :exec
 INSERT INTO tasks (
     id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, error,
@@ -723,4 +734,20 @@ func (q *Queries) UpdateTaskStatus(ctx context.Context, arg UpdateTaskStatusPara
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const upsertTaskPreference = `-- name: UpsertTaskPreference :exec
+INSERT INTO app_preferences (key, value)
+VALUES (?1, ?2)
+ON CONFLICT (key) DO UPDATE SET value = excluded.value
+`
+
+type UpsertTaskPreferenceParams struct {
+	Key   string
+	Value string
+}
+
+func (q *Queries) UpsertTaskPreference(ctx context.Context, arg UpsertTaskPreferenceParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTaskPreference, arg.Key, arg.Value)
+	return err
 }

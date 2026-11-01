@@ -159,6 +159,8 @@ type Module struct {
 	ResumeRateLimited *application.ResumeRateLimitedTasks
 	// PruneMerged deletes the merged tasks older than a week; the prune loop runs it (background.RunPruneLoop).
 	PruneMerged *application.PruneMergedTasks
+	// PruneSetting serves the checkbox that switches the prune off; the settings screen shows its card.
+	PruneSetting *httpinbound.PruneSettingHandlers
 
 	runtime outbound.AgentRuntime
 }
@@ -282,6 +284,7 @@ func NewModule(deps Deps) (*Module, error) {
 	removeDependency := application.NewRemoveTaskDependency(graph, successors)
 	listTasks := application.NewListTasks(repository)
 	listDoneTasks := application.NewListDoneTasks(repository)
+	prunePreference := persistence.NewPrunePreferenceRepository(deps.DB)
 	graphHandlers := httpinbound.NewGraphHandlers(httpinbound.GraphUseCases{
 		GetGraph:         getGraph,
 		AddDependency:    addDependency,
@@ -340,7 +343,8 @@ func NewModule(deps Deps) (*Module, error) {
 		Successors:          successors,
 		ResumeTask:          resumeTask,
 		ResumeRateLimited:   resumeRateLimited,
-		PruneMerged:         application.NewPruneMergedTasks(lifecycle, attachmentStorage),
+		PruneMerged:         application.NewPruneMergedTasks(lifecycle, attachmentStorage, prunePreference),
+		PruneSetting:        httpinbound.NewPruneSettingHandlers(prunePreference),
 		runtime:             agentRuntime,
 	}, nil
 }
@@ -424,6 +428,7 @@ func (m *Module) Routes(r chi.Router) {
 	m.Diff.Mount(r)
 	m.Composer.Mount(r)
 	m.Graph.Mount(r)
+	m.PruneSetting.Mount(r)
 }
 
 // Sidebar returns the board part of the sidebar: the workspaces and the tasks that need the user.

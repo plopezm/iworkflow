@@ -19,15 +19,24 @@ const MergedTaskRetention = 7 * 24 * time.Hour
 type PruneMergedTasks struct {
 	lifecycle *TaskLifecycle
 	storage   outbound.AttachmentStorage
+	enabled   outbound.MergedPrunePreference
 }
 
 // NewPruneMergedTasks builds the use case.
-func NewPruneMergedTasks(lifecycle *TaskLifecycle, storage outbound.AttachmentStorage) *PruneMergedTasks {
-	return &PruneMergedTasks{lifecycle: lifecycle, storage: storage}
+func NewPruneMergedTasks(lifecycle *TaskLifecycle, storage outbound.AttachmentStorage, enabled outbound.MergedPrunePreference) *PruneMergedTasks {
+	return &PruneMergedTasks{lifecycle: lifecycle, storage: storage, enabled: enabled}
 }
 
-// Execute prunes at now and returns how many tasks were deleted. It is the MergedTasksPruner port.
+// Execute prunes at now and returns how many tasks were deleted; it deletes nothing while the user keeps the
+// prune switched off. It is the MergedTasksPruner port.
 func (u *PruneMergedTasks) Execute(ctx context.Context, now time.Time) (int, error) {
+	enabled, err := u.enabled.Enabled(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if !enabled {
+		return 0, nil
+	}
 	ids, err := u.lifecycle.Repository().DeleteMergedBefore(ctx, now.Add(-MergedTaskRetention))
 	if err != nil {
 		return 0, err

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
 )
 
 // Rust: task_repository_adapter_test::inserts_finds_and_updates_status
@@ -825,4 +826,24 @@ func TestDeleteMergedBeforeDeletesOnlyOldMergedTasksAndTheirEvents(t *testing.T)
 	events, err := repo.Tasks.Events(bg(), old.ID, nil)
 	require.NoError(t, err)
 	assert.Empty(t, events, "the events follow the task by cascade")
+}
+
+func TestPrunePreferenceIsOnByDefaultAndKeepsWhatWasStored(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	preference := persistence.NewPrunePreferenceRepository(repo.DB)
+
+	enabled, err := preference.Enabled(bg())
+	require.NoError(t, err)
+	assert.True(t, enabled, "on until the user switches it off")
+
+	require.NoError(t, preference.SetEnabled(bg(), false))
+	enabled, err = preference.Enabled(bg())
+	require.NoError(t, err)
+	assert.False(t, enabled)
+
+	require.NoError(t, preference.SetEnabled(bg(), true))
+	enabled, err = preference.Enabled(bg())
+	require.NoError(t, err)
+	assert.True(t, enabled)
 }

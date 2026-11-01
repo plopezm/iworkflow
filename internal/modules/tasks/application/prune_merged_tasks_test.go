@@ -26,7 +26,7 @@ func TestPruneMergedTasksDeletesOnlyMergedTasksOlderThanOneWeek(t *testing.T) {
 	storage := &fakeStorage{}
 	lifecycle, publisher := newLifecycle(repo)
 
-	pruned, err := application.NewPruneMergedTasks(lifecycle, storage).Execute(context.Background(), now)
+	pruned, err := application.NewPruneMergedTasks(lifecycle, storage, &fakePrunePreference{}).Execute(context.Background(), now)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, pruned)
@@ -43,7 +43,7 @@ func TestPruneMergedTasksIsIdleWhenNothingIsOldEnough(t *testing.T) {
 	repo := newFakeRepository(recent)
 	lifecycle, publisher := newLifecycle(repo)
 
-	pruned, err := application.NewPruneMergedTasks(lifecycle, &fakeStorage{}).Execute(context.Background(), fixedNow)
+	pruned, err := application.NewPruneMergedTasks(lifecycle, &fakeStorage{}, &fakePrunePreference{}).Execute(context.Background(), fixedNow)
 
 	require.NoError(t, err)
 	assert.Zero(t, pruned)
@@ -57,8 +57,32 @@ func TestPruneMergedTasksAttachmentCleanupFailureDoesNotFail(t *testing.T) {
 	repo := newFakeRepository(old)
 	lifecycle, _ := newLifecycle(repo)
 
-	pruned, err := application.NewPruneMergedTasks(lifecycle, &fakeStorage{failDeleteDir: true}).Execute(context.Background(), now)
+	pruned, err := application.NewPruneMergedTasks(lifecycle, &fakeStorage{failDeleteDir: true}, &fakePrunePreference{}).Execute(context.Background(), now)
 
 	require.NoError(t, err)
 	assert.Equal(t, 1, pruned)
+}
+
+func TestPruneMergedTasksDeletesNothingWhileTheSwitchIsOff(t *testing.T) {
+	now := fixedNow.Add(30 * 24 * time.Hour)
+	old := newTask(models.StatusMerged)
+	repo := newFakeRepository(old)
+	storage := &fakeStorage{}
+	lifecycle, publisher := newLifecycle(repo)
+
+	pruned, err := application.NewPruneMergedTasks(lifecycle, storage, &fakePrunePreference{off: true}).Execute(context.Background(), now)
+
+	require.NoError(t, err)
+	assert.Zero(t, pruned)
+	assert.Contains(t, repo.tasks, old.ID)
+	assert.Empty(t, storage.deletedDirs)
+	assert.Empty(t, publisher.published)
+}
+
+func TestPruneMergedTasksFailsWhenTheSwitchCannotBeRead(t *testing.T) {
+	lifecycle, _ := newLifecycle(newFakeRepository(newTask(models.StatusMerged)))
+
+	_, err := application.NewPruneMergedTasks(lifecycle, &fakeStorage{}, &fakePrunePreference{err: assert.AnError}).Execute(context.Background(), fixedNow)
+
+	require.ErrorIs(t, err, assert.AnError)
 }

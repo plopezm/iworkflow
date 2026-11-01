@@ -768,3 +768,16 @@ func (k knownWorkspaces) Find(_ context.Context, workspaceID string) (*models.Wo
 func (k knownWorkspaces) List(_ context.Context) ([]models.WorkspaceRef, error) {
 	return nil, nil
 }
+
+// fakePrunePreference answers the prune switch; it is on unless off is set.
+type fakePrunePreference struct {
+	off bool
+	err error
+}
+
+func (f *fakePrunePreference) Enabled(context.Context) (bool, error) { return !f.off, f.err }
+
+func (f *fakePrunePreference) SetEnabled(_ context.Context, enabled bool) error {
+	f.off = !enabled
+	return f.err
+}
