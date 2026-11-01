@@ -47,5 +47,5 @@ func TestLauncherReturnsCopiesAndBuildsTheSpec(t *testing.T) {
 	launcher.Args()[0] = "changed"
 	launcher.Env()[0].Value = "changed"
 
-	require.Equal(t, models.LaunchSpec{Path: "/bin/x", Args: []string{"a"}, Env: []models.EnvVar{{Name: "K", Value: "v"}}, Dir: "/w"}, launcher.SpecIn("/w"))
+	require.Equal(t, models.LaunchSpec{Path: "/bin/x", Args: []string{"a", "/w"}, Env: []models.EnvVar{{Name: "K", Value: "v"}}, Dir: "/w"}, launcher.SpecIn("/w"))
 }

@@ -49,8 +49,14 @@ func TestDialogWithoutApplicationsInvitesToAddOne(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, response.Code)
 	require.Contains(t, response.Body.String(), `id="task-open-with-s"`)
-	require.Contains(t, response.Body.String(), `name="path"`)
+	require.Contains(t, response.Body.String(), "data-open-with-new")
+	require.NotContains(t, response.Body.String(), `name="path"`)
 	require.NotContains(t, response.Body.String(), "data-open-with-list")
+
+	opened := call(router, http.MethodGet, "/open-with/tasks/t1/new?scope=s", nil)
+	require.Equal(t, http.StatusOK, opened.Code)
+	require.Contains(t, opened.Body.String(), `name="path"`)
+	require.NotContains(t, opened.Body.String(), "data-open-with-new")
 }
 
 func TestAddedApplicationAppearsAndInvalidOneShowsTheErrorKeepingTheInput(t *testing.T) {

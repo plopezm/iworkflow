@@ -29,6 +29,8 @@ type DialogView struct {
 	Scope   string
 	Rows    []Row
 	Entered Entered
+	// Adding shows the add form; it is collapsed behind the "Add new" entry otherwise.
+	Adding  bool
 	Started string
 	Failure string
 	// Picker is the file picker, nil while it is closed.
@@ -60,6 +62,12 @@ func PickerBodyID(scope string) string { return HostID(scope) + "-entries" }
 
 // BrowsePath is the address of the picker for a task.
 func BrowsePath(taskID string, scope string) string { return Path(taskID, scope, "/browse") }
+
+// NewPath is the address of the dialog with the add form open.
+func NewPath(taskID string, scope string) string { return Path(taskID, scope, "/new") }
+
+// ShowPath is the address of the dialog with the add form collapsed.
+func ShowPath(taskID string, scope string) string { return Path(taskID, scope, "") }
 
 // ChoosePath is the address that closes the picker, optionally filling the path field.
 func ChoosePath(taskID string, scope string) string { return Path(taskID, scope, "/choose") }

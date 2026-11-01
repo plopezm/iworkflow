@@ -7,6 +7,8 @@ type ModalProps struct {
 	Title      string
 	Open       bool
 	CloseAttrs templ.Attributes
+	// Compact narrows the panel on wide screens, for short dialogs.
+	Compact bool
 }
 
 // Modal is a generic dialog: a bottom sheet on mobile and a centred dialog on desktop. Escape and
@@ -20,7 +22,7 @@ templ Modal(p ModalProps) {
 	>
 		<div
 			id="modal-panel"
-			class="stack max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-border/60 bg-surface/95 p-4 sm:max-w-lg sm:rounded-3xl sm:p-6 animate-scale-in backdrop-blur-xl"
+			class={ "stack max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-border/60 bg-surface/95 p-4 sm:rounded-3xl sm:p-6 animate-scale-in backdrop-blur-xl", templ.KV("sm:max-w-lg", !p.Compact), templ.KV("sm:max-w-sm", p.Compact) }
 			role="dialog"
 			tabindex="-1"
 			aria-modal="true"
