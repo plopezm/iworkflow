@@ -294,6 +294,20 @@ func (r *fakeRepository) DeleteInactiveByWorkspace(_ context.Context, workspaceI
 	return ids, true, nil
 }
 
+// DeleteMergedBefore removes the merged tasks last updated before cutoff.
+func (r *fakeRepository) DeleteMergedBefore(_ context.Context, cutoff time.Time) ([]models.TaskID, error) {
+	var ids []models.TaskID
+	for id, task := range r.tasks {
+		if task.Status == models.StatusMerged && task.UpdatedAt.Before(cutoff) {
+			ids = append(ids, id)
+		}
+	}
+	for _, id := range ids {
+		delete(r.tasks, id)
+	}
+	return ids, nil
+}
+
 // ResetToBacklog answers with resetResult or resetErr when set; otherwise the reset applies.
 func (r *fakeRepository) ResetToBacklog(_ context.Context, _ models.TaskID) (bool, error) {
 	r.resets++

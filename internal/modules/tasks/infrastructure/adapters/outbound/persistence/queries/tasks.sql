@@ -143,3 +143,6 @@ SELECT id, status FROM tasks WHERE workspace_id = sqlc.arg(workspace_id);
 
 -- name: DeleteTasksByWorkspace :exec
 DELETE FROM tasks WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: DeleteMergedTasksBefore :many
+DELETE FROM tasks WHERE status = 'merged' AND updated_at < sqlc.arg(cutoff) RETURNING id;

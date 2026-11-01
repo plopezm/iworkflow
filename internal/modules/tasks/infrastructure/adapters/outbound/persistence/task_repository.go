@@ -468,6 +468,22 @@ func (r *TaskRepository) DeleteInactiveByWorkspace(ctx context.Context, workspac
 	return ids, deleted, nil
 }
 
+// DeleteMergedBefore deletes the merged tasks last updated before cutoff in one statement and returns their ids.
+func (r *TaskRepository) DeleteMergedBefore(ctx context.Context, cutoff time.Time) ([]models.TaskID, error) {
+	rows, err := r.queries.DeleteMergedTasksBefore(ctx, formatTimestamp(cutoff))
+	if err != nil {
+		return nil, dbError(err)
+	}
+	ids := make([]models.TaskID, 0, len(rows))
+	for _, row := range rows {
+		parsed, parseErr := uuid.Parse(row)
+		if parseErr == nil {
+			ids = append(ids, models.TaskIDFromUUID(parsed))
+		}
+	}
+	return ids, nil
+}
+
 // AppendEvent persists an event and returns it with its sequence number.
 func (r *TaskRepository) AppendEvent(ctx context.Context, id models.TaskID, kind models.TaskEventKind) (models.TaskEvent, error) {
 	payload, err := models.EncodeTaskEventKind(kind)

@@ -60,6 +60,33 @@ func (q *Queries) ClearTaskSubagents(ctx context.Context, id string) error {
 	return err
 }
 
+const deleteMergedTasksBefore = `-- name: DeleteMergedTasksBefore :many
+DELETE FROM tasks WHERE status = 'merged' AND updated_at < ?1 RETURNING id
+`
+
+func (q *Queries) DeleteMergedTasksBefore(ctx context.Context, cutoff string) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, deleteMergedTasksBefore, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteTaskIfBacklog = `-- name: DeleteTaskIfBacklog :execrows
 DELETE FROM tasks WHERE id = ?1 AND status = 'backlog'
 `

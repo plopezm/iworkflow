@@ -157,6 +157,8 @@ type Module struct {
 	// ResumeRateLimited is the sweep the resume loop runs (background.RunResumeLoop).
 	ResumeTask        *application.ResumeTask
 	ResumeRateLimited *application.ResumeRateLimitedTasks
+	// PruneMerged deletes the merged tasks older than a week; the prune loop runs it (background.RunPruneLoop).
+	PruneMerged *application.PruneMergedTasks
 
 	runtime outbound.AgentRuntime
 }
@@ -338,6 +340,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Successors:          successors,
 		ResumeTask:          resumeTask,
 		ResumeRateLimited:   resumeRateLimited,
+		PruneMerged:         application.NewPruneMergedTasks(lifecycle, attachmentStorage),
 		runtime:             agentRuntime,
 	}, nil
 }

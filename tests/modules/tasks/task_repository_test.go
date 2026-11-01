@@ -798,3 +798,31 @@ func TestTaskAgentOptionsRoundTrip(t *testing.T) {
 	gotUpdated := found(t, repo, task.ID)
 	assert.Equal(t, updatedAgent, gotUpdated.Agent)
 }
+
+func TestDeleteMergedBeforeDeletesOnlyOldMergedTasksAndTheirEvents(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, "/repos/a")
+	cutoff := fixedClock.Add(24 * time.Hour)
+	old := newTask(t, workspaceID, "old", models.StatusMerged)
+	recent := newTask(t, workspaceID, "recent", models.StatusMerged)
+	recent.UpdatedAt = cutoff.Add(time.Hour).Truncate(time.Microsecond)
+	oldDiscarded := newTask(t, workspaceID, "discarded", models.StatusDiscarded)
+	oldBacklog := newTask(t, workspaceID, "backlog", models.StatusBacklog)
+	for _, task := range []models.Task{old, recent, oldDiscarded, oldBacklog} {
+		insertTask(t, repo, task)
+	}
+	_, err := repo.Tasks.AppendEvent(bg(), old.ID, models.StatusKind(models.StatusMerged, nil))
+	require.NoError(t, err)
+
+	ids, err := repo.Tasks.DeleteMergedBefore(bg(), cutoff)
+
+	require.NoError(t, err)
+	assert.Equal(t, []models.TaskID{old.ID}, ids)
+	remaining, err := repo.Tasks.List(bg(), &workspaceID)
+	require.NoError(t, err)
+	assert.Len(t, remaining, 3)
+	events, err := repo.Tasks.Events(bg(), old.ID, nil)
+	require.NoError(t, err)
+	assert.Empty(t, events, "the events follow the task by cascade")
+}
