@@ -212,7 +212,7 @@ func ComposerBody(view state.ComposerView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" data-composer-menu hidden></ul><textarea name=\"message\" rows=\"6\" class=\"w-full resize-y rounded border border-border bg-surface p-2\" placeholder=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\" data-composer-menu hidden></ul><textarea name=\"message\" rows=\"3\" class=\"w-full resize-y rounded border border-border bg-surface p-2\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
