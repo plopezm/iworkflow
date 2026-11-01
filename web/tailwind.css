@@ -707,7 +707,7 @@ select optgroup,
   pointer-events: none;
 }
 .composer textarea {
-  @apply w-full min-h-[9rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
+  @apply w-full min-h-[4.5rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
 }
 
 /* ── Composer autocomplete ──────────────────────── */
