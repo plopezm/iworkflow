@@ -55,7 +55,17 @@ templ TaskActions(view state.TaskDetailView) {
 				@link.Tab(link.Props{Href: "/tasks/" + view.Task.ID + "/terminal", Class: "btn-secondary", Role: "link"}) {
 					{ msgOpenTerminal.T(ctx) }
 				}
+				<button
+					type="button"
+					class="btn-secondary"
+					hx-get={ state.OpenWithPath(view.Task.ID, view.Scope) }
+					hx-target={ "#" + state.OpenWithHostID(view.Scope) }
+					hx-swap="outerHTML"
+				>
+					{ msgOpenWith.T(ctx) }
+				</button>
 			</div>
+			<div id={ state.OpenWithHostID(view.Scope) }></div>
 		}
 		if view.Task.Actions.CanReset || view.Task.Actions.CanDiscard {
 			<span class="eyebrow">{ msgSectionDanger.T(ctx) }</span>

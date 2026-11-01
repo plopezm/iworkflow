@@ -40,6 +40,7 @@ var (
 	msgNeedsAttentionSection = i18n.Msg{En: "Needs attention", Es: "Requieren atención", Zh: "需要关注", De: "Erfordern Aufmerksamkeit", Fr: "Nécessitent votre attention"}
 	msgNothingNeedsAttention = i18n.Msg{En: "Nothing needs attention.", Es: "Nada requiere atención.", Zh: "没有需要关注的内容。", De: "Nichts erfordert Aufmerksamkeit.", Fr: "Rien ne nécessite votre attention."}
 	msgViewFiles             = i18n.Msg{En: "View files", Es: "Ver ficheros", Zh: "查看文件", De: "Dateien anzeigen", Fr: "Voir les fichiers"}
+	msgOpenWith              = i18n.Msg{En: "Open with", Es: "Abrir con", Zh: "打开方式", De: "Öffnen mit", Fr: "Ouvrir avec"}
 	msgOpenTerminal          = i18n.Msg{En: "Open terminal", Es: "Abrir terminal", Zh: "打开终端", De: "Terminal öffnen", Fr: "Ouvrir le terminal"}
 	msgManageWorkspaces      = i18n.Msg{En: "Manage workspaces", Es: "Gestionar workspaces", Zh: "管理工作区", De: "Workspaces verwalten", Fr: "Gérer les espaces de travail"}
 	msgOpenTask              = i18n.Msg{En: "Open task", Es: "Abrir tarea", Zh: "打开任务", De: "Aufgabe öffnen", Fr: "Ouvrir la tâche"}
