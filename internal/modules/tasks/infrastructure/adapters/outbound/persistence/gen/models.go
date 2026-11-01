@@ -82,6 +82,15 @@ type JiraLaneIssue struct {
 	IssueKey string
 }
 
+type OpenWithLauncher struct {
+	ID       string
+	Name     string
+	Path     string
+	Args     string
+	Env      string
+	Position int64
+}
+
 type Task struct {
 	ID                 string
 	WorkspaceID        string
