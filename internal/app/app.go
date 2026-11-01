@@ -30,6 +30,7 @@ import (
 	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
 	codehostingdi "iworkflow/internal/modules/code_hosting/infrastructure/di"
 	jiradi "iworkflow/internal/modules/jira/infrastructure/di"
+	openwithdi "iworkflow/internal/modules/open_with/infrastructure/di"
 	prefsinbound "iworkflow/internal/modules/preferences/infrastructure/adapters/inbound"
 	prefssystem "iworkflow/internal/modules/preferences/infrastructure/adapters/outbound/system"
 	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
@@ -174,6 +175,11 @@ func New(deps Deps) (*App, error) {
 		Workspaces: &jiraWorkspaceCatalog{list: workspaces.List, get: workspaces.Get},
 	})
 
+	openWith := openwithdi.NewModule(openwithdi.Deps{
+		DB:        deps.DB,
+		Worktrees: &openWithWorktrees{get: tasks.Get},
+	})
+
 	transcription := transcriptiondi.NewModule(transcriptiondi.Deps{
 		ModelDir: deps.Config.ASRModelDir,
 		Logger:   deps.Logger,
@@ -206,7 +212,7 @@ func New(deps Deps) (*App, error) {
 		terminal:      terminal,
 		tasks:         tasks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule, transcription},
+		modules:       []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
 		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }

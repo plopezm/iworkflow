@@ -56,3 +56,19 @@ func TestTaskActionsShowsTheReviewSectionWhenOnlyTheTaskCanMerge(t *testing.T) {
 	assert.Contains(t, body, "Merge", "the merge action shows when the task can be merged")
 	assert.NotContains(t, body, "/tasks/t1/diff", "the diff entry stays hidden without the flag")
 }
+
+// The "Open with" entry sits next to the terminal and is offered only while the task has a worktree.
+func TestTaskActionsOffersOpenWithBesideTheTerminalOnlyWithAWorktree(t *testing.T) {
+	t.Parallel()
+
+	view := taskActionsView("t1", false, false)
+	without := renderIn(t, i18n.En, components.TaskActions(view))
+	view.Task.Actions.CanOpenTerminal = true
+	with := renderIn(t, i18n.En, components.TaskActions(view))
+
+	assert.NotContains(t, without, "Open with")
+	assert.Contains(t, with, `hx-get="/open-with/tasks/t1?scope=abc123"`)
+	assert.Contains(t, with, `hx-target="#task-open-with-abc123"`)
+	assert.Contains(t, with, `id="task-open-with-abc123"`)
+	assert.Contains(t, with, "Open with")
+}

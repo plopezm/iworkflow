@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	openwitherrors "iworkflow/internal/modules/open_with/domain/errors"
+	openwithoutbound "iworkflow/internal/modules/open_with/domain/ports/outbound"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -706,4 +708,27 @@ func (b *jiraWorkspaceCatalog) Branches(ctx context.Context, workspaceID string)
 	return []jiramodels.BranchOption{
 		{Name: ws.BaseBranch, Remote: false},
 	}, nil
+}
+
+// openWithWorktrees gives the open_with module the worktree of a task.
+type openWithWorktrees struct {
+	get *tasksapp.GetTask
+}
+
+var _ openwithoutbound.WorktreeLookup = (*openWithWorktrees)(nil)
+
+// Path returns the worktree directory, or errors.ErrWorktreeNotFound when the task has none.
+func (l *openWithWorktrees) Path(ctx context.Context, taskID string) (string, error) {
+	id, err := uuid.Parse(taskID)
+	if err != nil {
+		return "", openwitherrors.ErrWorktreeNotFound
+	}
+	target, err := taskTarget(ctx, l.get, id)
+	if err != nil {
+		return "", err
+	}
+	if target == nil {
+		return "", openwitherrors.ErrWorktreeNotFound
+	}
+	return target.Path, nil
 }
