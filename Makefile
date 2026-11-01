@@ -1,5 +1,7 @@
 GOFLAGS ?= -p=2
 export GOFLAGS
+# Go-installed tools (templ, sqlc, goose) live in GOPATH/bin, which may not be in PATH.
+export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
 # Release package (binary + site/) and run settings. Override on the command line, e.g. `make dist DIST_DIR=/opt/iworkflow`.
 DIST_DIR ?= dist
@@ -23,9 +25,33 @@ comma := ,
 # Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
 SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))
 
-.PHONY: model generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-dev-https electron-test e2e e2e-smoke
+.PHONY: model tools generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-dev-https electron-test e2e e2e-smoke
 
-generate: templ sqlc css
+# Installs the generators that are missing. templ follows the version of the library in go.mod (generated code must match
+# it); sqlc and goose take the latest release. Tailwind is a standalone binary: it is downloaded from the pinned release
+# (TAILWIND_VERSION) and checked against that release's sha256sums.txt before it lands in GOPATH/bin.
+TEMPL_VERSION ?= $(shell go list -m -f '{{.Version}}' github.com/a-h/templ 2>/dev/null)
+TAILWIND_VERSION ?= v4.3.3
+TOOLS_BIN := $(shell go env GOPATH)/bin
+TAILWIND_OS := $(or $(filter-out darwin,$(shell go env GOOS)),macos)
+TAILWIND_ARCH := $(if $(filter amd64,$(shell go env GOARCH)),x64,$(shell go env GOARCH))
+TAILWIND_ASSET := tailwindcss-$(TAILWIND_OS)-$(TAILWIND_ARCH)$(GOEXE)
+TAILWIND_URL := https://github.com/tailwindlabs/tailwindcss/releases/download/$(TAILWIND_VERSION)
+
+tools:
+	@command -v templ >/dev/null 2>&1 || { echo "Installing templ@$(TEMPL_VERSION)"; go install github.com/a-h/templ/cmd/templ@$(TEMPL_VERSION); }
+	@command -v sqlc >/dev/null 2>&1 || { echo "Installing sqlc"; go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest; }
+	@command -v goose >/dev/null 2>&1 || { echo "Installing goose"; go install github.com/pressly/goose/v3/cmd/goose@latest; }
+	@command -v golangci-lint >/dev/null 2>&1 || { echo "Installing golangci-lint (v2)"; go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest; }
+	@command -v tailwindcss >/dev/null 2>&1 || { \
+		echo "Installing tailwindcss $(TAILWIND_VERSION)"; \
+		tmp=$$(mktemp -d) && trap 'rm -rf "$$tmp"' EXIT && \
+		curl -fsSL --retry 3 -o "$$tmp/$(TAILWIND_ASSET)" $(TAILWIND_URL)/$(TAILWIND_ASSET) && \
+		curl -fsSL --retry 3 -o "$$tmp/sha256sums.txt" $(TAILWIND_URL)/sha256sums.txt && \
+		(cd "$$tmp" && grep "/$(TAILWIND_ASSET)$$" sha256sums.txt | $(SHA256) -c - >/dev/null) && \
+		mkdir -p $(TOOLS_BIN) && install -m 755 "$$tmp/$(TAILWIND_ASSET)" $(TOOLS_BIN)/tailwindcss$(GOEXE); }
+
+generate: tools templ sqlc css
 
 # Step 1 of the transcription feature: download the pre-converted Qwen3-ASR model (about 840 MB) once. The files are
 # checked against the pinned sha256 sums in asr-model.sha256; a download that does not match is removed.
@@ -98,7 +124,7 @@ vet:
 fmt:
 	gofmt -l .
 
-lint:
+lint: tools
 	golangci-lint run
 
 electron: electron-build
