@@ -18,6 +18,9 @@ import (
 
 const legacyMigrationsDir = "../../../migrations"
 
+// Version of the migration that precedes create_task_related_projects (20261025100000).
+const relatedProjectsPreviousVersion int64 = 20261020100000
+
 func TestOpenAppliesConnectionPragmas(t *testing.T) {
 	handle := dbtest.New(t)
 
@@ -79,13 +82,34 @@ func TestRelatedProjectsMigrationDownAndUpAgain(t *testing.T) {
 	provider, err := goose.NewProvider(goose.DialectSQLite3, handle, files)
 	require.NoError(t, err)
 
-	_, err = provider.Down(ctx)
+	// Newer migrations may sit on top of this one, so roll back to the version just before it.
+	_, err = provider.DownTo(ctx, relatedProjectsPreviousVersion)
 	require.NoError(t, err)
 	require.Equal(t, 0, tableCount(t, handle, "task_related_projects"), "Down must drop the table")
 
 	_, err = provider.Up(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, tableCount(t, handle, "task_related_projects"), "Up must create the table again")
+}
+
+// The open with launchers migration must revert and re-apply on its own, without touching the older schema.
+func TestOpenWithLaunchersMigrationDownAndUpAgain(t *testing.T) {
+	ctx := context.Background()
+	handle := dbtest.New(t)
+	files, err := db.MigrationsFS()
+	require.NoError(t, err)
+	provider, err := goose.NewProvider(goose.DialectSQLite3, handle, files)
+	require.NoError(t, err)
+	require.Equal(t, 1, tableCount(t, handle, "open_with_launchers"), "Up must create the table")
+
+	_, err = provider.Down(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, tableCount(t, handle, "open_with_launchers"), "Down must drop the table")
+	require.Equal(t, 1, tableCount(t, handle, "task_related_projects"), "Down must not touch older tables")
+
+	_, err = provider.Up(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, tableCount(t, handle, "open_with_launchers"), "Up must create the table again")
 }
 
 func tableCount(t *testing.T, handle *sql.DB, name string) int {
