@@ -337,7 +337,7 @@ func (h *BoardHandlers) view(ctx context.Context, requested string, showComplete
 	}
 	tasks, err := h.loadTasks(ctx, view.Choice.ID, showCompleted, donePages)
 	if err != nil {
-		slog.Error("could not load the tasks of the board", "error", err)
+		web.LogError(ctx, "could not load the tasks of the board", err)
 		view.LoadError = err.Error()
 	}
 	view.Total = len(tasks.Tasks)
@@ -438,7 +438,7 @@ func (h *BoardHandlers) loadTasks(ctx context.Context, workspaceID string, showC
 func (h *BoardHandlers) workspaceOptions(ctx context.Context) ([]dto.WorkspaceOptionDTO, error) {
 	refs, err := h.uc.Workspaces.List(ctx)
 	if err != nil {
-		slog.Error("could not list the workspaces of the board", "error", err)
+		web.LogError(ctx, "could not list the workspaces of the board", err)
 		return nil, fmt.Errorf("list workspaces: %w", err)
 	}
 	options := make([]dto.WorkspaceOptionDTO, 0, len(refs))
@@ -485,7 +485,7 @@ func (h *BoardHandlers) sidebarRows(ctx context.Context) state.SidebarRows {
 	workspaces, workspaceErr := h.workspaceOptions(ctx)
 	active, taskErr := h.uc.List.Execute(ctx, nil)
 	if taskErr != nil {
-		slog.Error("could not load the tasks of the sidebar", "error", taskErr)
+		web.LogError(ctx, "could not load the tasks of the sidebar", taskErr)
 		active = nil
 	}
 	rows := state.BuildSidebar(workspaces, tasksToDTO(active, h.now()))
