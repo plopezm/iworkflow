@@ -82,3 +82,13 @@ func TestPruneSettingFailedSaveKeepsTheStoredValueAndShowsTheError(t *testing.T)
 	assert.Contains(t, rec.Body.String(), "disk full")
 	assert.Contains(t, rec.Body.String(), "checked")
 }
+
+func TestPruneSettingKeepsTheSaveErrorWhenTheReadAlsoFails(t *testing.T) {
+	fake := &pruneFake{setErr: errors.New("disk full"), getErr: errors.New("db locked")}
+
+	rec := doPrune(t, fake, http.MethodPost, url.Values{})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "disk full")
+	assert.Contains(t, rec.Body.String(), "db locked")
+}

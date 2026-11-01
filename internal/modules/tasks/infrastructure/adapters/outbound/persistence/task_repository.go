@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -477,9 +478,12 @@ func (r *TaskRepository) DeleteMergedBefore(ctx context.Context, cutoff time.Tim
 	ids := make([]models.TaskID, 0, len(rows))
 	for _, row := range rows {
 		parsed, parseErr := uuid.Parse(row)
-		if parseErr == nil {
-			ids = append(ids, models.TaskIDFromUUID(parsed))
+		if parseErr != nil {
+			// The row is already deleted: its id cannot name an attachment folder or a board card, so only the log keeps it.
+			slog.Warn("a pruned task has an id that is not a UUID; its attachments and board card were not cleaned", "task_id", row, "error", parseErr)
+			continue
 		}
+		ids = append(ids, models.TaskIDFromUUID(parsed))
 	}
 	return ids, nil
 }

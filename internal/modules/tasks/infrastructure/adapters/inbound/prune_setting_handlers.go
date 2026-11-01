@@ -37,7 +37,12 @@ func (h *PruneSettingHandlers) Card(ctx context.Context) templ.Component {
 func (h *PruneSettingHandlers) card(ctx context.Context, saveErr string) templ.Component {
 	enabled, err := h.preference.Enabled(ctx)
 	if err != nil {
-		return components.PruneSettingCard(components.NewPruneSettingProps(ctx, true, err.Error()))
+		// A save error of the same request stays visible next to the read error.
+		message := err.Error()
+		if saveErr != "" {
+			message = saveErr + ": " + message
+		}
+		return components.PruneSettingCard(components.NewPruneSettingProps(ctx, true, message))
 	}
 	return components.PruneSettingCard(components.NewPruneSettingProps(ctx, enabled, saveErr))
 }

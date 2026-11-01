@@ -847,3 +847,21 @@ func TestPrunePreferenceIsOnByDefaultAndKeepsWhatWasStored(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, enabled)
 }
+
+func TestDeleteMergedBeforeDeletesARowWhoseIdIsNotAUUIDAndSkipsItsId(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, "/repos/a")
+	old := newTask(t, workspaceID, "old", models.StatusMerged)
+	insertTask(t, repo, old)
+	_, err := repo.DB.ExecContext(bg(), "UPDATE tasks SET id = 'not-a-uuid' WHERE id = ?", old.ID.String())
+	require.NoError(t, err)
+
+	ids, err := repo.Tasks.DeleteMergedBefore(bg(), fixedClock.Add(24*time.Hour))
+
+	require.NoError(t, err)
+	assert.Empty(t, ids)
+	remaining, err := repo.Tasks.List(bg(), &workspaceID)
+	require.NoError(t, err)
+	assert.Empty(t, remaining, "the row is deleted even though its id cannot be returned")
+}
