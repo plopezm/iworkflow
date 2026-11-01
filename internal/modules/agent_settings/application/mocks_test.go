@@ -64,3 +64,12 @@ func (f *fakePin) Apply(_ context.Context, repoDir string, profile *models.Profi
 	f.calls = append(f.calls, pinCall{repoDir: filepath.Clean(repoDir), profile: profile})
 	return f.err
 }
+
+// fakeAvailability reports as installed only the runtimes it holds.
+type fakeAvailability struct {
+	installed map[models.AgentRuntime]bool
+}
+
+func (f *fakeAvailability) Installed(_ context.Context, runtime models.AgentRuntime) bool {
+	return f.installed[runtime]
+}

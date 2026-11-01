@@ -86,8 +86,8 @@ func (h *Handlers) apiThinkingLevels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, ids)
 }
 
-func (h *Handlers) apiRuntimes(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, dto.RuntimeOptions())
+func (h *Handlers) apiRuntimes(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, dto.RuntimeIDs(h.listRuntimes.Execute(r.Context())))
 }
 
 // writeJSON writes value as JSON with the status.

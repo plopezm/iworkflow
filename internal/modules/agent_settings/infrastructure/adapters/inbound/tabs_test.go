@@ -33,6 +33,7 @@ func settingsRegistry(t *testing.T) *dock.Registry {
 		application.NewUpdateAgentSettings(repository, catalog, profiles),
 		application.NewListModels(repository, catalog),
 		application.NewListProfiles(profiles),
+		application.NewListRuntimes(allInstalled{}),
 	)
 	sections := []pages.SettingsSection{otherSection(), handlers.ResourcesSection(func(context.Context) string { return "Recursos" })}
 	registry, err := dock.NewRegistry(handlers.SettingsTabs(sections)...)

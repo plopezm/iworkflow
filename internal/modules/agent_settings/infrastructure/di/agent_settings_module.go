@@ -29,6 +29,7 @@ type Dependencies struct {
 	GentleShellBin string
 	PiBin          string
 	CursorBin      string
+	ClaudeBin      string
 	// GentlePiConfigHome holds gentle-pi's profiles.json.
 	GentlePiConfigHome string
 }
@@ -38,6 +39,7 @@ type Module struct {
 	GetAgentSettings    *application.GetAgentSettings
 	ListModels          *application.ListModels
 	ListProfiles        *application.ListProfiles
+	ListRuntimes        *application.ListRuntimes
 	UpdateAgentSettings *application.UpdateAgentSettings
 	// PrepareLaunch is consumed by other modules (the tasks launch) through the composition root.
 	PrepareLaunch *application.PrepareLaunch
@@ -68,6 +70,7 @@ func NewModule(deps Dependencies) *Module {
 	modelCatalog := cli.NewAgentCLIModelCatalogAdapter(map[models.AgentRuntime]string{
 		models.RuntimeGentleShell: deps.GentleShellBin,
 		models.RuntimePi:          deps.PiBin,
+		models.RuntimeClaude:      deps.ClaudeBin,
 		models.RuntimeCursor:      deps.CursorBin,
 	})
 	profileCatalog := profiles.NewProfilesFileCatalogAdapter(deps.GentlePiConfigHome)
@@ -75,14 +78,16 @@ func NewModule(deps Dependencies) *Module {
 	getSettings := application.NewGetAgentSettings(repository)
 	listModels := application.NewListModels(repository, modelCatalog)
 	listProfiles := application.NewListProfiles(profileCatalog)
+	listRuntimes := application.NewListRuntimes(modelCatalog)
 	update := application.NewUpdateAgentSettings(repository, modelCatalog, profileCatalog)
 	return &Module{
 		GetAgentSettings:    getSettings,
 		ListModels:          listModels,
 		ListProfiles:        listProfiles,
+		ListRuntimes:        listRuntimes,
 		UpdateAgentSettings: update,
 		PrepareLaunch:       application.NewPrepareLaunch(repository, pin),
 		ModelCatalog:        modelCatalog,
-		handlers:            inbound.NewHandlers(getSettings, update, listModels, listProfiles),
+		handlers:            inbound.NewHandlers(getSettings, update, listModels, listProfiles, listRuntimes),
 	}
 }

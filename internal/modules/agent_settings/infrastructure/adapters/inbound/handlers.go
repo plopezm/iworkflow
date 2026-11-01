@@ -29,6 +29,7 @@ type Handlers struct {
 	update       *application.UpdateAgentSettings
 	listModels   *application.ListModels
 	listProfiles *application.ListProfiles
+	listRuntimes *application.ListRuntimes
 	// changeMu serializes the read-modify-write of applyChange. Each save writes the whole settings
 	// row, so two overlapping changes (two selectors) would otherwise both start from the same row and
 	// the later save would drop the earlier change.
@@ -41,8 +42,9 @@ func NewHandlers(
 	update *application.UpdateAgentSettings,
 	listModels *application.ListModels,
 	listProfiles *application.ListProfiles,
+	listRuntimes *application.ListRuntimes,
 ) *Handlers {
-	return &Handlers{getSettings: getSettings, update: update, listModels: listModels, listProfiles: listProfiles}
+	return &Handlers{getSettings: getSettings, update: update, listModels: listModels, listProfiles: listProfiles, listRuntimes: listRuntimes}
 }
 
 // Mount registers the htmx fragments and the JSON API on r.
@@ -90,7 +92,7 @@ func (h *Handlers) barData(ctx context.Context) state.BarData {
 	if err != nil {
 		return state.BarData{SettingsErr: err.Error()}
 	}
-	data := state.BarData{Settings: dto.FromAgentSettings(settings)}
+	data := state.BarData{Settings: dto.FromAgentSettings(settings), Runtimes: dto.RuntimeIDs(h.listRuntimes.Execute(ctx))}
 	models, err := h.listModels.Execute(ctx)
 	if err != nil {
 		data.ModelsErr = err.Error()

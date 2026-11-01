@@ -201,8 +201,9 @@ func TestThinkingLevelIDsRejectUnknownRuntimeWithTheDomainMessage(t *testing.T) 
 	require.EqualError(t, err, "runtime de agente inválido: codex")
 }
 
-func TestRuntimeOptionsListEveryRuntimeInSelectorOrder(t *testing.T) {
-	require.Equal(t, []string{"gentle-shell", "pi", "claude", "cursor"}, dto.RuntimeOptions())
+func TestRuntimeIDsKeepTheOrderOfTheRuntimesReceived(t *testing.T) {
+	require.Equal(t, []string{"pi", "cursor"}, dto.RuntimeIDs([]models.AgentRuntime{models.RuntimePi, models.RuntimeCursor}))
+	require.Equal(t, []string{}, dto.RuntimeIDs(nil), "never null in JSON")
 }
 
 func TestModelOptionMapsProviderAndModel(t *testing.T) {

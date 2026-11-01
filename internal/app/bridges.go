@@ -404,6 +404,7 @@ type agentCatalogBridge struct {
 	getSettings  *agentsettingsapp.GetAgentSettings
 	modelCatalog agentsettingsoutbound.ModelCatalogPort
 	listProfiles *agentsettingsapp.ListProfiles
+	listRuntimes *agentsettingsapp.ListRuntimes
 }
 
 var _ tasksoutbound.AgentCatalogPort = (*agentCatalogBridge)(nil)
@@ -425,9 +426,9 @@ func (b *agentCatalogBridge) CatalogForRuntime(ctx context.Context, requested st
 		effectiveRtStr = string(parsedRt)
 	}
 
-	allRuntimes := agentsettingsmodels.AllRuntimes()
-	runtimeStrings := make([]string, 0, len(allRuntimes))
-	for _, rt := range allRuntimes {
+	installedRuntimes := b.listRuntimes.Execute(ctx)
+	runtimeStrings := make([]string, 0, len(installedRuntimes))
+	for _, rt := range installedRuntimes {
 		runtimeStrings = append(runtimeStrings, string(rt))
 	}
 

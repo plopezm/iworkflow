@@ -18,6 +18,8 @@ import (
 const (
 	listModelsTimeout = 10 * time.Second
 	listModelsFlag    = "--list-models"
+	// exitCommandNotFound is the exit code POSIX shells (and fish) return for an unknown command.
+	exitCommandNotFound = 127
 	// modelsCacheTTL: listing models starts an agent process (and with it its MCP servers), so the
 	// result is reused for this long instead of spawning one process per query.
 	modelsCacheTTL = 60 * time.Second
@@ -44,8 +46,9 @@ type AgentCLIModelCatalogAdapter struct {
 	timeout time.Duration
 	clock   func() time.Time
 
-	mu    sync.Mutex
-	cache map[models.AgentRuntime]cacheEntry
+	mu        sync.Mutex
+	cache     map[models.AgentRuntime]cacheEntry
+	installed map[models.AgentRuntime]installedEntry
 }
 
 var _ outbound.ModelCatalogPort = (*AgentCLIModelCatalogAdapter)(nil)
@@ -61,6 +64,8 @@ func NewAgentCLIModelCatalogAdapter(bins map[models.AgentRuntime]string) *AgentC
 		timeout: listModelsTimeout,
 		clock:   time.Now,
 		cache:   make(map[models.AgentRuntime]cacheEntry),
+
+		installed: make(map[models.AgentRuntime]installedEntry),
 	}
 }
 
@@ -115,6 +120,10 @@ func (a *AgentCLIModelCatalogAdapter) runListModels(ctx context.Context, bin str
 		}
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
+			if exitErr.ExitCode() == exitCommandNotFound {
+				// The executable is not installed: that is not an error, the runtime simply has no models.
+				return make([]models.ModelRef, 0), nil
+			}
 			return nil, agenterrors.Catalog(fmt.Sprintf("%s --list-models falló: %s", bin, exitErr.Stderr)) //nolint:wrapcheck // domain constructor returns a domain error
 		}
 		return nil, agenterrors.Catalog(fmt.Sprintf("no se pudo ejecutar %s: %v", bin, err)) //nolint:wrapcheck // domain constructor returns a domain error

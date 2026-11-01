@@ -134,9 +134,8 @@ func ThinkingLevelIDs(runtime *string) ([]string, error) {
 	return ids, nil
 }
 
-// RuntimeOptions returns the identifiers of every agent runtime, in selector order.
-func RuntimeOptions() []string {
-	runtimes := models.AllRuntimes()
+// RuntimeIDs returns the identifiers of the given runtimes, in the order received. It never returns nil.
+func RuntimeIDs(runtimes []models.AgentRuntime) []string {
 	ids := make([]string, 0, len(runtimes))
 	for _, runtime := range runtimes {
 		ids = append(ids, string(runtime))

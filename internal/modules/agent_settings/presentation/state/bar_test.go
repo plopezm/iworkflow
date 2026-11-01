@@ -22,6 +22,7 @@ func healthyData() state.BarData {
 	return state.BarData{
 		Settings: dto.AgentSettingsDTO{Runtime: str("pi"), ModelProvider: str("anthropic"), ModelID: str("claude-5"),
 			Thinking: str("xhigh"), Profile: str("Gentleman")},
+		Runtimes: []string{"gentle-shell", "pi", "claude", "cursor"},
 		Models:   []dto.ModelOptionDTO{{Provider: "anthropic", Model: "claude-5"}, {Provider: "openai", Model: "gpt-5"}},
 		Levels:   []string{"off", "xhigh", "unknown-level"},
 		Profiles: dto.ProfileCatalogDTO{Active: str("Claude"), Names: []string{"Claude", "Gentleman"}},

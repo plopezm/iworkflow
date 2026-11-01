@@ -147,6 +147,17 @@ func commandArgs(flavor shellFlavor, program string, args []string) []string {
 	return []string{"-l", "-c", "exec " + strings.Join(tokens, " ")}
 }
 
+// probeArgs builds the shell arguments that exit 0 when program resolves to an executable and non-zero otherwise.
+func probeArgs(flavor shellFlavor, program string) []string {
+	if flavor == flavorPowerShell {
+		return []string{
+			"-NoLogo", "-NonInteractive", "-Command",
+			"if (Get-Command " + powerShellQuote(program) + " -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
+		}
+	}
+	return []string{"-l", "-c", "command -v " + shellQuote(program)}
+}
+
 // quote wraps value as a literal for the shell of flavor.
 func quote(flavor shellFlavor, value string) string {
 	if flavor == flavorPowerShell {

@@ -28,6 +28,7 @@ const (
 // and only that part of the bar shows the error.
 type BarData struct {
 	Settings    dto.AgentSettingsDTO
+	Runtimes    []string // installed runtimes, in selector order
 	SettingsErr string
 	Models      []dto.ModelOptionDTO
 	ModelsErr   string
@@ -48,7 +49,7 @@ func Bar(ctx context.Context, data BarData) presentation.AgentSettingsBarProps {
 		Tooltip:        tooltip,
 		Footer:         footer,
 		StatusTitle:    msgSessionSettings.T(ctx),
-		Runtime:        runtimeSlot(ctx, data.Settings),
+		Runtime:        runtimeSlot(ctx, data),
 		Model:          modelSlot(ctx, data),
 		Thinking:       thinkingSlot(ctx, data),
 		Profile:        profileSlot(ctx, data),
@@ -59,10 +60,11 @@ func Bar(ctx context.Context, data BarData) presentation.AgentSettingsBarProps {
 	}
 }
 
-// runtimeSlot lists the runtimes offered by the selector, without the default one.
-func runtimeSlot(ctx context.Context, settings dto.AgentSettingsDTO) presentation.BarSlot {
-	options := make([]components.SelectOption, 0, len(dto.RuntimeOptions()))
-	for _, id := range dto.RuntimeOptions() {
+// runtimeSlot lists the installed runtimes offered by the selector, without the default one.
+func runtimeSlot(ctx context.Context, data BarData) presentation.BarSlot {
+	settings := data.Settings
+	options := make([]components.SelectOption, 0, len(data.Runtimes))
+	for _, id := range data.Runtimes {
 		if id != defaultRuntime {
 			options = append(options, components.SelectOption{Value: id, Label: id})
 		}

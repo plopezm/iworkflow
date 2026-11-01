@@ -112,6 +112,7 @@ func New(deps Deps) (*App, error) {
 		GentleShellBin:     deps.Config.GentleShellBin,
 		PiBin:              deps.Config.PiBin,
 		CursorBin:          deps.Config.CursorBin,
+		ClaudeBin:          deps.Config.ClaudeBin,
 		GentlePiConfigHome: deps.Config.GentlePiConfigHome,
 	})
 
@@ -136,6 +137,7 @@ func New(deps Deps) (*App, error) {
 			getSettings:  settings.GetAgentSettings,
 			modelCatalog: settings.ModelCatalog,
 			listProfiles: settings.ListProfiles,
+			listRuntimes: settings.ListRuntimes,
 		},
 		Remote:              &remoteMergeBridge{inner: remoteMerge},
 		FileSearch:          fileSearch.Files,

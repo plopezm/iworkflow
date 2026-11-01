@@ -19,6 +19,7 @@ import (
 	"iworkflow/internal/modules/agent_settings/application"
 	agenterrors "iworkflow/internal/modules/agent_settings/domain/errors"
 	"iworkflow/internal/modules/agent_settings/domain/models"
+	"iworkflow/internal/modules/agent_settings/domain/ports/outbound"
 	"iworkflow/internal/modules/agent_settings/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/agent_settings/infrastructure/adapters/inbound/dto"
 )
@@ -69,12 +70,29 @@ type fakeProfiles struct{ catalog models.ProfileCatalog }
 
 func (f *fakeProfiles) List(context.Context) (models.ProfileCatalog, error) { return f.catalog, nil }
 
+// allInstalled reports every runtime as installed.
+type allInstalled struct{}
+
+func (allInstalled) Installed(context.Context, models.AgentRuntime) bool { return true }
+
+// onlyInstalled reports as installed just the runtimes it holds.
+type onlyInstalled map[models.AgentRuntime]bool
+
+func (o onlyInstalled) Installed(_ context.Context, runtime models.AgentRuntime) bool {
+	return o[runtime]
+}
+
 type harness struct {
 	router     http.Handler
 	repository *fakeRepository
 }
 
 func newHarness(t *testing.T, repository *fakeRepository) harness {
+	t.Helper()
+	return newHarnessWith(t, repository, allInstalled{})
+}
+
+func newHarnessWith(t *testing.T, repository *fakeRepository, availability outbound.RuntimeAvailabilityPort) harness {
 	t.Helper()
 	active := "Claude"
 	catalogModels := &fakeModels{list: []models.ModelRef{{Provider: "anthropic", Model: "claude-5"}}}
@@ -84,6 +102,7 @@ func newHarness(t *testing.T, repository *fakeRepository) harness {
 		application.NewUpdateAgentSettings(repository, catalogModels, profiles),
 		application.NewListModels(repository, catalogModels),
 		application.NewListProfiles(profiles),
+		application.NewListRuntimes(availability),
 	)
 	router := chi.NewRouter()
 	handlers.Mount(router)
