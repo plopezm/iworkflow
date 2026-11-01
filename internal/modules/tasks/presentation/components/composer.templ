@@ -16,6 +16,7 @@ templ Composer(view state.ComposerView) {
 		data-files-path={ view.FilesPath() }
 		data-commands={ composerCommandsJSON(ctx) }
 		data-remove-label={ msgRemoveReference.T(ctx) }
+		{ dictationAttrs(ctx)... }
 	>
 		<div id={ view.BodyID() } class="contents">
 			@ComposerBody(view)
@@ -52,8 +53,10 @@ templ ComposerBody(view state.ComposerView) {
 					data-composer-input
 					data-image-paste
 				>{ view.Draft }</textarea>
+				@DictationMic()
 				<span class="composer-grip" data-composer-grip aria-hidden="true"></span>
 			</div>
+			@DictationPanel()
 			<ul class="composer-refs flex flex-wrap gap-1" data-composer-refs hidden></ul>
 			<div class="stack gap-2" data-image-picker>
 				<input type="file" name="images" multiple accept={ acceptedImages } class="sr-only" data-image-input/>
