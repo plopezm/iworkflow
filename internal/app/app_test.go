@@ -208,3 +208,19 @@ func TestTranscriptionsEndpointIsMountedAndReportsAMissingModel(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, rec.Code)
 	require.Contains(t, rec.Header().Get("Content-Type"), "application/json")
 }
+
+func TestTheBoardSidebarIsRenderedInsideTheMorphExtensionScope(t *testing.T) {
+	handler := newRouter(t)
+
+	body := get(t, handler, "/").Body.String()
+
+	// hx-ext is inherited by descendants: the sidebar swaps with morph:innerHTML, which only works under it.
+	extension := strings.Index(body, `hx-ext="sse,morph"`)
+	sidebar := strings.Index(body, `id="board-sidebar"`)
+	require.True(t, extension >= 0 && sidebar > extension, "the board sidebar must sit under an element that loads the morph extension")
+	// The swap must be on the sidebar element itself: the board list carries the same attribute, so a page-wide
+	// check would pass even if the sidebar stopped using it.
+	opening := body[sidebar:]
+	opening = opening[:strings.Index(opening, ">")]
+	require.Contains(t, opening, `hx-swap="morph:innerHTML"`)
+}

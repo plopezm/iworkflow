@@ -17,31 +17,8 @@ templ StageBadge(stage string) {
 	</span>
 }
 
-// TaskCard is one task of the board: its title, its stage and its priority, linked to its detail. The scope is the
-// board instance the card belongs to, so its actions answer there.
-templ TaskCard(task dto.TaskDTO, scope string) {
-	<li class="task-card" data-task-id={ task.ID } data-stage={ task.Stage }>
-		<a href={ templ.SafeURL(state.TaskPath(task.ID)) } class="card stack gap-1.5 p-3 hover:border-accent">
-			<div class="row justify-between gap-2">
-				<span class="truncate text-sm font-semibold text-fg">{ state.TaskTitle(task) }</span>
-				@StageBadge(task.Stage)
-			</div>
-			<div class="row gap-2 text-xs text-muted">
-				<span>{ priorityLabel(task.Priority).T(ctx) }</span>
-				if task.NeedsAttention {
-					<span class="text-warn">{ stageLabel(state.StageAttention).T(ctx) }</span>
-				}
-			</div>
-		</a>
-		if task.Stage == state.StageBacklog {
-			@backlogActions(task, scope)
-		} else {
-			@activeActions(task, scope)
-		}
-	</li>
-}
-
-// activeActions are the card buttons of an active or completed task: open the task tab and, if available, its terminal.
+// activeActions are the buttons of an active or completed task card (loose card or graph node): open the task tab and,
+// if available, its terminal.
 templ activeActions(task dto.TaskDTO, scope string) {
 	<div class="row justify-end gap-2">
 		@link.Tab(link.Props{Href: state.TaskPath(task.ID), Class: "btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs", Role: "button"}) {
@@ -137,6 +114,9 @@ templ LoadFailed(message string) {
 // broadcast: every open board reloads its own list from its own address, so the refresh is harmless for the boards
 // that are not shown. Its own attributes carry the address of the list, so the refresh keeps the workspace, the
 // completed toggle and the instance.
+// Stream notices are debounced (htmx "delay": 250 ms after the last one), so a burst ends in one refetch that sees the final
+// state. "throttle" is not an option: htmx drops the events of its window, so the last change could be missed. The notices
+// this list listens to (status, dialogs, exits) are not a continuous stream, so a quiet gap always comes.
 // The element stays in the page: a refresh swaps only its content (innerHTML). Replacing the element would drop the
 // task-stream events that arrive while the new one is not listening yet.
 templ BoardList(view state.BoardView) {
@@ -144,7 +124,7 @@ templ BoardList(view state.BoardView) {
 		id={ state.Scoped("board-list", view.Scope) }
 		class="board-list flex h-full w-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 		hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages) }
-		hx-trigger="sse:changed, sse:removed, sse:reset, board:refresh from:body"
+		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body"
 		hx-sync="this:replace"
 		hx-target="this"
 		hx-swap="morph:innerHTML"

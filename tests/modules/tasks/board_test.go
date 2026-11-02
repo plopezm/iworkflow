@@ -254,7 +254,7 @@ func TestBoardFrameKeepsItsAddressForTheRefreshAndTheTaskStream(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	assert.Contains(t, body, `id="board-list"`)
-	assert.Contains(t, body, `hx-trigger="sse:changed, sse:removed, sse:reset, board:refresh from:body"`)
+	assert.Contains(t, body, `hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body"`)
 	assert.Contains(t, body, `hx-swap="morph:innerHTML"`, "a refresh swaps the content and keeps the element")
 	assert.Contains(t, body, `hx-sync="this:replace"`)
 	assert.Contains(t, body, "/board/list?completed=1&amp;pages=2&amp;workspace="+workspaceID,
@@ -270,7 +270,7 @@ func TestBoardPageRendersTheStableListWithItsAddress(t *testing.T) {
 	body := renderTab(t, module, "board_workspace", dock.Params{"id": workspaceID})
 
 	assert.Contains(t, body, `id="board-list-`, "the page carries the list of its own instance")
-	assert.Contains(t, body, `hx-trigger="sse:changed, sse:removed, sse:reset, board:refresh from:body"`)
+	assert.Contains(t, body, `hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body"`)
 	assert.Contains(t, body, `hx-get="/board/list?`, "the refresh asks for the content, not for the element")
 	assert.Contains(t, body, `hx-swap="morph:innerHTML"`)
 	assert.Contains(t, body, `hx-get="/board/frame"`, "the toolbar swaps the whole element because it changes its address")
@@ -366,10 +366,10 @@ func TestSidebarLinksEachWorkspaceToItsBoardAndListsTheTasksThatNeedTheUser(t *t
 
 	assert.Contains(t, sidebar, `id="board-sidebar"`)
 	assert.Contains(t, sidebar, `hx-get="/board/sidebar"`)
-	assert.Contains(t, sidebar, `hx-trigger="sse:changed, sse:removed, sse:reset, board:refresh from:body, htmx:afterRequest[`, "the sidebar refreshes on task changes and removals only, not on every stream event")
+	assert.Contains(t, sidebar, `hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[`, "the sidebar refreshes on task changes and removals only, not on every stream event")
 	assert.Contains(t, sidebar, `htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')]`, "a registration on the workspaces screen refreshes the sidebar")
 	assert.Contains(t, sidebar, `hx-sync="this:replace"`, "a burst of stream events must end with a refetch that sees the last change, not be dropped while one is in flight")
-	assert.Contains(t, sidebar, `hx-swap="innerHTML"`, "the listening element stays in the page and only its content is swapped")
+	assert.Contains(t, sidebar, `hx-swap="morph:innerHTML"`, "the listening element stays in the page and only its content is morphed, so a click in flight is not lost")
 	assert.Contains(t, sidebar, `href="/board/`+workspaceID+`"`)
 	assert.Contains(t, sidebar, `href="/tasks/`+failed.ID.String()+`"`, "a failed task needs the user")
 	assert.Contains(t, sidebar, "needs-you")
