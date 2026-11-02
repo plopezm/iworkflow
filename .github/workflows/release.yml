@@ -180,7 +180,21 @@ jobs:
         id: installer
         run: |
           set -euo pipefail
-          make electron-build DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1
+          # hdiutil on macOS runners intermittently fails to detach the DMG ("Resource busy"), so retry.
+          for attempt in 1 2 3; do
+            if make electron-build DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "electron-build failed after $attempt attempts" >&2
+              exit 1
+            fi
+            echo "electron-build failed (attempt $attempt), retrying..." >&2
+            if [ "$RUNNER_OS" = "macOS" ]; then
+              hdiutil detach -force /Volumes/iworkflow* 2>/dev/null || true
+            fi
+            sleep 10
+          done
           echo "glob=server-dist/electron/iworkflow-*.${{ matrix.installer }}*" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
