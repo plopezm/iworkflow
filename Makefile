@@ -135,6 +135,9 @@ electron-build: $(if $(SKIP_SERVER_BUILD),,dist)
 	rm -rf electron/resources/server
 	mkdir -p electron/resources/server
 	cp $(DIST_DIR)/$(BIN_FILE) electron/resources/server/
+	@# The sherpa-onnx libraries `make dist` put next to the binary (lib/ on Linux and macOS, *.dll on Windows).
+	@if [ -d $(DIST_DIR)/lib ]; then cp -r $(DIST_DIR)/lib electron/resources/server/lib; fi
+	@find $(DIST_DIR) -maxdepth 1 -name '*.dll' -exec cp {} electron/resources/server/ \;
 	cp -r $(DIST_DIR)/site electron/resources/server/site
 	cd electron && npm ci && npx electron-builder $(ELECTRON_PLATFORM) --publish never --config.directories.output="$(abspath $(DIST_DIR))/electron"
 	@echo "Installer written to $(DIST_DIR)/electron"

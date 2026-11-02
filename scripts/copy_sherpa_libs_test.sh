@@ -28,4 +28,14 @@ SHERPA_LIBS_SOURCE="$work/source" "$here/copy_sherpa_libs.sh" "$work/dist" >/dev
 check "libraries are copied" "$([ $? -eq 0 ] && [ -f "$work/dist/$sub/liba.$ext" ] && [ -f "$work/dist/$sub/libb.$ext" ]; echo $?)"
 check "other files are not copied" "$([ ! -e "$work/dist/$sub/notes.txt" ]; echo $?)"
 
+# Windows also gets the MinGW runtime next to the executable, and a missing runtime DLL is an error.
+mkdir "$work/winsrc" "$work/mingw"
+touch "$work/winsrc/sherpa.dll"
+for runtime in libstdc++-6.dll libgcc_s_seh-1.dll libwinpthread-1.dll; do touch "$work/mingw/$runtime"; done
+COPY_LIBS_GOOS=windows MINGW_RUNTIME_DIR="$work/mingw" SHERPA_LIBS_SOURCE="$work/winsrc" "$here/copy_sherpa_libs.sh" "$work/windist" >/dev/null 2>&1
+check "windows copies sherpa and the MinGW runtime" "$([ $? -eq 0 ] && [ -f "$work/windist/sherpa.dll" ] && [ -f "$work/windist/libstdc++-6.dll" ] && [ -f "$work/windist/libgcc_s_seh-1.dll" ] && [ -f "$work/windist/libwinpthread-1.dll" ]; echo $?)"
+rm "$work/mingw/libwinpthread-1.dll"
+COPY_LIBS_GOOS=windows MINGW_RUNTIME_DIR="$work/mingw" SHERPA_LIBS_SOURCE="$work/winsrc" "$here/copy_sherpa_libs.sh" "$work/windist2" >/dev/null 2>&1
+check "windows fails when a MinGW runtime DLL is missing" "$([ $? -ne 0 ]; echo $?)"
+
 exit "$failures"

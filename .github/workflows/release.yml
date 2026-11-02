@@ -129,6 +129,17 @@ jobs:
       - name: Smoke test binary
         run: ./server-dist/${{ matrix.bin }} --help
 
+      # Windows resolves DLLs through PATH, and the runner has MinGW on it, so the step above hides a missing
+      # runtime DLL. Start the binary again with only the system folders on PATH, like a clean user machine
+      # (a missing DLL exits with 0xC0000135).
+      - name: Smoke test binary on a clean PATH
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
+          & "$PWD\server-dist\${{ matrix.bin }}" --help
+          if ($LASTEXITCODE -ne 0) { throw "${{ matrix.bin }} exited with code $LASTEXITCODE on a clean PATH" }
+
       - name: Package
         id: package
         env:
@@ -140,6 +151,9 @@ jobs:
           mkdir -p "dist/$NAME"
           cp "server-dist/${{ matrix.bin }}" "dist/$NAME/"
           cp -r server-dist/site "dist/$NAME/site"
+          # The sherpa-onnx libraries the binary loads at start: lib/ (Linux, macOS) or *.dll next to it (Windows).
+          if [ -d server-dist/lib ]; then cp -r server-dist/lib "dist/$NAME/lib"; fi
+          find server-dist -maxdepth 1 -name '*.dll' -exec cp {} "dist/$NAME/" \;
           cd dist
           if [ "${{ matrix.archive }}" = "zip" ]; then
             7z a -tzip "$NAME.zip" "$NAME" > /dev/null
