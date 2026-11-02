@@ -47,7 +47,7 @@ func TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody,
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"flex h-full min-h-0\"><div class=\"flex min-w-0 flex-1 flex-col\"><div class=\"flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2.5\"><div class=\"min-w-0 flex-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"flex h-full min-h-0\"><div class=\"flex min-w-0 flex-1 flex-col\"><div class=\"flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 md:px-4 md:py-2.5\"><div class=\"min-w-0 flex-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -60,7 +60,7 @@ func TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody,
 			return templ_7745c5c3_Err
 		}
 		if view.Task.Stage != state.StageBacklog {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button type=\"button\" class=\"btn-secondary min-h-9 px-3 py-1 text-xs md:hidden\" data-mobile-open data-target=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<button type=\"button\" class=\"btn-secondary btn-compact px-3 py-1 text-xs md:hidden\" data-mobile-open data-target=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -118,7 +118,7 @@ func TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody,
 				return templ_7745c5c3_Err
 			}
 			if view.CanMessage {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"shrink-0 border-t border-border bg-surface p-4\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "<div class=\"shrink-0 border-t border-border bg-surface p-2 md:p-4\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
