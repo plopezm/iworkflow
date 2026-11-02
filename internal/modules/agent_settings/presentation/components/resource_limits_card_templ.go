@@ -79,7 +79,7 @@ func ResourceLimitsCard(p ResourceLimitsProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-sync=\"this:replace\" hx-swap=\"morph:outerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" hx-sync=\"this:replace\" hx-swap=\"morph:outerHTML\" hx-disinherit=\"hx-swap\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -114,7 +114,7 @@ func ResourceLimitsCard(p ResourceLimitsProps) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(p.Help)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 32, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 33, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -137,7 +137,7 @@ func ResourceLimitsCard(p ResourceLimitsProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(limitsEnabledEndpoint).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 40, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 41, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 				if templ_7745c5c3_Err != nil {
@@ -150,7 +150,7 @@ func ResourceLimitsCard(p ResourceLimitsProps) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templruntime.NewAttributeExpression("#" + LimitsID).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 42, Col: 32}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 43, Col: 32}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func ResourceLimitsCard(p ResourceLimitsProps) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(p.Switch)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 45, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/resource_limits_card.templ`, Line: 46, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {

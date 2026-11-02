@@ -17,8 +17,10 @@ func TestHubDeliversToEverySubscriber(t *testing.T) {
 
 	hub.Publish("agent-settings")
 
-	require.Equal(t, "agent-settings", <-first)
-	require.Equal(t, "agent-settings", <-second)
+	require.Len(t, first.Ready(), 1)
+	require.Equal(t, []string{"agent-settings"}, first.Drain())
+	require.Equal(t, []string{"agent-settings"}, second.Drain())
+	require.Empty(t, first.Drain(), "drain clears the pending notices")
 }
 
 func TestHubStopsDeliveringAfterCancel(t *testing.T) {
@@ -28,24 +30,36 @@ func TestHubStopsDeliveringAfterCancel(t *testing.T) {
 
 	hub.Publish("x")
 
-	require.Empty(t, sub)
+	require.Empty(t, sub.Drain())
 }
 
-func TestHubDropsNoticesOfASlowSubscriberWithoutBlocking(t *testing.T) {
+func TestHubCoalescesRepeatedNoticesAndKeepsEveryDistinctName(t *testing.T) {
 	hub := notify.NewHub()
 	sub, cancel := hub.Subscribe()
 	defer cancel()
 
 	for range 100 {
+		hub.Publish("agent-settings")
+	}
+	hub.Publish("other")
+
+	require.Equal(t, []string{"agent-settings", "other"}, sub.Drain())
+}
+
+func TestHubDoesNotBlockWhenNobodyDrains(t *testing.T) {
+	hub := notify.NewHub()
+	_, cancel := hub.Subscribe()
+	defer cancel()
+
+	for range 1000 {
 		hub.Publish("x")
 	}
-
-	require.NotEmpty(t, sub)
 }
 
 func TestNilHubIsInert(t *testing.T) {
 	var hub *notify.Hub
 	hub.Publish("x")
-	_, cancel := hub.Subscribe()
+	sub, cancel := hub.Subscribe()
 	cancel()
+	require.Empty(t, sub.Drain())
 }

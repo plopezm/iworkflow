@@ -21,6 +21,7 @@ templ ResourceLimitsCard(p ResourceLimitsProps) {
 		hx-trigger={ "sse:" + SettingsChangedNotice + ", sse:reset" }
 		hx-sync="this:replace"
 		hx-swap="morph:outerHTML"
+		hx-disinherit="hx-swap"
 	>
 		@ui.Card(p.Title) {
 			if !p.Loaded {

@@ -73,9 +73,11 @@ func (s *TaskStreams) BoardEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
-		case name := <-notices:
-			if err := stream.Send(ctx, "", name, name); err != nil {
-				return
+		case <-notices.Ready():
+			for _, name := range notices.Drain() {
+				if err := stream.Send(ctx, "", name, name); err != nil {
+					return
+				}
 			}
 		case event, open := <-subscription.Events():
 			if !open {

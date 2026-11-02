@@ -139,7 +139,7 @@ func AgentSettingsBar(p AgentSettingsBarProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-sync=\"this:replace\" hx-swap=\"morph:outerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" hx-sync=\"this:replace\" hx-swap=\"morph:outerHTML\" hx-disinherit=\"hx-swap\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -180,7 +180,7 @@ func AgentSettingsBar(p AgentSettingsBarProps) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(p.Footer)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/agent_settings_bar.templ`, Line: 56, Col: 79}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/agent_settings/presentation/components/agent_settings_bar.templ`, Line: 57, Col: 79}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {

@@ -452,6 +452,7 @@ func TestBarRefreshesItselfOnTheSettingsNoticeAndShowsLoadingWhileChanging(t *te
 	require.Contains(t, body, `hx-trigger="sse:agent-settings, sse:reset"`)
 	require.Contains(t, body, `hx-swap="morph:outerHTML"`)
 	require.Contains(t, body, `hx-indicator="#agent-settings-bar"`)
+	require.Contains(t, body, `hx-disinherit="hx-swap"`)
 	require.Contains(t, body, "session-bar-spinner")
 }
 
@@ -461,6 +462,7 @@ func TestLimitsCardRefreshesItselfOnTheSettingsNoticeAndOnReconnect(t *testing.T
 	body := h.get(t, "/agent-settings/limits").Body.String()
 
 	require.Contains(t, body, `hx-get="/agent-settings/limits"`)
+	require.Contains(t, body, `hx-disinherit="hx-swap"`, "the controls inside must not inherit the morph swap")
 	require.Contains(t, body, `hx-trigger="sse:agent-settings, sse:reset"`)
 	require.Contains(t, body, `hx-swap="morph:outerHTML"`)
 }

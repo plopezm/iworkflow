@@ -26,6 +26,7 @@ templ AgentSettingsBar(p AgentSettingsBarProps) {
 		hx-trigger={ "sse:" + SettingsChangedNotice + ", sse:reset" }
 		hx-sync="this:replace"
 		hx-swap="morph:outerHTML"
+		hx-disinherit="hx-swap"
 	>
 		if p.Error != "" {
 			@ui.ErrorText(p.Error)
