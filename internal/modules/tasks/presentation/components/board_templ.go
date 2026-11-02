@@ -608,8 +608,8 @@ func LoadFailed(message string) templ.Component {
 // broadcast: every open board reloads its own list from its own address, so the refresh is harmless for the boards
 // that are not shown. Its own attributes carry the address of the list, so the refresh keeps the workspace, the
 // completed toggle and the instance.
-// Stream notices wait 250 ms (htmx "delay"), so a burst of events ends in one refetch. Every card has a stable id, so the morph
-// updates the card in place instead of replacing the buttons under the pointer.
+// Stream notices are throttled to one refetch per 250 ms (htmx "throttle"): the first fires at once and the events of the
+// window end in one trailing refetch, so a continuous stream still refreshes (a "delay" would restart on every event).
 // The element stays in the page: a refresh swaps only its content (innerHTML). Replacing the element would drop the
 // task-stream events that arrive while the new one is not listening yet.
 func BoardList(view state.BoardView) templ.Component {
@@ -655,7 +655,7 @@ func BoardList(view state.BoardView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" hx-trigger=\"sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"morph:innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" hx-trigger=\"sse:changed throttle:250ms, sse:removed throttle:250ms, sse:reset throttle:250ms, board:refresh from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"morph:innerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
