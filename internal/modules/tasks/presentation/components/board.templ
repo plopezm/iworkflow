@@ -20,7 +20,7 @@ templ StageBadge(stage string) {
 // TaskCard is one task of the board: its title, its stage and its priority, linked to its detail. The scope is the
 // board instance the card belongs to, so its actions answer there.
 templ TaskCard(task dto.TaskDTO, scope string) {
-	<li class="task-card" data-task-id={ task.ID } data-stage={ task.Stage }>
+	<li id={ state.Scoped("task-card-"+task.ID, scope) } class="task-card" data-task-id={ task.ID } data-stage={ task.Stage }>
 		<a href={ templ.SafeURL(state.TaskPath(task.ID)) } class="card stack gap-1.5 p-3 hover:border-accent">
 			<div class="row justify-between gap-2">
 				<span class="truncate text-sm font-semibold text-fg">{ state.TaskTitle(task) }</span>
@@ -137,6 +137,8 @@ templ LoadFailed(message string) {
 // broadcast: every open board reloads its own list from its own address, so the refresh is harmless for the boards
 // that are not shown. Its own attributes carry the address of the list, so the refresh keeps the workspace, the
 // completed toggle and the instance.
+// Stream notices wait 250 ms (htmx "delay"), so a burst of events ends in one refetch. Every card has a stable id, so the morph
+// updates the card in place instead of replacing the buttons under the pointer.
 // The element stays in the page: a refresh swaps only its content (innerHTML). Replacing the element would drop the
 // task-stream events that arrive while the new one is not listening yet.
 templ BoardList(view state.BoardView) {
@@ -144,7 +146,7 @@ templ BoardList(view state.BoardView) {
 		id={ state.Scoped("board-list", view.Scope) }
 		class="board-list flex h-full w-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 		hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages) }
-		hx-trigger="sse:changed, sse:removed, sse:reset, board:refresh from:body"
+		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body"
 		hx-sync="this:replace"
 		hx-target="this"
 		hx-swap="morph:innerHTML"

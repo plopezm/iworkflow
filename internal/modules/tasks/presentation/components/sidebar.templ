@@ -15,10 +15,10 @@ templ BoardSidebar(rows state.SidebarRows) {
 		id="board-sidebar"
 		class="contents"
 		hx-get="/board/sidebar"
-		hx-trigger="sse:changed, sse:removed, sse:reset, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body"
+		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body"
 		hx-sync="this:replace"
 		hx-target="this"
-		hx-swap="innerHTML"
+		hx-swap="morph:innerHTML"
 	>
 		@SidebarBody(rows)
 	</div>
