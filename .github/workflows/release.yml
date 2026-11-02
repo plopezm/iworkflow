@@ -148,12 +148,8 @@ jobs:
         run: |
           set -euo pipefail
           NAME="iworkflow-${REF_LABEL}-${{ matrix.name }}"
-          mkdir -p "dist/$NAME"
-          cp "server-dist/${{ matrix.bin }}" "dist/$NAME/"
-          cp -r server-dist/site "dist/$NAME/site"
-          # The sherpa-onnx libraries the binary loads at start: lib/ (Linux, macOS) or *.dll next to it (Windows).
-          if [ -d server-dist/lib ]; then cp -r server-dist/lib "dist/$NAME/lib"; fi
-          find server-dist -maxdepth 1 -name '*.dll' -exec cp {} "dist/$NAME/" \;
+          # Binary, site/ and the sherpa-onnx libraries the binary loads at start.
+          ./scripts/stage_server.sh server-dist "dist/$NAME" "${{ matrix.bin }}"
           cd dist
           if [ "${{ matrix.archive }}" = "zip" ]; then
             7z a -tzip "$NAME.zip" "$NAME" > /dev/null

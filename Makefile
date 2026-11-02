@@ -117,6 +117,7 @@ prod: dist run
 test:
 	go test -p 2 ./...
 	./scripts/copy_sherpa_libs_test.sh
+	./scripts/stage_server_test.sh
 
 vet:
 	go vet ./...
@@ -131,14 +132,8 @@ electron: electron-build
 
 # Installer for the current platform, written to $(DIST_DIR)/electron.
 electron-build: $(if $(SKIP_SERVER_BUILD),,dist)
-	@test -f $(DIST_DIR)/$(BIN_FILE) && test -d $(DIST_DIR)/site || { echo "No server package in $(DIST_DIR); run 'make dist' first." >&2; exit 1; }
 	rm -rf electron/resources/server
-	mkdir -p electron/resources/server
-	cp $(DIST_DIR)/$(BIN_FILE) electron/resources/server/
-	@# The sherpa-onnx libraries `make dist` put next to the binary (lib/ on Linux and macOS, *.dll on Windows).
-	@if [ -d $(DIST_DIR)/lib ]; then cp -r $(DIST_DIR)/lib electron/resources/server/lib; fi
-	@find $(DIST_DIR) -maxdepth 1 -name '*.dll' -exec cp {} electron/resources/server/ \;
-	cp -r $(DIST_DIR)/site electron/resources/server/site
+	./scripts/stage_server.sh $(DIST_DIR) electron/resources/server $(BIN_FILE)
 	cd electron && npm ci && npx electron-builder $(ELECTRON_PLATFORM) --publish never --config.directories.output="$(abspath $(DIST_DIR))/electron"
 	@echo "Installer written to $(DIST_DIR)/electron"
 
