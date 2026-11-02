@@ -13,7 +13,7 @@ permissions:
 
 env:
   # Pinned to the versions that produced the committed generated code (go.mod / sqlc headers).
-  TEMPL_VERSION: v0.3.1070
+  TEMPL_VERSION: v0.3.1100
   SQLC_VERSION: v1.31.1
   TAILWIND_VERSION: v4.3.3
   # The default `sherpa` build tag (audio transcription) links sherpa-onnx through cgo, so a C toolchain is
