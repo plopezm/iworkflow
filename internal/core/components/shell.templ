@@ -104,7 +104,7 @@ templ SidebarSection(p SidebarSectionProps) {
 		<div class="flex items-center gap-2 px-2.5 py-1.5">
 			<button
 				type="button"
-				class="flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[11px] font-medium text-muted hover:text-fg"
+				class="sidebar-section-toggle flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[11px] font-medium text-muted hover:text-fg"
 				aria-expanded="true"
 				data-section-toggle
 			>
@@ -134,7 +134,7 @@ type SidebarItemProps struct {
 // SidebarItem is a row of the sidebar: a link that opens its tab, and an optional `…` menu (children).
 templ SidebarItem(p SidebarItemProps, menu templ.Component) {
 	<div class={ sidebarRowClass(p.Selected) }>
-		@link.Tab(link.Props{Href: p.Href, Title: p.Title, Class: "min-w-0 flex-1 px-2.5 py-1.5"}) {
+		@link.Tab(link.Props{Href: p.Href, Title: p.Title, Class: "sidebar-row-link min-w-0 flex-1 px-2.5 py-1.5"}) {
 			<div class="flex items-center gap-1.5">
 				if p.Highlight {
 					<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-error" title={ msgNeedsAttn.T(ctx) }></span>
@@ -147,7 +147,7 @@ templ SidebarItem(p SidebarItemProps, menu templ.Component) {
 		}
 		if menu != nil {
 			<div class="flex">
-				@DropdownMenu(DropdownMenuProps{Label: "…", AriaLabel: msgMoreActions.T(ctx), TriggerClass: "flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"}) {
+				@DropdownMenu(DropdownMenuProps{Label: "…", AriaLabel: msgMoreActions.T(ctx), TriggerClass: "sidebar-row-menu flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"}) {
 					@menu
 				}
 			</div>
@@ -228,7 +228,7 @@ templ AppShell(p AppShellProps) {
 		</div>
 		<div class="flex min-w-0 flex-1 flex-col">
 			<header class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden">
-				<button type="button" class="btn-secondary min-h-9 px-2.5 py-1" aria-label={ msgOpenMenu.T(ctx) } data-mobile-open data-target="sidebar-panel">☰</button>
+				<button type="button" class="btn-secondary min-h-11 min-w-11 px-2.5 py-1" aria-label={ msgOpenMenu.T(ctx) } data-mobile-open data-target="sidebar-panel">☰</button>
 				@link.Tab(link.Props{Href: "/", Reuse: p.HomeReuse, Class: "text-sm font-semibold tracking-tight"}) {
 					{ p.Brand }
 				}

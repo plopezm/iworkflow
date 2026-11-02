@@ -91,6 +91,15 @@ export function openMobilePanels(root) {
   return panels.map((panel) => panel.id).filter(Boolean);
 }
 
+// closeMobilePanel closes a panel opened as a mobile overlay, hiding its full-screen overlay too:
+// a visible overlay left behind would swallow the next tap.
+export function closeMobilePanel(root) {
+  if (!root) return;
+  root.removeAttribute('data-mobile-open');
+  const overlay = root.querySelector('[data-overlay-close]');
+  if (overlay) overlay.hidden = true;
+}
+
 // reopenMobilePanels opens again, as a mobile overlay, the panels a swap replaced while they were open.
 export function reopenMobilePanels(ids, doc = document) {
   for (const id of ids) {
@@ -408,7 +417,7 @@ function init() {
       restoreTheme(event.target);
       restoreBoardTab(event.target);
       // Moving or opening tabs closes the mobile sidebar overlay.
-      if (event.target.id === 'dock') document.getElementById('sidebar-panel')?.removeAttribute('data-mobile-open');
+      if (event.target.id === 'dock') closeMobilePanel(document.getElementById('sidebar-panel'));
     }
   });
   restoreSidebars();

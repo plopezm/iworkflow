@@ -491,7 +491,7 @@ func SidebarSection(p SidebarSectionProps) templ.Component {
 		ctx = templ.InitializeContext(ctx)
 		templ_7745c5c3_Var25 := templ.GetChildren(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<section class=\"px-1 pb-1\" data-section><div class=\"flex items-center gap-2 px-2.5 py-1.5\"><button type=\"button\" class=\"flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[11px] font-medium text-muted hover:text-fg\" aria-expanded=\"true\" data-section-toggle><span aria-hidden=\"true\">▾</span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<section class=\"px-1 pb-1\" data-section><div class=\"flex items-center gap-2 px-2.5 py-1.5\"><button type=\"button\" class=\"sidebar-section-toggle flex flex-1 cursor-pointer items-center gap-1.5 text-left text-[11px] font-medium text-muted hover:text-fg\" aria-expanded=\"true\" data-section-toggle><span aria-hidden=\"true\">▾</span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -683,7 +683,7 @@ func SidebarItem(p SidebarItemProps, menu templ.Component) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = link.Tab(link.Props{Href: p.Href, Title: p.Title, Class: "min-w-0 flex-1 px-2.5 py-1.5"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = link.Tab(link.Props{Href: p.Href, Title: p.Title, Class: "sidebar-row-link min-w-0 flex-1 px-2.5 py-1.5"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -710,7 +710,7 @@ func SidebarItem(p SidebarItemProps, menu templ.Component) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = DropdownMenu(DropdownMenuProps{Label: "…", AriaLabel: msgMoreActions.T(ctx), TriggerClass: "flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var35), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = DropdownMenu(DropdownMenuProps{Label: "…", AriaLabel: msgMoreActions.T(ctx), TriggerClass: "sidebar-row-menu flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var35), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -1037,14 +1037,14 @@ func AppShell(p AppShellProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</div><div class=\"flex min-w-0 flex-1 flex-col\"><header class=\"flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden\"><button type=\"button\" class=\"btn-secondary min-h-9 px-2.5 py-1\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 68, "</div><div class=\"flex min-w-0 flex-1 flex-col\"><header class=\"flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden\"><button type=\"button\" class=\"btn-secondary min-h-11 min-w-11 px-2.5 py-1\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgOpenMenu.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/shell.templ`, Line: 231, Col: 99}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/shell.templ`, Line: 231, Col: 109}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var51)
 		if templ_7745c5c3_Err != nil {

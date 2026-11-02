@@ -408,6 +408,41 @@ article.card:hover {
 .dock-icon-btn {
   @apply flex h-full w-9 shrink-0 cursor-pointer items-center justify-center text-base text-muted transition-colors hover:bg-surface-2 hover:text-fg;
 }
+/* Touch screens: every control of the sidebar and the dock tab bar reaches the 44px minimum a
+   finger needs. Visible glyphs keep their size; the extra area is padding or a transparent ::after. */
+@media (pointer: coarse) {
+  .dock-tabbar {
+    /* content-box keeps the 1px bottom border out of the 44px the tabs get. */
+    @apply box-content h-11;
+  }
+  .dock-icon-btn {
+    @apply w-11;
+  }
+  .dock-tab-close {
+    @apply relative h-8 w-8 text-lg;
+  }
+  .dock-tab-close::after {
+    content: "";
+    position: absolute;
+    inset: -0.25rem;
+  }
+  /* No hover on touch: an inactive tab hides its close button, so it must not be tappable either. */
+  .dock-tab:not(.dock-tab-active) .dock-tab-close {
+    @apply pointer-events-none;
+  }
+  .sidebar-nav {
+    @apply min-h-11;
+  }
+  .sidebar-row-link {
+    @apply flex min-h-11 flex-col justify-center;
+  }
+  .sidebar-row-menu {
+    @apply min-w-11 justify-center;
+  }
+  .sidebar-section-toggle {
+    @apply min-h-11;
+  }
+}
 .dock-divider {
   @apply relative z-10 shrink-0 bg-border transition-colors hover:bg-accent/60;
   touch-action: none;
