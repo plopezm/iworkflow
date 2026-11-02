@@ -50,10 +50,13 @@ tools:
 		curl -fsSL --retry 3 -o "$$tmp/sha256sums.txt" $(TAILWIND_URL)/sha256sums.txt && \
 		(cd "$$tmp" && grep "/$(TAILWIND_ASSET)$$" sha256sums.txt | $(SHA256) -c - >/dev/null) && \
 		mkdir -p $(TOOLS_BIN) && install -m 755 "$$tmp/$(TAILWIND_ASSET)" $(TOOLS_BIN)/tailwindcss$(GOEXE); }
+	@go mod download github.com/k2-fsa/sherpa-onnx-go github.com/k2-fsa/sherpa-onnx-go-linux github.com/k2-fsa/sherpa-onnx-go-macos github.com/k2-fsa/sherpa-onnx-go-windows
+	@test -f $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)/decoder.int8.onnx || $(MAKE) --no-print-directory model
 
 generate: tools templ sqlc css
 
-# Step 1 of the transcription feature: download the pre-converted Qwen3-ASR model (about 840 MB) once. The files are
+# Transcription model. `make tools` runs this automatically when the model is missing (it also downloads the sherpa-onnx
+# libraries through the Go modules). Download the pre-converted Qwen3-ASR model (about 840 MB) once. The files are
 # checked against the pinned sha256 sums in asr-model.sha256; a download that does not match is removed.
 SHA256 := $(shell command -v sha256sum >/dev/null 2>&1 && echo sha256sum || echo "shasum -a 256")
 
