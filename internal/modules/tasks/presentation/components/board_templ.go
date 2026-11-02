@@ -608,8 +608,9 @@ func LoadFailed(message string) templ.Component {
 // broadcast: every open board reloads its own list from its own address, so the refresh is harmless for the boards
 // that are not shown. Its own attributes carry the address of the list, so the refresh keeps the workspace, the
 // completed toggle and the instance.
-// Stream notices are throttled to one refetch per 250 ms (htmx "throttle"): the first fires at once and the events of the
-// window end in one trailing refetch, so a continuous stream still refreshes (a "delay" would restart on every event).
+// Stream notices are debounced (htmx "delay": 250 ms after the last one), so a burst ends in one refetch that sees the final
+// state. "throttle" is not an option: htmx drops the events of its window, so the last change could be missed. The notices
+// this list listens to (status, dialogs, exits) are not a continuous stream, so a quiet gap always comes.
 // The element stays in the page: a refresh swaps only its content (innerHTML). Replacing the element would drop the
 // task-stream events that arrive while the new one is not listening yet.
 func BoardList(view state.BoardView) templ.Component {
@@ -636,7 +637,7 @@ func BoardList(view state.BoardView) templ.Component {
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.Scoped("board-list", view.Scope)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 123, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 124, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 		if templ_7745c5c3_Err != nil {
@@ -649,13 +650,13 @@ func BoardList(view state.BoardView) templ.Component {
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 125, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 126, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" hx-trigger=\"sse:changed throttle:250ms, sse:removed throttle:250ms, sse:reset throttle:250ms, board:refresh from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"morph:innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "\" hx-trigger=\"sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"morph:innerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -705,7 +706,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 				var templ_7745c5c3_Var38 string
 				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoWorkspaces.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 144, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 145, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 				if templ_7745c5c3_Err != nil {
@@ -718,7 +719,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(msgGoWorkspaces.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 145, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 146, Col: 73}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 				if templ_7745c5c3_Err != nil {
@@ -736,7 +737,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(msgWorkspaceGone.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 148, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 149, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -764,7 +765,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.Scoped("board-graph", view.Scope)).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 159, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 160, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 					if templ_7745c5c3_Err != nil {
@@ -777,7 +778,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 					var templ_7745c5c3_Var42 string
 					templ_7745c5c3_Var42, templ_7745c5c3_Err = templruntime.NewAttributeExpression(string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose)))).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 160, Col: 90}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 161, Col: 90}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 					if templ_7745c5c3_Err != nil {
@@ -806,7 +807,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 					var templ_7745c5c3_Var43 string
 					templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(msgEmptyTitle.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 167, Col: 73}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 168, Col: 73}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 					if templ_7745c5c3_Err != nil {
@@ -819,7 +820,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 					var templ_7745c5c3_Var44 string
 					templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(msgEmptyHint.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 168, Col: 64}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 169, Col: 64}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 					if templ_7745c5c3_Err != nil {
@@ -844,7 +845,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 						var templ_7745c5c3_Var46 string
 						templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(msgCreateFirst.T(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 170, Col: 33}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 171, Col: 33}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 						if templ_7745c5c3_Err != nil {
@@ -868,7 +869,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 					var templ_7745c5c3_Var47 string
 					templ_7745c5c3_Var47, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.Scoped("board-graph", view.Scope)).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 179, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 180, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 					if templ_7745c5c3_Err != nil {
@@ -881,7 +882,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 					var templ_7745c5c3_Var48 string
 					templ_7745c5c3_Var48, templ_7745c5c3_Err = templruntime.NewAttributeExpression(string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose)))).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 180, Col: 90}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 181, Col: 90}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var48)
 					if templ_7745c5c3_Err != nil {
@@ -911,7 +912,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 						var templ_7745c5c3_Var49 string
 						templ_7745c5c3_Var49, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages+1)).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 189, Col: 94}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 190, Col: 94}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var49)
 						if templ_7745c5c3_Err != nil {
@@ -924,7 +925,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 						var templ_7745c5c3_Var50 string
 						templ_7745c5c3_Var50, templ_7745c5c3_Err = templruntime.NewAttributeExpression("#" + state.Scoped("board-list", view.Scope)).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 190, Col: 65}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 191, Col: 65}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var50)
 						if templ_7745c5c3_Err != nil {
@@ -937,7 +938,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 						var templ_7745c5c3_Var51 string
 						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(msgLoadMoreDone.T(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 193, Col: 33}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 194, Col: 33}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 						if templ_7745c5c3_Err != nil {
@@ -985,7 +986,7 @@ func BoardNotice(scope string, message string) templ.Component {
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.Scoped("board-notice", scope)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 206, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/board.templ`, Line: 207, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var53)
 		if templ_7745c5c3_Err != nil {

@@ -114,8 +114,9 @@ templ LoadFailed(message string) {
 // broadcast: every open board reloads its own list from its own address, so the refresh is harmless for the boards
 // that are not shown. Its own attributes carry the address of the list, so the refresh keeps the workspace, the
 // completed toggle and the instance.
-// Stream notices are throttled to one refetch per 250 ms (htmx "throttle"): the first fires at once and the events of the
-// window end in one trailing refetch, so a continuous stream still refreshes (a "delay" would restart on every event).
+// Stream notices are debounced (htmx "delay": 250 ms after the last one), so a burst ends in one refetch that sees the final
+// state. "throttle" is not an option: htmx drops the events of its window, so the last change could be missed. The notices
+// this list listens to (status, dialogs, exits) are not a continuous stream, so a quiet gap always comes.
 // The element stays in the page: a refresh swaps only its content (innerHTML). Replacing the element would drop the
 // task-stream events that arrive while the new one is not listening yet.
 templ BoardList(view state.BoardView) {
@@ -123,7 +124,7 @@ templ BoardList(view state.BoardView) {
 		id={ state.Scoped("board-list", view.Scope) }
 		class="board-list flex h-full w-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
 		hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages) }
-		hx-trigger="sse:changed throttle:250ms, sse:removed throttle:250ms, sse:reset throttle:250ms, board:refresh from:body"
+		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body"
 		hx-sync="this:replace"
 		hx-target="this"
 		hx-swap="morph:innerHTML"
