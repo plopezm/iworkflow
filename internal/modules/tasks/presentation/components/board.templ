@@ -17,31 +17,8 @@ templ StageBadge(stage string) {
 	</span>
 }
 
-// TaskCard is one task of the board: its title, its stage and its priority, linked to its detail. The scope is the
-// board instance the card belongs to, so its actions answer there.
-templ TaskCard(task dto.TaskDTO, scope string) {
-	<li id={ state.Scoped("task-card-"+task.ID, scope) } class="task-card" data-task-id={ task.ID } data-stage={ task.Stage }>
-		<a href={ templ.SafeURL(state.TaskPath(task.ID)) } class="card stack gap-1.5 p-3 hover:border-accent">
-			<div class="row justify-between gap-2">
-				<span class="truncate text-sm font-semibold text-fg">{ state.TaskTitle(task) }</span>
-				@StageBadge(task.Stage)
-			</div>
-			<div class="row gap-2 text-xs text-muted">
-				<span>{ priorityLabel(task.Priority).T(ctx) }</span>
-				if task.NeedsAttention {
-					<span class="text-warn">{ stageLabel(state.StageAttention).T(ctx) }</span>
-				}
-			</div>
-		</a>
-		if task.Stage == state.StageBacklog {
-			@backlogActions(task, scope)
-		} else {
-			@activeActions(task, scope)
-		}
-	</li>
-}
-
-// activeActions are the card buttons of an active or completed task: open the task tab and, if available, its terminal.
+// activeActions are the buttons of an active or completed task card (loose card or graph node): open the task tab and,
+// if available, its terminal.
 templ activeActions(task dto.TaskDTO, scope string) {
 	<div class="row justify-end gap-2">
 		@link.Tab(link.Props{Href: state.TaskPath(task.ID), Class: "btn-ghost min-h-8 border border-fg/40 px-2.5 py-1 text-xs", Role: "button"}) {
