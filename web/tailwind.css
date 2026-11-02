@@ -769,6 +769,12 @@ select optgroup,
     display: block;
   }
 }
+.composer-field-task > textarea {
+  @apply min-h-32;
+}
+.composer-field-task .composer-grip {
+  @apply bottom-2 right-2;
+}
 .composer-mic-time {
   @apply font-mono text-xs tabular-nums;
 }
