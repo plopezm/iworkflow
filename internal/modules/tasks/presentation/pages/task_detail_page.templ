@@ -11,14 +11,14 @@ import (
 templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody templ.Component) {
 	<div id={ state.Scoped("task-detail", view.Scope) } class="flex h-full min-h-0">
 		<div class="flex min-w-0 flex-1 flex-col">
-			<div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-4 py-2.5">
+			<div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 md:px-4 md:py-2.5">
 				<div class="min-w-0 flex-1">
 					@components.TaskHeader(view)
 				</div>
 				if view.Task.Stage != state.StageBacklog {
 					<button
 						type="button"
-						class="btn-secondary min-h-9 px-3 py-1 text-xs md:hidden"
+						class="btn-secondary btn-compact px-3 py-1 text-xs md:hidden"
 						data-mobile-open
 						data-target={ state.Scoped("task-panel", view.Scope) }
 					>
@@ -34,7 +34,7 @@ templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody
 				<div class="flex min-h-0 flex-1 flex-col">
 					@components.TranscriptPanel(view)
 					if view.CanMessage {
-						<div class="shrink-0 border-t border-border bg-surface p-4">
+						<div class="shrink-0 border-t border-border bg-surface p-2 md:p-4">
 							@components.Composer(state.NewComposerView(view.Scope, view.Task.ID, view.Transcript))
 						</div>
 					}

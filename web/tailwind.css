@@ -742,7 +742,7 @@ select optgroup,
   pointer-events: none;
 }
 .composer textarea {
-  @apply w-full min-h-[4.5rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
+  @apply w-full min-h-[3rem] md:min-h-[4.5rem] rounded-md border border-border bg-bg px-3 py-2.5 text-sm text-fg placeholder:text-muted focus-visible:border-accent focus-visible:outline-none;
 }
 
 /* ── Composer autocomplete ──────────────────────── */
@@ -809,6 +809,21 @@ select optgroup,
 }
 .composer-field-task .composer-grip {
   @apply bottom-2 right-2;
+}
+/* Attach and send share the right edge; on mobile they are icon-only to save a row's width and height. */
+.composer-action {
+  @apply inline-flex items-center justify-center gap-1.5;
+}
+@media (max-width: 640px) {
+  .composer-action-label {
+    @apply sr-only;
+  }
+  .composer-action {
+    @apply min-w-11 px-3;
+  }
+  .btn-secondary.btn-compact {
+    min-height: 2rem;
+  }
 }
 .composer-mic-time {
   @apply font-mono text-xs tabular-nums;
