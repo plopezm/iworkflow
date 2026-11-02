@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"iworkflow/internal/core/notify"
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
@@ -36,11 +37,21 @@ const (
 // and the stream ends: the client reconnects and refetches, so nothing is lost.
 type TaskStreams struct {
 	subscriber outbound.TaskEventSubscriber
+	// notices carries the notices of other modules (for example "agent-settings") that the page must
+	// receive too. Nil when there are none.
+	notices *notify.Hub
 }
 
 // NewTaskStreams builds the handlers over the bus.
 func NewTaskStreams(subscriber outbound.TaskEventSubscriber) *TaskStreams {
 	return &TaskStreams{subscriber: subscriber}
+}
+
+// WithNotices makes the stream forward the notices published on hub, named as published, and returns
+// the handlers. It is how a module that is not the tasks one tells every open page to refetch.
+func (s *TaskStreams) WithNotices(hub *notify.Hub) *TaskStreams {
+	s.notices = hub
+	return s
 }
 
 // BoardEvents serves BoardEventsRoute. It announces the tasks that changed, so the board refetches them.
@@ -53,6 +64,8 @@ func (s *TaskStreams) BoardEvents(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "streaming is not supported", http.StatusInternalServerError)
 		return
 	}
+	notices, stopNotices := s.notices.Subscribe()
+	defer stopNotices()
 	if err := stream.Send(ctx, "", resetEvent, resetEvent); err != nil {
 		return
 	}
@@ -60,6 +73,10 @@ func (s *TaskStreams) BoardEvents(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-ctx.Done():
 			return
+		case name := <-notices:
+			if err := stream.Send(ctx, "", name, name); err != nil {
+				return
+			}
 		case event, open := <-subscription.Events():
 			if !open {
 				sendLaggedIfOverflowed(ctx, stream, subscription)

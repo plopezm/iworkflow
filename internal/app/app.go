@@ -19,6 +19,7 @@ import (
 	"iworkflow/internal/core/dock"
 	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/core/listen"
+	"iworkflow/internal/core/notify"
 	"iworkflow/internal/core/restart"
 	"iworkflow/internal/core/web"
 	agentprofilesdi "iworkflow/internal/modules/agent_profiles/infrastructure/di"
@@ -107,7 +108,9 @@ func New(deps Deps) (*App, error) {
 		Runtime:   prefssystem.NewServerRuntime(deps.Listen),
 		Restarter: prefssystem.NewServerRestarter(deps.Restart),
 	})
+	notices := notify.NewHub()
 	settings := agentsettingsdi.NewModule(agentsettingsdi.Dependencies{
+		Notifier:           settingsNotifier{hub: notices},
 		DB:                 deps.DB,
 		GentleShellBin:     deps.Config.GentleShellBin,
 		PiBin:              deps.Config.PiBin,
@@ -122,6 +125,7 @@ func New(deps Deps) (*App, error) {
 	panels := &taskPanels{}
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
 		DB:             deps.DB,
+		Notices:        notices,
 		Workspaces:     &taskWorkspaceLookup{get: workspaces.Get, list: workspaces.List},
 		AttachmentsDir: deps.Config.AttachmentsDir,
 		WorktreesDir:   deps.Config.WorktreesDir,

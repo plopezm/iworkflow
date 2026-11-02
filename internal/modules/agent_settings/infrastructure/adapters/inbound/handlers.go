@@ -17,6 +17,7 @@ import (
 
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/agent_settings/application"
+	"iworkflow/internal/modules/agent_settings/domain/ports/outbound"
 	"iworkflow/internal/modules/agent_settings/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/agent_settings/presentation/components"
 	"iworkflow/internal/modules/agent_settings/presentation/pages"
@@ -30,6 +31,8 @@ type Handlers struct {
 	listModels   *application.ListModels
 	listProfiles *application.ListProfiles
 	listRuntimes *application.ListRuntimes
+	// notifier tells the other open pages that a change was saved; nil when nobody listens.
+	notifier outbound.ChangeNotifierPort
 	// changeMu serializes the read-modify-write of applyChange. Each save writes the whole settings
 	// row, so two overlapping changes (two selectors) would otherwise both start from the same row and
 	// the later save would drop the earlier change.
@@ -45,6 +48,12 @@ func NewHandlers(
 	listRuntimes *application.ListRuntimes,
 ) *Handlers {
 	return &Handlers{getSettings: getSettings, update: update, listModels: listModels, listProfiles: listProfiles, listRuntimes: listRuntimes}
+}
+
+// WithNotifier makes the handlers announce every saved change to notifier and returns them.
+func (h *Handlers) WithNotifier(notifier outbound.ChangeNotifierPort) *Handlers {
+	h.notifier = notifier
+	return h
 }
 
 // Mount registers the htmx fragments and the JSON API on r.
@@ -148,6 +157,9 @@ func (h *Handlers) applyChange(ctx context.Context, patch func(dto.AgentSettings
 	}
 	if _, err := h.update.Execute(ctx, settings); err != nil {
 		return err.Error()
+	}
+	if h.notifier != nil {
+		h.notifier.SettingsChanged()
 	}
 	return ""
 }

@@ -1769,3 +1769,19 @@ select optgroup,
     touch-action: pan-y;
   }
 }
+
+/* Agent bar: while a change (or a refresh from another window) is loading, show a spinner, dim the
+   selectors and keep them from being used. htmx puts .htmx-request on the bar (hx-indicator). */
+.session-bar-spinner {
+  display: none;
+  height: 0.75rem;
+  width: 0.75rem;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: var(--color-accent, currentColor);
+  animation: session-bar-spin 0.7s linear infinite;
+}
+.session-bar-root.htmx-request .session-bar-spinner { display: inline-block; }
+.session-bar-root.htmx-request .live-dot { display: none; }
+.session-bar-root.htmx-request .select-pill { opacity: 0.6; transition: opacity 0.15s; }
+@keyframes session-bar-spin { to { transform: rotate(360deg); } }

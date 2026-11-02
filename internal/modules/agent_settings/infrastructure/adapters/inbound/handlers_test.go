@@ -85,6 +85,25 @@ func (o onlyInstalled) Installed(_ context.Context, runtime models.AgentRuntime)
 type harness struct {
 	router     http.Handler
 	repository *fakeRepository
+	notifier   *countingNotifier
+}
+
+// countingNotifier counts the changes announced to the other pages.
+type countingNotifier struct {
+	mu    sync.Mutex
+	count int
+}
+
+func (n *countingNotifier) SettingsChanged() {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.count++
+}
+
+func (n *countingNotifier) changes() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.count
 }
 
 func newHarness(t *testing.T, repository *fakeRepository) harness {
@@ -104,10 +123,12 @@ func newHarnessWith(t *testing.T, repository *fakeRepository, availability outbo
 		application.NewListProfiles(profiles),
 		application.NewListRuntimes(availability),
 	)
+	notifier := &countingNotifier{}
+	handlers.WithNotifier(notifier)
 	router := chi.NewRouter()
 	handlers.Mount(router)
 	// The app wraps every route in the locale middleware; the tests do the same.
-	return harness{router: web.Locale(router), repository: repository}
+	return harness{router: web.Locale(router), repository: repository, notifier: notifier}
 }
 
 func (h harness) post(t *testing.T, target string, form url.Values) *httptest.ResponseRecorder {
@@ -411,4 +432,25 @@ func TestOverlappingChangesDoNotLoseEachOther(t *testing.T) {
 	stored := repository.snapshot()
 	require.NotNil(t, stored.Runtime, "the runtime change was lost")
 	require.NotNil(t, stored.Thinking, "the thinking change was lost")
+}
+
+func TestSavedChangeIsAnnouncedToTheOtherPagesAndARejectedOneIsNot(t *testing.T) {
+	h := newHarness(t, &fakeRepository{})
+
+	h.post(t, "/agent-settings/profile", url.Values{"value": {"Ghost"}})
+	require.Zero(t, h.notifier.changes(), "a rejected change changes nothing to refresh")
+
+	h.post(t, "/agent-settings/profile", url.Values{"value": {"Gentleman"}})
+	require.Equal(t, 1, h.notifier.changes())
+}
+
+func TestBarRefreshesItselfOnTheSettingsNoticeAndShowsLoadingWhileChanging(t *testing.T) {
+	h := newHarness(t, &fakeRepository{})
+
+	body := h.get(t, "/agent-settings/bar").Body.String()
+
+	require.Contains(t, body, `hx-trigger="sse:agent-settings"`)
+	require.Contains(t, body, `hx-swap="morph:outerHTML"`)
+	require.Contains(t, body, `hx-indicator="#agent-settings-bar"`)
+	require.Contains(t, body, "session-bar-spinner")
 }

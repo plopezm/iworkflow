@@ -226,8 +226,9 @@ func changeAttrs(endpoint string) templ.Attributes {
 		"hx-post":         endpoint,
 		"hx-trigger":      "change",
 		"hx-target":       "#" + presentation.BarID,
-		"hx-swap":         "outerHTML",
-		"hx-disabled-elt": "this",
+		"hx-swap":         "morph:outerHTML",
+		"hx-indicator":    "#" + presentation.BarID,
+		"hx-disabled-elt": "#" + presentation.BarID + " select",
 	}
 }
 

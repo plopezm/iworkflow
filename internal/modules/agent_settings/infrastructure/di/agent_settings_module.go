@@ -32,6 +32,8 @@ type Dependencies struct {
 	ClaudeBin      string
 	// GentlePiConfigHome holds gentle-pi's profiles.json.
 	GentlePiConfigHome string
+	// Notifier tells the open pages that the settings changed. Optional.
+	Notifier outbound.ChangeNotifierPort
 }
 
 // Module exposes the use cases of the agent settings module.
@@ -88,6 +90,6 @@ func NewModule(deps Dependencies) *Module {
 		UpdateAgentSettings: update,
 		PrepareLaunch:       application.NewPrepareLaunch(repository, pin),
 		ModelCatalog:        modelCatalog,
-		handlers:            inbound.NewHandlers(getSettings, update, listModels, listProfiles, listRuntimes),
+		handlers:            inbound.NewHandlers(getSettings, update, listModels, listProfiles, listRuntimes).WithNotifier(deps.Notifier),
 	}
 }
