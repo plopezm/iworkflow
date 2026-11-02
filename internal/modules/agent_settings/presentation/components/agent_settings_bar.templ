@@ -21,6 +21,12 @@ templ AgentSettingsBar(p AgentSettingsBarProps) {
 		id={ BarID }
 		class="session-bar-root flex flex-col gap-1 rounded-lg border border-border bg-surface-2/60 p-1.5 shadow-2xs"
 		title={ p.Tooltip }
+		// reset: a reconnecting stream missed the notices sent while it was away.
+		hx-get={ BarPath }
+		hx-trigger={ "sse:" + SettingsChangedNotice + ", sse:reset" }
+		hx-sync="this:replace"
+		hx-swap="morph:outerHTML"
+		hx-disinherit="hx-swap"
 	>
 		if p.Error != "" {
 			@ui.ErrorText(p.Error)
@@ -28,6 +34,7 @@ templ AgentSettingsBar(p AgentSettingsBarProps) {
 			<div class="flex items-center justify-between gap-1.5">
 				<div class="flex min-w-0 flex-1 items-center gap-1.5">
 					<span class="live-dot text-ok" aria-hidden="true"></span>
+					<span class="session-bar-spinner" aria-hidden="true"></span>
 					@barSlot(p.Profile)
 				</div>
 				<button

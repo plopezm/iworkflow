@@ -10,12 +10,14 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
+	"iworkflow/internal/core/notify"
 
 	agentprofileserrors "iworkflow/internal/modules/agent_profiles/domain/errors"
 	agentprofilesoutbound "iworkflow/internal/modules/agent_profiles/domain/ports/outbound"
 	agentsettingsapp "iworkflow/internal/modules/agent_settings/application"
 	agentsettingsmodels "iworkflow/internal/modules/agent_settings/domain/models"
 	agentsettingsoutbound "iworkflow/internal/modules/agent_settings/domain/ports/outbound"
+	agentsettingscomponents "iworkflow/internal/modules/agent_settings/presentation/components"
 	agentsfileserrors "iworkflow/internal/modules/agents_files/domain/errors"
 	agentsfilesmodels "iworkflow/internal/modules/agents_files/domain/models"
 	agentsfilesoutbound "iworkflow/internal/modules/agents_files/domain/ports/outbound"
@@ -732,4 +734,13 @@ func (l *openWithWorktrees) Path(ctx context.Context, taskID string) (string, er
 		return "", openwitherrors.ErrWorktreeNotFound
 	}
 	return target.Path, nil
+}
+
+// settingsNotifier turns "the agent settings changed" into the notice that every open page receives
+// on its live stream, so each page refreshes its agent bar.
+type settingsNotifier struct{ hub *notify.Hub }
+
+// SettingsChanged publishes the notice.
+func (n settingsNotifier) SettingsChanged() {
+	n.hub.Publish(agentsettingscomponents.SettingsChangedNotice)
 }

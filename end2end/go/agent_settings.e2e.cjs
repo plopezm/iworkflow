@@ -149,6 +149,55 @@ module.exports = {
       },
     },
     {
+      name: 'sync: cambiar el razonamiento en una ventana actualiza la barra de otra ventana abierta (morph, sin recargar)',
+      fn: async (ctx) => {
+        await goToSettingsBar(ctx);
+        // The second window shares the context (language cookie) and has its own stream and bar.
+        const other = await ctx.page.context().newPage();
+        try {
+          await other.addInitScript(BAR_SETTLE_SCRIPT);
+          await other.goto(ctx.base + '/settings', { waitUntil: 'domcontentloaded' });
+          await other.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 15000 });
+          await waitForBarSettled(other);
+          // Marks the page: a reload (not a morph) would drop it.
+          await other.evaluate(() => { window.__iwfNotReloaded = true; });
+          const otherPill = other.locator('.select-pill').filter({ hasText: 'Razonamiento' }).first();
+          const antes = (await otherPill.getAttribute('title')) || '';
+
+          const razonamiento = pillSelect(ctx, 'Razonamiento');
+          const original = await razonamiento.inputValue();
+          const opts = await razonamiento.evaluate((sel) =>
+            Array.from(sel.options).map((o) => ({ v: o.value, t: o.text }))
+          );
+          const target = opts.find((o) => o.v !== original);
+          ctx.assert(target, `no hay un nivel distinto del actual (${original})`);
+          await razonamiento.selectOption({ value: target.v });
+
+          const despues = await waitForTitle(otherPill, target.t, { timeout: 15000 });
+          ctx.assert(
+            despues.includes(target.t),
+            `la otra ventana no se sincronizó a "${target.t}" (antes="${antes}", title="${despues}")`
+          );
+          ctx.assert(
+            await other.evaluate(() => window.__iwfNotReloaded === true),
+            'la otra ventana se recargó en lugar de refrescar la barra'
+          );
+          // The select of the other window shows the new value too, not only its title.
+          const otherValue = await other
+            .locator('.select-pill').filter({ hasText: 'Razonamiento' }).first().locator('select').inputValue();
+          ctx.assert(otherValue === target.v, `el select de la otra ventana vale "${otherValue}", esperado "${target.v}"`);
+
+          // Restores the original value and checks that the sync works both ways.
+          await waitForBarSettled(ctx.page);
+          await pillSelect(ctx, 'Razonamiento').selectOption({ value: original });
+          const restaurado = await waitForTitle(otherPill, antes, { timeout: 15000 });
+          ctx.assert(restaurado.includes(antes), `la otra ventana no recuperó "${antes}" (title="${restaurado}")`);
+        } finally {
+          await other.close();
+        }
+      },
+    },
+    {
       name: 'list_profile_options: el select Perfil tiene al menos una opción',
       fn: async (ctx) => {
         await goToSettingsBar(ctx);

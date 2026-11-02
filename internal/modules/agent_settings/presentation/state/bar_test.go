@@ -93,7 +93,9 @@ func TestBarChangeAttributesPostTheValueAndSwapTheWholeBar(t *testing.T) {
 	require.Equal(t, "value", attrs["name"])
 	require.Equal(t, "change", attrs["hx-trigger"])
 	require.Equal(t, "#agent-settings-bar", attrs["hx-target"])
-	require.Equal(t, "outerHTML", attrs["hx-swap"])
+	require.Equal(t, "morph:outerHTML", attrs["hx-swap"], "morphing keeps the focus and the open list")
+	require.Equal(t, "#agent-settings-bar", attrs["hx-indicator"], "the bar shows it is loading")
+	require.Equal(t, "#agent-settings-bar select", attrs["hx-disabled-elt"])
 	require.Equal(t, "/agent-settings/profile", props.Profile.Select.Attrs["hx-post"])
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"iworkflow/internal/core/dock"
+	"iworkflow/internal/core/notify"
 	"iworkflow/internal/modules/tasks/application"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
@@ -57,6 +58,8 @@ type RuntimeBinaries struct {
 // nil; every other field is required, because the use cases call it unconditionally.
 type Deps struct {
 	DB *sql.DB
+	// Notices carries the notices of other modules to the page stream. Optional.
+	Notices *notify.Hub
 	// Workspaces reads the workspaces the tasks belong to; provided by the workspaces module.
 	Workspaces outbound.WorkspaceLookup
 	// AttachmentsDir is the folder the images of the tasks are stored in. The module creates it when missing.
@@ -329,7 +332,7 @@ func NewModule(deps Deps) (*Module, error) {
 		AgentEvents:         agentEvents,
 		EventSink:           eventSink,
 		Subscriber:          bus,
-		Streams:             httpinbound.NewTaskStreams(bus),
+		Streams:             httpinbound.NewTaskStreams(bus).WithNotices(deps.Notices),
 		Board:               board,
 		Detail:              detail,
 		Diff:                diff,

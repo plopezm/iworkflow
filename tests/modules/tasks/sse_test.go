@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"iworkflow/internal/core/notify"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound"
@@ -172,3 +173,35 @@ func TestBoardStreamAnnouncesChangesRemovalsAndActivity(t *testing.T) {
 	require.NoError(t, module.Lifecycle.NotifyRemoved(bg(), task.ID))
 	reader.expectNext(t, "", "removed", task.ID.String())
 }
+
+// A notice published by another module (the agent settings) reaches every open page with its own name, so each
+// page refreshes what it shows from it.
+func TestPageStreamForwardsTheNoticesOfOtherModules(t *testing.T) {
+	t.Parallel()
+	hub := notify.NewHub()
+	streams := inbound.NewTaskStreams(quietSubscriber{}).WithNotices(hub)
+	router := chi.NewRouter()
+	router.Get(inbound.BoardEventsRoute, streams.BoardEvents)
+	server := httptest.NewServer(router)
+	t.Cleanup(server.Close)
+
+	reader := openStream(t, server.URL+inbound.BoardEventsRoute, nil)
+	reader.expectNext(t, "", "reset", "reset")
+	hub.Publish("agent-settings")
+	reader.expectNext(t, "", "agent-settings", "agent-settings")
+}
+
+// quietSubscriber is a subscriber whose events never come: only the notices of the hub reach the stream.
+type quietSubscriber struct{}
+
+func (quietSubscriber) Subscribe(context.Context) outbound.TaskEventSubscription {
+	return quietSubscription{events: make(chan models.TaskEvent)}
+}
+
+type quietSubscription struct {
+	events chan models.TaskEvent
+}
+
+func (s quietSubscription) Events() <-chan models.TaskEvent { return s.events }
+func (quietSubscription) Overflowed() bool                  { return false }
+func (quietSubscription) Close()                            {}

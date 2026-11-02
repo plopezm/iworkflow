@@ -36,7 +36,7 @@ func BoardSidebar(rows state.SidebarRows) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"board-sidebar\" class=\"contents\" hx-get=\"/board/sidebar\" hx-trigger=\"sse:changed, sse:removed, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"board-sidebar\" class=\"contents\" hx-get=\"/board/sidebar\" hx-trigger=\"sse:changed, sse:removed, sse:reset, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"innerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -9,6 +9,8 @@ import "iworkflow/internal/core/components"
 const (
 	// BarID is the root of the agent settings bar.
 	BarID = "agent-settings-bar"
+	// SettingsChangedNotice is the name of the live-stream notice that tells a page to refresh its bar.
+	SettingsChangedNotice = "agent-settings"
 	// LimitsID is the root of the resource limits card.
 	LimitsID = "agent-settings-limits"
 )
