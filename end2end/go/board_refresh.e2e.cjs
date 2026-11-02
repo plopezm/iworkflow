@@ -24,11 +24,39 @@ async function sidebarRequests(page) {
   return page.evaluate(() => window.__sidebarRequests.slice());
 }
 
-// Opens the shell and waits until the sidebar has loaded and settled, so the first request is not counted.
+// Waits until the sidebar has made no request for `quietMs` (or `timeoutMs` passes). It replaces a fixed sleep: the
+// stream connects after the page loads and its "reset" notice refetches the sidebar once, at a time that depends on
+// how fast the server is.
+async function untilQuiet(page, quietMs, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let seen = (await sidebarRequests(page)).length;
+  while (Date.now() < deadline) {
+    await sleep(quietMs);
+    const now = (await sidebarRequests(page)).length;
+    if (now === seen) return;
+    seen = now;
+  }
+  throw new Error('la barra lateral no se estabiliza: sigue pidiendo recargas');
+}
+
+// Waits until the sidebar has made at least `count` requests.
+async function untilRequests(page, count, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if ((await sidebarRequests(page)).length >= count) return;
+    await sleep(50);
+  }
+  throw new Error(`la barra lateral no llegó a ${count} recargas`);
+}
+
+// Opens the shell and waits until the sidebar has loaded and its stream-driven first refetch is over. The recorder is
+// installed before the wait and emptied after it, so the tests count only the requests they cause.
 async function openShell(ctx) {
   await ctx.goto('/');
   await ctx.page.locator(SIDEBAR).waitFor({ timeout: 10000 });
-  await sleep(600);
+  await recordSidebarRequests(ctx.page);
+  await untilQuiet(ctx.page, 500, 10000);
+  await ctx.page.evaluate(() => { window.__sidebarRequests.length = 0; });
 }
 
 // Keeps a reference to the first node inside the sidebar, so the test can tell if a refresh replaced it. A morph
@@ -58,9 +86,9 @@ module.exports = {
       name: 'sidebar_burst: diez avisos seguidos acaban en una recarga que empieza después del último',
       fn: async (ctx) => {
         await openShell(ctx);
-        await recordSidebarRequests(ctx.page);
         const lastNotice = await fireChanged(ctx.page, 10, 0);
-        await sleep(900);
+        await untilRequests(ctx.page, 1, 5000);
+        await untilQuiet(ctx.page, 600, 10000);
         const times = await sidebarRequests(ctx.page);
         ctx.assert(times.length >= 1, 'la ráfaga debe provocar una recarga');
         ctx.assert(times.length <= 2, `la ráfaga no debe pedir una recarga por aviso (hubo ${times.length})`);
@@ -71,10 +99,10 @@ module.exports = {
       name: 'sidebar_spaced: avisos separados por más de la ventana provocan una recarga cada uno',
       fn: async (ctx) => {
         await openShell(ctx);
-        await recordSidebarRequests(ctx.page);
         for (let i = 0; i < 3; i += 1) {
           await fireChanged(ctx.page, 1, 0);
-          await sleep(700);
+          await untilRequests(ctx.page, i + 1, 5000);
+          await untilQuiet(ctx.page, 400, 10000);
         }
         const times = await sidebarRequests(ctx.page);
         ctx.assert(times.length === 3, `cada aviso aislado debe recargar la barra (hubo ${times.length})`);
@@ -85,12 +113,9 @@ module.exports = {
       fn: async (ctx) => {
         await openShell(ctx);
         await markSidebarNode(ctx.page);
-        await recordSidebarRequests(ctx.page);
         await fireChanged(ctx.page, 1, 0);
-        const deadline = Date.now() + 5000;
-        while ((await sidebarRequests(ctx.page)).length === 0 && Date.now() < deadline) await sleep(50);
-        ctx.assert((await sidebarRequests(ctx.page)).length >= 1, 'el aviso debe provocar una recarga de la barra');
-        await sleep(500);
+        await untilRequests(ctx.page, 1, 5000);
+        await untilQuiet(ctx.page, 500, 10000);
         const kept = await ctx.page.evaluate((selector) => {
           const first = document.querySelector(selector).firstElementChild;
           return first === window.__sidebarNode;
