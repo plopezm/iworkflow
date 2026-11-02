@@ -281,7 +281,7 @@ templ TaskPromptField(label string, id string, value string, filesPath string) {
 		<label class="text-sm font-medium text-fg" for={ id }>
 			{ label }
 		</label>
-		<div class="composer-field relative" data-composer-field>
+		<div class="composer-field composer-field-task relative" data-composer-field>
 			<ul class="composer-menu" role="listbox" aria-label={ msgSuggestions.T(ctx) } data-composer-menu hidden></ul>
 			<textarea
 				id={ id }
