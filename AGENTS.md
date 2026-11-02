@@ -5,7 +5,7 @@
 - Web: `net/http` + `chi` (router), render SSR con `templ` e interactividad con `htmx`. JS propio solo donde htmx no llegue (terminal, follow-bottom, diffs) y siempre aislado en `web/static/`
 - Tiempo real: SSE y WebSocket (`nhooyr.io/websocket` / `coder/websocket`) para streams de tareas, terminal y refrescos
 - Acceso a datos: `sqlc` (queries tipadas generadas) sobre `database/sql`, con migraciones `goose` embebidas (`embed.FS`) que se aplican al arrancar
-- Base de datos: SQLite con `modernc.org/sqlite` (puro Go, sin CGO) en `~/.iworkflow/workspaces.db` (override con `IWF_DATABASE_URL`)
+- Base de datos: SQLite con `modernc.org/sqlite` (puro Go, sin CGO) en `~/.<project_name>/workspaces.db` (override con `IWF_DATABASE_URL`)
 - PTY: `creack/pty`. HTTP externo: `net/http` con timeouts explícitos
 - Búsqueda código: usa codegraph, mantén actualizados los grafos en cada feature
 - Diseño: Tailwind CSS (CLI standalone, salida en `web/static/`)
@@ -13,7 +13,7 @@
 
 ## 2. Orquestación
 
-Utiliza siempre la metodología ODD con multiagente. La migración desde Rust se coordina con `odd/tasks/go-migration.md`: cada especificación `S#` es un criterio de paridad con el comportamiento Rust existente (tests y e2e actuales).
+Utiliza siempre la metodología ODD con multiagente.
 
 ## 3. Arquitectura (Hexagonal + Vertical Slicing)
 
@@ -42,7 +42,7 @@ Es la **única forma autorizada** de inyección de dependencias y de estado de U
 
 ### 3.3 Inyección de dependencias (servidor)
 
-- **Mecanismo:** DI manual por constructores. El pool se crea en el arranque (`cmd/iworkflow/main.go`) y se inyecta en los módulos; no hay registro global.
+- **Mecanismo:** DI manual por constructores. El pool se crea en el arranque (`cmd/<project_name>/main.go`) y se inyecta en los módulos; no hay registro global.
 - **Dónde:** el wiring de cada feature vive en `infrastructure/di/<feature>_module.go`, que expone un struct `Module` con los casos de uso y los handlers ya construidos y un método `Routes(r chi.Router)`. La composición global está en `internal/app/app.go`, que solo agrupa los módulos.
 - **Qué registrar:** adaptadores outbound (dentro de los casos de uso) y casos de uso. Nunca la `*sql.DB` "a pelo" a un handler.
 - **Prohibido:** instanciar adaptadores o pools dentro de handlers, componentes o casos de uso; ejecutar queries fuera de `infrastructure/adapters/outbound/persistence/`.
@@ -66,7 +66,7 @@ func (m *Module) Routes(r chi.Router) { m.handlers.Mount(r) }
 ```
 
 ```go
-// cmd/iworkflow/main.go (extracto)
+// cmd/<project_name>/main.go (extracto)
 db, err := database.Open(ctx, databaseURL)
 if err != nil { log.Fatal(err) }
 application := app.New(db) // construye todos los Module
@@ -123,7 +123,7 @@ Makefile                              # build, generate (templ, sqlc, tailwind),
 .golangci.yml
 migrations/                           # goose: NNNN_nombre.sql (-- +goose Up / Down)
 cmd/
-└── iworkflow/
+└── <project_name>/
     └── main.go                       # Arranque: config, pool, migraciones, servidor
 internal/
 ├── app/
