@@ -449,8 +449,18 @@ func TestBarRefreshesItselfOnTheSettingsNoticeAndShowsLoadingWhileChanging(t *te
 
 	body := h.get(t, "/agent-settings/bar").Body.String()
 
-	require.Contains(t, body, `hx-trigger="sse:agent-settings"`)
+	require.Contains(t, body, `hx-trigger="sse:agent-settings, sse:reset"`)
 	require.Contains(t, body, `hx-swap="morph:outerHTML"`)
 	require.Contains(t, body, `hx-indicator="#agent-settings-bar"`)
 	require.Contains(t, body, "session-bar-spinner")
+}
+
+func TestLimitsCardRefreshesItselfOnTheSettingsNoticeAndOnReconnect(t *testing.T) {
+	h := newHarness(t, &fakeRepository{})
+
+	body := h.get(t, "/agent-settings/limits").Body.String()
+
+	require.Contains(t, body, `hx-get="/agent-settings/limits"`)
+	require.Contains(t, body, `hx-trigger="sse:agent-settings, sse:reset"`)
+	require.Contains(t, body, `hx-swap="morph:outerHTML"`)
 }

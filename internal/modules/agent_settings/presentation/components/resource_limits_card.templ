@@ -15,7 +15,13 @@ const (
 // ResourceLimitsCard is the card with the RAM and CPU caps. The switch turns every cap off at once;
 // the values are kept while it is off.
 templ ResourceLimitsCard(p ResourceLimitsProps) {
-	<div id={ LimitsID }>
+	<div
+		id={ LimitsID }
+		hx-get={ LimitsPath }
+		hx-trigger={ "sse:" + SettingsChangedNotice + ", sse:reset" }
+		hx-sync="this:replace"
+		hx-swap="morph:outerHTML"
+	>
 		@ui.Card(p.Title) {
 			if !p.Loaded {
 				@ui.ErrorText(p.Error)
