@@ -19,7 +19,7 @@ func collapsePanelClass(side PanelSide) string {
 }
 
 func collapseHandleClass(side PanelSide) string {
-	base := "absolute top-1/2 z-20 hidden h-12 w-4 -translate-y-1/2 cursor-pointer items-center justify-center border border-border bg-surface text-xs text-muted opacity-60 transition-opacity hover:opacity-100 hover:text-fg md:flex"
+	base := "absolute top-1/2 z-20 hidden h-12 w-4 -translate-y-1/2 cursor-pointer items-center justify-center border border-border bg-surface text-xs text-muted opacity-60 transition-opacity hover:opacity-100 hover:text-fg md:flex group-data-[collapsed]:h-20 group-data-[collapsed]:w-6 group-data-[collapsed]:border-fg/40 group-data-[collapsed]:text-base group-data-[collapsed]:text-fg group-data-[collapsed]:opacity-100 group-data-[collapsed]:shadow-md"
 	if side == RightPanel {
 		return base + " left-0 -translate-x-1/2 rounded-md group-data-[collapsed]:left-auto group-data-[collapsed]:right-0 group-data-[collapsed]:translate-x-0 rounded-l-md"
 	}
