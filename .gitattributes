@@ -1,0 +1,4 @@
+# Files consumed by POSIX shell tools must keep LF endings, also on Windows checkouts.
+asr-model.sha256 text eol=lf
+Makefile text eol=lf
+*.sh text eol=lf
