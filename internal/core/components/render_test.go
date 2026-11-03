@@ -66,18 +66,16 @@ func TestCollapsePanelRendersTheCollapsedStateAndPersistKey(t *testing.T) {
 	require.Contains(t, closed, "‹", "a closed right panel points left to expand")
 }
 
-func TestAppShellHasTheSidebarRailAndMobileHeader(t *testing.T) {
+func TestAppShellHasTheSidebarRailAndNoMobileHeader(t *testing.T) {
 	html := renderHTML(t, components.AppShell(components.AppShellProps{
-		Brand:     "iworkflow",
-		HomeReuse: "board",
-		Sidebar:   templ.Raw("<nav>sidebar</nav>"),
-		Content:   templ.Raw("<div>content</div>"),
+		Brand:   "iworkflow",
+		Sidebar: templ.Raw("<nav>sidebar</nav>"),
+		Content: templ.Raw("<div>content</div>"),
 	}))
 	require.Contains(t, html, "<nav>sidebar</nav>")
 	require.Contains(t, html, "<div>content</div>")
 	require.Contains(t, html, `data-sidebar-rail`)
-	require.Contains(t, html, `data-dock-reuse="board"`)
-	require.Contains(t, html, `aria-label="Open menu"`)
+	require.NotContains(t, html, `aria-label="Open menu"`, "the mobile menu button lives in the dock tab bar")
 }
 
 func TestModalIsHiddenUnlessOpen(t *testing.T) {

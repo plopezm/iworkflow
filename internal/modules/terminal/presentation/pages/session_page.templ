@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/modules/terminal/presentation/components"
 	"iworkflow/internal/modules/terminal/presentation/state"
 )
@@ -9,24 +8,24 @@ import (
 // SessionPage is the full-height terminal of one session. Closing it posts the request and, on
 // success, the dock returns the tab to the sessions list.
 templ SessionPage(view state.SessionPage) {
-	<section class="stack h-full min-h-0 gap-1.5 sm:gap-2 px-1.5 sm:px-3 pt-1.5 sm:pt-3 pb-1 sm:pb-2">
-		<header class="row justify-between gap-1.5">
-			<h1 class="page-title truncate text-base sm:text-xl">{ view.Title }</h1>
-			<div class="row shrink-0 gap-1.5">
-				@link.Tab(link.Props{Href: state.TerminalsPath, Class: "btn-secondary min-h-8 px-2 sm:px-2.5 py-1 text-xs"}) {
-					{ msgAllTerminals.T(ctx) }
-				}
-				<button
-					type="button"
-					class="btn-danger min-h-8 px-2 sm:px-2.5 py-1 text-xs"
-					hx-post={ "/terminal/sessions/" + view.ID + "/close/page" }
-					hx-target="#terminal-session-status"
-					hx-swap="innerHTML"
-					hx-disabled-elt="this"
-				>{ msgCloseSession.T(ctx) }</button>
-			</div>
-		</header>
+	<section aria-label={ view.Title } class="stack h-full min-h-0 gap-1.5 sm:gap-2 px-1.5 sm:px-3 pt-1.5 sm:pt-3 pb-1 sm:pb-2">
+		<div class="relative flex min-h-0 flex-1 flex-col">
+			@components.TerminalView(view.ID)
+			<button
+				type="button"
+				class="icon-btn icon-btn-touch absolute top-1 right-1 z-10 border border-border bg-surface/80 hover:text-error"
+				title={ msgCloseSession.T(ctx) }
+				hx-post={ "/terminal/sessions/" + view.ID + "/close/page" }
+				hx-target="#terminal-session-status"
+				hx-swap="innerHTML"
+				hx-disabled-elt="this"
+			>
+				<span class="sr-only">{ msgCloseSession.T(ctx) }</span>
+				<svg viewBox="0 0 16 16" fill="none" class="h-4 w-4" aria-hidden="true">
+					<path d="M6 2.5h-3.5v11H6 M10 5l3 3-3 3 M13 8H6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path>
+				</svg>
+			</button>
+		</div>
 		<div id="terminal-session-status"></div>
-		@components.TerminalView(view.ID)
 	</section>
 }
