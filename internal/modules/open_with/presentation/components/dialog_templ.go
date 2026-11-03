@@ -497,7 +497,7 @@ func addForm(view state.DialogView) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var28 string
-		templ_7745c5c3_Var28, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.BrowsePath(view.TaskID, view.Scope)).Resolve(ctx)
+		templ_7745c5c3_Var28, templ_7745c5c3_Err = templruntime.NewAttributeExpression(state.NativePath(view.TaskID, view.Scope)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
 			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/open_with/presentation/components/dialog.templ`, Line: 98, Col: 55}
 		}

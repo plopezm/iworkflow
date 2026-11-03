@@ -15,6 +15,8 @@ var (
 	ErrLaunchFailed = errors.New("could not start the application")
 	// ErrBrowseFailed means a folder could not be listed.
 	ErrBrowseFailed = errors.New("could not read the folder")
+	// ErrNativePickerUnavailable means the system has no native file dialog to show.
+	ErrNativePickerUnavailable = errors.New("no native file dialog is available")
 	// ErrRepository means the storage failed.
 	ErrRepository = errors.New("launcher storage failed")
 )

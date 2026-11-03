@@ -26,6 +26,7 @@ type UseCases struct {
 	Delete *application.DeleteLauncher
 	Launch *application.Launch
 	Browse *application.BrowseFiles
+	Pick   *application.PickExecutable
 }
 
 // Handlers serves the dialog.
@@ -42,6 +43,7 @@ func NewHandlers(uc UseCases) *Handlers { return &Handlers{uc: uc} }
 //	POST /open-with/tasks/{id}                              add an application (form)
 //	GET  /open-with/tasks/{id}/new                          the dialog with the add form open
 //	GET  /open-with/tasks/{id}/browse                       the dialog with the file picker (dir, filter + the form values)
+//	GET  /open-with/tasks/{id}/native                       the native file dialog of the system (falls back to the picker)
 //	GET  /open-with/tasks/{id}/choose                       the dialog without the picker (file fills the path field)
 //	POST /open-with/tasks/{id}/launchers/{launcher}/launch  open the worktree with the application
 //	POST /open-with/tasks/{id}/launchers/{launcher}/delete  remove the application
@@ -50,6 +52,7 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/open-with/tasks/{id}", h.create)
 	r.Get("/open-with/tasks/{id}/new", h.showNew)
 	r.Get("/open-with/tasks/{id}/browse", h.browse)
+	r.Get("/open-with/tasks/{id}/native", h.native)
 	r.Get("/open-with/tasks/{id}/choose", h.choose)
 	r.Post("/open-with/tasks/{id}/launchers/{launcher}/launch", h.launch)
 	r.Post("/open-with/tasks/{id}/launchers/{launcher}/delete", h.remove)
@@ -86,6 +89,25 @@ func (h *Handlers) browse(w http.ResponseWriter, r *http.Request) {
 		picker = h.pickerAt(r.Context(), "", filter) // the typed path leads nowhere: start at home
 	}
 	h.render(w, r, state.DialogView{Adding: true, Entered: entered, Picker: &picker}, "", nil)
+}
+
+// native shows the file dialog of the operating system and fills the path field with the answer. A cancelled
+// dialog keeps what was typed. Without a native dialog the web picker opens instead.
+func (h *Handlers) native(w http.ResponseWriter, r *http.Request) {
+	entered := enteredFrom(r.URL.Query())
+	path, err := h.uc.Pick.Execute(r.Context())
+	if errors.Is(err, openerrors.ErrNativePickerUnavailable) {
+		h.browse(w, r)
+		return
+	}
+	if err != nil {
+		h.render(w, r, state.DialogView{Adding: true, Entered: entered}, "", err)
+		return
+	}
+	if path != "" {
+		entered.Path = path
+	}
+	h.render(w, r, state.DialogView{Adding: true, Entered: entered}, "", nil)
 }
 
 // choose closes the picker; a file fills the path field, no file keeps what was typed.

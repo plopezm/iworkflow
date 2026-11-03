@@ -30,6 +30,7 @@ type Module struct {
 	Delete *application.DeleteLauncher
 	Launch *application.Launch
 	Browse *application.BrowseFiles
+	Pick   *application.PickExecutable
 
 	handlers *inbound.Handlers
 }
@@ -49,9 +50,10 @@ func NewModule(deps Deps) *Module {
 		Delete: application.NewDeleteLauncher(repository),
 		Launch: application.NewLaunch(repository, deps.Worktrees, process.NewStarter()),
 		Browse: application.NewBrowseFiles(filesystem.NewBrowser()),
+		Pick:   application.NewPickExecutable(filesystem.NewNativePicker()),
 	}
 	module.handlers = inbound.NewHandlers(inbound.UseCases{
-		List: module.List, Create: module.Create, Delete: module.Delete, Launch: module.Launch, Browse: module.Browse,
+		List: module.List, Create: module.Create, Delete: module.Delete, Launch: module.Launch, Browse: module.Browse, Pick: module.Pick,
 	})
 	return module
 }
