@@ -48,6 +48,12 @@ templ Dialog(view state.DialogView) {
 	</div>
 }
 
+// Closed is the empty host the dialog collapses into once an application was started: the dialog goes away and the
+// host stays so the dialog can be opened again.
+templ Closed(scope string) {
+	<div id={ state.HostID(scope) }></div>
+}
+
 templ launcherRow(view state.DialogView, row state.Row) {
 	<li class="row justify-between gap-2" data-launcher={ row.ID }>
 		<div class="stack gap-0.5 min-w-0">

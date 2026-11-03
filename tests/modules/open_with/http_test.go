@@ -77,7 +77,9 @@ func TestLaunchRunsTheApplicationInTheWorktreeAndReportsFailures(t *testing.T) {
 	id := firstLauncherID(t, call(router, http.MethodGet, "/open-with/tasks/t1", nil).Body.String())
 
 	ok := call(router, http.MethodPost, "/open-with/tasks/t1/launchers/"+id+"/launch", nil)
-	require.Contains(t, ok.Body.String(), "badge-ok")
+	require.Contains(t, ok.Body.String(), `id="task-open-with"`)
+	require.NotContains(t, ok.Body.String(), "data-open-with-list")
+	require.NotContains(t, ok.Body.String(), "badge-ok")
 	require.Eventually(t, func() bool { return fileExists(dir + "/started") }, 2e9, 20e6)
 
 	noTree := call(router, http.MethodPost, "/open-with/tasks/gone/launchers/"+id+"/launch", nil)

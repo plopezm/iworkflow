@@ -156,14 +156,14 @@ func (h *Handlers) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) launch(w http.ResponseWriter, r *http.Request) {
-	launcher, err := h.uc.Launch.Execute(r.Context(), application.LaunchInput{
+	_, err := h.uc.Launch.Execute(r.Context(), application.LaunchInput{
 		TaskID: chi.URLParam(r, "id"), LauncherID: chi.URLParam(r, "launcher"),
 	})
 	if err != nil {
 		h.render(w, r, state.DialogView{}, "", err)
 		return
 	}
-	h.render(w, r, state.DialogView{}, launcher.Name(), nil)
+	web.Render(w, r, http.StatusOK, components.Closed(r.URL.Query().Get("scope"))) //nolint:contextcheck // templ components receive the request context at Render time
 }
 
 func (h *Handlers) remove(w http.ResponseWriter, r *http.Request) {
