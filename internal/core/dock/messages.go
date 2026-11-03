@@ -10,6 +10,7 @@ var (
 	msgCloseTab    = i18n.Msg{En: "Close tab", Es: "Cerrar pestaña", Zh: "关闭标签页", De: "Tab schließen", Fr: "Fermer l'onglet"}
 	msgMoveDown    = i18n.Msg{En: "Move tab down", Es: "Mover pestaña abajo", Zh: "将标签页移到下方", De: "Tab nach unten verschieben", Fr: "Déplacer l'onglet vers le bas"}
 	msgMoveRight   = i18n.Msg{En: "Move tab to the right", Es: "Mover pestaña a la derecha", Zh: "将标签页移到右侧", De: "Tab nach rechts verschieben", Fr: "Déplacer l'onglet vers la droite"}
+	msgOpenMenu    = i18n.Msg{En: "Open menu", Es: "Abrir menú", Zh: "打开菜单", De: "Menü öffnen", Fr: "Ouvrir le menu"}
 	msgNewTab      = i18n.Msg{En: "New tab", Es: "Nueva pestaña", Zh: "新建标签页", De: "Neuer Tab", Fr: "Nouvel onglet"}
 
 	msgGroupOptions = i18n.Msg{En: "Group options", Es: "Opciones del grupo", Zh: "分组选项", De: "Gruppenoptionen", Fr: "Options du groupe"}

@@ -32,18 +32,19 @@ templ ComposerBody(view state.ComposerView) {
 		@ComposerModeContents(view)
 	</div>
 	<form
-			class="stack gap-2"
-			hx-post={ view.MessagesPath() }
-			hx-encoding="multipart/form-data"
-			hx-target={ "#" + view.BodyID() }
-			hx-swap="innerHTML"
-			hx-disabled-elt="find button[type=submit]"
-		>
-			if view.Notice != "" {
-				@shared.ErrorText(view.Notice)
-			}
-			<input type="hidden" name="mode" value="steer"/>
-			<div class="composer-field relative" data-composer-field>
+		class="stack gap-2"
+		hx-post={ view.MessagesPath() }
+		hx-encoding="multipart/form-data"
+		hx-target={ "#" + view.BodyID() }
+		hx-swap="innerHTML"
+		hx-disabled-elt="find button[type=submit]"
+	>
+		if view.Notice != "" {
+			@shared.ErrorText(view.Notice)
+		}
+		<input type="hidden" name="mode" value="steer"/>
+		<div class="flex items-end gap-1.5">
+			<div class="composer-field relative min-w-0 flex-1" data-composer-field>
 				<ul class="composer-menu" role="listbox" aria-label={ msgSuggestions.T(ctx) } data-composer-menu hidden></ul>
 				<textarea
 					name="message"
@@ -56,13 +57,7 @@ templ ComposerBody(view state.ComposerView) {
 				@DictationMic()
 				<span class="composer-grip" data-composer-grip aria-hidden="true"></span>
 			</div>
-			@DictationPanel()
-			<ul class="composer-refs flex flex-wrap gap-1" data-composer-refs hidden></ul>
-			<div class="stack gap-2" data-image-picker>
-				<input type="file" name="images" multiple accept={ acceptedImages } class="sr-only" data-image-input/>
-				<div class="flex flex-wrap gap-2" data-image-previews></div>
-			</div>
-			<div class="flex items-center justify-end gap-2">
+			<div class="flex shrink-0 items-center gap-1.5">
 				<button type="button" class="btn-secondary composer-action" aria-label={ msgAttach.T(ctx) } title={ msgAttach.T(ctx) } data-composer-attach>
 					<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
 						<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57a4 4 0 0 1 5.66 5.66l-8.58 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
@@ -77,7 +72,14 @@ templ ComposerBody(view state.ComposerView) {
 					<span class="composer-action-label">{ msgSend.T(ctx) }</span>
 				</button>
 			</div>
-		</form>
+		</div>
+		@DictationPanel()
+		<ul class="composer-refs flex flex-wrap gap-1" data-composer-refs hidden></ul>
+		<div class="stack gap-2" data-image-picker>
+			<input type="file" name="images" multiple accept={ acceptedImages } class="sr-only" data-image-input/>
+			<div class="flex flex-wrap gap-2" data-image-previews></div>
+		</div>
+	</form>
 }
 
 // ComposerModeContents is the mode switch: the two modes, the reported one active, and the answer of a refused change.

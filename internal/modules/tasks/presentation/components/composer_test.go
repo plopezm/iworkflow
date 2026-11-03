@@ -3,6 +3,7 @@ package components_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
@@ -191,4 +192,20 @@ func TestTaskPromptFieldRendersComposerAttributesForCreateAndEdit(t *testing.T) 
 	assert.Contains(t, editFields, `data-composer-refs`)
 	assert.Contains(t, editFields, `name="prompt"`)
 	assert.Contains(t, editFields, `Revisa @src/main.go`)
+}
+
+func TestComposerActionsSitBesideTheFieldInTheSameRow(t *testing.T) {
+	t.Parallel()
+
+	body := renderComposerIn(t, i18n.En, components.Composer(state.ComposerView{TaskID: "t1"}))
+
+	field := strings.Index(body, `data-composer-field`)
+	attach := strings.Index(body, `data-composer-attach`)
+	send := strings.Index(body, `data-composer-send`)
+	row := strings.LastIndex(body[:field], `<div class="flex items-end gap-1.5">`)
+	require.NotEqual(t, -1, row, "the field and the buttons share one flex row")
+	assert.Less(t, field, attach, "the buttons follow the field inside the row")
+	assert.Less(t, attach, send)
+	assert.NotContains(t, body[row:], `justify-end`, "no separate row of buttons under the field")
+	assert.Contains(t, body, `aria-label="Attach"`, "icon-only buttons keep an accessible name")
 }

@@ -87,6 +87,11 @@ func tabButtonClass(active bool) string {
 	return "group dock-tab"
 }
 
+// isFirstGroup reports whether g is the first group of the layout: on mobile it carries the sidebar button.
+func isFirstGroup(v View, g *Group) bool {
+	return len(v.Layout.Groups) > 0 && v.Layout.Groups[0] == g
+}
+
 // activeTab is the active tab of a group, zero when none.
 func activeTab(g *Group) TabID {
 	return g.Active

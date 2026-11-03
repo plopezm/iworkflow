@@ -342,6 +342,12 @@ article.card:hover {
 .icon-btn {
   @apply flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40;
 }
+/* Icon buttons that stay compact but reach a finger-friendly 36px on touch screens. */
+@media (pointer: coarse) {
+  .icon-btn-touch {
+    @apply h-9 w-9;
+  }
+}
 
 /* ── Action list (task actions) ──────────────────── */
 .action-list {
@@ -823,6 +829,13 @@ select optgroup,
   }
   .btn-secondary.btn-compact {
     min-height: 2rem;
+  }
+  /* The composer buttons sit beside the field, so they stay compact (36px) to keep it low. */
+  .btn-primary.composer-action,
+  .btn-secondary.composer-action {
+    min-height: 2.25rem;
+    min-width: 2.25rem;
+    padding-inline: 0.5rem;
   }
 }
 .composer-mic-time {

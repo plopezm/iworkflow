@@ -51,7 +51,8 @@ func TestSessionPageShowsTheTitleCloseAndTheTerminal(t *testing.T) {
 	require.Contains(t, body, "api · 01234567")
 	require.Contains(t, body, "Cerrar sesión")
 	require.Contains(t, body, `hx-post="/terminal/sessions/s1/close/page"`)
-	require.Contains(t, body, `href="/terminals"`)
+	require.NotContains(t, body, `href="/terminals"`, "the + menu already lists the terminals")
+	require.NotContains(t, body, "<h1", "the dock tab already shows the title")
 	require.Contains(t, body, `data-terminal-session="s1"`)
 	require.Contains(t, body, `id="terminal-session-status"`)
 }

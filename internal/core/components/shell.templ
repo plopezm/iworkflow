@@ -203,8 +203,6 @@ templ SidebarToggle(p SidebarToggleProps) {
 // AppShellProps configures the full-screen layout: a collapsible sidebar and the main column.
 type AppShellProps struct {
 	Brand string
-	// HomeReuse is the name of the route the brand reuses when its tab is already open.
-	HomeReuse string
 	Sidebar   templ.Component
 	Content   templ.Component
 }
@@ -227,12 +225,6 @@ templ AppShell(p AppShellProps) {
 			@SidebarToggle(SidebarToggleProps{})
 		</div>
 		<div class="flex min-w-0 flex-1 flex-col">
-			<header class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 md:hidden">
-				<button type="button" class="btn-secondary min-h-11 min-w-11 px-2.5 py-1" aria-label={ msgOpenMenu.T(ctx) } data-mobile-open data-target="sidebar-panel">☰</button>
-				@link.Tab(link.Props{Href: "/", Reuse: p.HomeReuse, Class: "text-sm font-semibold tracking-tight"}) {
-					{ p.Brand }
-				}
-			</header>
 			<main class="min-h-0 min-w-0 flex-1 overflow-hidden bg-bg">@p.Content</main>
 		</div>
 	</div>
