@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"log/slog"
 
 	"iworkflow/internal/modules/code_hosting/domain/errors"
 	"iworkflow/internal/modules/code_hosting/domain/models"
@@ -63,6 +64,7 @@ func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context,
 		// is treated the same way: the local integration reports the real problem, if there is one.
 		head, err := u.remote.BranchHead(ctx, resolved.Source.RepoPath, branch)
 		if err != nil {
+			slog.Warn("could not read the task branch; integrating locally", "task_id", taskID, "branch", branch, "error", err)
 			return nil, false, nil //nolint:nilerr // Unreadable branch: fall back to the local integration.
 		}
 		return nil, found.HeadSHA != "" && found.HeadSHA == head, nil
