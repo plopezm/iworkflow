@@ -342,14 +342,14 @@ func group(v View, g *Group) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if isFirstGroup(v, g) {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<button type=\"button\" class=\"dock-icon-btn md:hidden\" aria-label=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<button type=\"button\" class=\"dock-icon-btn dock-menu-btn\" aria-label=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgOpenMenu.T(ctx)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/dock/dock.templ`, Line: 51, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/dock/dock.templ`, Line: 51, Col: 94}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 				if templ_7745c5c3_Err != nil {

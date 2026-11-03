@@ -48,7 +48,7 @@ templ group(v View, g *Group) {
 		<section class={ groupClass(v.Layout.Focused == g.ID) } data-dock-group={ id(g.ID) }>
 			<div class="dock-tabbar">
 				if isFirstGroup(v, g) {
-					<button type="button" class="dock-icon-btn md:hidden" aria-label={ msgOpenMenu.T(ctx) } data-mobile-open data-target="sidebar-panel">☰</button>
+					<button type="button" class="dock-icon-btn dock-menu-btn" aria-label={ msgOpenMenu.T(ctx) } data-mobile-open data-target="sidebar-panel">☰</button>
 				}
 				<div class="dock-tabs" role="tablist">
 					for _, tab := range g.Tabs {
