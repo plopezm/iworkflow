@@ -414,6 +414,10 @@ article.card:hover {
 .dock-icon-btn {
   @apply flex h-full w-9 shrink-0 cursor-pointer items-center justify-center text-base text-muted transition-colors hover:bg-surface-2 hover:text-fg;
 }
+/* Unlayered, so it must come after .dock-icon-btn: its display:flex would beat a layered md:hidden. */
+.dock-menu-btn {
+  @apply md:hidden;
+}
 /* Touch screens: every control of the sidebar and the dock tab bar reaches the 44px minimum a
    finger needs. Visible glyphs keep their size; the extra area is padding or a transparent ::after. */
 @media (pointer: coarse) {
