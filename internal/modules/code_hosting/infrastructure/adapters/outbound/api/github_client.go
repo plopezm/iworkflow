@@ -158,6 +158,7 @@ func (p pullJSON) toDomain() models.MergeRequest {
 		SourceBranch: p.Head.Name,
 		TargetBranch: p.Base.Name,
 		WebURL:       p.HTMLURL,
+		HeadSHA:      p.Head.SHA,
 		MergeStatus:  mapMergeStatus(p.MergeableState),
 		HasConflicts: p.MergeableState != nil && *p.MergeableState == "dirty",
 	}

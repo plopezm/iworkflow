@@ -146,6 +146,22 @@ func TestPublishBranchReportsFailureWhenTheServerIsUnreachable(t *testing.T) {
 	require.ErrorIs(t, err, codeerrors.BranchPublishFailed("", ""))
 }
 
+func TestBranchHeadReturnsTheTipOfTheLocalBranch(t *testing.T) {
+	repo := gitRepo(t)
+	runGit(t, repo, "branch", "pi/feature")
+
+	head, err := git.NewRemoteAdapter().BranchHead(context.Background(), repo, "pi/feature")
+
+	require.NoError(t, err)
+	require.Equal(t, runGit(t, repo, "rev-parse", "pi/feature"), head)
+}
+
+func TestBranchHeadFailsForAMissingBranch(t *testing.T) {
+	_, err := git.NewRemoteAdapter().BranchHead(context.Background(), gitRepo(t), "pi/missing")
+
+	require.Error(t, err)
+}
+
 func TestEnsureCommitsAheadAddsAnEmptyCommitWhenTheBranchHasNone(t *testing.T) {
 	repo := gitRepo(t)
 	runGit(t, repo, "branch", "pi/feature")

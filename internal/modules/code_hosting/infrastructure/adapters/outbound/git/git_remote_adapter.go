@@ -61,6 +61,11 @@ func (a *RemoteAdapter) PublishBranch(ctx context.Context, repo string, branch s
 	return codeerrors.BranchPublishFailed(branch, output.Stderr)
 }
 
+// BranchHead returns the commit the local branch points to.
+func (a *RemoteAdapter) BranchHead(ctx context.Context, repo string, branch string) (string, error) {
+	return revParse(ctx, repo, "refs/heads/"+branch)
+}
+
 // EnsureCommitsAhead adds an empty commit to branch when it does not advance over base. The working
 // tree and the index are not touched: the commit reuses the tree of the branch.
 func (a *RemoteAdapter) EnsureCommitsAhead(ctx context.Context, repo string, branch string, base string) (bool, error) {

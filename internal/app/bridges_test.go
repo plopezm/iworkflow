@@ -264,6 +264,7 @@ func TestRemoteMergeBridgeMapsEveryOutcome(t *testing.T) {
 	}{
 		{name: "merged on the provider", outcome: codehostinginbound.RemoteMergeMerged, want: tasksoutbound.RemoteMerged},
 		{name: "no open request", outcome: codehostinginbound.RemoteMergeNoOpenRequest, want: tasksoutbound.RemoteNoOpenRequest},
+		{name: "already merged on the provider", outcome: codehostinginbound.RemoteMergeAlreadyMerged, want: tasksoutbound.RemoteAlreadyMerged},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

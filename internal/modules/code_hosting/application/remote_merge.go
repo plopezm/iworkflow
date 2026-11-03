@@ -30,18 +30,22 @@ func (r *RemoteMerge) Bind(merge *MergeTaskMergeRequest) {
 }
 
 // MergeOpenRequest merges the open merge request of the task. Tasks without a remote provider, or
-// without an open request, report RemoteMergeNoOpenRequest and no error.
+// without an open request, report RemoteMergeNoOpenRequest and no error. A request already merged on
+// the provider reports RemoteMergeAlreadyMerged: nothing is pushed or merged.
 func (r *RemoteMerge) MergeOpenRequest(ctx context.Context, taskID string) (inbound.RemoteMergeOutcome, error) {
 	merge := r.merge.Load()
 	if merge == nil {
 		return inbound.RemoteMergeNoOpenRequest, nil
 	}
-	status, err := merge.ExecuteIfOpen(ctx, taskID)
+	status, alreadyMerged, err := merge.ExecuteIfOpenOrDetectMerged(ctx, taskID)
 	if err != nil {
 		if errors.IsRemoteMergeNotApplicable(err) {
 			return inbound.RemoteMergeNoOpenRequest, nil
 		}
 		return 0, err
+	}
+	if alreadyMerged {
+		return inbound.RemoteMergeAlreadyMerged, nil
 	}
 	if status == nil {
 		return inbound.RemoteMergeNoOpenRequest, nil

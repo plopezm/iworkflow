@@ -17,6 +17,8 @@ type MergeRequest struct {
 	SourceBranch string
 	TargetBranch string
 	WebURL       string
+	// HeadSHA is the last commit of the source branch the provider knows. Empty when it did not send it.
+	HeadSHA string
 	// MergeStatus is the neutral merge state: `mergeable`, `conflict`, `checking`...
 	MergeStatus  string
 	HasConflicts bool
@@ -25,6 +27,11 @@ type MergeRequest struct {
 // IsOpen reports whether the request still accepts changes.
 func (m MergeRequest) IsOpen() bool {
 	return m.State == "opened"
+}
+
+// IsMerged reports whether the request was already merged on the provider.
+func (m MergeRequest) IsMerged() bool {
+	return m.State == "merged"
 }
 
 // PipelineJob is one CI job of a pipeline.

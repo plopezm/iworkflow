@@ -549,6 +549,8 @@ func (b *remoteMergeBridge) MergeOpenRequest(ctx context.Context, taskID string)
 		return tasksoutbound.RemoteMerged, nil
 	case codehostinginbound.RemoteMergeNoOpenRequest:
 		return tasksoutbound.RemoteNoOpenRequest, nil
+	case codehostinginbound.RemoteMergeAlreadyMerged:
+		return tasksoutbound.RemoteAlreadyMerged, nil
 	default:
 		return 0, fmt.Errorf("unknown remote merge outcome %d", outcome)
 	}
