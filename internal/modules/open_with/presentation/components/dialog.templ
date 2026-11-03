@@ -95,7 +95,7 @@ templ addForm(view state.DialogView) {
 				<button
 					type="button"
 					class="btn-secondary"
-					hx-get={ state.BrowsePath(view.TaskID, view.Scope) }
+					hx-get={ state.NativePath(view.TaskID, view.Scope) }
 					hx-include="closest form"
 					hx-target={ "#" + state.HostID(view.Scope) }
 					hx-swap="outerHTML"

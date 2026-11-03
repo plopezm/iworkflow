@@ -38,3 +38,10 @@ type IDGenerator interface {
 type FileBrowser interface {
 	Browse(ctx context.Context, path string) (models.Listing, error)
 }
+
+// NativeFilePicker shows the file dialog of the operating system of the server and waits for the answer. It
+// returns the chosen path, or an empty path when the user cancelled. It returns errors.ErrNativePickerUnavailable
+// when the system has no such dialog.
+type NativeFilePicker interface {
+	Pick(ctx context.Context) (string, error)
+}

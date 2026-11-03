@@ -63,6 +63,9 @@ func PickerBodyID(scope string) string { return HostID(scope) + "-entries" }
 // BrowsePath is the address of the picker for a task.
 func BrowsePath(taskID string, scope string) string { return Path(taskID, scope, "/browse") }
 
+// NativePath is the address of the native file dialog for a task.
+func NativePath(taskID string, scope string) string { return Path(taskID, scope, "/native") }
+
 // NewPath is the address of the dialog with the add form open.
 func NewPath(taskID string, scope string) string { return Path(taskID, scope, "/new") }
 
