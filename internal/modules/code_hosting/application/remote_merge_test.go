@@ -88,15 +88,16 @@ func TestBoundRemoteMergeIntegratesLocallyWhenTheProviderSendsNoHeadCommit(t *te
 	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome)
 }
 
-func TestBoundRemoteMergePropagatesAFailureReadingTheLocalBranch(t *testing.T) {
+func TestBoundRemoteMergeIntegratesLocallyWhenTheLocalBranchCannotBeRead(t *testing.T) {
 	f := newFixture(t)
 	merged := mergeRequest(7, "merged")
 	f.client.findResult = &merged
 	f.remote.headErr = codeerrors.Git("sin rama")
 
-	_, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
+	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
 
-	require.Equal(t, codeerrors.Git("sin rama"), err)
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome)
 }
 
 func TestBoundRemoteMergeKeepsLocalIntegrationForAClosedRequest(t *testing.T) {

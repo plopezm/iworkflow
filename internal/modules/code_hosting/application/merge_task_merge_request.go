@@ -59,10 +59,11 @@ func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context,
 	if found != nil && found.IsMerged() {
 		// Only a request that merged the whole local branch lets the task skip the local integration:
 		// commits made after the merge would be lost. When the branch moved, or the provider did not say
-		// which commit it merged, the task is integrated locally instead.
+		// which commit it merged, the task is integrated locally instead. A branch that cannot be read
+		// is treated the same way: the local integration reports the real problem, if there is one.
 		head, err := u.remote.BranchHead(ctx, resolved.Source.RepoPath, branch)
 		if err != nil {
-			return nil, false, err
+			return nil, false, nil //nolint:nilerr // Unreadable branch: fall back to the local integration.
 		}
 		return nil, found.HeadSHA != "" && found.HeadSHA == head, nil
 	}
