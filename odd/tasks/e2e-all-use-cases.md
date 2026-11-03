@@ -50,7 +50,7 @@ temp DB, fake agents) and adds service mocks for Jira and the code host (GitHub/
 - [x] T10 (S1) workspaces module tests (8: register/edit/delete/browse/create-dir). Commit.
 - [x] T11 (S1,S4) Verify the full suite runs green, wire into `run_tests.sh` / CI note, report
   commands + results + what's unverified. Commit.
-- [ ] T12 (S5) Follow-up (Rust, separate): integration tests for the No-UI use cases missing
+- [~] T12 (S5) DROPPED (deferred, out of scope here) Follow-up (Rust, separate): integration tests for the No-UI use cases missing
   Rust coverage (list them at completion). Commit (when done).
 
 ## Log
@@ -78,3 +78,4 @@ temp DB, fake agents) and adds service mocks for Jira and the code host (GitHub/
   navigating. GitLab mock (`gitlab_mock.cjs`) + `pushInsteadOf` to a local bare repo cover
   create/get/merge MR and push. Known limits: abort_task only asserts a 200 (fake agent ignores
   abort); T12 (Rust tests for No-UI use cases) remains a separate follow-up. Not committed.
+- L7 (user decision): "1" → T12 closed as dropped/deferred (Rust follow-up out of scope here); all ODD documents considered finished.
