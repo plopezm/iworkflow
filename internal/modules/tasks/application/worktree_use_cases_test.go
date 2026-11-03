@@ -327,6 +327,19 @@ func TestMergeTaskOpenRemoteRequestIsMergedRemotelyInsteadOfLocally(t *testing.T
 	assert.Equal(t, models.StatusMerged, repo.tasks[task.ID].Status)
 }
 
+func TestMergeTaskAlreadyMergedRemoteRequestSkipsTheLocalMerge(t *testing.T) {
+	task, repo, worktrees := mergeFixture(models.StatusAwaitingReview)
+	remote := &fakeRemote{outcome: outbound.RemoteAlreadyMerged}
+	lifecycle, _ := newLifecycle(repo)
+
+	outcome, err := application.NewMergeTask(lifecycle, worktrees, nil, remote).Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.False(t, outcome.Conflict)
+	assert.Empty(t, worktrees.merged, "the local merge would conflict with the remote one")
+	assert.Equal(t, models.StatusMerged, repo.tasks[task.ID].Status)
+}
+
 // Rust: merge_task::without_open_remote_request_the_local_merge_is_used
 func TestMergeTaskWithoutOpenRemoteRequestUsesTheLocalMerge(t *testing.T) {
 	task, repo, worktrees := mergeFixture(models.StatusAwaitingReview)

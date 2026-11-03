@@ -93,6 +93,7 @@ func (u *GetTaskCommittedDiff) Execute(ctx context.Context, id models.TaskID) (m
 // MergeTask integrates the branch of a task into its base after the manual review, and removes the
 // worktree. A conflict leaves the task in Conflict with its worktree. When the task has an open merge
 // request in the provider, that request is merged remotely (after pushing the pending changes) instead.
+// When the request was already merged in the provider, nothing is merged locally: it would conflict.
 type MergeTask struct {
 	lifecycle  *TaskLifecycle
 	worktrees  outbound.Worktree
@@ -130,16 +131,17 @@ func (u *MergeTask) Execute(ctx context.Context, id models.TaskID) (models.Merge
 	} else {
 		pinned = &rng
 	}
-	remoteMerged := false
+	skipLocalMerge := false
 	if u.remote != nil {
 		outcome, err := u.remote.MergeOpenRequest(ctx, id.String())
 		if err != nil {
 			return models.MergeOutcome{}, err
 		}
-		remoteMerged = outcome == outbound.RemoteMerged
+		// A request merged beforehand on the provider must not be merged again locally: it would conflict.
+		skipLocalMerge = outcome == outbound.RemoteMerged || outcome == outbound.RemoteAlreadyMerged
 	}
 	outcome := models.MergedOutcome()
-	if !remoteMerged {
+	if !skipLocalMerge {
 		outcome, err = u.worktrees.Merge(ctx, workspace.Path, task.BaseBranch, task.Branch, message)
 		if err != nil {
 			return models.MergeOutcome{}, err

@@ -40,24 +40,34 @@ func (u *MergeTaskMergeRequest) Execute(ctx context.Context, taskID string) (mod
 // ExecuteIfOpen is Execute, but it returns nil and no error, without pushing or merging, when the
 // branch has no open merge request.
 func (u *MergeTaskMergeRequest) ExecuteIfOpen(ctx context.Context, taskID string) (*models.MergeRequestStatus, error) {
+	status, _, err := u.ExecuteIfOpenOrDetectMerged(ctx, taskID)
+	return status, err
+}
+
+// ExecuteIfOpenOrDetectMerged is ExecuteIfOpen that also reports, without pushing or merging, whether the
+// latest merge request of the branch was already merged on the provider.
+func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context, taskID string) (*models.MergeRequestStatus, bool, error) {
 	resolved, err := u.resolver.Resolve(ctx, taskID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	branch := resolved.Source.Branch
 	found, err := resolved.Client.FindLatestMergeRequest(ctx, resolved.Settings, resolved.Project, branch)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if found != nil && found.IsMerged() {
+		return nil, true, nil
 	}
 	if found == nil || !found.IsOpen() {
-		return nil, nil
+		return nil, false, nil
 	}
 	if err := u.remote.PublishBranch(ctx, resolved.Source.RepoPath, branch, resolved.Settings, resolved.Project); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	merged, err := resolved.Client.MergeMergeRequest(ctx, resolved.Settings, resolved.Project, found.IID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	// The merge already happened: a failure reading the pipeline must not look like a failed merge
 	// (the user would retry it). The merged request is returned without its pipeline instead.
@@ -67,7 +77,7 @@ func (u *MergeTaskMergeRequest) ExecuteIfOpen(ctx context.Context, taskID string
 			Provider:     resolved.Settings.Provider(),
 			ProjectPath:  resolved.Project,
 			MergeRequest: merged,
-		}, nil
+		}, false, nil
 	}
-	return &status, nil
+	return &status, false, nil
 }

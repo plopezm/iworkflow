@@ -12,6 +12,10 @@ const (
 	// RemoteMergeNoOpenRequest means there is nothing to merge remotely: the task is integrated
 	// locally instead (no open request, or no remote provider for the task).
 	RemoteMergeNoOpenRequest
+	// RemoteMergeAlreadyMerged means the merge request of the task branch was already merged on the
+	// provider: nothing is merged or pushed and the task must not be integrated locally, because that
+	// would conflict with the merge that already happened.
+	RemoteMergeAlreadyMerged
 )
 
 // RemoteMergePort integrates a task through its remote merge request. The tasks module consumes it

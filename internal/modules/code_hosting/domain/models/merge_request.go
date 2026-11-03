@@ -27,6 +27,11 @@ func (m MergeRequest) IsOpen() bool {
 	return m.State == "opened"
 }
 
+// IsMerged reports whether the request was already merged on the provider.
+func (m MergeRequest) IsMerged() bool {
+	return m.State == "merged"
+}
+
 // PipelineJob is one CI job of a pipeline.
 type PipelineJob struct {
 	ID     uint64
