@@ -20,7 +20,8 @@ APP_VERSION ?= $(shell sed -n 's/^  "version": "\(.*\)",/\1/p' electron/package.
 GO_TAGS ?= sherpa
 GO_BUILD_TAGS := $(if $(strip $(GO_TAGS)),-tags $(GO_TAGS),)
 ASR_MODEL_NAME ?= sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25
-ASR_MODELS_DIR ?= $(HOME)/.iworkflow/models
+# Forward slashes only: on Windows HOME is C:\Users\x and the recipe shell would eat the backslashes.
+ASR_MODELS_DIR ?= $(subst \,/,$(HOME))/.iworkflow/models
 comma := ,
 # Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
 SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))
@@ -64,7 +65,7 @@ model:
 	@test -f $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)/decoder.int8.onnx || { \
 		mkdir -p $(ASR_MODELS_DIR) && \
 		curl -fL --retry 3 -o $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/$(ASR_MODEL_NAME).tar.bz2 && \
-		tar xjf $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2 -C $(ASR_MODELS_DIR) && rm $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME).tar.bz2; }
+		(cd $(ASR_MODELS_DIR) && tar xjf $(ASR_MODEL_NAME).tar.bz2 && rm $(ASR_MODEL_NAME).tar.bz2); }
 	@cd $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME) && $(SHA256) -c $(CURDIR)/asr-model.sha256 >/dev/null || { \
 		echo "The model in $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME) does not match asr-model.sha256; delete it and run 'make model' again." >&2; exit 1; }
 	@echo "Model verified in $(ASR_MODELS_DIR)/$(ASR_MODEL_NAME)"
