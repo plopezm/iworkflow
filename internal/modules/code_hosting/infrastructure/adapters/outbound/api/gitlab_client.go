@@ -46,6 +46,7 @@ type gitLabMergeRequestJSON struct {
 	SourceBranch        string  `json:"source_branch"`
 	TargetBranch        string  `json:"target_branch"`
 	WebURL              string  `json:"web_url"`
+	SHA                 string  `json:"sha"`
 	MergeStatus         *string `json:"merge_status"`
 	DetailedMergeStatus *string `json:"detailed_merge_status"`
 	HasConflicts        *bool   `json:"has_conflicts"`
@@ -67,6 +68,7 @@ func (j gitLabMergeRequestJSON) toDomain() models.MergeRequest {
 		SourceBranch: j.SourceBranch,
 		TargetBranch: j.TargetBranch,
 		WebURL:       j.WebURL,
+		HeadSHA:      j.SHA,
 		MergeStatus:  mergeStatus,
 		HasConflicts: j.HasConflicts != nil && *j.HasConflicts,
 	}

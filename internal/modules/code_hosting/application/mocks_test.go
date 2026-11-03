@@ -83,6 +83,8 @@ type fakeGitRemote struct {
 	ensureAdded bool
 	ensureErr   error
 	publishErr  error
+	head        string
+	headErr     error
 	ensureCalls [][2]string
 	publishes   []publishCall
 	events      *[]string
@@ -105,6 +107,10 @@ func (r *fakeGitRemote) PublishBranch(_ context.Context, repo string, branch str
 	r.record("publish")
 	r.publishes = append(r.publishes, publishCall{repo: repo, branch: branch, project: project, token: settings.Token()})
 	return r.publishErr
+}
+
+func (r *fakeGitRemote) BranchHead(_ context.Context, _ string, _ string) (string, error) {
+	return r.head, r.headErr
 }
 
 func (r *fakeGitRemote) EnsureCommitsAhead(_ context.Context, _ string, branch string, base string) (bool, error) {
@@ -213,7 +219,7 @@ func newFixture(t *testing.T) *fixture {
 	return &fixture{
 		settings: &fakeSettingsRepository{stored: []models.CodeHostSettings{gitlabSettings(t)}},
 		tasks:    &fakeTaskSourceLookup{source: taskSource()},
-		remote:   &fakeGitRemote{origin: "git@git.corp:" + project + ".git", events: &events},
+		remote:   &fakeGitRemote{origin: "git@git.corp:" + project + ".git", head: "head-sha", events: &events},
 		client:   client,
 		factory:  &fakeClientFactory{fallback: client},
 		events:   &events,
@@ -253,6 +259,7 @@ func mergeRequest(iid uint64, state string) models.MergeRequest {
 		IID:          iid,
 		Title:        "Mi tarea",
 		State:        state,
+		HeadSHA:      "head-sha",
 		SourceBranch: "pi/feature",
 		TargetBranch: "main",
 		WebURL:       fmt.Sprintf("https://git.corp/%s/-/merge_requests/%d", project, iid),

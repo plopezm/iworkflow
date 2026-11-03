@@ -45,7 +45,7 @@ func (u *MergeTaskMergeRequest) ExecuteIfOpen(ctx context.Context, taskID string
 }
 
 // ExecuteIfOpenOrDetectMerged is ExecuteIfOpen that also reports, without pushing or merging, whether the
-// latest merge request of the branch was already merged on the provider.
+// latest merge request of the branch was already merged on the provider with the current tip of the branch.
 func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context, taskID string) (*models.MergeRequestStatus, bool, error) {
 	resolved, err := u.resolver.Resolve(ctx, taskID)
 	if err != nil {
@@ -57,7 +57,14 @@ func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context,
 		return nil, false, err
 	}
 	if found != nil && found.IsMerged() {
-		return nil, true, nil
+		// Only a request that merged the whole local branch lets the task skip the local integration:
+		// commits made after the merge would be lost. When the branch moved, or the provider did not say
+		// which commit it merged, the task is integrated locally instead.
+		head, err := u.remote.BranchHead(ctx, resolved.Source.RepoPath, branch)
+		if err != nil {
+			return nil, false, err
+		}
+		return nil, found.HeadSHA != "" && found.HeadSHA == head, nil
 	}
 	if found == nil || !found.IsOpen() {
 		return nil, false, nil

@@ -13,6 +13,8 @@ type GitRemote interface {
 	// PublishBranch pushes the local branch to the project of the provider, authenticating with the
 	// token of settings and not with the system git credentials. The branch must exist in repo.
 	PublishBranch(ctx context.Context, repo string, branch string, settings models.CodeHostSettings, project string) error
+	// BranchHead returns the commit the local branch points to; it fails when the branch does not exist in repo.
+	BranchHead(ctx context.Context, repo string, branch string) (string, error)
 	// EnsureCommitsAhead makes sure branch has at least one commit ahead of base. When it has none, it
 	// adds an empty commit without touching the working tree, because providers reject requests with
 	// no commits. It reports whether it created that commit.

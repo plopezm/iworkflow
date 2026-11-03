@@ -15,7 +15,7 @@ import (
 
 const (
 	gitLabToken = "glpat-test"
-	gitLabMR    = `{"iid":7,"title":"T","state":"opened","source_branch":"pi/x","target_branch":"main","web_url":"http://gl/mr/7","merge_status":"can_be_merged","detailed_merge_status":"mergeable","has_conflicts":false}`
+	gitLabMR    = `{"iid":7,"title":"T","state":"opened","source_branch":"pi/x","target_branch":"main","web_url":"http://gl/mr/7","sha":"abc123","merge_status":"can_be_merged","detailed_merge_status":"mergeable","has_conflicts":false}`
 )
 
 func newGitLabClient() *api.GitLabClient {
@@ -75,6 +75,7 @@ func TestGitLabFindLatestMergeRequestReturnsTheFirstOrNil(t *testing.T) {
 	require.NotNil(t, found)
 	require.Equal(t, uint64(7), found.IID)
 	require.Equal(t, "mergeable", found.MergeStatus)
+	require.Equal(t, "abc123", found.HeadSHA)
 	require.True(t, found.IsOpen())
 	missing, err := client.FindLatestMergeRequest(context.Background(), settings, "g/p", "vacia")
 	require.NoError(t, err)

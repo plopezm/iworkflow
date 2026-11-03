@@ -17,6 +17,8 @@ type MergeRequest struct {
 	SourceBranch string
 	TargetBranch string
 	WebURL       string
+	// HeadSHA is the last commit of the source branch the provider knows. Empty when it did not send it.
+	HeadSHA string
 	// MergeStatus is the neutral merge state: `mergeable`, `conflict`, `checking`...
 	MergeStatus  string
 	HasConflicts bool

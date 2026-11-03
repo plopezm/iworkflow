@@ -87,6 +87,7 @@ func TestGitHubFindLatestPrefersTheOpenPullAndRereadsIt(t *testing.T) {
 	require.Equal(t, uint64(7), found.IID)
 	require.Equal(t, "opened", found.State)
 	require.Equal(t, "mergeable", found.MergeStatus)
+	require.Equal(t, "abc123", found.HeadSHA)
 	require.Equal(t, "http://gh/acme/app/pull/7", found.WebURL)
 	require.Equal(t, "pi/x", found.SourceBranch)
 	require.Equal(t, "main", found.TargetBranch)

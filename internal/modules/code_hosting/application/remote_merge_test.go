@@ -59,6 +59,44 @@ func TestBoundRemoteMergeReportsAlreadyMergedWithoutPushingOrMerging(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, inbound.RemoteMergeAlreadyMerged, outcome)
 	require.Empty(t, f.client.merged)
+	require.Empty(t, f.remote.publishes, "an already merged request is never pushed")
+}
+
+func TestBoundRemoteMergeIntegratesLocallyWhenTheBranchAdvancedAfterTheMerge(t *testing.T) {
+	f := newFixture(t)
+	merged := mergeRequest(7, "merged")
+	f.client.findResult = &merged
+	f.remote.head = "newer-local-commit"
+
+	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome, "commits after the merge must not be dropped")
+	require.Empty(t, f.client.merged)
+	require.Empty(t, f.remote.publishes)
+}
+
+func TestBoundRemoteMergeIntegratesLocallyWhenTheProviderSendsNoHeadCommit(t *testing.T) {
+	f := newFixture(t)
+	merged := mergeRequest(7, "merged")
+	merged.HeadSHA = ""
+	f.client.findResult = &merged
+
+	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome)
+}
+
+func TestBoundRemoteMergePropagatesAFailureReadingTheLocalBranch(t *testing.T) {
+	f := newFixture(t)
+	merged := mergeRequest(7, "merged")
+	f.client.findResult = &merged
+	f.remote.headErr = codeerrors.Git("sin rama")
+
+	_, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
+
+	require.Equal(t, codeerrors.Git("sin rama"), err)
 }
 
 func TestBoundRemoteMergeKeepsLocalIntegrationForAClosedRequest(t *testing.T) {
