@@ -156,7 +156,7 @@ function showWindow() {
   mainWindow.focus();
 }
 
-function createWindow(addr) {
+async function createWindow(addr) {
   serverAddr = addr;
   mainWindow = new BrowserWindow({
     title: APP_TITLE,
@@ -188,15 +188,10 @@ function createWindow(addr) {
     if (/^https?:\/\//.test(url) && !isTrustedUrl(url, serverAddr)) shell.openExternal(url);
     return { action: 'deny' };
   });
-  // First load after startup: the HTTP cache may hold a stale UI, so force one reload that bypasses it.
-  mainWindow.webContents.once('did-finish-load', () => {
-    mainWindow?.webContents.reloadIgnoringCache();
-  });
-  // The forced reload above supersedes this navigation, which makes loadURL reject with ERR_ABORTED
-  // (-3) even though the page loaded; that rejection is expected and must not abort startup.
-  return mainWindow.loadURL(windowUrl(addr, accessToken)).catch((error) => {
-    if (error?.code !== 'ERR_ABORTED') throw error;
-  });
+  // First load after startup: the HTTP cache may hold a stale UI, so empty it before navigating.
+  // Clearing up front avoids a second navigation that would abort this one (ERR_ABORTED).
+  await mainWindow.webContents.session.clearCache();
+  return mainWindow.loadURL(windowUrl(addr, accessToken));
 }
 
 function createTray(updater) {
