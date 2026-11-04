@@ -192,7 +192,11 @@ function createWindow(addr) {
   mainWindow.webContents.once('did-finish-load', () => {
     mainWindow?.webContents.reloadIgnoringCache();
   });
-  return mainWindow.loadURL(windowUrl(addr, accessToken));
+  // The forced reload above supersedes this navigation, which makes loadURL reject with ERR_ABORTED
+  // (-3) even though the page loaded; that rejection is expected and must not abort startup.
+  return mainWindow.loadURL(windowUrl(addr, accessToken)).catch((error) => {
+    if (error?.code !== 'ERR_ABORTED') throw error;
+  });
 }
 
 function createTray(updater) {
