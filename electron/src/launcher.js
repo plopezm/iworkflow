@@ -34,15 +34,24 @@ function serverArgs() {
 }
 
 /**
- * Environment for the server process. It deliberately leaves `IWORKFLOW_ADDR` and
- * `IWF_DATABASE_URL` alone: the saved network-access choice decides the bind address and the
- * database stays where it always was. `IWF_SUPERVISED` tells it that the shell respawns it
- * after a restart request, so it exits instead of starting a copy of itself.
+ * Environment for the server process. It deliberately leaves `IWORKFLOW_ADDR` alone: the saved
+ * network-access choice decides the bind address. `IWF_SUPERVISED` tells it that the shell
+ * respawns it after a restart request, so it exits instead of starting a copy of itself.
+ * `userIwfHome` is the `IWF_HOME` stored in the Windows user environment: the installer writes
+ * it, but a process started by that same installer does not inherit it, so it fills the gap
+ * when the process environment lacks one.
  */
-function buildServerEnv(base, platform = process.platform) {
+function buildServerEnv(base, platform = process.platform, userIwfHome = '') {
   const env = { ...base, NO_COLOR: '1', IWF_SUPERVISED: '1' };
+  if (!String(base.IWF_HOME ?? '').trim() && userIwfHome) env.IWF_HOME = userIwfHome;
   if (platform === 'darwin') env.PATH = withMacPaths(base.PATH);
   return env;
+}
+
+/** `IWF_HOME` value in the output of `reg query HKCU\\Environment /v IWF_HOME`, or '' when absent. */
+function parseRegIwfHome(output) {
+  const match = /^\s*IWF_HOME\s+REG_(?:EXPAND_)?SZ\s+(.+?)\s*$/m.exec(String(output ?? ''));
+  return match ? match[1] : '';
 }
 
 /**
@@ -108,6 +117,7 @@ module.exports = {
   serverBinaryName,
   serverArgs,
   buildServerEnv,
+  parseRegIwfHome,
   extractAccessToken,
   extractListenAddr,
   windowUrl,

@@ -5,7 +5,7 @@
 // network or Tailscale; closing the window only hides it and "Quit" stops the server.
 
 const { app, BrowserWindow, Menu, Tray, dialog, nativeImage, shell } = require('electron');
-const { spawn } = require('node:child_process');
+const { execFileSync, spawn } = require('node:child_process');
 const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
@@ -16,6 +16,7 @@ const {
   extractListenAddr,
   isRestartExit,
   isTrustedUrl,
+  parseRegIwfHome,
   parseSiteAddr,
   serverArgs,
   serverBinaryName,
@@ -86,11 +87,23 @@ async function waitUntilReady(addr) {
   throw new Error('The server did not start listening in time.');
 }
 
+/** The installer stores the chosen data folder as a user variable; read it for a process that predates it. */
+function windowsUserIwfHome() {
+  if (process.platform !== 'win32') return '';
+  try {
+    return parseRegIwfHome(
+      execFileSync('reg', ['query', 'HKCU\\Environment', '/v', 'IWF_HOME'], { encoding: 'utf8', windowsHide: true }),
+    );
+  } catch {
+    return ''; // not set: the server falls back to ~/.iworkflow
+  }
+}
+
 function startServer(onListening) {
   const binary = path.join(serverDir(), serverBinaryName(process.platform));
   const child = spawn(binary, serverArgs(), {
     cwd: os.homedir(),
-    env: buildServerEnv(process.env),
+    env: buildServerEnv(process.env, process.platform, windowsUserIwfHome()),
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });

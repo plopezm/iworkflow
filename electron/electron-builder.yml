@@ -35,3 +35,5 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+  # Adds the "data folder" page and stores the choice as the IWF_HOME user variable.
+  include: build/installer.nsh

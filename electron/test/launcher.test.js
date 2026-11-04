@@ -9,6 +9,7 @@ const {
   parseSiteAddr,
   serverBinaryName,
   buildServerEnv,
+  parseRegIwfHome,
   serverArgs,
   extractAccessToken,
   extractListenAddr,
@@ -48,12 +49,24 @@ test('server env never pins the listen address, so the saved network setting sti
   assert.equal(env.NO_COLOR, '1');
 });
 
-test('server env keeps an address the user pinned and does not touch the database path', () => {
-  const env = buildServerEnv({ IWORKFLOW_ADDR: '0.0.0.0:9000', IWF_DATABASE_URL: '/data/x.db' }, 'linux');
+test('server env keeps an address the user pinned and does not invent a data folder', () => {
+  const env = buildServerEnv({ IWORKFLOW_ADDR: '0.0.0.0:9000', IWF_HOME: 'D:\\data' }, 'linux');
   assert.equal(env.IWORKFLOW_ADDR, '0.0.0.0:9000');
-  assert.equal(env.IWF_DATABASE_URL, '/data/x.db');
-  const untouched = buildServerEnv({}, 'linux');
-  assert.equal(untouched.IWF_DATABASE_URL, undefined);
+  assert.equal(env.IWF_HOME, 'D:\\data');
+  assert.equal(buildServerEnv({}, 'linux').IWF_HOME, undefined);
+});
+
+test('the Windows user IWF_HOME fills in only when the process environment has none', () => {
+  assert.equal(buildServerEnv({}, 'win32', 'D:\\iwf').IWF_HOME, 'D:\\iwf');
+  assert.equal(buildServerEnv({ IWF_HOME: ' ' }, 'win32', 'D:\\iwf').IWF_HOME, 'D:\\iwf');
+  assert.equal(buildServerEnv({ IWF_HOME: 'E:\\mine' }, 'win32', 'D:\\iwf').IWF_HOME, 'E:\\mine');
+});
+
+test('parseRegIwfHome reads the value printed by reg query', () => {
+  const out = '\r\nHKEY_CURRENT_USER\\Environment\r\n    IWF_HOME    REG_SZ    D:\\my data\\iwf\r\n\r\n';
+  assert.equal(parseRegIwfHome(out), 'D:\\my data\\iwf');
+  assert.equal(parseRegIwfHome(''), '');
+  assert.equal(parseRegIwfHome('ERROR: The system was unable to find the specified registry key or value.'), '');
 });
 
 test('on macOS the server PATH gains the Homebrew directories a Finder launch lacks', () => {
