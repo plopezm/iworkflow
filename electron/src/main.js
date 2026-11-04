@@ -188,6 +188,10 @@ function createWindow(addr) {
     if (/^https?:\/\//.test(url) && !isTrustedUrl(url, serverAddr)) shell.openExternal(url);
     return { action: 'deny' };
   });
+  // First load after startup: the HTTP cache may hold a stale UI, so force one reload that bypasses it.
+  mainWindow.webContents.once('did-finish-load', () => {
+    mainWindow?.webContents.reloadIgnoringCache();
+  });
   return mainWindow.loadURL(windowUrl(addr, accessToken));
 }
 
