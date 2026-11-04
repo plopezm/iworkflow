@@ -53,7 +53,7 @@ The smokes in `end2end/*_smoke.cjs` run one by one with `IWF_E2E_SCRIPTS`. The r
 - `SMOKE_REPO`, a git repo that the script registers as a workspace. It depends on the script:
   `git_changes` uses its own repo, `tab_state` its own, `background_jobs` its own, and the rest use the
   terminal repo.
-- `SMOKE_WORKTREES`, the server's worktrees directory (same as `IWF_WORKTREES_DIR`). Needed by
+- `SMOKE_WORKTREES`, the server's worktrees directory (`worktrees` under the server's `IWF_HOME`). Needed by
   `git_changes_smoke.cjs` to find the agent's worktree.
 - `lang_shim.cjs` preloaded, which sets the language cookie the smokes do not set.
 

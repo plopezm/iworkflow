@@ -5,7 +5,7 @@
 - Web: `net/http` + `chi` (router), render SSR con `templ` e interactividad con `htmx`. JS propio solo donde htmx no llegue (terminal, follow-bottom, diffs) y siempre aislado en `web/static/`
 - Tiempo real: SSE y WebSocket (`nhooyr.io/websocket` / `coder/websocket`) para streams de tareas, terminal y refrescos
 - Acceso a datos: `sqlc` (queries tipadas generadas) sobre `database/sql`, con migraciones `goose` embebidas (`embed.FS`) que se aplican al arrancar
-- Base de datos: SQLite con `modernc.org/sqlite` (puro Go, sin CGO) en `~/.<project_name>/workspaces.db` (override con `IWF_DATABASE_URL`)
+- Base de datos: SQLite con `modernc.org/sqlite` (puro Go, sin CGO) en `~/.<project_name>/workspaces.db` (carpeta raíz configurable con `IWF_HOME`)
 - PTY: `creack/pty`. HTTP externo: `net/http` con timeouts explícitos
 - Búsqueda código: usa codegraph, mantén actualizados los grafos en cada feature
 - Diseño: Tailwind CSS (CLI standalone, salida en `web/static/`)
@@ -203,8 +203,8 @@ make generate        # templ generate && sqlc generate && tailwind build
 make dev             # servidor con recarga
 
 # Migraciones
-goose -dir migrations sqlite3 "$IWF_DATABASE_URL" up
-goose -dir migrations sqlite3 "$IWF_DATABASE_URL" redo   # verifica que Down revierte
+goose -dir migrations sqlite3 "${IWF_HOME:-$HOME/.iworkflow}/workspaces.db" up
+goose -dir migrations sqlite3 "${IWF_HOME:-$HOME/.iworkflow}/workspaces.db" redo   # verifica que Down revierte
 
 # Tests
 go test -p 2 ./internal/modules/<feature_name>/...          # unitarios de un feature

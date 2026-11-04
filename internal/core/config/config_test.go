@@ -45,20 +45,14 @@ func TestMissingHomeIsAnError(t *testing.T) {
 
 func TestEnvironmentValuesWinOverDefaults(t *testing.T) {
 	cfg, err := config.FromEnv(env(map[string]string{
-		"HOME":                "/home/u",
-		"IWF_DATABASE_URL":    "/data/x/app.db",
-		"IWF_PI_AGENTS_DIR":   "/custom/agents",
-		"IWF_WORKTREES_DIR":   "/wt",
-		"IWF_CLAUDE_BIN":      "/bin/claude",
-		"IWF_ATTACHMENTS_DIR": "/att",
+		"HOME":              "/home/u",
+		"IWF_PI_AGENTS_DIR": "/custom/agents",
+		"IWF_CLAUDE_BIN":    "/bin/claude",
 	}))
 
 	require.NoError(t, err)
-	require.Equal(t, "/data/x/app.db", cfg.DatabaseURL)
 	require.Equal(t, "/custom/agents", cfg.PiAgentsDir)
-	require.Equal(t, "/wt", cfg.WorktreesDir)
 	require.Equal(t, "/bin/claude", cfg.ClaudeBin)
-	require.Equal(t, "/att", cfg.AttachmentsDir)
 }
 
 func TestBlankValuesFallBackToDefaults(t *testing.T) {
@@ -68,35 +62,57 @@ func TestBlankValuesFallBackToDefaults(t *testing.T) {
 	require.Equal(t, "/home/u/.pi/agent/agents", cfg.PiAgentsDir)
 }
 
-func TestDataSubdirsSitNextToACustomDatabase(t *testing.T) {
-	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_DATABASE_URL": "/srv/iwf/app.db"}))
+func TestIWFHomeMovesEveryDataPath(t *testing.T) {
+	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_HOME": "/srv/iwf"}))
 
 	require.NoError(t, err)
+	require.Equal(t, "/srv/iwf", cfg.DataDir)
+	require.Equal(t, "/srv/iwf/workspaces.db", cfg.DatabaseURL)
+	require.Equal(t, "/srv/iwf/worktrees", cfg.WorktreesDir)
 	require.Equal(t, "/srv/iwf/agents-files", cfg.AgentsFilesDir)
 	require.Equal(t, "/srv/iwf/attachments", cfg.AttachmentsDir)
 	require.Equal(t, "/srv/iwf/cursor-sessions", cfg.CursorSessionsDir)
+	require.Equal(t, "/srv/iwf/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25", cfg.ASRModelDir)
+	require.Equal(t, "/home/u", cfg.HomeDir)
 }
 
-func TestRelativeDatabaseFallsBackToTheDataFolder(t *testing.T) {
-	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_DATABASE_URL": "app.db"}))
-
-	require.NoError(t, err)
-	require.Equal(t, "/home/u/.iworkflow/agents-files", cfg.AgentsFilesDir)
-}
-
-func TestASRModelDirDefaultsToTheQwen3ModelUnderTheModelsFolder(t *testing.T) {
+func TestDefaultDataDirIsDotIworkflowInHome(t *testing.T) {
 	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u"}))
 
 	require.NoError(t, err)
-	require.Equal(t, "/home/u/.iworkflow/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25", cfg.ASRModelDir)
+	require.Equal(t, "/home/u/.iworkflow", cfg.DataDir)
 }
 
-func TestASRModelDirFollowsTheCustomDatabaseAndTheOverride(t *testing.T) {
-	next, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_DATABASE_URL": "/srv/iwf/app.db"}))
-	require.NoError(t, err)
-	require.Equal(t, "/srv/iwf/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25", next.ASRModelDir)
+func TestBlankIWFHomeFallsBackToTheDefault(t *testing.T) {
+	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_HOME": "  "}))
 
-	custom, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_ASR_MODEL_DIR": "/m/qwen"}))
 	require.NoError(t, err)
-	require.Equal(t, "/m/qwen", custom.ASRModelDir)
+	require.Equal(t, "/home/u/.iworkflow", cfg.DataDir)
+}
+
+func TestIWFHomeWorksWithoutHome(t *testing.T) {
+	dir, err := config.DataDir(env(map[string]string{"IWF_HOME": "/srv/iwf"}))
+
+	require.NoError(t, err)
+	require.Equal(t, "/srv/iwf", dir)
+}
+
+func TestTheRetiredPathVariablesAreIgnored(t *testing.T) {
+	cfg, err := config.FromEnv(env(map[string]string{
+		"HOME":                    "/home/u",
+		"IWF_DATABASE_URL":        "/x/app.db",
+		"IWF_WORKTREES_DIR":       "/wt",
+		"IWF_ATTACHMENTS_DIR":     "/att",
+		"IWF_AGENTS_FILES_DIR":    "/af",
+		"IWF_CURSOR_SESSIONS_DIR": "/cs",
+		"IWF_ASR_MODEL_DIR":       "/m",
+	}))
+
+	require.NoError(t, err)
+	require.Equal(t, "/home/u/.iworkflow/workspaces.db", cfg.DatabaseURL)
+	require.Equal(t, "/home/u/.iworkflow/worktrees", cfg.WorktreesDir)
+	require.Equal(t, "/home/u/.iworkflow/attachments", cfg.AttachmentsDir)
+	require.Equal(t, "/home/u/.iworkflow/agents-files", cfg.AgentsFilesDir)
+	require.Equal(t, "/home/u/.iworkflow/cursor-sessions", cfg.CursorSessionsDir)
+	require.Equal(t, "/home/u/.iworkflow/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25", cfg.ASRModelDir)
 }

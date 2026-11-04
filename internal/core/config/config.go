@@ -29,6 +29,8 @@ var ErrMissingHome = errors.New("missing environment variable HOME")
 
 // Config is the process configuration (a `.env` file is loaded by main before reading).
 type Config struct {
+	// DataDir is the folder every data path below hangs off (IWF_HOME, default ~/.iworkflow).
+	DataDir string
 	// DatabaseURL is the path to the SQLite file.
 	DatabaseURL string
 	// GentleShellBin is the gentle-shell executable launched in RPC mode.
@@ -57,43 +59,45 @@ type Config struct {
 	PiAgentsDir string
 }
 
+// DataDir is the folder holding everything iworkflow stores: IWF_HOME, else ~/.iworkflow.
+func DataDir(getenv func(string) string) (string, error) {
+	if custom := strings.TrimSpace(getenv("IWF_HOME")); custom != "" {
+		return custom, nil
+	}
+	home := firstNonEmpty(getenv("HOME"), getenv("USERPROFILE"))
+	if home == "" {
+		return "", ErrMissingHome
+	}
+	return filepath.Join(home, defaultDataDir), nil
+}
+
 // FromEnv builds the configuration from the given variable lookup (os.Getenv in production).
+// Every data path is derived from the data folder; only IWF_HOME moves them.
 func FromEnv(getenv func(string) string) (Config, error) {
 	home := firstNonEmpty(getenv("HOME"), getenv("USERPROFILE"))
 	if home == "" {
 		return Config{}, ErrMissingHome
 	}
-	dataDir := filepath.Join(home, defaultDataDir)
-	databaseURL := valueOr(getenv("IWF_DATABASE_URL"), filepath.Join(dataDir, defaultDatabaseFile))
-	subdir := func(variable, name string) string {
-		return dataSubdir(getenv(variable), databaseURL, dataDir, name)
+	dataDir, err := DataDir(getenv)
+	if err != nil {
+		return Config{}, err
 	}
 	return Config{
-		DatabaseURL:        databaseURL,
+		DataDir:            dataDir,
+		DatabaseURL:        filepath.Join(dataDir, defaultDatabaseFile),
 		GentleShellBin:     valueOr(getenv("IWF_GENTLE_SHELL_BIN"), defaultGentleShellBin),
 		PiBin:              valueOr(getenv("IWF_PI_BIN"), defaultPiBin),
 		ClaudeBin:          valueOr(getenv("IWF_CLAUDE_BIN"), defaultClaudeBin),
 		CursorBin:          valueOr(getenv("IWF_CURSOR_BIN"), defaultCursorBin),
-		CursorSessionsDir:  subdir("IWF_CURSOR_SESSIONS_DIR", defaultCursorSessionsDir),
-		WorktreesDir:       valueOr(getenv("IWF_WORKTREES_DIR"), filepath.Join(dataDir, defaultWorktreesDir)),
+		CursorSessionsDir:  filepath.Join(dataDir, defaultCursorSessionsDir),
+		WorktreesDir:       filepath.Join(dataDir, defaultWorktreesDir),
 		HomeDir:            home,
 		GentlePiConfigHome: valueOr(getenv("IWF_GENTLE_PI_CONFIG_HOME"), filepath.Join(home, defaultGentlePiConfigDir)),
-		AgentsFilesDir:     subdir("IWF_AGENTS_FILES_DIR", defaultAgentsFilesDir),
-		AttachmentsDir:     subdir("IWF_ATTACHMENTS_DIR", defaultAttachmentsDir),
-		ASRModelDir:        asrModelDir(getenv("IWF_ASR_MODEL_DIR"), databaseURL, dataDir),
+		AgentsFilesDir:     filepath.Join(dataDir, defaultAgentsFilesDir),
+		AttachmentsDir:     filepath.Join(dataDir, defaultAttachmentsDir),
+		ASRModelDir:        filepath.Join(dataDir, defaultModelsDir, defaultASRModelName),
 		PiAgentsDir:        valueOr(getenv("IWF_PI_AGENTS_DIR"), filepath.Join(home, defaultPiAgentsDir)),
 	}, nil
-}
-
-// dataSubdir is the env value, else `name` next to the database, else under the data folder.
-func dataSubdir(envValue, databaseURL, dataDir, name string) string {
-	if strings.TrimSpace(envValue) != "" {
-		return envValue
-	}
-	if parent := filepath.Dir(databaseURL); parent != "." && parent != "" {
-		return filepath.Join(parent, name)
-	}
-	return filepath.Join(dataDir, name)
 }
 
 // valueOr returns value, or fallback when value is blank.
@@ -111,12 +115,4 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-// asrModelDir is the env value, else the default model inside the models folder next to the database.
-func asrModelDir(envValue, databaseURL, dataDir string) string {
-	if strings.TrimSpace(envValue) != "" {
-		return envValue
-	}
-	return filepath.Join(dataSubdir("", databaseURL, dataDir, defaultModelsDir), defaultASRModelName)
 }

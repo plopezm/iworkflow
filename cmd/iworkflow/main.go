@@ -74,22 +74,19 @@ func main() {
 }
 
 // openLogOutput returns stderr teed into a size-rotated, gzip-compressed log file. The file is
-// IWF_LOG_FILE (default ~/.iworkflow/logs/iworkflow.log; "off" disables it), rotates past
+// <data folder>/logs/iworkflow.log (IWF_HOME, default ~/.iworkflow; IWF_LOG_FILE=off disables it), rotates past
 // IWF_LOG_MAX_MB megabytes and keeps IWF_LOG_BACKUPS compressed backups. When the file cannot be
 // opened it returns stderr, the close function and the error.
 func openLogOutput(getenv func(string) string) (io.Writer, func(), error) {
 	noop := func() {}
-	path := strings.TrimSpace(getenv(logFileVar))
-	if path == logFileOff {
+	if strings.TrimSpace(getenv(logFileVar)) == logFileOff {
 		return os.Stderr, noop, nil
 	}
-	if path == "" {
-		home := getenv("HOME")
-		if home == "" {
-			return os.Stderr, noop, nil
-		}
-		path = filepath.Join(home, ".iworkflow", "logs", "iworkflow.log")
+	dataDir, err := config.DataDir(getenv)
+	if err != nil {
+		return os.Stderr, noop, nil // no data folder known: stderr only
 	}
+	path := filepath.Join(dataDir, "logs", "iworkflow.log")
 	maxMB := positiveInt(getenv(logMaxMBVar), defaultLogMaxMB)
 	backups := positiveInt(getenv(logBackupsVar), defaultBackups)
 	file, err := logfile.Open(path, int64(maxMB)<<20, backups)
@@ -213,7 +210,7 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	}
 	// HTTPS is opt-in and runs next to the plain HTTP listener: browsers only expose the microphone of the voice
 	// dictation in a secure context, while the desktop app keeps using HTTP.
-	secure, err := secureListener(ctx, os.Getenv, cfg.DatabaseURL, addr, listenOn)
+	secure, err := secureListener(ctx, os.Getenv, cfg.DataDir, addr, listenOn)
 	if err != nil {
 		return err
 	}

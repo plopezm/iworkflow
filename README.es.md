@@ -160,29 +160,24 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 
 | Variable | Por defecto |
 |---|---|
-| `IWF_DATABASE_URL` | `~/.iworkflow/workspaces.db` (SQLite, migraciones automáticas) |
-| `IWF_WORKTREES_DIR` | `~/.iworkflow/worktrees` |
+| `IWF_HOME` | `~/.iworkflow`. Carpeta de datos; todo lo siguiente se deriva de ella y no se puede cambiar por separado: `workspaces.db` (SQLite, migraciones automáticas), `worktrees/`, `attachments/` (imágenes adjuntas a las tareas; se borran al terminar la tarea), `agents-files/` (biblioteca de `AGENTS.md`), `cursor-sessions/` (id de sesión ACP de cada tarea, para reanudarla), `models/` (modelo de voz del dictado; `make model` lo descarga), `tls/` y `logs/` |
 | `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
 | `IWF_PI_BIN` | `pi` (runtime `pi`, se lanza como `--mode rpc`) |
 | `IWF_CLAUDE_BIN` | `claude` (runtime `claude`: Claude Code con `-p` y protocolo stream-json; se elige en el selector de runtime del menú lateral; acepta ediciones de ficheros, pide confirmación para el resto y lee el `AGENTS.md` del proyecto) |
 | `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
-| `IWF_CURSOR_SESSIONS_DIR` | `cursor-sessions` junto a la base de datos (guarda el id de sesión ACP de cada tarea para reanudarla) |
-| `IWF_ATTACHMENTS_DIR` | `attachments` junto a la base de datos (imágenes adjuntas a las tareas; se borran al terminar la tarea) |
-| `IWF_ASR_MODEL_DIR` | `models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25` junto a la base de datos (modelo de voz del dictado; `make model` lo descarga) |
-| `IWF_AGENTS_FILES_DIR` | `agents-files` junto a la base de datos (biblioteca de `AGENTS.md`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
 | `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
 | `IWF_TLS` | sin definir (HTTP plano). `auto` sirve HTTPS con un certificado autofirmado que se crea en `tls/` junto a la base de datos y se reutiliza (ver [HTTPS](#https)) |
 | `IWF_TLS_PORT` | puerto HTTP + 443 (puerto del listener HTTPS cuando TLS está activo) |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | Ficheros PEM de tu propio certificado y clave; define los dos o ninguno. Mandan sobre `IWF_TLS=auto` |
 
-Los directorios por defecto de datos (`attachments`, `agents-files`, `cursor-sessions`) cuelgan de la carpeta de la base de datos: si cambias `IWF_DATABASE_URL`, se mueven con ella. En Windows el home se toma de `USERPROFILE` si falta `HOME`.
+Mover la carpeta de datos es un único ajuste: define `IWF_HOME` (en Windows el instalador lo pregunta y lo guarda como variable de entorno de usuario). Los datos existentes no se mueven solos; copia antes el antiguo `~/.iworkflow` allí.
 
 ### Dictado por voz
 
 El campo Prompt de los formularios de crear y editar tarea tiene un botón de micrófono. Grabas, escuchas la grabación y la confirmas; el servidor la transcribe con [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) y el modelo Qwen3-ASR 0.6B, y el texto se añade al prompt como un párrafo nuevo. El navegador necesita un origen seguro (HTTPS o `localhost`) para abrir el micrófono y las grabaciones se limitan a 60 segundos.
 
-1. `make model` descarga el modelo ya convertido (unos 840 MB) en `~/.iworkflow/models/` (o `IWF_ASR_MODEL_DIR`) y lo verifica con las sumas sha256 fijadas en `asr-model.sha256`.
+1. `make model` descarga el modelo ya convertido (unos 840 MB) en `$IWF_HOME/models/` (por defecto `~/.iworkflow/models/`) y lo verifica con las sumas sha256 fijadas en `asr-model.sha256`.
 2. El reconocedor es el único código cgo del proyecto, tras el build tag `sherpa`. `make build`, `make dev` y `make dist` lo activan (`GO_TAGS=sherpa`); `make build GO_TAGS=` genera un binario sin CGO donde el dictado responde "no disponible". `make dist` copia también las librerías compartidas de sherpa-onnx del sistema actual junto al binario (`lib/` en Linux y macOS, la misma carpeta en Windows). Solo se transcribe una grabación a la vez; una segunda petición recibe `429` y el usuario la reintenta.
 
 ### HTTPS
@@ -195,7 +190,7 @@ make run-https                 # como make run, por HTTPS (tras make dist)
 IWF_TLS=auto ./iworkflow       # cualquier otra forma de arrancarlo
 ```
 
-Con `IWF_TLS=auto` el servidor crea un certificado autofirmado la primera vez en `~/.iworkflow/tls/` (junto a la base de datos), válido para `localhost`, `127.0.0.1` y la IP de red de la máquina. Se reutiliza hasta que le quedan 30 días o cambia la IP, y entonces se recrea en el siguiente arranque. El navegador avisa de un certificado no fiable: acéptalo una vez por dispositivo. Para usar tu propio certificado, define `IWF_TLS_CERT` e `IWF_TLS_KEY`.
+Con `IWF_TLS=auto` el servidor crea un certificado autofirmado la primera vez en `~/.iworkflow/tls/` (en la carpeta de datos), válido para `localhost`, `127.0.0.1` y la IP de red de la máquina. Se reutiliza hasta que le quedan 30 días o cambia la IP, y entonces se recrea en el siguiente arranque. El navegador avisa de un certificado no fiable: acéptalo una vez por dispositivo. Para usar tu propio certificado, define `IWF_TLS_CERT` e `IWF_TLS_KEY`.
 
 Con TLS activo el servidor abre **dos listeners** con la misma aplicación: HTTP en el puerto habitual (la app de escritorio sigue usándolo) y HTTPS en el puerto HTTP más 443 (`9000` → `9443`; cámbialo con `IWF_TLS_PORT`, 1024–65535). **Ajustes → Acceso por red** muestra primero el enlace y el QR HTTPS, y el HTTP plano (sin micrófono) como opción plegada. `--addr` / `IWORKFLOW_ADDR` fijan solo la dirección HTTP; HTTPS usa el mismo host.
 

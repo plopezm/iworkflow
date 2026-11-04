@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"iworkflow/internal/core/config"
 	"iworkflow/internal/modules/transcription/application"
 	"iworkflow/internal/modules/transcription/infrastructure/adapters/outbound/sherpa"
 )
@@ -18,12 +19,9 @@ import (
 // modelDir is the Qwen3-ASR model the tests transcribe with; the test skips when `make model` has not run.
 func modelDir(t *testing.T) string {
 	t.Helper()
-	dir := os.Getenv("IWF_ASR_MODEL_DIR")
-	if dir == "" {
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-		dir = filepath.Join(home, ".iworkflow", "models", "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25")
-	}
+	data, err := config.DataDir(os.Getenv)
+	require.NoError(t, err)
+	dir := filepath.Join(data, "models", "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25")
 	if _, err := os.Stat(filepath.Join(dir, "decoder.int8.onnx")); err != nil {
 		t.Skipf("model not downloaded in %s (run `make model`)", dir)
 	}

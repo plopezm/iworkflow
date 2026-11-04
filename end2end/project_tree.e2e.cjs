@@ -142,7 +142,7 @@ function rowIn(section, filePath) {
 function worktreeRoots() {
   const tmpRoot = TMP || '';
   const candidates = [
-    process.env.IWF_WORKTREES_DIR,
+    process.env.IWF_HOME && path.join(process.env.IWF_HOME, 'worktrees'),
     process.env.SMOKE_WORKTREES,
     path.join(path.dirname(tmpRoot), 'worktrees'),
     path.join(tmpRoot, 'worktrees'),

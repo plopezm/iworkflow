@@ -21,7 +21,8 @@ GO_TAGS ?= sherpa
 GO_BUILD_TAGS := $(if $(strip $(GO_TAGS)),-tags $(GO_TAGS),)
 ASR_MODEL_NAME ?= sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25
 # Forward slashes only: on Windows HOME is C:\Users\x and the recipe shell would eat the backslashes.
-ASR_MODELS_DIR ?= $(subst \,/,$(HOME))/.iworkflow/models
+IWF_HOME ?= $(subst \,/,$(HOME))/.iworkflow
+ASR_MODELS_DIR ?= $(IWF_HOME)/models
 comma := ,
 # Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
 SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))

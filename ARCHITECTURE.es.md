@@ -676,7 +676,7 @@ Los casos de uso consultan las capacidades antes de actuar; los adaptadores, por
 **El adaptador Cursor** (`runtime/cursor/`). `CursorAcpRuntimeAdapter` lanza `agent acp` (binario `IWF_CURSOR_BIN`) sobre el mismo `ProcessRuntime`. `AcpProtocol` (`acp_protocol.rs`) es el códec: ACP (*Agent Client Protocol*) es JSON-RPC 2.0 por líneas y el códec es una máquina de estados por proceso.
 
 - Arranque: envía `initialize → authenticate → session/new` (o `session/load` al reanudar), retiene los prompts hasta tener sesión y modelo aplicado, y luego los envía de uno en uno.
-- Reanudar: ACP no sabe «continuar la última sesión de una carpeta» (`session/list` no responde), así que el id de sesión de cada tarea se guarda en `IWF_CURSOR_SESSIONS_DIR/<tarea>` y se reabre con `session/load`.
+- Reanudar: ACP no sabe «continuar la última sesión de una carpeta» (`session/list` no responde), así que el id de sesión de cada tarea se guarda en `$IWF_HOME/cursor-sessions/<tarea>` y se reabre con `session/load`.
 - Permisos: las herramientas de edición se aceptan sin preguntar (política `acceptEdits`); el resto genera un `DialogRequested`, mostrando antes el comando o fichero real que el título. `cursor/ask_question` genera un diálogo por pregunta.
 - Capacidades: `dialogs`, `resume` y `model_selection`; no declara `steer`, `follow_up`, `thinking_levels` ni `subagents`. Los modelos se piden al propio agente por ACP (`cursor_acp_model_catalog.rs`, cacheados; un fallo no se cachea).
 

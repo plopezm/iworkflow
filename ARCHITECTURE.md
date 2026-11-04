@@ -676,7 +676,7 @@ Use cases check capabilities before acting; adapters therefore do not need to du
 **The Cursor adapter** (`runtime/cursor/`). `CursorAcpRuntimeAdapter` launches `agent acp` (binary `IWF_CURSOR_BIN`) on the same `ProcessRuntime`. `AcpProtocol` (`acp_protocol.rs`) is the codec: ACP (*Agent Client Protocol*) is line-delimited JSON-RPC 2.0 and the codec is a per-process state machine.
 
 - Startup: it sends `initialize → authenticate → session/new` (or `session/load` when resuming), holds prompts until there is a session and the model is applied, and then sends them one at a time.
-- Resuming: ACP cannot "continue the last session of a folder" (`session/list` does not respond), so each task's session id is stored in `IWF_CURSOR_SESSIONS_DIR/<task>` and reopened with `session/load`.
+- Resuming: ACP cannot "continue the last session of a folder" (`session/list` does not respond), so each task's session id is stored in `$IWF_HOME/cursor-sessions/<task>` and reopened with `session/load`.
 - Permissions: edit tools are accepted without asking (`acceptEdits` policy); the rest produces a `DialogRequested`, showing the actual command or file before the title. `cursor/ask_question` produces one dialog per question.
 - Capabilities: `dialogs`, `resume` and `model_selection`; it does not declare `steer`, `follow_up`, `thinking_levels` or `subagents`. Models are requested from the agent itself over ACP (`cursor_acp_model_catalog.rs`, cached; a failure is not cached).
 

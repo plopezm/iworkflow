@@ -7,9 +7,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOpenLogOutputWritesTheConfiguredFile(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "x.log")
-	env := map[string]string{logFileVar: path}
+func TestOpenLogOutputWritesTheLogFileUnderIWFHome(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "logs", "iworkflow.log")
+	env := map[string]string{"IWF_HOME": dir}
 	out, closeLog, err := openLogOutput(func(k string) string { return env[k] })
 	require.NoError(t, err)
 	_, err = out.Write([]byte("hello\n"))

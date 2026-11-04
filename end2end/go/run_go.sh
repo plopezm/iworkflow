@@ -23,7 +23,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 WORK="$(mktemp -d)"
 RUN_DIR="${IWF_E2E_RUN_DIR:-/tmp/iwf-e2e-go-runs/$(date +%Y%m%d-%H%M%S)-$$}"
-WORKTREES_DIR="$WORK/worktrees"
+IWF_HOME_DIR="$WORK/iwf"
+WORKTREES_DIR="$IWF_HOME_DIR/worktrees"
 mkdir -p "$RUN_DIR"
 
 # Stops the servers, keeps the logs of this run in RUN_DIR, then removes the scratch dir. Logs are
@@ -71,8 +72,11 @@ fi
 go build -tags sherpa -o "$WORK/iworkflow" ./cmd/iworkflow
 
 # The Qwen3-ASR model lives in the real home (`make model`); the server runs with an isolated HOME, so it is passed by path.
-ASR_MODEL_DIR="${IWF_ASR_MODEL_DIR:-$HOME/.iworkflow/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25}"
+ASR_MODEL_DIR="${IWF_ASR_MODEL_DIR:-${IWF_HOME:-$HOME/.iworkflow}/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25}"
 [ -f "$ASR_MODEL_DIR/decoder.int8.onnx" ] || ASR_MODEL_DIR=""
+# The server finds the model under IWF_HOME/models; link the real one there.
+mkdir -p "$IWF_HOME_DIR/models"
+[ -z "$ASR_MODEL_DIR" ] || ln -s "$ASR_MODEL_DIR" "$IWF_HOME_DIR/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
 
 # Isolated home: gentle-pi config, pi agents and the database live under $WORK.
 mkdir -p "$WORK/home/.config/gentle-pi" "$WORK/tmp"
@@ -108,9 +112,7 @@ GITLAB_MOCK_PORT="$(free_port)"
   exec env -i PATH="$PATH" HOME="$WORK/home" TMPDIR="$WORK/tmp" \
     GIT_AUTHOR_NAME=smoke GIT_AUTHOR_EMAIL=smoke@localhost \
     GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
-    IWF_DATABASE_URL="$WORK/db.sqlite" \
-    IWF_ASR_MODEL_DIR="${ASR_MODEL_DIR:-$WORK/no-model}" \
-    IWF_WORKTREES_DIR="$WORKTREES_DIR" \
+    IWF_HOME="$IWF_HOME_DIR" \
     IWF_GENTLE_PI_CONFIG_HOME="$WORK/home/.config/gentle-pi" \
     IWF_PI_AGENTS_DIR="$WORK/home/.pi/agent/agents" \
     IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
@@ -140,7 +142,7 @@ done
 
 export SMOKE_BASE_URL="http://127.0.0.1:$PORT"
 export WORK_TMP_DIR="$WORK/tmp" SMOKE_TMP_DIR="$WORK/tmp" PROOF_REPO="$REPO"
-# Same directory the server writes task worktrees to (IWF_WORKTREES_DIR).
+# Same directory the server writes task worktrees to (IWF_HOME/worktrees).
 export SMOKE_WORKTREES="$WORKTREES_DIR"
 export JIRA_MOCK_URL="http://127.0.0.1:$JIRA_MOCK_PORT" JIRA_MOCK_PORT
 export GITLAB_MOCK_URL="http://127.0.0.1:$GITLAB_MOCK_PORT" GITLAB_MOCK_PORT
