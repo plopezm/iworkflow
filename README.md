@@ -35,9 +35,14 @@ iworkflow imposes no workflow: each agent uses the configuration and plugins you
 - [Jira integration (Server / Data Center)](#jira-integration-server--data-center)
 - [Agent profiles and models](#agent-profiles-and-models)
 - [Configuration](#configuration)
+  - [Logging](#logging)
+  - [Voice dictation](#voice-dictation)
+  - [HTTPS](#https)
   - [Agent runtimes](#agent-runtimes)
   - [Executable arguments](#executable-arguments)
+  - [Access from other devices](#access-from-other-devices)
 - [Production](#production)
+- [Desktop app (Electron)](#desktop-app-electron)
 - [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale)
 - [Development](#development)
 - [License](#license)
@@ -55,12 +60,12 @@ The server runs on your computer and the phone is only a browser, so you need a 
 
 ## Quick start
 
-Requirements: `git`, Go (1.23 or newer), `templ`, `tailwindcss` and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude` or `agent` for Cursor).
+Requirements: `git`, Go (the version in `go.mod`), `templ`, `tailwindcss` and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude` or `agent` for Cursor).
 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
 cd iworkflow
-make dev                    # http://127.0.0.1:9000
+make dev                    # http://127.0.0.1:3000
 ```
 
 1. **Workspaces** → register a folder with git (it needs at least one commit).
@@ -130,7 +135,7 @@ From each task you can create a merge request (GitLab) or pull request (GitHub),
 Notes:
 - Creating the MR/PR publishes the task branch to `origin` with `git push` if it is not there yet. The push goes to `<provider URL>/<project>.git` over HTTPS and authenticates with the token configured here (HTTP Basic, user `x-access-token` on GitHub and `oauth2` on GitLab), so it works even if `origin` is an SSH remote and needs no git credentials of your own. The token is handed to git through the process environment (never the command line), only for that instance, and any credential helper is ignored.
 - The target is the task's base branch **as named on the server**: a remote reference such as `origin/develop` is sent as `develop`. If that branch is not on `origin`, or it is the task's own branch, creation is rejected with an explicit message instead of the provider's raw error.
-- The token is stored in clear text in the local database (`~/.iworkflow/workspaces.db`) and is never sent to the browser. Leaving it empty when editing keeps the stored one, unless you change the URL: then it has to be entered again, so it is not sent to a different server.
+- The token is stored in clear text in the local database (`workspaces.db` in the data folder) and is never sent to the browser. Leaving it empty when editing keeps the stored one, unless you change the URL: then it has to be entered again, so it is not sent to a different server.
 - HTTP redirects are disabled so the token does not leak to another host.
 
 ## Jira integration (Server / Data Center)
@@ -174,6 +179,18 @@ Environment variables (`.env` is supported, see `.env.example`):
 
 Moving the data folder is a single setting: set `IWF_HOME` (on Windows the installer asks for it and stores it as a user environment variable). Existing data is not moved automatically; copy the old `~/.iworkflow` there first. On Windows the home directory is taken from `USERPROFILE` when `HOME` is missing.
 
+### Logging
+
+The server writes to stderr and, at the same time, to `$IWF_HOME/logs/iworkflow.log` (default `~/.iworkflow/logs/iworkflow.log`). The file location is fixed; these variables tune it:
+
+| Variable | Default | Effect |
+|---|---|---|
+| `IWF_LOG_LEVEL` | `info` | `debug` also logs every HTTP request and extra detail; any other value keeps `info`. |
+| `IWF_LOG_MAX_MB` | `10` | Size in MB at which the log file is rotated. A value below 1 or not a number falls back to the default. |
+| `IWF_LOG_BACKUPS` | `5` | Rotated files kept, gzip-compressed; older ones are deleted. Same fallback as above. |
+
+The startup line with the access link contains the token, so treat the log as sensitive.
+
 ### Voice dictation
 
 The prompt field of the create and edit task forms has a microphone button. Record, listen to the recording, confirm it and the server transcribes it with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and the Qwen3-ASR 0.6B model; the text is appended to the prompt as a new paragraph. The browser needs a secure origin (HTTPS or `localhost`) to open the microphone, and recordings are limited to 60 seconds.
@@ -191,7 +208,7 @@ make run-https                 # like make run, over HTTPS (after make dist)
 IWF_TLS=auto ./iworkflow       # any other way to start it
 ```
 
-With `IWF_TLS=auto` the server creates a self-signed certificate on first use in `~/.iworkflow/tls/` (in the data folder), valid for `localhost`, `127.0.0.1` and the machine's network IP. It is reused until it nears expiry (30 days) or the IP changes, and then recreated at the next start. The browser warns about an untrusted certificate: accept it once per device. To use your own certificate, set `IWF_TLS_CERT` and `IWF_TLS_KEY`.
+With `IWF_TLS=auto` the server creates a self-signed certificate on first use in `$IWF_HOME/tls/`, valid for `localhost`, `127.0.0.1` and the machine's network IP. It is reused until it nears expiry (30 days) or the IP changes, and then recreated at the next start. The browser warns about an untrusted certificate: accept it once per device. To use your own certificate, set `IWF_TLS_CERT` and `IWF_TLS_KEY`.
 
 With TLS on the server opens **two listeners** with the same app: HTTP on the usual port (the desktop app keeps using it) and HTTPS on the HTTP port plus 443 (`9000` → `9443`; override with `IWF_TLS_PORT`, 1024–65535). **Settings → Network access** shows the HTTPS link and QR code first, and plain HTTP (no microphone) as a collapsed option. `--addr` / `IWORKFLOW_ADDR` set the HTTP address only; HTTPS uses the same host.
 
@@ -314,7 +331,7 @@ chmod +x dist/electron/iworkflow-*.AppImage
 ./dist/electron/iworkflow-*.AppImage          # add --appimage-extract-and-run if FUSE is missing
 ```
 
-On macOS open the `.dmg` and drag **iworkflow** to Applications. On Windows run the installer and start **iworkflow** from the Start menu.
+On macOS open the `.dmg` and drag **iworkflow** to Applications. On Windows run the installer and start **iworkflow** from the Start menu. The installer has a page to choose the data folder: if it is not the default `%USERPROFILE%\.iworkflow`, it is stored as the `IWF_HOME` user environment variable (the app also reads it from the registry, so it applies from the first launch). Silent installs and updates leave an existing `IWF_HOME` untouched.
 
 ### Using it from your phone
 
@@ -328,7 +345,7 @@ You can also pin the address before launching, e.g. `IWORKFLOW_ADDR=0.0.0.0:9000
 
 ### Behaviour
 
-- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same database (`~/.iworkflow/workspaces.db`), same `IWORKFLOW_ADDR`, same access token. The window signs itself in when a token is required.
+- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same data folder (`IWF_HOME`) and database, same `IWORKFLOW_ADDR`, same access token. The window signs itself in when a token is required.
 - The server listens on `127.0.0.1:9000` by default; change the port in **Settings → Network access**. The app reads the address the server announces at startup, so it follows the saved port. If the port is busy the app shows an error; free it or choose another one.
 - **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On macOS the icon lives in the menu bar and clicking the Dock icon shows the window again (**iworkflow → Quit** or Cmd+Q stops the server). On a Linux desktop without tray support, closing the window quits the app.
 - External links open in the system browser; the window itself only shows the local server.
@@ -405,7 +422,7 @@ Copyright 2026 Pablo López (plopezm). Licensed under the [PolyForm Shield Licen
 
 You may use, modify and distribute iworkflow freely, including inside companies and for commercial work, but you may not use it to provide a product that competes with it (for example, reselling it or offering it as a hosted service). This is a source-available license, not an OSI-approved open-source one.
 
-Bundled third-party assets keep their own licenses: xterm.js (MIT) and highlight.js (BSD-3-Clause) in `public/vendor/`, and the Instrument Serif and Martian Mono fonts (SIL OFL 1.1) in `public/fonts/`. All Rust dependencies use permissive licenses (MIT, Apache-2.0, BSD, Zlib, Unicode…).
+Bundled third-party assets keep their own licenses: xterm.js (MIT) and highlight.js (BSD-3-Clause) in `public/vendor/`, and the Instrument Serif and Martian Mono fonts (SIL OFL 1.1) in `public/fonts/`. Go dependencies are declared in `go.mod`; see [NOTICE](NOTICE) for attributions.
 
 ## Support the project
 

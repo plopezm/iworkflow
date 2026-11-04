@@ -91,7 +91,7 @@ dev: generate
 	go run $(GO_BUILD_TAGS) ./cmd/iworkflow $(ARGS)
 
 # Same as dev over HTTPS, which browsers need to expose the microphone of the voice dictation to other devices. The server
-# creates a self-signed certificate in ~/.iworkflow/tls on first use and reuses it; browsers ask to accept it once.
+# creates a self-signed certificate in $IWF_HOME/tls on first use and reuses it; browsers ask to accept it once.
 dev-https: generate
 	IWF_TLS=auto go run $(GO_BUILD_TAGS) ./cmd/iworkflow $(ARGS)
 

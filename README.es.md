@@ -35,9 +35,14 @@ iworkflow no impone ningún flujo: cada agente usa la configuración y los plugi
 - [Integración con Jira (Server / Data Center)](#integración-con-jira-server--data-center)
 - [Perfiles y modelos de agentes](#perfiles-y-modelos-de-agentes)
 - [Configuración](#configuración)
+  - [Logs](#logs)
+  - [Dictado por voz](#dictado-por-voz)
+  - [HTTPS](#https)
   - [Runtimes de agente](#runtimes-de-agente)
   - [Argumentos del ejecutable](#argumentos-del-ejecutable)
+  - [Acceso desde otros dispositivos](#acceso-desde-otros-dispositivos)
 - [Producción](#producción)
+- [Aplicación de escritorio (Electron)](#aplicación-de-escritorio-electron)
 - [Desarrollar desde el móvil con Tailscale](#desarrollar-desde-el-móvil-con-tailscale)
 - [Desarrollo](#desarrollo)
 - [Licencia](#licencia)
@@ -55,12 +60,12 @@ El servidor corre en tu ordenador y el móvil es solo un navegador, así que nec
 
 ## Arranque rápido
 
-Requisitos: `git`, Go (1.23 o superior), `templ`, `tailwindcss` y al menos un CLI de agente instalado y con sesión iniciada (`gentle-shell`, `pi`, `claude` o `agent` para Cursor).
+Requisitos: `git`, Go (la versión de `go.mod`), `templ`, `tailwindcss` y al menos un CLI de agente instalado y con sesión iniciada (`gentle-shell`, `pi`, `claude` o `agent` para Cursor).
 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
 cd iworkflow
-make dev                    # http://127.0.0.1:9000
+make dev                    # http://127.0.0.1:3000
 ```
 
 1. **Workspaces** → registra una carpeta con git (necesita al menos un commit).
@@ -129,7 +134,7 @@ Desde cada tarea puedes crear un merge request (GitLab) o pull request (GitHub),
 
 Notas:
 - La app **nunca hace `git push`**: publica tú la rama antes de crear el MR; si no está en `origin`, se te avisa.
-- El token se guarda en claro en la base de datos local (`~/.iworkflow/workspaces.db`) y nunca se envía al navegador. Dejarlo vacío al editar conserva el guardado, salvo que cambies la URL: entonces hay que volver a introducirlo, para no enviarlo a otro servidor.
+- El token se guarda en claro en la base de datos local (`workspaces.db` en la carpeta de datos) y nunca se envía al navegador. Dejarlo vacío al editar conserva el guardado, salvo que cambies la URL: entonces hay que volver a introducirlo, para no enviarlo a otro servidor.
 - Las redirecciones HTTP están desactivadas para no filtrar el token a otro host.
 
 ## Integración con Jira (Server / Data Center)
@@ -173,6 +178,18 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 
 Mover la carpeta de datos es un único ajuste: define `IWF_HOME` (en Windows el instalador lo pregunta y lo guarda como variable de entorno de usuario). Los datos existentes no se mueven solos; copia antes el antiguo `~/.iworkflow` allí.
 
+### Logs
+
+El servidor escribe en stderr y, a la vez, en `$IWF_HOME/logs/iworkflow.log` (por defecto `~/.iworkflow/logs/iworkflow.log`). La ubicación del fichero es fija; estas variables lo ajustan:
+
+| Variable | Por defecto | Efecto |
+|---|---|---|
+| `IWF_LOG_LEVEL` | `info` | `debug` registra también cada petición HTTP y más detalle; cualquier otro valor deja `info`. |
+| `IWF_LOG_MAX_MB` | `10` | Tamaño en MB a partir del cual se rota el fichero. Un valor menor que 1 o no numérico vuelve al valor por defecto. |
+| `IWF_LOG_BACKUPS` | `5` | Ficheros rotados que se conservan, comprimidos con gzip; los más antiguos se borran. Misma regla de valores. |
+
+La línea de arranque con el enlace de acceso contiene el token: trata el log como sensible.
+
 ### Dictado por voz
 
 El campo Prompt de los formularios de crear y editar tarea tiene un botón de micrófono. Grabas, escuchas la grabación y la confirmas; el servidor la transcribe con [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) y el modelo Qwen3-ASR 0.6B, y el texto se añade al prompt como un párrafo nuevo. El navegador necesita un origen seguro (HTTPS o `localhost`) para abrir el micrófono y las grabaciones se limitan a 60 segundos.
@@ -190,7 +207,7 @@ make run-https                 # como make run, por HTTPS (tras make dist)
 IWF_TLS=auto ./iworkflow       # cualquier otra forma de arrancarlo
 ```
 
-Con `IWF_TLS=auto` el servidor crea un certificado autofirmado la primera vez en `~/.iworkflow/tls/` (en la carpeta de datos), válido para `localhost`, `127.0.0.1` y la IP de red de la máquina. Se reutiliza hasta que le quedan 30 días o cambia la IP, y entonces se recrea en el siguiente arranque. El navegador avisa de un certificado no fiable: acéptalo una vez por dispositivo. Para usar tu propio certificado, define `IWF_TLS_CERT` e `IWF_TLS_KEY`.
+Con `IWF_TLS=auto` el servidor crea un certificado autofirmado la primera vez en `$IWF_HOME/tls/`, válido para `localhost`, `127.0.0.1` y la IP de red de la máquina. Se reutiliza hasta que le quedan 30 días o cambia la IP, y entonces se recrea en el siguiente arranque. El navegador avisa de un certificado no fiable: acéptalo una vez por dispositivo. Para usar tu propio certificado, define `IWF_TLS_CERT` e `IWF_TLS_KEY`.
 
 Con TLS activo el servidor abre **dos listeners** con la misma aplicación: HTTP en el puerto habitual (la app de escritorio sigue usándolo) y HTTPS en el puerto HTTP más 443 (`9000` → `9443`; cámbialo con `IWF_TLS_PORT`, 1024–65535). **Ajustes → Acceso por red** muestra primero el enlace y el QR HTTPS, y el HTTP plano (sin micrófono) como opción plegada. `--addr` / `IWORKFLOW_ADDR` fijan solo la dirección HTTP; HTTPS usa el mismo host.
 
@@ -313,7 +330,7 @@ chmod +x dist/electron/iworkflow-*.AppImage
 ./dist/electron/iworkflow-*.AppImage          # añade --appimage-extract-and-run si falta FUSE
 ```
 
-En macOS abre el `.dmg` y arrastra **iworkflow** a Aplicaciones. En Windows ejecuta el instalador y abre **iworkflow** desde el menú Inicio.
+En macOS abre el `.dmg` y arrastra **iworkflow** a Aplicaciones. En Windows ejecuta el instalador y abre **iworkflow** desde el menú Inicio. El instalador tiene una página para elegir la carpeta de datos: si no es la de por defecto `%USERPROFILE%\.iworkflow`, se guarda como variable de entorno de usuario `IWF_HOME` (la app también la lee del registro, así que se aplica desde el primer arranque). Las instalaciones silenciosas y las actualizaciones no tocan un `IWF_HOME` existente.
 
 ### Usarlo desde el móvil
 
@@ -327,7 +344,7 @@ También puedes fijar la dirección antes de lanzar, p. ej. `IWORKFLOW_ADDR=0.0.
 
 ### Comportamiento
 
-- La app arranca el servidor incluido (`--no-open`) y lo muestra en una ventana. El servidor no cambia: misma base de datos (`~/.iworkflow/workspaces.db`), mismo `IWORKFLOW_ADDR`, mismo token de acceso. La ventana entra sola cuando se exige token.
+- La app arranca el servidor incluido (`--no-open`) y lo muestra en una ventana. El servidor no cambia: misma carpeta de datos (`IWF_HOME`) y base de datos, mismo `IWORKFLOW_ADDR`, mismo token de acceso. La ventana entra sola cuando se exige token.
 - Por defecto el servidor escucha en `127.0.0.1:9000`; cambia el puerto en **Configuración → Acceso desde la red**. La app lee la dirección que el servidor anuncia al arrancar, así que sigue al puerto guardado. Si el puerto está ocupado la app muestra un error; libéralo o elige otro.
 - **Cerrar la ventana solo la oculta**, así que un móvil conectado por la red local o Tailscale sigue funcionando. Para detener el servidor usa el icono de la bandeja (**Quit and stop server**) o **File → Quit**. En macOS el icono está en la barra de menús y pulsar el icono del Dock vuelve a mostrar la ventana (**iworkflow → Quit** o Cmd+Q detiene el servidor). En un escritorio Linux sin bandeja, cerrar la ventana cierra la app.
 - Los enlaces externos se abren en el navegador del sistema; la ventana solo muestra el servidor local.
@@ -402,7 +419,7 @@ Copyright 2026 Pablo López (plopezm). Distribuido bajo la [licencia PolyForm Sh
 
 Puedes usar, modificar y distribuir iworkflow libremente, también dentro de empresas y para trabajo comercial, pero no usarlo para ofrecer un producto que compita con él (por ejemplo, revenderlo u ofrecerlo como servicio alojado). Es una licencia *source-available*, no una licencia open source aprobada por la OSI.
 
-Los recursos de terceros incluidos mantienen su propia licencia: xterm.js (MIT) y highlight.js (BSD-3-Clause) en `public/vendor/`, y las fuentes Instrument Serif y Martian Mono (SIL OFL 1.1) en `public/fonts/`. Todas las dependencias de Rust usan licencias permisivas (MIT, Apache-2.0, BSD, Zlib, Unicode…).
+Los recursos de terceros incluidos mantienen su propia licencia: xterm.js (MIT) y highlight.js (BSD-3-Clause) en `public/vendor/`, y las fuentes Instrument Serif y Martian Mono (SIL OFL 1.1) en `public/fonts/`. Las dependencias de Go se declaran en `go.mod`; las atribuciones están en [NOTICE](NOTICE).
 
 ## Apoya el proyecto
 
