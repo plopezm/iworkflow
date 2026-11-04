@@ -261,7 +261,7 @@ func ComposerBody(view state.ComposerView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<span class=\"composer-grip\" data-composer-grip aria-hidden=\"true\"></span></div><div class=\"flex shrink-0 items-center gap-1.5\"><button type=\"button\" class=\"btn-secondary composer-action\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<span class=\"composer-grip\" data-composer-grip aria-hidden=\"true\"></span></div><div class=\"flex shrink-0 flex-col items-stretch gap-1.5\"><button type=\"button\" class=\"btn-secondary composer-action\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
