@@ -40,10 +40,8 @@ const (
 	shutdownTimeout        = 10 * time.Second
 	exitUsage              = 2
 	logLevelVar     string = "IWF_LOG_LEVEL"
-	logFileVar      string = "IWF_LOG_FILE"
 	logMaxMBVar     string = "IWF_LOG_MAX_MB"
 	logBackupsVar   string = "IWF_LOG_BACKUPS"
-	logFileOff      string = "off"
 	defaultLogMaxMB        = 10
 	defaultBackups         = 5
 )
@@ -74,14 +72,11 @@ func main() {
 }
 
 // openLogOutput returns stderr teed into a size-rotated, gzip-compressed log file. The file is
-// <data folder>/logs/iworkflow.log (IWF_HOME, default ~/.iworkflow; IWF_LOG_FILE=off disables it), rotates past
+// <data folder>/logs/iworkflow.log (IWF_HOME, default ~/.iworkflow), rotates past
 // IWF_LOG_MAX_MB megabytes and keeps IWF_LOG_BACKUPS compressed backups. When the file cannot be
 // opened it returns stderr, the close function and the error.
 func openLogOutput(getenv func(string) string) (io.Writer, func(), error) {
 	noop := func() {}
-	if strings.TrimSpace(getenv(logFileVar)) == logFileOff {
-		return os.Stderr, noop, nil
-	}
 	dataDir, err := config.DataDir(getenv)
 	if err != nil {
 		return os.Stderr, noop, nil // no data folder known: stderr only

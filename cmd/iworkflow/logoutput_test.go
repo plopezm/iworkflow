@@ -19,11 +19,15 @@ func TestOpenLogOutputWritesTheLogFileUnderIWFHome(t *testing.T) {
 	require.FileExists(t, path)
 }
 
-func TestOpenLogOutputCanBeDisabled(t *testing.T) {
-	out, closeLog, err := openLogOutput(func(k string) string { return map[string]string{logFileVar: "off"}[k] })
+func TestOpenLogOutputIgnoresTheRetiredLogFileVariable(t *testing.T) {
+	dir := t.TempDir()
+	elsewhere := filepath.Join(t.TempDir(), "other.log")
+	env := map[string]string{"IWF_HOME": dir, "IWF_LOG_FILE": elsewhere}
+	_, closeLog, err := openLogOutput(func(k string) string { return env[k] })
 	require.NoError(t, err)
 	closeLog()
-	require.NotNil(t, out)
+	require.FileExists(t, filepath.Join(dir, "logs", "iworkflow.log"))
+	require.NoFileExists(t, elsewhere)
 }
 
 func TestPositiveIntFallsBack(t *testing.T) {
