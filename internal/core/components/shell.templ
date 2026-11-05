@@ -171,7 +171,9 @@ templ TabBar(tabs []TabItem, active string) {
 				role="tab"
 				class={ tabClass(tab.ID == active) }
 				aria-selected={ ariaBool(tab.ID == active) }
-				{ tab.Attrs... }
+				if tab.ID != active {
+					{ tab.Attrs... }
+				}
 			>{ tab.Label }</button>
 		}
 	</div>
