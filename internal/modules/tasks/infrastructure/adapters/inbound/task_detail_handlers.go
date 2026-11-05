@@ -35,6 +35,21 @@ type TaskMerger interface {
 	Execute(ctx context.Context, id models.TaskID) (models.MergeOutcome, error)
 }
 
+// RelatedProjectsSetter replaces the related projects of a task. *application.SetTaskRelatedProjects satisfies it.
+type RelatedProjectsSetter interface {
+	Execute(ctx context.Context, id models.TaskID, workspaceIDs []string) (application.SetRelatedProjectsResult, error)
+}
+
+// RelatedProjectsLister lists the workspaces a task relates to. *application.ListTaskRelatedProjects satisfies it.
+type RelatedProjectsLister interface {
+	Execute(ctx context.Context, id models.TaskID) ([]models.WorkspaceRef, error)
+}
+
+// WorkspaceLister lists every workspace. outbound.WorkspaceLookup satisfies it.
+type WorkspaceLister interface {
+	List(ctx context.Context) ([]models.WorkspaceRef, error)
+}
+
 // DetailUseCases are what the detail page reads and changes. Panels are the project views of the Files and Changes
 // tabs; the composition root injects them.
 type DetailUseCases struct {
@@ -52,6 +67,11 @@ type DetailUseCases struct {
 	Delete          *application.DeleteTask
 	Merge           TaskMerger
 	Subagents       SubagentsReader
+	// SetRelatedProjects, ListRelatedProjects and Workspaces drive the related projects section of the actions tab;
+	// without any of them the section is not shown.
+	SetRelatedProjects  RelatedProjectsSetter
+	ListRelatedProjects RelatedProjectsLister
+	Workspaces          WorkspaceLister
 }
 
 // DetailHandlers serves the detail tab of a task and its actions.
@@ -88,6 +108,7 @@ func (h *DetailHandlers) Tabs() []dock.Route {
 // again each time the task stream reports an event.
 func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/start", h.startTask)
+	r.Post("/tasks/{id}/related-projects", h.setRelatedProjects)
 	r.Post("/tasks/{id}/abort", h.abortTask)
 	r.Post("/tasks/{id}/resume", h.resumeTask)
 	r.Post("/tasks/{id}/finish", h.finishTask)
@@ -142,6 +163,7 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 	} else {
 		view.Transcript = transcript
 	}
+	view.RelatedProjects = h.relatedChoices(ctx, task)
 	stored, err := h.uc.ListAttachments.Execute(ctx, task.ID)
 	if err != nil {
 		view.AttachmentsError = err.Error()
@@ -293,4 +315,48 @@ func (h *DetailHandlers) renderPage(w http.ResponseWriter, r *http.Request, scop
 		return
 	}
 	web.Render(w, r, http.StatusOK, h.detailPage(r.Context(), scope, task, notice))
+}
+
+// relatedChoices are the rows of the related projects chooser of a task. A closed task, a page without the use cases
+// and a list that cannot be read give none, and the section stays hidden: the rest of the page still renders.
+func (h *DetailHandlers) relatedChoices(ctx context.Context, task models.Task) []state.RelatedProjectChoice {
+	if h.uc.ListRelatedProjects == nil || h.uc.Workspaces == nil || task.Status.IsClosed() {
+		return nil
+	}
+	refs, err := h.uc.Workspaces.List(ctx)
+	if err != nil {
+		web.LogError(ctx, "could not list the workspaces for the related projects", err)
+		return nil
+	}
+	related, err := h.uc.ListRelatedProjects.Execute(ctx, task.ID)
+	if err != nil {
+		web.LogError(ctx, "could not list the related projects of the task", err)
+		return nil
+	}
+	options := make([]dto.WorkspaceOptionDTO, 0, len(refs))
+	for _, ref := range refs {
+		options = append(options, dto.WorkspaceOptionDTO{ID: ref.ID, Name: ref.Name, Path: ref.Path, BaseBranch: ref.BaseBranch})
+	}
+	return state.RelatedProjectChoices(options, task.WorkspaceID, workspaceIDs(related))
+}
+
+// setRelatedProjects stores the related projects the form checks and answers the page. An empty form clears them. A
+// refusal is shown in the notice of the page, which keeps the stored list.
+func (h *DetailHandlers) setRelatedProjects(w http.ResponseWriter, r *http.Request) {
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
+	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		return
+	}
+	if h.uc.SetRelatedProjects == nil {
+		web.Render(w, r, http.StatusNotFound, shared.ErrorText("related projects are not available"))
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		h.renderPage(w, r, scope, id, err.Error())
+		return
+	}
+	_, runErr := h.uc.SetRelatedProjects.Execute(r.Context(), id, r.PostForm["related_project_id"])
+	h.renderPage(w, r, scope, id, errorText(runErr))
 }

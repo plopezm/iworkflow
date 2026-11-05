@@ -21,6 +21,9 @@ type TaskDetailView struct {
 	// Transcript is the conversation of the task; TranscriptError says why the history could not be read.
 	Transcript      Transcript
 	TranscriptError string
+	// RelatedProjects are the projects the task may relate to, with the stored ones marked. It is empty when the task is
+	// closed, when no other project exists or when the list could not be read: the section is then not shown.
+	RelatedProjects []RelatedProjectChoice
 }
 
 // branchMaxChars is the longest branch the header shows; a longer one is cut in the middle.

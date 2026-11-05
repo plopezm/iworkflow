@@ -229,6 +229,12 @@ func (n NewTask) Validated() (NewTask, error) {
 	}, nil
 }
 
+// NormalizeRelatedProjects is the validation of the related projects of a task outside its creation: it trims the
+// ids, drops the blank ones and the task's own workspace, rejects anything that is not a UUID and removes duplicates.
+func NormalizeRelatedProjects(ownWorkspaceID string, workspaceIDs []string) ([]string, error) {
+	return validateRelatedProjects(ownWorkspaceID, workspaceIDs)
+}
+
 // validateRelatedProjects trims the workspace ids, drops the blank ones and the task's own workspace, rejects
 // anything that is not a UUID and removes duplicates, keeping the order of the first occurrence.
 func validateRelatedProjects(ownWorkspaceID string, workspaceIDs []string) ([]string, error) {

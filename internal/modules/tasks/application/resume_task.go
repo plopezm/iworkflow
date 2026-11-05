@@ -64,20 +64,10 @@ func (u *ResumeTask) Execute(ctx context.Context, id models.TaskID) error {
 	if !task.Status.CanResume() {
 		return invalidState("reanudar", task.Status)
 	}
-	if !u.worktrees.Exists(ctx, task.WorktreePath) {
-		return werrors.WorktreeMissing(task.WorktreePath)
-	}
-	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, task.Agent)
+	options, err := prepareResume(ctx, u.worktrees, u.runtime, u.launchSettings, u.related, task)
 	if err != nil {
 		return err
 	}
-	capabilities := u.runtime.RuntimeCapabilities(prepared.Runtime)
-	if !capabilities.Resume {
-		return werrors.Unsupported("el agente no permite reanudar la sesión anterior")
-	}
-	options := prepared.WithTaskLimits(task.Limits).RestrictedTo(capabilities)
-	// The prompt is not sent again on resume: the section about the related projects is only given on start.
-	options.AddDirs = u.related.Execute(ctx, id).AddDirs
 	if err := u.runtime.Start(ctx, id, task.WorktreePath, true, options, u.sink); err != nil {
 		return err
 	}
@@ -100,4 +90,25 @@ func (u *ResumeTask) end(id models.TaskID) {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	delete(u.inFlight, id)
+}
+
+// prepareResume checks that a task can resume its agent and returns the launch options of the resumed agent: its
+// worktree exists, the runtime continues sessions, and the related folders the agent may read now are included.
+// It starts nothing, so a caller can still back out before it stops a running agent.
+func prepareResume(ctx context.Context, worktrees outbound.Worktree, runtime outbound.AgentRuntime, launchSettings outbound.LaunchSettings, related *PrepareRelatedLaunch, task models.Task) (models.LaunchOptions, error) {
+	if !worktrees.Exists(ctx, task.WorktreePath) {
+		return models.LaunchOptions{}, werrors.WorktreeMissing(task.WorktreePath)
+	}
+	prepared, err := launchSettings.Prepare(ctx, task.WorktreePath, task.Agent)
+	if err != nil {
+		return models.LaunchOptions{}, err
+	}
+	capabilities := runtime.RuntimeCapabilities(prepared.Runtime)
+	if !capabilities.Resume {
+		return models.LaunchOptions{}, werrors.Unsupported("el agente no permite reanudar la sesión anterior")
+	}
+	options := prepared.WithTaskLimits(task.Limits).RestrictedTo(capabilities)
+	// The prompt is not sent again on resume: the section about the related projects is only given on start.
+	options.AddDirs = related.Execute(ctx, task.ID).AddDirs
+	return options, nil
 }

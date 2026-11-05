@@ -40,6 +40,12 @@ templ BranchSelect(id string, choices []state.BranchChoice, value string, defaul
 // belongs to (web/static/js/task_form.js, which also filters the rows and keeps the summary). It renders nothing when
 // there is no other workspace.
 templ RelatedProjectsField(projects []state.RelatedProjectChoice) {
+	@relatedProjectsField(projects, false)
+}
+
+// relatedProjectsField is the field itself. With submit set, its Done button submits the form around it instead of
+// only closing the dialog, so a form that saves on its own (the actions tab of a running task) sends the choice.
+templ relatedProjectsField(projects []state.RelatedProjectChoice, submit bool) {
 	if len(projects) > 0 {
 		<div class="stack gap-2" data-related-projects>
 			<span class="text-sm font-medium text-fg">{ msgRelatedProjects.T(ctx) }</span>
@@ -66,7 +72,11 @@ templ RelatedProjectsField(projects []state.RelatedProjectChoice) {
 					<p class="text-sm text-muted" data-related-empty hidden>{ msgNoProjects.T(ctx) }</p>
 				</div>
 				<div class="row justify-end">
-					<button type="button" class="btn-primary" data-modal-close>{ msgDone.T(ctx) }</button>
+					if submit {
+						<button type="submit" class="btn-primary" hx-disabled-elt="this">{ msgDone.T(ctx) }</button>
+					} else {
+						<button type="button" class="btn-primary" data-modal-close>{ msgDone.T(ctx) }</button>
+					}
 				</div>
 			}
 		</div>

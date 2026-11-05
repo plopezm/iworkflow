@@ -36,6 +36,7 @@ templ TaskActions(view state.TaskDetailView) {
 			</button>
 		</div>
 		<div id={ state.Scoped("task-subagents", view.Scope) }></div>
+		@TaskRelatedProjects(view)
 		if view.Task.Actions.CanMerge || view.Task.Actions.CanViewDiff {
 			<span class="eyebrow">{ msgSectionReview.T(ctx) }</span>
 			<div class="row gap-2">
@@ -104,5 +105,21 @@ templ taskAction(view state.TaskDetailView, action string, label string, class s
 			hx-confirm={ confirm }
 			hx-disabled-elt="this"
 		>{ label }</button>
+	}
+}
+
+// TaskRelatedProjects is the related projects section of the actions tab: the same chooser as the task forms, in a form
+// of its own that saves the choice into the task and answers the page. A live agent is told about the projects added,
+// and the @ completion of the message box offers their files. It renders nothing when there is no other project.
+templ TaskRelatedProjects(view state.TaskDetailView) {
+	if len(view.RelatedProjects) > 0 {
+		<form
+			hx-post={ state.ScopedPath(state.TaskPath(view.Task.ID)+"/related-projects", view.Scope) }
+			hx-target={ "#" + state.Scoped("task-detail", view.Scope) }
+			hx-swap="outerHTML"
+			data-task-related-projects
+		>
+			@relatedProjectsField(view.RelatedProjects, true)
+		</form>
 	}
 }

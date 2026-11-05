@@ -57,6 +57,10 @@ type resumeRuntime struct {
 	started []startCall
 	sent    []sentCommand
 	stopped []models.TaskID
+	// calls logs the stop, flush, start and send steps in order; the restart tests check that order.
+	calls []string
+	// exitTo, when set, receives the ProcessExited of an agent when it is stopped, as the real runtime reports it.
+	exitTo inbound.AgentEventSink
 }
 
 func newResumeRuntime() *resumeRuntime {
@@ -67,25 +71,40 @@ func newResumeRuntime() *resumeRuntime {
 	}
 }
 
+// note appends a step to the call log.
+func (r *resumeRuntime) note(step string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, step)
+}
+
 func (r *resumeRuntime) IsRunning(_ context.Context, id models.TaskID) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.running[id]
 }
 
-func (r *resumeRuntime) Stop(_ context.Context, id models.TaskID) error {
+func (r *resumeRuntime) Stop(ctx context.Context, id models.TaskID) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.stopped = append(r.stopped, id)
+	r.calls = append(r.calls, "stop")
+	exitTo := r.exitTo
 	if r.stopErr != nil {
+		r.mu.Unlock()
 		return r.stopErr
 	}
 	delete(r.running, id)
+	r.mu.Unlock()
+	// As the real runtime does, the exit of the stopped process reaches the sink before Stop returns.
+	if exitTo != nil {
+		exitTo.Handle(ctx, id, models.ProcessExited{})
+	}
 	return nil
 }
 
 func (r *resumeRuntime) Start(_ context.Context, id models.TaskID, cwd string, resume bool, options models.LaunchOptions, sink inbound.AgentEventSink) error {
 	r.mu.Lock()
+	r.calls = append(r.calls, "start")
 	r.started = append(r.started, startCall{id: id, cwd: cwd, resume: resume, options: options, sink: sink})
 	entered := r.startEntered
 	gate := r.startGate
@@ -110,6 +129,7 @@ func (r *resumeRuntime) Send(_ context.Context, id models.TaskID, command models
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.sent = append(r.sent, sentCommand{id: id, command: command})
+	r.calls = append(r.calls, "send")
 	return r.sendErr
 }
 

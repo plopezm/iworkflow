@@ -17,6 +17,10 @@ import (
 type HandleAgentEvent struct {
 	lifecycle *TaskLifecycle
 	clock     Clock
+	// guard marks the agents being stopped on purpose, whose exit is dropped. Optional: nil drops nothing.
+	guard *RestartGuard
+	// onIdle is told when a task becomes idle. Optional. It runs on the event worker, so it must not block.
+	onIdle func(models.TaskID)
 }
 
 // NewHandleAgentEvent builds the use case.
@@ -24,9 +28,23 @@ func NewHandleAgentEvent(lifecycle *TaskLifecycle, clock Clock) *HandleAgentEven
 	return &HandleAgentEvent{lifecycle: lifecycle, clock: clock}
 }
 
+// SetRestartGuard makes the use case drop the exit of the agents the guard marks, because they are restarted on purpose.
+func (u *HandleAgentEvent) SetRestartGuard(guard *RestartGuard) {
+	u.guard = guard
+}
+
+// SetIdleHook sets the function told each time a task becomes idle after an event.
+func (u *HandleAgentEvent) SetIdleHook(hook func(models.TaskID)) {
+	u.onIdle = hook
+}
+
 // Execute records the event and applies the changes it provokes. Non-persistent events are published
-// without loading the task.
+// without loading the task. The exit of an agent that is being restarted on purpose is dropped entirely: it is
+// neither recorded nor published, and the task keeps its status.
 func (u *HandleAgentEvent) Execute(ctx context.Context, id models.TaskID, event models.AgentEvent) error {
+	if _, exited := event.(models.ProcessExited); exited && u.guard.Active(id) {
+		return nil
+	}
 	var task *models.Task
 	if event.IsPersistent() {
 		loaded, err := u.lifecycle.Load(ctx, id)
@@ -57,6 +75,10 @@ func (u *HandleAgentEvent) Execute(ctx context.Context, id models.TaskID, event 
 		if err := u.lifecycle.Repository().SetUsageLimit(ctx, id, *usageLimit); err != nil {
 			return err
 		}
+	}
+	// hasNext implies a loaded task. The hook runs only when this event made the task idle.
+	if hasNext && next == models.StatusIdle && task.Status != models.StatusIdle && u.onIdle != nil {
+		u.onIdle(id)
 	}
 	return nil
 }

@@ -165,7 +165,8 @@ type Module struct {
 	// PruneSetting serves the checkbox that switches the prune off; the settings screen shows its card.
 	PruneSetting *httpinbound.PruneSettingHandlers
 
-	runtime outbound.AgentRuntime
+	runtime          outbound.AgentRuntime
+	relatedRestarter *application.RelatedProjectsRestarter
 }
 
 // NewModule wires the adapters into the use cases. It fails when a required dependency is missing,
@@ -213,6 +214,12 @@ func NewModule(deps Deps) (*Module, error) {
 	getAttachment := application.NewGetTaskAttachment(attachments, attachmentStorage)
 	cleanup := application.NewAttachmentCleanup(attachments, attachmentStorage)
 	eventSink := application.NewQueuedAgentEventSink(agentEvents, application.DefaultEventQueueCapacity)
+	// A live agent is restarted when related projects are added to it. The guard keeps the exit of that restart from
+	// being recorded as a crash, and the idle hook starts the restart once the agent is idle.
+	restartGuard := application.NewRestartGuard()
+	agentEvents.SetRestartGuard(restartGuard)
+	relatedRestarter := application.NewRelatedProjectsRestarter(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, relatedLaunch, eventSink, restartGuard)
+	agentEvents.SetIdleHook(relatedRestarter.TaskIdle)
 
 	// The start use case is the one the UI and the graph trigger share, so that every start claims the task the same way.
 	start := application.NewStartTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, attachments, attachmentStorage, relatedLaunch, newUUID, clock)
@@ -253,20 +260,23 @@ func NewModule(deps Deps) (*Module, error) {
 	mergeTask := application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote)
 	getSubagents := application.NewGetTaskSubagents(lifecycle, agentRuntime)
 	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{
-		Get:             getTask,
-		Events:          getEvents,
-		ListAttachments: listAttachments,
-		Start:           start,
-		Abort:           abortTask,
-		Resume:          resumeTask,
-		Finish:          finishTask,
-		Reset:           resetTask,
-		Discard:         discardTask,
-		Delete:          deleteTask,
-		Panels:          deps.Panels,
-		CommittedDiff:   application.NewGetTaskCommittedDiff(lifecycle, worktrees),
-		Merge:           mergeTask,
-		Subagents:       getSubagents,
+		Get:                 getTask,
+		Events:              getEvents,
+		ListAttachments:     listAttachments,
+		Start:               start,
+		Abort:               abortTask,
+		Resume:              resumeTask,
+		Finish:              finishTask,
+		Reset:               resetTask,
+		Discard:             discardTask,
+		Delete:              deleteTask,
+		Panels:              deps.Panels,
+		CommittedDiff:       application.NewGetTaskCommittedDiff(lifecycle, worktrees),
+		Merge:               mergeTask,
+		Subagents:           getSubagents,
+		SetRelatedProjects:  application.NewSetTaskRelatedProjects(lifecycle, relatedProjects, listRelatedProjects, probe.NewRelatedProjectProbe(), relatedRestarter),
+		ListRelatedProjects: listRelatedProjects,
+		Workspaces:          deps.Workspaces,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
 		Get:     getTask,
@@ -349,6 +359,7 @@ func NewModule(deps Deps) (*Module, error) {
 		PruneMerged:         application.NewPruneMergedTasks(lifecycle, attachmentStorage, prunePreference),
 		PruneSetting:        httpinbound.NewPruneSettingHandlers(prunePreference),
 		runtime:             agentRuntime,
+		relatedRestarter:    relatedRestarter,
 	}, nil
 }
 
@@ -443,6 +454,12 @@ func (m *Module) Sidebar(ctx context.Context) templ.Component {
 // and the diff of a task. The composition root registers them before the not-migrated catch-alls.
 func (m *Module) Tabs() []dock.Route {
 	return append(append(m.Board.Tabs(), m.Detail.Tabs()...), m.Diff.Tabs()...)
+}
+
+// CloseRestarts refuses the restarts of agents for related projects and waits for the ones under way. Call it on
+// shutdown, before StopAgents, so that no restart starts an agent after the agents were stopped.
+func (m *Module) CloseRestarts() {
+	m.relatedRestarter.Close()
 }
 
 // StopAgents stops every live agent. Call it on shutdown, after the background loops have stopped, so that no
