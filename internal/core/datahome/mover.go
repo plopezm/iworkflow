@@ -255,6 +255,10 @@ func (m *Mover) stage(ctx context.Context, p PendingMove) error {
 		cleanStaging()
 		return err
 	}
+	if unhashed := rebased.Unhashed(); len(unhashed) > 0 {
+		cleanStaging()
+		return fmt.Errorf("%w: no checksum was recorded for %s, so its content cannot be verified", ErrVerify, unhashed[0])
+	}
 	m.Log("data folder move: verifying")
 	if err := Verify(staging, rebased); err != nil {
 		cleanStaging()

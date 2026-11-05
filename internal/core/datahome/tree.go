@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -65,6 +64,18 @@ func (m Manifest) TotalSize() int64 {
 		}
 	}
 	return total
+}
+
+// Unhashed lists the regular files Copy recorded no checksum of. Verify compares the content only of
+// files with a checksum, so a copy is fully verified when this list is empty.
+func (m Manifest) Unhashed() []string {
+	var names []string
+	for _, entry := range m.entries {
+		if entry.Mode.IsRegular() && !entry.Hashed {
+			names = append(names, entry.Rel)
+		}
+	}
+	return names
 }
 
 // Only returns the manifest reduced to the entries keep accepts.
@@ -301,7 +312,9 @@ func Prune(root string, manifest Manifest) error {
 // removeIfEmpty removes a folder only when nothing is left in it.
 func removeIfEmpty(path string) error {
 	err := os.Remove(path)
-	if errors.Is(err, syscall.ENOTEMPTY) || errors.Is(err, syscall.EEXIST) {
+	// fs.ErrExist matches "directory not empty" on every platform: ENOTEMPTY and EEXIST on Unix,
+	// ERROR_DIR_NOT_EMPTY on Windows (where syscall.ENOTEMPTY is not what the system returns).
+	if errors.Is(err, fs.ErrExist) {
 		return nil
 	}
 	return err //nolint:wrapcheck // The caller wraps it with the remove context.

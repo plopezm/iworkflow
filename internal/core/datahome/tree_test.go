@@ -205,3 +205,26 @@ func TestScanFollowsASymlinkedRootButNotTheLinksInside(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, manifest.Names(), "workspaces.db")
 }
+
+func TestUnhashedListsTheFilesWhoseContentVerifyCannotCheck(t *testing.T) {
+	root := sampleTree(t)
+	manifest, err := datahome.Scan(root, nil)
+	require.NoError(t, err)
+	assert.NotEmpty(t, manifest.Unhashed(), "a scanned manifest has no checksums yet")
+
+	require.NoError(t, datahome.Copy(context.Background(), root, filepath.Join(t.TempDir(), "s"), manifest))
+
+	assert.Empty(t, manifest.Unhashed(), "Copy records a checksum of every regular file")
+}
+
+func TestPruneKeepsAFolderThatStillHoldsUnlistedFiles(t *testing.T) {
+	root := sampleTree(t)
+	manifest, err := datahome.Scan(root, nil)
+	require.NoError(t, err)
+	extra := filepath.Join(root, "attachments", "t", "late.txt")
+	require.NoError(t, os.WriteFile(extra, []byte("late"), 0o644))
+
+	require.NoError(t, datahome.Prune(root, manifest), "a non-empty folder is left alone, not reported as a failure")
+
+	assert.FileExists(t, extra)
+}

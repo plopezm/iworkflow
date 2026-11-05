@@ -125,3 +125,54 @@ func TestApplyPendingMoveRefusesWhenIWFHomeIsSetAfterTheRequest(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, pending)
 }
+
+func TestApplyPendingMoveWithNothingPendingLeavesTheFolderAndRecordsNothing(t *testing.T) {
+	root := t.TempDir()
+	from := dataFolderWithDatabase(t, root)
+	require.NoError(t, os.Rename(from, filepath.Join(root, ".iworkflow")))
+	from = filepath.Join(root, ".iworkflow")
+	getenv := moveEnv(root, map[string]string{"IWF_HOME": ""})
+
+	require.NoError(t, applyPendingMove(context.Background(), getenv, quietLogger()))
+
+	assert.FileExists(t, filepath.Join(from, "workspaces.db"))
+	dir, err := config.DataDir(getenv)
+	require.NoError(t, err)
+	assert.Equal(t, from, dir, "the pointer was not written")
+	mover, err := datahome.NewMover(runtime.GOOS, getenv, time.Now, func(string, ...any) {})
+	require.NoError(t, err)
+	result, err := mover.LastResult()
+	require.NoError(t, err)
+	assert.Nil(t, result, "no move ran, so no result exists")
+}
+
+func TestApplyPendingMoveReportsAFailedMoveAndKeepsTheOldFolderInUse(t *testing.T) {
+	root := t.TempDir()
+	from := dataFolderWithDatabase(t, root)
+	require.NoError(t, os.Rename(from, filepath.Join(root, ".iworkflow")))
+	from = filepath.Join(root, ".iworkflow")
+	to := filepath.Join(root, "moved")
+	getenv := moveEnv(root, map[string]string{"IWF_HOME": ""})
+	mover, err := datahome.NewMover(runtime.GOOS, getenv, time.Now, func(string, ...any) {})
+	require.NoError(t, err)
+	require.NoError(t, mover.Request(from, to))
+	// The destination stops being free after it was accepted: the move must fail without touching anything.
+	require.NoError(t, os.MkdirAll(to, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(to, "keep.txt"), []byte("mine"), 0o600))
+
+	require.NoError(t, applyPendingMove(context.Background(), getenv, quietLogger()), "a failed move is reported, not returned")
+
+	assert.FileExists(t, filepath.Join(from, "workspaces.db"), "the old folder is untouched")
+	assert.FileExists(t, filepath.Join(to, "keep.txt"), "the destination content is untouched")
+	dir, err := config.DataDir(getenv)
+	require.NoError(t, err)
+	assert.Equal(t, from, dir, "the pointer still names the old folder")
+	result, err := mover.LastResult()
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.OK)
+	assert.NotEmpty(t, result.Error)
+	pending, err := mover.Pending()
+	require.NoError(t, err)
+	assert.Nil(t, pending, "a failed move is not retried at every start")
+}
