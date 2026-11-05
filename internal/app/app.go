@@ -179,7 +179,7 @@ func New(deps Deps) (*App, error) {
 	jiraModule := jiradi.NewModule(jiradi.Deps{
 		DB:         deps.DB,
 		Tasks:      &jiraTaskCreation{create: tasks.Create},
-		Workspaces: &jiraWorkspaceCatalog{list: workspaces.List, get: workspaces.Get},
+		Workspaces: &jiraWorkspaceCatalog{list: workspaces.List, branches: tasks.ListBranches},
 	})
 
 	openWith := openwithdi.NewModule(openwithdi.Deps{

@@ -105,16 +105,23 @@ func parseBranches(refs string, current string) []models.BranchOption {
 // localNameOfRemote returns the local name of a remote-tracking branch: "origin/develop" with remote
 // "origin" gives "develop". The boolean is false when no listed remote matches.
 func localNameOfRemote(base string, remotes string) (string, bool) {
+	_, name, found := splitRemoteBranch(base, remotes)
+	return name, found
+}
+
+// splitRemoteBranch splits "origin/develop" into the remote ("origin") and the branch ("develop"). The
+// boolean is false when no listed remote matches.
+func splitRemoteBranch(base string, remotes string) (string, string, bool) {
 	for _, remote := range strings.Split(remotes, "\n") {
 		remote = strings.TrimSpace(remote)
 		if remote == "" {
 			continue
 		}
 		if rest, ok := strings.CutPrefix(base, remote+"/"); ok && rest != "" {
-			return rest, true
+			return remote, rest, true
 		}
 	}
-	return "", false
+	return "", "", false
 }
 
 // realPath resolves symbolic links when the path exists, and returns the cleaned path otherwise.
