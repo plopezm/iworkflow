@@ -8,11 +8,11 @@ import "iworkflow/internal/core/i18n"
 var (
 	msgTitle = i18n.Msg{En: "Data folder", Es: "Carpeta de datos", Zh: "数据目录", De: "Datenordner", Fr: "Dossier de données"}
 	msgHelp  = i18n.Msg{
-		En: "Moves the iWork Flow data folder to another directory. The server restarts to apply the move, and a large folder takes a while. Stop the tasks that are starting, running or finishing before moving.",
-		Es: "Mueve la carpeta de datos de iWork Flow a otro directorio. El servidor se reinicia para aplicar el cambio y una carpeta grande tarda un rato. Detén las tareas que se están iniciando, ejecutando o finalizando antes de mover.",
-		Zh: "将 iWork Flow 数据目录移动到另一个目录。服务器会重启以应用此更改，大型目录需要一些时间。移动前请停止正在启动、运行或完成中的任务。",
-		De: "Verschiebt den iWork-Flow-Datenordner in ein anderes Verzeichnis. Der Server startet neu, um die Änderung zu übernehmen; ein großer Ordner braucht etwas Zeit. Beende vorher Aufgaben, die gestartet werden, laufen oder abgeschlossen werden.",
-		Fr: "Déplace le dossier de données d'iWork Flow vers un autre répertoire. Le serveur redémarre pour appliquer le changement ; un gros dossier prend du temps. Arrêtez les tâches en cours de démarrage, d'exécution ou de finalisation avant le déplacement.",
+		En: "Moves the iWork Flow data folder to another directory. The server restarts to apply the move, and a large folder takes a while. Stop the tasks that are starting, running or finishing before moving. Claude and pi continue a conversation by folder, so tasks that already started will begin a new conversation after the move (Cursor tasks keep theirs).",
+		Es: "Mueve la carpeta de datos de iWork Flow a otro directorio. El servidor se reinicia para aplicar el cambio y una carpeta grande tarda un rato. Detén las tareas que se están iniciando, ejecutando o finalizando antes de mover. Claude y pi continúan la conversación por carpeta, así que las tareas ya iniciadas empezarán una conversación nueva tras el movimiento (las de Cursor conservan la suya).",
+		Zh: "将 iWork Flow 数据目录移动到另一个目录。服务器会重启以应用此更改，大型目录需要一些时间。移动前请停止正在启动、运行或完成中的任务。 Claude 和 pi 按目录继续对话，因此已开始的任务在移动后会开启新的对话（Cursor 任务保留原对话）。",
+		De: "Verschiebt den iWork-Flow-Datenordner in ein anderes Verzeichnis. Der Server startet neu, um die Änderung zu übernehmen; ein großer Ordner braucht etwas Zeit. Beende vorher Aufgaben, die gestartet werden, laufen oder abgeschlossen werden. Claude und pi setzen Unterhaltungen pro Ordner fort; bereits gestartete Aufgaben beginnen nach dem Verschieben daher eine neue Unterhaltung (Cursor-Aufgaben behalten ihre).",
+		Fr: "Déplace le dossier de données d'iWork Flow vers un autre répertoire. Le serveur redémarre pour appliquer le changement ; un gros dossier prend du temps. Arrêtez les tâches en cours de démarrage, d'exécution ou de finalisation avant le déplacement. Claude et pi reprennent une conversation par dossier : les tâches déjà démarrées commenceront une nouvelle conversation après le déplacement (celles de Cursor conservent la leur).",
 	}
 	msgCurrentFolder = i18n.Msg{En: "Current folder", Es: "Carpeta actual", Zh: "当前目录", De: "Aktueller Ordner", Fr: "Dossier actuel"}
 	msgSourceEnv     = i18n.Msg{
