@@ -17,3 +17,11 @@ templ BoardPage(view state.BoardView) {
 		</div>
 	</div>
 }
+
+// DashboardPage is the global dashboard tab: every project with its running and pending tasks, and the global graph.
+templ DashboardPage(view state.DashboardView) {
+	<div class="flex h-full min-h-0 flex-col">
+		<div id={ state.Scoped("board-notice", view.Scope) }></div>
+		@components.Dashboard(view)
+	</div>
+}

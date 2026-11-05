@@ -84,16 +84,6 @@ templ BoardToolbar(view state.BoardView) {
 			<span aria-hidden="true">✓</span>
 			<span class="hidden lg:inline">{ msgShowCompleted.T(ctx) }</span>
 		</label>
-		<button
-			type="button"
-			class="btn-secondary"
-			title={ msgFitView.T(ctx) }
-			aria-label={ msgFitView.T(ctx) }
-			data-zoom-fit
-		>
-			<span aria-hidden="true">⤢</span>
-			<span class="hidden sm:inline">{ msgFitView.T(ctx) }</span>
-		</button>
 		@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}) {
 			<span class="text-lg leading-none">+</span>
 			<span class="hidden sm:inline">{ msgNewTask.T(ctx) }</span>
@@ -148,53 +138,39 @@ templ BoardListBody(view state.BoardView) {
 			case state.ChoiceMissing:
 				<p class="muted p-8 text-center">{ msgWorkspaceGone.T(ctx) }</p>
 			case state.ChoiceSelected:
-				@shared.SegmentedControl(shared.SegmentedControlProps{
-					Class:     "board-tabs",
-					Options:   TabOptions(ctx, len(view.Loose)),
-					Selected:  string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose))),
-					AriaLabel: msgTabsLabel.T(ctx),
-				})
 				if view.Total == 0 {
-					<div
-						class="board-panes relative flex h-full w-full min-h-0 min-w-0 flex-1 overflow-hidden"
-						id={ state.Scoped("board-graph", view.Scope) }
-						data-tab={ string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose))) }
-					>
-						@LooseTasksPanel(view.Loose, view.Scope, false)
-						<div class="board-canvas relative flex-1 h-full min-w-0 min-h-0">
-							@TaskGraphCanvas(view.GraphView, view.Positions, view.Viewport, view.Scope, "")
-							<div class="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-								<div class="graph-empty pointer-events-auto stack items-center gap-3 p-8 text-center bg-surface/90 rounded-lg border border-border shadow-lg">
-									<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
-									<p class="muted max-w-sm text-xs">{ msgEmptyHint.T(ctx) }</p>
-									@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Role: "button"}) {
-										{ msgCreateFirst.T(ctx) }
-									}
-								</div>
-							</div>
-						</div>
+					<div class="stack items-center gap-3 p-8 text-center">
+						<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
+						<p class="muted max-w-sm text-xs">{ msgEmptyHint.T(ctx) }</p>
+						@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Role: "button"}) {
+							{ msgCreateFirst.T(ctx) }
+						}
 					</div>
 				} else {
-					<div
-						class="board-panes relative flex h-full w-full min-h-0 min-w-0 flex-1 overflow-hidden"
-						id={ state.Scoped("board-graph", view.Scope) }
-						data-tab={ string(state.DefaultBoardTab(len(view.GraphView.Nodes), len(view.Loose))) }
-					>
-						@LooseTasksPanel(view.Loose, view.Scope, false)
-						<div class="board-canvas relative flex-1 h-full min-w-0 min-h-0">
-							@TaskGraphCanvas(view.GraphView, view.Positions, view.Viewport, view.Scope, "")
-							if view.HasMore {
-								<button
-									type="button"
-									class="btn-secondary absolute bottom-4 right-20 text-xs px-3 py-1.5 shadow"
-									hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages+1) }
-									hx-target={ "#" + state.Scoped("board-list", view.Scope) }
-									hx-swap="innerHTML"
-								>
-									{ msgLoadMoreDone.T(ctx) }
-								</button>
+					<div class="board-stages stack h-full min-h-0 gap-4 overflow-y-auto p-4" id={ state.Scoped("board-stages", view.Scope) }>
+						for _, group := range view.Groups {
+							if len(group.Tasks) > 0 {
+								<section class="stack gap-2" data-stage-group={ group.Stage }>
+									<h2 class="muted text-xs uppercase tracking-wide">{ stageLabel(group.Stage).T(ctx) } · { itoa(len(group.Tasks)) }</h2>
+									<div class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr))">
+										for _, task := range group.Tasks {
+											@LooseTaskCard(task, view.Scope)
+										}
+									</div>
+								</section>
 							}
-						</div>
+						}
+						if view.HasMore {
+							<button
+								type="button"
+								class="btn-secondary self-start text-xs px-3 py-1.5"
+								hx-get={ state.ListPath(view.Scope, view.Choice.ID, view.ShowCompleted, view.Pages+1) }
+								hx-target={ "#" + state.Scoped("board-list", view.Scope) }
+								hx-swap="innerHTML"
+							>
+								{ msgLoadMoreDone.T(ctx) }
+							</button>
+						}
 					</div>
 				}
 		}

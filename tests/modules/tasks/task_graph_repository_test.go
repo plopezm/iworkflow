@@ -100,7 +100,7 @@ func TestGraphDeletingATaskRemovesItsEdgesAndPosition(t *testing.T) {
 	assert.True(t, deleted)
 
 	assert.Empty(t, allDependencies(t, repo))
-	positions, err := repo.Graph.ListPositions(ctx, ws)
+	positions, err := repo.Graph.ListPositions(ctx, &ws)
 	require.NoError(t, err)
 	assert.Empty(t, positions)
 }
@@ -123,10 +123,10 @@ func TestGraphPositionsAreUpsertedPerTaskAndScopedToTheWorkspace(t *testing.T) {
 	// A task that does not exist is ignored without an error, and stores nothing.
 	require.NoError(t, repo.Graph.SetPosition(ctx, newTaskID(t), models.NodePosition{X: 0.0, Y: 0.0}))
 
-	positions, err := repo.Graph.ListPositions(ctx, ws)
+	positions, err := repo.Graph.ListPositions(ctx, &ws)
 	require.NoError(t, err)
 	assert.Equal(t, []models.TaskPosition{{TaskID: a.ID, Position: models.NodePosition{X: -5.5, Y: 7.25}}}, positions)
-	otherPositions, err := repo.Graph.ListPositions(ctx, otherWs)
+	otherPositions, err := repo.Graph.ListPositions(ctx, &otherWs)
 	require.NoError(t, err)
 	assert.Equal(t, []models.TaskPosition{{TaskID: foreign.ID, Position: models.NodePosition{X: 1.0, Y: 1.0}}}, otherPositions)
 }
@@ -154,7 +154,7 @@ func TestGraphDetachingATaskRemovesItsEdgesInBothDirectionsAndItsPosition(t *tes
 	require.NoError(t, repo.Graph.DetachTask(ctx, b.ID))
 
 	assert.Equal(t, []models.TaskDependency{dependencyIn(ws, d.ID, e.ID)}, allDependencies(t, repo))
-	positions, err := repo.Graph.ListPositions(ctx, ws)
+	positions, err := repo.Graph.ListPositions(ctx, &ws)
 	require.NoError(t, err)
 	assert.Equal(t, []models.TaskPosition{{TaskID: d.ID, Position: models.NodePosition{X: 3.0, Y: 4.0}}}, positions)
 }
@@ -173,7 +173,7 @@ func TestGraphDetachingIsIdempotentAndAcceptsUnknownTasks(t *testing.T) {
 	require.NoError(t, repo.Graph.DetachTask(ctx, newTaskID(t)), "unknown")
 
 	assert.Empty(t, allDependencies(t, repo))
-	positions, err := repo.Graph.ListPositions(ctx, ws)
+	positions, err := repo.Graph.ListPositions(ctx, &ws)
 	require.NoError(t, err)
 	assert.Empty(t, positions)
 }
@@ -185,4 +185,29 @@ func allDependencies(t *testing.T, repo *Repo) []models.TaskDependency {
 	edges, err := repo.Graph.ListDependencies(bg(), nil)
 	require.NoError(t, err)
 	return edges
+}
+
+// Tablero: the graph is global, so a cycle through tasks of two workspaces is rejected and positions can be read
+// for every workspace at once.
+func TestGraphIsGlobalAcrossWorkspaces(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	ws := insertWorkspace(t, repo.DB, "/repos/demo")
+	otherWs := insertWorkspace(t, repo.DB, "/repos/other")
+	a := newTask(t, ws, "a", models.StatusBacklog)
+	b := newTask(t, otherWs, "b", models.StatusBacklog)
+	insertTask(t, repo, a)
+	insertTask(t, repo, b)
+	ctx := bg()
+
+	require.NoError(t, repo.Graph.InsertDependency(ctx, dependencyIn(otherWs, a.ID, b.ID)))
+	err := repo.Graph.InsertDependency(ctx, dependencyIn(ws, b.ID, a.ID))
+	require.ErrorIs(t, err, werrors.DependencyCycle())
+	assert.Len(t, allDependencies(t, repo), 1)
+
+	require.NoError(t, repo.Graph.SetPosition(ctx, a.ID, models.NodePosition{X: 1, Y: 2}))
+	require.NoError(t, repo.Graph.SetPosition(ctx, b.ID, models.NodePosition{X: 3, Y: 4}))
+	positions, err := repo.Graph.ListPositions(ctx, nil)
+	require.NoError(t, err)
+	assert.Len(t, positions, 2)
 }

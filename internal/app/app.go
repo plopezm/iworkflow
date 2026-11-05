@@ -43,6 +43,7 @@ import (
 	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
+	taskscomponents "iworkflow/internal/modules/tasks/presentation/components"
 	terminaldi "iworkflow/internal/modules/terminal/infrastructure/di"
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
 	transcriptiondi "iworkflow/internal/modules/transcription/infrastructure/di"
@@ -354,6 +355,7 @@ type navEntry struct {
 
 // navEntries are the migrated top-level destinations, in display order.
 var navEntries = []navEntry{
+	{Href: "/", Icon: "▦", Title: func(ctx context.Context) string { return taskscomponents.BoardTitle(ctx, "") }},
 	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
 	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
 	{Href: jiraPath, Icon: "◈", Title: func(context.Context) string { return "Jira" }},

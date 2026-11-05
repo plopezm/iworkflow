@@ -113,11 +113,11 @@ const listTaskPositionsOfWorkspace = `-- name: ListTaskPositionsOfWorkspace :man
 SELECT p.task_id, p.x, p.y
 FROM task_positions AS p
 JOIN tasks AS t ON t.id = p.task_id
-WHERE t.workspace_id = ?1
+WHERE (?1 IS NULL OR t.workspace_id = ?1)
 ORDER BY p.task_id ASC
 `
 
-func (q *Queries) ListTaskPositionsOfWorkspace(ctx context.Context, workspaceID string) ([]TaskPosition, error) {
+func (q *Queries) ListTaskPositionsOfWorkspace(ctx context.Context, workspaceID interface{}) ([]TaskPosition, error) {
 	rows, err := q.db.QueryContext(ctx, listTaskPositionsOfWorkspace, workspaceID)
 	if err != nil {
 		return nil, err

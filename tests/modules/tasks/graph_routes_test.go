@@ -115,28 +115,7 @@ func TestDetachTaskFromGraphRoute(t *testing.T) {
 	assert.Empty(t, graph.Positions)
 }
 
-func TestBoardGraphRouteRendersCanvas(t *testing.T) {
-	t.Parallel()
-	repo := newRepo(t)
-	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
-	t1 := newTask(t, workspaceID, "nodo-uno", models.StatusBacklog)
-	insertTask(t, repo, t1)
-	module, router := boardRouter(t, repo)
-
-	err := module.SetPosition.Execute(context.Background(), t1.ID, 50.0, 60.0)
-	require.NoError(t, err)
-
-	req := httptest.NewRequest(http.MethodGet, "/board/graph?workspace="+workspaceID, nil)
-	res := httptest.NewRecorder()
-	router.ServeHTTP(res, req)
-
-	assert.Equal(t, http.StatusOK, res.Code)
-	body := res.Body.String()
-	assert.Contains(t, body, "graph-canvas")
-	assert.Contains(t, body, "nodo-uno")
-}
-
-func TestBoardTabRendersGraphCanvasAndLoosePanel(t *testing.T) {
+func TestProjectBoardHasNoGraphAndTheOldGraphRouteIsGone(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
@@ -146,33 +125,43 @@ func TestBoardTabRendersGraphCanvasAndLoosePanel(t *testing.T) {
 	insertTask(t, repo, t2)
 	module, router := boardRouter(t, repo)
 
-	err := module.SetPosition.Execute(context.Background(), t2.ID, 100.0, 100.0)
-	require.NoError(t, err)
-
-	// Test 1: renderTab for dock route
 	tabHtml := renderTab(t, module, "board_workspace", dock.Params{"id": workspaceID})
-	assert.Contains(t, tabHtml, "board-graph")
-	assert.Contains(t, tabHtml, "board-tabs")
-	assert.Contains(t, tabHtml, "board-panes")
-	assert.Contains(t, tabHtml, `data-tab="graph"`)
-	assert.Contains(t, tabHtml, "board-canvas")
-	assert.Contains(t, tabHtml, "task-graph-canvas")
-	assert.Contains(t, tabHtml, "Loose tasks")
+	assert.Contains(t, tabHtml, "board-stages")
 	assert.Contains(t, tabHtml, "tarea-suelta")
 	assert.Contains(t, tabHtml, "tarea-grafo")
-	assert.Contains(t, tabHtml, "Fit view")
+	assert.NotContains(t, tabHtml, "task-graph-canvas")
+	assert.NotContains(t, tabHtml, "Fit view")
 
-	// Test 2: HTTP frame endpoint for HTMX refresh
-	res, body := doRequest(t, router, http.MethodGet, "/board/frame?workspace="+workspaceID, nil)
+	res, _ := doRequest(t, router, http.MethodGet, "/board/graph?workspace="+workspaceID, nil)
+	assert.Equal(t, http.StatusNotFound, res.Code)
+}
+
+func TestDashboardShowsProjectsAndAGraphAcrossProjects(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	first := insertWorkspace(t, repo.DB, t.TempDir())
+	second := insertWorkspace(t, repo.DB, t.TempDir())
+	a := newTask(t, first, "paso-uno", models.StatusRunning)
+	b := newTask(t, second, "paso-dos", models.StatusBacklog)
+	insertTask(t, repo, a)
+	insertTask(t, repo, b)
+	module, router := boardRouter(t, repo)
+
+	_, err := module.AddDependency.Execute(context.Background(), a.ID, b.ID)
+	require.NoError(t, err)
+	require.NoError(t, module.SetPosition.Execute(context.Background(), a.ID, 10.0, 10.0))
+	require.NoError(t, module.SetPosition.Execute(context.Background(), b.ID, 300.0, 10.0))
+
+	home := renderTab(t, module, "board", dock.Params{})
+	assert.Contains(t, home, "data-dashboard-project=\""+first+"\"")
+	assert.Contains(t, home, "data-dashboard-project=\""+second+"\"")
+	assert.Contains(t, home, "task-graph-canvas")
+	assert.Contains(t, home, "paso-uno")
+	assert.Contains(t, home, "paso-dos")
+
+	res, body := doRequest(t, router, http.MethodGet, "/board/dashboard", nil)
 	assert.Equal(t, http.StatusOK, res.Code)
-	assert.Contains(t, body, "board-graph")
-	assert.Contains(t, body, "board-tabs")
-	assert.Contains(t, body, "board-panes")
-	assert.Contains(t, body, `data-tab="graph"`)
-	assert.Contains(t, body, "board-canvas")
-	assert.Contains(t, body, "task-graph-canvas")
-	assert.Contains(t, body, "tarea-suelta")
-	assert.Contains(t, body, "tarea-grafo")
+	assert.Contains(t, body, "paso-dos")
 }
 
 func TestAddToGraphRoutePlacesNode(t *testing.T) {

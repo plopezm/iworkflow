@@ -11,8 +11,8 @@ import (
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
 
-// AddTaskDependency makes successor wait for predecessor. Both tasks must belong to the same workspace, the
-// successor must still be in backlog and the predecessor must not be discarded (it would never be merged).
+// AddTaskDependency makes successor wait for predecessor. The tasks may belong to different workspaces (the graph is
+// global); the successor must still be in backlog and the predecessor must not be discarded (it would never be merged).
 // When the predecessor already meets the trigger, the successor starts at once.
 type AddTaskDependency struct {
 	lifecycle *TaskLifecycle
@@ -37,9 +37,6 @@ func (u *AddTaskDependency) Execute(ctx context.Context, predecessor models.Task
 	to, err := u.lifecycle.Load(ctx, successor)
 	if err != nil {
 		return models.TaskDependency{}, err
-	}
-	if from.WorkspaceID != to.WorkspaceID {
-		return models.TaskDependency{}, werrors.CrossWorkspaceDependency()
 	}
 	if from.Status == models.StatusDiscarded {
 		return models.TaskDependency{}, invalidState("depender de", from.Status)

@@ -80,10 +80,10 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 			Pattern: "/",
 			Icon:    "▦",
 			Title: func(ctx context.Context, _ dock.Params) string {
-				return h.title(ctx, "")
+				return components.BoardTitle(ctx, "")
 			},
 			Render: func(ctx context.Context, _ dock.Params) templ.Component {
-				return h.boardTab(ctx, "")
+				return h.dashboardTab(ctx)
 			},
 		},
 		{
@@ -147,6 +147,7 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 // Mount registers the htmx endpoints of the board: the list, the sidebar, the create dialog and the actions of
 // a backlog card, and the save of the edit page.
 func (h *BoardHandlers) Mount(r chi.Router) {
+	r.Get(state.DashboardPath, h.dashboard)
 	r.Get("/board/list", h.list)
 	r.Get("/board/frame", h.frame)
 	r.Get("/board/sidebar", h.sidebar)
@@ -344,30 +345,6 @@ func (h *BoardHandlers) view(ctx context.Context, requested string, showComplete
 	view.HasMore = showCompleted && state.DoneHasMore(tasks.LastPageLen)
 	view.Groups = state.GroupByStage(tasks.Tasks)
 
-	var graphDTO dto.TaskGraphDTO
-	if h.uc.GetGraph != nil {
-		g, err := h.uc.GetGraph.Execute(ctx, view.Choice.ID)
-		if err == nil {
-			graphDTO = dto.TaskGraphFromDomain(g)
-		} else {
-			slog.Warn("could not load graph for workspace", "workspace", view.Choice.ID, "error", err)
-		}
-	}
-	view.GraphView = state.BuildGraph(view.Choice.ID, tasks.Tasks, graphDTO, showCompleted, nil)
-	view.Loose = state.LooseTasks(view.Choice.ID, tasks.Tasks, graphDTO, showCompleted, nil)
-	saved := state.SavedPositions(graphDTO)
-
-	nodeIDs := make([]string, len(view.GraphView.Nodes))
-	for i, n := range view.GraphView.Nodes {
-		nodeIDs[i] = n.Task.ID
-	}
-	edges := make([][2]string, len(view.GraphView.Edges))
-	for i, e := range view.GraphView.Edges {
-		edges[i] = [2]string{e.PredecessorID, e.SuccessorID}
-	}
-	view.Positions = state.ResolvePositions(nodeIDs, edges, saved)
-	view.Viewport = state.DefaultViewport()
-
 	return view
 }
 
@@ -527,4 +504,58 @@ func (h *BoardHandlers) branchesOf(ctx context.Context, workspaceID string) ([]d
 		options = append(options, dto.BranchOptionFromDomain(branch))
 	}
 	return options, nil
+}
+
+// dashboardTab renders the global dashboard, the home of the app, as a new instance.
+func (h *BoardHandlers) dashboardTab(ctx context.Context) templ.Component {
+	view := h.dashboardView(ctx)
+	view.Scope = newScope()
+	return pages.DashboardPage(view)
+}
+
+// dashboard serves the content of the dashboard, which the listening element swaps in place.
+func (h *BoardHandlers) dashboard(w http.ResponseWriter, r *http.Request) {
+	view := h.dashboardView(r.Context())
+	view.Scope = state.SanitizeScope(r.URL.Query().Get("scope"))
+	web.Render(w, r, http.StatusOK, components.DashboardBody(view))
+}
+
+// dashboardView builds the dashboard: the running and pending tasks of every project and the global graph.
+func (h *BoardHandlers) dashboardView(ctx context.Context) state.DashboardView {
+	workspaces, err := h.workspaceOptions(ctx)
+	if err != nil {
+		return state.DashboardView{LoadError: err.Error()}
+	}
+	active, err := h.uc.List.Execute(ctx, nil)
+	if err != nil {
+		web.LogError(ctx, "could not load the tasks of the dashboard", err)
+		view := state.BuildDashboard(workspaces, nil)
+		view.LoadError = err.Error()
+		return view
+	}
+	tasks := tasksToDTO(active, h.now())
+	view := state.BuildDashboard(workspaces, tasks)
+
+	var graphDTO dto.TaskGraphDTO
+	if h.uc.GetGraph != nil {
+		graph, graphErr := h.uc.GetGraph.Execute(ctx, "")
+		if graphErr == nil {
+			graphDTO = dto.TaskGraphFromDomain(graph)
+		} else {
+			slog.Warn("could not load the global graph", "error", graphErr)
+		}
+	}
+	view.Graph = state.BuildGraph("", tasks, graphDTO, false, nil)
+	view.Loose = state.LooseTasks("", tasks, graphDTO, false, nil)
+	nodeIDs := make([]string, len(view.Graph.Nodes))
+	for i, node := range view.Graph.Nodes {
+		nodeIDs[i] = node.Task.ID
+	}
+	edges := make([][2]string, len(view.Graph.Edges))
+	for i, edge := range view.Graph.Edges {
+		edges[i] = [2]string{edge.PredecessorID, edge.SuccessorID}
+	}
+	view.Positions = state.ResolvePositions(nodeIDs, edges, state.SavedPositions(graphDTO))
+	view.Viewport = state.DefaultViewport()
+	return view
 }

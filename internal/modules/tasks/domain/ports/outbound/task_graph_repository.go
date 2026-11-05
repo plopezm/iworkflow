@@ -20,6 +20,6 @@ type TaskGraphRepository interface {
 	// DetachTask deletes every edge of the task (as predecessor and as successor) and its position in one
 	// transaction. It does not fail when there was nothing to delete.
 	DetachTask(ctx context.Context, taskID models.TaskID) error
-	// ListPositions returns the saved positions of the tasks of a workspace.
-	ListPositions(ctx context.Context, workspaceID string) ([]models.TaskPosition, error)
+	// ListPositions returns the saved positions of the tasks of a workspace, or of every workspace when the filter is nil.
+	ListPositions(ctx context.Context, workspaceID *string) ([]models.TaskPosition, error)
 }

@@ -117,11 +117,12 @@ func DefaultBoardTab(graphNodes int, loose int) BoardTab {
 	return BoardTabGraph
 }
 
-// visibleTasks devuelve las tareas de workspaceID ordenadas de la más antigua a la más reciente.
+// visibleTasks devuelve las tareas de workspaceID ordenadas de la más antigua a la más reciente. Un workspaceID
+// vacío es el grafo global: devuelve las tareas de todos los workspaces.
 func visibleTasks(workspaceID string, tasks []dto.TaskDTO, showDone bool) []dto.TaskDTO {
 	visible := make([]dto.TaskDTO, 0, len(tasks))
 	for _, t := range tasks {
-		if t.WorkspaceID != workspaceID {
+		if workspaceID != "" && t.WorkspaceID != workspaceID {
 			continue
 		}
 		if !showDone && (t.Status == "merged" || t.Status == "discarded") {

@@ -33,5 +33,5 @@ WHERE task_id = sqlc.arg(task_id);
 SELECT p.task_id, p.x, p.y
 FROM task_positions AS p
 JOIN tasks AS t ON t.id = p.task_id
-WHERE t.workspace_id = sqlc.arg(workspace_id)
+WHERE (sqlc.narg(workspace_id) IS NULL OR t.workspace_id = sqlc.narg(workspace_id))
 ORDER BY p.task_id ASC;

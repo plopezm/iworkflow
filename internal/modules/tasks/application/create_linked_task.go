@@ -71,7 +71,7 @@ func (u *CreateLinkedTask) Execute(ctx context.Context, input models.NewTask, li
 	if err != nil {
 		return LinkedTask{}, err
 	}
-	predecessors, err := u.predecessors(ctx, input.WorkspaceID, *link)
+	predecessors, err := u.predecessors(ctx, *link)
 	if err != nil {
 		return LinkedTask{Created: created, LinkErrors: []error{err}}, nil
 	}
@@ -85,12 +85,12 @@ func (u *CreateLinkedTask) Execute(ctx context.Context, input models.NewTask, li
 }
 
 // predecessors lists the tasks the new one must wait for, according to the link kind.
-func (u *CreateLinkedTask) predecessors(ctx context.Context, workspaceID string, link TaskLink) ([]models.TaskID, error) {
+func (u *CreateLinkedTask) predecessors(ctx context.Context, link TaskLink) ([]models.TaskID, error) {
 	switch link.Kind {
 	case LinkNext:
 		return []models.TaskID{link.Anchor}, nil
 	case LinkParallel:
-		graph, err := u.graph.Execute(ctx, workspaceID)
+		graph, err := u.graph.Execute(ctx, "")
 		if err != nil {
 			return nil, fmt.Errorf("read the graph: %w", err)
 		}

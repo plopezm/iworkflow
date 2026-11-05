@@ -9,7 +9,8 @@ import (
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
 
-// GetTaskGraph returns the edges and the saved node positions of the board of one workspace.
+// GetTaskGraph returns the edges and the saved node positions of one workspace, or of the whole global graph
+// when the workspace identifier is empty.
 type GetTaskGraph struct {
 	graph outbound.TaskGraphRepository
 }
@@ -19,14 +20,17 @@ func NewGetTaskGraph(graph outbound.TaskGraphRepository) *GetTaskGraph {
 	return &GetTaskGraph{graph: graph}
 }
 
-// Execute reads the graph of the trimmed workspace identifier.
+// Execute reads the graph of the trimmed workspace identifier; empty means every workspace.
 func (u *GetTaskGraph) Execute(ctx context.Context, workspaceID string) (models.TaskGraph, error) {
-	trimmed := strings.TrimSpace(workspaceID)
-	dependencies, err := u.graph.ListDependencies(ctx, &trimmed)
+	var filter *string
+	if trimmed := strings.TrimSpace(workspaceID); trimmed != "" {
+		filter = &trimmed
+	}
+	dependencies, err := u.graph.ListDependencies(ctx, filter)
 	if err != nil {
 		return models.TaskGraph{}, err
 	}
-	positions, err := u.graph.ListPositions(ctx, trimmed)
+	positions, err := u.graph.ListPositions(ctx, filter)
 	if err != nil {
 		return models.TaskGraph{}, err
 	}
