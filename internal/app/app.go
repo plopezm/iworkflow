@@ -244,6 +244,7 @@ func (a *App) Shutdown(ctx context.Context) error {
 func (a *App) shutdownSteps() []shutdownStep {
 	return []shutdownStep{
 		{name: "stop the background loops", run: a.stopLoops},
+		{name: "wait for the related projects restarts", run: func(context.Context) error { a.tasks.CloseRestarts(); return nil }},
 		{name: "stop the agents", run: func(ctx context.Context) error { a.tasks.StopAgents(ctx); return nil }},
 		{name: "wait for the worktree removals", run: func(ctx context.Context) error { a.tasks.WaitWorktreeCleanup(ctx); return nil }},
 		{name: "persist the agent events", run: func(context.Context) error { a.tasks.FlushEvents(); return nil }},
