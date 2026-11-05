@@ -51,7 +51,7 @@ func TestSettingsPageRendersOneSegmentPerSectionAndShowsOnlyTheActiveBody(t *tes
 	require.Contains(t, body, `id="settings-page"`)
 	require.Contains(t, body, `<h1 class="page-title">Configuración</h1>`)
 	require.Contains(t, body, `hx-get="/dock/pane?path=/settings/a"`)
-	require.Contains(t, body, `hx-get="/dock/pane?path=/settings/b"`)
+	require.NotContains(t, body, `hx-get="/dock/pane?path=/settings/b"`, "the active segment does not reload itself")
 	require.Contains(t, body, `hx-target="#settings-page"`)
 	require.Contains(t, body, `aria-selected="true"`)
 	require.Contains(t, body, `<div class="hidden" data-keep-alive`, "section a is hidden")

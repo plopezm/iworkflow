@@ -286,6 +286,8 @@ function onClick(event) {
   if (!action || action.disabled) return;
   const values = actionValues(action.dataset);
   if (values.tab === '0') return;
+  // Clicking the tab that is already active would only re-render the dock for nothing.
+  if (action.dataset.dockAction === 'activate' && action.getAttribute('aria-selected') === 'true') return;
   dockAction(action.dataset.dockAction, values);
 }
 

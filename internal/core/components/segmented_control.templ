@@ -9,7 +9,9 @@ templ SegmentedControl(p SegmentedControlProps) {
 				role="tab"
 				class={ segmentClass(option.Value == p.Selected) }
 				aria-selected={ ariaBool(option.Value == p.Selected) }
-				{ option.Attrs... }
+				if option.Value != p.Selected {
+					{ option.Attrs... }
+				}
 			>{ option.Label }</button>
 		}
 	</div>
