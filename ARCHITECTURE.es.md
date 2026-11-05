@@ -190,7 +190,7 @@ La carpeta de datos la resuelve `config.DataDir`: primero `IWF_HOME`, luego el f
 | `tls/` | Certificado autofirmado (`IWF_TLS=auto`) |
 | `logs/` | `iworkflow.log`, rotado y comprimido con gzip |
 
-Otras variables: los binarios de los agentes (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, `IWF_PI_AGENTS_DIR`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), el log (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` e `IWF_SUPERVISED`. La tabla completa, con valores por defecto, está en el README. En Windows el instalador guarda una carpeta de datos personalizada como variable de usuario `IWF_HOME`.
+Otras variables: los binarios de los agentes (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), el log (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` e `IWF_SUPERVISED`. La tabla completa, con valores por defecto, está en el README. En Windows el instalador guarda una carpeta de datos personalizada como variable de usuario `IWF_HOME`.
 
 ### Mover la carpeta de datos
 

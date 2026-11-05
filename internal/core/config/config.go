@@ -26,7 +26,6 @@ const (
 	defaultModelsDir         = "models"
 	defaultASRModelName      = "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
 	defaultGentlePiConfigDir = ".pi/gentle-ai"
-	defaultPiAgentsDir       = ".pi/agent/agents"
 )
 
 // ErrMissingHome is returned when neither HOME nor USERPROFILE is set.
@@ -60,8 +59,6 @@ type Config struct {
 	AttachmentsDir string
 	// ASRModelDir is the folder of the pre-converted Qwen3-ASR model that transcribes the recorded prompts.
 	ASRModelDir string
-	// PiAgentsDir holds pi's `<role>.md` agent files.
-	PiAgentsDir string
 }
 
 // DataDir is the folder holding everything iworkflow stores. IWF_HOME wins; else the folder the pointer
@@ -115,7 +112,6 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		AgentsFilesDir:     filepath.Join(dataDir, defaultAgentsFilesDir),
 		AttachmentsDir:     filepath.Join(dataDir, defaultAttachmentsDir),
 		ASRModelDir:        filepath.Join(dataDir, defaultModelsDir, defaultASRModelName),
-		PiAgentsDir:        valueOr(getenv("IWF_PI_AGENTS_DIR"), filepath.Join(home, defaultPiAgentsDir)),
 	}, nil
 }
 

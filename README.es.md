@@ -171,7 +171,6 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 | `IWF_CLAUDE_BIN` | `claude` (runtime `claude`: Claude Code con `-p` y protocolo stream-json; se elige en el selector de runtime del menú lateral; acepta ediciones de ficheros, pide confirmación para el resto y lee el `AGENTS.md` del proyecto) |
 | `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
-| `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (un `<rol>.md` por rol de agente) |
 | `IWF_TLS` | sin definir (HTTP plano). `auto` sirve HTTPS con un certificado autofirmado que se crea en `tls/` junto a la base de datos y se reutiliza (ver [HTTPS](#https)) |
 | `IWF_TLS_PORT` | puerto HTTP + 443 (puerto del listener HTTPS cuando TLS está activo) |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | Ficheros PEM de tu propio certificado y clave; define los dos o ninguno. Mandan sobre `IWF_TLS=auto` |

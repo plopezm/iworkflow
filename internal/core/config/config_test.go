@@ -26,7 +26,6 @@ func TestDefaultsLiveUnderTheDataFolderInHome(t *testing.T) {
 	require.Equal(t, "/home/u/.iworkflow/attachments", cfg.AttachmentsDir)
 	require.Equal(t, "/home/u/.iworkflow/cursor-sessions", cfg.CursorSessionsDir)
 	require.Equal(t, "/home/u/.pi/gentle-ai", cfg.GentlePiConfigHome)
-	require.Equal(t, "/home/u/.pi/agent/agents", cfg.PiAgentsDir)
 	require.Equal(t, "gentle-shell", cfg.GentleShellBin)
 	require.Equal(t, "pi", cfg.PiBin)
 	require.Equal(t, "claude", cfg.ClaudeBin)
@@ -49,21 +48,19 @@ func TestMissingHomeIsAnError(t *testing.T) {
 
 func TestEnvironmentValuesWinOverDefaults(t *testing.T) {
 	cfg, err := config.FromEnv(env(map[string]string{
-		"HOME":              "/home/u",
-		"IWF_PI_AGENTS_DIR": "/custom/agents",
-		"IWF_CLAUDE_BIN":    "/bin/claude",
+		"HOME":           "/home/u",
+		"IWF_CLAUDE_BIN": "/bin/claude",
 	}))
 
 	require.NoError(t, err)
-	require.Equal(t, "/custom/agents", cfg.PiAgentsDir)
 	require.Equal(t, "/bin/claude", cfg.ClaudeBin)
 }
 
 func TestBlankValuesFallBackToDefaults(t *testing.T) {
-	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_PI_AGENTS_DIR": " "}))
+	cfg, err := config.FromEnv(env(map[string]string{"HOME": "/home/u", "IWF_CLAUDE_BIN": " "}))
 
 	require.NoError(t, err)
-	require.Equal(t, "/home/u/.pi/agent/agents", cfg.PiAgentsDir)
+	require.Equal(t, "claude", cfg.ClaudeBin)
 }
 
 func TestIWFHomeMovesEveryDataPath(t *testing.T) {

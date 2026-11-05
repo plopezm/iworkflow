@@ -172,7 +172,6 @@ Environment variables (`.env` is supported, see `.env.example`):
 | `IWF_CLAUDE_BIN` | `claude` (`claude` runtime: Claude Code with `-p` and the stream-json protocol; chosen in the runtime selector of the side menu; accepts file edits, asks for confirmation for the rest and reads the project's `AGENTS.md`) |
 | `IWF_CURSOR_BIN` | `agent` (`cursor` runtime: Cursor CLI in ACP server mode, `agent acp`; requires having signed in with `agent login`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contains `profiles.json` and `models.json`) |
-| `IWF_PI_AGENTS_DIR` | `~/.pi/agent/agents` (one `<role>.md` per agent role) |
 | `IWF_TLS` | unset (plain HTTP). `auto` serves HTTPS with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)) |
 | `IWF_TLS_PORT` | HTTP port + 443 (HTTPS listener port when TLS is on) |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key; set both or neither. They win over `IWF_TLS=auto` |

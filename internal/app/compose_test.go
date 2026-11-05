@@ -22,7 +22,6 @@ func NewTestConfig(t *testing.T) config.Config {
 		AttachmentsDir:     t.TempDir(),
 		AgentsFilesDir:     t.TempDir(),
 		GentlePiConfigHome: t.TempDir(),
-		PiAgentsDir:        t.TempDir(),
 	}
 }
 

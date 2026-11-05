@@ -190,7 +190,7 @@ The data folder is resolved by `config.DataDir`: `IWF_HOME` first, then the poin
 | `tls/` | Self-signed certificate (`IWF_TLS=auto`) |
 | `logs/` | `iworkflow.log`, rotated and gzip-compressed |
 
-Other variables: the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, `IWF_PI_AGENTS_DIR`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in the README. On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
+Other variables: the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in the README. On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
 
 ### Moving the data folder
 
