@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -27,6 +28,8 @@ type pickerCommand struct {
 	args []string
 	// cancelCodes are the exit codes that mean "the user cancelled" instead of a failure.
 	cancelCodes []int
+	// needsDisplay marks a dialog that cannot open without a graphical session (X11 or Wayland).
+	needsDisplay bool
 }
 
 // pickerCommands lists, in order of preference, the programs that can show a native dialog on goos.
@@ -38,8 +41,8 @@ func pickerCommands(goos string) []pickerCommand {
 		return []pickerCommand{{name: "osascript", args: []string{"-e", macScript}, cancelCodes: []int{1}}}
 	default:
 		return []pickerCommand{
-			{name: "zenity", args: []string{"--file-selection", "--title=Choose the executable"}, cancelCodes: []int{1}},
-			{name: "kdialog", args: []string{"--getopenfilename", "."}, cancelCodes: []int{1}},
+			{name: "zenity", args: []string{"--file-selection", "--title=Choose the executable"}, cancelCodes: []int{1}, needsDisplay: true},
+			{name: "kdialog", args: []string{"--getopenfilename", "."}, cancelCodes: []int{1}, needsDisplay: true},
 		}
 	}
 }
@@ -48,18 +51,37 @@ func pickerCommands(goos string) []pickerCommand {
 type NativePicker struct {
 	commands []pickerCommand
 	lookPath func(string) (string, error)
+	// display reports whether a graphical session is available. A nil display means it is.
+	display func() bool
 }
 
 var _ outbound.NativeFilePicker = (*NativePicker)(nil)
 
 // NewNativePicker builds the picker for the running operating system.
 func NewNativePicker() *NativePicker {
-	return &NativePicker{commands: pickerCommands(runtime.GOOS), lookPath: exec.LookPath}
+	return &NativePicker{
+		commands: pickerCommands(runtime.GOOS),
+		lookPath: exec.LookPath,
+		display:  func() bool { return hasDisplay(os.Getenv) },
+	}
+}
+
+// hasDisplay reports whether the environment points at an X11 or Wayland session.
+func hasDisplay(getenv func(string) string) bool {
+	return strings.TrimSpace(getenv("DISPLAY")) != "" || strings.TrimSpace(getenv("WAYLAND_DISPLAY")) != ""
+}
+
+func (p *NativePicker) displayAvailable() bool {
+	return p.display == nil || p.display()
 }
 
 // Pick runs the first dialog program found and returns the path it printed, or "" when the user cancelled.
 func (p *NativePicker) Pick(ctx context.Context) (string, error) {
 	for _, command := range p.commands {
+		// Without a display such a dialog exits with the same code as a cancel, so it must not run at all.
+		if command.needsDisplay && !p.displayAvailable() {
+			continue
+		}
 		binary, err := p.lookPath(command.name)
 		if err != nil {
 			continue
