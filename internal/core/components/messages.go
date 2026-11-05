@@ -58,5 +58,4 @@ var (
 	msgSidebar       = i18n.Msg{En: "Sidebar", Es: "Barra lateral", Zh: "侧边栏", De: "Seitenleiste", Fr: "Barre latérale"}
 	msgMoreActions   = i18n.Msg{En: "More actions", Es: "Más acciones", Zh: "更多操作", De: "Weitere Aktionen", Fr: "Plus d'actions"}
 	msgNeedsAttn     = i18n.Msg{En: "Needs attention", Es: "Necesita atención", Zh: "需要关注", De: "Erfordert Aufmerksamkeit", Fr: "Nécessite votre attention"}
-	msgOpenMenu      = i18n.Msg{En: "Open menu", Es: "Abrir menú", Zh: "打开菜单", De: "Menü öffnen", Fr: "Ouvrir le menu"}
 )

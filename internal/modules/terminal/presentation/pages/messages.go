@@ -13,7 +13,6 @@ var (
 	msgNewHomeTerminal  = i18n.Msg{En: "New terminal in $HOME", Es: "Nueva terminal en $HOME", Zh: "在 $HOME 中新建终端", De: "Neues Terminal in $HOME", Fr: "Nouveau terminal dans $HOME"}
 	msgRefresh          = i18n.Msg{En: "Refresh", Es: "Actualizar", Zh: "刷新", De: "Aktualisieren", Fr: "Actualiser"}
 	msgSessions         = i18n.Msg{En: "Sessions", Es: "Sesiones", Zh: "会话", De: "Sitzungen", Fr: "Sessions"}
-	msgAllTerminals     = i18n.Msg{En: "All terminals", Es: "Todas las terminales", Zh: "所有终端", De: "Alle Terminals", Fr: "Tous les terminaux"}
 	msgCloseSession     = i18n.Msg{En: "Close session", Es: "Cerrar sesión", Zh: "关闭会话", De: "Sitzung schließen", Fr: "Fermer la session"}
 	msgOpeningTerminal  = i18n.Msg{En: "Opening terminal", Es: "Abriendo terminal", Zh: "正在打开终端", De: "Terminal wird geöffnet", Fr: "Ouverture du terminal"}
 	msgOpeningLoading   = i18n.Msg{En: "Opening terminal…", Es: "Abriendo terminal…", Zh: "正在打开终端…", De: "Terminal wird geöffnet…", Fr: "Ouverture du terminal…"}
