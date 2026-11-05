@@ -31,12 +31,18 @@ async function setRuntime(ctx, runtime) {
   await select.waitFor({ timeout: 15000 });
   const previous = await select.inputValue();
   if (previous !== runtime) {
-    const saved = ctx.page.waitForResponse(
-      (r) => r.url().includes('/agent-settings/runtime') && r.request().method() === 'POST',
+    await select.selectOption(runtime);
+    // The bar refreshes itself right after the page loads and that refresh may abort the browser side of the POST, so
+    // the response is not a reliable signal. The bar re-rendered with the saved runtime is.
+    await ctx.page.waitForFunction(
+      (wanted) => {
+        const pill = [...document.querySelectorAll('.select-pill')].find((el) => el.textContent.includes('Agente'));
+        const field = pill && pill.querySelector('select');
+        return field !== null && field !== undefined && field.value === wanted && !document.querySelector('.htmx-request');
+      },
+      runtime,
       { timeout: 15000 },
     );
-    await select.selectOption(runtime);
-    await saved;
   }
   return previous;
 }

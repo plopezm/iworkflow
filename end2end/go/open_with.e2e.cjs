@@ -17,6 +17,9 @@ async function openDialog(ctx, key) {
   await openActions(ctx);
   await ctx.page.getByRole('button', { name: 'Abrir con', exact: true }).click();
   const dialog = ctx.page.locator('[data-modal]').filter({ hasText: 'Abrir con' });
+  await dialog.locator('[data-open-with-new]').waitFor({ timeout: 10000 });
+  // The add form starts collapsed behind "Añadir nuevo +".
+  await dialog.locator('[data-open-with-new]').click();
   await dialog.getByRole('button', { name: 'Añadir', exact: true }).waitFor({ timeout: 10000 });
   return { task, dialog };
 }
@@ -95,7 +98,8 @@ module.exports = {
         await row(dialog, name).waitFor({ timeout: 10000 });
         const worktree = await worktreeOf(ctx);
         await row(dialog, name).getByRole('button', { name: 'Abrir', exact: true }).click();
-        await dialog.getByText(`Lanzada: ${name}`).waitFor({ timeout: 10000 });
+        // The dialog closes once the application started.
+        await dialog.waitFor({ state: 'detached', timeout: 10000 });
         const written = await waitForFile(path.join(worktree, 'opened-by-e2e'));
         ctx.assert(written === 'hola', `la variable de entorno no llegó al proceso: "${written}"`);
       },

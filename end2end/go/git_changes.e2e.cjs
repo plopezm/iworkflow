@@ -56,15 +56,20 @@ async function liveTask(ctx) {
 
   await ctx.goto('/');
   await page.locator('#board-sidebar').getByRole('link', { name: WORKSPACE }).first().click();
-  // The runtime is saved by the agent bar (POST /agent-settings/runtime) before the task is created.
+  // The agent bar saves the runtime (POST /agent-settings/runtime) before the task is created. The bar refreshes itself
+  // right after the page loads and that refresh may abort the browser side of the POST, so the response is not a
+  // reliable signal: wait for the bar to show the saved runtime instead.
   const agentSelect = page.getByLabel(/^Agente/).first();
   if ((await agentSelect.inputValue()) !== 'pi') {
-    const saved = page.waitForResponse(
-      (r) => r.request().method() === 'POST' && new URL(r.url()).pathname === '/agent-settings/runtime',
+    await agentSelect.selectOption('pi');
+    await page.waitForFunction(
+      () => {
+        const field = [...document.querySelectorAll('select')].find((el) => /^Agente/.test(el.labels?.[0]?.textContent?.trim() ?? ''));
+        return field !== undefined && field.value === 'pi' && !document.querySelector('.htmx-request');
+      },
+      undefined,
       { timeout: 10000 },
     );
-    await agentSelect.selectOption('pi');
-    await saved;
   }
   await page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
   await page.getByRole('button', { name: 'Nueva tarea' }).first().click();
