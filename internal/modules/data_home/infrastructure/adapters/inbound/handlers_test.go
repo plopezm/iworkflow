@@ -96,6 +96,34 @@ func TestCardRouteRendersTheCurrentFolder(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "/data/iwf")
 }
 
+func TestRestartingPollKeepsTheRestartingCardWhileTheMoveIsPending(t *testing.T) {
+	mover := defaultMover()
+	mover.status.Pending = &models.PendingMove{From: "/data/iwf", To: "/mnt/iwf"}
+
+	rec := newHarness(t, mover, fakeTasks{}).do(t, http.MethodGet, "/data-home/card?restarting=1", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `hx-trigger="every 2s"`, "the poll goes on until the move is applied")
+	require.NotContains(t, rec.Body.String(), `hx-post="/data-home/move"`, "the form does not come back before the restart")
+}
+
+func TestRestartingPollShowsTheFormOnceNothingIsPending(t *testing.T) {
+	rec := newHarness(t, defaultMover(), fakeTasks{}).do(t, http.MethodGet, "/data-home/card?restarting=1", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), `hx-trigger="every 2s"`, "the server is back: the poll stops")
+	require.Contains(t, rec.Body.String(), `hx-post="/data-home/move"`)
+}
+
+func TestPlainCardRouteWithAPendingMoveDoesNotPoll(t *testing.T) {
+	mover := defaultMover()
+	mover.status.Pending = &models.PendingMove{From: "/data/iwf", To: "/mnt/iwf"}
+
+	rec := newHarness(t, mover, fakeTasks{}).do(t, http.MethodGet, "/data-home/card", nil)
+
+	require.NotContains(t, rec.Body.String(), `hx-trigger="every 2s"`)
+}
+
 func TestCardRouteShowsTheReadErrorInsteadOfTheForm(t *testing.T) {
 	mover := &fakeMover{statusErr: domainerrors.ErrUnavailable}
 

@@ -3,7 +3,8 @@
 //
 // The e2e server runs with IWF_HOME set, so the folder is fixed by the environment: the card must show it
 // read-only and explain why. The real move (copy, pointer, restart, clean-up) needs a server without IWF_HOME
-// and is checked with a real process by end2end/go/move_home_smoke.sh.
+// and is checked in a browser against a real process by end2end/go/move_home_smoke.sh (which runs
+// end2end/move_home_ui_smoke.cjs: refusal notice, restarting card, new folder shown).
 
 async function openResources(ctx) {
   await ctx.goto('/settings/resources');

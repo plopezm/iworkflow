@@ -46,6 +46,16 @@ func (u *RequestDataHomeMove) Execute(ctx context.Context, input MoveInput) erro
 	if err := u.mover.Request(ctx, input.Destination); err != nil {
 		return fmt.Errorf("request the data folder move: %w", err)
 	}
-	u.restarter.RequestRestart()
-	return nil
+	active, err = u.tasks.HasActive(ctx)
+	if err == nil && !active {
+		u.restarter.RequestRestart()
+		return nil
+	}
+	if cancelErr := u.mover.Cancel(ctx); cancelErr != nil {
+		return fmt.Errorf("withdraw the data folder move: %w", cancelErr)
+	}
+	if err != nil {
+		return fmt.Errorf("check the active tasks: %w", err)
+	}
+	return domainerrors.ErrActiveTasks
 }

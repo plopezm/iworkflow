@@ -9,7 +9,7 @@ func dataHomeRootAttrs(p DataHomeCardProps) templ.Attributes {
 		return nil
 	}
 	return templ.Attributes{
-		"hx-get":     DataHomePath,
+		"hx-get":     DataHomePath + "?" + RestartingParam + "=1",
 		"hx-trigger": restartPollInterval,
 		"hx-swap":    "outerHTML",
 	}

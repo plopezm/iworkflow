@@ -50,9 +50,11 @@ func (h *Handlers) Card(ctx context.Context) templ.Component {
 	return h.view(ctx, state.Notice{}, false)
 }
 
-// card renders the card.
+// card renders the card. The poll of a restarting card asks with restarting=1: while the move is still
+// pending the server has not restarted yet, so the card must stay in its restarting state instead of
+// going back to the form.
 func (h *Handlers) card(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, http.StatusOK, h.view(r.Context(), state.Notice{}, false))
+	web.Render(w, r, http.StatusOK, h.view(r.Context(), state.Notice{}, r.URL.Query().Get(components.RestartingParam) == "1"))
 }
 
 // move requests the move. A refusal is shown above the controls; an accepted move shows the restarting
@@ -81,7 +83,8 @@ func (h *Handlers) cancelMove(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, h.view(ctx, notice, false))
 }
 
-// view reads the folder and builds the card. A failed read replaces the card with its error.
+// view reads the folder and builds the card. A failed read replaces the card with its error. The card
+// is restarting only while a move is pending: once the move was applied there is nothing to wait for.
 func (h *Handlers) view(ctx context.Context, notice state.Notice, restarting bool) templ.Component {
 	status, err := h.getHome.Execute(ctx)
 	if err != nil {
@@ -90,6 +93,6 @@ func (h *Handlers) view(ctx context.Context, notice state.Notice, restarting boo
 	return components.DataHomeCard(state.HomeCard(ctx, state.HomeCardData{
 		Status:     dto.FromHomeStatus(status),
 		Notice:     notice,
-		Restarting: restarting,
+		Restarting: restarting && status.Pending != nil,
 	}))
 }

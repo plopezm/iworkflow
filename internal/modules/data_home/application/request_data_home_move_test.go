@@ -38,6 +38,41 @@ func TestRequestDataHomeMoveRefusesWhileATaskIsActive(t *testing.T) {
 	require.Zero(t, restarter.requests)
 }
 
+func TestRequestDataHomeMoveWithdrawsTheMoveWhenATaskStartsAfterTheFirstCheck(t *testing.T) {
+	mover := &fakeMover{status: models.HomeStatus{Current: "/data/iwf", Source: models.SourceDefault}}
+	tasks := &fakeTasks{activeFromCall: 2}
+	restarter := &fakeRestarter{}
+
+	err := application.NewRequestDataHomeMove(mover, tasks, restarter).Execute(context.Background(), application.MoveInput{Destination: destination})
+
+	require.True(t, errors.Is(err, domainerrors.ErrActiveTasks))
+	require.Equal(t, 1, mover.cancels, "the recorded move is withdrawn")
+	require.Zero(t, restarter.requests, "the server must not restart under a running task")
+}
+
+func TestRequestDataHomeMoveWithdrawsTheMoveWhenTheSecondCheckFails(t *testing.T) {
+	mover := &fakeMover{status: models.HomeStatus{Current: "/data/iwf", Source: models.SourceDefault}}
+	tasks := &failingSecondCheck{}
+	restarter := &fakeRestarter{}
+
+	err := application.NewRequestDataHomeMove(mover, tasks, restarter).Execute(context.Background(), application.MoveInput{Destination: destination})
+
+	require.Error(t, err)
+	require.Equal(t, 1, mover.cancels)
+	require.Zero(t, restarter.requests)
+}
+
+// failingSecondCheck answers the first check and fails the second.
+type failingSecondCheck struct{ calls int }
+
+func (f *failingSecondCheck) HasActive(context.Context) (bool, error) {
+	f.calls++
+	if f.calls > 1 {
+		return false, errors.New("tasks unavailable")
+	}
+	return false, nil
+}
+
 func TestRequestDataHomeMoveKeepsTheReasonOfARefusedDestination(t *testing.T) {
 	mover := &fakeMover{
 		status:     models.HomeStatus{Current: "/data/iwf", Source: models.SourceDefault},

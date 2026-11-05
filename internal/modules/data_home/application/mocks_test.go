@@ -37,9 +37,16 @@ func (f *fakeMover) Cancel(context.Context) error {
 type fakeTasks struct {
 	active bool
 	err    error
+	// activeFromCall makes the answer active from that call on (1 is the first call); 0 means never.
+	activeFromCall int
+	calls          int
 }
 
 func (f *fakeTasks) HasActive(context.Context) (bool, error) {
+	f.calls++
+	if f.activeFromCall > 0 && f.calls >= f.activeFromCall {
+		return true, f.err
+	}
 	return f.active, f.err
 }
 

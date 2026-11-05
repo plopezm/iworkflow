@@ -72,7 +72,7 @@ func TestDataHomeCardPollsWhileTheServerRestarts(t *testing.T) {
 
 	body := render(t, components.DataHomeCard(props))
 
-	require.Contains(t, body, `hx-get="/data-home/card"`)
+	require.Contains(t, body, `hx-get="/data-home/card?restarting=1"`)
 	require.Contains(t, body, `hx-trigger="every 2s"`)
 	require.Contains(t, body, "Restarting to move the data folder.")
 	require.NotContains(t, body, `hx-post="/data-home/move"`)

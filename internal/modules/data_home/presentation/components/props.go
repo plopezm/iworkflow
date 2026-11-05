@@ -9,6 +9,9 @@ const DataHomeID = "data-home-card"
 // DataHomePath is the URL that loads the card. A restarting card polls it.
 const DataHomePath = "/data-home/card"
 
+// RestartingParam is the query parameter (value "1") a restarting card adds to its poll.
+const RestartingParam = "restarting"
+
 // Routes the card controls post to. They are part of the contract with the inbound handlers.
 const (
 	dataHomeMovePath   = "/data-home/move"
