@@ -62,6 +62,17 @@ func (m Manifest) TotalSize() int64 {
 	return total
 }
 
+// Only returns the manifest reduced to the entries keep accepts.
+func (m Manifest) Only(keep func(Entry) bool) Manifest {
+	reduced := Manifest{Skipped: slices.Clone(m.Skipped)}
+	for _, entry := range m.entries {
+		if keep(entry) {
+			reduced.entries = append(reduced.entries, entry)
+		}
+	}
+	return reduced
+}
+
 // Rebased returns the manifest as it must look under a new root: an absolute symbolic link that points
 // into from now points into to. Relative links and links elsewhere are unchanged. Copy and Verify take
 // the rebased manifest; Prune takes the original one.

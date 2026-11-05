@@ -253,3 +253,15 @@ func TestWorktreesOfReadsRepositoryAndPathOfEveryTaskWithAWorktree(t *testing.T)
 		{Repo: "/repo", Path: dir + "-sibling" + string(filepath.Separator) + "x"},
 	}, links)
 }
+
+// seededDatabaseAt is seededDatabase with the inside task pointing at a real worktree.
+func seededDatabaseAt(t *testing.T, dir string, repo string, worktree string) string {
+	t.Helper()
+	path := seededDatabase(t, dir, repo)
+	handle, err := db.Open(context.Background(), path)
+	require.NoError(t, err)
+	_, err = handle.Exec(`UPDATE tasks SET worktree_path = ? WHERE id = 'inside'`, worktree)
+	require.NoError(t, err)
+	require.NoError(t, handle.Close())
+	return path
+}
