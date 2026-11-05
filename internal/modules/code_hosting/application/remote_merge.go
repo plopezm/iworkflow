@@ -52,3 +52,27 @@ func (r *RemoteMerge) MergeOpenRequest(ctx context.Context, taskID string) (inbo
 	}
 	return inbound.RemoteMergeMerged, nil
 }
+
+// PreviewMergeOpenRequest reports what MergeOpenRequest would do, without pushing or merging: merge the open
+// request, find it already merged, or find nothing to merge remotely.
+func (r *RemoteMerge) PreviewMergeOpenRequest(ctx context.Context, taskID string) (inbound.RemoteMergeOutcome, error) {
+	merge := r.merge.Load()
+	if merge == nil {
+		return inbound.RemoteMergeNoOpenRequest, nil
+	}
+	open, mergedAtTip, err := merge.Preview(ctx, taskID)
+	if err != nil {
+		if errors.IsRemoteMergeNotApplicable(err) {
+			return inbound.RemoteMergeNoOpenRequest, nil
+		}
+		return 0, err
+	}
+	switch {
+	case mergedAtTip:
+		return inbound.RemoteMergeAlreadyMerged, nil
+	case open:
+		return inbound.RemoteMergeMerged, nil
+	default:
+		return inbound.RemoteMergeNoOpenRequest, nil
+	}
+}

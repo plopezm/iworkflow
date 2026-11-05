@@ -253,6 +253,10 @@ func (f fakeRemoteMerge) MergeOpenRequest(context.Context, string) (codehostingi
 	return f.outcome, f.err
 }
 
+func (f fakeRemoteMerge) PreviewMergeOpenRequest(context.Context, string) (codehostinginbound.RemoteMergeOutcome, error) {
+	return f.outcome, f.err
+}
+
 // Every outcome of the code_hosting merge maps to the tasks outcome of the same meaning; an outcome the tasks module
 // does not know is an error, and the error of the merge passes through.
 func TestRemoteMergeBridgeMapsEveryOutcome(t *testing.T) {

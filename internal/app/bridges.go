@@ -516,6 +516,17 @@ var _ tasksoutbound.RemoteMerge = (*remoteMergeBridge)(nil)
 // MergeOpenRequest merges the open merge request of the task and maps the outcome to the tasks names.
 func (b *remoteMergeBridge) MergeOpenRequest(ctx context.Context, taskID string) (tasksoutbound.RemoteMergeOutcome, error) {
 	outcome, err := b.inner.MergeOpenRequest(ctx, taskID)
+	return mapRemoteMergeOutcome(outcome, err)
+}
+
+// PreviewMergeOpenRequest reports, without merging, the outcome MergeOpenRequest would have.
+func (b *remoteMergeBridge) PreviewMergeOpenRequest(ctx context.Context, taskID string) (tasksoutbound.RemoteMergeOutcome, error) {
+	outcome, err := b.inner.PreviewMergeOpenRequest(ctx, taskID)
+	return mapRemoteMergeOutcome(outcome, err)
+}
+
+// mapRemoteMergeOutcome maps a code_hosting outcome to the tasks names.
+func mapRemoteMergeOutcome(outcome codehostinginbound.RemoteMergeOutcome, err error) (tasksoutbound.RemoteMergeOutcome, error) {
 	if err != nil {
 		return 0, err
 	}

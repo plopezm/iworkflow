@@ -57,6 +57,28 @@ func TestTaskActionsShowsTheReviewSectionWhenOnlyTheTaskCanMerge(t *testing.T) {
 	assert.NotContains(t, body, "/tasks/t1/diff", "the diff entry stays hidden without the flag")
 }
 
+// A task whose merge request is already merged on the provider only gets its worktree removed, so the action says so.
+func TestTaskActionsLabelsTheMergeActionAsCleanUpWhenItOnlyCleansUp(t *testing.T) {
+	t.Parallel()
+	view := taskActionsView("t1", false, true)
+	view.MergeCleanupOnly = true
+
+	body := renderIn(t, i18n.En, components.TaskActions(view))
+
+	assert.Contains(t, body, ">Clean up</button>")
+	assert.NotContains(t, body, ">Merge</button>")
+	assert.NotContains(t, body, "Merge the branch into the base")
+}
+
+func TestTaskActionsKeepsTheMergeLabelWhenItMerges(t *testing.T) {
+	t.Parallel()
+
+	body := renderIn(t, i18n.En, components.TaskActions(taskActionsView("t1", false, true)))
+
+	assert.Contains(t, body, ">Merge</button>")
+	assert.NotContains(t, body, "Clean up")
+}
+
 // The "Open with" entry sits next to the terminal and is offered only while the task has a worktree.
 func TestTaskActionsOffersOpenWithBesideTheTerminalOnlyWithAWorktree(t *testing.T) {
 	t.Parallel()

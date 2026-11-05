@@ -24,4 +24,6 @@ type RemoteMergePort interface {
 	// MergeOpenRequest pushes the pending commits of the task branch to the open merge request and
 	// merges it remotely.
 	MergeOpenRequest(ctx context.Context, taskID string) (RemoteMergeOutcome, error)
+	// PreviewMergeOpenRequest reports the outcome MergeOpenRequest would have, without pushing or merging anything.
+	PreviewMergeOpenRequest(ctx context.Context, taskID string) (RemoteMergeOutcome, error)
 }

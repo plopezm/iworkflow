@@ -144,6 +144,10 @@ func (f *fakeRemote) MergeOpenRequest(_ context.Context, taskID string) (outboun
 	return f.outcome, f.err
 }
 
+func (f *fakeRemote) PreviewMergeOpenRequest(context.Context, string) (outbound.RemoteMergeOutcome, error) {
+	return f.outcome, f.err
+}
+
 // mergeFixture is a reviewable task on ws-1 with its worktree, and the fakes behind the merge.
 func mergeFixture(status models.TaskStatus) (models.Task, *fakeRepository, *fakeWorktree) {
 	task := newTask(status)

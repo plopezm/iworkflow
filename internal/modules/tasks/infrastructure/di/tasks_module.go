@@ -273,6 +273,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Panels:              deps.Panels,
 		CommittedDiff:       application.NewGetTaskCommittedDiff(lifecycle, worktrees),
 		Merge:               mergeTask,
+		MergePreview:        application.NewPreviewMerge(lifecycle, deps.Remote),
 		Subagents:           getSubagents,
 		SetRelatedProjects:  application.NewSetTaskRelatedProjects(lifecycle, relatedProjects, listRelatedProjects, probe.NewRelatedProjectProbe(), relatedRestarter),
 		ListRelatedProjects: listRelatedProjects,
