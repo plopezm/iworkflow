@@ -9,6 +9,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"runtime"
 	"time"
 
 	"github.com/a-h/templ"
@@ -31,6 +33,9 @@ import (
 	codehostingapp "iworkflow/internal/modules/code_hosting/application"
 	codehostingmodels "iworkflow/internal/modules/code_hosting/domain/models"
 	codehostingdi "iworkflow/internal/modules/code_hosting/infrastructure/di"
+	datahomeoutbound "iworkflow/internal/modules/data_home/domain/ports/outbound"
+	datahomesystem "iworkflow/internal/modules/data_home/infrastructure/adapters/outbound/system"
+	datahomedi "iworkflow/internal/modules/data_home/infrastructure/di"
 	jiradi "iworkflow/internal/modules/jira/infrastructure/di"
 	openwithdi "iworkflow/internal/modules/open_with/infrastructure/di"
 	prefsinbound "iworkflow/internal/modules/preferences/infrastructure/adapters/inbound"
@@ -38,6 +43,7 @@ import (
 	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
 	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
+	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
 	terminaldi "iworkflow/internal/modules/terminal/infrastructure/di"
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
@@ -67,6 +73,7 @@ type App struct {
 	staticDir     string
 	guard         *prefsinbound.AccessGuard
 	prefs         *prefsdi.Module
+	dataHome      *datahomedi.Module
 	workspaces    *workspacesdi.Module
 	transcription *transcriptiondi.Module
 	terminal      *terminaldi.Module
@@ -192,6 +199,12 @@ func New(deps Deps) (*App, error) {
 		Logger:   deps.Logger,
 	})
 
+	dataHome := datahomedi.NewModule(datahomedi.Deps{
+		Mover:       datahomesystem.NewHomeMoverAdapter(runtime.GOOS, os.Getenv, time.Now, deps.Logger.Info),
+		ActiveTasks: &dataHomeActiveTasks{list: tasks.List.Execute},
+		Restarter:   prefssystem.NewServerRestarter(deps.Restart),
+	})
+
 	routes := make([]dock.Route, 0, 24)
 	// The board owns the home address, so it precedes the not-migrated catch-alls below.
 	routes = append(routes, tasks.Tabs()...)
@@ -199,7 +212,7 @@ func New(deps Deps) (*App, error) {
 	routes = append(routes, workspaces.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
 	routes = append(routes, profiles.Tabs()...)
-	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule))...)
+	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
 	routes = append(routes, terminal.Tabs()...)
 	routes = append(routes, jiraModule.Tabs()...)
@@ -214,12 +227,13 @@ func New(deps Deps) (*App, error) {
 		staticDir:     deps.StaticDir,
 		guard:         guard,
 		prefs:         prefs,
+		dataHome:      dataHome,
 		workspaces:    workspaces,
 		transcription: transcription,
 		terminal:      terminal,
 		tasks:         tasks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{prefs, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
+		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
 		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }
@@ -294,7 +308,7 @@ func (a *App) page(w http.ResponseWriter, r *http.Request) {
 }
 
 // settingsSections are the sections of the settings screen, in display order.
-func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module) []agentsettingspages.SettingsSection {
+func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module, home *datahomedi.Module) []agentsettingspages.SettingsSection {
 	return []agentsettingspages.SettingsSection{
 		{
 			ID:    "language",
@@ -303,7 +317,7 @@ func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, c
 				return prefspages.LanguageSection(i18n.StateFrom(ctx).Locale)
 			},
 		},
-		withPruneCard(settings.ResourcesSection(msgResources.T), tasks),
+		withHomeCard(withPruneCard(settings.ResourcesSection(msgResources.T), tasks), home),
 		{
 			ID:    "network",
 			Label: msgSettingsNet.T,
@@ -401,4 +415,43 @@ func withPruneCard(section agentsettingspages.SettingsSection, tasks *tasksdi.Mo
 		})
 	}
 	return section
+}
+
+// withHomeCard adds the data folder card above the content of the resources section, so it comes
+// before the resource limits card.
+func withHomeCard(section agentsettingspages.SettingsSection, home *datahomedi.Module) agentsettingspages.SettingsSection {
+	content := section.Content
+	section.Content = func(ctx context.Context) templ.Component {
+		return templ.ComponentFunc(func(renderCtx context.Context, w io.Writer) error {
+			if err := home.Card(renderCtx).Render(renderCtx, w); err != nil {
+				return err //nolint:wrapcheck // The render error passes through to the caller of the component.
+			}
+			return content(ctx).Render(renderCtx, w)
+		})
+	}
+	return section
+}
+
+// dataHomeActiveTasks tells the data_home module whether a task is starting, running or finishing: the
+// data folder cannot move while one is. It reads the unfinished tasks of the tasks module.
+type dataHomeActiveTasks struct {
+	list func(ctx context.Context, workspaceID *string) ([]tasksmodels.Task, error)
+}
+
+var _ datahomeoutbound.ActiveTasksPort = (*dataHomeActiveTasks)(nil)
+
+// HasActive reports whether an unfinished task is starting, running or finishing.
+func (a *dataHomeActiveTasks) HasActive(ctx context.Context) (bool, error) {
+	tasks, err := a.list(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("list the tasks: %w", err)
+	}
+	for _, task := range tasks {
+		switch task.Status {
+		case tasksmodels.StatusStarting, tasksmodels.StatusRunning, tasksmodels.StatusFinishing:
+			return true, nil
+		default:
+		}
+	}
+	return false, nil
 }
