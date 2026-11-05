@@ -679,8 +679,8 @@ func (b *jiraTaskCreation) Create(ctx context.Context, input jiraoutbound.NewLin
 
 // jiraWorkspaceCatalog adapts workspaces to jira's outbound.WorkspaceCatalog interface.
 type jiraWorkspaceCatalog struct {
-	list *workspacesapp.ListWorkspaces
-	get  *workspacesapp.GetWorkspace
+	list     *workspacesapp.ListWorkspaces
+	branches *tasksapp.ListWorkspaceBranches
 }
 
 var _ jiraoutbound.WorkspaceCatalog = (*jiraWorkspaceCatalog)(nil)
@@ -701,18 +701,17 @@ func (b *jiraWorkspaceCatalog) Workspaces(ctx context.Context) ([]jiramodels.Wor
 	return opts, nil
 }
 
+// Branches lists the local and remote branches of the workspace repository, as the task forms do.
 func (b *jiraWorkspaceCatalog) Branches(ctx context.Context, workspaceID string) ([]jiramodels.BranchOption, error) {
-	wsID, err := workspacesmodels.ParseWorkspaceID(workspaceID)
+	listed, err := b.branches.Execute(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	ws, err := b.get.Execute(ctx, wsID)
-	if err != nil {
-		return nil, err
+	opts := make([]jiramodels.BranchOption, 0, len(listed))
+	for _, branch := range listed {
+		opts = append(opts, jiramodels.BranchOption{Name: branch.Name, Remote: branch.Remote})
 	}
-	return []jiramodels.BranchOption{
-		{Name: ws.BaseBranch, Remote: false},
-	}, nil
+	return opts, nil
 }
 
 // openWithWorktrees gives the open_with module the worktree of a task.

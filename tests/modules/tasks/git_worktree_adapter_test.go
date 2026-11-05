@@ -540,6 +540,28 @@ func TestCreatesWorktreeFromARemoteBranch(t *testing.T) {
 	assert.Equal(t, taskBranch, gitCmd(t, worktree, "branch", "--show-current"))
 }
 
+// A remote base branch is refreshed before the worktree is created, so the task starts from the current tip of
+// the remote and not from the last fetch.
+func TestCreateFetchesARemoteBaseBranchFirst(t *testing.T) {
+	remote := newRemoteFixture(t)
+	other := realDir(t, t.TempDir())
+	origin := gitCmd(t, remote.repo, "remote", "get-url", "origin")
+	gitCmd(t, other, "clone", "-q", origin, ".")
+	gitCmd(t, other, "config", "user.email", "test@example.com")
+	gitCmd(t, other, "config", "user.name", "Test")
+	gitCmd(t, other, "config", "commit.gpgsign", "false")
+	gitCmd(t, other, "checkout", "-q", "develop")
+	require.NoError(t, os.WriteFile(filepath.Join(other, "newer.txt"), []byte("new\n"), 0o644))
+	gitCmd(t, other, "add", ".")
+	gitCmd(t, other, "commit", "-q", "-m", "newer")
+	gitCmd(t, other, "push", "-q", "origin", "develop")
+	worktree := remote.adapter.WorktreePath("demo", "1234-fresh")
+
+	require.NoError(t, remote.adapter.Create(bg(), remote.repo, "origin/develop", taskBranch, worktree))
+
+	assert.FileExists(t, filepath.Join(worktree, "newer.txt"))
+}
+
 // Rust: task_branch_does_not_track_the_remote_base_branch. A push from the task branch must never
 // reach the base branch.
 func TestTaskBranchDoesNotTrackTheRemoteBaseBranch(t *testing.T) {

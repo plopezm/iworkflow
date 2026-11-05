@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -96,8 +97,35 @@ func (a *WorktreeAdapter) Create(ctx context.Context, repo string, baseBranch st
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return werrors.Git(fmt.Sprintf("no se pudo crear %s: %v", filepath.Dir(path), err))
 	}
+	a.refreshRemoteBase(ctx, repo, baseBranch)
 	_, err := git(ctx, repo, "worktree", "add", "--no-track", "-b", branch, path, baseBranch)
 	return err
+}
+
+// fetchTimeout bounds the refresh of a remote base branch, so an unreachable remote cannot stall a start.
+const fetchTimeout = 30 * time.Second
+
+// refreshRemoteBase fetches baseBranch from its remote when it is a remote-tracking branch with no local
+// namesake, so the task starts from the current remote tip and not from the last fetch. It is best effort:
+// offline, the existing remote-tracking ref is used and the failure is only logged.
+func (a *WorktreeAdapter) refreshRemoteBase(ctx context.Context, repo string, baseBranch string) {
+	local, err := refExists(ctx, repo, localRefsPrefix+baseBranch)
+	if err != nil || local {
+		return
+	}
+	remotes, err := git(ctx, repo, "remote")
+	if err != nil {
+		return
+	}
+	remote, branch, found := splitRemoteBranch(baseBranch, remotes)
+	if !found {
+		return
+	}
+	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+	if _, err := git(fetchCtx, repo, "fetch", "--quiet", remote, branch); err != nil {
+		slog.Warn("could not refresh the remote base branch; using the last fetched one", "base", baseBranch, "error", err)
+	}
 }
 
 // CommitAll stages every change and commits it. The boolean is false when there was nothing to commit.
