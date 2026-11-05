@@ -101,7 +101,7 @@ func (h *BoardHandlers) updateTask(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, components.TaskEditResult(boundaryText(ctx, err)))
 		return
 	}
-	current, editable, err := h.loadEdit(ctx, id)
+	storedImageIDs, editable, err := h.loadStoredImageIDs(ctx, id)
 	if err != nil {
 		web.Render(w, r, http.StatusOK, components.TaskEditResult(err.Error()))
 		return
@@ -110,7 +110,7 @@ func (h *BoardHandlers) updateTask(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, components.NotEditable())
 		return
 	}
-	input, err := form.ToUpdate(keptImages(current.Existing, form.RemoveIDs))
+	input, err := form.ToUpdate(keptImages(storedImageIDs, form.RemoveIDs))
 	if err != nil {
 		web.Render(w, r, http.StatusOK, components.TaskEditResult(boundaryText(ctx, err)))
 		return
@@ -122,6 +122,28 @@ func (h *BoardHandlers) updateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	web.Trigger(w, boardRefreshEvent)
 	web.Render(w, r, http.StatusOK, components.TaskSaved(state.BoardPath(saved.WorkspaceID)))
+}
+
+// loadStoredImageIDs reads only what a save needs before validating the form: whether the task is still
+// editable and the ids of its stored images. It must stay cheap: the save does not need the branch list or the
+// agent catalog that the edit page shows, and those start git and agent processes.
+func (h *BoardHandlers) loadStoredImageIDs(ctx context.Context, id models.TaskID) ([]string, bool, error) {
+	task, err := h.uc.Get.Execute(ctx, id)
+	if err != nil {
+		return nil, false, fmt.Errorf("read the task: %w", err)
+	}
+	if !task.Status.CanEdit() {
+		return nil, false, nil
+	}
+	stored, err := h.uc.ListAttachments.Execute(ctx, id)
+	if err != nil {
+		return nil, false, fmt.Errorf("list the images: %w", err)
+	}
+	ids := make([]string, 0, len(stored))
+	for _, attachment := range stored {
+		ids = append(ids, attachment.ID)
+	}
+	return ids, true, nil
 }
 
 // loadEdit reads what the edit page of a task shows. editable is false for a task that left backlog.
@@ -194,10 +216,10 @@ func workspaceIDs(workspaces []models.WorkspaceRef) []string {
 }
 
 // keptImages counts the stored images that a save keeps: the ones not marked for removal.
-func keptImages(existing []dto.TaskAttachmentDTO, removed []string) int {
+func keptImages(existing []string, removed []string) int {
 	kept := 0
-	for _, attachment := range existing {
-		if !contains(removed, attachment.ID) {
+	for _, attachmentID := range existing {
+		if !contains(removed, attachmentID) {
 			kept++
 		}
 	}
