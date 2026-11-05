@@ -41,7 +41,7 @@ func TestInstalledReusesTheAnswerUntilTheCacheExpires(t *testing.T) {
 	adapter.bins[models.RuntimePi] = "iwf-definitely-not-installed"
 	require.True(t, adapter.Installed(context.Background(), models.RuntimePi), "fresh answer is reused")
 
-	now = now.Add(modelsCacheTTL + time.Second)
+	now = now.Add(installedCacheTTL + time.Second)
 	require.False(t, adapter.Installed(context.Background(), models.RuntimePi), "expired answer is probed again")
 }
 

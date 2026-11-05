@@ -10,7 +10,12 @@ import (
 	"iworkflow/internal/modules/agent_settings/domain/ports/outbound"
 )
 
-const installedProbeTimeout = 5 * time.Second
+const (
+	installedProbeTimeout = 5 * time.Second
+	// installedCacheTTL: probing starts a login shell per runtime and an executable rarely appears or
+	// disappears, so the answer is reused far longer than a model listing.
+	installedCacheTTL = 10 * time.Minute
+)
 
 var _ outbound.RuntimeAvailabilityPort = (*AgentCLIModelCatalogAdapter)(nil)
 
@@ -22,7 +27,7 @@ type installedEntry struct {
 
 // Installed reports whether the executable of runtime resolves in the login shell, the same
 // environment that launches it. A runtime without a registered binary is not installed. The answer
-// is reused for modelsCacheTTL because every page render asks for it.
+// is reused for installedCacheTTL because every page render asks for it.
 func (a *AgentCLIModelCatalogAdapter) Installed(ctx context.Context, runtime models.AgentRuntime) bool {
 	bin, registered := a.bins[runtime]
 	if !registered || bin == "" {
@@ -31,7 +36,7 @@ func (a *AgentCLIModelCatalogAdapter) Installed(ctx context.Context, runtime mod
 	a.mu.Lock()
 	entry, found := a.installed[runtime]
 	a.mu.Unlock()
-	if found && a.clock().Sub(entry.checkedAt) < modelsCacheTTL {
+	if found && a.clock().Sub(entry.checkedAt) < installedCacheTTL {
 		return entry.found
 	}
 	resolved := probeInstalled(ctx, bin, os.Environ())

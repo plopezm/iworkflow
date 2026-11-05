@@ -21,8 +21,10 @@ const (
 	// exitCommandNotFound is the exit code POSIX shells (and fish) return for an unknown command.
 	exitCommandNotFound = 127
 	// modelsCacheTTL: listing models starts an agent process (and with it its MCP servers), so the
-	// result is reused for this long instead of spawning one process per query.
-	modelsCacheTTL = 60 * time.Second
+	// result is reused for this long instead of spawning one process per query. The catalog is read on
+	// every edit page, so a short TTL makes the page pay for a process start (slow on a network
+	// filesystem) after any pause.
+	modelsCacheTTL = 5 * time.Minute
 	// claudeProvider and claudeModelAliases: Claude Code has no `--list-models`; its models are
 	// chosen by alias (`claude --model`).
 	claudeProvider = "anthropic"
