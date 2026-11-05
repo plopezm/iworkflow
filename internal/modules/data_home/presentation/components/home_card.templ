@@ -1,0 +1,74 @@
+package components
+
+import ui "iworkflow/internal/core/components"
+
+// DataHomeCard is the card that moves the data folder to another directory. A restarting card hides
+// the form and polls until the server is back.
+templ DataHomeCard(p DataHomeCardProps) {
+	<div id={ DataHomeID } { dataHomeRootAttrs(p)... }>
+		@ui.Card(p.Title) {
+			if p.Error != "" {
+				@ui.ErrorText(p.Error)
+			} else {
+				if p.Notice != "" {
+					@ui.ErrorText(p.Notice)
+				}
+				<p class="muted text-sm">{ p.Help }</p>
+				<p class="text-sm text-fg">
+					{ p.CurrentLabel }: <code class="font-mono">{ p.Current }</code> <span class="muted">({ p.SourceText })</span>
+				</p>
+				if p.EnvLocked {
+					<p class="muted text-sm" role="note">{ p.EnvNote }</p>
+				} else if p.Restarting {
+					<p class="text-sm text-warn" role="status">{ p.RestartingText }</p>
+				} else {
+					<form
+						class="stack gap-2"
+						hx-post={ dataHomeMovePath }
+						hx-target={ "#" + DataHomeID }
+						hx-swap="outerHTML"
+						hx-disabled-elt="find button"
+					>
+						@ui.TextField(ui.FieldProps{
+							Label:       p.DestinationLabel,
+							Name:        "destination",
+							Placeholder: p.DestinationPlaceholder,
+							Required:    true,
+						})
+						<div>
+							<button type="submit" class="btn-primary">{ p.MoveLabel }</button>
+						</div>
+					</form>
+				}
+				if p.PendingText != "" {
+					<p class="text-sm text-warn">{ p.PendingText }</p>
+					<div>
+						<button
+							type="button"
+							class="btn-secondary"
+							hx-post={ dataHomeCancelPath }
+							hx-target={ "#" + DataHomeID }
+							hx-swap="outerHTML"
+							hx-disabled-elt="this"
+						>{ p.CancelLabel }</button>
+					</div>
+				}
+				if p.LastText != "" {
+					if p.LastFailed {
+						<p class="text-sm text-error">{ p.LastText }</p>
+					} else {
+						<p class="muted text-sm">{ p.LastText }</p>
+					}
+				}
+				if len(p.Warnings) > 0 {
+					<p class="muted text-sm">{ p.WarningsLabel }</p>
+					<ul class="muted text-sm">
+						for _, warning := range p.Warnings {
+							<li>{ warning }</li>
+						}
+					</ul>
+				}
+			}
+		}
+	</div>
+}

@@ -181,7 +181,7 @@ Each codec translates between the runtime's wire format and the domain `AgentCom
 
 ## 10. Configuration and data folder
 
-The data folder is `IWF_HOME` (default `~/.iworkflow`, or `%USERPROFILE%\.iworkflow` on Windows). Everything below is derived from it and cannot be set separately:
+The data folder is resolved by `config.DataDir`: `IWF_HOME` first, then the pointer file written by the settings card, then `~/.iworkflow` (`%USERPROFILE%\.iworkflow` on Windows). Everything below is derived from it and cannot be set separately:
 
 | Path | Content |
 |---|---|
@@ -192,6 +192,10 @@ The data folder is `IWF_HOME` (default `~/.iworkflow`, or `%USERPROFILE%\.iworkf
 | `logs/` | `iworkflow.log`, rotated and gzip-compressed |
 
 Other variables: the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, `IWF_PI_AGENTS_DIR`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in the README. On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
+
+### Moving the data folder
+
+`internal/core/datahome` owns the pointer (`data-home`, one absolute path in the per-user configuration folder, written atomically; a corrupt pointer stops the start instead of falling back to an empty default) and the move engine. The `data_home` module only asks for a move: `Mover.Request` validates the destination and writes `move-pending.json` next to the pointer, then the server restarts. The move itself runs in `cmd/iworkflow/movehome.go`, **before the log and the database are opened**, so nothing writes to the folder while it is copied. Steps: fold the SQLite WAL, scan the folder (without following links), copy to `<dest>.iwf-moving` (fsync per file, absolute links into the old folder rebased), verify the tree, rewrite `tasks.worktree_path` and `agents_files.path` in the copied database and compare it with the original (integrity check, row counts), rename the copy into place, run `git worktree repair` per repository (otherwise the next `git worktree prune` would forget the moved worktrees), write the pointer, delete from the old folder only what the new one also holds. A failure before the pointer switch leaves the old folder untouched (the repaired worktree links are pointed back and the copy removed); the outcome is kept in `move-result.json` and shown in the card. A crash at any point is resumed at the next start from the markers (`move-pending.json`, `.iwf-move-complete` in the copy, the pointer). The desktop shell treats the `data folder move:` log lines as signs of life, so a long copy does not trip its start timeout.
 
 ## 11. Testing
 

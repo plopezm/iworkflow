@@ -3,8 +3,13 @@ package config
 
 import (
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+
+	"iworkflow/internal/core/datahome"
 )
 
 const (
@@ -59,10 +64,24 @@ type Config struct {
 	PiAgentsDir string
 }
 
-// DataDir is the folder holding everything iworkflow stores: IWF_HOME, else ~/.iworkflow.
+// DataDir is the folder holding everything iworkflow stores. IWF_HOME wins; else the folder the pointer
+// names (written when the data folder is moved from the settings screen); else ~/.iworkflow. A corrupt
+// pointer is an error: falling back would open an empty default folder and look like lost data.
 func DataDir(getenv func(string) string) (string, error) {
 	if custom := strings.TrimSpace(getenv("IWF_HOME")); custom != "" {
 		return custom, nil
+	}
+	if pointer, err := datahome.PointerPath(runtime.GOOS, getenv); err == nil {
+		moved, readErr := datahome.Read(pointer)
+		if readErr != nil {
+			return "", fmt.Errorf("data folder: %w", readErr)
+		}
+		if moved != "" {
+			if _, statErr := os.Stat(moved); statErr != nil {
+				return "", fmt.Errorf("data folder: %w: %s (remove %s to go back to the default folder)", datahome.ErrTargetMissing, moved, pointer)
+			}
+			return moved, nil
+		}
 	}
 	home := firstNonEmpty(getenv("HOME"), getenv("USERPROFILE"))
 	if home == "" {
@@ -72,7 +91,7 @@ func DataDir(getenv func(string) string) (string, error) {
 }
 
 // FromEnv builds the configuration from the given variable lookup (os.Getenv in production).
-// Every data path is derived from the data folder; only IWF_HOME moves them.
+// Every data path is derived from the data folder; only IWF_HOME or the pointer move them.
 func FromEnv(getenv func(string) string) (Config, error) {
 	home := firstNonEmpty(getenv("HOME"), getenv("USERPROFILE"))
 	if home == "" {

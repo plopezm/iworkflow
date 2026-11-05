@@ -15,6 +15,8 @@ const {
   extractListenAddr,
   windowUrl,
   isTrustedUrl,
+  isMoveProgress,
+  isStartTimedOut,
 } = require('../src/launcher');
 
 test('defaults to the server default address when IWORKFLOW_ADDR is unset', () => {
@@ -131,4 +133,18 @@ test('only the restart exit code asks for a respawn', () => {
   assert.equal(isRestartExit(0), false);
   assert.equal(isRestartExit(1), false);
   assert.equal(isRestartExit(null), false);
+});
+
+test('recognizes the progress lines of a data folder move', () => {
+  assert.equal(isMoveProgress('time=2026 level=INFO msg="data folder move: copying" copied_bytes=10'), true);
+  assert.equal(isMoveProgress('time=2026 level=INFO msg="listening" url=http://127.0.0.1:9000'), false);
+});
+
+test('a slow start only times out after a quiet period', () => {
+  const timeout = 60_000;
+  assert.equal(isStartTimedOut(59_999, 0, 0, timeout), false);
+  assert.equal(isStartTimedOut(60_000, 0, 0, timeout), true);
+  // A move that keeps reporting progress pushes the deadline forward.
+  assert.equal(isStartTimedOut(150_000, 0, 100_000, timeout), false);
+  assert.equal(isStartTimedOut(160_000, 0, 100_000, timeout), true);
 });

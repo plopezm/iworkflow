@@ -21,6 +21,8 @@ const {
   serverArgs,
   serverBinaryName,
   windowUrl,
+  isMoveProgress,
+  isStartTimedOut,
 } = require('./launcher');
 const { startUpdater } = require('./updater');
 
@@ -77,9 +79,12 @@ function canConnect(addr) {
   });
 }
 
+// Last progress line of a data folder move: the server is busy copying, not stuck.
+let lastMoveProgress = 0;
+
 async function waitUntilReady(addr) {
-  const deadline = Date.now() + READY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
+  const startedAt = Date.now();
+  while (!isStartTimedOut(Date.now(), startedAt, lastMoveProgress, READY_TIMEOUT_MS)) {
     if (!server) throw new Error('The server stopped before it was ready.');
     if (await canConnect(addr)) return;
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
@@ -112,6 +117,7 @@ function startServer(onListening) {
     rememberLog(line);
     console.log(`[server] ${line}`);
     accessToken = extractAccessToken(line) ?? accessToken;
+    if (isMoveProgress(line)) lastMoveProgress = Date.now();
     const announced = extractListenAddr(line);
     if (announced) onListening(announced);
   };
@@ -242,12 +248,14 @@ async function startAndFindAddr() {
     return addr;
   }
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new Error('The server did not announce its address in time.')),
-      READY_TIMEOUT_MS,
-    );
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      if (!isStartTimedOut(Date.now(), startedAt, lastMoveProgress, READY_TIMEOUT_MS)) return;
+      clearInterval(timer);
+      reject(new Error('The server did not announce its address in time.'));
+    }, POLL_INTERVAL_MS);
     startServer((announced) => {
-      clearTimeout(timer);
+      clearInterval(timer);
       resolve(announced);
     });
   });

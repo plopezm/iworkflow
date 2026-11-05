@@ -181,7 +181,7 @@ Cada codec traduce entre el formato del runtime y los tipos de dominio `AgentCom
 
 ## 10. Configuración y carpeta de datos
 
-La carpeta de datos es `IWF_HOME` (por defecto `~/.iworkflow`, o `%USERPROFILE%\.iworkflow` en Windows). Todo lo siguiente se deriva de ella y no se puede cambiar por separado:
+La carpeta de datos la resuelve `config.DataDir`: primero `IWF_HOME`, luego el fichero puntero que escribe la tarjeta de configuración, y por último `~/.iworkflow` (`%USERPROFILE%\.iworkflow` en Windows). Todo lo siguiente se deriva de ella y no se puede cambiar por separado:
 
 | Ruta | Contenido |
 |---|---|
@@ -192,6 +192,10 @@ La carpeta de datos es `IWF_HOME` (por defecto `~/.iworkflow`, o `%USERPROFILE%\
 | `logs/` | `iworkflow.log`, rotado y comprimido con gzip |
 
 Otras variables: los binarios de los agentes (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, `IWF_PI_AGENTS_DIR`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), el log (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` e `IWF_SUPERVISED`. La tabla completa, con valores por defecto, está en el README. En Windows el instalador guarda una carpeta de datos personalizada como variable de usuario `IWF_HOME`.
+
+### Mover la carpeta de datos
+
+`internal/core/datahome` es dueño del puntero (`data-home`, una ruta absoluta en la carpeta de configuración del usuario, escrita de forma atómica; un puntero corrupto detiene el arranque en vez de caer a una carpeta por defecto vacía) y del motor de movimiento. El módulo `data_home` solo pide el movimiento: `Mover.Request` valida el destino y escribe `move-pending.json` junto al puntero, y el servidor se reinicia. El movimiento se ejecuta en `cmd/iworkflow/movehome.go`, **antes de abrir el log y la base de datos**, así nada escribe en la carpeta mientras se copia. Pasos: volcar el WAL de SQLite, listar la carpeta (sin seguir enlaces), copiar a `<destino>.iwf-moving` (fsync por fichero, enlaces absolutos hacia la carpeta antigua reescritos), verificar el árbol, reescribir `tasks.worktree_path` y `agents_files.path` en la base copiada y compararla con la original (integridad, número de filas), renombrar la copia a su sitio, ejecutar `git worktree repair` por repositorio (si no, el siguiente `git worktree prune` olvidaría los worktrees movidos), escribir el puntero y borrar de la carpeta antigua solo lo que la nueva también contiene. Un fallo antes del cambio de puntero deja la carpeta antigua intacta (los enlaces de los worktrees vuelven a apuntar a ella y la copia se elimina); el resultado queda en `move-result.json` y se muestra en la tarjeta. Una caída en cualquier punto se reanuda en el siguiente arranque a partir de las marcas (`move-pending.json`, `.iwf-move-complete` en la copia, el puntero). El shell de escritorio trata las líneas `data folder move:` del log como señal de vida, así una copia larga no agota su tiempo de arranque.
 
 ## 11. Tests
 

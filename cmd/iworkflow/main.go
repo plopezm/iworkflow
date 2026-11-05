@@ -52,6 +52,11 @@ var version string = "dev"
 func main() {
 	// Loaded first, like the Rust server: the file can set the log level and every IWF_* variable.
 	dotEnvPath, dotEnvErr := loadDotEnv()
+	// A requested move of the data folder runs before anything is opened in it (the log and the database live there).
+	if err := moveDataFolder(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	logOutput, closeLog, logFileErr := openLogOutput(os.Getenv)
 	defer closeLog()
 	logger := slog.New(logx.NewStackHandler(slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: logLevel(os.Getenv(logLevelVar))})))
@@ -69,6 +74,15 @@ func main() {
 	code := run(logger, os.Args[1:])
 	closeLog()
 	os.Exit(code) // os.Exit skips deferred calls, so the log file is closed explicitly above
+}
+
+// moveDataFolder applies a pending move of the data folder. Progress goes to stderr: no log file exists yet,
+// and the desktop shell reads these lines to know the start is slow on purpose.
+func moveDataFolder() error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	return applyPendingMove(ctx, os.Getenv, logger)
 }
 
 // openLogOutput returns stderr teed into a size-rotated, gzip-compressed log file. The file is

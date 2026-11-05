@@ -224,3 +224,22 @@ func TestTheBoardSidebarIsRenderedInsideTheMorphExtensionScope(t *testing.T) {
 	opening = opening[:strings.Index(opening, ">")]
 	require.Contains(t, opening, `hx-swap="morph:innerHTML"`)
 }
+
+func TestTheDataHomeCardRendersBeforeTheResourceLimits(t *testing.T) {
+	rec := get(t, newRouter(t), "/dock/pane?path=/settings/resources")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	home := strings.Index(body, `id="data-home-card"`)
+	limits := strings.Index(body, `id="agent-settings-limits"`)
+	require.NotEqual(t, -1, home, "the data folder card is missing from the resources section")
+	require.NotEqual(t, -1, limits, "the resource limits card is missing from the resources section")
+	require.Less(t, home, limits, "the data folder card must come before the resource limits card")
+}
+
+func TestTheDataHomeCardRouteIsMounted(t *testing.T) {
+	rec := get(t, newRouter(t), "/data-home/card")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `id="data-home-card"`)
+}
