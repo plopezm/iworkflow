@@ -175,10 +175,10 @@ func TestBoardRendersEveryStageAndTheTaskLinks(t *testing.T) {
 func TestBoardShowsTheEmptyStateWithoutTasks(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
-	insertWorkspace(t, repo.DB, t.TempDir())
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
 	module, _ := boardRouter(t, repo)
 
-	page := renderTab(t, module, "board", dock.Params{})
+	page := renderTab(t, module, "board_workspace", dock.Params{"id": workspaceID})
 
 	assert.Contains(t, page, "No tasks in this workspace yet")
 	assert.Contains(t, page, "Create the first task")

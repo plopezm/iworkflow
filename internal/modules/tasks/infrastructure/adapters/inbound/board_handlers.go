@@ -345,30 +345,6 @@ func (h *BoardHandlers) view(ctx context.Context, requested string, showComplete
 	view.HasMore = showCompleted && state.DoneHasMore(tasks.LastPageLen)
 	view.Groups = state.GroupByStage(tasks.Tasks)
 
-	var graphDTO dto.TaskGraphDTO
-	if h.uc.GetGraph != nil {
-		g, err := h.uc.GetGraph.Execute(ctx, view.Choice.ID)
-		if err == nil {
-			graphDTO = dto.TaskGraphFromDomain(g)
-		} else {
-			slog.Warn("could not load graph for workspace", "workspace", view.Choice.ID, "error", err)
-		}
-	}
-	view.GraphView = state.BuildGraph(view.Choice.ID, tasks.Tasks, graphDTO, showCompleted, nil)
-	view.Loose = state.LooseTasks(view.Choice.ID, tasks.Tasks, graphDTO, showCompleted, nil)
-	saved := state.SavedPositions(graphDTO)
-
-	nodeIDs := make([]string, len(view.GraphView.Nodes))
-	for i, n := range view.GraphView.Nodes {
-		nodeIDs[i] = n.Task.ID
-	}
-	edges := make([][2]string, len(view.GraphView.Edges))
-	for i, e := range view.GraphView.Edges {
-		edges[i] = [2]string{e.PredecessorID, e.SuccessorID}
-	}
-	view.Positions = state.ResolvePositions(nodeIDs, edges, saved)
-	view.Viewport = state.DefaultViewport()
-
 	return view
 }
 
