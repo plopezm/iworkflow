@@ -24,6 +24,9 @@ type TaskDetailView struct {
 	// RelatedProjects are the projects the task may relate to, with the stored ones marked. It is empty when the task is
 	// closed, when no other project exists or when the list could not be read: the section is then not shown.
 	RelatedProjects []RelatedProjectChoice
+	// MergeCleanupOnly is true when merging the task only removes its worktree, because its merge request was already
+	// merged on the provider: the merge action is then labelled as a clean up.
+	MergeCleanupOnly bool
 }
 
 // branchMaxChars is the longest branch the header shows; a longer one is cut in the middle.

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -33,6 +34,11 @@ type AttachmentLister interface {
 // TaskMerger integrates the branch of a task into its base. *application.MergeTask satisfies it.
 type TaskMerger interface {
 	Execute(ctx context.Context, id models.TaskID) (models.MergeOutcome, error)
+}
+
+// MergePreviewer tells whether merging a task only cleans up its worktree. *application.PreviewMerge satisfies it.
+type MergePreviewer interface {
+	Execute(ctx context.Context, id models.TaskID) (bool, error)
 }
 
 // RelatedProjectsSetter replaces the related projects of a task. *application.SetTaskRelatedProjects satisfies it.
@@ -66,7 +72,9 @@ type DetailUseCases struct {
 	Discard         *application.DiscardTask
 	Delete          *application.DeleteTask
 	Merge           TaskMerger
-	Subagents       SubagentsReader
+	// MergePreview decides the label of the merge action; without it the action always says merge.
+	MergePreview MergePreviewer
+	Subagents    SubagentsReader
 	// SetRelatedProjects, ListRelatedProjects and Workspaces drive the related projects section of the actions tab;
 	// without any of them the section is not shown.
 	SetRelatedProjects  RelatedProjectsSetter
@@ -164,6 +172,7 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 		view.Transcript = transcript
 	}
 	view.RelatedProjects = h.relatedChoices(ctx, task)
+	view.MergeCleanupOnly = h.mergeCleanupOnly(ctx, task)
 	stored, err := h.uc.ListAttachments.Execute(ctx, task.ID)
 	if err != nil {
 		view.AttachmentsError = err.Error()
@@ -359,4 +368,18 @@ func (h *DetailHandlers) setRelatedProjects(w http.ResponseWriter, r *http.Reque
 	}
 	_, runErr := h.uc.SetRelatedProjects.Execute(r.Context(), id, r.PostForm["related_project_id"])
 	h.renderPage(w, r, scope, id, errorText(runErr))
+}
+
+// mergeCleanupOnly reports whether the merge action of the task only removes its worktree, because its merge request
+// was already merged on the provider. A failed read keeps the merge label: the action itself reports the real problem.
+func (h *DetailHandlers) mergeCleanupOnly(ctx context.Context, task models.Task) bool {
+	if h.uc.MergePreview == nil || !task.Status.CanMerge() {
+		return false
+	}
+	cleanupOnly, err := h.uc.MergePreview.Execute(ctx, task.ID)
+	if err != nil {
+		slog.Warn("could not preview the merge of the task", "task_id", task.ID.String(), "error", err)
+		return false
+	}
+	return cleanupOnly
 }

@@ -45,4 +45,6 @@ const (
 type RemoteMerge interface {
 	// MergeOpenRequest pushes the pending changes of the branch to its open merge request and merges it remotely.
 	MergeOpenRequest(ctx context.Context, taskID string) (RemoteMergeOutcome, error)
+	// PreviewMergeOpenRequest reports the outcome MergeOpenRequest would have, without pushing or merging anything.
+	PreviewMergeOpenRequest(ctx context.Context, taskID string) (RemoteMergeOutcome, error)
 }
