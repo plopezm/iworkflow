@@ -161,7 +161,6 @@ Cada codec traduce entre el formato del runtime y los tipos de dominio `AgentCom
 | `tasks` | Ciclo de vida de tareas, tablero, grafo, diff, eventos (sección 5). |
 | `terminal` | Terminales PTY (`creack/pty`) por WebSocket. |
 | `agent_settings` | Runtime, modelo, razonamiento y límites por workspace. |
-| `agent_profiles` | Perfiles de Gentle AI y enrutado global de modelos (`profiles.json`, `models.json`). |
 | `agents_files` | Biblioteca de `AGENTS.md` e instalación en un workspace. |
 | `project_tree` | Árbol de ficheros, editor, git status/stage/commit de un proyecto. |
 | `code_hosting` | Merge/pull requests y estado de CI de GitLab y GitHub. |

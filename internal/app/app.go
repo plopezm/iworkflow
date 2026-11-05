@@ -24,8 +24,6 @@ import (
 	"iworkflow/internal/core/notify"
 	"iworkflow/internal/core/restart"
 	"iworkflow/internal/core/web"
-	agentprofilesdi "iworkflow/internal/modules/agent_profiles/infrastructure/di"
-	agentprofilespages "iworkflow/internal/modules/agent_profiles/presentation/pages"
 	agentsettingsdi "iworkflow/internal/modules/agent_settings/infrastructure/di"
 	agentsettingspages "iworkflow/internal/modules/agent_settings/presentation/pages"
 	agentsfilesdi "iworkflow/internal/modules/agents_files/infrastructure/di"
@@ -167,11 +165,6 @@ func New(deps Deps) (*App, error) {
 	fileSearch.search = projectTree.SearchFiles
 	fileSearch.tasks = tasks.Get
 	panels.inner = projectTree
-	profiles := agentprofilesdi.NewModule(agentprofilesdi.Deps{
-		ProfilesDir:  deps.Config.GentlePiConfigHome,
-		AgentsDir:    deps.Config.PiAgentsDir,
-		ModelOptions: &modelOptions{listModels: settings.ListModels},
-	})
 	codeHosting := codehostingdi.NewModule(codehostingdi.Deps{
 		DB:          deps.DB,
 		Tasks:       &taskSourceLookup{get: tasks.Get, workspaces: workspaces.Get},
@@ -211,7 +204,6 @@ func New(deps Deps) (*App, error) {
 	routes = append(routes, agentsFiles.Tabs()...)
 	routes = append(routes, workspaces.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
-	routes = append(routes, profiles.Tabs()...)
 	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
 	routes = append(routes, terminal.Tabs()...)
@@ -233,7 +225,7 @@ func New(deps Deps) (*App, error) {
 		terminal:      terminal,
 		tasks:         tasks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, settings, projectTree, profiles, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
+		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
 		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }
@@ -348,8 +340,6 @@ const (
 	workspacesPath  = "/workspaces"
 	agentsFilesPath = "/agents-files"
 	jiraPath        = "/jira"
-	profilesPath    = "/profiles"
-	modelsPath      = "/models"
 	terminalsPath   = "/terminals"
 )
 
@@ -366,8 +356,6 @@ var navEntries = []navEntry{
 	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
 	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
 	{Href: jiraPath, Icon: "◈", Title: func(context.Context) string { return "Jira" }},
-	{Href: profilesPath, Icon: "☰", Title: agentprofilespages.TabTitle.T},
-	{Href: modelsPath, Icon: "◇", Title: agentprofilespages.ModelsTitle.T},
 	{Href: terminalsPath, Icon: "❯", Title: terminalpages.TerminalsTitle},
 	{Href: agentsettingspages.SettingsPath, Icon: "⚙", Title: agentsettingspages.SettingsTitle},
 }

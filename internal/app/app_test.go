@@ -76,8 +76,6 @@ func TestShellRendersDockAndMigratedNavigation(t *testing.T) {
 	require.Contains(t, body, `aria-label="Navegación"`)
 	require.Contains(t, body, `href="/workspaces"`)
 	require.Contains(t, body, `href="/agents-files"`)
-	require.Contains(t, body, `href="/profiles"`)
-	require.Contains(t, body, `href="/models"`)
 	require.Contains(t, body, `href="/terminals"`)
 	require.Contains(t, body, `href="/settings"`)
 
@@ -97,7 +95,7 @@ func TestDeepLinkServesTheShellForAnyPage(t *testing.T) {
 func TestMigratedTabsRenderThroughTheDockPane(t *testing.T) {
 	handler := newRouter(t)
 
-	for _, path := range []string{"/workspaces", "/agents-files", "/profiles", "/models", "/terminals"} {
+	for _, path := range []string{"/workspaces", "/agents-files", "/terminals"} {
 		rec := get(t, handler, "/dock/pane?path="+path)
 		require.Equal(t, http.StatusOK, rec.Code, path)
 		require.NotContains(t, rec.Body.String(), "todavía no se ha migrado", path)

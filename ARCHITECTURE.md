@@ -161,7 +161,6 @@ Each codec translates between the runtime's wire format and the domain `AgentCom
 | `tasks` | Task lifecycle, board, graph, diff, events (section 5). |
 | `terminal` | PTY terminals (`creack/pty`) streamed over WebSocket. |
 | `agent_settings` | Per-workspace runtime, model, thinking and limits. |
-| `agent_profiles` | Gentle AI profiles and global model routing (`profiles.json`, `models.json`). |
 | `agents_files` | `AGENTS.md` library and installation into a workspace. |
 | `project_tree` | File tree, editor, git status/stage/commit of a project. |
 | `code_hosting` | GitLab and GitHub merge/pull requests and CI status. |

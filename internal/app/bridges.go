@@ -12,8 +12,6 @@ import (
 	"github.com/google/uuid"
 	"iworkflow/internal/core/notify"
 
-	agentprofileserrors "iworkflow/internal/modules/agent_profiles/domain/errors"
-	agentprofilesoutbound "iworkflow/internal/modules/agent_profiles/domain/ports/outbound"
 	agentsettingsapp "iworkflow/internal/modules/agent_settings/application"
 	agentsettingsmodels "iworkflow/internal/modules/agent_settings/domain/models"
 	agentsettingsoutbound "iworkflow/internal/modules/agent_settings/domain/ports/outbound"
@@ -505,29 +503,6 @@ func (b *agentCatalogBridge) CatalogForRuntime(ctx context.Context, requested st
 		ActiveProfile:    activeProfile,
 		DefaultProfile:   defaultProfile,
 	}, nil
-}
-
-// modelOptions lists the orchestrator models of the agent settings catalog for the profile routing
-// editors. It mirrors ModelOptionsBridge in src/app_state.rs: the identifier and the label are
-// provider/model.
-type modelOptions struct {
-	listModels *agentsettingsapp.ListModels
-}
-
-var _ agentprofilesoutbound.ModelOptionsPort = (*modelOptions)(nil)
-
-// List returns the models of the catalog. A failed read is an agent_profiles IO error.
-func (m *modelOptions) List(ctx context.Context) ([]agentprofilesoutbound.ModelOption, error) {
-	refs, err := m.listModels.Execute(ctx)
-	if err != nil {
-		return nil, agentprofileserrors.IO(err.Error())
-	}
-	options := make([]agentprofilesoutbound.ModelOption, 0, len(refs))
-	for _, ref := range refs {
-		id := ref.Provider + "/" + ref.Model
-		options = append(options, agentprofilesoutbound.ModelOption{ID: id, Label: id})
-	}
-	return options, nil
 }
 
 // remoteMergeBridge adapts the code_hosting remote merge to the port the tasks module consumes. The two modules name

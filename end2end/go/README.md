@@ -87,7 +87,6 @@ Full suite: `end2end/go/run_go.sh`. Result: 69 passed, 42 failed (111 tests).
 | `go/workspaces.e2e.cjs` | 8 | 0 | ok |
 | `go/preferences.e2e.cjs` | 7 | 0 | ok |
 | `go/agent_settings.e2e.cjs` | 6 | 0 | ok in this run; was intermittent before (see below) |
-| `go/agent_profiles.e2e.cjs` | 14 | 0 | ok |
 | `agents_files.e2e.cjs` (root, no Go copy) | 8 | 0 | ok |
 | `settings.e2e.cjs` (root, no Go copy) | 13 | 0 | ok |
 | `terminal.e2e.cjs` (root, no Go copy) | 6 | 0 | ok |
