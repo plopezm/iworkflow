@@ -2,6 +2,7 @@ package datahome
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +27,10 @@ type Entry struct {
 	Size    int64
 	Link    string
 	ModTime time.Time
+	// Sum is the SHA-256 of a regular file, recorded by Copy from the bytes it read and checked by Verify
+	// against the bytes it finds. It is only meaningful when Hashed is true.
+	Sum    [sha256.Size]byte
+	Hashed bool
 }
 
 func (e Entry) isDir() bool     { return e.Mode.IsDir() }
@@ -93,6 +98,9 @@ func (m Manifest) Rebased(from string, to string) Manifest {
 // everything below it) to leave out.
 func Scan(root string, skip func(rel string) bool) (Manifest, error) {
 	var manifest Manifest
+	if resolved, err := filepath.EvalSymlinks(root); err == nil {
+		root = resolved // a data folder reached through a link is scanned, not mistaken for an empty link
+	}
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return fmt.Errorf("scan %s: %w", path, walkErr)
@@ -152,7 +160,9 @@ func CopyProgress(ctx context.Context, src string, dst string, manifest Manifest
 	if err := os.MkdirAll(dst, ownerAccess); err != nil {
 		return fmt.Errorf("create %s: %w", dst, err)
 	}
-	for _, entry := range manifest.entries {
+	for index := range manifest.entries {
+		// The manifest shares its entries with the caller: Copy records the checksum of each file there.
+		entry := &manifest.entries[index]
 		if err := ctx.Err(); err != nil {
 			return fmt.Errorf("copy stopped: %w", err)
 		}
@@ -191,7 +201,7 @@ func CopyProgress(ctx context.Context, src string, dst string, manifest Manifest
 	return nil
 }
 
-func copyFile(from string, to string, entry Entry) (err error) {
+func copyFile(from string, to string, entry *Entry) (err error) {
 	in, err := os.Open(from)
 	if err != nil {
 		return fmt.Errorf("open: %w", err)
@@ -206,9 +216,12 @@ func copyFile(from string, to string, entry Entry) (err error) {
 			err = fmt.Errorf("close: %w", closeErr)
 		}
 	}()
-	if _, err = io.Copy(out, in); err != nil {
+	hasher := sha256.New()
+	if _, err = io.Copy(io.MultiWriter(out, hasher), in); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
+	copy(entry.Sum[:], hasher.Sum(nil))
+	entry.Hashed = true
 	if err = out.Sync(); err != nil {
 		return fmt.Errorf("flush: %w", err)
 	}
@@ -222,7 +235,7 @@ func copyFile(from string, to string, entry Entry) (err error) {
 }
 
 // Verify checks that root holds every entry of the manifest with the same kind, size, permissions and
-// link target.
+// link target, and the same content for the files Copy recorded a checksum of.
 func Verify(root string, manifest Manifest) error {
 	for _, entry := range manifest.entries {
 		info, err := os.Lstat(filepath.Join(root, entry.Rel))
@@ -241,6 +254,12 @@ func Verify(root string, manifest Manifest) error {
 		case entry.Mode.IsRegular():
 			if info.Size() != entry.Size || info.Mode().Perm() != entry.Mode.Perm() {
 				return fmt.Errorf("%w: %s has a different size or permissions", ErrVerify, entry.Rel)
+			}
+			if entry.Hashed {
+				sum, err := fileSum(filepath.Join(root, entry.Rel))
+				if err != nil || sum != entry.Sum {
+					return fmt.Errorf("%w: %s has different content", ErrVerify, entry.Rel)
+				}
 			}
 		}
 	}
@@ -286,4 +305,19 @@ func removeIfEmpty(path string) error {
 		return nil
 	}
 	return err //nolint:wrapcheck // The caller wraps it with the remove context.
+}
+
+func fileSum(path string) ([sha256.Size]byte, error) {
+	var sum [sha256.Size]byte
+	file, err := os.Open(path)
+	if err != nil {
+		return sum, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = file.Close() }() // read-only handle: nothing to recover from a close error
+	hasher := sha256.New()
+	if _, err := io.Copy(hasher, file); err != nil {
+		return sum, fmt.Errorf("read %s: %w", path, err)
+	}
+	copy(sum[:], hasher.Sum(nil))
+	return sum, nil
 }

@@ -30,6 +30,9 @@ var (
 	// It is an error and not a fallback to the default: silently opening an empty default folder would
 	// look like lost data.
 	ErrCorruptPointer = errors.New("the data folder pointer is corrupt")
+	// ErrTargetMissing is returned when the pointer names a folder that does not exist (an unmounted disk, a folder
+	// deleted by hand). Starting anyway would create an empty database there and look like lost data.
+	ErrTargetMissing = errors.New("the data folder the pointer names does not exist")
 )
 
 // PointerPath is the pointer file for the platform: %APPDATA% on Windows, ~/Library/Application Support

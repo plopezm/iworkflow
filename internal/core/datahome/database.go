@@ -63,6 +63,32 @@ func Quiesce(ctx context.Context, path string) error {
 	return nil
 }
 
+// LockDatabase takes the write lock of the database until the returned function is called, so no other
+// process can write to it while the folder is copied: a late write fails (busy) instead of being lost
+// when the old folder is deleted. Readers are not blocked.
+func LockDatabase(ctx context.Context, path string) (func() error, error) {
+	handle, err := db.Open(ctx, path)
+	if err != nil {
+		return nil, fmt.Errorf("open the database: %w", err)
+	}
+	conn, err := handle.Conn(ctx)
+	if err != nil {
+		_ = handle.Close() // the lock failed already: report that error
+		return nil, fmt.Errorf("connect to the database: %w", err)
+	}
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		_ = conn.Close()   // idem
+		_ = handle.Close() // idem
+		return nil, fmt.Errorf("%w: %w", ErrDatabaseBusy, err)
+	}
+	return func() error {
+		_, rollbackErr := conn.ExecContext(context.WithoutCancel(ctx), "ROLLBACK")
+		connErr := conn.Close()
+		closeErr := handle.Close()
+		return errors.Join(rollbackErr, connErr, closeErr)
+	}, nil
+}
+
 // CompareDatabases checks that b is a faithful copy of a: it passes the integrity check and every table
 // has the same number of rows. It opens both read-write because SQLite needs it for the WAL files, but
 // changes nothing.

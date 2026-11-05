@@ -265,3 +265,20 @@ func seededDatabaseAt(t *testing.T, dir string, repo string, worktree string) st
 	require.NoError(t, handle.Close())
 	return path
 }
+
+func TestLockDatabaseStopsOtherProcessesFromWritingUntilReleased(t *testing.T) {
+	dir := t.TempDir()
+	path := seededDatabase(t, dir, "/repo")
+	release, err := datahome.LockDatabase(context.Background(), path)
+	require.NoError(t, err)
+
+	other, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(150)")
+	require.NoError(t, err)
+	defer func() { _ = other.Close() }()
+	_, writeErr := other.Exec(`UPDATE tasks SET title = 'late write' WHERE id = 'inside'`)
+	assert.Error(t, writeErr, "a write while the move holds the database is refused, not silently lost")
+
+	require.NoError(t, release())
+	_, writeErr = other.Exec(`UPDATE tasks SET title = 'after' WHERE id = 'inside'`)
+	assert.NoError(t, writeErr)
+}

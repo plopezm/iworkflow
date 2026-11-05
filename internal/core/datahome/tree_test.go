@@ -178,3 +178,30 @@ func TestCopyProgressReportsBytesAndEndsAtTheTotal(t *testing.T) {
 		assert.GreaterOrEqual(t, reported[index][0], reported[index-1][0], "progress never goes back")
 	}
 }
+
+func TestVerifyDetectsACopyWithTheSameSizeButOtherContent(t *testing.T) {
+	root := sampleTree(t)
+	manifest, err := datahome.Scan(root, nil)
+	require.NoError(t, err)
+	staging := filepath.Join(t.TempDir(), "staging")
+	require.NoError(t, datahome.Copy(context.Background(), root, staging, manifest))
+	require.NoError(t, datahome.Verify(staging, manifest))
+
+	writeFile(t, filepath.Join(staging, "attachments", "t", "a.png"), "pnX", 0o644) // same size as "png"
+
+	require.ErrorIs(t, datahome.Verify(staging, manifest), datahome.ErrVerify)
+}
+
+func TestScanFollowsASymlinkedRootButNotTheLinksInside(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks need privileges on windows")
+	}
+	real := sampleTree(t)
+	link := filepath.Join(t.TempDir(), "link-to-iwf")
+	require.NoError(t, os.Symlink(real, link))
+
+	manifest, err := datahome.Scan(link, nil)
+
+	require.NoError(t, err)
+	assert.Contains(t, manifest.Names(), "workspaces.db")
+}

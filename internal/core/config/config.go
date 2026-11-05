@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -76,6 +77,9 @@ func DataDir(getenv func(string) string) (string, error) {
 			return "", fmt.Errorf("data folder: %w", readErr)
 		}
 		if moved != "" {
+			if _, statErr := os.Stat(moved); statErr != nil {
+				return "", fmt.Errorf("data folder: %w: %s (remove %s to go back to the default folder)", datahome.ErrTargetMissing, moved, pointer)
+			}
 			return moved, nil
 		}
 	}

@@ -141,6 +141,7 @@ func pointerEnv(t *testing.T, target string, extra map[string]string) func(strin
 
 func TestThePointerMovesEveryDataPath(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "moved")
+	require.NoError(t, os.MkdirAll(target, 0o755))
 
 	cfg, err := config.FromEnv(pointerEnv(t, target, nil))
 
@@ -179,4 +180,14 @@ func TestACorruptPointerStopsTheStartInsteadOfFallingBack(t *testing.T) {
 	_, err = config.DataDir(getenv)
 
 	require.ErrorIs(t, err, datahome.ErrCorruptPointer)
+}
+
+func TestAPointerToAMissingFolderStopsTheStart(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "unmounted")
+	getenv := pointerEnv(t, gone, nil)
+
+	_, err := config.DataDir(getenv)
+
+	require.ErrorIs(t, err, datahome.ErrTargetMissing)
+	require.NoDirExists(t, gone, "the check does not create the folder")
 }

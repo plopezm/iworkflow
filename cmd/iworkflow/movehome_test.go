@@ -79,7 +79,9 @@ func TestApplyPendingMoveSurvivesAMissingConfigFolder(t *testing.T) {
 func TestApplyPendingMoveReportsAnInterruptionAndKeepsTheMovePending(t *testing.T) {
 	root := t.TempDir()
 	from := dataFolderWithDatabase(t, root)
-	getenv := moveEnv(root, map[string]string{"IWF_HOME": from})
+	require.NoError(t, os.Rename(from, filepath.Join(root, ".iworkflow")))
+	from = filepath.Join(root, ".iworkflow")
+	getenv := moveEnv(root, map[string]string{"IWF_HOME": ""})
 	mover, err := datahome.NewMover(runtime.GOOS, getenv, time.Now, func(string, ...any) {})
 	require.NoError(t, err)
 	require.NoError(t, mover.Request(from, filepath.Join(root, "moved")))
@@ -91,4 +93,35 @@ func TestApplyPendingMoveReportsAnInterruptionAndKeepsTheMovePending(t *testing.
 	pending, err := mover.Pending()
 	require.NoError(t, err)
 	assert.NotNil(t, pending)
+	assert.FileExists(t, filepath.Join(from, "workspaces.db"))
+}
+
+func TestApplyPendingMoveRefusesWhenIWFHomeIsSetAfterTheRequest(t *testing.T) {
+	root := t.TempDir()
+	from := dataFolderWithDatabase(t, root)
+	to := filepath.Join(root, "moved")
+	requestEnv := moveEnv(root, map[string]string{"IWF_HOME": ""})
+	mover, err := datahome.NewMover(runtime.GOOS, requestEnv, time.Now, func(string, ...any) {})
+	require.NoError(t, err)
+	// The pending move was requested while the default folder was in use; IWF_HOME now names the same folder.
+	require.NoError(t, os.Rename(from, filepath.Join(root, ".iworkflow")))
+	from = filepath.Join(root, ".iworkflow")
+	require.NoError(t, mover.Request(from, to))
+	lateEnv := moveEnv(root, map[string]string{"IWF_HOME": from})
+
+	require.NoError(t, applyPendingMove(context.Background(), lateEnv, quietLogger()))
+
+	assert.FileExists(t, filepath.Join(from, "workspaces.db"), "the folder IWF_HOME names is never deleted")
+	assert.NoDirExists(t, to)
+	pointer, err := datahome.Read(mover.Files.Pointer)
+	require.NoError(t, err)
+	assert.Empty(t, pointer, "the pointer did not move")
+	result, err := mover.LastResult()
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.False(t, result.OK)
+	assert.Contains(t, result.Error, "IWF_HOME")
+	pending, err := mover.Pending()
+	require.NoError(t, err)
+	assert.Nil(t, pending)
 }

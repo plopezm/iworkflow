@@ -78,6 +78,7 @@ func TestStatusIsLockedWhenIWFHomeIsSet(t *testing.T) {
 
 func TestStatusReadsTheFolderFromThePointer(t *testing.T) {
 	f := newFixture(t)
+	require.NoError(t, os.MkdirAll(f.destination, 0o755))
 	require.NoError(t, datahome.Write(f.pointer, f.destination))
 
 	status, err := f.adapter().Status(context.Background())

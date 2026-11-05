@@ -128,6 +128,23 @@ func (m *Mover) LastResult() (*Result, error) {
 	return &result, nil
 }
 
+// Refuse records a failed move without running it, for a move that must not run now (for example because
+// IWF_HOME was set after it was requested and would keep the old folder in use). It drops the pending move.
+func (m *Mover) Refuse(reason string) (*Result, error) {
+	pending, err := m.Pending()
+	if err != nil || pending == nil {
+		return nil, err
+	}
+	result := Result{OK: false, From: pending.From, To: pending.To, Error: reason, FinishedAt: m.Now()}
+	if err := writeJSON(m.Files.Result, result); err != nil {
+		return &result, fmt.Errorf("record the result of the move: %w", err)
+	}
+	if err := m.Cancel(); err != nil {
+		return &result, err
+	}
+	return &result, nil
+}
+
 // Apply performs the pending move, if any. current is the data folder this process resolved. A failed move
 // is reported in the result and leaves the old folder in use; only a cancelled context returns an error,
 // and then the move stays pending for the next start.
@@ -207,7 +224,19 @@ func (m *Mover) stage(ctx context.Context, p PendingMove) error {
 	if err := Quiesce(ctx, filepath.Join(p.From, DatabaseFile)); err != nil {
 		return err
 	}
-	manifest, err := Scan(p.From, func(rel string) bool { return filepath.ToSlash(rel) == trashFolder })
+	release, err := LockDatabase(ctx, filepath.Join(p.From, DatabaseFile))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if releaseErr := release(); releaseErr != nil {
+			m.Log("data folder move: cannot release the database lock", "error", releaseErr)
+		}
+	}()
+	manifest, err := Scan(p.From, func(rel string) bool {
+		// The lock keeps the log and shared-memory files of the database open; they are empty and never copied.
+		return filepath.ToSlash(rel) == trashFolder || rel == DatabaseFile+"-wal" || rel == DatabaseFile+"-shm"
+	})
 	if err != nil {
 		return err
 	}

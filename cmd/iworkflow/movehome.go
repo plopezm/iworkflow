@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime"
+	"strings"
 	"time"
 
 	"iworkflow/internal/core/config"
@@ -23,6 +24,17 @@ func applyPendingMove(ctx context.Context, getenv func(string) string, logger *s
 	}
 	if err != nil {
 		return fmt.Errorf("data folder move: %w", err)
+	}
+	if strings.TrimSpace(getenv("IWF_HOME")) != "" {
+		// IWF_HOME wins over the pointer, so the old folder would stay in use while its data was moved and deleted.
+		result, err := mover.Refuse("IWF_HOME is set, so the data folder cannot be moved from the settings screen; the old folder stays in use")
+		if err != nil {
+			return fmt.Errorf("data folder move: %w", err)
+		}
+		if result != nil {
+			logger.Error("data folder move: refused", "error", result.Error)
+		}
+		return nil
 	}
 	current, err := config.DataDir(getenv)
 	if err != nil {
