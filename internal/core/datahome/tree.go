@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -59,6 +60,22 @@ func (m Manifest) TotalSize() int64 {
 		}
 	}
 	return total
+}
+
+// Rebased returns the manifest as it must look under a new root: an absolute symbolic link that points
+// into from now points into to. Relative links and links elsewhere are unchanged. Copy and Verify take
+// the rebased manifest; Prune takes the original one.
+func (m Manifest) Rebased(from string, to string) Manifest {
+	rebased := Manifest{entries: slices.Clone(m.entries), Skipped: slices.Clone(m.Skipped)}
+	for index, entry := range rebased.entries {
+		if !entry.isSymlink() || !filepath.IsAbs(entry.Link) {
+			continue
+		}
+		if rel, err := filepath.Rel(from, entry.Link); err == nil && (rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))) {
+			rebased.entries[index].Link = filepath.Join(to, rel)
+		}
+	}
+	return rebased
 }
 
 // Scan lists root without following symbolic links. skip names the relative paths (and, for a folder,
