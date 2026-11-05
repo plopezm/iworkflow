@@ -53,8 +53,8 @@ func TestAddTaskDependencyRejectsSelfEdgesWithoutTouchingStorage(t *testing.T) {
 	assert.Zero(t, trigger.calls)
 }
 
-// Rust: add_task_dependency::rejects_tasks_of_different_workspaces
-func TestAddTaskDependencyRejectsTasksOfDifferentWorkspaces(t *testing.T) {
+// Tablero: edges of the global graph may link tasks of different workspaces.
+func TestAddTaskDependencyAcceptsTasksOfDifferentWorkspaces(t *testing.T) {
 	t.Parallel()
 	from := newTask(models.StatusMerged)
 	to := newTask(models.StatusBacklog)
@@ -63,12 +63,12 @@ func TestAddTaskDependencyRejectsTasksOfDifferentWorkspaces(t *testing.T) {
 	graph := &fakeGraph{}
 	trigger := &graphTrigger{}
 
-	_, err := addDependencyUseCase(repo, graph, trigger).Execute(context.Background(), from.ID, to.ID)
+	dependency, err := addDependencyUseCase(repo, graph, trigger).Execute(context.Background(), from.ID, to.ID)
 
-	require.ErrorIs(t, err, werrors.CrossWorkspaceDependency())
-	assert.Zero(t, graph.inserts)
-	assert.Empty(t, graph.edges)
-	assert.Zero(t, trigger.calls)
+	require.NoError(t, err)
+	assert.Equal(t, "other", dependency.WorkspaceID)
+	assert.Equal(t, 1, graph.inserts)
+	assert.Equal(t, 1, trigger.calls)
 }
 
 // Rust: add_task_dependency::rejects_started_successors_and_discarded_predecessors

@@ -584,10 +584,10 @@ func (g *fakeGraph) DetachTask(_ context.Context, taskID models.TaskID) error {
 	return nil
 }
 
-func (g *fakeGraph) ListPositions(_ context.Context, workspaceID string) ([]models.TaskPosition, error) {
+func (g *fakeGraph) ListPositions(_ context.Context, workspaceID *string) ([]models.TaskPosition, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.positionQueries = append(g.positionQueries, workspaceID)
+	g.positionQueries = append(g.positionQueries, workspaceFilterText(workspaceID))
 	if g.listErr != nil {
 		return nil, g.listErr
 	}
@@ -780,4 +780,12 @@ func (f *fakePrunePreference) Enabled(context.Context) (bool, error) { return !f
 func (f *fakePrunePreference) SetEnabled(_ context.Context, enabled bool) error {
 	f.off = !enabled
 	return f.err
+}
+
+// workspaceFilterText renders a workspace filter for the recorded queries: empty means every workspace.
+func workspaceFilterText(workspaceID *string) string {
+	if workspaceID == nil {
+		return ""
+	}
+	return *workspaceID
 }

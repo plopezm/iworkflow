@@ -28,7 +28,7 @@ func NewTaskGraphRepository(db *sql.DB, clock Clock) *TaskGraphRepository {
 	return &TaskGraphRepository{db: db, queries: gen.New(db), clock: clock}
 }
 
-// InsertDependency validates the edge against the edges of its workspace (no self edge, no duplicate, no
+// InsertDependency validates the edge against every edge of the global graph (no self edge, no duplicate, no
 // cycle) and stores it in the same transaction. A rejected edge stores nothing.
 func (r *TaskGraphRepository) InsertDependency(ctx context.Context, dependency models.TaskDependency) error {
 	params := gen.InsertTaskDependencyParams{
@@ -39,7 +39,7 @@ func (r *TaskGraphRepository) InsertDependency(ctx context.Context, dependency m
 		CreatedAt:     formatTimestamp(r.clock()),
 	}
 	return withImmediateTx(ctx, r.db, func(queries *gen.Queries) error {
-		rows, err := queries.ListTaskDependencies(ctx, dependency.WorkspaceID)
+		rows, err := queries.ListTaskDependencies(ctx, nil)
 		if err != nil {
 			return dbError(err)
 		}
@@ -106,9 +106,10 @@ func (r *TaskGraphRepository) DetachTask(ctx context.Context, taskID models.Task
 	})
 }
 
-// ListPositions returns the saved positions of the tasks of one workspace.
-func (r *TaskGraphRepository) ListPositions(ctx context.Context, workspaceID string) ([]models.TaskPosition, error) {
-	rows, err := r.queries.ListTaskPositionsOfWorkspace(ctx, workspaceID)
+// ListPositions returns the saved positions of the tasks of one workspace, or of every workspace when the
+// filter is nil.
+func (r *TaskGraphRepository) ListPositions(ctx context.Context, workspaceID *string) ([]models.TaskPosition, error) {
+	rows, err := r.queries.ListTaskPositionsOfWorkspace(ctx, nullableWorkspace(workspaceID))
 	if err != nil {
 		return nil, dbError(err)
 	}
