@@ -68,6 +68,14 @@ if [ "${IWF_E2E_UNIT:-0}" = "1" ]; then
   node --import "$ROOT/end2end/go/dom_shim.mjs" --test end2end/follow_bottom_test.mjs || echo "  ⚠ legacy follow_bottom test has known failures; see end2end/go/README.md"
 fi
 
+# web/static/app.css is a build artifact (git-ignored). Without it no Tailwind class applies: hidden panels
+# stay visible and the browser tests fail in ways that look like app bugs. Build it when it is missing.
+if [ ! -f "$ROOT/web/static/app.css" ]; then
+  command -v tailwindcss >/dev/null 2>&1 || { echo "web/static/app.css is missing and tailwindcss is not installed: run 'make tools css'" >&2; exit 1; }
+  echo "▶ build: web/static/app.css (missing)"
+  tailwindcss -i "$ROOT/web/tailwind.css" -o "$ROOT/web/static/app.css" --minify
+fi
+
 # The sherpa tag enables the cgo speech recognizer used by the transcription e2e.
 go build -tags sherpa -o "$WORK/iworkflow" ./cmd/iworkflow
 

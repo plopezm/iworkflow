@@ -8,6 +8,9 @@ mocks, and runs the scripts in Go mode (`IWF_E2E_TARGET=go`).
 ## Requirements
 
 - `go`, `node`, `python3`, `git`, `curl`.
+- `tailwindcss` (`make tools`). `web/static/app.css` is a git-ignored build artifact; the runner builds it when it is
+  missing and stops with a clear message when `tailwindcss` is not installed. Without the CSS no Tailwind class applies
+  (hidden dock panels stay visible), so board tests fail with "strict mode violation" on `board-list`.
 - Playwright and a browser already installed. Nothing is installed by the runner.
   - `PLAYWRIGHT_MODULE` defaults to `/home/pablolm/.cache/iwf-playwright/node_modules/playwright`.
   - `PLAYWRIGHT_BROWSERS_PATH` defaults to `~/.cache/ms-playwright`.
