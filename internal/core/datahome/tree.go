@@ -1,0 +1,244 @@
+package datahome
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"slices"
+	"syscall"
+	"time"
+)
+
+// ErrVerify is returned when a copied tree does not match its manifest.
+var ErrVerify = errors.New("the copy does not match the original")
+
+const ownerAccess fs.FileMode = 0o700
+
+// Entry is one folder, file or symbolic link of a data folder, by path relative to its root.
+type Entry struct {
+	Rel     string
+	Mode    fs.FileMode
+	Size    int64
+	Link    string
+	ModTime time.Time
+}
+
+func (e Entry) isDir() bool     { return e.Mode.IsDir() }
+func (e Entry) isSymlink() bool { return e.Mode&fs.ModeSymlink != 0 }
+
+// Manifest is the exact list of what a data folder holds at scan time. Copy, Verify and Prune all work
+// from it, so nothing that appears later is ever copied or deleted by mistake.
+type Manifest struct {
+	entries []Entry
+	// Skipped are the paths the scan found but cannot copy (sockets, pipes, devices); they stay behind.
+	Skipped []string
+}
+
+// Entries returns the entries, parents before their children.
+func (m Manifest) Entries() []Entry { return slices.Clone(m.entries) }
+
+// Names returns the relative path of every entry.
+func (m Manifest) Names() []string {
+	names := make([]string, 0, len(m.entries))
+	for _, entry := range m.entries {
+		names = append(names, entry.Rel)
+	}
+	return names
+}
+
+// TotalSize is the number of bytes the regular files hold.
+func (m Manifest) TotalSize() int64 {
+	var total int64
+	for _, entry := range m.entries {
+		if entry.Mode.IsRegular() {
+			total += entry.Size
+		}
+	}
+	return total
+}
+
+// Scan lists root without following symbolic links. skip names the relative paths (and, for a folder,
+// everything below it) to leave out.
+func Scan(root string, skip func(rel string) bool) (Manifest, error) {
+	var manifest Manifest
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return fmt.Errorf("scan %s: %w", path, walkErr)
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return fmt.Errorf("relative path of %s: %w", path, err)
+		}
+		if rel == "." {
+			return nil
+		}
+		if skip != nil && skip(rel) {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("stat %s: %w", path, err)
+		}
+		item := Entry{Rel: rel, Mode: info.Mode(), Size: info.Size(), ModTime: info.ModTime()}
+		switch {
+		case info.IsDir():
+			item.Size = 0
+		case info.Mode()&fs.ModeSymlink != 0:
+			target, err := os.Readlink(path)
+			if err != nil {
+				return fmt.Errorf("read link %s: %w", path, err)
+			}
+			item.Link, item.Size = target, 0
+		case !info.Mode().IsRegular():
+			manifest.Skipped = append(manifest.Skipped, rel)
+			return nil
+		}
+		manifest.entries = append(manifest.entries, item)
+		return nil
+	})
+	if err != nil {
+		return Manifest{}, fmt.Errorf("list %s: %w", root, err)
+	}
+	return manifest, nil
+}
+
+// Copy reproduces the manifest under dst: file contents flushed to disk, permissions and times kept,
+// symbolic links recreated as links. It never overwrites an existing file and never changes src.
+func Copy(ctx context.Context, src string, dst string, manifest Manifest) error {
+	if err := os.MkdirAll(dst, ownerAccess); err != nil {
+		return fmt.Errorf("create %s: %w", dst, err)
+	}
+	for _, entry := range manifest.entries {
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("copy stopped: %w", err)
+		}
+		from, to := filepath.Join(src, entry.Rel), filepath.Join(dst, entry.Rel)
+		var err error
+		switch {
+		case entry.isDir():
+			// Owner access while filling it; the recorded permissions are applied at the end.
+			err = os.MkdirAll(to, ownerAccess)
+		case entry.isSymlink():
+			err = os.Symlink(entry.Link, to)
+		default:
+			err = copyFile(from, to, entry)
+		}
+		if err != nil {
+			return fmt.Errorf("copy %s: %w", entry.Rel, err)
+		}
+	}
+	// Children first, so a read-only folder is sealed only after everything below it is in place.
+	for _, entry := range slices.Backward(manifest.entries) {
+		if !entry.isDir() {
+			continue
+		}
+		if err := os.Chmod(filepath.Join(dst, entry.Rel), entry.Mode.Perm()); err != nil {
+			return fmt.Errorf("set permissions of %s: %w", entry.Rel, err)
+		}
+	}
+	return nil
+}
+
+func copyFile(from string, to string, entry Entry) (err error) {
+	in, err := os.Open(from)
+	if err != nil {
+		return fmt.Errorf("open: %w", err)
+	}
+	defer func() { _ = in.Close() }() // read-only handle: nothing to recover from a close error
+	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_EXCL, ownerAccess)
+	if err != nil {
+		return fmt.Errorf("create: %w", err)
+	}
+	defer func() {
+		if closeErr := out.Close(); err == nil && closeErr != nil {
+			err = fmt.Errorf("close: %w", closeErr)
+		}
+	}()
+	if _, err = io.Copy(out, in); err != nil {
+		return fmt.Errorf("write: %w", err)
+	}
+	if err = out.Sync(); err != nil {
+		return fmt.Errorf("flush: %w", err)
+	}
+	if err = out.Chmod(entry.Mode.Perm()); err != nil {
+		return fmt.Errorf("permissions: %w", err)
+	}
+	if err = os.Chtimes(to, entry.ModTime, entry.ModTime); err != nil {
+		return fmt.Errorf("times: %w", err)
+	}
+	return nil
+}
+
+// Verify checks that root holds every entry of the manifest with the same kind, size, permissions and
+// link target.
+func Verify(root string, manifest Manifest) error {
+	for _, entry := range manifest.entries {
+		info, err := os.Lstat(filepath.Join(root, entry.Rel))
+		if err != nil {
+			return fmt.Errorf("%w: %s: %w", ErrVerify, entry.Rel, err)
+		}
+		if info.Mode().Type() != entry.Mode.Type() {
+			return fmt.Errorf("%w: %s changed kind", ErrVerify, entry.Rel)
+		}
+		switch {
+		case entry.isSymlink():
+			target, err := os.Readlink(filepath.Join(root, entry.Rel))
+			if err != nil || target != entry.Link {
+				return fmt.Errorf("%w: %s points elsewhere", ErrVerify, entry.Rel)
+			}
+		case entry.Mode.IsRegular():
+			if info.Size() != entry.Size || info.Mode().Perm() != entry.Mode.Perm() {
+				return fmt.Errorf("%w: %s has a different size or permissions", ErrVerify, entry.Rel)
+			}
+		}
+	}
+	return nil
+}
+
+// Prune deletes exactly the manifest entries under root, never following links, then every folder that
+// became empty, root included. Anything the manifest does not list stays.
+func Prune(root string, manifest Manifest) error {
+	var first error
+	remember := func(err error) {
+		if err != nil && !errors.Is(err, fs.ErrNotExist) && first == nil {
+			first = err
+		}
+	}
+	for _, entry := range manifest.entries {
+		if entry.isDir() {
+			// A read-only folder could not lose its children.
+			_ = os.Chmod(filepath.Join(root, entry.Rel), ownerAccess) // best effort: a failure shows up as the removal error
+		}
+	}
+	for _, entry := range manifest.entries {
+		if !entry.isDir() {
+			remember(os.Remove(filepath.Join(root, entry.Rel)))
+		}
+	}
+	for _, entry := range slices.Backward(manifest.entries) {
+		if entry.isDir() {
+			remember(removeIfEmpty(filepath.Join(root, entry.Rel)))
+		}
+	}
+	remember(removeIfEmpty(root))
+	if first != nil {
+		return fmt.Errorf("remove the old folder: %w", first)
+	}
+	return nil
+}
+
+// removeIfEmpty removes a folder only when nothing is left in it.
+func removeIfEmpty(path string) error {
+	err := os.Remove(path)
+	if errors.Is(err, syscall.ENOTEMPTY) || errors.Is(err, syscall.EEXIST) {
+		return nil
+	}
+	return err //nolint:wrapcheck // The caller wraps it with the remove context.
+}
