@@ -158,3 +158,23 @@ func TestPruneDoesNotFollowSymlinks(t *testing.T) {
 	_, err = os.Stat(filepath.Join(outside, "keep.txt"))
 	assert.NoError(t, err, "what a link points to is never deleted")
 }
+
+func TestCopyProgressReportsBytesAndEndsAtTheTotal(t *testing.T) {
+	root := sampleTree(t)
+	manifest, err := datahome.Scan(root, nil)
+	require.NoError(t, err)
+	var reported [][2]int64
+
+	err = datahome.CopyProgress(context.Background(), root, filepath.Join(t.TempDir(), "s"), manifest, 0, func(copied, total int64) {
+		reported = append(reported, [2]int64{copied, total})
+	})
+
+	require.NoError(t, err)
+	require.NotEmpty(t, reported)
+	last := reported[len(reported)-1]
+	assert.Equal(t, manifest.TotalSize(), last[0])
+	assert.Equal(t, manifest.TotalSize(), last[1])
+	for index := 1; index < len(reported); index++ {
+		assert.GreaterOrEqual(t, reported[index][0], reported[index-1][0], "progress never goes back")
+	}
+}

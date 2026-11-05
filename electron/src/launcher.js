@@ -81,6 +81,19 @@ function extractAccessToken(line) {
   return match ? match[1] : null;
 }
 
+/** Whether the line is progress of a data folder move, which makes the server start slowly on purpose. */
+function isMoveProgress(line) {
+  return /data folder move:/.test(line);
+}
+
+/**
+ * A start is late when nothing happened for `timeoutMs`: since the launch, or since the last progress
+ * line of a data folder move, whichever is later. Copying gigabytes legitimately takes minutes.
+ */
+function isStartTimedOut(now, startedAt, lastProgressAt, timeoutMs) {
+  return now - Math.max(startedAt, lastProgressAt) >= timeoutMs;
+}
+
 /** Whether the server exited because the user asked to restart it. */
 function isRestartExit(code) {
   return code === RESTART_EXIT_CODE;
@@ -122,4 +135,6 @@ module.exports = {
   extractListenAddr,
   windowUrl,
   isTrustedUrl,
+  isMoveProgress,
+  isStartTimedOut,
 };

@@ -140,6 +140,15 @@ func Scan(root string, skip func(rel string) bool) (Manifest, error) {
 // Copy reproduces the manifest under dst: file contents flushed to disk, permissions and times kept,
 // symbolic links recreated as links. It never overwrites an existing file and never changes src.
 func Copy(ctx context.Context, src string, dst string, manifest Manifest) error {
+	return CopyProgress(ctx, src, dst, manifest, 0, nil)
+}
+
+// CopyProgress is Copy that reports the bytes copied so far (and the total) to progress, at most once per
+// every, and once more at the end. A nil progress reports nothing.
+func CopyProgress(ctx context.Context, src string, dst string, manifest Manifest, every time.Duration, progress func(copied int64, total int64)) error {
+	total := manifest.TotalSize()
+	var copied int64
+	lastReport := time.Now()
 	if err := os.MkdirAll(dst, ownerAccess); err != nil {
 		return fmt.Errorf("create %s: %w", dst, err)
 	}
@@ -157,10 +166,18 @@ func Copy(ctx context.Context, src string, dst string, manifest Manifest) error 
 			err = os.Symlink(entry.Link, to)
 		default:
 			err = copyFile(from, to, entry)
+			copied += entry.Size
 		}
 		if err != nil {
 			return fmt.Errorf("copy %s: %w", entry.Rel, err)
 		}
+		if progress != nil && time.Since(lastReport) >= every {
+			progress(copied, total)
+			lastReport = time.Now()
+		}
+	}
+	if progress != nil {
+		progress(copied, total)
 	}
 	// Children first, so a read-only folder is sealed only after everything below it is in place.
 	for _, entry := range slices.Backward(manifest.entries) {

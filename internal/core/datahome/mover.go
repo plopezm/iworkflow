@@ -19,6 +19,8 @@ const (
 	// can tell a finished copy from a half one.
 	completeMarker string = ".iwf-move-complete"
 	trashFolder    string = "worktrees/.trash"
+	// progressEvery spaces the copy progress lines; a supervising shell treats them as signs of life.
+	progressEvery = 2 * time.Second
 )
 
 var (
@@ -137,7 +139,7 @@ func (m *Mover) Apply(ctx context.Context, current string) (*Result, error) {
 	if pending == nil {
 		return nil, nil //nolint:nilnil // Nothing pending is the normal case, not an error.
 	}
-	m.Log("moving the data folder", "from", pending.From, "to", pending.To)
+	m.Log("data folder move: starting", "from", pending.From, "to", pending.To)
 	warnings, runErr := m.run(ctx, *pending, current)
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("move interrupted: %w", ctx.Err())
@@ -216,10 +218,15 @@ func (m *Mover) stage(ctx context.Context, p PendingMove) error {
 		return fmt.Errorf("create %s: %w", filepath.Dir(p.To), err)
 	}
 	rebased := manifest.Rebased(p.From, p.To)
-	if err := Copy(ctx, p.From, staging, rebased); err != nil {
+	m.Log("data folder move: copying", "bytes", manifest.TotalSize())
+	err = CopyProgress(ctx, p.From, staging, rebased, progressEvery, func(copied int64, total int64) {
+		m.Log("data folder move: copying", "copied_bytes", copied, "total_bytes", total)
+	})
+	if err != nil {
 		cleanStaging()
 		return err
 	}
+	m.Log("data folder move: verifying")
 	if err := Verify(staging, rebased); err != nil {
 		cleanStaging()
 		return err
@@ -245,6 +252,7 @@ func (m *Mover) stage(ctx context.Context, p PendingMove) error {
 		cleanStaging()
 		return fmt.Errorf("move the copy into place: %w", err)
 	}
+	m.Log("data folder move: copy in place")
 	return nil
 }
 
@@ -304,6 +312,7 @@ func (m *Mover) rollback(ctx context.Context, p PendingMove) {
 // finish removes the completion marker and the old folder. The pointer already names the new folder, so
 // a problem here is a warning: the move itself succeeded.
 func (m *Mover) finish(p PendingMove) ([]string, error) {
+	m.Log("data folder move: cleaning the old folder")
 	if err := os.Remove(filepath.Join(p.To, completeMarker)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return []string{fmt.Sprintf("cannot remove the completion marker: %v", err)}, nil
 	}
@@ -379,4 +388,13 @@ func readJSON(path string, into any) (bool, error) {
 		return false, fmt.Errorf("decode %s: %w", path, err)
 	}
 	return true, nil
+}
+
+// NewMover builds the mover of this machine: the bootstrap files sit next to the per-user pointer.
+func NewMover(goos string, getenv func(string) string, now func() time.Time, log func(msg string, args ...any)) (*Mover, error) {
+	pointer, err := PointerPath(goos, getenv)
+	if err != nil {
+		return nil, err
+	}
+	return &Mover{Files: FilesFor(pointer), Now: now, Log: log}, nil
 }
