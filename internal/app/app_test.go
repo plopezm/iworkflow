@@ -161,7 +161,7 @@ func TestTheShellOpensOneTaskStreamAndTheBoardTabOpensNone(t *testing.T) {
 	require.NotContains(t, board.Body.String(), `sse-connect=`, "a second stream on the board doubles every refresh")
 }
 
-func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
+func TestEveryNotMigratedPathResolvesAndTheHomeIsTheDashboard(t *testing.T) {
 	handler := newRouter(t)
 
 	for _, path := range []string{"/tasks/some-id/extra/tab"} {
@@ -181,7 +181,7 @@ func TestEveryNotMigratedPathResolvesAndTheHomeIsTheBoard(t *testing.T) {
 	require.Contains(t, detail.Body.String(), "ya no existe")
 	home := get(t, handler, "/dock/pane?path=/")
 	require.Equal(t, http.StatusOK, home.Code)
-	require.Contains(t, home.Body.String(), `id="board-list-`, "the home address is the board")
+	require.Contains(t, home.Body.String(), `id="dashboard-`, "the home address is the dashboard")
 	require.NotContains(t, home.Body.String(), "todavía no se ha migrado")
 }
 
@@ -240,4 +240,19 @@ func TestTheDataHomeCardRouteIsMounted(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `id="data-home-card"`)
+}
+
+// The dashboard refreshes through its own address, and its menu entry comes before Workspaces.
+func TestTheDashboardRefreshAddressAnswersAndLeadsTheMenu(t *testing.T) {
+	handler := newRouter(t)
+
+	rec := get(t, handler, "/board/dashboard?scope=abc123")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `class="page-title"`)
+
+	page := get(t, handler, "/").Body.String()
+	home := strings.Index(page, `class="sidebar-nav`)
+	require.GreaterOrEqual(t, home, 0)
+	require.Contains(t, page[home:home+200], `data-dock-path="/"`, "the first menu entry is the dashboard")
+	require.Less(t, home, strings.Index(page, `data-dock-path="/workspaces"`), "the dashboard is above Workspaces")
 }
