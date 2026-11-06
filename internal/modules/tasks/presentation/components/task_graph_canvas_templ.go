@@ -34,7 +34,7 @@ func TaskGraphCanvas(view state.GraphView, positions map[string]state.Point, vie
 		ctx = templ.ClearChildren(ctx)
 		markerScope := MarkerScope(scope)
 		transformStyle := fmt.Sprintf("transform: %s; transform-origin: 0 0;", viewport.TransformCSS())
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"task-graph-canvas relative h-full w-full overflow-hidden select-none\" style=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"graph-canvas task-graph-canvas relative h-full w-full overflow-hidden select-none\" style=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

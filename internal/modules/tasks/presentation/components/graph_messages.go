@@ -200,6 +200,14 @@ var (
 		Fr: "Graphe",
 	}
 
+	msgTabTasks = i18n.Msg{
+		En: "Tasks ({n})",
+		Es: "Tareas ({n})",
+		Zh: "任务 ({n})",
+		De: "Aufgaben ({n})",
+		Fr: "Tâches ({n})",
+	}
+
 	msgTabsLabel = i18n.Msg{
 		En: "Board view",
 		Es: "Vista del tablero",
@@ -227,6 +235,14 @@ func TabOptions(ctx context.Context, looseCount int) []shared.SegmentOption {
 			},
 		},
 	}
+}
+
+// DashboardTabOptions returns the sub-tab options of the dashboard on narrow screens: the task lists and the graph.
+// It reuses the board tab values so the same switching behaviour applies.
+func DashboardTabOptions(ctx context.Context, taskCount int) []shared.SegmentOption {
+	options := TabOptions(ctx, taskCount)
+	options[0].Label = msgTabTasks.Fmt(ctx, map[string]string{"n": strconv.Itoa(taskCount)})
+	return options
 }
 
 // WaitingLabel formats the predecessor waiting badge label. Returns nil if waiting <= 0.

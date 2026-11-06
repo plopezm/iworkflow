@@ -557,5 +557,15 @@ func (h *BoardHandlers) dashboardView(ctx context.Context) state.DashboardView {
 	}
 	view.Positions = state.ResolvePositions(nodeIDs, edges, state.SavedPositions(graphDTO))
 	view.Viewport = state.DefaultViewport()
+
+	for i := range view.RunningTasks {
+		_, inGraph := view.Positions[view.RunningTasks[i].Task.ID]
+		view.RunningTasks[i].InGraph = inGraph
+	}
+	for i := range view.PendingTasks {
+		_, inGraph := view.Positions[view.PendingTasks[i].Task.ID]
+		view.PendingTasks[i].InGraph = inGraph
+	}
+
 	return view
 }
