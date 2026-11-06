@@ -25,6 +25,7 @@ import (
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/probe"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/agy"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/claude"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/cursor"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/pi"
@@ -37,6 +38,7 @@ const (
 	runtimePi          = "pi"
 	runtimeClaude      = "claude"
 	runtimeCursor      = "cursor"
+	runtimeAgy         = "agy"
 )
 
 // RuntimeBinaries are the executables and the sessions folder the agent runtimes launch with. The composition
@@ -52,6 +54,10 @@ type RuntimeBinaries struct {
 	Cursor string
 	// CursorSessionsDir stores each task's Cursor session id, so that a resume continues it.
 	CursorSessionsDir string
+	// Agy is the Antigravity CLI executable, launched as `agy acp`.
+	Agy string
+	// AgySessionsDir stores each task's agy session id, so that a resume continues it.
+	AgySessionsDir string
 }
 
 // Deps are the resources the module needs from the composition root. The fields marked optional may be
@@ -383,11 +389,16 @@ func newAgentRuntime(binaries RuntimeBinaries) (outbound.AgentRuntime, error) {
 	if err != nil {
 		return nil, err
 	}
+	agyID, err := parseRuntimeID(runtimeAgy)
+	if err != nil {
+		return nil, err
+	}
 	runtimes := map[models.RuntimeID]outbound.AgentRuntime{
 		gentleShellID: pi.NewRpcRuntimeAdapter(binaries.GentleShell),
 		piID:          pi.NewRpcRuntimeAdapter(binaries.Pi),
 		claudeID:      claude.NewStreamRuntimeAdapter(binaries.Claude),
 		cursorID:      cursor.NewCursorAcpRuntimeAdapter(binaries.Cursor, binaries.CursorSessionsDir),
+		agyID:         agy.NewAgyAcpRuntimeAdapter(binaries.Agy, binaries.AgySessionsDir),
 	}
 	router, err := runtime.NewAgentRuntimeRouter(gentleShellID, runtimes)
 	if err != nil {

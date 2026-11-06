@@ -122,6 +122,7 @@ func New(deps Deps) (*App, error) {
 		PiBin:              deps.Config.PiBin,
 		CursorBin:          deps.Config.CursorBin,
 		ClaudeBin:          deps.Config.ClaudeBin,
+		AgyBin:             deps.Config.AgyBin,
 		GentlePiConfigHome: deps.Config.GentlePiConfigHome,
 	})
 
@@ -141,6 +142,8 @@ func New(deps Deps) (*App, error) {
 			Claude:            deps.Config.ClaudeBin,
 			Cursor:            deps.Config.CursorBin,
 			CursorSessionsDir: deps.Config.CursorSessionsDir,
+			Agy:               deps.Config.AgyBin,
+			AgySessionsDir:    deps.Config.AgySessionsDir,
 		},
 		LaunchSettings: &launchSettings{prepareLaunch: settings.PrepareLaunch},
 		AgentCatalog: &agentCatalogBridge{

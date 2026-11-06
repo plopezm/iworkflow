@@ -24,6 +24,8 @@ var testBinaries = di.RuntimeBinaries{
 	Claude:            "claude",
 	Cursor:            "agent",
 	CursorSessionsDir: "cursor-sessions",
+	Agy:               "agy",
+	AgySessionsDir:    "agy-sessions",
 }
 
 // workspaceLookup reads the workspaces table through the fixture row inserted by insertWorkspace.

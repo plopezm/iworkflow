@@ -34,6 +34,8 @@ var testBinaries = di.RuntimeBinaries{
 	Claude:            "claude",
 	Cursor:            "agent",
 	CursorSessionsDir: "cursor-sessions",
+	Agy:               "agy",
+	AgySessionsDir:    "agy-sessions",
 }
 
 // baseDeps is the complete composition the module needs.
