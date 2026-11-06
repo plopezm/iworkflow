@@ -67,6 +67,7 @@ type DetailUseCases struct {
 	Start           *application.StartTask
 	Abort           *application.AbortTask
 	Resume          *application.ResumeTask
+	NewSession      *application.NewSession
 	Finish          *application.FinishTask
 	Reset           *application.ResetTask
 	Discard         *application.DiscardTask
@@ -119,6 +120,7 @@ func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/related-projects", h.setRelatedProjects)
 	r.Post("/tasks/{id}/abort", h.abortTask)
 	r.Post("/tasks/{id}/resume", h.resumeTask)
+	r.Post("/tasks/{id}/new-session", h.newSession)
 	r.Post("/tasks/{id}/finish", h.finishTask)
 	r.Post("/tasks/{id}/discard", h.discardTask)
 	r.Post("/tasks/{id}/merge", h.mergeTask)
@@ -234,6 +236,11 @@ func (h *DetailHandlers) abortTask(w http.ResponseWriter, r *http.Request) {
 // resumeTask resumes a stopped task.
 func (h *DetailHandlers) resumeTask(w http.ResponseWriter, r *http.Request) {
 	h.answerAction(w, r, h.uc.Resume.Execute)
+}
+
+// newSession restarts the agent of the task with a clean context.
+func (h *DetailHandlers) newSession(w http.ResponseWriter, r *http.Request) {
+	h.answerAction(w, r, h.uc.NewSession.Execute)
 }
 
 // finishTask closes the agent of the task and consolidates its changes for review.

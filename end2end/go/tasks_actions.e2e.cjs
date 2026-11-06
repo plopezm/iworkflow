@@ -156,6 +156,25 @@ module.exports = {
       },
     },
     {
+      name: 'new_session: "Sesión nueva" borra el historial y deja el agente listo para un prompt nuevo',
+      fn: async (ctx) => {
+        const t = await liveTask(ctx, 'newsession');
+        const page = ctx.page;
+        // The fake agent ends its turn after the dialog, so the agent is idle and the old transcript is on screen.
+        await openActions(ctx);
+        await page.getByRole('button', { name: 'Sesión nueva' }).click();
+        await page.getByText(`eco: ${t.prompt}`).first().waitFor({ state: 'detached', timeout: 20000 });
+        // The task keeps its agent and its worktree: it is not sent back to backlog or failed.
+        await page.getByRole('button', { name: 'Sesión nueva' }).first().waitFor({ timeout: 15000 });
+        await page.getByRole('button', { name: 'Iniciar' }).first().waitFor({ state: 'detached', timeout: 5000 });
+        // The restarted agent takes a new prompt and answers it.
+        const next = `nuevo-${tag}`;
+        await page.locator('[data-composer-input]').first().fill(next);
+        await page.getByRole('button', { name: 'Enviar' }).click();
+        await page.getByText(`eco: ${next}`).first().waitFor({ timeout: 25000 });
+      },
+    },
+    {
       name: 'subagents: el panel "Subagentes" de la pestaña Acciones lista las subagentes del agente',
       fn: async (ctx) => {
         await finishedTask(ctx, 'subagents');

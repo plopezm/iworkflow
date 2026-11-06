@@ -357,6 +357,16 @@ func (r *TaskRepository) ResetToBacklog(ctx context.Context, id models.TaskID) (
 	return reset, nil
 }
 
+// DeleteEvents deletes the events of the task.
+func (r *TaskRepository) DeleteEvents(ctx context.Context, id models.TaskID) error {
+	return r.withImmediateTx(ctx, func(queries *gen.Queries) error {
+		if err := queries.DeleteTaskEvents(ctx, id.String()); err != nil {
+			return dbError(err)
+		}
+		return nil
+	})
+}
+
 // AddPendingDialog adds a dialog while the task has a live agent and does not list it yet.
 func (r *TaskRepository) AddPendingDialog(ctx context.Context, id models.TaskID, dialog models.PendingDialog) error {
 	return r.withImmediateTx(ctx, func(queries *gen.Queries) error {

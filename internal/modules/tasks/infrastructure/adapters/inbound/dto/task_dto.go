@@ -20,6 +20,7 @@ type TaskActionsDTO struct {
 	CanAbort        bool `json:"can_abort"`
 	CanFinish       bool `json:"can_finish"`
 	CanResume       bool `json:"can_resume"`
+	CanNewSession   bool `json:"can_new_session"`
 	CanMerge        bool `json:"can_merge"`
 	CanDiscard      bool `json:"can_discard"`
 	CanReset        bool `json:"can_reset"`
@@ -108,6 +109,7 @@ func actionsFor(task models.Task) TaskActionsDTO {
 		CanAbort:        status.HasLiveAgent(),
 		CanFinish:       status.CanFinish(),
 		CanResume:       status.CanResume(),
+		CanNewSession:   status.CanStartNewSession(),
 		CanMerge:        status.CanMerge(),
 		CanDiscard:      status.CanDiscard(),
 		CanReset:        status.CanReset(),

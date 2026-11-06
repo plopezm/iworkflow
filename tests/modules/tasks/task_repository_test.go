@@ -865,3 +865,27 @@ func TestDeleteMergedBeforeDeletesARowWhoseIdIsNotAUUIDAndSkipsItsId(t *testing.
 	require.NoError(t, err)
 	assert.Empty(t, remaining, "the row is deleted even though its id cannot be returned")
 }
+
+func TestDeleteEventsRemovesTheHistoryAndKeepsTheTask(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, "/repos/a")
+	task := newTask(t, workspaceID, "uno", models.StatusIdle)
+	other := newTask(t, workspaceID, "dos", models.StatusIdle)
+	insertTask(t, repo, task)
+	insertTask(t, repo, other)
+	for _, id := range []models.TaskID{task.ID, other.ID} {
+		_, err := repo.Tasks.AppendEvent(bg(), id, models.AgentEventKind{Event: models.RunStarted{}})
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, repo.Tasks.DeleteEvents(bg(), task.ID))
+
+	events, err := repo.Tasks.Events(bg(), task.ID, nil)
+	require.NoError(t, err)
+	assert.Empty(t, events)
+	kept, err := repo.Tasks.Events(bg(), other.ID, nil)
+	require.NoError(t, err)
+	assert.Len(t, kept, 1, "the history of other tasks is untouched")
+	assert.Equal(t, task.WorktreePath, found(t, repo, task.ID).WorktreePath)
+}

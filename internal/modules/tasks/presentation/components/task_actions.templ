@@ -19,6 +19,9 @@ templ TaskActions(view state.TaskDetailView) {
 			if view.Task.Actions.CanResume {
 				@taskAction(view, "resume", msgResumeAgent.T(ctx), "btn-secondary", "", false)
 			}
+			if view.Task.Actions.CanNewSession {
+				@taskAction(view, "new-session", msgNewSession.T(ctx), "btn-secondary", msgConfirmNewSession.T(ctx), false)
+			}
 			if view.Task.Actions.CanAbort {
 				@taskAction(view, "abort", msgAbortRun.T(ctx), "btn-secondary", "", false)
 			}
