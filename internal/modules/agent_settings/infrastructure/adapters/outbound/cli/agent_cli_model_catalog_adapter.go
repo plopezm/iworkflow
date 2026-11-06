@@ -85,6 +85,11 @@ func (a *AgentCLIModelCatalogAdapter) List(ctx context.Context, runtime models.A
 			return listCursorModels(ctx, bin, os.Environ(), cursorCatalogTimeout)
 		})
 	}
+	if runtime == models.RuntimeAgy {
+		return a.cached(runtime, func() ([]models.ModelRef, error) {
+			return listAgyModels(ctx, bin, os.Environ(), agyCatalogTimeout)
+		})
+	}
 	return a.cached(runtime, func() ([]models.ModelRef, error) {
 		return a.runListModels(ctx, bin)
 	})

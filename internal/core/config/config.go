@@ -18,6 +18,8 @@ const (
 	defaultClaudeBin         = "claude"
 	defaultCursorBin         = "agent"
 	defaultCursorSessionsDir = "cursor-sessions"
+	defaultAgyBin            = "agy"
+	defaultAgySessionsDir    = "agy-sessions"
 	defaultDataDir           = ".iworkflow"
 	defaultDatabaseFile      = "workspaces.db"
 	defaultWorktreesDir      = "worktrees"
@@ -47,6 +49,10 @@ type Config struct {
 	CursorBin string
 	// CursorSessionsDir stores each task's Cursor session id (to resume).
 	CursorSessionsDir string
+	// AgyBin is the Antigravity CLI executable, launched as `agy acp`.
+	AgyBin string
+	// AgySessionsDir stores each task's agy session id (to resume).
+	AgySessionsDir string
 	// WorktreesDir is the root folder where task worktrees are created.
 	WorktreesDir string
 	// HomeDir is the user's home (starting point of the directory explorer).
@@ -106,6 +112,8 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		ClaudeBin:          valueOr(getenv("IWF_CLAUDE_BIN"), defaultClaudeBin),
 		CursorBin:          valueOr(getenv("IWF_CURSOR_BIN"), defaultCursorBin),
 		CursorSessionsDir:  filepath.Join(dataDir, defaultCursorSessionsDir),
+		AgyBin:             valueOr(getenv("IWF_AGY_BIN"), defaultAgyBin),
+		AgySessionsDir:     filepath.Join(dataDir, defaultAgySessionsDir),
 		WorktreesDir:       filepath.Join(dataDir, defaultWorktreesDir),
 		HomeDir:            home,
 		GentlePiConfigHome: valueOr(getenv("IWF_GENTLE_PI_CONFIG_HOME"), filepath.Join(home, defaultGentlePiConfigDir)),

@@ -30,6 +30,7 @@ type Dependencies struct {
 	PiBin          string
 	CursorBin      string
 	ClaudeBin      string
+	AgyBin         string
 	// GentlePiConfigHome holds gentle-pi's profiles.json.
 	GentlePiConfigHome string
 	// Notifier tells the open pages that the settings changed. Optional.
@@ -74,6 +75,7 @@ func NewModule(deps Dependencies) *Module {
 		models.RuntimePi:          deps.PiBin,
 		models.RuntimeClaude:      deps.ClaudeBin,
 		models.RuntimeCursor:      deps.CursorBin,
+		models.RuntimeAgy:         deps.AgyBin,
 	})
 	profileCatalog := profiles.NewProfilesFileCatalogAdapter(deps.GentlePiConfigHome)
 	pin := git.NewProfilePinAdapter()

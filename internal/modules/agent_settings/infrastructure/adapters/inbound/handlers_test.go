@@ -382,7 +382,7 @@ func TestJSONListsReplaceTheRustServerFunctions(t *testing.T) {
 	h := newHarness(t, &fakeRepository{})
 
 	runtimes := h.get(t, "/api/agent-settings/runtimes")
-	require.JSONEq(t, `["gentle-shell","pi","claude","cursor"]`, runtimes.Body.String())
+	require.JSONEq(t, `["gentle-shell","pi","claude","cursor","agy"]`, runtimes.Body.String())
 
 	levels := h.get(t, "/api/agent-settings/thinking-levels?runtime=claude")
 	require.JSONEq(t, `["low","medium","high","xhigh","max"]`, levels.Body.String())

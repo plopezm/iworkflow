@@ -26,18 +26,23 @@ func TestParseAgentRuntimeRejectsUnknownRuntimeWithItsMessage(t *testing.T) {
 	require.ErrorIs(t, err, agenterrors.ErrInvalidRuntime)
 }
 
-func TestClaudeAndCursorAreSelectableRuntimes(t *testing.T) {
+func TestClaudeAndCursorAndAgyAreSelectableRuntimes(t *testing.T) {
 	claude, err := models.ParseAgentRuntime("claude")
 	require.NoError(t, err)
 	cursor, err := models.ParseAgentRuntime("cursor")
+	require.NoError(t, err)
+	agy, err := models.ParseAgentRuntime("agy")
 	require.NoError(t, err)
 
 	require.Equal(t, models.RuntimeClaude, claude)
 	require.Equal(t, "claude", string(claude))
 	require.Equal(t, models.RuntimeCursor, cursor)
 	require.Equal(t, "cursor", string(cursor))
+	require.Equal(t, models.RuntimeAgy, agy)
+	require.Equal(t, "agy", string(agy))
 	require.Contains(t, models.AllRuntimes(), models.RuntimeCursor)
 	require.Contains(t, models.AllRuntimes(), models.RuntimeClaude)
+	require.Contains(t, models.AllRuntimes(), models.RuntimeAgy)
 }
 
 func TestRuntimeOrDefaultFallsBackToGentleShell(t *testing.T) {

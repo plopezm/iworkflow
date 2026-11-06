@@ -25,11 +25,13 @@ func TestDefaultsLiveUnderTheDataFolderInHome(t *testing.T) {
 	require.Equal(t, "/home/u/.iworkflow/agents-files", cfg.AgentsFilesDir)
 	require.Equal(t, "/home/u/.iworkflow/attachments", cfg.AttachmentsDir)
 	require.Equal(t, "/home/u/.iworkflow/cursor-sessions", cfg.CursorSessionsDir)
+	require.Equal(t, "/home/u/.iworkflow/agy-sessions", cfg.AgySessionsDir)
 	require.Equal(t, "/home/u/.pi/gentle-ai", cfg.GentlePiConfigHome)
 	require.Equal(t, "gentle-shell", cfg.GentleShellBin)
 	require.Equal(t, "pi", cfg.PiBin)
 	require.Equal(t, "claude", cfg.ClaudeBin)
 	require.Equal(t, "agent", cfg.CursorBin)
+	require.Equal(t, "agy", cfg.AgyBin)
 	require.Equal(t, "/home/u", cfg.HomeDir)
 }
 
@@ -73,6 +75,7 @@ func TestIWFHomeMovesEveryDataPath(t *testing.T) {
 	require.Equal(t, "/srv/iwf/agents-files", cfg.AgentsFilesDir)
 	require.Equal(t, "/srv/iwf/attachments", cfg.AttachmentsDir)
 	require.Equal(t, "/srv/iwf/cursor-sessions", cfg.CursorSessionsDir)
+	require.Equal(t, "/srv/iwf/agy-sessions", cfg.AgySessionsDir)
 	require.Equal(t, "/srv/iwf/models/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25", cfg.ASRModelDir)
 	require.Equal(t, "/home/u", cfg.HomeDir)
 }

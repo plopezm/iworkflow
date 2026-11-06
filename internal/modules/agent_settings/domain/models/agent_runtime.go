@@ -12,17 +12,18 @@ const (
 	RuntimePi          AgentRuntime = "pi"
 	RuntimeClaude      AgentRuntime = "claude"
 	RuntimeCursor      AgentRuntime = "cursor"
+	RuntimeAgy         AgentRuntime = "agy"
 )
 
 // AllRuntimes lists every runtime in the order the selector shows them.
 func AllRuntimes() []AgentRuntime {
-	return []AgentRuntime{RuntimeGentleShell, RuntimePi, RuntimeClaude, RuntimeCursor}
+	return []AgentRuntime{RuntimeGentleShell, RuntimePi, RuntimeClaude, RuntimeCursor, RuntimeAgy}
 }
 
 // ParseAgentRuntime validates a runtime identifier.
 func ParseAgentRuntime(raw string) (AgentRuntime, error) {
 	switch AgentRuntime(raw) {
-	case RuntimeGentleShell, RuntimePi, RuntimeClaude, RuntimeCursor:
+	case RuntimeGentleShell, RuntimePi, RuntimeClaude, RuntimeCursor, RuntimeAgy:
 		return AgentRuntime(raw), nil
 	default:
 		return "", agenterrors.InvalidRuntime(raw) //nolint:wrapcheck // domain constructor returns a domain error

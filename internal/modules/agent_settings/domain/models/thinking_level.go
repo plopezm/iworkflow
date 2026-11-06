@@ -31,7 +31,7 @@ func AllThinkingLevels() []ThinkingLevel {
 // each model id). The result is never nil.
 func SupportedBy(runtime AgentRuntime) []ThinkingLevel {
 	switch runtime {
-	case RuntimeClaude:
+	case RuntimeClaude, RuntimeAgy:
 		return []ThinkingLevel{ThinkingLow, ThinkingMedium, ThinkingHigh, ThinkingXHigh, ThinkingMax}
 	case RuntimeCursor:
 		return []ThinkingLevel{}
