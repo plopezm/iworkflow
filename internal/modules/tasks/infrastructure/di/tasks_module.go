@@ -232,6 +232,7 @@ func NewModule(deps Deps) (*Module, error) {
 	successors := application.NewTriggerSuccessors(repository, graph, start, clock)
 	send := application.NewSendMessage(lifecycle, agentRuntime)
 	resumeTask := application.NewResumeTask(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, relatedLaunch)
+	newSession := application.NewNewSession(lifecycle, worktrees, agentRuntime, deps.LaunchSettings, eventSink, relatedLaunch, eventSink, restartGuard)
 	resumeRateLimited := application.NewResumeRateLimitedTasks(lifecycle, agentRuntime, resumeTask, send)
 	// The create, edit and delete of the board are the same use cases the module exposes; each is built once.
 	createTask := application.NewCreateTask(lifecycle, worktrees, start, attachments, relatedProjects, attachmentStorage, newUUID, clock)
@@ -272,6 +273,7 @@ func NewModule(deps Deps) (*Module, error) {
 		Start:               start,
 		Abort:               abortTask,
 		Resume:              resumeTask,
+		NewSession:          newSession,
 		Finish:              finishTask,
 		Reset:               resetTask,
 		Discard:             discardTask,

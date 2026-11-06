@@ -165,6 +165,11 @@ func (r *RetryingTaskRepository) RevertStartClaim(ctx context.Context, id models
 	return retry(r, ctx, "revert_start_claim", func() (bool, error) { return r.inner.RevertStartClaim(ctx, id) })
 }
 
+// DeleteEvents deletes the history of the task, retrying while the database is busy.
+func (r *RetryingTaskRepository) DeleteEvents(ctx context.Context, id models.TaskID) error {
+	return retryVoid(r, ctx, "delete_events", func() error { return r.inner.DeleteEvents(ctx, id) })
+}
+
 func (r *RetryingTaskRepository) ResetToBacklog(ctx context.Context, id models.TaskID) (bool, error) {
 	return retry(r, ctx, "reset_to_backlog", func() (bool, error) { return r.inner.ResetToBacklog(ctx, id) })
 }

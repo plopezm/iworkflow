@@ -152,6 +152,12 @@ func (s TaskStatus) CanResume() bool {
 	}
 }
 
+// CanStartNewSession reports whether the agent of the task can be restarted with a clean context: it is idle or
+// running, or it is stopped in a status that can resume.
+func (s TaskStatus) CanStartNewSession() bool {
+	return s == StatusIdle || s == StatusRunning || s.CanResume()
+}
+
 // CanMerge reports whether the task can be integrated into its base branch.
 func (s TaskStatus) CanMerge() bool {
 	return s == StatusAwaitingReview || s == StatusConflict

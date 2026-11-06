@@ -98,6 +98,9 @@ type fakeRepository struct {
 	resetResult *bool
 	resetErr    error
 	resets      int
+	// eventDeletes counts the DeleteEvents calls; deleteEventsErr, when set, fails them.
+	eventDeletes    int
+	deleteEventsErr error
 	// updateStatusErrs fails the status updates to the listed statuses, before anything is recorded.
 	updateStatusErrs map[models.TaskStatus]error
 }
@@ -318,6 +321,12 @@ func (r *fakeRepository) ResetToBacklog(_ context.Context, _ models.TaskID) (boo
 		return *r.resetResult, nil
 	}
 	return true, nil
+}
+
+// DeleteEvents counts the calls and fails with deleteEventsErr when set.
+func (r *fakeRepository) DeleteEvents(_ context.Context, _ models.TaskID) error {
+	r.eventDeletes++
+	return r.deleteEventsErr
 }
 
 // fakePublisher records the published events.

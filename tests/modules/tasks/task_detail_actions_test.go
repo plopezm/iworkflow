@@ -220,3 +220,34 @@ func TestMergeOfARunningTaskFromTheDetailIsRefusedAndTheTabStays(t *testing.T) {
 	assert.Contains(t, body, `text-error`, "the refusal is shown")
 	assert.Equal(t, string(models.StatusRunning), statusOf(t, repo, running.ID))
 }
+
+func TestDetailOffersANewSessionOnlyWhereTheAgentCanBeRestarted(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		status models.TaskStatus
+		offers bool
+	}{
+		{models.StatusIdle, true},
+		{models.StatusRunning, true},
+		{models.StatusInterrupted, true},
+		{models.StatusAwaitingReview, true},
+		{models.StatusMerged, false},
+	}
+	for _, tc := range cases {
+		repo := newRepo(t)
+		workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+		task := newTask(t, workspaceID, "actions-new-session-"+string(tc.status), tc.status)
+		insertTask(t, repo, task)
+		module, _ := boardRouter(t, repo)
+		id := task.ID.String()
+
+		body := renderDetailTab(t, module, i18n.En, id)
+
+		if tc.offers {
+			assert.Contains(t, body, `hx-post="/tasks/`+id+`/new-session`, tc.status)
+			assert.Contains(t, body, "New session", tc.status)
+		} else {
+			assert.NotContains(t, body, `/new-session`, tc.status)
+		}
+	}
+}

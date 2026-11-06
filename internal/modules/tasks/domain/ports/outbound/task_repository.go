@@ -42,6 +42,8 @@ type TaskRepository interface {
 	// ResetToBacklog clears branch, worktree, base branch, error, dialogs and subagents and deletes the
 	// events of the task, in one transaction. It applies only when the status allows a reset.
 	ResetToBacklog(ctx context.Context, id models.TaskID) (bool, error)
+	// DeleteEvents deletes the persisted events (the history) of the task and changes nothing else.
+	DeleteEvents(ctx context.Context, id models.TaskID) error
 	// AddPendingDialog adds a dialog. It is ignored when the task is missing, has no live agent, or
 	// already lists the dialog (avoids duplicates and orphans caused by races).
 	AddPendingDialog(ctx context.Context, id models.TaskID, dialog models.PendingDialog) error
