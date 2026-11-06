@@ -143,6 +143,20 @@ func RuntimeIDs(runtimes []models.AgentRuntime) []string {
 	return ids
 }
 
+// RuntimeSupportsProfiles reports whether the runtime accepts Gentle AI profiles.
+// A nil or empty runtime means the default one (gentle-shell).
+func RuntimeSupportsProfiles(runtime *string) bool {
+	selected := models.RuntimeGentleShell
+	if raw := nonEmpty(runtime); raw != nil {
+		parsed, err := models.ParseAgentRuntime(*raw)
+		if err != nil {
+			return false
+		}
+		selected = parsed
+	}
+	return selected.SupportsProfiles()
+}
+
 // positiveLimit rejects a defined limit of zero: a limit of 0 means nothing for cgroups.
 func positiveLimit(value *uint32, name string) (*uint32, error) {
 	if value != nil && *value == 0 {

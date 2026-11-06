@@ -37,3 +37,13 @@ func RuntimeOrDefault(runtime *AgentRuntime) AgentRuntime {
 	}
 	return *runtime
 }
+
+// SupportsProfiles reports whether the runtime supports Gentle AI profiles.
+func (r AgentRuntime) SupportsProfiles() bool {
+	switch r {
+	case RuntimeGentleShell, RuntimePi:
+		return true
+	default:
+		return false
+	}
+}

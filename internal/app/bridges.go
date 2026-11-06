@@ -468,8 +468,8 @@ func (b *agentCatalogBridge) CatalogForRuntime(ctx context.Context, requested st
 		}
 	}
 
-	// Profiles: only gentle-shell and pi support gentle-pi profiles
-	supportsProfiles := parsedRt == agentsettingsmodels.RuntimeGentleShell || parsedRt == agentsettingsmodels.RuntimePi
+	// Profiles: only runtimes supporting Gentle AI profiles (gentle-shell and pi)
+	supportsProfiles := parsedRt.SupportsProfiles()
 	var profilesList []string
 	activeProfile := ""
 	defaultProfile := ""
@@ -480,6 +480,9 @@ func (b *agentCatalogBridge) CatalogForRuntime(ctx context.Context, requested st
 			if cat.Active != nil {
 				activeProfile = *cat.Active
 			}
+		}
+		if len(profilesList) == 0 {
+			supportsProfiles = false
 		}
 		if settings.Profile != nil {
 			defaultProfile = settings.Profile.String()

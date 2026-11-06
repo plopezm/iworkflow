@@ -35,7 +35,11 @@ templ AgentSettingsBar(p AgentSettingsBarProps) {
 				<div class="flex min-w-0 flex-1 items-center gap-1.5">
 					<span class="live-dot text-ok" aria-hidden="true"></span>
 					<span class="session-bar-spinner" aria-hidden="true"></span>
-					@barSlot(p.Profile)
+					if p.ShowProfile {
+						@barSlot(p.Profile)
+					} else {
+						<span class="text-xs text-muted font-medium truncate">{ p.StatusTitle }</span>
+					}
 				</div>
 				<button
 					type="button"

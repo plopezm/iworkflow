@@ -41,6 +41,7 @@ func TestBarRendersEverySelectorAndTheFooter(t *testing.T) {
 		Model:          selectSlot(""),
 		Thinking:       selectSlot(""),
 		Profile:        selectSlot(""),
+		ShowProfile:    true,
 		ActiveRuntime:  "pi",
 		ActiveModel:    "gemini-3.8-flash",
 		ActiveThinking: "Medium",
@@ -59,6 +60,23 @@ func TestBarRendersEverySelectorAndTheFooter(t *testing.T) {
 	require.Contains(t, body, "session-bar-root")
 }
 
+func TestBarHidesProfileSelectorWhenShowProfileIsFalse(t *testing.T) {
+	props := components.AgentSettingsBarProps{
+		Runtime:     selectSlot("agy", ui.SelectOption{Value: "agy", Label: "agy"}),
+		Model:       selectSlot(""),
+		Thinking:    selectSlot(""),
+		Profile:     selectSlot(""),
+		ShowProfile: false,
+		StatusTitle: "Ajustes de sesión",
+		Footer:      "Applies to new tasks.",
+	}
+
+	body := render(t, components.AgentSettingsBar(props))
+
+	require.Equal(t, 3, strings.Count(body, "select-pill-input"), "profile select must be hidden")
+	require.Contains(t, body, "Ajustes de sesión")
+}
+
 func TestBarShowsOnlyTheErrorWhenTheSettingsCannotBeRead(t *testing.T) {
 	body := render(t, components.AgentSettingsBar(components.AgentSettingsBarProps{Error: "boom", Footer: "f"}))
 
@@ -69,10 +87,11 @@ func TestBarShowsOnlyTheErrorWhenTheSettingsCannotBeRead(t *testing.T) {
 
 func TestBarSlotErrorReplacesOnlyThatSelector(t *testing.T) {
 	props := components.AgentSettingsBarProps{
-		Runtime:  selectSlot(""),
-		Model:    components.BarSlot{Err: "catálogo no disponible"},
-		Thinking: selectSlot(""),
-		Profile:  selectSlot(""),
+		Runtime:     selectSlot(""),
+		Model:       components.BarSlot{Err: "catálogo no disponible"},
+		Thinking:    selectSlot(""),
+		Profile:     selectSlot(""),
+		ShowProfile: true,
 	}
 
 	body := render(t, components.AgentSettingsBar(props))

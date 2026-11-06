@@ -32,6 +32,7 @@ type AgentSettingsBarProps struct {
 	Model          BarSlot
 	Thinking       BarSlot
 	Profile        BarSlot
+	ShowProfile    bool
 	ActiveRuntime  string
 	ActiveModel    string
 	ActiveThinking string

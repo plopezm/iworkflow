@@ -177,3 +177,33 @@ func TestBarPopulatesActiveSessionSummary(t *testing.T) {
 	require.Equal(t, "Gemini (activo)", propsDefault.ActiveProfile, "toma el perfil activo global cuando no hay perfil fijado")
 	require.Equal(t, "Por defecto (Gemini)", propsDefault.Profile.Select.DefaultLabel)
 }
+
+func TestBarShowProfile(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Runtime con soporte (pi) y perfiles disponibles -> true
+	props := state.Bar(ctx, healthyData())
+	require.True(t, props.ShowProfile)
+
+	// 2. Runtime default (gentle-shell) y perfiles -> true
+	defaultData := healthyData()
+	defaultData.Settings.Runtime = nil
+	require.True(t, state.Bar(ctx, defaultData).ShowProfile)
+
+	// 3. Runtime sin soporte (claude, cursor, agy) -> false
+	for _, rt := range []string{"claude", "cursor", "agy"} {
+		rtData := healthyData()
+		rtData.Settings.Runtime = str(rt)
+		require.False(t, state.Bar(ctx, rtData).ShowProfile, "runtime %s should not show profile", rt)
+	}
+
+	// 4. Runtime con soporte pero catálogo de perfiles vacío -> false
+	emptyProfilesData := healthyData()
+	emptyProfilesData.Profiles.Names = []string{}
+	require.False(t, state.Bar(ctx, emptyProfilesData).ShowProfile)
+
+	// 5. Runtime con soporte pero error al leer perfiles -> false
+	errProfilesData := healthyData()
+	errProfilesData.ProfilesErr = "no gentle-pi"
+	require.False(t, state.Bar(ctx, errProfilesData).ShowProfile)
+}

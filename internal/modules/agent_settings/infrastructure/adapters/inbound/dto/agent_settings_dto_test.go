@@ -211,3 +211,13 @@ func TestModelOptionMapsProviderAndModel(t *testing.T) {
 
 	require.Equal(t, dto.ModelOptionDTO{Provider: "openai", Model: "gpt-5"}, option)
 }
+
+func TestRuntimeSupportsProfiles(t *testing.T) {
+	require.True(t, dto.RuntimeSupportsProfiles(nil), "default gentle-shell supports profiles")
+	require.True(t, dto.RuntimeSupportsProfiles(stringPointer("gentle-shell")))
+	require.True(t, dto.RuntimeSupportsProfiles(stringPointer("pi")))
+	require.False(t, dto.RuntimeSupportsProfiles(stringPointer("claude")))
+	require.False(t, dto.RuntimeSupportsProfiles(stringPointer("cursor")))
+	require.False(t, dto.RuntimeSupportsProfiles(stringPointer("agy")))
+	require.False(t, dto.RuntimeSupportsProfiles(stringPointer("unknown")), "invalid runtime returns false")
+}

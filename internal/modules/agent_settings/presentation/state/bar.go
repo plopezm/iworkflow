@@ -45,6 +45,7 @@ func Bar(ctx context.Context, data BarData) presentation.AgentSettingsBarProps {
 		return presentation.AgentSettingsBarProps{Error: data.SettingsErr, Footer: msgAppliesToNewTasks.T(ctx), Tooltip: msgAppliesToNewTasksHint.T(ctx)}
 	}
 	tooltip, footer := BarHint(ctx)
+	showProfile := dto.RuntimeSupportsProfiles(data.Settings.Runtime) && len(data.Profiles.Names) > 0 && data.ProfilesErr == ""
 	return presentation.AgentSettingsBarProps{
 		Tooltip:        tooltip,
 		Footer:         footer,
@@ -53,6 +54,7 @@ func Bar(ctx context.Context, data BarData) presentation.AgentSettingsBarProps {
 		Model:          modelSlot(ctx, data),
 		Thinking:       thinkingSlot(ctx, data),
 		Profile:        profileSlot(ctx, data),
+		ShowProfile:    showProfile,
 		ActiveRuntime:  activeRuntimeName(data.Settings),
 		ActiveModel:    activeModelName(ctx, data),
 		ActiveThinking: activeThinkingName(ctx, data.Settings),

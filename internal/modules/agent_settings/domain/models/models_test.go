@@ -52,6 +52,14 @@ func TestRuntimeOrDefaultFallsBackToGentleShell(t *testing.T) {
 	require.Equal(t, models.RuntimePi, models.RuntimeOrDefault(&pi))
 }
 
+func TestRuntimeSupportsProfiles(t *testing.T) {
+	require.True(t, models.RuntimeGentleShell.SupportsProfiles())
+	require.True(t, models.RuntimePi.SupportsProfiles())
+	require.False(t, models.RuntimeClaude.SupportsProfiles())
+	require.False(t, models.RuntimeCursor.SupportsProfiles())
+	require.False(t, models.RuntimeAgy.SupportsProfiles())
+}
+
 func TestParseThinkingLevelRoundTripsEveryLevel(t *testing.T) {
 	for _, level := range models.AllThinkingLevels() {
 		parsed, err := models.ParseThinkingLevel(string(level))
