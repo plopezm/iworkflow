@@ -14,7 +14,7 @@
 
 ## Características
 
-- **Agentes en paralelo, un solo lugar**: lanza y dirige `gentle-shell`, `pi`, `claude` o `cursor` a la vez.
+- **Agentes en paralelo, un solo lugar**: lanza y dirige `gentle-shell`, `pi`, `claude`, `cursor` o `agy` a la vez.
 - **Aislamiento por diseño**: cada tarea tiene su propio **git worktree**, así que los agentes no se pisan.
 - **Revisar, no rehacer**: al terminar un agente lees su diff y lo integras (`merge --no-ff`) o lo descartas.
 - **Grafo de tareas**: encadena tareas en un tablero; una tarea arranca sola cuando sus predecesoras están integradas.
@@ -60,7 +60,7 @@ El servidor corre en tu ordenador y el móvil es solo un navegador, así que nec
 
 ## Arranque rápido
 
-Requisitos: `git`, Go (la versión de `go.mod`), `templ`, `tailwindcss` y al menos un CLI de agente instalado y con sesión iniciada (`gentle-shell`, `pi`, `claude` o `agent` para Cursor).
+Requisitos: `git`, Go (la versión de `go.mod`), `templ`, `tailwindcss` y al menos un CLI de agente instalado y con sesión iniciada (`gentle-shell`, `pi`, `claude`, `agent` para Cursor, o `agy` para Antigravity).
 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
@@ -165,17 +165,18 @@ Variables de entorno (admite `.env`, ver `.env.example`):
 
 | Variable | Por defecto |
 |---|---|
-| `IWF_HOME` | `~/.iworkflow`. Carpeta de datos; todo lo siguiente se deriva de ella y no se puede cambiar por separado: `workspaces.db` (SQLite, migraciones automáticas), `worktrees/`, `attachments/` (imágenes adjuntas a las tareas; se borran al terminar la tarea), `agents-files/` (biblioteca de `AGENTS.md`), `cursor-sessions/` (id de sesión ACP de cada tarea, para reanudarla), `models/` (modelo de voz del dictado; `make model` lo descarga), `tls/` y `logs/` |
+| `IWF_HOME` | `~/.iworkflow`. Carpeta de datos; todo lo siguiente se deriva de ella y no se puede cambiar por separado: `workspaces.db` (SQLite, migraciones automáticas), `worktrees/`, `attachments/` (imágenes adjuntas a las tareas; se borran al terminar la tarea), `agents-files/` (biblioteca de `AGENTS.md`), `cursor-sessions/` y `agy-sessions/` (id de sesión ACP de cada tarea, para reanudarla), `models/` (modelo de voz del dictado; `make model` lo descarga), `tls/` y `logs/` |
 | `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (se lanza como `--mode rpc` con `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
 | `IWF_PI_BIN` | `pi` (runtime `pi`, se lanza como `--mode rpc`) |
 | `IWF_CLAUDE_BIN` | `claude` (runtime `claude`: Claude Code con `-p` y protocolo stream-json; se elige en el selector de runtime del menú lateral; acepta ediciones de ficheros, pide confirmación para el resto y lee el `AGENTS.md` del proyecto) |
 | `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
+| `IWF_AGY_BIN` | `agy` (runtime `agy`: Antigravity CLI en modo servidor ACP, `agy acp`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
 | `IWF_TLS` | sin definir (HTTP plano). `auto` sirve HTTPS con un certificado autofirmado que se crea en `tls/` junto a la base de datos y se reutiliza (ver [HTTPS](#https)) |
 | `IWF_TLS_PORT` | puerto HTTP + 443 (puerto del listener HTTPS cuando TLS está activo) |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | Ficheros PEM de tu propio certificado y clave; define los dos o ninguno. Mandan sobre `IWF_TLS=auto` |
 
-Mover la carpeta de datos: abre **Configuración → Recursos**, escribe la nueva carpeta absoluta en la tarjeta **Carpeta de datos** y pulsa *Mover carpeta*. El servidor se reinicia, copia todo (base de datos, worktrees, adjuntos, modelos...), comprueba la copia, reescribe las rutas guardadas y los worktrees de git, cambia a la carpeta nueva y solo entonces borra la antigua. Se niega mientras una tarea se inicia, se ejecuta o finaliza (ojo: Claude y pi retoman la conversación por carpeta, así que las tareas ya iniciadas empiezan una conversación nueva tras el movimiento; las de Cursor conservan la suya), y si la carpeta nueva no está vacía, no se puede escribir, está anidada con la antigua o no tiene espacio. Si algo falla, la carpeta antigua queda intacta y en uso, y la tarjeta explica el motivo. La elección se guarda en un fichero puntero de una línea en la carpeta de configuración del usuario (`~/.config/iworkflow/data-home` en Linux, `~/Library/Application Support/iworkflow/data-home` en macOS, `%APPDATA%\iworkflow\data-home` en Windows), fuera de la carpeta de datos, así que las actualizaciones y reinstalaciones lo conservan. `IWF_HOME` (entorno o `.env`) manda sobre el puntero; mientras esté definida la tarjeta es de solo lectura. También puedes definir `IWF_HOME` tú mismo (en Windows el instalador lo pregunta y lo guarda como variable de entorno de usuario) tras copiar allí el antiguo `~/.iworkflow`.
+Mover la carpeta de datos: abre **Configuración → Recursos**, escribe la nueva carpeta absoluta en la tarjeta **Carpeta de datos** y pulsa *Mover carpeta*. El servidor se reinicia, copia todo (base de datos, worktrees, adjuntos, modelos...), comprueba la copia, reescribe las rutas guardadas y los worktrees de git, cambia a la carpeta nueva y solo entonces borra la antigua. Se niega mientras una tarea se inicia, se ejecuta o finaliza (ojo: Claude y pi retoman la conversación por carpeta, así que las tareas ya iniciadas empiezan una conversación nueva tras el movimiento; las de Cursor y agy conservan la suya), y si la carpeta nueva no está vacía, no se puede escribir, está anidada con la antigua o no tiene espacio. Si algo falla, la carpeta antigua queda intacta y en uso, y la tarjeta explica el motivo. La elección se guarda en un fichero puntero de una línea en la carpeta de configuración del usuario (`~/.config/iworkflow/data-home` en Linux, `~/Library/Application Support/iworkflow/data-home` en macOS, `%APPDATA%\iworkflow\data-home` en Windows), fuera de la carpeta de datos, así que las actualizaciones y reinstalaciones lo conservan. `IWF_HOME` (entorno o `.env`) manda sobre el puntero; mientras esté definida la tarjeta es de solo lectura. También puedes definir `IWF_HOME` tú mismo (en Windows el instalador lo pregunta y lo guarda como variable de entorno de usuario) tras copiar allí el antiguo `~/.iworkflow`.
 
 ### Logs
 
@@ -212,13 +213,14 @@ Con TLS activo el servidor abre **dos listeners** con la misma aplicación: HTTP
 
 ### Runtimes de agente
 
-El selector de runtime del menú lateral admite `gentle-shell`, `pi`, `claude` y `cursor`. La elección se fija al arrancar cada tarea.
+El selector de runtime del menú lateral admite `gentle-shell`, `pi`, `claude`, `cursor` y `agy`. La elección se fija al arrancar cada tarea.
 
 | Runtime | Binario | Capacidades |
 |---|---|---|
 | `gentle-shell` / `pi` | `IWF_GENTLE_SHELL_BIN` / `IWF_PI_BIN` | todas (steer, follow-up, diálogos, reanudar, modelo, thinking, subagentes) |
 | `claude` | `IWF_CLAUDE_BIN` | diálogos, reanudar, modelo y thinking |
 | `cursor` | `IWF_CURSOR_BIN` | diálogos, reanudar y modelo (la lista de modelos se obtiene del propio agente por ACP). Las ediciones de ficheros se aceptan; el resto pide confirmación |
+| `agy` | `IWF_AGY_BIN` | diálogos, reanudar, modelo (obtenido por ACP) y thinking. Las ediciones de ficheros se aceptan; el resto pide confirmación |
 
 ### Argumentos del ejecutable
 

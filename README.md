@@ -14,7 +14,7 @@
 
 ## Highlights
 
-- **Parallel agents, one place**: launch and steer `gentle-shell`, `pi`, `claude` or `cursor` side by side.
+- **Parallel agents, one place**: launch and steer `gentle-shell`, `pi`, `claude`, `cursor` or `agy` side by side.
 - **Isolated by design**: every task gets its own **git worktree**, so agents never overwrite each other.
 - **Review, don't redo**: when an agent finishes you read its diff and either merge it (`merge --no-ff`) or discard it.
 - **Task graph**: chain tasks on a board; a task starts by itself once its predecessors are merged.
@@ -60,7 +60,7 @@ The server runs on your computer and the phone is only a browser, so you need a 
 
 ## Quick start
 
-Requirements: `git`, Go (the version in `go.mod`), `templ`, `tailwindcss` and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude` or `agent` for Cursor).
+Requirements: `git`, Go (the version in `go.mod`), `templ`, `tailwindcss` and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude`, `agent` for Cursor, or `agy` for Antigravity).
 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
@@ -166,17 +166,18 @@ Environment variables (`.env` is supported, see `.env.example`):
 
 | Variable | Default |
 |---|---|
-| `IWF_HOME` | `~/.iworkflow`. Data folder; everything below is derived from it and cannot be set separately: `workspaces.db` (SQLite, automatic migrations), `worktrees/`, `attachments/` (images attached to tasks; deleted when the task ends), `agents-files/` (`AGENTS.md` library), `cursor-sessions/` (each task's ACP session id, to resume it), `models/` (speech model for voice dictation; `make model` downloads it), `tls/` and `logs/` |
+| `IWF_HOME` | `~/.iworkflow`. Data folder; everything below is derived from it and cannot be set separately: `workspaces.db` (SQLite, automatic migrations), `worktrees/`, `attachments/` (images attached to tasks; deleted when the task ends), `agents-files/` (`AGENTS.md` library), `cursor-sessions/` and `agy-sessions/` (each task's ACP session id, to resume it), `models/` (speech model for voice dictation; `make model` downloads it), `tls/` and `logs/` |
 | `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (launched as `--mode rpc` with `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
 | `IWF_PI_BIN` | `pi` (`pi` runtime, launched as `--mode rpc`) |
 | `IWF_CLAUDE_BIN` | `claude` (`claude` runtime: Claude Code with `-p` and the stream-json protocol; chosen in the runtime selector of the side menu; accepts file edits, asks for confirmation for the rest and reads the project's `AGENTS.md`) |
 | `IWF_CURSOR_BIN` | `agent` (`cursor` runtime: Cursor CLI in ACP server mode, `agent acp`; requires having signed in with `agent login`) |
+| `IWF_AGY_BIN` | `agy` (`agy` runtime: Antigravity CLI in ACP server mode, `agy acp`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contains `profiles.json` and `models.json`) |
 | `IWF_TLS` | unset (plain HTTP). `auto` serves HTTPS with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)) |
 | `IWF_TLS_PORT` | HTTP port + 443 (HTTPS listener port when TLS is on) |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key; set both or neither. They win over `IWF_TLS=auto` |
 
-Moving the data folder: open **Settings → Resources**, type the new absolute folder in the **Data folder** card and press *Move folder*. The server restarts, copies everything (database, worktrees, attachments, models...), checks the copy, repoints the stored paths and the git worktrees, switches to the new folder and only then deletes the old one. It refuses while a task is starting, running or finishing (note: Claude and pi resume a conversation by folder, so tasks that already started begin a new conversation after the move; Cursor tasks keep theirs), and if the new folder is not empty, not writable, nested with the old one or too small. If anything fails the old folder stays untouched and in use, and the card shows why. The choice is stored in a one-line pointer file in the per-user configuration folder (`~/.config/iworkflow/data-home` on Linux, `~/Library/Application Support/iworkflow/data-home` on macOS, `%APPDATA%\iworkflow\data-home` on Windows), outside the data folder, so updates and reinstalls keep it. `IWF_HOME` (environment or `.env`) wins over the pointer; while it is set the card is read-only. Alternatively set `IWF_HOME` yourself (on Windows the installer asks for it and stores it as a user environment variable) after copying the old `~/.iworkflow` there. On Windows the home directory is taken from `USERPROFILE` when `HOME` is missing.
+Moving the data folder: open **Settings → Resources**, type the new absolute folder in the **Data folder** card and press *Move folder*. The server restarts, copies everything (database, worktrees, attachments, models...), checks the copy, repoints the stored paths and the git worktrees, switches to the new folder and only then deletes the old one. It refuses while a task is starting, running or finishing (note: Claude and pi resume a conversation by folder, so tasks that already started begin a new conversation after the move; Cursor and agy tasks keep theirs), and if the new folder is not empty, not writable, nested with the old one or too small. If anything fails the old folder stays untouched and in use, and the card shows why. The choice is stored in a one-line pointer file in the per-user configuration folder (`~/.config/iworkflow/data-home` on Linux, `~/Library/Application Support/iworkflow/data-home` on macOS, `%APPDATA%\iworkflow\data-home` on Windows), outside the data folder, so updates and reinstalls keep it. `IWF_HOME` (environment or `.env`) wins over the pointer; while it is set the card is read-only. Alternatively set `IWF_HOME` yourself (on Windows the installer asks for it and stores it as a user environment variable) after copying the old `~/.iworkflow` there. On Windows the home directory is taken from `USERPROFILE` when `HOME` is missing.
 
 ### Logging
 
@@ -213,13 +214,14 @@ With TLS on the server opens **two listeners** with the same app: HTTP on the us
 
 ### Agent runtimes
 
-The runtime selector in the side menu supports `gentle-shell`, `pi`, `claude` and `cursor`. The choice is fixed when each task starts.
+The runtime selector in the side menu supports `gentle-shell`, `pi`, `claude`, `cursor` and `agy`. The choice is fixed when each task starts.
 
 | Runtime | Binary | Capabilities |
 |---|---|---|
 | `gentle-shell` / `pi` | `IWF_GENTLE_SHELL_BIN` / `IWF_PI_BIN` | all (steer, follow-up, dialogs, resume, model, thinking, subagents) |
 | `claude` | `IWF_CLAUDE_BIN` | dialogs, resume, model and thinking |
 | `cursor` | `IWF_CURSOR_BIN` | dialogs, resume and model (the model list is obtained from the agent itself over ACP). File edits are accepted; everything else asks for confirmation |
+| `agy` | `IWF_AGY_BIN` | dialogs, resume, model (obtained over ACP) and thinking. File edits are accepted; everything else asks for confirmation |
 
 ### Executable arguments
 

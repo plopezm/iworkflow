@@ -102,7 +102,7 @@ There is no global state and no DI framework: dependencies travel through constr
 - **Ports** (`domain/ports/outbound`): `TaskRepository`, `TaskGraphRepository`, `AgentRuntime`, `Worktree`, `AgentCatalog`, attachments, events, related projects.
 - **Use cases** (`application`): one file each, e.g. `create_task`, `finish_task`, `discard_task`, `add_task_dependency`, `get_task_graph`, `prune_merged_tasks`.
 - **Inbound** (`infrastructure/adapters/inbound`): handlers per resource (board, detail, diff, form, composer, files, graph, subagents), `sse.go` for the live stream and `dto/`.
-- **Outbound** (`infrastructure/adapters/outbound`): `persistence` (sqlc), `git` (worktrees and merge), `runtime/{pi,claude,cursor}`, `events`, `files`, `storage`, `probe`.
+- **Outbound** (`infrastructure/adapters/outbound`): `persistence` (sqlc), `git` (worktrees and merge), `runtime/{pi,claude,cursor,agy}`, `events`, `files`, `storage`, `probe`.
 - **Background** (`infrastructure/background`): loops that start tasks whose predecessors are merged, resume interrupted tasks and prune merged ones.
 - **Presentation** (`presentation/{state,pages,components}`): templ pages for create, detail, diff and edit.
 
@@ -134,6 +134,7 @@ Every runtime implements the `AgentRuntime` port and declares its capabilities h
 | `gentle-shell`, `pi` | `IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN` | JSONL RPC (`runtime/pi`) | Full capabilities, including steer, follow-up and subagent activity (`gentle-agents` widget). |
 | `claude` | `IWF_CLAUDE_BIN` | `claude -p` stream-json over stdio (`runtime/claude`) | Permission prompts become dialogs; launched with `acceptEdits`; reads the worktree's `AGENTS.md`. Models are static aliases. |
 | `cursor` | `IWF_CURSOR_BIN` | ACP, JSON-RPC 2.0 (`runtime/cursor`) | The session id of each task is stored in `$IWF_HOME/cursor-sessions/<task>` to resume with `session/load`; the model list comes from the agent. |
+| `agy` | `IWF_AGY_BIN` | ACP, JSON-RPC 2.0 (`runtime/agy`) | The session id of each task is stored in `$IWF_HOME/agy-sessions/<task>` to resume with `session/load`; the model list comes from the agent over ACP. Supports thinking levels. |
 
 Each codec translates between the runtime's wire format and the domain `AgentCommand` / `AgentEvent` types, so the use cases and the UI do not know the protocol.
 
@@ -185,12 +186,12 @@ The data folder is resolved by `config.DataDir`: `IWF_HOME` first, then the poin
 | Path | Content |
 |---|---|
 | `workspaces.db` | SQLite database |
-| `worktrees/`, `attachments/`, `agents-files/`, `cursor-sessions/` | Task worktrees, task images, `AGENTS.md` library, Cursor session ids |
+| `worktrees/`, `attachments/`, `agents-files/`, `cursor-sessions/`, `agy-sessions/` | Task worktrees, task images, `AGENTS.md` library, Cursor and agy session ids |
 | `models/` | Speech model (`make model`) |
 | `tls/` | Self-signed certificate (`IWF_TLS=auto`) |
 | `logs/` | `iworkflow.log`, rotated and gzip-compressed |
 
-Other variables: the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in the README. On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
+Other variables: the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`, `IWF_AGY_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in the README. On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
 
 ### Moving the data folder
 

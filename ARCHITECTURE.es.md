@@ -102,7 +102,7 @@ No hay estado global ni framework de DI: las dependencias viajan por constructor
 - **Puertos** (`domain/ports/outbound`): `TaskRepository`, `TaskGraphRepository`, `AgentRuntime`, `Worktree`, `AgentCatalog`, adjuntos, eventos, proyectos relacionados.
 - **Casos de uso** (`application`): uno por fichero, p. ej. `create_task`, `finish_task`, `discard_task`, `add_task_dependency`, `get_task_graph`, `prune_merged_tasks`.
 - **Inbound** (`infrastructure/adapters/inbound`): handlers por recurso (tablero, detalle, diff, formulario, compositor, ficheros, grafo, subagentes), `sse.go` para el stream en vivo y `dto/`.
-- **Outbound** (`infrastructure/adapters/outbound`): `persistence` (sqlc), `git` (worktrees y merge), `runtime/{pi,claude,cursor}`, `events`, `files`, `storage`, `probe`.
+- **Outbound** (`infrastructure/adapters/outbound`): `persistence` (sqlc), `git` (worktrees y merge), `runtime/{pi,claude,cursor,agy}`, `events`, `files`, `storage`, `probe`.
 - **Segundo plano** (`infrastructure/background`): bucles que arrancan las tareas cuyas predecesoras están integradas, reanudan las interrumpidas y limpian las integradas.
 - **Presentación** (`presentation/{state,pages,components}`): páginas templ de creación, detalle, diff y edición.
 
@@ -134,6 +134,7 @@ Todo runtime implementa el puerto `AgentRuntime` y declara sus capacidades con h
 | `gentle-shell`, `pi` | `IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN` | RPC JSONL (`runtime/pi`) | Capacidades completas, incluidos steer, follow-up y actividad de subagentes (widget `gentle-agents`). |
 | `claude` | `IWF_CLAUDE_BIN` | `claude -p` stream-json por stdio (`runtime/claude`) | Las peticiones de permiso son diálogos; se lanza con `acceptEdits`; lee el `AGENTS.md` del worktree. Modelos: alias estáticos. |
 | `cursor` | `IWF_CURSOR_BIN` | ACP, JSON-RPC 2.0 (`runtime/cursor`) | El id de sesión de cada tarea se guarda en `$IWF_HOME/cursor-sessions/<tarea>` para reanudar con `session/load`; la lista de modelos la da el propio agente. |
+| `agy` | `IWF_AGY_BIN` | ACP, JSON-RPC 2.0 (`runtime/agy`) | El id de sesión de cada tarea se guarda en `$IWF_HOME/agy-sessions/<tarea>` para reanudar con `session/load`; la lista de modelos la da el propio agente por ACP. Soporta niveles de razonamiento (*thinking*). |
 
 Cada codec traduce entre el formato del runtime y los tipos de dominio `AgentCommand` / `AgentEvent`, de modo que los casos de uso y la UI no conocen el protocolo.
 
@@ -185,12 +186,12 @@ La carpeta de datos la resuelve `config.DataDir`: primero `IWF_HOME`, luego el f
 | Ruta | Contenido |
 |---|---|
 | `workspaces.db` | Base de datos SQLite |
-| `worktrees/`, `attachments/`, `agents-files/`, `cursor-sessions/` | Worktrees de tareas, imágenes de tareas, biblioteca de `AGENTS.md`, ids de sesión de Cursor |
+| `worktrees/`, `attachments/`, `agents-files/`, `cursor-sessions/`, `agy-sessions/` | Worktrees de tareas, imágenes de tareas, biblioteca de `AGENTS.md`, ids de sesión de Cursor y agy |
 | `models/` | Modelo de voz (`make model`) |
 | `tls/` | Certificado autofirmado (`IWF_TLS=auto`) |
 | `logs/` | `iworkflow.log`, rotado y comprimido con gzip |
 
-Otras variables: los binarios de los agentes (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), el log (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` e `IWF_SUPERVISED`. La tabla completa, con valores por defecto, está en el README. En Windows el instalador guarda una carpeta de datos personalizada como variable de usuario `IWF_HOME`.
+Otras variables: los binarios de los agentes (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`, `IWF_AGY_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), el log (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` e `IWF_SUPERVISED`. La tabla completa, con valores por defecto, está en el README. En Windows el instalador guarda una carpeta de datos personalizada como variable de usuario `IWF_HOME`.
 
 ### Mover la carpeta de datos
 
