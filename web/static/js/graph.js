@@ -203,12 +203,41 @@ export function extractEdgeEndpoints(edgeEl) {
 	return null;
 }
 
+// While a node is dragged or an edge is being connected, a refresh must not swap the graph: the morph would
+// rewrite node positions, the viewport transform and the preview path under the pointer.
+let interactions = 0;
+let refreshPending = false;
+
+function beginInteraction() {
+	interactions += 1;
+}
+
+function endInteraction() {
+	interactions = Math.max(0, interactions - 1);
+	if (interactions === 0 && refreshPending) {
+		refreshPending = false;
+		triggerBoardRefresh();
+	}
+}
+
 function triggerBoardRefresh() {
+	if (interactions > 0) {
+		refreshPending = true;
+		return;
+	}
 	if (typeof window !== "undefined" && window.htmx?.trigger) {
 		window.htmx.trigger(document.body, "board:refresh");
-	}
-	if (typeof document !== "undefined") {
+	} else if (typeof document !== "undefined") {
 		document.body.dispatchEvent(new CustomEvent("board:refresh"));
+	}
+}
+
+/** Reapplies the JS viewport to canvases whose inline transform a morph reset to the server's value. */
+function restoreViewports(root = document) {
+	for (const canvas of root.querySelectorAll("[data-graph-canvas]")) {
+		if (typeof canvas._getViewport === "function") {
+			updateCanvasTransform(canvas, canvas._getViewport());
+		}
 	}
 }
 
@@ -400,6 +429,7 @@ function setupNodeDragging(canvas, getViewport) {
 		if (!node) return;
 
 		activeNode = node;
+		beginInteraction();
 		startPointer = { x: e.clientX, y: e.clientY };
 		startNodePos = {
 			x: parseFloat(node.style.left) || 0,
@@ -414,6 +444,9 @@ function setupNodeDragging(canvas, getViewport) {
 		const viewport = getViewport();
 		const dx = (e.clientX - startPointer.x) / viewport.zoom;
 		const dy = (e.clientY - startPointer.y) / viewport.zoom;
+		if (Math.abs(e.clientX - startPointer.x) + Math.abs(e.clientY - startPointer.y) > 2) {
+			activeNode.dataset.dragMoved = "1";
+		}
 		const finalX = startNodePos.x + dx;
 		const finalY = startNodePos.y + dy;
 		activeNode.style.left = `${finalX.toFixed(0)}px`;
@@ -431,24 +464,30 @@ function setupNodeDragging(canvas, getViewport) {
 		try {
 			node.releasePointerCapture(e.pointerId);
 		} catch (_) {}
+		const moved = node.dataset.dragMoved === "1";
+		delete node.dataset.dragMoved;
 
 		const taskId = node.dataset.taskId;
 		const finalX = parseFloat(node.style.left) || 0;
 		const finalY = parseFloat(node.style.top) || 0;
 
-		if (taskId) {
-			const body = new URLSearchParams();
-			body.set("x", finalX.toString());
-			body.set("y", finalY.toString());
-			try {
-				await fetch(`/tasks/${taskId}/position`, {
-					method: "POST",
-					headers: { "Content-Type": "application/x-www-form-urlencoded" },
-					body: body.toString(),
-				});
-			} catch (err) {
-				console.error("Failed to persist node position:", err);
+		try {
+			if (taskId && moved) {
+				const body = new URLSearchParams();
+				body.set("x", finalX.toString());
+				body.set("y", finalY.toString());
+				try {
+					await fetch(`/tasks/${taskId}/position`, {
+						method: "POST",
+						headers: { "Content-Type": "application/x-www-form-urlencoded" },
+						body: body.toString(),
+					});
+				} catch (err) {
+					console.error("Failed to persist node position:", err);
+				}
 			}
+		} finally {
+			endInteraction();
 		}
 	};
 
@@ -475,6 +514,7 @@ function setupPortConnections(canvas, getViewport) {
 		if (!sourceId) return;
 
 		connecting = true;
+		beginInteraction();
 		activeTarget = portOut;
 		activePointerId = e.pointerId;
 		e.stopPropagation();
@@ -493,10 +533,7 @@ function setupPortConnections(canvas, getViewport) {
 			previewPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
 			previewPath.setAttribute("class", "graph-edge-preview");
 			previewPath.setAttribute("fill", "none");
-			previewPath.setAttribute("stroke", "currentColor");
-			previewPath.setAttribute("stroke-dasharray", "4 4");
-			previewPath.setAttribute("stroke-width", "2");
-			previewPath.style.pointerEvents = "none";
+			previewPath.setAttribute("d", cubicCurve(fromPt, fromPt));
 			edgesLayer.appendChild(previewPath);
 		}
 	});
@@ -542,7 +579,14 @@ function setupPortConnections(canvas, getViewport) {
 	const onPointerUp = async (e) => {
 		if (!connecting) return;
 		connecting = false;
+		try {
+			await finishConnection(e);
+		} finally {
+			endInteraction();
+		}
+	};
 
+	const finishConnection = async (e) => {
 		const allNodes = canvas.querySelectorAll(".graph-node, .task-node");
 		for (const n of allNodes) {
 			n.classList.remove("graph-node-target");
@@ -595,10 +639,6 @@ function setupPortConnections(canvas, getViewport) {
 	canvas.addEventListener("pointermove", onPointerMove);
 	canvas.addEventListener("pointerup", onPointerUp);
 	canvas.addEventListener("pointercancel", onPointerUp);
-	if (typeof window !== "undefined") {
-		window.addEventListener("pointermove", onPointerMove);
-		window.addEventListener("pointerup", onPointerUp);
-	}
 }
 
 function setupEdgeSelection(canvas) {
@@ -795,10 +835,29 @@ export function setupLooseTasks(root = document) {
 		if (isDragging && dragClone) {
 			dragClone.style.left = `${e.clientX - 20}px`;
 			dragClone.style.top = `${e.clientY - 20}px`;
+
+			const canvases = typeof document !== "undefined" ? document.querySelectorAll("[data-graph-canvas]") : [];
+			for (const c of canvases) {
+				const r = c.getBoundingClientRect();
+				const isOver = (
+					e.clientX >= r.left &&
+					e.clientX <= r.right &&
+					e.clientY >= r.top &&
+					e.clientY <= r.bottom
+				);
+				const container = c.closest(".dashboard-graph") || c;
+				container.classList.toggle("graph-canvas-drop-active", isOver);
+			}
 		}
 	};
 
 	const onPointerUp = async (e) => {
+		if (typeof document !== "undefined") {
+			for (const el of document.querySelectorAll(".graph-canvas-drop-active")) {
+				el.classList.remove("graph-canvas-drop-active");
+			}
+		}
+
 		if (!draggingCard) return;
 		const card = draggingCard;
 		const id = taskId;
@@ -895,5 +954,15 @@ if (typeof document !== "undefined") {
 	} else {
 		initGraphCanvases();
 	}
-	document.addEventListener("htmx:afterSettle", () => initGraphCanvases());
+	document.addEventListener("htmx:beforeSwap", (e) => {
+		if (interactions > 0 && e.target?.querySelector?.("[data-graph-canvas]")) {
+			e.detail.shouldSwap = false;
+			refreshPending = true;
+		}
+	});
+	document.addEventListener("htmx:afterSwap", () => restoreViewports());
+	document.addEventListener("htmx:afterSettle", () => {
+		restoreViewports();
+		initGraphCanvases();
+	});
 }

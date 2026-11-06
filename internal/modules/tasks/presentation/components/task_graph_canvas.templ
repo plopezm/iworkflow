@@ -12,7 +12,7 @@ templ TaskGraphCanvas(view state.GraphView, positions map[string]state.Point, vi
 		transformStyle := fmt.Sprintf("transform: %s; transform-origin: 0 0;", viewport.TransformCSS())
 	}}
 	<div
-		class="task-graph-canvas relative h-full w-full overflow-hidden select-none"
+		class="graph-canvas task-graph-canvas relative h-full w-full overflow-hidden select-none"
 		style={ GridStyle(viewport) }
 		data-graph-canvas
 		data-scope={ scope }
