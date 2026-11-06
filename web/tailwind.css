@@ -1388,7 +1388,8 @@ select optgroup,
 /* ── Task graph board ───────────────────────────── */
 /* Pannable/zoomable canvas: dotted grid background (size and offset follow the viewport via
    inline style), a transformed layer holding the SVG edges and the HTML nodes. */
-.graph-canvas {
+.graph-canvas,
+.task-graph-canvas {
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -1399,13 +1400,17 @@ select optgroup,
   background-color: var(--color-bg);
   background-image: radial-gradient(
     circle,
-    color-mix(in srgb, var(--color-fg) 20%, transparent) 1px,
-    transparent 1.4px
+    color-mix(in srgb, var(--color-fg) 25%, transparent) 1.2px,
+    transparent 1.5px
   );
   background-size: 24px 24px;
 }
 .graph-canvas-busy {
   cursor: grabbing;
+}
+.dashboard-graph.graph-canvas-drop-active {
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px var(--color-accent), 0 0 24px color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 .graph-layer {
   position: absolute;
@@ -1584,6 +1589,7 @@ select optgroup,
   stroke-width: 2;
   stroke-dasharray: 4 5;
   pointer-events: none;
+  animation: graph-edge-flow 0.6s linear infinite;
 }
 .graph-edge-label {
   fill: var(--color-muted);
@@ -1838,6 +1844,10 @@ select optgroup,
   .board-panes[data-tab="loose"] > .board-canvas {
     visibility: hidden;
     pointer-events: none;
+  }
+  .dashboard-panes[data-tab="graph"] > .dashboard-pane-list,
+  .dashboard-panes[data-tab="loose"] > .dashboard-pane-graph {
+    display: none;
   }
   .side-panel-toggle {
     display: none;

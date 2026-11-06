@@ -1,14 +1,16 @@
 package components
 
 import (
+	"strings"
+
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// Dashboard is the global dashboard: the projects with their running and pending tasks, and the global graph where
-// tasks of different projects are chained. It refreshes itself when the task stream reports a change.
+// Dashboard is the global dashboard: the running and pending tasks across projects, and the global graph
+// where tasks of different projects are chained. It refreshes itself when the task stream reports a change.
 templ Dashboard(view state.DashboardView) {
 	<div
 		id={ state.Scoped("dashboard", view.Scope) }
@@ -30,7 +32,7 @@ templ DashboardBody(view state.DashboardView) {
 		<span class="badge badge-working"><span class="live-dot"></span>{ msgDashRunning.T(ctx) } · { itoa(view.Running) }</span>
 		<span class="badge badge-backlog">{ msgDashPending.T(ctx) } · { itoa(view.Pending) }</span>
 		<div class="min-w-0 flex-1"></div>
-		@link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}) {
+		@link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary min-h-8", Title: msgNewTask.T(ctx), Role: "button"}) {
 			<span class="text-lg leading-none">+</span>
 			<span class="hidden sm:inline">{ msgNewTask.T(ctx) }</span>
 		}
@@ -43,22 +45,244 @@ templ DashboardBody(view state.DashboardView) {
 			<a href="/workspaces" class="btn-secondary">{ msgGoWorkspaces.T(ctx) }</a>
 		</div>
 	} else {
-		<section class="grid gap-3 px-4 py-2" style="grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr))" aria-label={ msgDashProjects.T(ctx) }>
-			for _, project := range view.Projects {
-				@DashboardProjectCard(project)
-			}
-		</section>
-		<section class="stack gap-2 px-4 pt-2 pb-4">
-			<h2 class="text-sm font-semibold">{ msgDashWorkflows.T(ctx) }</h2>
-			<p class="muted text-xs">{ msgDashWorkflowsHint.T(ctx) }</p>
-			<div class="dashboard-graph relative flex min-h-[28rem] flex-col overflow-hidden rounded-lg border border-border" style="height: 32rem">
-				@BoardGraph(view.Graph, view.Positions, view.Viewport, view.Loose, view.Scope)
+		@shared.SegmentedControl(shared.SegmentedControlProps{
+			Class:     "board-tabs",
+			Options:   DashboardTabOptions(ctx, len(view.RunningTasks)+len(view.PendingTasks)),
+			Selected:  string(state.DefaultBoardTab(len(view.Graph.Nodes), len(view.RunningTasks)+len(view.PendingTasks))),
+			AriaLabel: msgTabsLabel.T(ctx),
+		})
+		<div
+			class="dashboard-panes contents"
+			data-tab={ string(state.DefaultBoardTab(len(view.Graph.Nodes), len(view.RunningTasks)+len(view.PendingTasks))) }
+			data-tab-key="iwf-dashboard-tab"
+		>
+		<div class="dashboard-pane-list contents">
+		<!-- Filter Toolbar -->
+		<div class="row flex-wrap items-center justify-between gap-3 px-4 py-2 border-y border-border/40 bg-surface/30">
+			<div class="flex flex-1 flex-wrap items-center gap-2 min-w-[260px]">
+				<div class="relative flex-1 min-w-[180px] max-w-sm">
+					<input
+						type="search"
+						id="dashboard-search-input"
+						class="input text-xs px-3 py-1.5 w-full bg-bg/90 border-border rounded"
+						placeholder={ msgSearchPlaceholder.T(ctx) }
+						aria-label={ msgSearchPlaceholder.T(ctx) }
+					/>
+				</div>
+				<div class="min-w-[160px] max-w-xs">
+					<select
+						id="dashboard-project-filter"
+						class="select text-xs py-1.5 px-2 w-full bg-bg/90 border-border rounded"
+						aria-label={ msgFilterProject.T(ctx) }
+					>
+						<option value="">{ msgFilterAllProjects.T(ctx) } ({ itoa(view.Running + view.Pending) })</option>
+						for _, ws := range view.Workspaces {
+							<option value={ ws.ID } data-dashboard-project={ ws.ID }>{ ws.Name }</option>
+						}
+					</select>
+				</div>
+			</div>
+			<div class="text-xs text-muted">
+				<span class="hidden sm:inline">{ msgDragHintGraph.T(ctx) }</span>
+			</div>
+		</div>
+
+		<!-- Two Task Sections: En ejecución and Pendientes (ordenadas por urgencia) -->
+		<div class="dashboard-tasks-container grid grid-cols-1 lg:grid-cols-2 gap-4 px-4 py-3" aria-label={ msgDashProjects.T(ctx) }>
+			<!-- Section: En ejecución -->
+			<section class="stack gap-2.5" data-section="running" aria-label={ msgDashRunning.T(ctx) }>
+				<div class="flex items-center justify-between pb-1 border-b border-border/40">
+					<div class="row items-center gap-2">
+						<span class="live-dot" aria-hidden="true"></span>
+						<h2 class="text-sm font-semibold text-fg">{ msgDashRunning.T(ctx) }</h2>
+						<span class="badge badge-working text-[11px] font-medium">{ itoa(len(view.RunningTasks)) }</span>
+					</div>
+					<span class="text-xs text-muted hidden sm:inline">{ msgRunningHint.T(ctx) }</span>
+				</div>
+				<div class="tasks-list stack gap-2" data-tasks-group="running">
+					if len(view.RunningTasks) == 0 {
+						<div class="card stack items-center justify-center p-6 text-center border-dashed border-border/60 bg-surface/20" data-empty="running">
+							<p class="text-xs text-muted">{ msgEmptyRunning.T(ctx) }</p>
+						</div>
+					} else {
+						for _, item := range view.RunningTasks {
+							@DashboardTaskCard(item, view.Scope)
+						}
+						<div class="card stack items-center justify-center p-6 text-center border-dashed border-border/60 bg-surface/20 hidden" data-empty="running">
+							<p class="text-xs text-muted">{ msgNoMatchingTasks.T(ctx) }</p>
+						</div>
+					}
+				</div>
+			</section>
+
+			<!-- Section: Pendientes (ordenadas por urgencia) -->
+			<section class="stack gap-2.5" data-section="pending" aria-label={ msgDashPending.T(ctx) }>
+				<div class="flex items-center justify-between pb-1 border-b border-border/40">
+					<div class="row items-center gap-2">
+						<h2 class="text-sm font-semibold text-fg">{ msgDashPending.T(ctx) }</h2>
+						<span class="badge badge-backlog text-[11px] font-medium">{ itoa(len(view.PendingTasks)) }</span>
+					</div>
+					<span class="text-xs text-muted hidden sm:inline">{ msgPendingHint.T(ctx) }</span>
+				</div>
+				<div class="tasks-list stack gap-2" data-tasks-group="pending">
+					if len(view.PendingTasks) == 0 {
+						<div class="card stack items-center justify-center p-6 text-center border-dashed border-border/60 bg-surface/20" data-empty="pending">
+							<p class="text-xs text-muted">{ msgEmptyPending.T(ctx) }</p>
+						</div>
+					} else {
+						for _, item := range view.PendingTasks {
+							@DashboardTaskCard(item, view.Scope)
+						}
+						<div class="card stack items-center justify-center p-6 text-center border-dashed border-border/60 bg-surface/20 hidden" data-empty="pending">
+							<p class="text-xs text-muted">{ msgNoMatchingTasks.T(ctx) }</p>
+						</div>
+					}
+				</div>
+			</section>
+		</div>
+
+		</div>
+
+		<!-- Workflows Section (Full 100% width, no left lane, dot grid canvas) -->
+		<section class="dashboard-pane-graph stack gap-2 px-4 pt-3 pb-6">
+			<div class="flex flex-wrap items-center justify-between gap-2">
+				<div class="stack gap-0.5">
+					<h2 class="text-sm font-semibold flex items-center gap-2">
+						<span>{ msgDashWorkflows.T(ctx) }</span>
+						<span class="badge badge-muted text-[11px] font-normal">{ itoa(len(view.Graph.Nodes)) } { msgTasksInGraph.T(ctx) }</span>
+					</h2>
+					<p class="muted text-xs">{ msgDashWorkflowsHint.T(ctx) }</p>
+				</div>
+				<span class="text-xs text-muted hidden sm:inline">{ msgDragHintGraph.T(ctx) }</span>
+			</div>
+			<div class="dashboard-graph relative flex h-[34rem] min-h-[28rem] flex-col overflow-hidden rounded-lg border border-border bg-bg shadow-inner transition-colors">
+				@TaskGraphCanvas(view.Graph, view.Positions, view.Viewport, view.Scope, "")
+				if len(view.Graph.Nodes) == 0 {
+					<div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
+						<div class="card max-w-md border border-border/80 bg-surface/90 p-4 shadow-lg backdrop-blur-sm">
+							<p class="text-sm font-semibold text-fg">{ msgDashWorkflows.T(ctx) }</p>
+							<p class="mt-1 text-xs text-muted leading-relaxed">{ msgEmptyGraphHint.T(ctx) }</p>
+						</div>
+					</div>
+				}
 			</div>
 		</section>
+		</div>
 	}
 }
 
+// DashboardTaskCard is a card in the dashboard list with drag and mobile touch actions.
+templ DashboardTaskCard(item state.DashboardTaskItem, scope string) {
+	{{
+		task := item.Task
+		isLoose := !item.InGraph
+		title := state.TaskTitle(task)
+	}}
+	<article
+		id={ state.Scoped("dash-task-"+task.ID, scope) }
+		class={ "card dashboard-task-card group relative flex flex-col gap-2 p-3 border border-border/80 bg-surface transition-all hover:border-fg/40 hover:shadow-sm " + toggleClass("", task.NeedsAttention, "border-error/60 bg-error/5") }
+		data-dashboard-task
+		data-task-id={ task.ID }
+		data-workspace-id={ task.WorkspaceID }
+		data-search-text={ strings.ToLower(title + " " + task.Prompt + " " + item.WorkspaceName + " " + task.ID) }
+		data-stage={ task.Stage }
+		if isLoose {
+			data-loose-task
+			title={ msgDragToWorkflowHint.T(ctx) }
+		}
+	>
+		<div class="flex items-start justify-between gap-2">
+			<div class="row items-center gap-1.5 min-w-0 flex-1">
+				if isLoose {
+					<span
+						class="cursor-grab active:cursor-grabbing text-muted/60 hover:text-fg text-sm select-none pr-0.5 leading-none"
+						title={ msgDragToWorkflowHint.T(ctx) }
+						aria-hidden="true"
+					>
+						⠿
+					</span>
+				}
+				@link.Tab(link.Props{
+					Href:  state.BoardPath(task.WorkspaceID),
+					Class: "badge badge-muted hover:text-fg hover:border-fg/30 text-[11px] font-medium truncate max-w-[140px]",
+					Title: item.WorkspaceName,
+				}) {
+					{ item.WorkspaceName }
+				}
+				if task.Priority != "" && task.Priority != "normal" {
+					<span class={ "badge badge-" + priorityVariant(task.Priority) + " text-[10px] font-semibold uppercase tracking-wider" }>
+						{ priorityLabel(task.Priority).T(ctx) }
+					</span>
+				}
+			</div>
+			<div class="flex items-center gap-1 shrink-0">
+				@StageBadge(task.Stage)
+			</div>
+		</div>
+
+		<div>
+			@link.Tab(link.Props{
+				Href:  state.TaskPath(task.ID),
+				Class: "text-sm font-semibold text-fg hover:underline line-clamp-2 leading-snug break-words",
+				Title: title,
+			}) {
+				{ title }
+			}
+		</div>
+
+		if task.NeedsAttention {
+			<div class="row items-center gap-1.5 text-xs text-error font-medium">
+				<span class="live-dot bg-error" aria-hidden="true"></span>
+				<span>{ stageLabel(state.StageAttention).T(ctx) }</span>
+				if task.Error != nil && *task.Error != "" {
+					<span class="truncate text-muted text-[11px]" title={ *task.Error }>— { *task.Error }</span>
+				}
+			</div>
+		} else if task.Error != nil && *task.Error != "" {
+			<p class="truncate text-xs text-error" title={ *task.Error }>{ *task.Error }</p>
+		}
+
+		<div class="mt-1 flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-border/30">
+			<div class="row items-center gap-1">
+				if task.Stage == state.StageBacklog {
+					@backlogActions(task, scope)
+				} else {
+					@link.Tab(link.Props{
+						Href:  state.TaskPath(task.ID),
+						Class: "btn-secondary min-h-8 sm:min-h-7 px-2.5 py-1 text-xs",
+						Title: title,
+					}) {
+						{ msgOpenTask.T(ctx) }
+					}
+				}
+			</div>
+
+			<div class="row items-center gap-1">
+				if isLoose {
+					<button
+						type="button"
+						class="btn-ghost min-h-8 sm:min-h-7 border border-border/80 hover:border-accent hover:text-accent px-2.5 py-1 text-xs transition-colors"
+						title={ msgAddToGraph.T(ctx) }
+						aria-label={ msgAddToGraph.T(ctx) }
+						hx-post={ state.ScopedPath(state.BoardTaskPath(task.ID)+"/add-to-graph", scope) }
+						hx-swap="none"
+					>
+						<span aria-hidden="true">+ </span>
+						{ msgAddToGraph.T(ctx) }
+					</button>
+				} else {
+					<span class="text-[11px] text-muted inline-flex items-center gap-1 select-none">
+						<span class="text-accent font-bold" aria-hidden="true">✓</span>
+						{ msgInGraph.T(ctx) }
+					</span>
+				}
+			</div>
+		</div>
+	</article>
+}
+
 // DashboardProjectCard is a project of the dashboard: its name, its running tasks and its pending tasks.
+// Kept for backward compatibility.
 templ DashboardProjectCard(project state.DashboardProject) {
 	<article class="card stack gap-2" data-dashboard-project={ project.ID }>
 		<div class="row items-center gap-2">

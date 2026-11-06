@@ -9,25 +9,45 @@ export const BOARD_TAB_STORAGE_KEY = 'iwf-board-tab';
 export const SESSION_BAR_STORAGE_KEY = 'iwf-session-bar-open';
 export const TOAST_DISMISS_MS = 8000;
 
+// The panes a tab control switches: the board list, or the dashboard panes that follow it.
+function panesOf(tabs) {
+  const parent = tabs.closest('.board-list') || tabs.parentElement;
+  return parent?.querySelector('.board-panes') || parent?.querySelector('.dashboard-panes') || null;
+}
+
+// The board and the dashboard remember their tab apart.
+function tabStorageKey(panes) {
+  return panes.dataset?.tabKey || BOARD_TAB_STORAGE_KEY;
+}
+
+// The tab a segment stands for. The segmented control omits the attributes of the selected option, so the
+// selected segment has no data-board-tab: it is the one that is not the other one (loose first, graph second).
+function tabOf(button) {
+  if (button.dataset?.boardTab) return button.dataset.boardTab;
+  const segments = [...(button.parentElement?.children || [])];
+  const index = segments.indexOf(button);
+  return index === 0 ? 'loose' : index === 1 ? 'graph' : '';
+}
+
 // Switches the active sub-tab (loose / graph) on narrow screens.
 export function switchBoardTab(button) {
-  const tab = button.dataset.boardTab;
+  const tab = tabOf(button);
   if (!tab) return;
   const tabs = button.closest('.board-tabs');
   if (!tabs) return;
-  const parent = tabs.closest('.board-list') || tabs.parentElement;
-  const panes = parent?.querySelector('.board-panes');
+  const panes = panesOf(tabs);
   if (!panes) return;
 
   panes.setAttribute('data-tab', tab);
-  for (const b of tabs.querySelectorAll('[data-board-tab]')) {
+  const segments = tabs.querySelectorAll('[role="tab"]');
+  for (const b of segments.length ? segments : tabs.querySelectorAll('[data-board-tab]')) {
     const active = b === button;
     b.setAttribute('aria-selected', String(active));
     b.classList.toggle('segment-selected', active);
   }
 
   try {
-    globalThis.sessionStorage?.setItem(BOARD_TAB_STORAGE_KEY, tab);
+    globalThis.sessionStorage?.setItem(tabStorageKey(panes), tab);
   } catch {}
 
   if (tab === 'graph') {
@@ -44,14 +64,16 @@ export function switchBoardTab(button) {
 
 // Restores the previously selected board tab on narrow screens.
 export function restoreBoardTab(root = document) {
-  let saved = null;
-  try {
-    saved = globalThis.sessionStorage?.getItem(BOARD_TAB_STORAGE_KEY);
-  } catch {}
-  if (!saved) return;
   if (typeof globalThis.innerWidth === 'number' && globalThis.innerWidth > 767) return;
 
   for (const tabs of root.querySelectorAll('.board-tabs')) {
+    const panes = panesOf(tabs);
+    if (!panes) continue;
+    let saved = null;
+    try {
+      saved = globalThis.sessionStorage?.getItem(tabStorageKey(panes));
+    } catch {}
+    if (!saved) continue;
     const targetBtn = tabs.querySelector(`[data-board-tab="${saved}"]`);
     if (targetBtn) {
       switchBoardTab(targetBtn);
@@ -355,7 +377,7 @@ function onClick(event) {
   const cycle = target.closest?.('[data-theme-cycle]');
   if (cycle) return cycleTheme();
 
-  const boardTab = target.closest?.('[data-board-tab]');
+  const boardTab = target.closest?.('[data-board-tab], .board-tabs [role="tab"]');
   if (boardTab) {
     switchBoardTab(boardTab);
     return;
@@ -381,6 +403,56 @@ function onKeyDown(event) {
   closeMenus();
   for (const modal of document.querySelectorAll('[data-modal]')) {
     if (modal.style.display !== 'none') closeModal(modal);
+  }
+}
+
+// Sets up reactive search and project filtering on the dashboard tasks lists.
+export function setupDashboardFilters(root = document) {
+  const searchInput = root.querySelector ? root.querySelector('#dashboard-search-input') : null;
+  const projectSelect = root.querySelector ? root.querySelector('#dashboard-project-filter') : null;
+  const container = root.querySelector ? root.querySelector('.dashboard-tasks-container') : null;
+  if (!container && !searchInput && !projectSelect) return;
+
+  const applyFilter = () => {
+    const q = (searchInput?.value || '').trim().toLowerCase();
+    const p = projectSelect?.value || '';
+
+    const cards = container?.querySelectorAll('[data-dashboard-task]') || [];
+    let runningVisible = 0;
+    let pendingVisible = 0;
+
+    cards.forEach((card) => {
+      const text = card.dataset.searchText || '';
+      const workspace = card.dataset.workspaceId || '';
+      const matchesSearch = !q || text.includes(q);
+      const matchesProject = !p || workspace === p;
+      const isVisible = matchesSearch && matchesProject;
+
+      card.style.display = isVisible ? '' : 'none';
+      if (isVisible) {
+        const isRunning = card.closest('[data-section="running"]');
+        if (isRunning) runningVisible++;
+        else pendingVisible++;
+      }
+    });
+
+    const runningEmpty = container?.querySelector('[data-empty="running"]');
+    if (runningEmpty) {
+      runningEmpty.classList.toggle('hidden', runningVisible > 0);
+    }
+    const pendingEmpty = container?.querySelector('[data-empty="pending"]');
+    if (pendingEmpty) {
+      pendingEmpty.classList.toggle('hidden', pendingVisible > 0);
+    }
+  };
+
+  if (searchInput && !searchInput._filterInitialized) {
+    searchInput._filterInitialized = true;
+    searchInput.addEventListener('input', applyFilter);
+  }
+  if (projectSelect && !projectSelect._filterInitialized) {
+    projectSelect._filterInitialized = true;
+    projectSelect.addEventListener('change', applyFilter);
   }
 }
 
@@ -416,6 +488,7 @@ function init() {
       restoreSessionBar(event.target);
       restoreTheme(event.target);
       restoreBoardTab(event.target);
+      setupDashboardFilters(event.target);
       // Moving or opening tabs closes the mobile sidebar overlay.
       if (event.target.id === 'dock') closeMobilePanel(document.getElementById('sidebar-panel'));
     }
@@ -426,6 +499,7 @@ function init() {
   armToasts(document);
   loadPanes(document);
   restoreBoardTab(document);
+  setupDashboardFilters(document);
 }
 
 if (typeof document !== 'undefined') {
