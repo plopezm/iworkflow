@@ -42,6 +42,14 @@ async function getWsId(ctx, name) {
   return href.replace('/board/', '');
 }
 
+// The dashboard (running and pending tasks plus the global graph) is the "Tablero" tab of the dock at "/".
+// Its fragment at /board/dashboard has no htmx, so the tab is opened through the sidebar entry.
+async function openDashboard(ctx) {
+  await ctx.goto('/');
+  await ctx.page.locator('a.sidebar-nav[data-dock-path="/"]').first().click();
+  await ctx.page.locator('[data-graph-canvas]').first().waitFor({ timeout: 10000 });
+}
+
 module.exports = {
   name: 'tasks_graph',
   tests: [
@@ -53,7 +61,7 @@ module.exports = {
         assert.ok(wsId);
 
         // Navigate directly to the graph endpoint of the workspace
-        await ctx.goto(`/board/graph?workspace=${encodeURIComponent(wsId)}`);
+        await openDashboard(ctx);
         
         // Assert canvas structure
         const canvas = ctx.page.locator('[data-graph-canvas]');
@@ -64,9 +72,9 @@ module.exports = {
         await ctx.page.locator('[data-zoom-out]').first().waitFor({ timeout: 5000 });
         await ctx.page.locator('[data-zoom-fit]').first().waitFor({ timeout: 5000 });
 
-        // Assert loose tasks panel
-        await ctx.page.getByText('Tareas sueltas').first().waitFor({ timeout: 5000 });
-        await ctx.page.getByText('No hay tareas sueltas').first().waitFor({ timeout: 5000 });
+        // Assert the running and pending task lists of the dashboard
+        await ctx.page.locator('[data-empty="running"]').first().waitFor({ state: 'attached', timeout: 5000 });
+        await ctx.page.locator('[data-empty="pending"]').first().waitFor({ state: 'attached', timeout: 5000 });
       },
     },
     {
@@ -84,12 +92,15 @@ module.exports = {
         await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
         await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
-        // Load the graph endpoint with the real workspace ID
-        await ctx.goto(`/board/graph?workspace=${encodeURIComponent(wsId)}`);
-        await ctx.page.locator('[data-graph-canvas]').first().waitFor({ timeout: 10000 });
+        await openDashboard(ctx);
 
-        // The task was created without positions or edges, so it appears in the loose tasks panel!
-        await ctx.page.getByText('Tarea para Grafo').first().waitFor({ timeout: 5000 });
+        // The task was created without a position, so it is listed with the "add to graph" action
+        const card = ctx.page.locator('[data-dashboard-task]', { hasText: 'Tarea para Grafo' }).first();
+        await card.waitFor({ timeout: 10000 });
+        await card.locator('button', { hasText: 'Añadir al grafo' }).click();
+
+        // Adding it saves its position: the node appears on the canvas
+        await ctx.page.locator('.graph-node', { hasText: 'Tarea para Grafo' }).first().waitFor({ timeout: 10000 });
       },
     },
     {
@@ -100,7 +111,7 @@ module.exports = {
         assert.ok(wsId);
 
         // Open home board
-        await ctx.goto(`/board/${encodeURIComponent(wsId)}`);
+        await openDashboard(ctx);
         await ctx.page.locator('[data-graph-canvas]').first().waitFor({ timeout: 10000 });
 
         // Create a task
@@ -111,8 +122,9 @@ module.exports = {
         await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
         await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
-        // Add to graph
-        const addBtn = ctx.page.locator('button', { hasText: 'Añadir al grafo' }).first();
+        // Creating a task opens its own tab: return to the dashboard before adding it to the graph
+        await openDashboard(ctx);
+        const addBtn = ctx.page.locator('[data-dashboard-task]', { hasText: 'Tarea Origen' }).locator('button', { hasText: 'Añadir al grafo' }).first();
         await addBtn.waitFor({ timeout: 5000 });
         await addBtn.click();
 
@@ -138,7 +150,7 @@ module.exports = {
         assert.ok(wsId);
 
         // Open board
-        await ctx.goto(`/board/${encodeURIComponent(wsId)}`);
+        await openDashboard(ctx);
         await ctx.page.locator('[data-graph-canvas]').first().waitFor({ timeout: 10000 });
 
         // Create Task A
@@ -157,6 +169,9 @@ module.exports = {
         await ctx.page.locator('form:has(select[name=workspace_id]):visible button[type=submit]', { hasText: 'Crear tarea' }).click();
         await ctx.page.locator('form:has(select[name=workspace_id]):visible').waitFor({ state: 'detached', timeout: 10000 }).catch(() => {});
 
+        // Creating a task opens its own tab: return to the dashboard before adding the tasks to the graph
+        await openDashboard(ctx);
+
         // Place both tasks on canvas via API
         const tasks = await ctx.page.evaluate(async () => {
           const res = await fetch('/api/tasks');
@@ -166,10 +181,10 @@ module.exports = {
         });
 
         // Add them to graph using the "+ Añadir al grafo" buttons
-        const addBtns = ctx.page.locator('button', { hasText: 'Añadir al grafo' });
-        const count = await addBtns.count();
-        for (let i = 0; i < count; i++) {
-          await addBtns.first().click();
+        for (const title of ['Tarea Pred', 'Tarea Succ']) {
+          const addBtn = ctx.page.locator('[data-dashboard-task]', { hasText: title }).locator('button', { hasText: 'Añadir al grafo' }).first();
+          await addBtn.waitFor({ timeout: 5000 });
+          await addBtn.click();
           await sleep(300);
         }
 
