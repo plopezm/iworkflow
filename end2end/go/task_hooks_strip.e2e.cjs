@@ -37,10 +37,11 @@ async function registerWs(ctx, name) {
 }
 
 // Opens the Hooks tab of a workspace from its menu in the sidebar, and returns its address. The menu is the one of the
-// row with the name of the workspace: the first Hooks link of the sidebar may belong to another workspace.
+// row with the name of the workspace (the row carries data-workspace-row): the first Hooks link of the sidebar may
+// belong to another workspace.
 async function openHooksTab(ctx, wsName) {
   await ctx.goto('/');
-  const row = ctx.page.locator('#board-sidebar .flex.items-stretch', { has: ctx.page.getByRole('link', { name: wsName }) });
+  const row = ctx.page.locator('#board-sidebar [data-workspace-row]', { has: ctx.page.getByRole('link', { name: wsName }) });
   const link = row.locator('a[href$="/hooks"]').first();
   await link.waitFor({ state: 'attached', timeout: 10000 });
   const href = await link.getAttribute('href');
@@ -50,13 +51,13 @@ async function openHooksTab(ctx, wsName) {
 }
 
 // Creates a script hook that runs before the start of a task, through the Hooks tab. The first "Añadir hook +" belongs
-// to the group before a task starts, so the hook gets that phase and event.
+// to the group before a task starts, so the hook gets that phase and event. It waits for the saved row of the hook.
 async function addBeforeStartHook(ctx, command) {
   const page = ctx.page;
   await page.getByRole('button', { name: 'Añadir hook +' }).first().click();
   await page.getByLabel('Comando').fill(command);
   await page.getByRole('button', { name: 'Guardar' }).click();
-  await page.getByText(command).first().waitFor({ timeout: 10000 });
+  await page.locator('[data-hook]').filter({ hasText: command }).first().waitFor({ timeout: 10000 });
 }
 
 // Creates a task in the workspace, starts it, and opens its detail on the Actions tab.

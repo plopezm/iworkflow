@@ -189,7 +189,7 @@ module.exports = {
       },
     },
     {
-      name: 'delete: "Eliminar" pide confirmación y quita el hook del grupo',
+      name: 'delete: "Eliminar" pide confirmación; cancelarla conserva el hook y aceptarla lo quita',
       fn: async (ctx) => {
         const workspaceID = await registerWorkspace(ctx, `Hooks borrar ${tag}`);
         await openHooks(ctx, workspaceID);
@@ -198,8 +198,22 @@ module.exports = {
         await save(ctx, editor);
         await rowOf(ctx, 'cleanup').waitFor({ timeout: 10000 });
 
-        await rowOf(ctx, 'cleanup').getByRole('button', { name: 'Eliminar', exact: true }).click();
+        // The confirmation is the browser dialog of hx-confirm. The harness answers it with the mode set here; this
+        // listener only records the question, so the test sees what was asked.
+        const dialogs = [];
+        ctx.page.on('dialog', (dialog) => dialogs.push(dialog.message()));
+        ctx.setDialog('reject');
 
+        await rowOf(ctx, 'cleanup').getByRole('button', { name: 'Eliminar', exact: true }).click();
+        for (let attempt = 0; attempt < 50 && dialogs.length === 0; attempt++) await ctx.page.waitForTimeout(100);
+        ctx.assert(dialogs.length === 1, 'eliminar debe pedir confirmación');
+        ctx.assert(dialogs[0] === '¿Eliminar este hook?', `la pregunta de confirmación es "${dialogs[0]}"`);
+        await ctx.page.waitForTimeout(500);
+        ctx.assert((await ctx.page.locator('[data-hook]').filter({ hasText: 'cleanup' }).count()) === 1, 'cancelar la confirmación no debe quitar el hook');
+        ctx.assert((await ctx.page.getByText('Hook eliminado.').count()) === 0, 'cancelar no debe mostrar que el hook se eliminó');
+
+        ctx.setDialog('accept');
+        await rowOf(ctx, 'cleanup').getByRole('button', { name: 'Eliminar', exact: true }).click();
         await ctx.page.getByText('Hook eliminado.').waitFor({ timeout: 10000 });
         ctx.assert((await ctx.page.locator('[data-hook]').filter({ hasText: 'cleanup' }).count()) === 0, 'el hook sigue en la lista');
       },
