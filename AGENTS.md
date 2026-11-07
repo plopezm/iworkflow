@@ -203,8 +203,8 @@ make generate        # templ generate && sqlc generate && tailwind build
 make dev             # servidor con recarga
 
 # Migraciones
-goose -dir migrations sqlite3 "${IWF_HOME:-$HOME/.iworkflow}/workspaces.db" up
-goose -dir migrations sqlite3 "${IWF_HOME:-$HOME/.iworkflow}/workspaces.db" redo   # verifica que Down revierte
+goose -dir migrations sqlite3 "${IWF_HOME:-$HOME/<project_home>}/<project_db>.db" up
+goose -dir migrations sqlite3 "${IWF_HOME:-$HOME/<project_home>}/<project_db>.db" redo   # verifica que Down revierte
 
 # Tests
 go test -p 2 ./internal/modules/<feature_name>/...          # unitarios de un feature
