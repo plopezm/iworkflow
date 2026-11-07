@@ -133,7 +133,11 @@ func New(deps Deps) (*App, error) {
 	remoteMerge := codehostingapp.NewRemoteMerge()
 	fileSearch := &taskFileSearch{}
 	panels := &taskPanels{}
+	// The hooks module needs the agent runtime of the tasks module, so the strip is created first and bound once the
+	// hooks module exists.
+	hookStrip := NewTaskHooksStrip()
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
+		HookStrip:      hookStrip,
 		DB:             deps.DB,
 		Notices:        notices,
 		Workspaces:     &taskWorkspaceLookup{get: workspaces.Get, list: workspaces.List},
@@ -172,7 +176,9 @@ func New(deps Deps) (*App, error) {
 		Clock: taskhookssystem.NewClock(),
 		AgentSession: NewTaskHooksAgentSession(
 			&launchSettings{prepareLaunch: settings.PrepareLaunch}, tasks.AgentRuntime()),
+		Workspaces: &taskHooksWorkspaces{get: workspaces.Get},
 	})
+	hookStrip.Bind(taskHooks.ListTaskHookState, taskHooks.SetTaskHookSkipped)
 	tasks.Start.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
 	tasks.Finish.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
 	// A run still marked running belongs to a process that died: no hook of this process can be alive before serving.
@@ -229,6 +235,7 @@ func New(deps Deps) (*App, error) {
 	routes = append(routes, tasks.Tabs()...)
 	routes = append(routes, agentsFiles.Tabs()...)
 	routes = append(routes, workspaces.Tabs()...)
+	routes = append(routes, taskHooks.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
 	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
@@ -252,7 +259,7 @@ func New(deps Deps) (*App, error) {
 		tasks:         tasks,
 		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
+		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
 		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }
