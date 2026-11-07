@@ -181,14 +181,6 @@ func New(deps Deps) (*App, error) {
 	hookStrip.Bind(taskHooks.ListTaskHookState, taskHooks.SetTaskHookSkipped)
 	tasks.Start.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
 	tasks.Finish.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
-	// A run still marked running belongs to a process that died: no hook of this process can be alive before serving.
-	closedRuns, err := taskHooks.ReconcileHookRuns.Execute(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("reconcile hook runs: %w", err)
-	}
-	if closedRuns > 0 {
-		deps.Logger.Info("hook runs left running by the last process marked as failed", "count", closedRuns)
-	}
 
 	projectTree := projecttreedi.NewModule(projecttreedi.Deps{
 		Workspaces: &workspaceRoots{get: workspaces.Get},

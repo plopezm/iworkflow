@@ -94,6 +94,15 @@ func (a *App) Start(ctx context.Context) error {
 	if interrupted > 0 {
 		a.logger.Info("tasks marked as interrupted after the restart", "count", interrupted)
 	}
+	// A hook run still marked running belongs to a process that died: no hook of this process can be alive before the
+	// server starts serving, so those runs are closed here, next to the tasks they belong to.
+	closedRuns, err := a.taskHooks.ReconcileHookRuns.Execute(ctx)
+	if err != nil {
+		return fmt.Errorf("reconcile hook runs: %w", err)
+	}
+	if closedRuns > 0 {
+		a.logger.Info("hook runs left running by the last process marked as failed", "count", closedRuns)
+	}
 	removed, err := a.tasks.SweepWorktrees.Execute(ctx)
 	switch {
 	case err != nil:

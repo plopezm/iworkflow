@@ -435,9 +435,9 @@ func TestFinishTaskRunsAPostHookAfterTheTransitionThroughTheRealHooks(t *testing
 	assert.Equal(t, string(tasksmodels.StatusAwaitingReview), string(written), "the post hook saw the status after the transition")
 }
 
-// Review advisory (g): a run left running by a process that died is closed as an error when the server composes,
+// Review advisory (g): a run left running by a process that died is closed as an error when the application starts,
 // before it serves, so the status strip never shows it as running forever.
-func TestComposeClosesRunsLeftRunningByAPreviousProcess(t *testing.T) {
+func TestStartClosesRunsLeftRunningByAPreviousProcess(t *testing.T) {
 	db := dbtest.New(t)
 	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES ('w1', 'one', '/tmp/one', 'main', '2026-01-01T00:00:00Z')`)
 	require.NoError(t, err)
@@ -451,7 +451,17 @@ func TestComposeClosesRunsLeftRunningByAPreviousProcess(t *testing.T) {
 		VALUES ('orphan', 't1', 'h1', 'pre', 'task_start', 'running', 0, '', '2026-01-01T00:00:00.000000000Z', '')`)
 	require.NoError(t, err)
 
-	composeOn(t, db)
+	application := composeOn(t, db)
+	var before string
+	require.NoError(t, db.QueryRow(`SELECT status FROM task_hook_runs WHERE id = 'orphan'`).Scan(&before))
+	assert.Equal(t, "running", before, "composing alone must not touch the runs")
+
+	require.NoError(t, application.Start(context.Background()))
+	t.Cleanup(func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		assert.NoError(t, application.Shutdown(stopCtx))
+	})
 
 	var status, output string
 	require.NoError(t, db.QueryRow(`SELECT status, output FROM task_hook_runs WHERE id = 'orphan'`).Scan(&status, &output))
