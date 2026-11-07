@@ -68,7 +68,9 @@ func (r *HookRepository) Get(ctx context.Context, id string) (models.Hook, error
 	return toDomain(row)
 }
 
-// Save inserts a new hook at the end of its workspace list, or updates the existing one keeping its position.
+// Save inserts a new hook at the end of its workspace list, or updates the existing one keeping its position. An id
+// that already belongs to another workspace is not written: the storage reports it as ErrInvalidHook instead of
+// succeeding without a change.
 func (r *HookRepository) Save(ctx context.Context, hook models.Hook) error {
 	script := hook.Script()
 	args, err := json.Marshal(script.Args)
@@ -84,7 +86,7 @@ func (r *HookRepository) Save(ctx context.Context, hook models.Hook) error {
 		return repositoryError(err)
 	}
 	agent := hook.Agent()
-	err = r.queries.UpsertHook(ctx, gen.UpsertHookParams{
+	affected, err := r.queries.UpsertHook(ctx, gen.UpsertHookParams{
 		ID: hook.ID(), WorkspaceID: hook.WorkspaceID(), Phase: string(hook.Phase()), Event: string(hook.Event()),
 		Kind: string(hook.Kind()), Enabled: boolToInt(hook.Enabled()), OnFailure: string(hook.OnFailure()),
 		TimeoutSeconds: int64(hook.Timeout() / time.Second),
@@ -93,6 +95,9 @@ func (r *HookRepository) Save(ctx context.Context, hook models.Hook) error {
 	})
 	if err != nil {
 		return repositoryError(err)
+	}
+	if affected == 0 {
+		return fmt.Errorf("%w: hook %s belongs to another workspace", hookerrors.ErrInvalidHook, hook.ID())
 	}
 	return nil
 }

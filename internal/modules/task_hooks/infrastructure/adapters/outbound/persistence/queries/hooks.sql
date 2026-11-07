@@ -11,7 +11,7 @@ ORDER BY position ASC;
 -- name: GetHook :one
 SELECT * FROM task_hooks WHERE id = sqlc.arg(id);
 
--- name: UpsertHook :exec
+-- name: UpsertHook :execrows
 INSERT INTO task_hooks (
     id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds,
     command, args, env, use_shell, prompt, runtime, model, thinking, profile

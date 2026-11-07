@@ -133,6 +133,8 @@ func TestSkipsPerTask(t *testing.T) {
 	assert.Empty(t, ids)
 }
 
+// The upsert of an id that belongs to another workspace writes nothing, and the storage says so instead of succeeding
+// silently: the caller gets ErrInvalidHook and the original hook is left as it was.
 func TestSaveDoesNotTouchHookOfAnotherWorkspace(t *testing.T) {
 	repo, _ := setup(t)
 	ctx := context.Background()
@@ -140,12 +142,15 @@ func TestSaveDoesNotTouchHookOfAnotherWorkspace(t *testing.T) {
 	require.NoError(t, repo.Save(ctx, original))
 
 	intruder := hook(t, "a", "w2", models.EventTaskFinish, models.PhasePost)
-	require.NoError(t, repo.Save(ctx, intruder))
+	err := repo.Save(ctx, intruder)
 
+	require.ErrorIs(t, err, hookerrors.ErrInvalidHook)
 	got, err := repo.Get(ctx, "a")
 	require.NoError(t, err)
 	assert.Equal(t, "w1", got.WorkspaceID())
 	assert.Equal(t, models.EventTaskStart, got.Event())
+	assert.Equal(t, models.PhasePre, got.Phase())
+	assert.Equal(t, models.FailureWarn, got.OnFailure())
 }
 
 func TestRunRecordsRoundTrip(t *testing.T) {

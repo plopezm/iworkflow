@@ -224,7 +224,7 @@ func (q *Queries) SetHookPosition(ctx context.Context, arg SetHookPositionParams
 	return err
 }
 
-const upsertHook = `-- name: UpsertHook :exec
+const upsertHook = `-- name: UpsertHook :execrows
 INSERT INTO task_hooks (
     id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds,
     command, args, env, use_shell, prompt, runtime, model, thinking, profile
@@ -265,8 +265,8 @@ type UpsertHookParams struct {
 	Profile        string
 }
 
-func (q *Queries) UpsertHook(ctx context.Context, arg UpsertHookParams) error {
-	_, err := q.db.ExecContext(ctx, upsertHook,
+func (q *Queries) UpsertHook(ctx context.Context, arg UpsertHookParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertHook,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.Phase,
@@ -285,5 +285,8 @@ func (q *Queries) UpsertHook(ctx context.Context, arg UpsertHookParams) error {
 		arg.Thinking,
 		arg.Profile,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
