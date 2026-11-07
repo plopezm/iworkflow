@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    # Schema is the shared goose migration folder (the `-- +goose Up` section of each file).
+    schema: "../../../../../../core/db/migrations"
+    queries: "queries"
+    gen:
+      go:
+        package: "gen"
+        out: "gen"
