@@ -25,7 +25,18 @@ func runLifecycleHooks(ctx context.Context, hooks outbound.LifecycleHooks, req m
 // runPostLifecycleHooks runs the post hooks of an action that already succeeded. Their failure never fails the
 // action, which is done: the error and the warnings are only logged, because the hooks module records the outcome
 // in the task log.
+//
+// The hooks run synchronously, before the action returns, so they finish before the cleanup that follows and the wait
+// is bounded by the timeout of each hook. The request context is passed on, so a hook stops when the request is
+// cancelled. A request that is already cancelled skips them: the action is done and a hook would only fail at once.
 func runPostLifecycleHooks(ctx context.Context, hooks outbound.LifecycleHooks, event models.HookEvent, task models.Task, workspacePath string) {
+	if hooks == nil {
+		return
+	}
+	if ctx.Err() != nil {
+		slog.Warn("skipping the post lifecycle hooks: the request was cancelled; the task action stays done", "task_id", task.ID.String(), "event", event)
+		return
+	}
 	report, err := runLifecycleHooks(ctx, hooks, models.HookRequest{
 		Event:         event,
 		Phase:         models.HookPhasePost,

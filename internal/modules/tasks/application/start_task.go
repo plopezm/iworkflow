@@ -128,7 +128,9 @@ func (u *StartTask) Execute(ctx context.Context, id models.TaskID) (models.Task,
 	logHookWarnings(id, preReport)
 	if preErr != nil {
 		message := "un hook previo al inicio falló: " + preErr.Error()
-		if err = u.lifecycle.Transition(ctx, id, models.StatusFailed, &message); err != nil {
+		// The request may be cancelled mid-hook. The transition is detached from it, so the claimed task is never left
+		// in starting: a cancelled request still gets the failed task back, as any failed launch does.
+		if err = u.lifecycle.Transition(context.WithoutCancel(ctx), id, models.StatusFailed, &message); err != nil {
 			return models.Task{}, err
 		}
 		task.Status = models.StatusFailed

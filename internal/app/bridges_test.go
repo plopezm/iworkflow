@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/netip"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -22,6 +23,7 @@ import (
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
 	hooksapp "iworkflow/internal/modules/task_hooks/application"
 	hooksmodels "iworkflow/internal/modules/task_hooks/domain/models"
+	taskserrors "iworkflow/internal/modules/tasks/domain/errors"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
@@ -365,6 +367,72 @@ func TestStartTaskRunsABlockingPreHookThroughTheRealHooks(t *testing.T) {
 	require.Len(t, states, 1)
 	require.NotNil(t, states[0].LastRun)
 	assert.Equal(t, hooksmodels.RunFailed, states[0].LastRun.Status)
+}
+
+// idleTaskInWorktree moves a task created through the composed module to idle, the state of a task whose agent is
+// running or was stopped. Its worktree is a real git repository, so the finish can commit the changes.
+func idleTaskInWorktree(t *testing.T, application *App, task tasksmodels.Task) tasksmodels.Task {
+	t.Helper()
+	ctx := context.Background()
+	worktree := t.TempDir()
+	runGit(t, worktree, "init", "-q", "-b", "iwf/arregla-login")
+	runGit(t, worktree, "-c", "user.name=iworkflow", "-c", "user.email=iworkflow@example.com", "commit", "-q", "--allow-empty", "-m", "init")
+	repository := application.tasks.Lifecycle.Repository()
+	claimed, err := repository.ClaimForStart(ctx, task.ID, "iwf/arregla-login", worktree, "main")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, repository.UpdateStatus(ctx, task.ID, tasksmodels.StatusIdle, nil))
+	idle, err := application.tasks.Get.Execute(ctx, task.ID)
+	require.NoError(t, err)
+	return idle
+}
+
+// A blocking pre finish hook stops the finish through the real hooks module: Finish returns ErrHookBlocked and the task
+// keeps its status, so nothing was stopped or committed.
+func TestFinishTaskRunsABlockingPreHookThroughTheRealHooks(t *testing.T) {
+	ctx := context.Background()
+	application := composeWithTasks(t)
+	workspace := registerRepository(t, application)
+	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
+		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePre, Event: hooksmodels.EventTaskFinish,
+		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureBlock,
+		Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"},
+	})
+	require.NoError(t, err)
+	task := idleTaskInWorktree(t, application, createTask(t, application, workspace))
+
+	err = application.tasks.Finish.Execute(ctx, task.ID)
+
+	require.ErrorIs(t, err, taskserrors.ErrHookBlocked)
+	kept, err := application.tasks.Get.Execute(ctx, task.ID)
+	require.NoError(t, err)
+	assert.Equal(t, tasksmodels.StatusIdle, kept.Status)
+}
+
+// A post finish hook runs after the task reached awaiting review: the script records the status it sees, and the finish
+// returns once the script ran.
+func TestFinishTaskRunsAPostHookAfterTheTransitionThroughTheRealHooks(t *testing.T) {
+	ctx := context.Background()
+	application := composeWithTasks(t)
+	workspace := registerRepository(t, application)
+	marker := filepath.Join(t.TempDir(), "post-finish-status")
+	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
+		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePost, Event: hooksmodels.EventTaskFinish,
+		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureWarn,
+		Timeout: time.Minute,
+		Script:  hooksmodels.ScriptSpec{Command: "sh", Args: []string{"-c", `printf '%s' "$IWF_TASK_STATUS" > "$0"`, marker}},
+	})
+	require.NoError(t, err)
+	task := idleTaskInWorktree(t, application, createTask(t, application, workspace))
+
+	require.NoError(t, application.tasks.Finish.Execute(ctx, task.ID))
+
+	finished, err := application.tasks.Get.Execute(ctx, task.ID)
+	require.NoError(t, err)
+	assert.Equal(t, tasksmodels.StatusAwaitingReview, finished.Status)
+	written, err := os.ReadFile(marker)
+	require.NoError(t, err, "the post hook ran before Finish returned")
+	assert.Equal(t, string(tasksmodels.StatusAwaitingReview), string(written), "the post hook saw the status after the transition")
 }
 
 // Review advisory (g): a run left running by a process that died is closed as an error when the server composes,

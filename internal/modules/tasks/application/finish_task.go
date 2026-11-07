@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
@@ -21,11 +22,21 @@ type FinishTask struct {
 	cleanup   *AttachmentCleanup
 	// hooks are the optional lifecycle hooks around the finish. Nil runs none.
 	hooks outbound.LifecycleHooks
+
+	// mu guards inFlight. It is never held while the hooks run or the agent is stopped.
+	mu       sync.Mutex
+	inFlight map[models.TaskID]struct{}
 }
 
 // NewFinishTask builds the use case on its ports.
 func NewFinishTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runtime outbound.AgentRuntime, cleanup *AttachmentCleanup) *FinishTask {
-	return &FinishTask{lifecycle: lifecycle, worktrees: worktrees, runtime: runtime, cleanup: cleanup}
+	return &FinishTask{
+		lifecycle: lifecycle,
+		worktrees: worktrees,
+		runtime:   runtime,
+		cleanup:   cleanup,
+		inFlight:  make(map[models.TaskID]struct{}),
+	}
 }
 
 // SetLifecycleHooks sets the hooks run before and after the finish. Nil, the default, runs none.
@@ -37,7 +48,20 @@ func (u *FinishTask) SetLifecycleHooks(hooks outbound.LifecycleHooks) {
 // finishing, or a pre hook blocks it (the error wraps errors.ErrHookBlocked). A consolidation failure is returned
 // after the task is marked failed. The finish is the task_finish action of v1: it has no merge, which is the
 // separate MergeTask use case.
+//
+// Two finishes of one task never overlap: the second one is refused while the first is in flight, so the pre hooks
+// run once. The claim is only in memory, which is enough for the single server process. A finish that ends in a
+// blocked pre hook changes nothing, so it releases the claim with the status as it was.
 func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
+	if !u.begin(id) {
+		task, err := u.lifecycle.Load(ctx, id)
+		if err != nil {
+			return err
+		}
+		return invalidState("finalizar", task.Status)
+	}
+	defer u.end(id)
+
 	task, err := u.lifecycle.Load(ctx, id)
 	if err != nil {
 		return err
@@ -84,6 +108,22 @@ func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
 	runPostLifecycleHooks(ctx, u.hooks, models.HookEventFinish, task, workspacePath)
 	u.cleanup.CleanupTask(ctx, id)
 	return nil
+}
+
+func (u *FinishTask) begin(id models.TaskID) bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if _, busy := u.inFlight[id]; busy {
+		return false
+	}
+	u.inFlight[id] = struct{}{}
+	return true
+}
+
+func (u *FinishTask) end(id models.TaskID) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	delete(u.inFlight, id)
 }
 
 // hookWorkspacePath returns the folder of the task's workspace for the hooks. Without hooks it returns "" and makes

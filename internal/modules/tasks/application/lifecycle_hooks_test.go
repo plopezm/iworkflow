@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -216,4 +217,156 @@ func TestFinishTaskPostHookDoesNotRunWhenConsolidationFails(t *testing.T) {
 	require.Error(t, err)
 	require.Len(t, hooks.calls, 1)
 	assert.Equal(t, models.HookPhasePre, hooks.calls[0].Phase)
+}
+
+// gatedHooks holds the first pre hook run until the test releases it, so a second action can start while the first
+// one is inside its pre hook. The other runs return at once.
+type gatedHooks struct {
+	entered chan struct{}
+	release chan struct{}
+	mu      sync.Mutex
+	preRuns int
+}
+
+func newGatedHooks() *gatedHooks {
+	return &gatedHooks{entered: make(chan struct{}, 1), release: make(chan struct{})}
+}
+
+func (h *gatedHooks) Run(_ context.Context, req models.HookRequest) (models.HookReport, error) {
+	if req.Phase != models.HookPhasePre {
+		return models.HookReport{}, nil
+	}
+	h.mu.Lock()
+	h.preRuns++
+	first := h.preRuns == 1
+	h.mu.Unlock()
+	if first {
+		h.entered <- struct{}{}
+		<-h.release
+	}
+	return models.HookReport{}, nil
+}
+
+// Review advisory (f): two finishes of one task never run the pre hooks twice. While the first is inside its pre
+// hook, the second is refused without running the hooks, and the first still finishes the task.
+func TestFinishTaskConcurrentFinishRunsPreHooksOnce(t *testing.T) {
+	t.Parallel()
+	task, fx := newFinishFixture(models.StatusIdle)
+	hooks := newGatedHooks()
+	useCase := fx.useCase()
+	useCase.SetLifecycleHooks(hooks)
+	firstDone := make(chan error, 1)
+	go func() {
+		firstDone <- useCase.Execute(context.Background(), task.ID)
+	}()
+	<-hooks.entered
+
+	secondErr := useCase.Execute(context.Background(), task.ID)
+	close(hooks.release)
+	firstErr := <-firstDone
+
+	require.Error(t, secondErr, "the second finish must be refused while the first one is in flight")
+	require.NoError(t, firstErr)
+	assert.Equal(t, 1, hooks.preRuns, "the pre hooks run once for the two finishes")
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fx.repo.statuses)
+}
+
+// Review advisory (f): a blocked finish releases its claim, so the task can be finished again once the hook passes.
+func TestFinishTaskBlockedPreHookReleasesTheClaim(t *testing.T) {
+	t.Parallel()
+	task, fx := newFinishFixture(models.StatusIdle)
+	hooks := &recordingHooks{preErr: fmt.Errorf("%w: lint failed", werrors.ErrHookBlocked)}
+	useCase := fx.useCase()
+	useCase.SetLifecycleHooks(hooks)
+
+	require.ErrorIs(t, useCase.Execute(context.Background(), task.ID), werrors.ErrHookBlocked)
+	hooks.preErr = nil
+
+	require.NoError(t, useCase.Execute(context.Background(), task.ID))
+	assert.Equal(t, models.StatusAwaitingReview, fx.repo.tasks[task.ID].Status)
+}
+
+// cancelAwareRepository fails the status writes once the context is done, as the database does for a cancelled
+// request. A transition that is not detached from the request shows up as a failed write.
+type cancelAwareRepository struct {
+	*fakeRepository
+}
+
+func (r cancelAwareRepository) UpdateStatus(ctx context.Context, id models.TaskID, status models.TaskStatus, errorText *string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return r.fakeRepository.UpdateStatus(ctx, id, status, errorText)
+}
+
+// Review advisory (h): the request is cancelled while the pre start hook runs. The task must still end in failed with
+// the hook message, not be left in starting, and the start reports that outcome like any failed launch.
+func TestStartTaskCancelledPreHookStillMarksTheTaskFailed(t *testing.T) {
+	t.Parallel()
+	task := newTask(models.StatusBacklog)
+	fx := newStartFixture(task)
+	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fx.repo})
+	fx.lifecycle = lifecycle
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hooks := &recordingHooks{
+		preErr: fmt.Errorf("hook interrupted: %w", context.Canceled),
+		onRun:  func(models.HookRequest) { cancel() },
+	}
+	useCase := fx.start(newUUID)
+	useCase.SetLifecycleHooks(hooks)
+
+	started, err := useCase.Execute(ctx, task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusFailed, started.Status)
+	require.NotNil(t, started.Error)
+	assert.Contains(t, *started.Error, "un hook previo al inicio falló")
+	assert.Contains(t, *started.Error, context.Canceled.Error())
+	assert.Equal(t, models.StatusFailed, fx.repo.tasks[task.ID].Status, "the task is not left in starting")
+	assert.Empty(t, fx.runtime.started, "no agent starts")
+}
+
+// Review advisory (e): a post finish hook is not started when the request was already cancelled. The action is done,
+// so the hook is skipped and the finish still succeeds.
+func TestFinishTaskSkipsThePostHookWhenTheRequestWasCancelled(t *testing.T) {
+	t.Parallel()
+	task, fx := newFinishFixture(models.StatusIdle)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hooks := &recordingHooks{onRun: func(req models.HookRequest) {
+		if req.Phase == models.HookPhasePre {
+			cancel()
+		}
+	}}
+	useCase := fx.useCase()
+	useCase.SetLifecycleHooks(hooks)
+
+	require.NoError(t, useCase.Execute(ctx, task.ID))
+
+	require.Len(t, hooks.calls, 1, "only the pre hook runs")
+	assert.Equal(t, models.StatusAwaitingReview, fx.repo.tasks[task.ID].Status)
+}
+
+// Review advisory (e): a post finish hook cancelled while it runs stops at its context and never fails the finish.
+func TestFinishTaskPostHookCancelledMidRunDoesNotFailFinish(t *testing.T) {
+	t.Parallel()
+	task, fx := newFinishFixture(models.StatusIdle)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hooks := &recordingHooks{
+		postErr: fmt.Errorf("hook stopped: %w", context.Canceled),
+		onRun: func(req models.HookRequest) {
+			if req.Phase == models.HookPhasePost {
+				cancel()
+			}
+		},
+	}
+	useCase := fx.useCase()
+	useCase.SetLifecycleHooks(hooks)
+
+	require.NoError(t, useCase.Execute(ctx, task.ID))
+
+	assert.Equal(t, models.StatusAwaitingReview, fx.repo.tasks[task.ID].Status)
+	require.Len(t, hooks.calls, 2)
 }
