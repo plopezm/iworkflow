@@ -13,6 +13,7 @@ import (
 	"iworkflow/internal/modules/tasks/application"
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/domain/ports/inbound"
 )
 
 // startFixture wires StartTask over the fakes of this package and keeps the fakes for the assertions.
@@ -477,4 +478,38 @@ func TestStartTaskMissingWorkspaceFailsBeforeClaiming(t *testing.T) {
 	require.ErrorIs(t, err, werrors.WorkspaceNotFound("ws-missing"))
 	assert.Equal(t, 0, fx.repo.claims)
 	assert.Equal(t, models.StatusBacklog, fx.repo.tasks[task.ID].Status)
+}
+
+// cancellingRuntime cancels the request while the agent starts, then fails the start as the runtime does.
+type cancellingRuntime struct {
+	*resumeRuntime
+	cancel context.CancelFunc
+}
+
+func (r cancellingRuntime) Start(ctx context.Context, id models.TaskID, cwd string, resume bool, options models.LaunchOptions, sink inbound.AgentEventSink) error {
+	r.cancel()
+	return r.resumeRuntime.Start(ctx, id, cwd, resume, options, sink)
+}
+
+// Advisory (h) of the launch path: the request is cancelled while the agent starts and the start fails. The task must
+// still end in failed with the launch error, not be left in starting, as the pre start hook path guarantees.
+func TestStartTaskCancelledLaunchStillMarksTheTaskFailed(t *testing.T) {
+	t.Parallel()
+	task := newTask(models.StatusBacklog)
+	fx := newStartFixture(task)
+	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fx.repo})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fx.runtime.startErrs[task.ID] = werrors.Runtime("no existe gentle-shell")
+	related := application.NewPrepareRelatedLaunch(application.NewListTaskRelatedProjects(fx.related, relatedWorkspaces()), fx.probe)
+	runtime := cancellingRuntime{resumeRuntime: fx.runtime, cancel: cancel}
+	useCase := application.NewStartTask(lifecycle, fx.worktrees, runtime, fx.settings, &resumeSink{}, fx.attachments, fx.storage, related, newUUID, clock)
+
+	started, err := useCase.Execute(ctx, task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusFailed, started.Status)
+	require.NotNil(t, started.Error)
+	assert.Contains(t, *started.Error, "gentle-shell")
+	assert.Equal(t, models.StatusFailed, fx.repo.tasks[task.ID].Status, "the task is not left in starting")
 }

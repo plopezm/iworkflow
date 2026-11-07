@@ -132,3 +132,22 @@ func TestWorkspaceMenuLinksToTheHooksTab(t *testing.T) {
 	assert.Contains(t, body, `href="/workspaces/ws-1/hooks"`)
 	assert.Contains(t, body, ">Hooks</a>")
 }
+
+// A hook skipped for the task after it ran shows the status skipped, not the result of its last run, and keeps its
+// log: the skip changes what the strip reports, not what the hook did.
+func TestTaskHookStripShowsASkippedHookThatRanAsSkipped(t *testing.T) {
+	t.Parallel()
+	strip := state.NewHookStrip("abc123", "t1", []dto.HookStripDTO{{
+		HookID: "h-1", Kind: "script", Description: "make test", Phase: "pre", Event: "task_start",
+		Enabled: true, Skipped: true, LastStatus: "ok", LastOutput: "all green", LastExitCode: 0,
+		LastStartedAt: time.Date(2026, 11, 7, 9, 30, 0, 0, time.UTC),
+	}})
+
+	body := renderIn(t, i18n.En, components.TaskHookStrip(strip))
+
+	assert.Contains(t, body, ">Skipped<", "the skip is the status of the hook")
+	assert.NotContains(t, body, ">Passed<", "the result of the last run is not shown while the hook is skipped")
+	assert.Contains(t, body, ">Include<", "the skipped hook offers to include it again")
+	assert.Contains(t, body, "all green", "the log of the run that happened stays available")
+	assert.Equal(t, 1, countOf(body, "<details"))
+}

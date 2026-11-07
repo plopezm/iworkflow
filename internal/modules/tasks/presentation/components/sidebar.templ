@@ -32,7 +32,9 @@ templ SidebarBody(rows state.SidebarRows) {
 			@shared.ErrorText(rows.LoadError)
 		}
 		for _, workspace := range rows.Workspaces {
-			@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle}, workspaceMenu(workspace.ID))
+			<div class="contents" data-workspace-row={ workspace.ID }>
+				@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle}, workspaceMenu(workspace.ID))
+			</div>
 		}
 		if len(rows.Workspaces) == 0 {
 			<div class="stack gap-1.5">

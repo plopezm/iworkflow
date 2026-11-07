@@ -152,12 +152,15 @@ func (u *StartTask) Execute(ctx context.Context, id models.TaskID) (models.Task,
 
 	if err = u.launch(ctx, task); err != nil {
 		message := err.Error()
-		if u.runtime.IsRunning(ctx, id) {
-			if stopErr := u.runtime.Stop(ctx, id); stopErr != nil {
+		// The request may be cancelled mid-launch. The cleanup is detached from it, as the pre start hook path is, so the
+		// agent is stopped and the claimed task ends in failed instead of being left in starting.
+		cleanup := context.WithoutCancel(ctx)
+		if u.runtime.IsRunning(cleanup, id) {
+			if stopErr := u.runtime.Stop(cleanup, id); stopErr != nil {
 				slog.Warn("could not stop the agent after its launch failed", "task_id", id.String(), "stop_error", stopErr)
 			}
 		}
-		if err = u.lifecycle.Transition(ctx, id, models.StatusFailed, &message); err != nil {
+		if err = u.lifecycle.Transition(cleanup, id, models.StatusFailed, &message); err != nil {
 			return models.Task{}, err
 		}
 		task.Status = models.StatusFailed
