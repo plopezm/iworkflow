@@ -166,9 +166,13 @@ func New(deps Deps) (*App, error) {
 	workspaceTasks.deleteAll = tasks.DeleteWorkspace
 
 	// The task hooks run around the start and the finish of the task, through the lifecycle port of the tasks use
-	// cases. Their agent sessions need the agent runtime of the tasks module, which that module does not expose yet, so
-	// an agent hook records an error until it does; script hooks are not affected.
-	taskHooks := taskhooksdi.NewModule(taskhooksdi.Deps{DB: deps.DB, Clock: taskhookssystem.NewClock()})
+	// cases. Their agent sessions launch through the agent runtime and the launch settings of the tasks module.
+	taskHooks := taskhooksdi.NewModule(taskhooksdi.Deps{
+		DB:    deps.DB,
+		Clock: taskhookssystem.NewClock(),
+		AgentSession: NewTaskHooksAgentSession(
+			&launchSettings{prepareLaunch: settings.PrepareLaunch}, tasks.AgentRuntime()),
+	})
 	tasks.Start.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
 	tasks.Finish.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
 	// A run still marked running belongs to a process that died: no hook of this process can be alive before serving.

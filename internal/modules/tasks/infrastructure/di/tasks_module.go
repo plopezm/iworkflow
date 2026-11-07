@@ -476,6 +476,12 @@ func (m *Module) CloseRestarts() {
 	m.relatedRestarter.Close()
 }
 
+// AgentRuntime is the agent runtime router the tasks launch with. The composition root hands it to features that
+// run an agent of their own (the task hooks) so that they share one process registry and one shutdown.
+func (m *Module) AgentRuntime() outbound.AgentRuntime {
+	return m.runtime
+}
+
 // StopAgents stops every live agent. Call it on shutdown, after the background loops have stopped, so that no
 // agent outlives the process. It is best effort.
 func (m *Module) StopAgents(ctx context.Context) {
