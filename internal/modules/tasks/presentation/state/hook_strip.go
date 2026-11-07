@@ -64,8 +64,14 @@ func (s HookStrip) Visible() bool {
 	return len(s.Rows) > 0 || s.Error != ""
 }
 
-// newHookStripRow maps one hook of the strip to its row.
+// newHookStripRow maps one hook of the strip to its row. A skipped hook that ran shows the status skipped, and its log
+// of that run stays available; a skipped hook that has not run stays pending.
 func newHookStripRow(hook dto.HookStripDTO) HookStripRow {
+	hasRun := hook.LastStatus != "none"
+	status := hookStatusOf(hook.LastStatus)
+	if hook.Skipped && hasRun {
+		status = HookStatusSkipped
+	}
 	return HookStripRow{
 		HookID:        hook.HookID,
 		Kind:          hook.Kind,
@@ -75,8 +81,8 @@ func newHookStripRow(hook dto.HookStripDTO) HookStripRow {
 		Enabled:       hook.Enabled,
 		Skipped:       hook.Skipped,
 		ToggleSkipped: !hook.Skipped,
-		Status:        hookStatusOf(hook.LastStatus),
-		HasRun:        hook.LastStatus != "none",
+		Status:        status,
+		HasRun:        hasRun,
 		Output:        hook.LastOutput,
 		ExitCode:      hook.LastExitCode,
 		StartedAt:     startedClock(hook.LastStartedAt),

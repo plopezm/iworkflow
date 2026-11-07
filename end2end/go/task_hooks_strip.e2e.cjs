@@ -36,10 +36,12 @@ async function registerWs(ctx, name) {
   return name;
 }
 
-// Opens the Hooks tab of a workspace from its menu in the sidebar, and returns its address.
-async function openHooksTab(ctx) {
+// Opens the Hooks tab of a workspace from its menu in the sidebar, and returns its address. The menu is the one of the
+// row with the name of the workspace: the first Hooks link of the sidebar may belong to another workspace.
+async function openHooksTab(ctx, wsName) {
   await ctx.goto('/');
-  const link = ctx.page.locator('#board-sidebar a[href$="/hooks"]').first();
+  const row = ctx.page.locator('#board-sidebar .flex.items-stretch', { has: ctx.page.getByRole('link', { name: wsName }) });
+  const link = row.locator('a[href$="/hooks"]').first();
   await link.waitFor({ state: 'attached', timeout: 10000 });
   const href = await link.getAttribute('href');
   await ctx.goto(href);
@@ -101,7 +103,7 @@ module.exports = {
       name: 'strip: el hook corrido muestra su estado y registro, y el toggle lo omite e incluye',
       fn: async (ctx) => {
         const wsName = await registerWs(ctx, `hs-toggle-${tag}`);
-        await openHooksTab(ctx);
+        await openHooksTab(ctx, wsName);
         await addBeforeStartHook(ctx, 'true');
         await createStartedTask(ctx, wsName, `hookstrip-${tag}`);
         const strip = ctx.page.locator('[data-task-hooks]');
@@ -122,8 +124,8 @@ module.exports = {
     {
       name: 'menú del workspace: el enlace Hooks abre la pestaña de hooks del workspace',
       fn: async (ctx) => {
-        await registerWs(ctx, `hs-menu-${tag}`);
-        const href = await openHooksTab(ctx);
+        const wsName = await registerWs(ctx, `hs-menu-${tag}`);
+        const href = await openHooksTab(ctx, wsName);
         ctx.assert(/\/workspaces\/[^/]+\/hooks$/.test(href), `el enlace Hooks apunta a ${href}`);
         ctx.assert(await ctx.page.getByRole('button', { name: 'Añadir hook +' }).first().count() > 0, 'la pestaña de hooks no abrió');
       },

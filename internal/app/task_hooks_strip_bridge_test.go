@@ -3,14 +3,18 @@ package app
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"iworkflow/internal/core/i18n"
 	hookapp "iworkflow/internal/modules/task_hooks/application"
 	hookmodels "iworkflow/internal/modules/task_hooks/domain/models"
+	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
 
@@ -178,4 +182,33 @@ func TestTaskHooksStripUnboundShowsNothingAndRefusesSkips(t *testing.T) {
 	assert.Empty(t, hooks)
 
 	assert.Error(t, strip.SetSkipped(context.Background(), "task-1", "h-1", true))
+}
+
+// The task page must carry the strip of the workspace hooks in its Actions tab. Reproduces the e2e symptom at the
+// composed router: a pre-start hook of the workspace, a task of that workspace, and the page of the task.
+func TestTaskPageRendersTheHookStripOfTheWorkspace(t *testing.T) {
+	ctx := context.Background()
+	application := composeWithTasks(t)
+	workspace := registerRepository(t, application)
+	_, err := application.taskHooks.SaveHook.Execute(ctx, hookapp.SaveHookInput{
+		WorkspaceID: workspace.ID.String(), Phase: hookmodels.PhasePre, Event: hookmodels.EventTaskStart,
+		Kind: hookmodels.KindScript, Enabled: true, OnFailure: hookmodels.FailureBlock,
+		Timeout: time.Minute, Script: hookmodels.ScriptSpec{Command: "true"},
+	})
+	require.NoError(t, err)
+	task := createTask(t, application, workspace)
+	started, err := application.tasks.Start.Execute(ctx, task.ID)
+	require.NoError(t, err)
+	require.NotEqual(t, tasksmodels.StatusBacklog, started.Status, "the start must leave the backlog")
+	states, err := application.taskHooks.ListTaskHookState.Execute(ctx, workspace.ID.String(), task.ID.String())
+	require.NoError(t, err)
+	require.Len(t, states, 1, "the workspace hook must be listed for the task")
+
+	request := httptest.NewRequest(http.MethodGet, "/dock/pane?path=/tasks/"+task.ID.String(), nil)
+	request.AddCookie(&http.Cookie{Name: i18n.LocaleCookie, Value: "es"})
+	rec := httptest.NewRecorder()
+	application.Router().ServeHTTP(rec, request)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "data-task-hooks")
 }

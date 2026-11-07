@@ -28,6 +28,21 @@ func TestNewHookStripMapsEveryPortStatus(t *testing.T) {
 	}
 }
 
+// A skipped hook that ran shows the status skipped while the skip holds, and its last run again once it is included.
+// A skipped hook that has not run stays pending.
+func TestNewHookStripShowsSkippedWhileTheHookIsSkipped(t *testing.T) {
+	strip := NewHookStrip("", "task-1", []dto.HookStripDTO{
+		{HookID: "skipped", Skipped: true, LastStatus: "ok", LastOutput: "done"},
+		{HookID: "included", Skipped: false, LastStatus: "ok", LastOutput: "done"},
+		{HookID: "never-ran", Skipped: true, LastStatus: "none"},
+	})
+
+	assert.Equal(t, HookStatusSkipped, strip.Rows[0].Status, "a skipped hook shows skipped, not its last run")
+	assert.True(t, strip.Rows[0].HasRun, "the log of the last run stays available while the hook is skipped")
+	assert.Equal(t, HookStatusOK, strip.Rows[1].Status, "an included hook shows its last run again")
+	assert.Equal(t, HookStatusPending, strip.Rows[2].Status, "a skipped hook that has not run is pending")
+}
+
 func TestNewHookStripRowHasRunOnlyWhenHookRan(t *testing.T) {
 	started := time.Date(2026, 11, 7, 9, 30, 0, 0, time.UTC)
 	strip := NewHookStrip("", "task-1", []dto.HookStripDTO{
