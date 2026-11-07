@@ -22,8 +22,8 @@ const (
 type HookStrip interface {
 	// State returns every hook of the workspace of the task, in position order, with its status for the task.
 	State(ctx context.Context, workspaceID string, taskID string) ([]StripHook, error)
-	// SetSkipped disables a hook for one task, or enables it again.
-	SetSkipped(ctx context.Context, taskID string, hookID string, skipped bool) error
+	// SetSkipped disables a hook of the workspace for one task, or enables it again. A hook of another workspace is refused.
+	SetSkipped(ctx context.Context, workspaceID string, taskID string, hookID string, skipped bool) error
 }
 
 // StripHook is one hook of the workspace of a task as the strip shows it. Kind is "script" or "agent"; Description is

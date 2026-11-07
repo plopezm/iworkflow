@@ -74,7 +74,7 @@ func TestModuleSkipsAHookForOneTaskAndShowsItInTheStatusStrip(t *testing.T) {
 		Script: models.ScriptSpec{Command: "true"},
 	})
 	require.NoError(t, err)
-	require.NoError(t, module.SetTaskHookSkipped.Execute(ctx, "t1", saved.ID(), true))
+	require.NoError(t, module.SetTaskHookSkipped.Execute(ctx, "w1", "t1", saved.ID(), true))
 
 	report, err := module.RunHooks.Execute(ctx, application.RunHooksInput{
 		WorkspaceID: "w1",

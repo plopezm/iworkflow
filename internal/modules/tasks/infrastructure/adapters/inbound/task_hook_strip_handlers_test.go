@@ -21,9 +21,10 @@ import (
 
 // hookSetCall is one skip the handler asked the hook port to set.
 type hookSetCall struct {
-	taskID  string
-	hookID  string
-	skipped bool
+	workspaceID string
+	taskID      string
+	hookID      string
+	skipped     bool
 }
 
 // hookStripFake answers the hooks of a task and remembers the skips it is asked to set. A set skip changes the hook it
@@ -41,8 +42,8 @@ func (f *hookStripFake) State(_ context.Context, workspaceID string, _ string) (
 	return f.hooks, f.stateErr
 }
 
-func (f *hookStripFake) SetSkipped(_ context.Context, taskID string, hookID string, skipped bool) error {
-	f.setCalls = append(f.setCalls, hookSetCall{taskID: taskID, hookID: hookID, skipped: skipped})
+func (f *hookStripFake) SetSkipped(_ context.Context, workspaceID string, taskID string, hookID string, skipped bool) error {
+	f.setCalls = append(f.setCalls, hookSetCall{workspaceID: workspaceID, taskID: taskID, hookID: hookID, skipped: skipped})
 	if f.setErr != nil {
 		return f.setErr
 	}
@@ -96,7 +97,7 @@ func TestSetHookSkippedSetsTheSkipAndAnswersTheStrip(t *testing.T) {
 	recorder := postHookSkip(t, h, task.ID.String(), "h-1", "skipped=true")
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, []hookSetCall{{taskID: task.ID.String(), hookID: "h-1", skipped: true}}, hooks.setCalls)
+	assert.Equal(t, []hookSetCall{{workspaceID: task.WorkspaceID, taskID: task.ID.String(), hookID: "h-1", skipped: true}}, hooks.setCalls, "the skip carries the workspace of the task, so the hook must belong to it")
 	body := recorder.Body.String()
 	assert.Contains(t, body, `id="task-hooks-abc123"`, "the answer replaces the strip of this page")
 	assert.Contains(t, body, ">Include<", "the hook now offers to include it again")

@@ -18,9 +18,9 @@ type TaskHookLister interface {
 	Execute(ctx context.Context, workspaceID string, taskID string) ([]hookapp.TaskHookState, error)
 }
 
-// TaskHookSkipper sets the skip of a hook for one task. *hookapp.SetTaskHookSkipped satisfies it.
+// TaskHookSkipper sets the skip of a hook of a workspace for one task. *hookapp.SetTaskHookSkipped satisfies it.
 type TaskHookSkipper interface {
-	Execute(ctx context.Context, taskID string, hookID string, skipped bool) error
+	Execute(ctx context.Context, workspaceID string, taskID string, hookID string, skipped bool) error
 }
 
 // TaskHooksStrip implements the hook strip of the actions tab of a task over the task_hooks use cases.
@@ -62,12 +62,12 @@ func (b *TaskHooksStrip) State(ctx context.Context, workspaceID string, taskID s
 	return hooks, nil
 }
 
-// SetSkipped disables a hook for one task, or enables it again.
-func (b *TaskHooksStrip) SetSkipped(ctx context.Context, taskID string, hookID string, skipped bool) error {
+// SetSkipped disables a hook of the workspace for one task, or enables it again. A hook of another workspace is refused.
+func (b *TaskHooksStrip) SetSkipped(ctx context.Context, workspaceID string, taskID string, hookID string, skipped bool) error {
 	if b.skipper == nil {
 		return errTaskHooksUnbound
 	}
-	if err := b.skipper.Execute(ctx, taskID, hookID, skipped); err != nil {
+	if err := b.skipper.Execute(ctx, workspaceID, taskID, hookID, skipped); err != nil {
 		return fmt.Errorf("set skip of hook %s for task %s: %w", hookID, taskID, err)
 	}
 	return nil

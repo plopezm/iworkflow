@@ -16,26 +16,54 @@ import (
 func TestSetTaskHookSkippedTogglesTheSkipForOneHook(t *testing.T) {
 	t.Parallel()
 	skips := &fakeSkips{ids: []string{"other"}}
-	uc := application.NewSetTaskHookSkipped(skips)
+	hooks := &fakeHooks{hooks: []models.Hook{savedHook(t, "a", "w1", models.KindScript, models.PhasePre, models.EventTaskStart)}}
+	uc := application.NewSetTaskHookSkipped(hooks, skips)
 	ctx := context.Background()
 
-	require.NoError(t, uc.Execute(ctx, "t1", "a", true))
+	require.NoError(t, uc.Execute(ctx, "w1", "t1", "a", true))
 	assert.ElementsMatch(t, []string{"other", "a"}, skips.ids)
 
-	require.NoError(t, uc.Execute(ctx, "t1", "a", true), "skipping twice keeps one skip")
+	require.NoError(t, uc.Execute(ctx, "w1", "t1", "a", true), "skipping twice keeps one skip")
 	assert.ElementsMatch(t, []string{"other", "a"}, skips.ids)
 
-	require.NoError(t, uc.Execute(ctx, "t1", "a", false))
+	require.NoError(t, uc.Execute(ctx, "w1", "t1", "a", false))
 	assert.Equal(t, []string{"other"}, skips.ids)
 }
 
 func TestSetTaskHookSkippedRejectsMissingIDs(t *testing.T) {
 	t.Parallel()
 	skips := &fakeSkips{}
-	uc := application.NewSetTaskHookSkipped(skips)
+	hooks := &fakeHooks{hooks: []models.Hook{savedHook(t, "a", "w1", models.KindScript, models.PhasePre, models.EventTaskStart)}}
+	uc := application.NewSetTaskHookSkipped(hooks, skips)
 
-	require.ErrorIs(t, uc.Execute(context.Background(), " ", "a", true), hookerrors.ErrInvalidHook)
-	require.ErrorIs(t, uc.Execute(context.Background(), "t1", "", true), hookerrors.ErrInvalidHook)
+	require.ErrorIs(t, uc.Execute(context.Background(), "", "t1", "a", true), hookerrors.ErrInvalidHook)
+	require.ErrorIs(t, uc.Execute(context.Background(), "w1", " ", "a", true), hookerrors.ErrInvalidHook)
+	require.ErrorIs(t, uc.Execute(context.Background(), "w1", "t1", "", true), hookerrors.ErrInvalidHook)
+	assert.Empty(t, skips.ids)
+}
+
+// A hook of another workspace cannot be skipped for a task of this one: the skip is refused and nothing is stored.
+func TestSetTaskHookSkippedRefusesAHookOfAnotherWorkspace(t *testing.T) {
+	t.Parallel()
+	skips := &fakeSkips{}
+	hooks := &fakeHooks{hooks: []models.Hook{savedHook(t, "a", "w2", models.KindScript, models.PhasePre, models.EventTaskStart)}}
+	uc := application.NewSetTaskHookSkipped(hooks, skips)
+
+	err := uc.Execute(context.Background(), "w1", "t1", "a", true)
+
+	require.ErrorIs(t, err, hookerrors.ErrInvalidHook)
+	assert.Empty(t, skips.ids, "a refused skip stores nothing")
+}
+
+// An unknown hook is not skipped either, and the lookup failure is reported as such.
+func TestSetTaskHookSkippedRefusesAnUnknownHook(t *testing.T) {
+	t.Parallel()
+	skips := &fakeSkips{}
+	uc := application.NewSetTaskHookSkipped(&fakeHooks{}, skips)
+
+	err := uc.Execute(context.Background(), "w1", "t1", "missing", true)
+
+	require.ErrorIs(t, err, hookerrors.ErrHookNotFound)
 	assert.Empty(t, skips.ids)
 }
 

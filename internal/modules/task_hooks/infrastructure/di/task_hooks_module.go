@@ -72,7 +72,7 @@ func NewModule(deps Deps) *Module {
 		ReorderHooks:       application.NewReorderHooks(hooks),
 		SetHookEnabled:     application.NewSetHookEnabled(hooks),
 		TestHook:           application.NewTestHook(hooks, workspaces, scripts, agentRunner),
-		SetTaskHookSkipped: application.NewSetTaskHookSkipped(hooks),
+		SetTaskHookSkipped: application.NewSetTaskHookSkipped(hooks, hooks),
 		ListTaskHookState:  application.NewListTaskHookState(hooks, hooks, runs),
 		ReconcileHookRuns:  application.NewReconcileHookRuns(runs, deps.Clock),
 	}

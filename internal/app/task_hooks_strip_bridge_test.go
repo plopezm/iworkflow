@@ -34,15 +34,17 @@ func (f *stripListerFake) Execute(_ context.Context, workspaceID string, taskID 
 
 // stripSkipperFake records the skip it is asked to set, or fails with the error it is set to.
 type stripSkipperFake struct {
-	err     error
-	taskID  string
-	hookID  string
-	skipped bool
-	calls   int
+	err         error
+	workspaceID string
+	taskID      string
+	hookID      string
+	skipped     bool
+	calls       int
 }
 
-func (f *stripSkipperFake) Execute(_ context.Context, taskID string, hookID string, skipped bool) error {
+func (f *stripSkipperFake) Execute(_ context.Context, workspaceID string, taskID string, hookID string, skipped bool) error {
 	f.calls++
+	f.workspaceID = workspaceID
 	f.taskID = taskID
 	f.hookID = hookID
 	f.skipped = skipped
@@ -155,9 +157,10 @@ func TestTaskHooksStripSetSkippedPassesThrough(t *testing.T) {
 		strip := NewTaskHooksStrip()
 		strip.Bind(&stripListerFake{}, skipper)
 
-		require.NoError(t, strip.SetSkipped(context.Background(), "task-1", "h-1", skipped))
+		require.NoError(t, strip.SetSkipped(context.Background(), "ws-1", "task-1", "h-1", skipped))
 
 		assert.Equal(t, 1, skipper.calls)
+		assert.Equal(t, "ws-1", skipper.workspaceID, "the skip is checked against the workspace of the task")
 		assert.Equal(t, "task-1", skipper.taskID)
 		assert.Equal(t, "h-1", skipper.hookID)
 		assert.Equal(t, skipped, skipper.skipped)
@@ -169,7 +172,7 @@ func TestTaskHooksStripSetSkippedWrapsError(t *testing.T) {
 	strip := NewTaskHooksStrip()
 	strip.Bind(&stripListerFake{}, &stripSkipperFake{err: failure})
 
-	err := strip.SetSkipped(context.Background(), "task-1", "h-1", true)
+	err := strip.SetSkipped(context.Background(), "ws-1", "task-1", "h-1", true)
 
 	assert.ErrorIs(t, err, failure)
 }
@@ -181,7 +184,7 @@ func TestTaskHooksStripUnboundShowsNothingAndRefusesSkips(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, hooks)
 
-	assert.Error(t, strip.SetSkipped(context.Background(), "task-1", "h-1", true))
+	assert.Error(t, strip.SetSkipped(context.Background(), "ws-1", "task-1", "h-1", true))
 }
 
 // The task page must carry the strip of the workspace hooks in its Actions tab. Reproduces the e2e symptom at the
@@ -210,5 +213,8 @@ func TestTaskPageRendersTheHookStripOfTheWorkspace(t *testing.T) {
 	application.Router().ServeHTTP(rec, request)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "data-task-hooks")
+	body := rec.Body.String()
+	assert.Contains(t, body, "data-task-hooks", "the strip is rendered in the actions tab")
+	assert.Contains(t, body, `data-task-hook="`+states[0].Hook.ID()+`"`, "the row of the workspace hook is rendered")
+	assert.Contains(t, body, `/tasks/`+task.ID.String()+`/hooks/`+states[0].Hook.ID()+`/skip`, "the row carries its skip toggle")
 }

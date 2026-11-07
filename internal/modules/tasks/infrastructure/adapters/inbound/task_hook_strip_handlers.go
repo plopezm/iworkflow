@@ -104,7 +104,7 @@ func (h *DetailHandlers) applyHookSkip(ctx context.Context, task models.Task, ho
 	if err != nil {
 		return msgHookSkipInvalid.T(ctx)
 	}
-	if err := h.uc.HookStrip.SetSkipped(ctx, task.ID.String(), hookID, skipped); err != nil {
+	if err := h.uc.HookStrip.SetSkipped(ctx, task.WorkspaceID, task.ID.String(), hookID, skipped); err != nil {
 		web.LogError(ctx, "could not set the skip of a hook", err, "task_id", task.ID.String(), "hook_id", hookID)
 		return msgHookSkipFailed.T(ctx)
 	}
