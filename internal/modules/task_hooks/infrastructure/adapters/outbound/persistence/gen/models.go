@@ -167,6 +167,19 @@ type TaskHook struct {
 	Profile        string
 }
 
+type TaskHookRun struct {
+	ID         string
+	TaskID     string
+	HookID     string
+	Phase      string
+	Event      string
+	Status     string
+	ExitCode   int64
+	Output     string
+	StartedAt  string
+	FinishedAt string
+}
+
 type TaskHookSkip struct {
 	TaskID string
 	HookID string

@@ -3,6 +3,7 @@ package outbound
 
 import (
 	"context"
+	"time"
 
 	"iworkflow/internal/modules/task_hooks/domain/models"
 )
@@ -36,4 +37,22 @@ type IDGenerator interface {
 // problems that stop the run from being attempted (bad template, missing directory).
 type ScriptRunner interface {
 	Run(ctx context.Context, hook models.Hook, run models.RunContext) (models.RunOutcome, error)
+}
+
+// AgentRunner runs an agent hook: one ephemeral agent session in the worktree of the task, bounded by the
+// hook timeout. The verdict of the agent maps to RunOK or RunFailed; the same error rule as ScriptRunner applies.
+type AgentRunner interface {
+	Run(ctx context.Context, hook models.Hook, run models.RunContext) (models.RunOutcome, error)
+}
+
+// RunRepository stores the run records of the tasks. Save inserts or updates by id; ListByTask returns the
+// records of one task in start order.
+type RunRepository interface {
+	Save(ctx context.Context, run models.HookRun) error
+	ListByTask(ctx context.Context, taskID string) ([]models.HookRun, error)
+}
+
+// Clock gives the current time.
+type Clock interface {
+	Now() time.Time
 }

@@ -147,3 +147,38 @@ func TestSaveDoesNotTouchHookOfAnotherWorkspace(t *testing.T) {
 	assert.Equal(t, "w1", got.WorkspaceID())
 	assert.Equal(t, models.EventTaskStart, got.Event())
 }
+
+func TestRunRecordsRoundTrip(t *testing.T) {
+	repo, db := setup(t)
+	ctx := context.Background()
+	_, err := db.Exec(`INSERT INTO tasks (id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, created_at, updated_at)
+		VALUES ('t1', 'w1', 't', 'p', 'b', 'main', '/tmp/wt', 'backlog', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	require.NoError(t, repo.Save(ctx, hook(t, "a", "w1", models.EventTaskStart, models.PhasePre)))
+	runs := persistence.NewRunRepository(db)
+
+	start := time.Date(2026, 11, 7, 10, 0, 0, 123, time.UTC)
+	run := models.HookRun{ID: "r1", TaskID: "t1", HookID: "a", Phase: models.PhasePre, Event: models.EventTaskStart,
+		Status: models.RunRunning, StartedAt: start}
+	require.NoError(t, runs.Save(ctx, run))
+	got, err := runs.ListByTask(ctx, "t1")
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, models.RunRunning, got[0].Status)
+	assert.True(t, got[0].FinishedAt.IsZero())
+
+	run.Status, run.ExitCode, run.Output, run.FinishedAt = models.RunFailed, 3, "boom", start.Add(time.Second)
+	require.NoError(t, runs.Save(ctx, run))
+	got, err = runs.ListByTask(ctx, "t1")
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, models.RunFailed, got[0].Status)
+	assert.Equal(t, 3, got[0].ExitCode)
+	assert.Equal(t, "boom", got[0].Output)
+	assert.True(t, start.Equal(got[0].StartedAt))
+	assert.True(t, start.Add(time.Second).Equal(got[0].FinishedAt))
+
+	none, err := runs.ListByTask(ctx, "other")
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}

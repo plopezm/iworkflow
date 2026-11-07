@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 // TaskResult is how the task event ended; post hooks see it as IWF_TASK_RESULT.
 type TaskResult string
 
@@ -45,3 +47,27 @@ type RunOutcome struct {
 
 // Failed reports whether the run counts as a failure for the failure policy.
 func (o RunOutcome) Failed() bool { return o.Status != RunOK }
+
+// Extra statuses of a recorded run, beyond the outcome of a finished one.
+const (
+	// RunRunning is the status of a run that started and has not finished.
+	RunRunning RunStatus = "running"
+	// RunSkipped means the hook was disabled for this task and did not run.
+	RunSkipped RunStatus = "skipped"
+	// RunErrored means the hook could not even be attempted (bad template, missing directory).
+	RunErrored RunStatus = "error"
+)
+
+// HookRun is the record of one hook execution for one task, kept to show its status and log.
+type HookRun struct {
+	ID         string
+	TaskID     string
+	HookID     string
+	Phase      Phase
+	Event      Event
+	Status     RunStatus
+	ExitCode   int
+	Output     string
+	StartedAt  time.Time
+	FinishedAt time.Time
+}
