@@ -102,7 +102,8 @@ func TestOpenWithLaunchersMigrationDownAndUpAgain(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, tableCount(t, handle, "open_with_launchers"), "Up must create the table")
 
-	_, err = provider.Down(ctx)
+	// Later migrations may exist, so roll back to the version just before this one instead of assuming it is the last.
+	_, err = provider.DownTo(ctx, 20261025100000)
 	require.NoError(t, err)
 	require.Equal(t, 0, tableCount(t, handle, "open_with_launchers"), "Down must drop the table")
 	require.Equal(t, 1, tableCount(t, handle, "task_related_projects"), "Down must not touch older tables")
@@ -110,6 +111,38 @@ func TestOpenWithLaunchersMigrationDownAndUpAgain(t *testing.T) {
 	_, err = provider.Up(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, tableCount(t, handle, "open_with_launchers"), "Up must create the table again")
+}
+
+// The task hooks migrations must revert one at a time and re-apply, without touching the older schema.
+func TestTaskHooksMigrationsDownAndUpAgain(t *testing.T) {
+	ctx := context.Background()
+	handle := dbtest.New(t)
+	files, err := db.MigrationsFS()
+	require.NoError(t, err)
+	provider, err := goose.NewProvider(goose.DialectSQLite3, handle, files)
+	require.NoError(t, err)
+	for _, name := range []string{"task_hooks", "task_hook_skips", "task_hook_runs"} {
+		require.Equal(t, 1, tableCount(t, handle, name), "Up must create %s", name)
+	}
+
+	_, err = provider.Down(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, tableCount(t, handle, "task_hook_runs"), "the last Down must drop the run records")
+	require.Equal(t, 1, tableCount(t, handle, "task_hooks"), "it must keep the hooks")
+
+	_, err = provider.Down(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 0, tableCount(t, handle, "task_hooks"), "the second Down must drop the hooks")
+	require.Equal(t, 0, tableCount(t, handle, "task_hook_skips"), "it must drop the per-task skips with them")
+	require.Equal(t, 1, tableCount(t, handle, "open_with_launchers"), "Down must not touch older tables")
+
+	_, err = provider.UpByOne(ctx)
+	require.NoError(t, err)
+	_, err = provider.UpByOne(ctx)
+	require.NoError(t, err)
+	for _, name := range []string{"task_hooks", "task_hook_skips", "task_hook_runs"} {
+		require.Equal(t, 1, tableCount(t, handle, name), "Up must create %s again", name)
+	}
 }
 
 func tableCount(t *testing.T, handle *sql.DB, name string) int {
