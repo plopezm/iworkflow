@@ -205,3 +205,11 @@ func (h Hook) Script() ScriptSpec {
 
 // Agent returns the agent spec (empty for a script hook).
 func (h Hook) Agent() AgentSpec { return h.agent }
+
+// Params returns the fields the hook was built from, so a change can be validated again through NewHook.
+func (h Hook) Params() HookParams {
+	return HookParams{
+		ID: h.id, WorkspaceID: h.workspaceID, Phase: h.phase, Event: h.event, Kind: h.kind,
+		Enabled: h.enabled, OnFailure: h.onFailure, Timeout: h.timeout, Script: h.Script(), Agent: h.agent,
+	}
+}

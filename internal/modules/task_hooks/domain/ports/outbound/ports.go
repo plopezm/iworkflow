@@ -58,3 +58,9 @@ type RunRepository interface {
 type Clock interface {
 	Now() time.Time
 }
+
+// WorkspaceLookup gives the working directory of a workspace. The test of a hook runs in it, so the module does not
+// read the workspaces module itself; the composition root binds this port to it.
+type WorkspaceLookup interface {
+	Path(ctx context.Context, workspaceID string) (string, error)
+}
