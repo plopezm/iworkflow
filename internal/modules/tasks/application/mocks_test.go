@@ -798,3 +798,24 @@ func workspaceFilterText(workspaceID *string) string {
 	}
 	return *workspaceID
 }
+
+// recordingHooks is the lifecycle hooks fake. It records every run and answers with preErr or postErr, by phase.
+// onRun, when set, observes the state the use case had reached when the hook ran.
+type recordingHooks struct {
+	preErr   error
+	postErr  error
+	warnings []string
+	calls    []models.HookRequest
+	onRun    func(req models.HookRequest)
+}
+
+func (h *recordingHooks) Run(_ context.Context, req models.HookRequest) (models.HookReport, error) {
+	h.calls = append(h.calls, req)
+	if h.onRun != nil {
+		h.onRun(req)
+	}
+	if req.Phase == models.HookPhasePost {
+		return models.HookReport{Warnings: h.warnings}, h.postErr
+	}
+	return models.HookReport{Warnings: h.warnings}, h.preErr
+}
