@@ -2,10 +2,12 @@ package application_test
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"time"
 
 	"iworkflow/internal/modules/task_hooks/domain/models"
+	"iworkflow/internal/modules/task_hooks/domain/ports/outbound"
 )
 
 type fakeHooks struct{ hooks []models.Hook }
@@ -39,6 +41,24 @@ func (f *fakeRuns) Save(_ context.Context, run models.HookRun) error {
 	return nil
 }
 func (f *fakeRuns) ListByTask(context.Context, string) ([]models.HookRun, error) { return f.saved, nil }
+
+// fakeAgentSession answers with a fixed result or error. When wait is set it blocks until ctx ends, as a stuck
+// agent would, and returns the ctx error.
+type fakeAgentSession struct {
+	result   outbound.AgentSessionResult
+	err      error
+	wait     bool
+	requests []outbound.AgentSessionRequest
+}
+
+func (f *fakeAgentSession) Run(ctx context.Context, request outbound.AgentSessionRequest) (outbound.AgentSessionResult, error) {
+	f.requests = append(f.requests, request)
+	if f.wait {
+		<-ctx.Done()
+		return outbound.AgentSessionResult{}, fmt.Errorf("agent session: %w", ctx.Err())
+	}
+	return f.result, f.err
+}
 
 // fakeRunner answers by hook id and records the order of the calls.
 type fakeRunner struct {

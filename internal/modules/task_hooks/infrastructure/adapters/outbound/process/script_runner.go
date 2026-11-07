@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"strings"
-	"text/template"
 	"time"
 
 	hookerrors "iworkflow/internal/modules/task_hooks/domain/errors"
@@ -89,23 +87,13 @@ func buildCommand(ctx context.Context, script models.ScriptSpec, args []string) 
 }
 
 func expandArgs(args []string, run models.RunContext) ([]string, error) {
-	data := struct {
-		TaskID, TaskTitle, TaskStatus, WorkspacePath, WorktreePath, Branch, Phase, Event, Result string
-	}{
-		run.TaskID, run.TaskTitle, run.TaskStatus, run.WorkspacePath, run.WorktreePath, run.Branch,
-		string(run.Phase), string(run.Event), string(run.Result),
-	}
 	expanded := make([]string, 0, len(args))
 	for _, arg := range args {
-		tmpl, err := template.New("arg").Option("missingkey=error").Parse(arg)
+		value, err := models.ExpandTemplate(arg, run)
 		if err != nil {
 			return nil, fmt.Errorf("%w: argument %q: %w", hookerrors.ErrRunNotStarted, arg, err)
 		}
-		var out strings.Builder
-		if err := tmpl.Execute(&out, data); err != nil {
-			return nil, fmt.Errorf("%w: argument %q: %w", hookerrors.ErrRunNotStarted, arg, err)
-		}
-		expanded = append(expanded, out.String())
+		expanded = append(expanded, value)
 	}
 	return expanded, nil
 }
