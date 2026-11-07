@@ -91,6 +91,9 @@ type Deps struct {
 	Panels httpinbound.ProjectPanels
 	// AgentCatalog queries the available agent runtimes, models, thinking levels and profiles for forms. Optional.
 	AgentCatalog outbound.AgentCatalogPort
+	// HookStrip shows the status of the task hooks in the actions tab of a task and toggles their skip for it. Optional:
+	// nil shows no strip. The composition root implements it with the task_hooks module.
+	HookStrip outbound.HookStrip
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -286,6 +289,7 @@ func NewModule(deps Deps) (*Module, error) {
 		SetRelatedProjects:  application.NewSetTaskRelatedProjects(lifecycle, relatedProjects, listRelatedProjects, probe.NewRelatedProjectProbe(), relatedRestarter),
 		ListRelatedProjects: listRelatedProjects,
 		Workspaces:          deps.Workspaces,
+		HookStrip:           deps.HookStrip,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
 		Get:     getTask,

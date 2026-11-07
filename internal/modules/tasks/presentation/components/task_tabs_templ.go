@@ -331,7 +331,8 @@ func TaskTabRegion(tabs state.TaskTabs, actionsBody, filesBody, changesBody, cod
 	})
 }
 
-// TaskActionsBody is the Acciones tab: the actions of the task, its context and its images.
+// TaskActionsBody is the Acciones tab: the actions of the task, the status of its hooks when there are any, its context
+// and its images.
 func TaskActionsBody(view state.TaskDetailView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -352,6 +353,12 @@ func TaskActionsBody(view state.TaskDetailView) templ.Component {
 		templ_7745c5c3_Err = TaskActions(view).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
+		}
+		if view.HookStrip != nil {
+			templ_7745c5c3_Err = TaskHookStrip(*view.HookStrip).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
 		}
 		templ_7745c5c3_Err = TaskContext(view).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {

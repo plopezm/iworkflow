@@ -41,9 +41,13 @@ templ TaskTabRegion(tabs state.TaskTabs, actionsBody, filesBody, changesBody, co
 	</div>
 }
 
-// TaskActionsBody is the Acciones tab: the actions of the task, its context and its images.
+// TaskActionsBody is the Acciones tab: the actions of the task, the status of its hooks when there are any, its context
+// and its images.
 templ TaskActionsBody(view state.TaskDetailView) {
 	@TaskActions(view)
+	if view.HookStrip != nil {
+		@TaskHookStrip(*view.HookStrip)
+	}
 	@TaskContext(view)
 	@TaskAttachmentsList(view.Attachments, view.AttachmentsError)
 }

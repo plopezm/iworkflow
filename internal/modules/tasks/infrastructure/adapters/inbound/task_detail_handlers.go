@@ -18,6 +18,7 @@ import (
 	"iworkflow/internal/modules/tasks/application"
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/components"
 	"iworkflow/internal/modules/tasks/presentation/state"
@@ -81,6 +82,9 @@ type DetailUseCases struct {
 	SetRelatedProjects  RelatedProjectsSetter
 	ListRelatedProjects RelatedProjectsLister
 	Workspaces          WorkspaceLister
+	// HookStrip shows the status of the hooks of the workspace of a task and toggles their skip for it. Optional: nil
+	// shows no strip and offers no toggle.
+	HookStrip outbound.HookStrip
 }
 
 // DetailHandlers serves the detail tab of a task and its actions.
@@ -118,6 +122,7 @@ func (h *DetailHandlers) Tabs() []dock.Route {
 func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/start", h.startTask)
 	r.Post("/tasks/{id}/related-projects", h.setRelatedProjects)
+	r.Post("/tasks/{id}/hooks/{hookId}/skip", h.setHookSkipped)
 	r.Post("/tasks/{id}/abort", h.abortTask)
 	r.Post("/tasks/{id}/resume", h.resumeTask)
 	r.Post("/tasks/{id}/new-session", h.newSession)
@@ -175,6 +180,12 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 	}
 	view.RelatedProjects = h.relatedChoices(ctx, task)
 	view.MergeCleanupOnly = h.mergeCleanupOnly(ctx, task)
+	if h.uc.HookStrip != nil {
+		strip := h.hookStrip(ctx, scope, task)
+		if strip.Visible() {
+			view.HookStrip = &strip
+		}
+	}
 	stored, err := h.uc.ListAttachments.Execute(ctx, task.ID)
 	if err != nil {
 		view.AttachmentsError = err.Error()

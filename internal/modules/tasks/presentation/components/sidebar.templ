@@ -55,13 +55,16 @@ templ SidebarBody(rows state.SidebarRows) {
 	}
 }
 
-// workspaceMenu is the "…" menu of a workspace row: its files, its terminal and the workspaces screen.
+// workspaceMenu is the "…" menu of a workspace row: its files, its terminal, its hooks and the workspaces screen.
 templ workspaceMenu(workspaceID string) {
 	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID, Class: "menu-item"}) {
 		{ msgViewFiles.T(ctx) }
 	}
 	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID + "/terminal", Class: "menu-item"}) {
 		{ msgOpenTerminal.T(ctx) }
+	}
+	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID + "/hooks", Class: "menu-item"}) {
+		{ msgHooksMenu.T(ctx) }
 	}
 	@link.Tab(link.Props{Href: "/workspaces", Class: "menu-item"}) {
 		{ msgManageWorkspaces.T(ctx) }
