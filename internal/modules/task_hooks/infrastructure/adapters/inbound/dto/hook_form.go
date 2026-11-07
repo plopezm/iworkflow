@@ -83,13 +83,23 @@ func ReorderFromForm(form url.Values) []string {
 	return ids
 }
 
-// parseTimeout reads whole seconds. The bound is checked here so a huge number cannot overflow into a short timeout.
+// minTimeoutSeconds is the smallest timeout a hook can have: a zero or negative timeout would stop it before it starts.
+const minTimeoutSeconds = 1
+
+// maxTimeoutSeconds is the domain maximum in whole seconds. Both bounds are checked here, in seconds, so a huge number
+// cannot overflow into a short timeout.
+const maxTimeoutSeconds = int(models.MaxTimeout / time.Second)
+
+// parseTimeout reads whole seconds between minTimeoutSeconds and maxTimeoutSeconds, both included.
 func parseTimeout(text string) (time.Duration, error) {
 	seconds, err := strconv.Atoi(strings.TrimSpace(text))
 	if err != nil {
 		return 0, fmt.Errorf("%w: the timeout must be a whole number of seconds", hookerrors.ErrInvalidHook)
 	}
-	if seconds > int(models.MaxTimeout/time.Second) {
+	if seconds < minTimeoutSeconds {
+		return 0, fmt.Errorf("%w: the timeout must be at least %d second", hookerrors.ErrInvalidHook, minTimeoutSeconds)
+	}
+	if seconds > maxTimeoutSeconds {
 		return 0, fmt.Errorf("%w: the timeout is too long", hookerrors.ErrInvalidHook)
 	}
 	return time.Duration(seconds) * time.Second, nil

@@ -2,23 +2,27 @@ package components
 
 import (
 	"context"
+	"fmt"
 	"strconv"
+	"time"
 
 	ui "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/task_hooks/domain/models"
 	"iworkflow/internal/modules/task_hooks/presentation/state"
 )
 
-// The keys of the editor options. They are the values the form submits, so they match the domain names.
+// The keys of the editor options and of the labels. They are the values the form submits, so they are the domain
+// names: one source for the option values, the label maps and the switches.
 const (
-	eventStart  = "task_start"
-	eventFinish = "task_finish"
-	phasePre    = "pre"
-	phasePost   = "post"
-	kindScript  = "script"
-	kindAgent   = "agent"
-	failBlock   = "block"
-	failWarn    = "warn"
-	failIgnore  = "ignore"
+	eventStart  = string(models.EventTaskStart)
+	eventFinish = string(models.EventTaskFinish)
+	phasePre    = string(models.PhasePre)
+	phasePost   = string(models.PhasePost)
+	kindScript  = string(models.KindScript)
+	kindAgent   = string(models.KindAgent)
+	failBlock   = string(models.FailureBlock)
+	failWarn    = string(models.FailureWarn)
+	failIgnore  = string(models.FailureIgnore)
 )
 
 // eventTitle is the heading of the group of an event.
@@ -107,6 +111,11 @@ func editorTitle(ctx context.Context, id string) string {
 		return msgFormNew.T(ctx)
 	}
 	return msgFormEdit.T(ctx)
+}
+
+// timeoutHint says the timeout limits of the editor: whole seconds, at most the domain maximum.
+func timeoutHint(ctx context.Context) string {
+	return fmt.Sprintf(msgTimeoutHint.T(ctx), int(models.MaxTimeout/time.Second))
 }
 
 // timeoutLabel is the timeout of a row in seconds.

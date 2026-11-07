@@ -44,7 +44,7 @@ var (
 	msgModel        = i18n.Msg{En: "Model (optional, provider/model)", Es: "Modelo (opcional, proveedor/modelo)", Zh: "模型（可选，提供方/模型）", De: "Modell (optional, anbieter/modell)", Fr: "Modèle (facultatif, fournisseur/modèle)"}
 	msgThinking     = i18n.Msg{En: "Thinking (optional)", Es: "Razonamiento (opcional)", Zh: "思考强度（可选）", De: "Denkstufe (optional)", Fr: "Réflexion (facultatif)"}
 	msgProfile      = i18n.Msg{En: "Profile (optional)", Es: "Perfil (opcional)", Zh: "配置文件（可选）", De: "Profil (optional)", Fr: "Profil (facultatif)"}
-	msgTimeoutHint  = i18n.Msg{En: "Whole seconds, at most 86400.", Es: "Segundos enteros, como máximo 86400.", Zh: "整数秒，最多 86400。", De: "Ganze Sekunden, höchstens 86400.", Fr: "Secondes entières, 86400 au maximum."}
+	msgTimeoutHint  = i18n.Msg{En: "Whole seconds, at most %d.", Es: "Segundos enteros, como máximo %d.", Zh: "整数秒，最多 %d。", De: "Ganze Sekunden, höchstens %d.", Fr: "Secondes entières, %d au maximum."}
 	msgSave         = i18n.Msg{En: "Save", Es: "Guardar", Zh: "保存", De: "Speichern", Fr: "Enregistrer"}
 	msgCancel       = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
 	msgNoticeSaved  = i18n.Msg{En: "Hook saved.", Es: "Hook guardado.", Zh: "Hook 已保存。", De: "Hook gespeichert.", Fr: "Hook enregistré."}

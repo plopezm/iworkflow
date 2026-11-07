@@ -1034,9 +1034,9 @@ func editor(view state.View) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var62 string
-		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(msgTimeoutHint.T(ctx))
+		templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(timeoutHint(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/task_hooks/presentation/components/hooks_panel.templ`, Line: 147, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/task_hooks/presentation/components/hooks_panel.templ`, Line: 147, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 		if templ_7745c5c3_Err != nil {

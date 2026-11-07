@@ -31,6 +31,31 @@ func TestSetHookEnabledChangesOnlyTheFlag(t *testing.T) {
 	assert.Equal(t, before.Phase(), after.Phase())
 }
 
+// Toggling back and forth leaves the hook as it was at each step: the flag follows the last toggle and nothing else moves.
+func TestSetHookEnabledRoundTripEnableDisableEnable(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	before := savedHook(t, "h1", "w1", models.KindScript, models.PhasePre, models.EventTaskStart)
+	hooks := &fakeHooks{hooks: []models.Hook{before}}
+	useCase := application.NewSetHookEnabled(hooks)
+
+	for _, enabled := range []bool{false, true, false, true} {
+		require.NoError(t, useCase.Execute(ctx, application.SetHookEnabledInput{WorkspaceID: "w1", HookID: "h1", Enabled: enabled}))
+
+		after, err := hooks.Get(ctx, "h1")
+		require.NoError(t, err)
+		assert.Equal(t, enabled, after.Enabled(), "the flag follows the last toggle")
+		assert.Equal(t, before.Script(), after.Script())
+		assert.Equal(t, before.Timeout(), after.Timeout())
+		assert.Equal(t, before.OnFailure(), after.OnFailure())
+		assert.Equal(t, before.Phase(), after.Phase())
+		assert.Equal(t, before.Event(), after.Event())
+		listed, err := hooks.List(ctx, "w1")
+		require.NoError(t, err)
+		require.Len(t, listed, 1, "a toggle neither adds nor duplicates the hook")
+	}
+}
+
 func TestSetHookEnabledRefusesWhatItCannotChange(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

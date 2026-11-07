@@ -144,7 +144,7 @@ templ editor(view state.View) {
 		<label class="stack gap-1.5">
 			<span class="text-sm font-medium text-fg">{ msgTimeout.T(ctx) } (s)</span>
 			<input type="number" min="1" name="timeout" class="input" value={ view.Editor.Timeout } required/>
-			<span class="text-[11px] text-muted">{ msgTimeoutHint.T(ctx) }</span>
+			<span class="text-[11px] text-muted">{ timeoutHint(ctx) }</span>
 		</label>
 		<label class="row gap-2">
 			<input type="checkbox" name="enabled" value="on" checked?={ view.Editor.Enabled }/>

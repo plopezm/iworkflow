@@ -61,15 +61,15 @@ func savedHook(t *testing.T, id string, workspaceID string, kind models.Kind, ph
 func TestTestHookRunsOneHookWithASyntheticTaskInTheWorkspace(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name      string
-		kind      models.Kind
-		phase     models.Phase
-		event     models.Event
-		wantEvent models.TaskResult
+		name       string
+		kind       models.Kind
+		phase      models.Phase
+		event      models.Event
+		wantResult models.TaskResult
 	}{
-		{name: "script before start", kind: models.KindScript, phase: models.PhasePre, event: models.EventTaskStart, wantEvent: models.TaskResultNone},
-		{name: "script after finish", kind: models.KindScript, phase: models.PhasePost, event: models.EventTaskFinish, wantEvent: models.TaskResultOK},
-		{name: "agent before start", kind: models.KindAgent, phase: models.PhasePre, event: models.EventTaskStart, wantEvent: models.TaskResultNone},
+		{name: "script before start", kind: models.KindScript, phase: models.PhasePre, event: models.EventTaskStart, wantResult: models.TaskResultNone},
+		{name: "script after finish", kind: models.KindScript, phase: models.PhasePost, event: models.EventTaskFinish, wantResult: models.TaskResultOK},
+		{name: "agent before start", kind: models.KindAgent, phase: models.PhasePre, event: models.EventTaskStart, wantResult: models.TaskResultNone},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestTestHookRunsOneHookWithASyntheticTaskInTheWorkspace(t *testing.T) {
 			assert.Equal(t, models.RunContext{
 				TaskID: "test", TaskTitle: "test", Branch: "test",
 				WorkspacePath: "/work/ws", WorktreePath: "/work/ws",
-				Phase: tt.phase, Event: tt.event, Result: tt.wantEvent,
+				Phase: tt.phase, Event: tt.event, Result: tt.wantResult,
 			}, runner.runs[0])
 			assert.Equal(t, runner.outcome, outcome)
 		})

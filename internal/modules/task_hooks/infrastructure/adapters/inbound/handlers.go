@@ -162,8 +162,9 @@ func (h *Handlers) remove(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, h.load(ctx, workspaceID, view, nil))
 }
 
-// test runs the hook once. A run that could not start is shown in the row with its reason; any other refusal (an
-// unknown hook, a hook of another workspace) is the failure of the tab.
+// test runs the hook once. A run that could not start is shown in the row with its reason. Any other refusal (an
+// unknown hook, a hook of another workspace, a failed read) is the failure of the tab, shown inline: the tab keeps its
+// hooks and its sections, so the user does not lose the list while the failure is on screen.
 func (h *Handlers) test(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceID := chi.URLParam(r, "id")
@@ -176,7 +177,7 @@ func (h *Handlers) test(w http.ResponseWriter, r *http.Request) {
 			Status: state.ResultError, ExitCode: -1, Failure: err.Error(),
 		}})
 	case err != nil:
-		view = state.View{Failure: err.Error()}
+		view = h.load(ctx, workspaceID, state.View{Failure: err.Error()}, nil)
 	default:
 		view = h.load(ctx, workspaceID, state.View{}, &testReport{hookID: hookID, result: state.TestResult{
 			Status: resultStatus(outcome.Status), ExitCode: outcome.ExitCode, Output: outcome.Output,

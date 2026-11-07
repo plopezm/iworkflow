@@ -74,6 +74,44 @@ func TestSaveHookFromAgentFormWithUncheckedBoxes(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, input.Timeout)
 }
 
+// The timeout is whole seconds between 1 and the domain maximum, both included. Anything outside, or not a number,
+// is refused with a form error before the domain sees it.
+func TestSaveHookFromFormBoundsTheTimeout(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		text    string
+		want    time.Duration
+		message string
+	}{
+		{name: "zero is refused", text: "0", message: "at least 1 second"},
+		{name: "negative is refused", text: "-1", message: "at least 1 second"},
+		{name: "one second is the minimum", text: "1", want: time.Second},
+		{name: "the domain maximum is accepted", text: "86400", want: models.MaxTimeout},
+		{name: "one above the maximum is refused", text: "86401", message: "too long"},
+		{name: "a number that overflows is refused", text: "99999999999999999999", message: "whole number of seconds"},
+		{name: "text is refused", text: "abc", message: "whole number of seconds"},
+		{name: "empty is refused", text: "", message: "whole number of seconds"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			form := scriptForm()
+			form[dto.FieldTimeout] = []string{tt.text}
+
+			input, err := dto.SaveHookFromForm(form, "w1")
+
+			if tt.message != "" {
+				require.ErrorIs(t, err, hookerrors.ErrInvalidHook)
+				assert.ErrorContains(t, err, tt.message)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, input.Timeout)
+		})
+	}
+}
+
 func TestSaveHookFromFormRefusesWhatCannotBeRead(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

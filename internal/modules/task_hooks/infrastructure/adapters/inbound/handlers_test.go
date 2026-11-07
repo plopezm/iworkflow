@@ -2,6 +2,7 @@ package inbound_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -382,6 +383,21 @@ func TestTestThatCannotStartIsShownInItsRow(t *testing.T) {
 	body := rec.Body.String()
 	assert.Contains(t, body, `data-hook-test="error"`)
 	assert.Contains(t, body, "missing directory")
+}
+
+// A run that errors while it is attempted keeps the tab: the workspace hooks stay listed and the failure is shown inline.
+func TestTestErrorKeepsTheTabAndShowsTheFailureInline(t *testing.T) {
+	t.Parallel()
+	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "echo"))
+	r.runner.err = errors.New("pipe closed")
+
+	rec := do(t, r.router, http.MethodPost, panelPath("/h1/test"), nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, `id="workspace-hooks-w1"`, "the tab is still rendered")
+	assert.Contains(t, body, `data-hook="h1"`, "the hooks of the workspace are still listed")
+	assert.Contains(t, body, "pipe closed", "the failure is shown inline")
 }
 
 func TestTestOfAnUnknownHookIsTheTabFailure(t *testing.T) {

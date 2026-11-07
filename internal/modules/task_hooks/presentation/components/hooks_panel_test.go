@@ -113,7 +113,8 @@ func TestPanelShowsTheAgentTestWithoutAnExitCode(t *testing.T) {
 	assert.Contains(t, body, "(no output)")
 }
 
-func TestPanelShowsTheOutcomeOfTheLastActionAndAFailure(t *testing.T) {
+// The tab shows the notice of the last action, the failure of an action, and the empty state of a group in Spanish.
+func TestPanelShowsTheNoticeTheFailureAndTheEmptyGroups(t *testing.T) {
 	t.Parallel()
 	view := viewWith()
 	view.Notice = state.NoticeSaved
@@ -163,4 +164,76 @@ func TestEditorEscapesWhatWasTyped(t *testing.T) {
 
 	assert.NotContains(t, body, "<script>x</script>")
 	assert.Contains(t, body, `value="&#34;&gt;&lt;script&gt;x&lt;/script&gt;"`)
+}
+
+// Each notice of an action has its own text, in the language of the request.
+func TestPanelShowsTheTextOfEachNotice(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		notice state.Notice
+		want   string
+	}{
+		{notice: state.NoticeSaved, want: "Hook saved."},
+		{notice: state.NoticeUpdated, want: "Hook updated."},
+		{notice: state.NoticeDeleted, want: "Hook deleted."},
+		{notice: state.NoticeReordered, want: "Order saved."},
+	}
+	for _, tt := range tests {
+		t.Run(string(tt.notice), func(t *testing.T) {
+			t.Parallel()
+			view := viewWith()
+			view.Notice = tt.notice
+
+			body := renderPanel(t, i18n.En, view)
+
+			assert.Contains(t, body, tt.want)
+		})
+	}
+}
+
+// Each status of a test run has its own text and its own marker; a run that exited shows its exit code, and an agent
+// has none to show.
+func TestPanelShowsTheTextOfEachTestStatus(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		result   state.TestResult
+		want     string
+		wantExit string
+	}{
+		{name: "passed", result: state.TestResult{Status: state.ResultOK, ExitCode: 0}, want: "Passed", wantExit: "exit code 0"},
+		{name: "failed", result: state.TestResult{Status: state.ResultFailed, ExitCode: 3}, want: "Failed", wantExit: "exit code 3"},
+		{name: "timed out", result: state.TestResult{Status: state.ResultTimeout, ExitCode: -1}, want: "Timed out"},
+		{name: "could not run", result: state.TestResult{Status: state.ResultError, ExitCode: -1, Failure: "missing directory"}, want: "Could not run"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			row := oneRow("h1")
+			result := tt.result
+			row.Test = &result
+
+			body := renderPanel(t, i18n.En, viewWith(row))
+
+			assert.Contains(t, body, `data-hook-test="`+string(tt.result.Status)+`"`)
+			assert.Contains(t, body, tt.want)
+			if tt.wantExit != "" {
+				assert.Contains(t, body, tt.wantExit)
+			} else {
+				assert.NotContains(t, body, "exit code")
+			}
+		})
+	}
+}
+
+// The timeout field says the limits it enforces: whole seconds, at most the domain maximum of 86400.
+func TestEditorShowsTheTimeoutLimit(t *testing.T) {
+	t.Parallel()
+	view := viewWith()
+	view.Editor = &state.HookForm{Event: "task_start", Phase: "pre", Kind: "script", Timeout: "600"}
+
+	body := renderPanel(t, i18n.En, view)
+
+	assert.Contains(t, body, "Whole seconds, at most 86400.")
+	assert.Contains(t, body, `min="1"`)
 }

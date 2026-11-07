@@ -20,10 +20,9 @@ func enabledVals(enable bool) string {
 	return jsonVals(map[string]string{"enabled": "on"})
 }
 
+// jsonVals encodes a map of strings for an hx-vals attribute. A map of strings always encodes, so Marshal cannot fail
+// here and its error is not checked.
 func jsonVals(values map[string]string) string {
-	encoded, err := json.Marshal(values)
-	if err != nil {
-		return "{}" // a map of strings always encodes; kept to never emit an invalid attribute
-	}
+	encoded, _ := json.Marshal(values)
 	return string(encoded)
 }
