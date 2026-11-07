@@ -28,7 +28,8 @@ ON CONFLICT (id) DO UPDATE SET
     on_failure = excluded.on_failure, timeout_seconds = excluded.timeout_seconds,
     command = excluded.command, args = excluded.args, env = excluded.env, use_shell = excluded.use_shell,
     prompt = excluded.prompt, runtime = excluded.runtime, model = excluded.model,
-    thinking = excluded.thinking, profile = excluded.profile;
+    thinking = excluded.thinking, profile = excluded.profile
+WHERE task_hooks.workspace_id = excluded.workspace_id;
 
 -- name: DeleteHook :execrows
 DELETE FROM task_hooks WHERE id = sqlc.arg(id);

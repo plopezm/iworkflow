@@ -55,6 +55,7 @@ func (r *ScriptRunner) Run(ctx context.Context, hook models.Hook, run models.Run
 	cmd := buildCommand(runCtx, script, args)
 	cmd.Dir = run.WorktreePath
 	cmd.Env = append(os.Environ(), environment(script, run)...)
+	ownProcessGroup(cmd)
 	cmd.WaitDelay = killGrace
 	output := &boundedBuffer{limit: maxOutput}
 	cmd.Stdout = output

@@ -132,3 +132,18 @@ func TestSkipsPerTask(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, ids)
 }
+
+func TestSaveDoesNotTouchHookOfAnotherWorkspace(t *testing.T) {
+	repo, _ := setup(t)
+	ctx := context.Background()
+	original := hook(t, "a", "w1", models.EventTaskStart, models.PhasePre)
+	require.NoError(t, repo.Save(ctx, original))
+
+	intruder := hook(t, "a", "w2", models.EventTaskFinish, models.PhasePost)
+	require.NoError(t, repo.Save(ctx, intruder))
+
+	got, err := repo.Get(ctx, "a")
+	require.NoError(t, err)
+	assert.Equal(t, "w1", got.WorkspaceID())
+	assert.Equal(t, models.EventTaskStart, got.Event())
+}

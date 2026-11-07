@@ -242,6 +242,7 @@ ON CONFLICT (id) DO UPDATE SET
     command = excluded.command, args = excluded.args, env = excluded.env, use_shell = excluded.use_shell,
     prompt = excluded.prompt, runtime = excluded.runtime, model = excluded.model,
     thinking = excluded.thinking, profile = excluded.profile
+WHERE task_hooks.workspace_id = excluded.workspace_id
 `
 
 type UpsertHookParams struct {
