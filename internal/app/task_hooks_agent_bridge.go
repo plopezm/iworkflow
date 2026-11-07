@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	agentsettingsmodels "iworkflow/internal/modules/agent_settings/domain/models"
 	hookerrors "iworkflow/internal/modules/task_hooks/domain/errors"
@@ -16,11 +17,16 @@ import (
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
 
+// agentStopTimeout bounds the stop of a hook session. The stop is not cut short by the session context, but an agent
+// that never exits must not hold the task forever.
+const agentStopTimeout = 20 * time.Second
+
 // taskHooksAgentSession runs an agent hook as an ephemeral session of the agent runtime. The session gets its own
 // id, so it never has a task row or a node in the task graph, and it is stopped before Run returns.
 type taskHooksAgentSession struct {
-	settings tasksoutbound.LaunchSettings
-	runtime  tasksoutbound.AgentRuntime
+	settings    tasksoutbound.LaunchSettings
+	runtime     tasksoutbound.AgentRuntime
+	stopTimeout time.Duration
 }
 
 var _ hooksoutbound.AgentSession = (*taskHooksAgentSession)(nil)
@@ -29,7 +35,7 @@ var _ hooksoutbound.AgentSession = (*taskHooksAgentSession)(nil)
 // tasks module already uses (the launch settings and the agent runtime router), so a hook session launches with the
 // same settings and adapters as a task. The composition root passes them; this constructor is not wired into app.go.
 func NewTaskHooksAgentSession(settings tasksoutbound.LaunchSettings, runtime tasksoutbound.AgentRuntime) hooksoutbound.AgentSession {
-	return &taskHooksAgentSession{settings: settings, runtime: runtime}
+	return &taskHooksAgentSession{settings: settings, runtime: runtime, stopTimeout: agentStopTimeout}
 }
 
 // Run starts the session in the directory, sends the prompt and waits until the turn settles, the process exits or
@@ -54,8 +60,10 @@ func (s *taskHooksAgentSession) Run(ctx context.Context, request hooksoutbound.A
 	}
 	defer func() {
 		// Stop runs even when ctx ended the session: the process must not outlive the hook. The stop is not cut short
-		// by ctx, so the agent gets its graceful exit window.
-		if stopErr := s.runtime.Stop(context.WithoutCancel(ctx), sessionID); stopErr != nil {
+		// by ctx, so the agent gets its graceful exit window, but never more than stopTimeout.
+		stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.stopTimeout)
+		defer cancel()
+		if stopErr := s.runtime.Stop(stopCtx, sessionID); stopErr != nil {
 			err = errors.Join(err, fmt.Errorf("stop the agent: %w", stopErr))
 		}
 	}()

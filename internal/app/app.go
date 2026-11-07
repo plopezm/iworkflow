@@ -41,6 +41,8 @@ import (
 	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
 	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
+	taskhookssystem "iworkflow/internal/modules/task_hooks/infrastructure/adapters/outbound/system"
+	taskhooksdi "iworkflow/internal/modules/task_hooks/infrastructure/di"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
 	taskscomponents "iworkflow/internal/modules/tasks/presentation/components"
@@ -77,6 +79,7 @@ type App struct {
 	transcription *transcriptiondi.Module
 	terminal      *terminaldi.Module
 	tasks         *tasksdi.Module
+	taskHooks     *taskhooksdi.Module
 	loops         *taskLoops
 	modules       []web.Module
 	dock          *dock.Handlers
@@ -162,6 +165,21 @@ func New(deps Deps) (*App, error) {
 	}
 	workspaceTasks.deleteAll = tasks.DeleteWorkspace
 
+	// The task hooks run around the start and the finish of the task, through the lifecycle port of the tasks use
+	// cases. Their agent sessions need the agent runtime of the tasks module, which that module does not expose yet, so
+	// an agent hook records an error until it does; script hooks are not affected.
+	taskHooks := taskhooksdi.NewModule(taskhooksdi.Deps{DB: deps.DB, Clock: taskhookssystem.NewClock()})
+	tasks.Start.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
+	tasks.Finish.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
+	// A run still marked running belongs to a process that died: no hook of this process can be alive before serving.
+	closedRuns, err := taskHooks.ReconcileHookRuns.Execute(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("reconcile hook runs: %w", err)
+	}
+	if closedRuns > 0 {
+		deps.Logger.Info("hook runs left running by the last process marked as failed", "count", closedRuns)
+	}
+
 	projectTree := projecttreedi.NewModule(projecttreedi.Deps{
 		Workspaces: &workspaceRoots{get: workspaces.Get},
 		Tasks:      &taskRootLookup{get: tasks.Get},
@@ -228,6 +246,7 @@ func New(deps Deps) (*App, error) {
 		transcription: transcription,
 		terminal:      terminal,
 		tasks:         tasks,
+		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
 		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
 		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),

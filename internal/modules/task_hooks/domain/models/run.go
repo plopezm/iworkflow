@@ -58,6 +58,9 @@ const (
 	RunErrored RunStatus = "error"
 )
 
+// StaleRunOutput is the output of a run the process died during: it is closed as errored at the next start.
+const StaleRunOutput = "the server stopped before the hook finished"
+
 // HookRun is the record of one hook execution for one task, kept to show its status and log.
 type HookRun struct {
 	ID         string

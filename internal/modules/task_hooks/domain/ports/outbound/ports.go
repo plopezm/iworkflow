@@ -46,10 +46,12 @@ type AgentRunner interface {
 }
 
 // RunRepository stores the run records of the tasks. Save inserts or updates by id; ListByTask returns the
-// records of one task in start order.
+// records of one task in start order. FailStaleRunning closes every record still running, as errored at finishedAt,
+// and returns how many it closed; it is for the start of the process, when no run of this process can be alive.
 type RunRepository interface {
 	Save(ctx context.Context, run models.HookRun) error
 	ListByTask(ctx context.Context, taskID string) ([]models.HookRun, error)
+	FailStaleRunning(ctx context.Context, finishedAt time.Time) (int64, error)
 }
 
 // Clock gives the current time.

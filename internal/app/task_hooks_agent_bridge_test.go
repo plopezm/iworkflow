@@ -209,6 +209,40 @@ func TestTaskHooksAgentSessionTimesOutAndStopsTheAgent(t *testing.T) {
 	assert.NoError(t, runtime.stopCtxErr, "the stop must not be cut short by the expired context")
 }
 
+// stuckStopRuntime is an agent whose stop waits for its context. It records whether that context has a deadline; a
+// stop that is not bounded by the bridge would wait the full ten seconds.
+type stuckStopRuntime struct {
+	*sinkRuntime
+	hasDeadline bool
+}
+
+func (r *stuckStopRuntime) Stop(ctx context.Context, _ tasksmodels.TaskID) error {
+	_, r.hasDeadline = ctx.Deadline()
+	select {
+	case <-ctx.Done():
+		return ctx.Err() //nolint:wrapcheck // the test fake reports the context error as the stop failure
+	case <-time.After(10 * time.Second):
+		return nil
+	}
+}
+
+// Review advisory (d): the stop of an agent that does not exit is bounded by the bridge's own deadline, so the hook
+// cannot hold the task forever, while the stop is still not cut short by the session context.
+func TestTaskHooksAgentSessionBoundsTheStopOfAStuckAgent(t *testing.T) {
+	t.Parallel()
+	runtime := &stuckStopRuntime{sinkRuntime: &sinkRuntime{fakeHookRuntime: &fakeHookRuntime{events: []tasksmodels.AgentEvent{
+		tasksmodels.RunSettled{},
+	}}}}
+	session := &taskHooksAgentSession{settings: &fakeLaunchSettings{}, runtime: runtime, stopTimeout: 50 * time.Millisecond}
+	started := time.Now()
+
+	_, err := session.Run(context.Background(), hookRequest(t))
+
+	require.ErrorContains(t, err, "stop the agent")
+	assert.Less(t, time.Since(started), 5*time.Second, "the stop gives up at its own deadline")
+	assert.True(t, runtime.hasDeadline, "the stop runs under the bridge's own deadline")
+}
+
 func TestTaskHooksAgentSessionReportsAFailedPromptAsAFailedSession(t *testing.T) {
 	t.Parallel()
 	runtime := &sinkRuntime{fakeHookRuntime: &fakeHookRuntime{sendErr: errors.New("agent not running")}}

@@ -13,3 +13,8 @@ SELECT id, task_id, hook_id, phase, event, status, exit_code, output, started_at
 FROM task_hook_runs
 WHERE task_id = sqlc.arg(task_id)
 ORDER BY started_at ASC, rowid ASC;
+
+-- name: FailStaleRunning :execrows
+UPDATE task_hook_runs
+SET status = 'error', output = sqlc.arg(output), finished_at = sqlc.arg(finished_at)
+WHERE status = 'running';

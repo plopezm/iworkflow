@@ -9,6 +9,25 @@ import (
 	"context"
 )
 
+const failStaleRunning = `-- name: FailStaleRunning :execrows
+UPDATE task_hook_runs
+SET status = 'error', output = ?1, finished_at = ?2
+WHERE status = 'running'
+`
+
+type FailStaleRunningParams struct {
+	Output     string
+	FinishedAt string
+}
+
+func (q *Queries) FailStaleRunning(ctx context.Context, arg FailStaleRunningParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failStaleRunning, arg.Output, arg.FinishedAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const listHookRunsByTask = `-- name: ListHookRunsByTask :many
 SELECT id, task_id, hook_id, phase, event, status, exit_code, output, started_at, finished_at
 FROM task_hook_runs

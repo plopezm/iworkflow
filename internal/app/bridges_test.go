@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +20,8 @@ import (
 	"iworkflow/internal/core/listen"
 	"iworkflow/internal/core/restart"
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
+	hooksapp "iworkflow/internal/modules/task_hooks/application"
+	hooksmodels "iworkflow/internal/modules/task_hooks/domain/models"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
@@ -43,8 +47,14 @@ func newWorkspaces(t *testing.T) *workspacesdi.Module {
 // real tasks module. No agent is started.
 func composeWithTasks(t *testing.T) *App {
 	t.Helper()
+	return composeOn(t, dbtest.New(t))
+}
+
+// composeOn composes the whole server over the database, so a test can seed rows before the composition.
+func composeOn(t *testing.T, db *sql.DB) *App {
+	t.Helper()
 	application, err := New(Deps{
-		DB:        dbtest.New(t),
+		DB:        db,
 		Config:    NewTestConfig(t),
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		StaticDir: t.TempDir(),
@@ -327,4 +337,56 @@ func TestTaskFileSearchWorkspaceFilesWithInvalidOrEmptyUUIDReturnsNil(t *testing
 	files, err = bridge.WorkspaceFiles(context.Background(), "invalid-uuid", "a")
 	require.NoError(t, err)
 	assert.Empty(t, files)
+}
+
+// A blocking pre hook stops the start through the real hooks module: the script runs in the worktree, the task ends
+// failed with the hook named, and the run record is kept for the status strip of the task.
+func TestStartTaskRunsABlockingPreHookThroughTheRealHooks(t *testing.T) {
+	ctx := context.Background()
+	application := composeWithTasks(t)
+	workspace := registerRepository(t, application)
+	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
+		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePre, Event: hooksmodels.EventTaskStart,
+		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureBlock,
+		Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"},
+	})
+	require.NoError(t, err)
+	task := createTask(t, application, workspace)
+
+	started, err := application.tasks.Start.Execute(ctx, task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, tasksmodels.StatusFailed, started.Status)
+	require.NotNil(t, started.Error)
+	assert.Contains(t, *started.Error, "un hook previo al inicio falló")
+	assert.Contains(t, *started.Error, "a hook blocked the action")
+	states, err := application.taskHooks.ListTaskHookState.Execute(ctx, workspace.ID.String(), task.ID.String())
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	require.NotNil(t, states[0].LastRun)
+	assert.Equal(t, hooksmodels.RunFailed, states[0].LastRun.Status)
+}
+
+// Review advisory (g): a run left running by a process that died is closed as an error when the server composes,
+// before it serves, so the status strip never shows it as running forever.
+func TestComposeClosesRunsLeftRunningByAPreviousProcess(t *testing.T) {
+	db := dbtest.New(t)
+	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES ('w1', 'one', '/tmp/one', 'main', '2026-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO tasks (id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, created_at, updated_at)
+		VALUES ('t1', 'w1', 't', 'p', 'b', 'main', '/tmp/wt', 'backlog', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO task_hooks (id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds)
+		VALUES ('h1', 'w1', 'pre', 'task_start', 'script', 1, 1, 'warn', 30)`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO task_hook_runs (id, task_id, hook_id, phase, event, status, exit_code, output, started_at, finished_at)
+		VALUES ('orphan', 't1', 'h1', 'pre', 'task_start', 'running', 0, '', '2026-01-01T00:00:00.000000000Z', '')`)
+	require.NoError(t, err)
+
+	composeOn(t, db)
+
+	var status, output string
+	require.NoError(t, db.QueryRow(`SELECT status, output FROM task_hook_runs WHERE id = 'orphan'`).Scan(&status, &output))
+	assert.Equal(t, "error", status)
+	assert.Equal(t, hooksmodels.StaleRunOutput, output)
 }
