@@ -30,3 +30,10 @@ type SkipRepository interface {
 type IDGenerator interface {
 	NewID() string
 }
+
+// ScriptRunner runs a script hook in the worktree of a task and waits for it, bounded by the hook timeout.
+// A script that exits non-zero or exceeds the timeout is a RunOutcome, not an error; the error is only for
+// problems that stop the run from being attempted (bad template, missing directory).
+type ScriptRunner interface {
+	Run(ctx context.Context, hook models.Hook, run models.RunContext) (models.RunOutcome, error)
+}

@@ -12,3 +12,6 @@ var (
 	// ErrRepository means the storage failed.
 	ErrRepository = errors.New("hook storage failed")
 )
+
+// ErrRunNotStarted means a hook could not even be attempted (bad template, missing directory, no executable).
+var ErrRunNotStarted = errors.New("could not start the hook")
