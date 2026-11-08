@@ -68,6 +68,9 @@ templ workspaceMenu(workspaceID string) {
 	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID + "/hooks", Class: "menu-item"}) {
 		{ msgHooksMenu.T(ctx) }
 	}
+	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID + "/hooks/new", Class: "menu-item"}) {
+		{ msgAddHookMenu.T(ctx) }
+	}
 	@link.Tab(link.Props{Href: "/workspaces", Class: "menu-item"}) {
 		{ msgManageWorkspaces.T(ctx) }
 	}

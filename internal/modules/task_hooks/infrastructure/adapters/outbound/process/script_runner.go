@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -39,9 +40,10 @@ func (r *ScriptRunner) Run(ctx context.Context, hook models.Hook, run models.Run
 	if script.Command == "" {
 		return models.RunOutcome{}, fmt.Errorf("%w: hook %s has no command", hookerrors.ErrRunNotStarted, hook.ID())
 	}
-	info, err := os.Stat(run.WorktreePath)
+	dir := workingDir(script, run)
+	info, err := os.Stat(dir)
 	if err != nil || !info.IsDir() {
-		return models.RunOutcome{}, fmt.Errorf("%w: the directory %s does not exist", hookerrors.ErrRunNotStarted, run.WorktreePath)
+		return models.RunOutcome{}, fmt.Errorf("%w: the directory %s does not exist", hookerrors.ErrRunNotStarted, dir)
 	}
 	args, err := expandArgs(script.Args, run)
 	if err != nil {
@@ -51,7 +53,7 @@ func (r *ScriptRunner) Run(ctx context.Context, hook models.Hook, run models.Run
 	runCtx, cancel := context.WithTimeout(ctx, hook.Timeout())
 	defer cancel()
 	cmd := buildCommand(runCtx, script, args)
-	cmd.Dir = run.WorktreePath
+	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), environment(script, run)...)
 	ownProcessGroup(cmd)
 	cmd.WaitDelay = killGrace
@@ -74,6 +76,18 @@ func (r *ScriptRunner) Run(ctx context.Context, hook models.Hook, run models.Run
 		return models.RunOutcome{}, fmt.Errorf("%w: %w", hookerrors.ErrRunNotStarted, err)
 	}
 	return outcome, nil
+}
+
+// workingDir is the directory of the run: the one the hook names (relative to the worktree) or the worktree.
+func workingDir(script models.ScriptSpec, run models.RunContext) string {
+	switch {
+	case script.WorkingDir == "":
+		return run.WorktreePath
+	case filepath.IsAbs(script.WorkingDir):
+		return script.WorkingDir
+	default:
+		return filepath.Join(run.WorktreePath, script.WorkingDir)
+	}
 }
 
 // buildCommand runs the command directly, or through sh -c with the arguments as positional parameters (so

@@ -36,7 +36,7 @@ func (q *Queries) DeleteHookSkip(ctx context.Context, arg DeleteHookSkipParams) 
 }
 
 const getHook = `-- name: GetHook :one
-SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile FROM task_hooks WHERE id = ?1
+SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile, working_dir FROM task_hooks WHERE id = ?1
 `
 
 func (q *Queries) GetHook(ctx context.Context, id string) (TaskHook, error) {
@@ -61,6 +61,7 @@ func (q *Queries) GetHook(ctx context.Context, id string) (TaskHook, error) {
 		&i.Model,
 		&i.Thinking,
 		&i.Profile,
+		&i.WorkingDir,
 	)
 	return i, err
 }
@@ -107,7 +108,7 @@ func (q *Queries) ListHookSkips(ctx context.Context, taskID string) ([]string, e
 }
 
 const listHooksFor = `-- name: ListHooksFor :many
-SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile FROM task_hooks
+SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile, working_dir FROM task_hooks
 WHERE workspace_id = ?1 AND event = ?2 AND phase = ?3
 ORDER BY position ASC
 `
@@ -146,6 +147,7 @@ func (q *Queries) ListHooksFor(ctx context.Context, arg ListHooksForParams) ([]T
 			&i.Model,
 			&i.Thinking,
 			&i.Profile,
+			&i.WorkingDir,
 		); err != nil {
 			return nil, err
 		}
@@ -161,7 +163,7 @@ func (q *Queries) ListHooksFor(ctx context.Context, arg ListHooksForParams) ([]T
 }
 
 const listWorkspaceHooks = `-- name: ListWorkspaceHooks :many
-SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile FROM task_hooks
+SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile, working_dir FROM task_hooks
 WHERE workspace_id = ?1
 ORDER BY position ASC
 `
@@ -194,6 +196,7 @@ func (q *Queries) ListWorkspaceHooks(ctx context.Context, workspaceID string) ([
 			&i.Model,
 			&i.Thinking,
 			&i.Profile,
+			&i.WorkingDir,
 		); err != nil {
 			return nil, err
 		}
@@ -227,19 +230,20 @@ func (q *Queries) SetHookPosition(ctx context.Context, arg SetHookPositionParams
 const upsertHook = `-- name: UpsertHook :execrows
 INSERT INTO task_hooks (
     id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds,
-    command, args, env, use_shell, prompt, runtime, model, thinking, profile
+    command, args, env, use_shell, working_dir, prompt, runtime, model, thinking, profile
 )
 VALUES (
     ?1, ?2, ?3, ?4, ?5,
     (SELECT COALESCE(MAX(position), 0) + 1 FROM task_hooks WHERE workspace_id = ?2),
     ?6, ?7, ?8,
-    ?9, ?10, ?11, ?12,
-    ?13, ?14, ?15, ?16, ?17
+    ?9, ?10, ?11, ?12, ?13,
+    ?14, ?15, ?16, ?17, ?18
 )
 ON CONFLICT (id) DO UPDATE SET
     phase = excluded.phase, event = excluded.event, kind = excluded.kind, enabled = excluded.enabled,
     on_failure = excluded.on_failure, timeout_seconds = excluded.timeout_seconds,
     command = excluded.command, args = excluded.args, env = excluded.env, use_shell = excluded.use_shell,
+    working_dir = excluded.working_dir,
     prompt = excluded.prompt, runtime = excluded.runtime, model = excluded.model,
     thinking = excluded.thinking, profile = excluded.profile
 WHERE task_hooks.workspace_id = excluded.workspace_id
@@ -258,6 +262,7 @@ type UpsertHookParams struct {
 	Args           string
 	Env            string
 	UseShell       int64
+	WorkingDir     string
 	Prompt         string
 	Runtime        string
 	Model          string
@@ -279,6 +284,7 @@ func (q *Queries) UpsertHook(ctx context.Context, arg UpsertHookParams) (int64, 
 		arg.Args,
 		arg.Env,
 		arg.UseShell,
+		arg.WorkingDir,
 		arg.Prompt,
 		arg.Runtime,
 		arg.Model,

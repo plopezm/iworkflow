@@ -54,6 +54,9 @@ type ScriptSpec struct {
 	Args     []string
 	Env      []EnvVar
 	UseShell bool
+	// WorkingDir is where the command runs. Empty means the directory of the workspace (the worktree of the task);
+	// a relative path is resolved against it.
+	WorkingDir string
 }
 
 // AgentSpec is the work of an agent hook: a natural-language prompt and an optional choice of who runs it.
@@ -150,6 +153,10 @@ func newScript(spec ScriptSpec) (ScriptSpec, error) {
 	if strings.ContainsRune(command, 0) {
 		return ScriptSpec{}, invalid("the command is not valid")
 	}
+	workingDir := strings.TrimSpace(spec.WorkingDir)
+	if strings.ContainsRune(workingDir, 0) {
+		return ScriptSpec{}, invalid("the working directory is not valid")
+	}
 	args := make([]string, 0, len(spec.Args))
 	for _, arg := range spec.Args {
 		if strings.TrimSpace(arg) != "" {
@@ -164,7 +171,7 @@ func newScript(spec ScriptSpec) (ScriptSpec, error) {
 		}
 		env = append(env, variable)
 	}
-	return ScriptSpec{Command: command, Args: args, Env: env, UseShell: spec.UseShell}, nil
+	return ScriptSpec{Command: command, Args: args, Env: env, UseShell: spec.UseShell, WorkingDir: workingDir}, nil
 }
 
 func invalid(message string) error {

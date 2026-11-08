@@ -8,7 +8,7 @@ import (
 // Panel is the Hooks tab of a workspace. It replaces its own host, so every action answers it again with the
 // refreshed hooks and the outcome of the action. Every value is escaped by templ, the output of a test included.
 templ Panel(view state.View) {
-	<section id={ state.HostID(view.WorkspaceID) } class="stack gap-4 p-4" data-workspace-hooks>
+	<section id={ state.HostID(view.WorkspaceID) } class="stack h-full min-h-0 gap-4 overflow-y-auto p-4" data-workspace-hooks>
 		<p class="muted text-sm">{ msgIntro.T(ctx) }</p>
 		if view.Notice != state.NoticeNone {
 			@ui.Badge(noticeText(ctx, view.Notice), "ok")
@@ -153,7 +153,7 @@ templ editor(view state.View) {
 		if view.Editor.Kind == kindAgent {
 			@agentFields(view.Editor)
 		} else {
-			@scriptFields(view.Editor)
+			@scriptFields(view)
 		}
 		<div class="row gap-2">
 			<button type="submit" class="btn-primary">{ msgSave.T(ctx) }</button>
@@ -188,14 +188,83 @@ templ kindSwitch(view state.View) {
 	</div>
 }
 
-templ scriptFields(form *state.HookForm) {
-	@ui.TextField(ui.FieldProps{Label: msgCommand.T(ctx), Name: "command", Value: form.Command, Placeholder: msgCommandHint.T(ctx)})
-	@ui.TextArea(ui.FieldProps{Label: msgArgs.T(ctx), Name: "args", Value: form.Args})
-	@ui.TextArea(ui.FieldProps{Label: msgEnv.T(ctx), Name: "env", Value: form.Env})
+templ scriptFields(view state.View) {
+	@pathField(view, pathFieldProps{ID: "hook-command", Name: "command", Label: msgCommand.T(ctx), Value: view.Editor.Command, Placeholder: msgCommandHint.T(ctx)})
+	@ui.TextArea(ui.FieldProps{Label: msgArgs.T(ctx), Name: "args", Value: view.Editor.Args})
+	@ui.TextArea(ui.FieldProps{Label: msgEnv.T(ctx), Name: "env", Value: view.Editor.Env})
+	@pathField(view, pathFieldProps{ID: "hook-working-dir", Name: "working_dir", Label: msgWorkingDir.T(ctx), Value: view.Editor.WorkingDir, Placeholder: msgWorkingDirHint.T(ctx), Hint: msgWorkingDirNote.T(ctx)})
 	<label class="row gap-2">
-		<input type="checkbox" name="use_shell" value="on" checked?={ form.UseShell }/>
+		<input type="checkbox" name="use_shell" value="on" checked?={ view.Editor.UseShell }/>
 		<span class="text-sm">{ msgUseShell.T(ctx) }</span>
 	</label>
+}
+
+// pathFieldProps describes a text field that can also be filled from the browser. Name is the form field and the
+// field the browser fills.
+type pathFieldProps struct {
+	ID          string
+	Name        string
+	Label       string
+	Value       string
+	Placeholder string
+	Hint        string
+}
+
+// pathField is a text field with a button that opens the browser under it. The user can type the path or pick it.
+templ pathField(view state.View, props pathFieldProps) {
+	<div class="stack gap-1.5">
+		<label for={ props.ID } class="text-sm font-medium text-fg">{ props.Label }</label>
+		<div class="row gap-2">
+			<input id={ props.ID } type="text" name={ props.Name } class="input min-w-0 flex-1" value={ props.Value } placeholder={ props.Placeholder }/>
+			<button
+				type="button"
+				class="btn-secondary shrink-0"
+				hx-get={ state.EditorPath(view.WorkspaceID, nil) }
+				hx-vals={ browseVals(props.Name, "", "") }
+				hx-include="closest form"
+				hx-target={ "#" + state.HostID(view.WorkspaceID) }
+				hx-swap="outerHTML"
+			>{ msgBrowse.T(ctx) }</button>
+		</div>
+		if props.Hint != "" {
+			<span class="text-[11px] text-muted">{ props.Hint }</span>
+		}
+		if view.Browser != nil && view.Browser.Field == props.Name {
+			@browser(view)
+		}
+	</div>
+}
+
+// browser lists one folder. A folder opens it, a file chooses it (only for the command), and a folder-only browser has
+// a button to choose the folder being shown. Every button loads the editor again with the form as it was left.
+templ browser(view state.View) {
+	<div class="stack gap-2 rounded-lg border border-border/60 p-2" data-hook-browser={ view.Browser.Field }>
+		<code class="text-[11px] text-muted break-all">{ view.Browser.Path }</code>
+		<div class="row gap-2 flex-wrap">
+			<button type="button" class="btn-ghost" disabled?={ view.Browser.Parent == "" } hx-get={ state.EditorPath(view.WorkspaceID, nil) } hx-vals={ browseVals(view.Browser.Field, view.Browser.Parent, "") } hx-include="closest form" hx-target={ "#" + state.HostID(view.WorkspaceID) } hx-swap="outerHTML">{ msgUp.T(ctx) }</button>
+			if !view.Browser.Files {
+				<button type="button" class="btn-primary" hx-get={ state.EditorPath(view.WorkspaceID, nil) } hx-vals={ browseVals(view.Browser.Field, "", view.Browser.Path) } hx-include="closest form" hx-target={ "#" + state.HostID(view.WorkspaceID) } hx-swap="outerHTML">{ msgUseFolder.T(ctx) }</button>
+			}
+			<button type="button" class="btn-ghost" hx-get={ state.EditorPath(view.WorkspaceID, nil) } hx-vals={ closeVals() } hx-include="closest form" hx-target={ "#" + state.HostID(view.WorkspaceID) } hx-swap="outerHTML">{ msgCloseBrowser.T(ctx) }</button>
+		</div>
+		if view.Browser.Error != "" {
+			@ui.ErrorText(view.Browser.Error)
+		}
+		<ul class="stack max-h-60 gap-1 overflow-y-auto">
+			if len(view.Browser.Entries) == 0 && view.Browser.Error == "" {
+				<li class="muted px-2 py-1 text-sm">{ msgBrowserEmpty.T(ctx) }</li>
+			}
+			for _, entry := range view.Browser.Entries {
+				<li>
+					if entry.IsDir {
+						<button type="button" class="btn-ghost row w-full justify-start gap-2 px-2 py-1" hx-get={ state.EditorPath(view.WorkspaceID, nil) } hx-vals={ browseVals(view.Browser.Field, entry.Path, "") } hx-include="closest form" hx-target={ "#" + state.HostID(view.WorkspaceID) } hx-swap="outerHTML">📁 { entry.Name }</button>
+					} else {
+						<button type="button" class="btn-ghost row w-full justify-start gap-2 px-2 py-1" hx-get={ state.EditorPath(view.WorkspaceID, nil) } hx-vals={ browseVals(view.Browser.Field, "", entry.Path) } hx-include="closest form" hx-target={ "#" + state.HostID(view.WorkspaceID) } hx-swap="outerHTML">📄 { entry.Name }</button>
+					}
+				</li>
+			}
+		</ul>
+	</div>
 }
 
 templ agentFields(form *state.HookForm) {

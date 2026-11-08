@@ -137,7 +137,7 @@ func formFromHook(hook models.Hook) state.HookForm {
 		ID: hook.ID(), Event: string(hook.Event()), Phase: string(hook.Phase()), Kind: string(hook.Kind()),
 		Enabled: hook.Enabled(), OnFailure: string(hook.OnFailure()),
 		Timeout: strconv.Itoa(int(hook.Timeout() / time.Second)),
-		Command: spec.Command, Args: strings.Join(spec.Args, "\n"), Env: envText(spec.Env), UseShell: spec.UseShell,
+		Command: spec.Command, Args: strings.Join(spec.Args, "\n"), Env: envText(spec.Env), UseShell: spec.UseShell, WorkingDir: spec.WorkingDir,
 		Prompt: agent.Prompt, Runtime: agent.Runtime, Model: agent.Model, Thinking: agent.Thinking, Profile: agent.Profile,
 	}
 }
@@ -148,7 +148,7 @@ func formFromValues(values url.Values) state.HookForm {
 		ID: strings.TrimSpace(values.Get(dto.FieldID)), Event: values.Get(dto.FieldEvent), Phase: values.Get(dto.FieldPhase),
 		Kind: values.Get(dto.FieldKind), Enabled: values.Has(dto.FieldEnabled), OnFailure: values.Get(dto.FieldOnFailure),
 		Timeout: values.Get(dto.FieldTimeout), Command: values.Get(dto.FieldCommand), Args: values.Get(dto.FieldArgs),
-		Env: values.Get(dto.FieldEnv), UseShell: values.Has(dto.FieldUseShell), Prompt: values.Get(dto.FieldPrompt),
+		Env: values.Get(dto.FieldEnv), UseShell: values.Has(dto.FieldUseShell), WorkingDir: values.Get(dto.FieldWorkingDir), Prompt: values.Get(dto.FieldPrompt),
 		Runtime: values.Get(dto.FieldRuntime), Model: values.Get(dto.FieldModel), Thinking: values.Get(dto.FieldThinking),
 		Profile: values.Get(dto.FieldProfile),
 	}

@@ -15,22 +15,23 @@ import (
 
 // Form field names of the hook editor. Checkboxes are present in the form only when checked.
 const (
-	FieldID        = "id"
-	FieldEvent     = "event"
-	FieldPhase     = "phase"
-	FieldKind      = "kind"
-	FieldEnabled   = "enabled"
-	FieldOnFailure = "on_failure"
-	FieldTimeout   = "timeout"
-	FieldCommand   = "command"
-	FieldArgs      = "args"
-	FieldEnv       = "env"
-	FieldUseShell  = "use_shell"
-	FieldPrompt    = "prompt"
-	FieldRuntime   = "runtime"
-	FieldModel     = "model"
-	FieldThinking  = "thinking"
-	FieldProfile   = "profile"
+	FieldID         = "id"
+	FieldEvent      = "event"
+	FieldPhase      = "phase"
+	FieldKind       = "kind"
+	FieldEnabled    = "enabled"
+	FieldOnFailure  = "on_failure"
+	FieldTimeout    = "timeout"
+	FieldCommand    = "command"
+	FieldArgs       = "args"
+	FieldEnv        = "env"
+	FieldUseShell   = "use_shell"
+	FieldWorkingDir = "working_dir"
+	FieldPrompt     = "prompt"
+	FieldRuntime    = "runtime"
+	FieldModel      = "model"
+	FieldThinking   = "thinking"
+	FieldProfile    = "profile"
 	// FieldOrder carries the whole order of the workspace hooks as comma-separated ids.
 	FieldOrder = "order"
 )
@@ -57,10 +58,11 @@ func SaveHookFromForm(form url.Values, workspaceID string) (application.SaveHook
 		OnFailure:   models.FailurePolicy(form.Get(FieldOnFailure)),
 		Timeout:     timeout,
 		Script: models.ScriptSpec{
-			Command:  form.Get(FieldCommand),
-			Args:     lines(form.Get(FieldArgs)),
-			Env:      env,
-			UseShell: form.Has(FieldUseShell),
+			Command:    form.Get(FieldCommand),
+			Args:       lines(form.Get(FieldArgs)),
+			Env:        env,
+			UseShell:   form.Has(FieldUseShell),
+			WorkingDir: form.Get(FieldWorkingDir),
 		},
 		Agent: models.AgentSpec{
 			Prompt:   form.Get(FieldPrompt),

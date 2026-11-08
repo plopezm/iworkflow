@@ -14,19 +14,20 @@ SELECT * FROM task_hooks WHERE id = sqlc.arg(id);
 -- name: UpsertHook :execrows
 INSERT INTO task_hooks (
     id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds,
-    command, args, env, use_shell, prompt, runtime, model, thinking, profile
+    command, args, env, use_shell, working_dir, prompt, runtime, model, thinking, profile
 )
 VALUES (
     sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(phase), sqlc.arg(event), sqlc.arg(kind),
     (SELECT COALESCE(MAX(position), 0) + 1 FROM task_hooks WHERE workspace_id = sqlc.arg(workspace_id)),
     sqlc.arg(enabled), sqlc.arg(on_failure), sqlc.arg(timeout_seconds),
-    sqlc.arg(command), sqlc.arg(args), sqlc.arg(env), sqlc.arg(use_shell),
+    sqlc.arg(command), sqlc.arg(args), sqlc.arg(env), sqlc.arg(use_shell), sqlc.arg(working_dir),
     sqlc.arg(prompt), sqlc.arg(runtime), sqlc.arg(model), sqlc.arg(thinking), sqlc.arg(profile)
 )
 ON CONFLICT (id) DO UPDATE SET
     phase = excluded.phase, event = excluded.event, kind = excluded.kind, enabled = excluded.enabled,
     on_failure = excluded.on_failure, timeout_seconds = excluded.timeout_seconds,
     command = excluded.command, args = excluded.args, env = excluded.env, use_shell = excluded.use_shell,
+    working_dir = excluded.working_dir,
     prompt = excluded.prompt, runtime = excluded.runtime, model = excluded.model,
     thinking = excluded.thinking, profile = excluded.profile
 WHERE task_hooks.workspace_id = excluded.workspace_id;

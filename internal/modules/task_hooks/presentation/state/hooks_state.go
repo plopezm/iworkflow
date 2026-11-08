@@ -66,22 +66,52 @@ type EventSection struct {
 // HookForm is what the editor shows. An empty ID means a new hook. The values are kept as typed, so a rejected form
 // is shown again with the same content.
 type HookForm struct {
-	ID        string
-	Event     string
-	Phase     string
-	Kind      string
-	Enabled   bool
-	OnFailure string
-	Timeout   string
-	Command   string
-	Args      string
-	Env       string
-	UseShell  bool
-	Prompt    string
-	Runtime   string
-	Model     string
-	Thinking  string
-	Profile   string
+	ID         string
+	Event      string
+	Phase      string
+	Kind       string
+	Enabled    bool
+	OnFailure  string
+	Timeout    string
+	Command    string
+	Args       string
+	Env        string
+	UseShell   bool
+	WorkingDir string
+	Prompt     string
+	Runtime    string
+	Model      string
+	Thinking   string
+	Profile    string
+}
+
+// Query fields of the file and folder browser of the editor. The browser is the editor loaded again with them, so the
+// form keeps what was typed.
+const (
+	// BrowseField names the field the browser fills: the command or the working directory. Present while it is open.
+	BrowseField = "browse"
+	// BrowsePathField is the folder the browser lists.
+	BrowsePathField = "browse_path"
+	// PickField is the chosen path; the editor is then loaded with it in the field named by BrowseField.
+	PickField = "pick"
+)
+
+// BrowserEntry is one file or folder shown in the browser.
+type BrowserEntry struct {
+	Name  string
+	Path  string
+	IsDir bool
+}
+
+// Browser is the open file and folder picker of the editor. Files is true when a file can be chosen (the command),
+// false when only a folder can (the working directory).
+type Browser struct {
+	Field   string
+	Path    string
+	Parent  string
+	Files   bool
+	Entries []BrowserEntry
+	Error   string
 }
 
 // View is the whole tab: the sections, the editor when it is open and the outcome of the last action.
@@ -89,6 +119,7 @@ type View struct {
 	WorkspaceID string
 	Sections    []EventSection
 	Editor      *HookForm
+	Browser     *Browser
 	Notice      Notice
 	Failure     string
 }

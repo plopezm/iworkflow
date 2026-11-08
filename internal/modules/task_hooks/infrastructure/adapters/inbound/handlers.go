@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"path/filepath"
 
 	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
@@ -33,6 +35,7 @@ type UseCases struct {
 	Reorder    *application.ReorderHooks
 	SetEnabled *application.SetHookEnabled
 	Test       *application.TestHook
+	Browse     *application.BrowsePath
 }
 
 // Handlers serves the Hooks tab and its actions.
@@ -67,6 +70,12 @@ func (h *Handlers) Tab(ctx context.Context, params dock.Params) templ.Component 
 	return hookcomponents.Panel(h.load(ctx, params["id"], state.View{}, nil))
 }
 
+// NewTab renders the Hooks tab of the workspace with the editor of a new hook already open.
+func (h *Handlers) NewTab(ctx context.Context, params dock.Params) templ.Component {
+	form := defaultForm("", "")
+	return hookcomponents.Panel(h.load(ctx, params["id"], state.View{Editor: &form}, nil))
+}
+
 func (h *Handlers) panel(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, h.load(r.Context(), chi.URLParam(r, "id"), state.View{}, nil))
 }
@@ -82,7 +91,7 @@ func (h *Handlers) editor(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case query.Has(dto.FieldKind):
 		form := formFromValues(query)
-		view = h.load(ctx, workspaceID, state.View{Editor: &form}, nil)
+		view = h.load(ctx, workspaceID, state.View{Editor: &form, Browser: h.browser(ctx, workspaceID, &form, query)}, nil)
 	case query.Get("hook") != "":
 		hook, err := h.findHook(ctx, workspaceID, query.Get("hook"))
 		if err != nil {
@@ -96,6 +105,46 @@ func (h *Handlers) editor(w http.ResponseWriter, r *http.Request) {
 		view = h.load(ctx, workspaceID, state.View{Editor: &form}, nil)
 	}
 	h.render(w, r, view)
+}
+
+// browser applies a chosen path to the field being browsed, or lists the folder to show. It is nil when the request
+// does not browse. A folder that cannot be listed is shown as the error of the browser, not of the tab.
+func (h *Handlers) browser(ctx context.Context, workspaceID string, form *state.HookForm, query url.Values) *state.Browser {
+	field := query.Get(state.BrowseField)
+	var current *string
+	switch field {
+	case dto.FieldCommand:
+		current = &form.Command
+	case dto.FieldWorkingDir:
+		current = &form.WorkingDir
+	default:
+		return nil
+	}
+	if pick := query.Get(state.PickField); pick != "" {
+		*current = pick
+		return nil
+	}
+	start := query.Get(state.BrowsePathField)
+	if start == "" && field == dto.FieldCommand && *current != "" {
+		start = filepath.Dir(*current)
+	}
+	if start == "" && field == dto.FieldWorkingDir {
+		start = *current
+	}
+	browser := &state.Browser{Field: field, Files: field == dto.FieldCommand}
+	listing, err := h.uc.Browse.Execute(ctx, application.BrowsePathInput{WorkspaceID: workspaceID, Path: start})
+	if err != nil {
+		browser.Path = start
+		browser.Error = err.Error()
+		return browser
+	}
+	browser.Path, browser.Parent = listing.Path, listing.Parent
+	for _, entry := range listing.Entries {
+		if entry.IsDir || browser.Files {
+			browser.Entries = append(browser.Entries, state.BrowserEntry{Name: entry.Name, Path: entry.Path, IsDir: entry.IsDir})
+		}
+	}
+	return browser
 }
 
 func (h *Handlers) save(w http.ResponseWriter, r *http.Request) {

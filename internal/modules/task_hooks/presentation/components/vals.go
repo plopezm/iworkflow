@@ -26,3 +26,20 @@ func jsonVals(values map[string]string) string {
 	encoded, _ := json.Marshal(values)
 	return string(encoded)
 }
+
+// browseVals is the hx-vals of a browser button: the field it browses and the folder to list or the path to pick.
+func browseVals(field string, path string, pick string) string {
+	values := map[string]string{"browse": field}
+	if path != "" {
+		values["browse_path"] = path
+	}
+	if pick != "" {
+		values["pick"] = pick
+	}
+	return jsonVals(values)
+}
+
+// closeVals is the hx-vals that load the editor again without the browser.
+func closeVals() string {
+	return jsonVals(map[string]string{"browse": ""})
+}
