@@ -297,8 +297,47 @@ function setupCanvas(canvas) {
 		{ passive: false }
 	);
 
+	// Pinch to zoom: with two touch pointers down, the distance between them scales the viewport around their
+	// midpoint, and the midpoint movement pans it. The canvas has touch-action: none, so the browser leaves this
+	// gesture to the page.
+	const touchPointers = new Map();
+	let pinch = null;
+	const pinchMetrics = () => {
+		const [a, b] = [...touchPointers.values()];
+		const rect = canvas.getBoundingClientRect();
+		return {
+			dist: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+			mid: { x: (a.x + b.x) / 2 - rect.left, y: (a.y + b.y) / 2 - rect.top },
+		};
+	};
+	canvas.addEventListener("pointerdown", (e) => {
+		if (e.pointerType !== "touch") return;
+		touchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		if (touchPointers.size === 2) {
+			isPanning = false;
+			pinch = pinchMetrics();
+		}
+	});
+	canvas.addEventListener("pointermove", (e) => {
+		if (!touchPointers.has(e.pointerId)) return;
+		touchPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+		if (!pinch || touchPointers.size !== 2) return;
+		const next = pinchMetrics();
+		viewport = zoomViewportAt(viewport, pinch.mid, next.dist / pinch.dist);
+		viewport = panViewport(viewport, next.mid.x - pinch.mid.x, next.mid.y - pinch.mid.y);
+		updateCanvasTransform(canvas, viewport);
+		pinch = next;
+	});
+	const endTouch = (e) => {
+		touchPointers.delete(e.pointerId);
+		if (touchPointers.size < 2) pinch = null;
+	};
+	canvas.addEventListener("pointerup", endTouch);
+	canvas.addEventListener("pointercancel", endTouch);
+
 	// Pan background with pointerdown
 	canvas.addEventListener("pointerdown", (e) => {
+		if (touchPointers.size >= 2) return;
 		if (
 			e.target.closest(".task-node") ||
 			e.target.closest(".graph-node") ||
