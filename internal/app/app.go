@@ -41,6 +41,8 @@ import (
 	prefsdi "iworkflow/internal/modules/preferences/infrastructure/di"
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
 	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
+	taskhookssystem "iworkflow/internal/modules/task_hooks/infrastructure/adapters/outbound/system"
+	taskhooksdi "iworkflow/internal/modules/task_hooks/infrastructure/di"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
 	taskscomponents "iworkflow/internal/modules/tasks/presentation/components"
@@ -77,6 +79,7 @@ type App struct {
 	transcription *transcriptiondi.Module
 	terminal      *terminaldi.Module
 	tasks         *tasksdi.Module
+	taskHooks     *taskhooksdi.Module
 	loops         *taskLoops
 	modules       []web.Module
 	dock          *dock.Handlers
@@ -130,7 +133,11 @@ func New(deps Deps) (*App, error) {
 	remoteMerge := codehostingapp.NewRemoteMerge()
 	fileSearch := &taskFileSearch{}
 	panels := &taskPanels{}
+	// The hooks module needs the agent runtime of the tasks module, so the strip is created first and bound once the
+	// hooks module exists.
+	hookStrip := NewTaskHooksStrip()
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
+		HookStrip:      hookStrip,
 		DB:             deps.DB,
 		Notices:        notices,
 		Workspaces:     &taskWorkspaceLookup{get: workspaces.Get, list: workspaces.List},
@@ -161,6 +168,19 @@ func New(deps Deps) (*App, error) {
 		return nil, fmt.Errorf("compose tasks: %w", err)
 	}
 	workspaceTasks.deleteAll = tasks.DeleteWorkspace
+
+	// The task hooks run around the start and the finish of the task, through the lifecycle port of the tasks use
+	// cases. Their agent sessions launch through the agent runtime and the launch settings of the tasks module.
+	taskHooks := taskhooksdi.NewModule(taskhooksdi.Deps{
+		DB:    deps.DB,
+		Clock: taskhookssystem.NewClock(),
+		AgentSession: NewTaskHooksAgentSession(
+			&launchSettings{prepareLaunch: settings.PrepareLaunch}, tasks.AgentRuntime()),
+		Workspaces: &taskHooksWorkspaces{get: workspaces.Get},
+	})
+	hookStrip.Bind(taskHooks.ListTaskHookState, taskHooks.SetTaskHookSkipped)
+	tasks.Start.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
+	tasks.Finish.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
 
 	projectTree := projecttreedi.NewModule(projecttreedi.Deps{
 		Workspaces: &workspaceRoots{get: workspaces.Get},
@@ -207,6 +227,7 @@ func New(deps Deps) (*App, error) {
 	routes = append(routes, tasks.Tabs()...)
 	routes = append(routes, agentsFiles.Tabs()...)
 	routes = append(routes, workspaces.Tabs()...)
+	routes = append(routes, taskHooks.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
 	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
@@ -228,8 +249,9 @@ func New(deps Deps) (*App, error) {
 		transcription: transcription,
 		terminal:      terminal,
 		tasks:         tasks,
+		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
+		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
 		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
 	}, nil
 }

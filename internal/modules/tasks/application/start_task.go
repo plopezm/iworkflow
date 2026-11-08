@@ -28,6 +28,8 @@ type StartTask struct {
 	related        *PrepareRelatedLaunch
 	newUUID        UUIDGenerator
 	clock          Clock
+	// hooks are the optional lifecycle hooks around the start. Nil runs none.
+	hooks outbound.LifecycleHooks
 }
 
 var _ inbound.StartTaskUseCase = (*StartTask)(nil)
@@ -57,6 +59,11 @@ func NewStartTask(
 		newUUID:        newUUID,
 		clock:          clock,
 	}
+}
+
+// SetLifecycleHooks sets the hooks run before and after the start. Nil, the default, runs none.
+func (u *StartTask) SetLifecycleHooks(hooks outbound.LifecycleHooks) {
+	u.hooks = hooks
 }
 
 // Start implements StartTaskUseCase: the create use case and the graph trigger start tasks through it.
@@ -103,9 +110,32 @@ func (u *StartTask) Execute(ctx context.Context, id models.TaskID) (models.Task,
 		return models.Task{}, u.lifecycle.Conflict(ctx, id, "iniciar")
 	}
 	task.Branch, task.WorktreePath, task.BaseBranch = branch, worktreePath, baseBranch
+	// The claim left the task starting; the hooks see the task in that status.
+	task.Status = models.StatusStarting
 
 	if err = u.worktrees.Create(ctx, workspace.Path, task.BaseBranch, task.Branch, task.WorktreePath); err != nil {
 		return models.Task{}, u.abandonClaim(ctx, id, err)
+	}
+
+	// The pre hooks run in the worktree, before the status changes and the agent starts. A failure keeps the worktree
+	// and ends the task in failed, as a failed launch does; no agent is started.
+	preReport, preErr := runLifecycleHooks(ctx, u.hooks, models.HookRequest{
+		Event:         models.HookEventStart,
+		Phase:         models.HookPhasePre,
+		Task:          task,
+		WorkspacePath: workspace.Path,
+	})
+	logHookWarnings(id, preReport)
+	if preErr != nil {
+		message := "un hook previo al inicio falló: " + preErr.Error()
+		// The request may be cancelled mid-hook. The transition is detached from it, so the claimed task is never left
+		// in starting: a cancelled request still gets the failed task back, as any failed launch does.
+		if err = u.lifecycle.Transition(context.WithoutCancel(ctx), id, models.StatusFailed, &message); err != nil {
+			return models.Task{}, err
+		}
+		task.Status = models.StatusFailed
+		task.Error = &message
+		return task, nil
 	}
 
 	if err = u.lifecycle.NotifyStatus(ctx, id, models.StatusStarting, nil); err != nil {
@@ -122,17 +152,23 @@ func (u *StartTask) Execute(ctx context.Context, id models.TaskID) (models.Task,
 
 	if err = u.launch(ctx, task); err != nil {
 		message := err.Error()
-		if u.runtime.IsRunning(ctx, id) {
-			if stopErr := u.runtime.Stop(ctx, id); stopErr != nil {
+		// The request may be cancelled mid-launch. The cleanup is detached from it, as the pre start hook path is, so the
+		// agent is stopped and the claimed task ends in failed instead of being left in starting.
+		cleanup := context.WithoutCancel(ctx)
+		if u.runtime.IsRunning(cleanup, id) {
+			if stopErr := u.runtime.Stop(cleanup, id); stopErr != nil {
 				slog.Warn("could not stop the agent after its launch failed", "task_id", id.String(), "stop_error", stopErr)
 			}
 		}
-		if err = u.lifecycle.Transition(ctx, id, models.StatusFailed, &message); err != nil {
+		if err = u.lifecycle.Transition(cleanup, id, models.StatusFailed, &message); err != nil {
 			return models.Task{}, err
 		}
 		task.Status = models.StatusFailed
 		task.Error = &message
+		return task, nil
 	}
+	// The post hooks run only after a successful launch; the agent is running and the prompt was sent.
+	runPostLifecycleHooks(ctx, u.hooks, models.HookEventStart, task, workspace.Path)
 	return task, nil
 }
 

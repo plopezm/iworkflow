@@ -4,7 +4,10 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 
+	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
@@ -17,22 +20,73 @@ type FinishTask struct {
 	worktrees outbound.Worktree
 	runtime   outbound.AgentRuntime
 	cleanup   *AttachmentCleanup
+	// hooks are the optional lifecycle hooks around the finish. Nil runs none.
+	hooks outbound.LifecycleHooks
+
+	// mu guards inFlight. It is never held while the hooks run or the agent is stopped.
+	mu       sync.Mutex
+	inFlight map[models.TaskID]struct{}
 }
 
 // NewFinishTask builds the use case on its ports.
 func NewFinishTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runtime outbound.AgentRuntime, cleanup *AttachmentCleanup) *FinishTask {
-	return &FinishTask{lifecycle: lifecycle, worktrees: worktrees, runtime: runtime, cleanup: cleanup}
+	return &FinishTask{
+		lifecycle: lifecycle,
+		worktrees: worktrees,
+		runtime:   runtime,
+		cleanup:   cleanup,
+		inFlight:  make(map[models.TaskID]struct{}),
+	}
 }
 
-// Execute finishes the task. It fails, changing nothing, when the task is missing or its status does not allow
-// finishing. A consolidation failure is returned after the task is marked failed.
+// SetLifecycleHooks sets the hooks run before and after the finish. Nil, the default, runs none.
+func (u *FinishTask) SetLifecycleHooks(hooks outbound.LifecycleHooks) {
+	u.hooks = hooks
+}
+
+// Execute finishes the task. It fails, changing nothing, when the task is missing, its status does not allow
+// finishing, or a pre hook blocks it (the error wraps errors.ErrHookBlocked). A consolidation failure is returned
+// after the task is marked failed. The finish is the task_finish action of v1: it has no merge, which is the
+// separate MergeTask use case.
+//
+// Two finishes of one task never overlap: the second one is refused while the first is in flight, so the pre hooks
+// run once. The claim is only in memory, which is enough for the single server process. A finish that ends in a
+// blocked pre hook changes nothing, so it releases the claim with the status as it was.
 func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
+	if !u.begin(id) {
+		task, err := u.lifecycle.Load(ctx, id)
+		if err != nil {
+			return err
+		}
+		return invalidState("finalizar", task.Status)
+	}
+	defer u.end(id)
+
 	task, err := u.lifecycle.Load(ctx, id)
 	if err != nil {
 		return err
 	}
 	if !task.Status.CanFinish() {
 		return invalidState("finalizar", task.Status)
+	}
+	workspacePath, err := u.hookWorkspacePath(ctx, task)
+	if err != nil {
+		return err
+	}
+	// The pre hooks run before anything changes, so a block leaves the task as it was, and before the commit, so
+	// the edits the hooks make are committed too.
+	preReport, preErr := runLifecycleHooks(ctx, u.hooks, models.HookRequest{
+		Event:         models.HookEventFinish,
+		Phase:         models.HookPhasePre,
+		Task:          task,
+		WorkspacePath: workspacePath,
+	})
+	logHookWarnings(id, preReport)
+	if preErr != nil {
+		if !errors.Is(preErr, werrors.ErrHookBlocked) {
+			preErr = fmt.Errorf("%w: %w", werrors.ErrHookBlocked, preErr)
+		}
+		return preErr
 	}
 	if err := u.lifecycle.Transition(ctx, id, models.StatusFinishing, nil); err != nil {
 		return err
@@ -49,8 +103,40 @@ func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
 	if err := u.lifecycle.Transition(ctx, id, models.StatusAwaitingReview, nil); err != nil {
 		return err
 	}
+	// The post hooks run once the task awaits review; their failure does not fail the finish.
+	task.Status = models.StatusAwaitingReview
+	runPostLifecycleHooks(ctx, u.hooks, models.HookEventFinish, task, workspacePath)
 	u.cleanup.CleanupTask(ctx, id)
 	return nil
+}
+
+func (u *FinishTask) begin(id models.TaskID) bool {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if _, busy := u.inFlight[id]; busy {
+		return false
+	}
+	u.inFlight[id] = struct{}{}
+	return true
+}
+
+func (u *FinishTask) end(id models.TaskID) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	delete(u.inFlight, id)
+}
+
+// hookWorkspacePath returns the folder of the task's workspace for the hooks. Without hooks it returns "" and makes
+// no lookup, so the finish is unchanged when no hooks are set.
+func (u *FinishTask) hookWorkspacePath(ctx context.Context, task models.Task) (string, error) {
+	if u.hooks == nil {
+		return "", nil
+	}
+	workspace, err := u.lifecycle.Workspace(ctx, task.WorkspaceID)
+	if err != nil {
+		return "", err
+	}
+	return workspace.Path, nil
 }
 
 // consolidate stops the agent when it is still alive and commits every pending change of the worktree.

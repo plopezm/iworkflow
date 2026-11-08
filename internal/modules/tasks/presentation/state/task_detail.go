@@ -27,6 +27,9 @@ type TaskDetailView struct {
 	// MergeCleanupOnly is true when merging the task only removes its worktree, because its merge request was already
 	// merged on the provider: the merge action is then labelled as a clean up.
 	MergeCleanupOnly bool
+	// HookStrip is the status strip of the hooks of the task. It is nil when there is nothing to show: no hook of the
+	// workspace, or no hooks wired.
+	HookStrip *HookStrip
 }
 
 // branchMaxChars is the longest branch the header shows; a longer one is cut in the middle.

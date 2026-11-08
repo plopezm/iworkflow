@@ -1,0 +1,53 @@
+package components
+
+import (
+	"strconv"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// TaskHookStrip is the status strip of the hooks of a task: one row per hook with its phase, its status, its log and the
+// toggle that skips it for this task. A toggle posts and answers the whole strip, so the rows show the new state at once.
+templ TaskHookStrip(strip state.HookStrip) {
+	<section id={ state.Scoped("task-hooks", strip.Scope) } class="card stack" data-task-hooks>
+		<span class="eyebrow">{ msgTaskHooks.T(ctx) }</span>
+		if strip.Error != "" {
+			@shared.ErrorText(strip.Error)
+		}
+		for _, row := range strip.Rows {
+			@taskHookRow(strip, row)
+		}
+	</section>
+}
+
+// taskHookRow is one hook of the strip. Its log is folded, so a long output does not push the actions down.
+templ taskHookRow(strip state.HookStrip, row state.HookStripRow) {
+	<div class="stack gap-1" data-task-hook={ row.HookID }>
+		<div class="row gap-2">
+			<span class="muted">{ hookPhaseLabel(ctx, row.Phase) } · { hookEventLabel(ctx, row.Event) }</span>
+			@shared.Badge(hookKindLabel(ctx, row.Kind), "muted")
+			<span class="font-mono">{ row.Description }</span>
+			@shared.Badge(hookStatusLabel(ctx, row.Status), hookStatusVariant(row.Status))
+			if !row.Enabled {
+				<span class="muted">{ msgHookDisabled.T(ctx) }</span>
+			}
+			<form
+				hx-post={ state.ScopedPath(state.TaskPath(strip.TaskID)+"/hooks/"+row.HookID+"/skip", strip.Scope) }
+				hx-target={ "#" + state.Scoped("task-hooks", strip.Scope) }
+				hx-swap="outerHTML"
+				hx-disabled-elt="this"
+			>
+				<input type="hidden" name="skipped" value={ strconv.FormatBool(row.ToggleSkipped) }/>
+				<button type="submit" class="btn-ghost min-h-9 px-3 py-1.5 text-xs">{ hookToggleLabel(ctx, row.Skipped) }</button>
+			</form>
+		</div>
+		if row.HasRun {
+			<details>
+				<summary>{ msgHookLog.T(ctx) }</summary>
+				<pre class="rounded-lg bg-surface-2/40 p-3 text-sm">{ row.Output }</pre>
+				<span class="muted">{ row.StartedAt } · { msgHookExitCode.T(ctx) } { strconv.Itoa(row.ExitCode) }</span>
+			</details>
+		}
+	</div>
+}

@@ -56,6 +56,10 @@ const (
 	kindInvalidRelatedProject
 )
 
+// ErrHookBlocked means a lifecycle hook blocked the task action before it changed anything. The hooks adapter
+// maps its block to this sentinel; callers match it with errors.Is.
+var ErrHookBlocked = errors.New("un hook bloqueó la acción de la tarea")
+
 // Error returns the message shown to the user.
 func (e Error) Error() string {
 	switch e.kind {

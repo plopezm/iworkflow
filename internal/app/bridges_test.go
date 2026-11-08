@@ -2,13 +2,16 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"log/slog"
 	"net/netip"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -18,6 +21,10 @@ import (
 	"iworkflow/internal/core/listen"
 	"iworkflow/internal/core/restart"
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
+	hooksapp "iworkflow/internal/modules/task_hooks/application"
+	hooksmodelserrors "iworkflow/internal/modules/task_hooks/domain/errors"
+	hooksmodels "iworkflow/internal/modules/task_hooks/domain/models"
+	taskserrors "iworkflow/internal/modules/tasks/domain/errors"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
@@ -43,8 +50,14 @@ func newWorkspaces(t *testing.T) *workspacesdi.Module {
 // real tasks module. No agent is started.
 func composeWithTasks(t *testing.T) *App {
 	t.Helper()
+	return composeOn(t, dbtest.New(t))
+}
+
+// composeOn composes the whole server over the database, so a test can seed rows before the composition.
+func composeOn(t *testing.T, db *sql.DB) *App {
+	t.Helper()
 	application, err := New(Deps{
-		DB:        dbtest.New(t),
+		DB:        db,
 		Config:    NewTestConfig(t),
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		StaticDir: t.TempDir(),
@@ -327,4 +340,168 @@ func TestTaskFileSearchWorkspaceFilesWithInvalidOrEmptyUUIDReturnsNil(t *testing
 	files, err = bridge.WorkspaceFiles(context.Background(), "invalid-uuid", "a")
 	require.NoError(t, err)
 	assert.Empty(t, files)
+}
+
+// A blocking pre hook stops the start through the real hooks module: the script runs in the worktree, the task ends
+// failed with the hook named, and the run record is kept for the status strip of the task.
+func TestStartTaskRunsABlockingPreHookThroughTheRealHooks(t *testing.T) {
+	ctx := context.Background()
+	application := composeWithTasks(t)
+	workspace := registerRepository(t, application)
+	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
+		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePre, Event: hooksmodels.EventTaskStart,
+		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureBlock,
+		Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"},
+	})
+	require.NoError(t, err)
+	task := createTask(t, application, workspace)
+
+	started, err := application.tasks.Start.Execute(ctx, task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, tasksmodels.StatusFailed, started.Status)
+	require.NotNil(t, started.Error)
+	assert.Contains(t, *started.Error, "un hook previo al inicio falló")
+	assert.Contains(t, *started.Error, "a hook blocked the action")
+	states, err := application.taskHooks.ListTaskHookState.Execute(ctx, workspace.ID.String(), task.ID.String())
+	require.NoError(t, err)
+	require.Len(t, states, 1)
+	require.NotNil(t, states[0].LastRun)
+	assert.Equal(t, hooksmodels.RunFailed, states[0].LastRun.Status)
+}
+
+// idleTaskInWorktree moves a task created through the composed module to idle, the state of a task whose agent is
+// running or was stopped. Its worktree is a real git repository, so the finish can commit the changes.
+func idleTaskInWorktree(t *testing.T, application *App, task tasksmodels.Task) tasksmodels.Task {
+	t.Helper()
+	ctx := context.Background()
+	worktree := t.TempDir()
+	runGit(t, worktree, "init", "-q", "-b", "iwf/arregla-login")
+	runGit(t, worktree, "-c", "user.name=iworkflow", "-c", "user.email=iworkflow@example.com", "commit", "-q", "--allow-empty", "-m", "init")
+	repository := application.tasks.Lifecycle.Repository()
+	claimed, err := repository.ClaimForStart(ctx, task.ID, "iwf/arregla-login", worktree, "main")
+	require.NoError(t, err)
+	require.True(t, claimed)
+	require.NoError(t, repository.UpdateStatus(ctx, task.ID, tasksmodels.StatusIdle, nil))
+	idle, err := application.tasks.Get.Execute(ctx, task.ID)
+	require.NoError(t, err)
+	return idle
+}
+
+// A blocking pre finish hook stops the finish through the real hooks module: Finish returns ErrHookBlocked and the task
+// keeps its status, so nothing was stopped or committed.
+func TestFinishTaskRunsABlockingPreHookThroughTheRealHooks(t *testing.T) {
+	ctx := context.Background()
+	application := composeWithTasks(t)
+	workspace := registerRepository(t, application)
+	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
+		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePre, Event: hooksmodels.EventTaskFinish,
+		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureBlock,
+		Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"},
+	})
+	require.NoError(t, err)
+	task := idleTaskInWorktree(t, application, createTask(t, application, workspace))
+
+	err = application.tasks.Finish.Execute(ctx, task.ID)
+
+	require.ErrorIs(t, err, taskserrors.ErrHookBlocked)
+	kept, err := application.tasks.Get.Execute(ctx, task.ID)
+	require.NoError(t, err)
+	assert.Equal(t, tasksmodels.StatusIdle, kept.Status)
+}
+
+// A post finish hook runs after the task reached awaiting review: the script records the status it sees, and the finish
+// returns once the script ran.
+func TestFinishTaskRunsAPostHookAfterTheTransitionThroughTheRealHooks(t *testing.T) {
+	ctx := context.Background()
+	application := composeWithTasks(t)
+	workspace := registerRepository(t, application)
+	marker := filepath.Join(t.TempDir(), "post-finish-status")
+	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
+		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePost, Event: hooksmodels.EventTaskFinish,
+		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureWarn,
+		Timeout: time.Minute,
+		Script:  hooksmodels.ScriptSpec{Command: "sh", Args: []string{"-c", `printf '%s' "$IWF_TASK_STATUS" > "$0"`, marker}},
+	})
+	require.NoError(t, err)
+	task := idleTaskInWorktree(t, application, createTask(t, application, workspace))
+
+	require.NoError(t, application.tasks.Finish.Execute(ctx, task.ID))
+
+	finished, err := application.tasks.Get.Execute(ctx, task.ID)
+	require.NoError(t, err)
+	assert.Equal(t, tasksmodels.StatusAwaitingReview, finished.Status)
+	written, err := os.ReadFile(marker)
+	require.NoError(t, err, "the post hook ran before Finish returned")
+	assert.Equal(t, string(tasksmodels.StatusAwaitingReview), string(written), "the post hook saw the status after the transition")
+}
+
+// Review advisory (g): a run left running by a process that died is closed as an error when the application starts,
+// before it serves, so the status strip never shows it as running forever.
+func TestStartClosesRunsLeftRunningByAPreviousProcess(t *testing.T) {
+	db := dbtest.New(t)
+	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES ('w1', 'one', '/tmp/one', 'main', '2026-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO tasks (id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, created_at, updated_at)
+		VALUES ('t1', 'w1', 't', 'p', 'b', 'main', '/tmp/wt', 'backlog', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO task_hooks (id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds)
+		VALUES ('h1', 'w1', 'pre', 'task_start', 'script', 1, 1, 'warn', 30)`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO task_hook_runs (id, task_id, hook_id, phase, event, status, exit_code, output, started_at, finished_at)
+		VALUES ('orphan', 't1', 'h1', 'pre', 'task_start', 'running', 0, '', '2026-01-01T00:00:00.000000000Z', '')`)
+	require.NoError(t, err)
+
+	application := composeOn(t, db)
+	var before string
+	require.NoError(t, db.QueryRow(`SELECT status FROM task_hook_runs WHERE id = 'orphan'`).Scan(&before))
+	assert.Equal(t, "running", before, "composing alone must not touch the runs")
+
+	require.NoError(t, application.Start(context.Background()))
+	t.Cleanup(func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		assert.NoError(t, application.Shutdown(stopCtx))
+	})
+
+	var status, output string
+	require.NoError(t, db.QueryRow(`SELECT status, output FROM task_hook_runs WHERE id = 'orphan'`).Scan(&status, &output))
+	assert.Equal(t, "error", status)
+	assert.Equal(t, hooksmodels.StaleRunOutput, output)
+}
+
+// Review advisory: a hook run that cannot be reconciled is logged, it does not stop the application from starting.
+func TestStartContinuesWhenTheStaleHookRunsCannotBeReconciled(t *testing.T) {
+	db := dbtest.New(t)
+	_, err := db.Exec(`DROP TABLE task_hook_runs`)
+	require.NoError(t, err)
+
+	application := composeOn(t, db)
+	require.NoError(t, application.Start(context.Background()))
+	t.Cleanup(func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		assert.NoError(t, application.Shutdown(stopCtx))
+	})
+}
+
+// Review advisory: the composed application hands the agent hooks to the real agent session of the tasks module, not
+// to the stand-in that refuses every session. The workspace path does not exist, so the real session stops at its
+// directory check before it launches anything; the stand-in would say that no session is configured.
+func TestComposedAgentHooksReachTheRealAgentSession(t *testing.T) {
+	db := dbtest.New(t)
+	missing := filepath.Join(t.TempDir(), "gone")
+	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES ('3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c', 'one', ?, 'main', '2026-01-01T00:00:00Z')`, missing)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO task_hooks (id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, prompt)
+		VALUES ('h1', '3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c', 'pre', 'task_start', 'agent', 1, 1, 'warn', 30, 'say hello')`)
+	require.NoError(t, err)
+
+	application := composeOn(t, db)
+	_, err = application.taskHooks.TestHook.Execute(context.Background(), hooksapp.TestHookInput{WorkspaceID: "3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c", HookID: "h1"})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, hooksmodelserrors.ErrRunNotStarted)
+	assert.Contains(t, err.Error(), "does not exist")
+	assert.NotContains(t, err.Error(), "no agent session is configured")
 }

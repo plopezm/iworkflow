@@ -91,6 +91,9 @@ type Deps struct {
 	Panels httpinbound.ProjectPanels
 	// AgentCatalog queries the available agent runtimes, models, thinking levels and profiles for forms. Optional.
 	AgentCatalog outbound.AgentCatalogPort
+	// HookStrip shows the status of the task hooks in the actions tab of a task and toggles their skip for it. Optional:
+	// nil shows no strip. The composition root implements it with the task_hooks module.
+	HookStrip outbound.HookStrip
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -286,6 +289,7 @@ func NewModule(deps Deps) (*Module, error) {
 		SetRelatedProjects:  application.NewSetTaskRelatedProjects(lifecycle, relatedProjects, listRelatedProjects, probe.NewRelatedProjectProbe(), relatedRestarter),
 		ListRelatedProjects: listRelatedProjects,
 		Workspaces:          deps.Workspaces,
+		HookStrip:           deps.HookStrip,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
 		Get:     getTask,
@@ -474,6 +478,12 @@ func (m *Module) Tabs() []dock.Route {
 // shutdown, before StopAgents, so that no restart starts an agent after the agents were stopped.
 func (m *Module) CloseRestarts() {
 	m.relatedRestarter.Close()
+}
+
+// AgentRuntime is the agent runtime router the tasks launch with. The composition root hands it to features that
+// run an agent of their own (the task hooks) so that they share one process registry and one shutdown.
+func (m *Module) AgentRuntime() outbound.AgentRuntime {
+	return m.runtime
 }
 
 // StopAgents stops every live agent. Call it on shutdown, after the background loops have stopped, so that no

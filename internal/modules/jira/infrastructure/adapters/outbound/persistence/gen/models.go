@@ -146,6 +146,45 @@ type TaskEvent struct {
 	CreatedAt time.Time
 }
 
+type TaskHook struct {
+	ID             string
+	WorkspaceID    string
+	Phase          string
+	Event          string
+	Kind           string
+	Position       int64
+	Enabled        int64
+	OnFailure      string
+	TimeoutSeconds int64
+	Command        string
+	Args           string
+	Env            string
+	UseShell       int64
+	Prompt         string
+	Runtime        string
+	Model          string
+	Thinking       string
+	Profile        string
+}
+
+type TaskHookRun struct {
+	ID         string
+	TaskID     string
+	HookID     string
+	Phase      string
+	Event      string
+	Status     string
+	ExitCode   int64
+	Output     string
+	StartedAt  string
+	FinishedAt string
+}
+
+type TaskHookSkip struct {
+	TaskID string
+	HookID string
+}
+
 type TaskPosition struct {
 	TaskID string
 	X      float64
