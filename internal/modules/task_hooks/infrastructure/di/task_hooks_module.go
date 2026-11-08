@@ -43,6 +43,7 @@ type Module struct {
 	ReorderHooks       *application.ReorderHooks
 	SetHookEnabled     *application.SetHookEnabled
 	TestHook           *application.TestHook
+	BrowsePath         *application.BrowsePath
 	SetTaskHookSkipped *application.SetTaskHookSkipped
 	ListTaskHookState  *application.ListTaskHookState
 	ReconcileHookRuns  *application.ReconcileHookRuns
@@ -72,6 +73,7 @@ func NewModule(deps Deps) *Module {
 		ReorderHooks:       application.NewReorderHooks(hooks),
 		SetHookEnabled:     application.NewSetHookEnabled(hooks),
 		TestHook:           application.NewTestHook(hooks, workspaces, scripts, agentRunner),
+		BrowsePath:         application.NewBrowsePath(workspaces, system.NewPathBrowser()),
 		SetTaskHookSkipped: application.NewSetTaskHookSkipped(hooks, hooks),
 		ListTaskHookState:  application.NewListTaskHookState(hooks, hooks, runs),
 		ReconcileHookRuns:  application.NewReconcileHookRuns(runs, deps.Clock),
@@ -83,6 +85,7 @@ func NewModule(deps Deps) *Module {
 		Reorder:    module.ReorderHooks,
 		SetEnabled: module.SetHookEnabled,
 		Test:       module.TestHook,
+		Browse:     module.BrowsePath,
 	})
 	return module
 }
@@ -104,6 +107,17 @@ func (m *Module) Tabs() []dock.Route {
 			},
 			Render: func(ctx context.Context, params dock.Params) templ.Component {
 				return m.handlers.Tab(ctx, params)
+			},
+		},
+		{
+			Name:    "workspace_hooks_new",
+			Pattern: "/workspaces/{id}/hooks/new",
+			Icon:    "⚓",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return hookcomponents.TabTitle(ctx)
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return m.handlers.NewTab(ctx, params)
 			},
 		},
 	}

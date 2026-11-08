@@ -122,6 +122,19 @@ type fixedWorkspace struct{}
 
 func (fixedWorkspace) Path(context.Context, string) (string, error) { return "/work/w1", nil }
 
+// fakeBrowser lists a fixed folder and fails for a path named missing.
+type fakeBrowser struct{}
+
+func (fakeBrowser) List(_ context.Context, dir string) (models.Listing, error) {
+	if strings.HasSuffix(dir, "missing") {
+		return models.Listing{}, fmt.Errorf("list %s: no such directory", dir)
+	}
+	return models.Listing{Path: dir, Parent: "/work", Entries: []models.DirEntry{
+		{Name: "sub", Path: dir + "/sub", IsDir: true},
+		{Name: "check.sh", Path: dir + "/check.sh"},
+	}}, nil
+}
+
 type sequentialIDs struct{ n int }
 
 func (s *sequentialIDs) NewID() string { s.n++; return fmt.Sprintf("new-%d", s.n) }
@@ -145,6 +158,7 @@ func newRig(t *testing.T, stored ...models.Hook) rig {
 		Reorder:    application.NewReorderHooks(hooks),
 		SetEnabled: application.NewSetHookEnabled(hooks),
 		Test:       application.NewTestHook(hooks, fixedWorkspace{}, runner, &scripts{}),
+		Browse:     application.NewBrowsePath(fixedWorkspace{}, fakeBrowser{}),
 	})
 	r := chi.NewRouter()
 	handlers.Mount(r)
@@ -448,4 +462,66 @@ func TestTabRendersThePanelOfTheRouteWorkspace(t *testing.T) {
 
 	assert.Contains(t, out.String(), `id="workspace-hooks-w1"`)
 	assert.Contains(t, out.String(), `data-hook="h1"`)
+}
+
+// The browse button reloads the editor with the form as typed and the files and folders of the workspace folder.
+func TestEditorBrowsesFilesForTheCommandAndFoldersForTheWorkingDirectory(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+
+	command := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&command=run&browse=command"), nil).Body.String()
+	assert.Contains(t, command, `data-hook-browser="command"`)
+	assert.Contains(t, command, "📄 check.sh")
+	assert.Contains(t, command, "sub")
+	assert.Contains(t, command, `value="run"`)
+	assert.NotContains(t, command, "Use this folder")
+
+	dir := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&browse=working_dir"), nil).Body.String()
+	assert.Contains(t, dir, `data-hook-browser="working_dir"`)
+	assert.Contains(t, dir, "/work/w1")
+	assert.NotContains(t, dir, "📄 check.sh")
+	assert.Contains(t, dir, "Use this folder")
+}
+
+// Picking a path fills the browsed field and closes the browser; a folder that cannot be listed is shown in it.
+func TestEditorPickFillsTheFieldAndAnUnlistableFolderShowsItsError(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+
+	picked := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&browse=working_dir&pick=%2Fopt%2Fproj"), nil).Body.String()
+	assert.Contains(t, picked, `value="/opt/proj"`)
+	assert.NotContains(t, picked, "data-hook-browser")
+
+	failed := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&browse=command&browse_path=%2Fmissing"), nil).Body.String()
+	assert.Contains(t, failed, "no such directory")
+	assert.Contains(t, failed, "data-hook-editor")
+}
+
+// The working directory is saved with the hook and shown again when it is edited.
+func TestSaveKeepsTheWorkingDirectory(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	form := scriptForm("make")
+	form.Set(dto.FieldWorkingDir, " /opt/proj ")
+
+	do(t, r.router, http.MethodPost, panelPath(""), form)
+
+	require.Len(t, r.hooks.hooks, 1)
+	assert.Equal(t, "/opt/proj", r.hooks.hooks[0].Script().WorkingDir)
+	edit := do(t, r.router, http.MethodGet, panelPath("/editor?hook=new-1"), nil).Body.String()
+	assert.Contains(t, edit, `value="/opt/proj"`)
+}
+
+// The menu entry opens the tab with the editor of a new hook, and the tab scrolls.
+func TestNewTabOpensTheEditorAndThePanelScrolls(t *testing.T) {
+	t.Parallel()
+	r := newRig(t)
+	handlers := inbound.NewHandlers(inbound.UseCases{List: application.NewListHooks(r.hooks)})
+
+	var out strings.Builder
+	require.NoError(t, handlers.NewTab(context.Background(), dock.Params{"id": workspace}).Render(context.Background(), &out))
+
+	assert.Contains(t, out.String(), "data-hook-editor")
+	assert.Contains(t, out.String(), "overflow-y-auto")
+	assert.Contains(t, out.String(), "Browse")
 }
