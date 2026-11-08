@@ -125,20 +125,20 @@ func TestTaskHooksMigrationsDownAndUpAgain(t *testing.T) {
 		require.Equal(t, 1, tableCount(t, handle, name), "Up must create %s", name)
 	}
 
-	_, err = provider.Down(ctx)
+	// Later migrations may exist, so each step rolls back to an explicit version instead of assuming the hooks
+	// migrations are the last ones.
+	_, err = provider.DownTo(ctx, 20261107100000)
 	require.NoError(t, err)
-	require.Equal(t, 0, tableCount(t, handle, "task_hook_runs"), "the last Down must drop the run records")
+	require.Equal(t, 0, tableCount(t, handle, "task_hook_runs"), "rolling back to the hooks migration must drop the run records")
 	require.Equal(t, 1, tableCount(t, handle, "task_hooks"), "it must keep the hooks")
 
-	_, err = provider.Down(ctx)
+	_, err = provider.DownTo(ctx, 20261101100000)
 	require.NoError(t, err)
-	require.Equal(t, 0, tableCount(t, handle, "task_hooks"), "the second Down must drop the hooks")
+	require.Equal(t, 0, tableCount(t, handle, "task_hooks"), "rolling back to the open with migration must drop the hooks")
 	require.Equal(t, 0, tableCount(t, handle, "task_hook_skips"), "it must drop the per-task skips with them")
 	require.Equal(t, 1, tableCount(t, handle, "open_with_launchers"), "Down must not touch older tables")
 
-	_, err = provider.UpByOne(ctx)
-	require.NoError(t, err)
-	_, err = provider.UpByOne(ctx)
+	_, err = provider.Up(ctx)
 	require.NoError(t, err)
 	for _, name := range []string{"task_hooks", "task_hook_skips", "task_hook_runs"} {
 		require.Equal(t, 1, tableCount(t, handle, name), "Up must create %s again", name)
