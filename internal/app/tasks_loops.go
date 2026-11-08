@@ -82,7 +82,7 @@ func (c countedPruner) Execute(ctx context.Context, now time.Time) (int, error) 
 
 // Start runs the startup steps of the tasks module and then starts its background loops. It runs before the server
 // listens, as the Rust main does: the tasks a restart interrupted are marked first, and then the worktrees that no
-// open task owns are swept. A failed reconciliation stops the start-up; a failed sweep is only logged.
+// open task owns are swept. A failed task reconciliation stops the start-up; a failed hook run reconciliation or sweep is only logged.
 func (a *App) Start(ctx context.Context) error {
 	if a.loops.cancel != nil {
 		return errors.New("the tasks background loops are already running")
@@ -96,11 +96,12 @@ func (a *App) Start(ctx context.Context) error {
 	}
 	// A hook run still marked running belongs to a process that died: no hook of this process can be alive before the
 	// server starts serving, so those runs are closed here, next to the tasks they belong to.
+	// A failure here is only logged: the records are cosmetic for the status strip and must not keep the server down.
 	closedRuns, err := a.taskHooks.ReconcileHookRuns.Execute(ctx)
-	if err != nil {
-		return fmt.Errorf("reconcile hook runs: %w", err)
-	}
-	if closedRuns > 0 {
+	switch {
+	case err != nil:
+		a.logger.Warn("cannot reconcile the hook runs left running by the last process", "error", err)
+	case closedRuns > 0:
 		a.logger.Info("hook runs left running by the last process marked as failed", "count", closedRuns)
 	}
 	removed, err := a.tasks.SweepWorktrees.Execute(ctx)

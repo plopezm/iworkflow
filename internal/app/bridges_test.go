@@ -22,6 +22,7 @@ import (
 	"iworkflow/internal/core/restart"
 	codehostinginbound "iworkflow/internal/modules/code_hosting/domain/ports/inbound"
 	hooksapp "iworkflow/internal/modules/task_hooks/application"
+	hooksmodelserrors "iworkflow/internal/modules/task_hooks/domain/errors"
 	hooksmodels "iworkflow/internal/modules/task_hooks/domain/models"
 	taskserrors "iworkflow/internal/modules/tasks/domain/errors"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
@@ -467,4 +468,40 @@ func TestStartClosesRunsLeftRunningByAPreviousProcess(t *testing.T) {
 	require.NoError(t, db.QueryRow(`SELECT status, output FROM task_hook_runs WHERE id = 'orphan'`).Scan(&status, &output))
 	assert.Equal(t, "error", status)
 	assert.Equal(t, hooksmodels.StaleRunOutput, output)
+}
+
+// Review advisory: a hook run that cannot be reconciled is logged, it does not stop the application from starting.
+func TestStartContinuesWhenTheStaleHookRunsCannotBeReconciled(t *testing.T) {
+	db := dbtest.New(t)
+	_, err := db.Exec(`DROP TABLE task_hook_runs`)
+	require.NoError(t, err)
+
+	application := composeOn(t, db)
+	require.NoError(t, application.Start(context.Background()))
+	t.Cleanup(func() {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		assert.NoError(t, application.Shutdown(stopCtx))
+	})
+}
+
+// Review advisory: the composed application hands the agent hooks to the real agent session of the tasks module, not
+// to the stand-in that refuses every session. The workspace path does not exist, so the real session stops at its
+// directory check before it launches anything; the stand-in would say that no session is configured.
+func TestComposedAgentHooksReachTheRealAgentSession(t *testing.T) {
+	db := dbtest.New(t)
+	missing := filepath.Join(t.TempDir(), "gone")
+	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES ('3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c', 'one', ?, 'main', '2026-01-01T00:00:00Z')`, missing)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO task_hooks (id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, prompt)
+		VALUES ('h1', '3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c', 'pre', 'task_start', 'agent', 1, 1, 'warn', 30, 'say hello')`)
+	require.NoError(t, err)
+
+	application := composeOn(t, db)
+	_, err = application.taskHooks.TestHook.Execute(context.Background(), hooksapp.TestHookInput{WorkspaceID: "3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c", HookID: "h1"})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, hooksmodelserrors.ErrRunNotStarted)
+	assert.Contains(t, err.Error(), "does not exist")
+	assert.NotContains(t, err.Error(), "no agent session is configured")
 }
