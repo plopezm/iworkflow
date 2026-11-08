@@ -111,3 +111,31 @@ func TestOutputIsBounded(t *testing.T) {
 	assert.Less(t, len(out.Output), 1<<20+100)
 	assert.Contains(t, out.Output, "output truncated")
 }
+
+func TestRunsInTheWorkingDirectoryOfTheHook(t *testing.T) {
+	worktree := t.TempDir()
+	sub := filepath.Join(worktree, "sub")
+	require.NoError(t, os.Mkdir(sub, 0o750))
+	other := t.TempDir()
+	tests := map[string]struct{ dir, want string }{
+		"relative to the worktree": {dir: "sub", want: sub},
+		"absolute":                 {dir: other, want: other},
+		"empty is the worktree":    {dir: "", want: worktree},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			hook := newHook(t, models.ScriptSpec{Command: "pwd", WorkingDir: tc.dir}, time.Minute)
+			out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(worktree))
+			require.NoError(t, err)
+			want, err := filepath.EvalSymlinks(tc.want)
+			require.NoError(t, err)
+			assert.Equal(t, want, strings.TrimSpace(out.Output))
+		})
+	}
+}
+
+func TestMissingWorkingDirectoryDoesNotStartTheRun(t *testing.T) {
+	hook := newHook(t, models.ScriptSpec{Command: "pwd", WorkingDir: "nope"}, time.Minute)
+	_, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+	require.ErrorIs(t, err, hookerrors.ErrRunNotStarted)
+}

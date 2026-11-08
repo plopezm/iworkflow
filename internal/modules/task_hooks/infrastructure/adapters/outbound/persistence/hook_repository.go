@@ -91,7 +91,8 @@ func (r *HookRepository) Save(ctx context.Context, hook models.Hook) error {
 		Kind: string(hook.Kind()), Enabled: boolToInt(hook.Enabled()), OnFailure: string(hook.OnFailure()),
 		TimeoutSeconds: int64(hook.Timeout() / time.Second),
 		Command:        script.Command, Args: string(args), Env: string(env), UseShell: boolToInt(script.UseShell),
-		Prompt: agent.Prompt, Runtime: agent.Runtime, Model: agent.Model, Thinking: agent.Thinking, Profile: agent.Profile,
+		WorkingDir: script.WorkingDir,
+		Prompt:     agent.Prompt, Runtime: agent.Runtime, Model: agent.Model, Thinking: agent.Thinking, Profile: agent.Profile,
 	})
 	if err != nil {
 		return repositoryError(err)
@@ -193,7 +194,7 @@ func toDomain(row gen.TaskHook) (models.Hook, error) {
 		ID: row.ID, WorkspaceID: row.WorkspaceID, Phase: models.Phase(row.Phase), Event: models.Event(row.Event),
 		Kind: models.Kind(row.Kind), Enabled: row.Enabled != 0, OnFailure: models.FailurePolicy(row.OnFailure),
 		Timeout: time.Duration(row.TimeoutSeconds) * time.Second,
-		Script:  models.ScriptSpec{Command: row.Command, Args: args, Env: env, UseShell: row.UseShell != 0},
+		Script:  models.ScriptSpec{Command: row.Command, Args: args, Env: env, UseShell: row.UseShell != 0, WorkingDir: row.WorkingDir},
 		Agent: models.AgentSpec{
 			Prompt: row.Prompt, Runtime: row.Runtime, Model: row.Model, Thinking: row.Thinking, Profile: row.Profile,
 		},

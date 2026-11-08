@@ -165,6 +165,7 @@ type TaskHook struct {
 	Model          string
 	Thinking       string
 	Profile        string
+	WorkingDir     string
 }
 
 type TaskHookRun struct {
