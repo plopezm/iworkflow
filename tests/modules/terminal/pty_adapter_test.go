@@ -34,7 +34,7 @@ var testSize = models.TerminalSize{Cols: 80, Rows: 24}
 // newAdapter builds a PTY adapter that runs sh and shuts it down when the test ends.
 func newAdapter(t *testing.T) *pty.Adapter {
 	t.Helper()
-	adapter := pty.NewAdapter("sh")
+	adapter := pty.NewAdapter("sh", nil)
 	t.Cleanup(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), waitTimeout)
 		defer cancel()
@@ -198,7 +198,7 @@ func TestShellStartsAsALoginShell(t *testing.T) {
 }
 
 func TestUnknownSessionIsNotFound(t *testing.T) {
-	adapter := pty.NewAdapter("sh")
+	adapter := pty.NewAdapter("sh", nil)
 	id := models.NewTerminalSessionID()
 
 	require.ErrorIs(t, adapter.Close(context.Background(), id), terminalerrors.ErrSessionNotFound)
@@ -380,7 +380,7 @@ func TestCloseReapsTheShell(t *testing.T) {
 }
 
 func TestShutdownKillsEverySessionAndRefusesNewOnes(t *testing.T) {
-	adapter := pty.NewAdapter("sh")
+	adapter := pty.NewAdapter("sh", nil)
 	dir := t.TempDir()
 	first := spawnSh(t, adapter, dir, "one")
 	second := spawnSh(t, adapter, dir, "two")
@@ -400,4 +400,19 @@ func TestShutdownKillsEverySessionAndRefusesNewOnes(t *testing.T) {
 	require.ErrorIs(t, err, terminalerrors.ErrSessionNotFound)
 	_, err = adapter.Spawn(context.Background(), uuid.New(), "late", dir, testSize)
 	require.ErrorIs(t, err, terminalerrors.ErrPty)
+}
+
+func TestSpawnUsesTheShellChosenInTheSettings(t *testing.T) {
+	adapter := pty.NewAdapter("", func(context.Context) string { return "sh" })
+	t.Cleanup(func() { _ = adapter.Shutdown(context.Background()) })
+	session, err := adapter.Spawn(context.Background(), uuid.New(), "ws", t.TempDir(), models.TerminalSize{Rows: 24, Cols: 80})
+	require.NoError(t, err)
+	require.Equal(t, models.TerminalStatusRunning, session.Status)
+}
+
+func TestSpawnReportsAChosenShellThatDoesNotExist(t *testing.T) {
+	adapter := pty.NewAdapter("", func(context.Context) string { return "/no/such/shell" })
+	t.Cleanup(func() { _ = adapter.Shutdown(context.Background()) })
+	_, err := adapter.Spawn(context.Background(), uuid.New(), "ws", t.TempDir(), models.TerminalSize{Rows: 24, Cols: 80})
+	require.Error(t, err)
 }

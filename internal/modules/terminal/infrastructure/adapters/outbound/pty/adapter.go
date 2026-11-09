@@ -11,8 +11,6 @@ import (
 
 	"github.com/google/uuid"
 
-	creackpty "github.com/creack/pty"
-
 	"iworkflow/internal/core/env"
 	terminalerrors "iworkflow/internal/modules/terminal/domain/errors"
 	"iworkflow/internal/modules/terminal/domain/models"
@@ -24,20 +22,26 @@ var errShutdown error = errors.New("el registro de terminales está cerrado")
 // Adapter implements outbound.PtyPort. The registry is guarded by one mutex; each session has its
 // own write lock, so a slow write never blocks the other sessions.
 type Adapter struct {
-	// shell is the fixed shell. Empty means $SHELL, with the platform fallback.
-	shell    string
+	// shell is the fixed shell. Empty means the chosen shell, then $SHELL, with the platform fallback.
+	shell string
+	// source reads the shell the user chose in the settings each time a terminal opens. May be nil.
+	source   ShellSource
 	mu       sync.Mutex
 	sessions map[models.TerminalSessionID]*session
 	closed   bool
 }
 
-// NewAdapter builds the adapter. An empty shell means $SHELL (sh when unset; PowerShell on Windows).
-func NewAdapter(shell string) *Adapter {
-	return &Adapter{shell: shell, sessions: make(map[models.TerminalSessionID]*session)}
+// ShellSource returns the shell path the user chose for new terminals; empty means no choice.
+type ShellSource func(ctx context.Context) string
+
+// NewAdapter builds the adapter. An empty shell means the one the source returns, then $SHELL (sh when
+// unset; PowerShell on Windows). The source may be nil.
+func NewAdapter(shell string, source ShellSource) *Adapter {
+	return &Adapter{shell: shell, source: source, sessions: make(map[models.TerminalSessionID]*session)}
 }
 
 // Spawn starts a login shell in a new PTY and registers the session.
-func (a *Adapter) Spawn(_ context.Context, workspaceID uuid.UUID, workspaceName string, cwd string, size models.TerminalSize) (models.TerminalSession, error) {
+func (a *Adapter) Spawn(ctx context.Context, workspaceID uuid.UUID, workspaceName string, cwd string, size models.TerminalSize) (models.TerminalSession, error) {
 	a.mu.Lock()
 	closed := a.closed
 	a.mu.Unlock()
@@ -46,11 +50,14 @@ func (a *Adapter) Spawn(_ context.Context, workspaceID uuid.UUID, workspaceName 
 	}
 	flavor := env.NativeFlavor()
 	shell := a.shell
+	if shell == "" && a.source != nil {
+		shell = a.source(ctx)
+	}
 	if shell == "" {
 		shell = flavor.SelectShell(os.Getenv("SHELL"))
 	}
 	cmd := shellCommand(flavor, shell, cwd, parentVars())
-	master, err := creackpty.StartWithSize(cmd, toWinsize(size))
+	master, err := startBackend(cmd, size)
 	if err != nil {
 		return models.TerminalSession{}, terminalerrors.Pty(err) //nolint:wrapcheck // domain error constructor; the text is the user-facing message
 	}
@@ -62,7 +69,7 @@ func (a *Adapter) Spawn(_ context.Context, workspaceID uuid.UUID, workspaceName 
 		CreatedAt:     time.Now().UTC(),
 		Status:        models.TerminalStatusRunning,
 	}
-	current := newSession(meta, cmd, master, output)
+	current := newSession(meta, master, output)
 	go func() {
 		defer close(current.pumped)
 		pump(master, output)
