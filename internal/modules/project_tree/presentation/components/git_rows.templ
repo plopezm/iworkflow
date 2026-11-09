@@ -14,6 +14,19 @@ templ ChangeSection(v state.GitView, testid string, title i18n.Msg, changes []mo
 		<section data-testid={ testid } { stagedAttrs(staged)... }>
 			<div class="flex h-8 items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted">
 				<span class="flex-1 truncate">{ sectionTitle(ctx, title, len(changes)) }</span>
+				<form hx-post={ discardToggle().url } hx-confirm={ msgDiscardConfirm.T(ctx) } hx-target={ "#" + gitBodyID(v) } hx-swap="innerHTML" class="contents">
+					<input type="hidden" name="scope" value={ wireOf(v) }/>
+					for _, change := range changes {
+						<input type="hidden" name="paths" value={ change.Path }/>
+					}
+					<button
+						type="submit"
+						class="icon-btn"
+						data-testid="git-section-discard"
+						title={ discardToggle().bulk.T(ctx) }
+						aria-label={ discardToggle().bulk.T(ctx) }
+					>{ discardToggle().symbol }</button>
+				</form>
 				<form hx-post={ t.url } hx-target={ "#" + gitBodyID(v) } hx-swap="innerHTML" class="contents">
 					<input type="hidden" name="scope" value={ wireOf(v) }/>
 					for _, change := range changes {
@@ -56,6 +69,17 @@ templ ChangeRow(v state.GitView, change models.GitChange, t toggle) {
 				</div>
 			}
 			<span class="text-xs font-semibold" aria-hidden="true">{ state.KindLetter(change.Kind) }</span>
+			<form hx-post={ discardToggle().url } hx-confirm={ msgDiscardConfirm.T(ctx) } hx-target={ "#" + gitBodyID(v) } hx-swap="innerHTML" class="contents">
+				<input type="hidden" name="scope" value={ wireOf(v) }/>
+				<input type="hidden" name="paths" value={ change.Path }/>
+				<button
+					type="submit"
+					class="icon-btn"
+					data-testid="git-discard"
+					title={ rowLabel(ctx, discardToggle(), change.Path) }
+					aria-label={ rowLabel(ctx, discardToggle(), change.Path) }
+				>{ discardToggle().symbol }</button>
+			</form>
 			<form hx-post={ t.url } hx-target={ "#" + gitBodyID(v) } hx-swap="innerHTML" class="contents">
 				<input type="hidden" name="scope" value={ wireOf(v) }/>
 				<input type="hidden" name="paths" value={ change.Path }/>

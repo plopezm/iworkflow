@@ -21,6 +21,9 @@ var (
 	msgUnstageAll     = i18n.Msg{En: "Unstage all", Es: "Quitar todo del stage", Zh: "全部取消暂存", De: "Alle entfernen", Fr: "Tout désindexer"}
 	msgStageFile      = i18n.Msg{En: "Stage", Es: "Hacer stage de", Zh: "暂存", De: "Bereitstellen:", Fr: "Indexer"}
 	msgUnstageFile    = i18n.Msg{En: "Unstage", Es: "Quitar del stage", Zh: "取消暂存", De: "Entfernen:", Fr: "Désindexer"}
+	msgDiscardAll     = i18n.Msg{En: "Discard all", Es: "Descartar todo", Zh: "全部放弃", De: "Alle verwerfen", Fr: "Tout abandonner"}
+	msgDiscardFile    = i18n.Msg{En: "Discard changes", Es: "Descartar cambios de", Zh: "放弃更改", De: "Änderungen verwerfen:", Fr: "Abandonner les modifications"}
+	msgDiscardConfirm = i18n.Msg{En: "Discard these changes? This cannot be undone.", Es: "¿Descartar estos cambios? No se puede deshacer.", Zh: "放弃这些更改？此操作无法撤销。", De: "Diese Änderungen verwerfen? Das kann nicht rückgängig gemacht werden.", Fr: "Abandonner ces modifications ? Cette action est irréversible."}
 	msgNoChanges      = i18n.Msg{En: "No changes: the working tree is clean.", Es: "Sin cambios: el árbol de trabajo está limpio.", Zh: "没有更改：工作树是干净的。", De: "Keine Änderungen: Der Arbeitsbaum ist sauber.", Fr: "Aucun changement : l'arbre de travail est propre."}
 	msgCommit         = i18n.Msg{En: "Commit", Es: "Commit", Zh: "提交", De: "Commit", Fr: "Commit"}
 	msgCommitMessage  = i18n.Msg{En: "Commit message", Es: "Mensaje del commit", Zh: "提交信息", De: "Commit-Nachricht", Fr: "Message de commit"}

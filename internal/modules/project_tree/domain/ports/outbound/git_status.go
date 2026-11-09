@@ -23,6 +23,11 @@ type GitStatusPort interface {
 	// working tree untouched.
 	Unstage(ctx context.Context, root string, paths []string) error
 
+	// Discard throws away every change of paths (relative to root): tracked files go back to HEAD
+	// (index and working tree) and new files are deleted. Unlike Stage, an empty list is rejected
+	// instead of meaning everything, because the action cannot be undone.
+	Discard(ctx context.Context, root string, paths []string) error
+
 	// Commit records what is staged in the index with message; it fails when nothing is staged.
 	Commit(ctx context.Context, root string, message string) error
 }

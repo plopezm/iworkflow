@@ -32,6 +32,11 @@ func (h *Handlers) serveUnstage(w http.ResponseWriter, r *http.Request) {
 	h.serveGitPaths(w, r, h.uc.UnstagePaths.Execute)
 }
 
+// serveDiscard throws away the changes of the posted paths and renders the refreshed list.
+func (h *Handlers) serveDiscard(w http.ResponseWriter, r *http.Request) {
+	h.serveGitPaths(w, r, h.uc.DiscardPaths.Execute)
+}
+
 // gitPathsAction is a stage or unstage use case.
 type gitPathsAction func(ctx context.Context, scope models.ProjectScope, paths []string) error
 

@@ -79,6 +79,79 @@ func (a *StatusAdapter) Unstage(ctx context.Context, root string, paths []string
 	return runIndexCommand(ctx, root, args)
 }
 
+// Discard reverts paths to HEAD and deletes the ones HEAD does not know (untracked, newly added or
+// renamed files). An empty list is invalid: there is no "discard everything" default.
+func (a *StatusAdapter) Discard(ctx context.Context, root string, paths []string) error {
+	if len(paths) == 0 {
+		return treeerrors.InvalidPath("")
+	}
+	for _, path := range paths {
+		if path == "" {
+			return treeerrors.InvalidPath(path)
+		}
+		if err := models.ValidateRelative(path); err != nil {
+			return err
+		}
+	}
+	changes, err := a.Changes(ctx, root)
+	if err != nil {
+		return err
+	}
+	kinds := make(map[string]models.GitChangeKind, len(changes))
+	for _, change := range changes {
+		kinds[change.Path] = change.Kind
+	}
+	var restore, remove []string
+	for _, path := range paths {
+		switch kinds[path] {
+		case models.GitChangeUntracked, models.GitChangeAdded, models.GitChangeRenamed:
+			remove = append(remove, path)
+		case models.GitChangeModified, models.GitChangeDeleted, models.GitChangeConflicted:
+			restore = append(restore, path)
+		}
+	}
+	if len(restore) > 0 {
+		args, err := pathspecCommand([]string{"restore", "--source=HEAD", "--staged", "--worktree"}, restore)
+		if err != nil {
+			return err
+		}
+		if err := runIndexCommand(ctx, root, args); err != nil {
+			return err
+		}
+	}
+	return a.removeNew(ctx, root, remove, kinds)
+}
+
+// removeNew deletes files HEAD does not know. Tracked-in-index ones go through `git rm`, which also
+// clears the index entry; plain untracked ones through `git clean`.
+func (a *StatusAdapter) removeNew(ctx context.Context, root string, paths []string, kinds map[string]models.GitChangeKind) error {
+	var indexed, untracked []string
+	for _, path := range paths {
+		if kinds[path] == models.GitChangeUntracked {
+			untracked = append(untracked, path)
+		} else {
+			indexed = append(indexed, path)
+		}
+	}
+	if len(indexed) > 0 {
+		args, err := pathspecCommand([]string{"rm", "-f", "-q"}, indexed)
+		if err != nil {
+			return err
+		}
+		if err := runIndexCommand(ctx, root, args); err != nil {
+			return err
+		}
+	}
+	if len(untracked) > 0 {
+		args, err := pathspecCommand([]string{"clean", "-f", "-q"}, untracked)
+		if err != nil {
+			return err
+		}
+		return runIndexCommand(ctx, root, args)
+	}
+	return nil
+}
+
 // Commit records the index with message. It fails when nothing is staged.
 func (a *StatusAdapter) Commit(ctx context.Context, root string, message string) error {
 	output, err := runGit(ctx, root, "commit", "-q", "-m", message)

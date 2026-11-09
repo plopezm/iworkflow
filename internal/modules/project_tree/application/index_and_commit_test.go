@@ -83,3 +83,34 @@ func TestCommitProjectChangesUnknownScopeNeverTouchesGit(t *testing.T) {
 	require.Equal(t, treeerrors.WorkspaceNotFound(), err)
 	require.Zero(t, git.calls)
 }
+
+func TestDiscardProjectPathsResolvesRootThenDiscardsThePaths(t *testing.T) {
+	git := &fakeGitStatus{}
+	roots := &fakeWorkspaceRoots{root: workspaceRoot()}
+
+	err := application.NewDiscardProjectPaths(roots, git).Execute(context.Background(), anyScope(), []string{"a.rs"})
+
+	require.NoError(t, err)
+	require.Equal(t, "/tmp/demo", git.discardRoot)
+	require.Equal(t, []string{"a.rs"}, git.discarded)
+}
+
+func TestDiscardProjectPathsWithoutPathsNeverTouchesGit(t *testing.T) {
+	git := &fakeGitStatus{}
+	roots := &fakeWorkspaceRoots{root: workspaceRoot()}
+
+	err := application.NewDiscardProjectPaths(roots, git).Execute(context.Background(), anyScope(), nil)
+
+	require.Equal(t, treeerrors.InvalidPath(""), err)
+	require.Zero(t, git.calls)
+}
+
+func TestDiscardProjectPathsUnknownScopeNeverTouchesGit(t *testing.T) {
+	roots := &fakeWorkspaceRoots{err: unknownScopeErr()}
+	git := &fakeGitStatus{}
+
+	err := application.NewDiscardProjectPaths(roots, git).Execute(context.Background(), anyScope(), []string{"a.rs"})
+
+	require.Equal(t, treeerrors.WorkspaceNotFound(), err)
+	require.Zero(t, git.calls)
+}

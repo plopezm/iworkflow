@@ -92,6 +92,7 @@ type fakeGitStatus struct {
 	baseErr    error
 	stageErr   error
 	unstageErr error
+	discardErr error
 	commitErr  error
 
 	// calls counts every port call, so tests can assert that git was never reached.
@@ -104,6 +105,8 @@ type fakeGitStatus struct {
 	staged      []string
 	unstageRoot string
 	unstaged    []string
+	discardRoot string
+	discarded   []string
 	commitRoot  string
 	commitMsg   string
 }
@@ -139,6 +142,13 @@ func (f *fakeGitStatus) Unstage(_ context.Context, root string, paths []string) 
 	f.unstageRoot = root
 	f.unstaged = paths
 	return f.unstageErr
+}
+
+func (f *fakeGitStatus) Discard(_ context.Context, root string, paths []string) error {
+	f.calls++
+	f.discardRoot = root
+	f.discarded = paths
+	return f.discardErr
 }
 
 func (f *fakeGitStatus) Commit(_ context.Context, root string, message string) error {

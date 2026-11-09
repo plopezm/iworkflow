@@ -314,3 +314,23 @@ func TestTabPagesRenderTheTreeAndTheEditorOfTheWorkspace(t *testing.T) {
 	assert.Contains(t, file.String(), `data-code-editor`)
 	assert.Contains(t, file.String(), "hola")
 }
+
+func TestDiscardRevertsThePostedPathsAndNeverActsWithoutPaths(t *testing.T) {
+	root := newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, "edited.txt"), []byte("a\nB\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "other.txt"), []byte("z\n"), 0o600))
+	id := uuid.New()
+	_, router := httpModule(t, id, root)
+
+	none := send(router, http.MethodPost, "/project-tree/git/discard", wsParam(id))
+	assert.Equal(t, http.StatusBadRequest, none.Code)
+	assert.Contains(t, gitOut(t, root, "status", "--porcelain"), "edited.txt")
+
+	form := wsParam(id)
+	form.Add("paths", "edited.txt")
+	form.Add("paths", "other.txt")
+	done := send(router, http.MethodPost, "/project-tree/git/discard", form)
+	require.Equal(t, http.StatusOK, done.Code)
+	assert.Contains(t, done.Body.String(), `data-testid="git-empty"`)
+	assert.Empty(t, gitOut(t, root, "status", "--porcelain"))
+}
