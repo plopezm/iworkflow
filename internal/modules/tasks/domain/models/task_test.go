@@ -3,6 +3,7 @@ package models_test
 import (
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -56,6 +57,24 @@ func TestNamesEmbedTheUniqueID(t *testing.T) {
 	assert.Equal(t, "pi/fix-bug-"+unique.String(), models.BranchName("Fix bug", unique))
 	assert.Equal(t, "fix-bug-"+unique.String()[:8], models.WorktreeDirName("Fix bug", unique))
 	assert.Equal(t, "my-app-ws-1", models.WorkspaceDirName("My App", "ws-1"))
+}
+
+// shortSlug cuts by bytes, which is only safe while Slugify emits ASCII.
+func TestSlugifyEmitsOnlyASCII(t *testing.T) {
+	t.Parallel()
+	for _, title := range []string{"日本語のタスク", "ñandú ÁÉÍÓÚ ü", "emoji 🚀 title", "Ünïcödé ß œ"} {
+		for _, character := range models.Slugify(title) {
+			assert.Less(t, character, rune(0x80), "%q slugifies to non-ASCII", title)
+		}
+	}
+}
+
+func TestDirNamesAreShortenedForMultibyteTitles(t *testing.T) {
+	t.Parallel()
+	unique := uuid.MustParse("9f3e1a2b-4c5d-6e7f-8091-a2b3c4d5e6f7")
+	name := models.WorktreeDirName("ñandú ñandú ñandú ñandú ñandú ñandú", unique)
+	assert.Equal(t, "nandu-nandu-nandu-na-9f3e1a2b", name)
+	assert.True(t, utf8.ValidString(name))
 }
 
 func TestDirNamesAreShortened(t *testing.T) {

@@ -345,7 +345,8 @@ func WorkspaceDirName(name string, workspaceID string) string {
 	return shortSlug(name, workspaceDirSlugLength) + "-" + shortID(workspaceID)
 }
 
-// shortSlug slugifies text and cuts it to max characters without leaving a trailing hyphen.
+// shortSlug slugifies text and cuts it to max characters without leaving a trailing hyphen. The byte cut is safe
+// because Slugify emits only ASCII (TestSlugifyEmitsOnlyASCII pins it).
 func shortSlug(text string, max int) string {
 	slug := Slugify(text)
 	if len(slug) <= max {
