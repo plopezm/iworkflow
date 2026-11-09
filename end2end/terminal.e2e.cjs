@@ -139,3 +139,6 @@ module.exports = {
     },
   ],
 };
+
+// Shared with end2end/go/terminal_shell.e2e.cjs (the terminal opened after the shell is saved).
+module.exports.helpers = { openWorkspaceTerminal, run, screenHas };
