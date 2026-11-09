@@ -31,6 +31,11 @@ func unstageToggle() toggle {
 	return toggle{url: state.PathGitUnstage, symbol: "−", bulk: msgUnstageAll, perFile: msgUnstageFile}
 }
 
+// discardToggle throws the changes away (restores tracked files, deletes new ones).
+func discardToggle() toggle {
+	return toggle{url: state.PathGitDiscard, symbol: "↺", bulk: msgDiscardAll, perFile: msgDiscardFile}
+}
+
 // oobAttrs marks an element as an out-of-band swap when oob is set. Spread it into the element.
 func oobAttrs(oob bool) templ.Attributes {
 	if oob {

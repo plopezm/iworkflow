@@ -263,3 +263,73 @@ func TestCommitWithoutStagedChangesFails(t *testing.T) {
 	require.Greater(t, len(failure.Error()), len("no se pudo hacer commit: "))
 	require.Equal(t, "1", gitOut(t, dir, "rev-list", "--count", "HEAD"))
 }
+
+func TestDiscardRestoresTrackedFilesAndDeletesNewOnesLeavingTheRestAlone(t *testing.T) {
+	dir := newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "edited.txt"), []byte("a\nB\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "kept.txt"), []byte("changed\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "fresh.txt"), []byte("new\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "added.txt"), []byte("new\n"), 0o600))
+	gitIn(t, dir, "add", "added.txt", "edited.txt")
+	adapter := git.NewStatusAdapter()
+	ctx := context.Background()
+
+	require.NoError(t, adapter.Discard(ctx, dir, []string{"edited.txt", "fresh.txt", "added.txt"}))
+
+	content, err := os.ReadFile(filepath.Join(dir, "edited.txt"))
+	require.NoError(t, err)
+	require.Equal(t, "a\nb\n", string(content))
+	require.NoFileExists(t, filepath.Join(dir, "fresh.txt"))
+	require.NoFileExists(t, filepath.Join(dir, "added.txt"))
+	changes, err := adapter.Changes(ctx, dir)
+	require.NoError(t, err)
+	require.Equal(t, []string{pair("kept.txt", models.GitChangeModified)}, sortedChanges(changes))
+}
+
+func TestDiscardRestoresADeletedFileAndRejectsEmptyOrEscapingPaths(t *testing.T) {
+	dir := newRepo(t)
+	require.NoError(t, os.Remove(filepath.Join(dir, "kept.txt")))
+	adapter := git.NewStatusAdapter()
+	ctx := context.Background()
+
+	require.Equal(t, treeerrors.InvalidPath(""), adapter.Discard(ctx, dir, nil))
+	require.Equal(t, treeerrors.InvalidPath("../x"), adapter.Discard(ctx, dir, []string{"../x"}))
+	require.NoError(t, adapter.Discard(ctx, dir, []string{"kept.txt"}))
+
+	require.FileExists(t, filepath.Join(dir, "kept.txt"))
+}
+
+func TestDiscardOfARenamedFileBringsTheOriginalBack(t *testing.T) {
+	dir := newRepo(t)
+	gitIn(t, dir, "mv", "kept.txt", "moved.txt")
+	adapter := git.NewStatusAdapter()
+
+	require.NoError(t, adapter.Discard(context.Background(), dir, []string{"moved.txt"}))
+
+	require.FileExists(t, filepath.Join(dir, "kept.txt"))
+	require.NoFileExists(t, filepath.Join(dir, "moved.txt"))
+	require.Empty(t, gitOut(t, dir, "status", "--porcelain"))
+}
+
+func TestDiscardUnknownPathFailsBeforeTouchingAnything(t *testing.T) {
+	dir := newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "edited.txt"), []byte("a\nB\n"), 0o600))
+	adapter := git.NewStatusAdapter()
+
+	err := adapter.Discard(context.Background(), dir, []string{"edited.txt", "clean-or-missing.txt"})
+
+	require.Equal(t, treeerrors.PathNotFound("clean-or-missing.txt"), err)
+	content, readErr := os.ReadFile(filepath.Join(dir, "edited.txt"))
+	require.NoError(t, readErr)
+	require.Equal(t, "a\nB\n", string(content), "the valid path must be left alone too")
+}
+
+func TestDiscardCountsARepeatedPathOnce(t *testing.T) {
+	dir := newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "edited.txt"), []byte("a\nB\n"), 0o600))
+	adapter := git.NewStatusAdapter()
+
+	require.NoError(t, adapter.Discard(context.Background(), dir, []string{"edited.txt", "edited.txt"}))
+
+	require.Empty(t, gitOut(t, dir, "status", "--porcelain"))
+}

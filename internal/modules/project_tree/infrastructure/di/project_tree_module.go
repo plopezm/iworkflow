@@ -35,6 +35,7 @@ type Module struct {
 	FileBase      *application.ReadProjectFileBase
 	StagePaths    *application.StageProjectPaths
 	UnstagePaths  *application.UnstageProjectPaths
+	DiscardPaths  *application.DiscardProjectPaths
 	CommitChanges *application.CommitProjectChanges
 	SearchFiles   *application.SearchProjectFiles
 
@@ -56,6 +57,7 @@ func NewModule(deps Deps) *Module {
 		FileBase:      application.NewReadProjectFileBase(roots, status),
 		StagePaths:    application.NewStageProjectPaths(roots, status),
 		UnstagePaths:  application.NewUnstageProjectPaths(roots, status),
+		DiscardPaths:  application.NewDiscardProjectPaths(roots, status),
 		CommitChanges: application.NewCommitProjectChanges(roots, status),
 		SearchFiles:   application.NewSearchProjectFiles(roots, search),
 	}
@@ -67,6 +69,7 @@ func NewModule(deps Deps) *Module {
 		FileBase:      module.FileBase,
 		StagePaths:    module.StagePaths,
 		UnstagePaths:  module.UnstagePaths,
+		DiscardPaths:  module.DiscardPaths,
 		CommitChanges: module.CommitChanges,
 		SearchFiles:   module.SearchFiles,
 	})

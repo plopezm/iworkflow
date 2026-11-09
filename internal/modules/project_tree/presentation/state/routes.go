@@ -22,6 +22,7 @@ const (
 	PathGitChanges = "/project-tree/git/changes"
 	PathGitStage   = "/project-tree/git/stage"
 	PathGitUnstage = "/project-tree/git/unstage"
+	PathGitDiscard = "/project-tree/git/discard"
 	PathGitCommit  = "/project-tree/git/commit"
 	PathSearch     = "/project-tree/search"
 )

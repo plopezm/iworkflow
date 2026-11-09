@@ -30,6 +30,7 @@ type UseCases struct {
 	FileBase      *application.ReadProjectFileBase
 	StagePaths    *application.StageProjectPaths
 	UnstagePaths  *application.UnstageProjectPaths
+	DiscardPaths  *application.DiscardProjectPaths
 	CommitChanges *application.CommitProjectChanges
 	SearchFiles   *application.SearchProjectFiles
 }
@@ -54,6 +55,7 @@ func NewHandlers(uc UseCases) *Handlers {
 //	GET  /project-tree/git/changes      list_project_git_changes (panel body)
 //	POST /project-tree/git/stage        stage_project_paths
 //	POST /project-tree/git/unstage      unstage_project_paths
+//	POST /project-tree/git/discard      discard_project_paths
 //	POST /project-tree/git/commit       commit_project_changes
 //	GET  /project-tree/search           search_project_files (composer `@` references)
 func (h *Handlers) Routes(r chi.Router) {
@@ -65,6 +67,7 @@ func (h *Handlers) Routes(r chi.Router) {
 	r.Get(state.PathGitChanges, h.serveChanges)
 	r.Post(state.PathGitStage, h.serveStage)
 	r.Post(state.PathGitUnstage, h.serveUnstage)
+	r.Post(state.PathGitDiscard, h.serveDiscard)
 	r.Post(state.PathGitCommit, h.serveCommit)
 	r.Get(state.PathSearch, h.serveSearch)
 }
