@@ -109,6 +109,7 @@ func New(deps Deps) (*App, error) {
 	projects.list = workspaces.List
 	projects.get = workspaces.Get
 
+	shellPicker := &executablePicker{}
 	prefs := prefsdi.NewModule(prefsdi.Deps{
 		DB:        deps.DB,
 		Logger:    deps.Logger,
@@ -116,6 +117,7 @@ func New(deps Deps) (*App, error) {
 		Network:   prefssystem.NewNetworkDetector(deps.Logger),
 		Runtime:   prefssystem.NewServerRuntime(deps.Listen),
 		Restarter: prefssystem.NewServerRestarter(deps.Restart),
+		Picker:    shellPicker,
 	})
 	notices := notify.NewHub()
 	settings := agentsettingsdi.NewModule(agentsettingsdi.Dependencies{
@@ -198,6 +200,7 @@ func New(deps Deps) (*App, error) {
 		WorkspaceResolver: workspaceTargets(workspaces.Get),
 		TaskResolver:      taskTargets(tasks.Get),
 		HomeDir:           deps.Config.HomeDir,
+		ShellSource:       terminalShellSource(prefs.GetTerminalShell, deps.Logger),
 		Logger:            deps.Logger,
 	})
 	jiraModule := jiradi.NewModule(jiradi.Deps{
@@ -210,6 +213,7 @@ func New(deps Deps) (*App, error) {
 		DB:        deps.DB,
 		Worktrees: &openWithWorktrees{get: tasks.Get},
 	})
+	shellPicker.pick = openWith.Pick.Execute
 
 	transcription := transcriptiondi.NewModule(transcriptiondi.Deps{
 		ModelDir: deps.Config.ASRModelDir,
@@ -342,6 +346,13 @@ func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, c
 			Label: msgSettingsNet.T,
 			Content: func(context.Context) templ.Component {
 				return prefspages.NetworkSection()
+			},
+		},
+		{
+			ID:    "terminal",
+			Label: msgSettingsTerminal.T,
+			Content: func(context.Context) templ.Component {
+				return prefspages.TerminalSection()
 			},
 		},
 		{

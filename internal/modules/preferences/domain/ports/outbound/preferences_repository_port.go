@@ -19,6 +19,9 @@ type PreferencesRepository interface {
 	// ListenPort returns the port chosen by the user.
 	ListenPort(ctx context.Context) (*models.ListenPort, error)
 	SaveListenPort(ctx context.Context, port models.ListenPort) error
+	// TerminalShell returns the shell chosen for the terminals; the zero value means the platform default.
+	TerminalShell(ctx context.Context) (models.TerminalShell, error)
+	SaveTerminalShell(ctx context.Context, shell models.TerminalShell) error
 	// RequireAccessToken reports whether network access demands the token (true unless switched off).
 	RequireAccessToken(ctx context.Context) (bool, error)
 	SaveRequireAccessToken(ctx context.Context, required bool) error

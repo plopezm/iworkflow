@@ -1,0 +1,55 @@
+package components
+
+import (
+	corecomponents "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/preferences/presentation/state"
+)
+
+// TerminalShellPlaceholder is the card before its data arrives. It loads the card once the page is
+// shown; the card then replaces the placeholder in place (same id).
+templ TerminalShellPlaceholder() {
+	<div id={ terminalShellID } hx-get={ terminalShellPath } hx-trigger="load" hx-swap="outerHTML">
+		@corecomponents.Card(shellCardTitle.T(ctx)) {
+			@corecomponents.Loading(loadingText.T(ctx))
+		}
+	</div>
+}
+
+// TerminalShellCard is the terminal settings card. Every action posts to the module and gets the whole
+// card back, so the card always shows what was stored.
+templ TerminalShellCard(view state.TerminalShellView) {
+	<div id={ terminalShellID }>
+		@corecomponents.Card(shellCardTitle.T(ctx)) {
+			<p class="muted text-sm">{ shellCardHelp.T(ctx) }</p>
+			<div class="stack gap-1">
+				<label class="text-sm font-medium text-fg" for="terminal-shell">{ shellFieldLabel.T(ctx) }</label>
+				<input
+					id="terminal-shell"
+					class="input"
+					type="text"
+					name="shell"
+					value={ view.Shell }
+					placeholder={ shellPlaceholder.T(ctx) }
+					autocomplete="off"
+					spellcheck="false"
+				/>
+			</div>
+			<div class="row items-center gap-2">
+				<button
+					type="button"
+					class="btn-secondary"
+					hx-include="#terminal-shell"
+					{ terminalShellActionAttrs(terminalShellPath)... }
+				>{ shellSave.T(ctx) }</button>
+				<button type="button" class="btn-secondary" { terminalShellActionAttrs(terminalShellPickPath)... }>{ shellBrowse.T(ctx) }</button>
+				if !view.IsDefault() {
+					<button type="button" class="btn-secondary" { terminalShellActionAttrs(terminalShellResetPath)... }>{ shellReset.T(ctx) }</button>
+				}
+			</div>
+			<p class="muted text-sm">{ shellAppliesNote.T(ctx) }</p>
+			if view.Error != "" {
+				@corecomponents.ErrorText(view.Error)
+			}
+		}
+	</div>
+}

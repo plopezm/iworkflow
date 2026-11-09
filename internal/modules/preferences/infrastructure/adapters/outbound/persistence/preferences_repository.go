@@ -20,6 +20,7 @@ const (
 	listenPortKey    = "listen_port"
 	requireTokenKey  = "require_access_token"
 	accessTokenKey   = "access_token"
+	terminalShellKey = "terminal_shell"
 )
 
 // Stored booleans. Anything other than the explicit value counts as the default.
@@ -89,6 +90,24 @@ func (r *PreferencesRepository) ListenPort(ctx context.Context) (*models.ListenP
 // SaveListenPort stores the port number.
 func (r *PreferencesRepository) SaveListenPort(ctx context.Context, port models.ListenPort) error {
 	return r.store(ctx, listenPortKey, strconv.FormatUint(uint64(port.Port()), 10))
+}
+
+// TerminalShell returns the stored shell; a damaged value counts as unset so the default applies.
+func (r *PreferencesRepository) TerminalShell(ctx context.Context) (models.TerminalShell, error) {
+	value, found, err := r.lookup(ctx, terminalShellKey)
+	if err != nil || !found {
+		return models.TerminalShell{}, err
+	}
+	shell, parseErr := models.ParseTerminalShell(value)
+	if parseErr != nil {
+		return models.TerminalShell{}, nil
+	}
+	return shell, nil
+}
+
+// SaveTerminalShell stores the shell path; the zero value stores an empty path, which means the default.
+func (r *PreferencesRepository) SaveTerminalShell(ctx context.Context, shell models.TerminalShell) error {
+	return r.store(ctx, terminalShellKey, shell.Path())
 }
 
 // RequireAccessToken drops the requirement only on an explicit opt-out; missing or unknown values

@@ -26,3 +26,10 @@ type ServerRestarter interface {
 	// RequestRestart starts the restart. It returns before the server stops.
 	RequestRestart()
 }
+
+// ExecutablePicker lets the user choose a program with the native file dialog of the machine.
+type ExecutablePicker interface {
+	// Pick shows the dialog and returns the chosen path; empty means the user cancelled. It fails
+	// with errors.ErrPickerUnavailable when no dialog can be shown.
+	Pick(ctx context.Context) (string, error)
+}

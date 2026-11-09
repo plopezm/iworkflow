@@ -30,6 +30,8 @@ type Deps struct {
 	Runtime outbound.ServerRuntime
 	// Restarter asks the process to restart so saved settings apply.
 	Restarter outbound.ServerRestarter
+	// Picker shows the native file dialog used to choose the terminal shell.
+	Picker outbound.ExecutablePicker
 }
 
 // Module exposes the preferences use cases and mounts the settings endpoints. The composition root
@@ -47,6 +49,8 @@ type Module struct {
 	RegenerateAccessToken  *application.RegenerateAccessToken
 	BuildNetworkAccess     *application.BuildNetworkAccess
 	RequestServerRestart   *application.RequestServerRestart
+	GetTerminalShell       *application.GetTerminalShell
+	SaveTerminalShell      *application.SaveTerminalShell
 
 	handlers *inbound.Handlers
 }
@@ -64,6 +68,8 @@ func NewModule(deps Deps) *Module {
 	saveRequireToken := application.NewSaveRequireAccessToken(repository)
 	buildNetwork := application.NewBuildNetworkAccess(repository, tokens, deps.Network, deps.Runtime)
 	restart := application.NewRequestServerRestart(deps.Restarter)
+	getTerminalShell := application.NewGetTerminalShell(repository)
+	saveTerminalShell := application.NewSaveTerminalShell(repository)
 
 	return &Module{
 		GetLanguage:            application.NewGetLanguage(repository),
@@ -78,6 +84,8 @@ func NewModule(deps Deps) *Module {
 		RegenerateAccessToken:  regenerate,
 		BuildNetworkAccess:     buildNetwork,
 		RequestServerRestart:   restart,
+		GetTerminalShell:       getTerminalShell,
+		SaveTerminalShell:      saveTerminalShell,
 		handlers: inbound.NewHandlers(deps.Logger, deps.Guard, inbound.UseCases{
 			SaveLanguage:           saveLanguage,
 			BuildNetworkAccess:     buildNetwork,
@@ -86,6 +94,9 @@ func NewModule(deps Deps) *Module {
 			SaveRequireAccessToken: saveRequireToken,
 			RegenerateAccessToken:  regenerate,
 			RequestServerRestart:   restart,
+			GetTerminalShell:       getTerminalShell,
+			SaveTerminalShell:      saveTerminalShell,
+			PickTerminalShell:      application.NewPickTerminalShell(deps.Picker, saveTerminalShell),
 		}),
 	}
 }

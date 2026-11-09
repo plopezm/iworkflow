@@ -63,6 +63,7 @@ type settings struct {
 	guard     *inbound.AccessGuard
 	network   *fakeNetwork
 	restarter *fakeRestarter
+	picker    *fakePicker
 	db        *sql.DB
 }
 
@@ -79,6 +80,7 @@ func newSettings(t *testing.T, token models.AccessToken) settings {
 	guard := inbound.NewAccessGuard(token, true)
 	network := &fakeNetwork{}
 	restarter := &fakeRestarter{}
+	picker := &fakePicker{}
 	module := di.NewModule(di.Deps{
 		DB:        db,
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -86,6 +88,7 @@ func newSettings(t *testing.T, token models.AccessToken) settings {
 		Network:   network,
 		Runtime:   &fakeRuntime{status: models.ServerStatus{Port: 3000}},
 		Restarter: restarter,
+		Picker:    picker,
 	})
 	router := chi.NewRouter()
 	module.Routes(router)
@@ -96,6 +99,7 @@ func newSettings(t *testing.T, token models.AccessToken) settings {
 		guard:     guard,
 		network:   network,
 		restarter: restarter,
+		picker:    picker,
 		db:        db,
 	}
 }
