@@ -323,6 +323,7 @@ func NewModule(deps Deps) (*Module, error) {
 		ListDoneTasks:    listDoneTasks,
 	}, clock)
 
+	// The file use cases are exposed on the module and also serve the inline editor of the diff view.
 	getFile := application.NewGetTaskFile(lifecycle, taskFiles)
 	saveFile := application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter)
 	return &Module{
