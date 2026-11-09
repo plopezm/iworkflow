@@ -6,6 +6,7 @@ package git
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"unicode/utf8"
 
@@ -81,54 +82,103 @@ func (a *StatusAdapter) Unstage(ctx context.Context, root string, paths []string
 
 // Discard reverts paths to HEAD and deletes the ones HEAD does not know (untracked, newly added or
 // renamed files). An empty list is invalid: there is no "discard everything" default.
+//
+// Every path is checked against the current changes before git is touched, so an invalid or unknown
+// path fails the whole request without changing anything. The git steps themselves cannot be atomic;
+// when one fails the others still run and their errors are joined, and the caller shows what is left.
 func (a *StatusAdapter) Discard(ctx context.Context, root string, paths []string) error {
+	plan, err := a.planDiscard(ctx, root, paths)
+	if err != nil {
+		return err
+	}
+	var failures []error
+	if len(plan.restore) > 0 {
+		failures = append(failures, runPathspec(ctx, root, []string{"restore", "--source=HEAD", "--staged", "--worktree"}, plan.restore))
+	}
+	if len(plan.indexed) > 0 {
+		failures = append(failures, runPathspec(ctx, root, []string{"rm", "-f", "-q"}, plan.indexed))
+	}
+	if len(plan.untracked) > 0 {
+		failures = append(failures, runPathspec(ctx, root, []string{"clean", "-f", "-q"}, plan.untracked))
+	}
+	return errors.Join(failures...)
+}
+
+// discardPlan groups the paths of a discard by the git command that handles them.
+type discardPlan struct {
+	// restore go back to HEAD in index and working tree.
+	restore []string
+	// indexed are new files the index already holds (added, renamed): `git rm`.
+	indexed []string
+	// untracked are files git does not know: `git clean`.
+	untracked []string
+}
+
+// planDiscard validates paths and classifies them by their current change. It does not mutate.
+func (a *StatusAdapter) planDiscard(ctx context.Context, root string, paths []string) (discardPlan, error) {
 	if len(paths) == 0 {
-		return treeerrors.InvalidPath("")
+		return discardPlan{}, treeerrors.InvalidPath("")
 	}
 	for _, path := range paths {
 		if path == "" {
-			return treeerrors.InvalidPath(path)
+			return discardPlan{}, treeerrors.InvalidPath(path)
 		}
 		if err := models.ValidateRelative(path); err != nil {
-			return err
+			return discardPlan{}, err
 		}
 	}
 	changes, err := a.Changes(ctx, root)
 	if err != nil {
-		return err
+		return discardPlan{}, err
 	}
 	kinds := make(map[string]models.GitChangeKind, len(changes))
 	for _, change := range changes {
+		// A path git reports twice keeps its tracked kind: an untracked entry must never turn a
+		// tracked file into a deletion.
+		if previous, seen := kinds[change.Path]; seen && change.Kind == models.GitChangeUntracked && previous != models.GitChangeUntracked {
+			continue
+		}
 		kinds[change.Path] = change.Kind
 	}
-	var restore, remove []string
+	var plan discardPlan
+	seen := make(map[string]struct{}, len(paths))
 	for _, path := range paths {
-		switch kinds[path] {
-		case models.GitChangeUntracked, models.GitChangeAdded:
-			remove = append(remove, path)
+		if _, dup := seen[path]; dup {
+			continue
+		}
+		seen[path] = struct{}{}
+		kind, known := kinds[path]
+		if !known {
+			return discardPlan{}, treeerrors.PathNotFound(path)
+		}
+		switch kind {
+		case models.GitChangeUntracked:
+			plan.untracked = append(plan.untracked, path)
+		case models.GitChangeAdded:
+			plan.indexed = append(plan.indexed, path)
 		case models.GitChangeRenamed:
-			remove = append(remove, path)
+			plan.indexed = append(plan.indexed, path)
 			origin, err := a.renameOrigin(ctx, root, path)
 			if err != nil {
-				return err
+				return discardPlan{}, err
 			}
 			if origin != "" {
-				restore = append(restore, origin)
+				plan.restore = append(plan.restore, origin)
 			}
 		case models.GitChangeModified, models.GitChangeDeleted, models.GitChangeConflicted:
-			restore = append(restore, path)
+			plan.restore = append(plan.restore, path)
 		}
 	}
-	if len(restore) > 0 {
-		args, err := pathspecCommand([]string{"restore", "--source=HEAD", "--staged", "--worktree"}, restore)
-		if err != nil {
-			return err
-		}
-		if err := runIndexCommand(ctx, root, args); err != nil {
-			return err
-		}
+	return plan, nil
+}
+
+// runPathspec runs one git command on literal pathspecs.
+func runPathspec(ctx context.Context, root string, command []string, paths []string) error {
+	args, err := pathspecCommand(command, paths)
+	if err != nil {
+		return err
 	}
-	return a.removeNew(ctx, root, remove, kinds)
+	return runIndexCommand(ctx, root, args)
 }
 
 // renameOrigin returns the path a staged rename came from (relative to root), or "" when git
@@ -148,36 +198,6 @@ func (a *StatusAdapter) renameOrigin(ctx context.Context, root string, renamed s
 		}
 	}
 	return "", nil
-}
-
-// removeNew deletes files HEAD does not know. Tracked-in-index ones go through `git rm`, which also
-// clears the index entry; plain untracked ones through `git clean`.
-func (a *StatusAdapter) removeNew(ctx context.Context, root string, paths []string, kinds map[string]models.GitChangeKind) error {
-	var indexed, untracked []string
-	for _, path := range paths {
-		if kinds[path] == models.GitChangeUntracked {
-			untracked = append(untracked, path)
-		} else {
-			indexed = append(indexed, path)
-		}
-	}
-	if len(indexed) > 0 {
-		args, err := pathspecCommand([]string{"rm", "-f", "-q"}, indexed)
-		if err != nil {
-			return err
-		}
-		if err := runIndexCommand(ctx, root, args); err != nil {
-			return err
-		}
-	}
-	if len(untracked) > 0 {
-		args, err := pathspecCommand([]string{"clean", "-f", "-q"}, untracked)
-		if err != nil {
-			return err
-		}
-		return runIndexCommand(ctx, root, args)
-	}
-	return nil
 }
 
 // Commit records the index with message. It fails when nothing is staged.

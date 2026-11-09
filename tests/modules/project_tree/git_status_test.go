@@ -310,3 +310,26 @@ func TestDiscardOfARenamedFileBringsTheOriginalBack(t *testing.T) {
 	require.NoFileExists(t, filepath.Join(dir, "moved.txt"))
 	require.Empty(t, gitOut(t, dir, "status", "--porcelain"))
 }
+
+func TestDiscardUnknownPathFailsBeforeTouchingAnything(t *testing.T) {
+	dir := newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "edited.txt"), []byte("a\nB\n"), 0o600))
+	adapter := git.NewStatusAdapter()
+
+	err := adapter.Discard(context.Background(), dir, []string{"edited.txt", "clean-or-missing.txt"})
+
+	require.Equal(t, treeerrors.PathNotFound("clean-or-missing.txt"), err)
+	content, readErr := os.ReadFile(filepath.Join(dir, "edited.txt"))
+	require.NoError(t, readErr)
+	require.Equal(t, "a\nB\n", string(content), "the valid path must be left alone too")
+}
+
+func TestDiscardCountsARepeatedPathOnce(t *testing.T) {
+	dir := newRepo(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "edited.txt"), []byte("a\nB\n"), 0o600))
+	adapter := git.NewStatusAdapter()
+
+	require.NoError(t, adapter.Discard(context.Background(), dir, []string{"edited.txt", "edited.txt"}))
+
+	require.Empty(t, gitOut(t, dir, "status", "--porcelain"))
+}
