@@ -328,12 +328,36 @@ func IsTaskBranch(name string) bool {
 	return found && strings.HasPrefix(rest, "/")
 }
 
-// WorktreeDirName returns the worktree folder name: <slug>-<unique>.
+// The worktree folders are kept short because Windows tools fail past 260 characters in a path.
+const (
+	taskDirSlugLength      = 20
+	workspaceDirSlugLength = 16
+	dirIDLength            = 8
+)
+
+// WorktreeDirName returns the worktree folder name: <slug up to 20 characters>-<first 8 of the unique id>.
 func WorktreeDirName(title string, unique uuid.UUID) string {
-	return Slugify(title) + "-" + unique.String()
+	return shortSlug(title, taskDirSlugLength) + "-" + shortID(unique.String())
 }
 
-// WorkspaceDirName returns the workspace folder under the worktree root: <slug>-<workspace id>.
+// WorkspaceDirName returns the workspace folder under the worktree root: <slug up to 16 characters>-<first 8 of the id>.
 func WorkspaceDirName(name string, workspaceID string) string {
-	return Slugify(name) + "-" + workspaceID
+	return shortSlug(name, workspaceDirSlugLength) + "-" + shortID(workspaceID)
+}
+
+// shortSlug slugifies text and cuts it to max characters without leaving a trailing hyphen.
+func shortSlug(text string, max int) string {
+	slug := Slugify(text)
+	if len(slug) <= max {
+		return slug
+	}
+	return strings.TrimRight(slug[:max], "-")
+}
+
+// shortID returns the first dirIDLength characters of id.
+func shortID(id string) string {
+	if len(id) <= dirIDLength {
+		return id
+	}
+	return id[:dirIDLength]
 }
