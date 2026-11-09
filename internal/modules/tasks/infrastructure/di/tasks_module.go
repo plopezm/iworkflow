@@ -173,6 +173,8 @@ type Module struct {
 	PruneMerged *application.PruneMergedTasks
 	// PruneSetting serves the checkbox that switches the prune off; the settings screen shows its card.
 	PruneSetting *httpinbound.PruneSettingHandlers
+	// TaskFile serves the inline editor of a file of the diff view (the Edit button of its cards).
+	TaskFile *httpinbound.TaskFileHandlers
 
 	runtime          outbound.AgentRuntime
 	relatedRestarter *application.RelatedProjectsRestarter
@@ -321,6 +323,8 @@ func NewModule(deps Deps) (*Module, error) {
 		ListDoneTasks:    listDoneTasks,
 	}, clock)
 
+	getFile := application.NewGetTaskFile(lifecycle, taskFiles)
+	saveFile := application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter)
 	return &Module{
 		Get:                 getTask,
 		List:                application.NewListTasks(repository),
@@ -344,8 +348,8 @@ func NewModule(deps Deps) (*Module, error) {
 		GetAttachment:       getAttachment,
 		Cleanup:             cleanup,
 		Attachments:         httpinbound.NewAttachmentHandler(getAttachment),
-		GetFile:             application.NewGetTaskFile(lifecycle, taskFiles),
-		SaveFile:            application.NewSaveTaskFile(lifecycle, taskFiles, gitAdapter),
+		GetFile:             getFile,
+		SaveFile:            saveFile,
 		Worktrees:           worktrees,
 		GetDiff:             application.NewGetTaskDiff(lifecycle, worktrees),
 		Merge:               mergeTask,
@@ -371,6 +375,7 @@ func NewModule(deps Deps) (*Module, error) {
 		ResumeRateLimited:   resumeRateLimited,
 		PruneMerged:         application.NewPruneMergedTasks(lifecycle, attachmentStorage, prunePreference),
 		PruneSetting:        httpinbound.NewPruneSettingHandlers(prunePreference),
+		TaskFile:            httpinbound.NewTaskFileHandlers(httpinbound.TaskFileUseCases{Read: getFile, Write: saveFile}),
 		runtime:             agentRuntime,
 		relatedRestarter:    relatedRestarter,
 	}, nil
@@ -461,6 +466,7 @@ func (m *Module) Routes(r chi.Router) {
 	m.Composer.Mount(r)
 	m.Graph.Mount(r)
 	m.PruneSetting.Mount(r)
+	m.TaskFile.Mount(r)
 }
 
 // Sidebar returns the board part of the sidebar: the workspaces and the tasks that need the user.

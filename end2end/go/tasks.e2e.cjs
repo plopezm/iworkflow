@@ -186,6 +186,28 @@ module.exports = {
       },
     },
     {
+      name: 'edit_task_file: "Editar" en el diff abre el editor del fichero sin anidar la aplicación y Guardar refleja el cambio',
+      fn: async (ctx) => {
+        await finishedTask(ctx, 'editfile');
+        await openActions(ctx);
+        await ctx.page.locator('a[href$="/diff"]').first().click();
+        await ctx.page.waitForURL(/\/tasks\/[0-9a-f-]{36}\/diff/, { timeout: 15000 });
+        await ctx.page.locator('text=CAMBIO.md').first().waitFor({ state: 'attached', timeout: 20000 });
+        await ctx.page.getByRole('button', { name: 'Editar' }).first().click();
+        const editor = ctx.page.locator('.diff-editor-input').first();
+        await editor.waitFor({ timeout: 15000 });
+        ctx.assert(
+          (await ctx.page.locator('[data-app-shell]').count()) === 1,
+          'el editor anidó la aplicación entera dentro de la tarjeta',
+        );
+        const edited = `editado-${tag}`;
+        await editor.fill(`${edited}\n`);
+        await ctx.page.getByRole('button', { name: 'Guardar' }).click();
+        await ctx.page.locator('.diff-editor-input').waitFor({ state: 'detached', timeout: 15000 });
+        await ctx.page.getByText(edited).first().waitFor({ timeout: 20000 });
+      },
+    },
+    {
       name: 'merge_task + list_done_tasks: Merge integra la rama y la tarea sale en terminadas',
       fn: async (ctx) => {
         const { ws } = await finishedTask(ctx, 'merge');
