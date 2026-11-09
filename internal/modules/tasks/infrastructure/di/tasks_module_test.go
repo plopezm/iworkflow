@@ -161,6 +161,26 @@ func TestRoutesMountTheAnswerOfTheDialogs(t *testing.T) {
 	assert.True(t, got[http.MethodPost+" /tasks/{id}/dialogs/{dialogId}/answer"])
 }
 
+// Rule from source: the Edit button of a diff card loads the editor from /tasks/{id}/file; without the wiring the
+// request falls through to the not-migrated catch-all and the whole shell is rendered inside the card.
+func TestRoutesMountTheFileEditorOfTheDiff(t *testing.T) {
+	t.Parallel()
+	module, err := di.NewModule(baseDeps(t))
+	require.NoError(t, err)
+	router := chi.NewRouter()
+
+	module.Routes(router)
+
+	got := map[string]bool{}
+	require.NoError(t, chi.Walk(router, func(method string, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
+		got[method+" "+route] = true
+		return nil
+	}))
+	assert.True(t, got[http.MethodGet+" /tasks/{id}/file"])
+	assert.True(t, got[http.MethodPost+" /tasks/{id}/file"])
+	assert.True(t, got[http.MethodGet+" /tasks/{id}/file/close"])
+}
+
 // Rule from source: the diff of a task is a tab of the dock and has its own view endpoint; without the wiring a
 // request to /tasks/{id}/diff falls through to the not-migrated catch-all.
 func TestModuleServesTheDiffTabAndItsView(t *testing.T) {

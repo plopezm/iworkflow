@@ -103,6 +103,15 @@ async function finishedTask(ctx, key, opts = {}) {
   return t;
 }
 
+// Deja una tarea finalizada y abre su pestaña de diff, ya con el fichero CAMBIO.md del agente cargado.
+async function openTaskDiff(ctx, key) {
+  await finishedTask(ctx, key);
+  await openActions(ctx);
+  await ctx.page.locator('a[href$="/diff"]').first().click();
+  await ctx.page.waitForURL(/\/tasks\/[0-9a-f-]{36}\/diff/, { timeout: 15000 });
+  await ctx.page.locator('text=CAMBIO.md').first().waitFor({ state: 'attached', timeout: 20000 });
+}
+
 module.exports = {
   name: 'tasks',
   tests: [
@@ -178,11 +187,30 @@ module.exports = {
     {
       name: 'get_task_diff: "Ver diff" muestra el cambio del agente en su pestaña',
       fn: async (ctx) => {
-        await finishedTask(ctx, 'diff');
-        await openActions(ctx);
-        await ctx.page.locator('a[href$="/diff"]').first().click();
-        await ctx.page.waitForURL(/\/tasks\/[0-9a-f-]{36}\/diff/, { timeout: 15000 });
-        await ctx.page.locator('text=CAMBIO.md').first().waitFor({ state: 'attached', timeout: 20000 });
+        await openTaskDiff(ctx, 'diff');
+      },
+    },
+    {
+      name: 'edit_task_file: "Editar" en el diff abre el editor del fichero sin anidar la aplicación y Guardar refleja el cambio',
+      fn: async (ctx) => {
+        await openTaskDiff(ctx, 'editfile');
+        await ctx.page.getByRole('button', { name: 'Editar' }).first().click();
+        const editor = ctx.page.locator('.diff-editor-input').first();
+        await editor.waitFor({ timeout: 15000 });
+        ctx.assert(
+          (await ctx.page.locator('[data-app-shell]').count()) === 1,
+          'el editor anidó la aplicación entera dentro de la tarjeta',
+        );
+        // Cancelar cierra el editor sin guardar y se puede volver a abrir.
+        await ctx.page.getByRole('button', { name: 'Cancelar' }).click();
+        await ctx.page.locator('.diff-editor-input').waitFor({ state: 'detached', timeout: 15000 });
+        await ctx.page.getByRole('button', { name: 'Editar' }).first().click();
+        await editor.waitFor({ timeout: 15000 });
+        const edited = `editado-${tag}`;
+        await editor.fill(`${edited}\n`);
+        await ctx.page.getByRole('button', { name: 'Guardar' }).click();
+        await ctx.page.locator('.diff-editor-input').waitFor({ state: 'detached', timeout: 15000 });
+        await ctx.page.getByText(edited).first().waitFor({ timeout: 20000 });
       },
     },
     {

@@ -256,3 +256,50 @@ func TestTheDashboardRefreshAddressAnswersAndLeadsTheMenu(t *testing.T) {
 	require.Contains(t, page[home:home+200], `data-dock-path="/"`, "the first menu entry is the dashboard")
 	require.Less(t, home, strings.Index(page, `data-dock-path="/workspaces"`), "the dashboard is above Workspaces")
 }
+
+// Rule from source: the Edit button of a diff card loads its editor from /tasks/{id}/file. The route must be mounted
+// by the tasks module; when it falls through to the not-migrated catch-all, the whole shell is rendered inside the card.
+func TestTheFileEditorOfTheDiffAnswersAFragmentNotTheShell(t *testing.T) {
+	handler := newRouter(t)
+	request := httptest.NewRequest(http.MethodGet, "/tasks/0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11/file?scope=s1&path=src%2Fa.rs", nil)
+	request.Header.Set("HX-Request", "true")
+	request.AddCookie(&http.Cookie{Name: i18n.LocaleCookie, Value: "es"})
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, request)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotContains(t, rec.Body.String(), "<html")
+	require.NotContains(t, rec.Body.String(), `id="dock`)
+}
+
+// Rule from source: closing and saving the editor are served by the same module routes as loading it; each answers a
+// fragment through the composed router, never the shell of the not-migrated catch-all.
+func TestTheOtherFileEditorRoutesOfTheDiffAnswerFragmentsNotTheShell(t *testing.T) {
+	const task = "/tasks/0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11"
+	cases := []struct {
+		name   string
+		method string
+		target string
+	}{
+		{"close", http.MethodGet, task + "/file/close?scope=s1&path=src%2Fa.rs"},
+		{"state", http.MethodPost, task + "/file/state"},
+		{"save", http.MethodPost, task + "/file"},
+	}
+	handler := newRouter(t)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			request := httptest.NewRequest(tc.method, tc.target, strings.NewReader("scope=s1&path=src%2Fa.rs&content=x&base=b&eol=lf"))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			request.Header.Set("HX-Request", "true")
+			request.AddCookie(&http.Cookie{Name: i18n.LocaleCookie, Value: "es"})
+			rec := httptest.NewRecorder()
+
+			handler.ServeHTTP(rec, request)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+			require.NotContains(t, rec.Body.String(), "<html")
+			require.NotContains(t, rec.Body.String(), `id="dock`)
+		})
+	}
+}
