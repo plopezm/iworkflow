@@ -3,6 +3,7 @@ package models_test
 import (
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -54,8 +55,43 @@ func TestNamesEmbedTheUniqueID(t *testing.T) {
 	t.Parallel()
 	unique := uuid.New()
 	assert.Equal(t, "pi/fix-bug-"+unique.String(), models.BranchName("Fix bug", unique))
-	assert.Equal(t, "fix-bug-"+unique.String(), models.WorktreeDirName("Fix bug", unique))
+	assert.Equal(t, "fix-bug-"+unique.String()[:8], models.WorktreeDirName("Fix bug", unique))
 	assert.Equal(t, "my-app-ws-1", models.WorkspaceDirName("My App", "ws-1"))
+}
+
+// shortSlug cuts by bytes, which is only safe while Slugify emits ASCII.
+func TestSlugifyEmitsOnlyASCII(t *testing.T) {
+	t.Parallel()
+	for _, title := range []string{"日本語のタスク", "ñandú ÁÉÍÓÚ ü", "emoji 🚀 title", "Ünïcödé ß œ"} {
+		for _, character := range models.Slugify(title) {
+			assert.Less(t, character, rune(0x80), "%q slugifies to non-ASCII", title)
+		}
+	}
+}
+
+func TestDirNamesAreShortenedForMultibyteTitles(t *testing.T) {
+	t.Parallel()
+	unique := uuid.MustParse("9f3e1a2b-4c5d-6e7f-8091-a2b3c4d5e6f7")
+	name := models.WorktreeDirName("ñandú ñandú ñandú ñandú ñandú ñandú", unique)
+	assert.Equal(t, "nandu-nandu-nandu-na-9f3e1a2b", name)
+	assert.True(t, utf8.ValidString(name))
+}
+
+func TestDirNamesAreShortened(t *testing.T) {
+	t.Parallel()
+	unique := uuid.MustParse("9f3e1a2b-4c5d-6e7f-8091-a2b3c4d5e6f7")
+	long := "Arregla el login cuando el usuario tiene un nombre larguísimo"
+
+	task := models.WorktreeDirName(long, unique)
+	assert.Equal(t, "arregla-el-login-cua-9f3e1a2b", task, "slug cut to 20 characters, suffix to 8")
+	assert.NotContains(t, task, "--")
+
+	// A cut that lands on a separator does not leave a dangling hyphen.
+	assert.Equal(t, "abcdefghijklmnopqrs-9f3e1a2b", models.WorktreeDirName("abcdefghijklmnopqrs tuv", unique))
+
+	workspace := models.WorkspaceDirName("Mi workspace con nombre muy largo", "58640059-d470-4627-8683-50c0b8fb7a6a")
+	assert.Equal(t, "mi-workspace-con-58640059", workspace)
+	assert.LessOrEqual(t, len(workspace)+1+len(task), 60)
 }
 
 func TestIsTaskBranchRecognizesOnlyPiBranches(t *testing.T) {
