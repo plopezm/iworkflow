@@ -298,3 +298,15 @@ func TestDiscardRestoresADeletedFileAndRejectsEmptyOrEscapingPaths(t *testing.T)
 
 	require.FileExists(t, filepath.Join(dir, "kept.txt"))
 }
+
+func TestDiscardOfARenamedFileBringsTheOriginalBack(t *testing.T) {
+	dir := newRepo(t)
+	gitIn(t, dir, "mv", "kept.txt", "moved.txt")
+	adapter := git.NewStatusAdapter()
+
+	require.NoError(t, adapter.Discard(context.Background(), dir, []string{"moved.txt"}))
+
+	require.FileExists(t, filepath.Join(dir, "kept.txt"))
+	require.NoFileExists(t, filepath.Join(dir, "moved.txt"))
+	require.Empty(t, gitOut(t, dir, "status", "--porcelain"))
+}

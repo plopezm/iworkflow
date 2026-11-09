@@ -104,8 +104,17 @@ func (a *StatusAdapter) Discard(ctx context.Context, root string, paths []string
 	var restore, remove []string
 	for _, path := range paths {
 		switch kinds[path] {
-		case models.GitChangeUntracked, models.GitChangeAdded, models.GitChangeRenamed:
+		case models.GitChangeUntracked, models.GitChangeAdded:
 			remove = append(remove, path)
+		case models.GitChangeRenamed:
+			remove = append(remove, path)
+			origin, err := a.renameOrigin(ctx, root, path)
+			if err != nil {
+				return err
+			}
+			if origin != "" {
+				restore = append(restore, origin)
+			}
 		case models.GitChangeModified, models.GitChangeDeleted, models.GitChangeConflicted:
 			restore = append(restore, path)
 		}
@@ -120,6 +129,25 @@ func (a *StatusAdapter) Discard(ctx context.Context, root string, paths []string
 		}
 	}
 	return a.removeNew(ctx, root, remove, kinds)
+}
+
+// renameOrigin returns the path a staged rename came from (relative to root), or "" when git
+// reports none. Discarding the new name must also bring the old file back.
+func (a *StatusAdapter) renameOrigin(ctx context.Context, root string, renamed string) (string, error) {
+	diff, err := runGit(ctx, root, "diff", "--cached", "--relative", "-M", "--name-status", "-z", "HEAD")
+	if err != nil {
+		return "", err
+	}
+	if !diff.Success {
+		return "", treeerrors.IO(diff.Stderr)
+	}
+	fields := nonEmptyFields(diff.Stdout)
+	for i := 0; i+2 < len(fields); i++ {
+		if strings.HasPrefix(fields[i], "R") && fields[i+2] == renamed {
+			return fields[i+1], nil
+		}
+	}
+	return "", nil
 }
 
 // removeNew deletes files HEAD does not know. Tracked-in-index ones go through `git rm`, which also
