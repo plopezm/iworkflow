@@ -3,11 +3,7 @@ package pty
 import (
 	"context"
 	"errors"
-	"os"
-	"os/exec"
 	"sync"
-
-	creackpty "github.com/creack/pty"
 
 	terminalerrors "iworkflow/internal/modules/terminal/domain/errors"
 	"iworkflow/internal/modules/terminal/domain/models"
@@ -23,8 +19,7 @@ var (
 // session is one live shell with its PTY. The registry owns it and stops it exactly once.
 type session struct {
 	meta     models.TerminalSession
-	cmd      *exec.Cmd
-	master   *os.File
+	shell    backend
 	output   *sharedOutput
 	writeMu  sync.Mutex
 	stopMu   sync.Once
@@ -34,11 +29,10 @@ type session struct {
 	pumped chan struct{}
 }
 
-func newSession(meta models.TerminalSession, cmd *exec.Cmd, master *os.File, output *sharedOutput) *session {
+func newSession(meta models.TerminalSession, shell backend, output *sharedOutput) *session {
 	return &session{
 		meta:   meta,
-		cmd:    cmd,
-		master: master,
+		shell:  shell,
 		output: output,
 		reaped: make(chan struct{}),
 		pumped: make(chan struct{}),
@@ -71,7 +65,7 @@ func (s *session) write(data []byte) error {
 	}
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	if _, err := s.master.Write(data); err != nil {
+	if _, err := s.shell.Write(data); err != nil {
 		return terminalerrors.Pty(err) //nolint:wrapcheck // domain error constructor; the text is the user-facing message
 	}
 	return nil
@@ -90,10 +84,10 @@ func (s *session) resize(size models.TerminalSize) error {
 	if s.lastSize == size && size.Rows > 1 {
 		nudged := size
 		nudged.Rows--
-		_ = creackpty.Setsize(s.master, toWinsize(nudged))
+		_ = s.shell.setSize(nudged) // best effort: only forces a repaint
 	}
 
-	if err := creackpty.Setsize(s.master, toWinsize(size)); err != nil {
+	if err := s.shell.setSize(size); err != nil {
 		return terminalerrors.Pty(err) //nolint:wrapcheck // domain error constructor; the text is the user-facing message
 	}
 	s.lastSize = size
@@ -105,17 +99,17 @@ func (s *session) resize(size models.TerminalSize) error {
 // The processes are killed before the shell, so they cannot be re-parented to init and escape.
 func (s *session) terminate() {
 	s.stopMu.Do(func() {
-		killProcessTree(s.cmd.Process.Pid)
+		killProcessTree(s.shell.pid())
 		// Process.Kill fails only when the shell is already gone; that is the state we want.
-		_ = s.cmd.Process.Kill()
+		_ = s.shell.kill()
 		go func() {
 			// The exit status is irrelevant: the session is being discarded. Waiting reaps the
 			// shell so it does not stay as a zombie until the server exits.
-			_ = s.cmd.Wait()
+			_ = s.shell.wait()
 			close(s.reaped)
 		}()
 		// Closing the master ends the reader with EIO and releases the terminal.
-		_ = s.master.Close()
+		_ = s.shell.Close()
 	})
 }
 

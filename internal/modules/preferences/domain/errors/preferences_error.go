@@ -44,3 +44,15 @@ func (e *RepositoryError) Error() string {
 func (e *RepositoryError) Unwrap() error {
 	return e.Cause
 }
+
+// ErrPickerUnavailable reports that this machine cannot open a native file dialog.
+var ErrPickerUnavailable = errors.New("no se pudo abrir el selector de archivos del sistema")
+
+// InvalidShellError reports a terminal shell path that cannot be a program path.
+type InvalidShellError struct {
+	Path string
+}
+
+func (e *InvalidShellError) Error() string {
+	return fmt.Sprintf("shell no válido: %q (indica la ruta de un ejecutable en una sola línea)", e.Path)
+}

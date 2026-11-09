@@ -7,6 +7,9 @@ import (
 	"fmt"
 	openwitherrors "iworkflow/internal/modules/open_with/domain/errors"
 	openwithoutbound "iworkflow/internal/modules/open_with/domain/ports/outbound"
+	prefsapp "iworkflow/internal/modules/preferences/application"
+	prefserrors "iworkflow/internal/modules/preferences/domain/errors"
+	"log/slog"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
@@ -733,4 +736,35 @@ type settingsNotifier struct{ hub *notify.Hub }
 // SettingsChanged publishes the notice.
 func (n settingsNotifier) SettingsChanged() {
 	n.hub.Publish(agentsettingscomponents.SettingsChangedNotice)
+}
+
+// executablePicker gives the preferences module the native file dialog of the open_with module. The
+// dialog is wired after both modules exist, because the preferences module is built first.
+type executablePicker struct {
+	pick func(ctx context.Context) (string, error)
+}
+
+// Pick shows the dialog; a machine without one is reported with the preferences error.
+func (p *executablePicker) Pick(ctx context.Context) (string, error) {
+	path, err := p.pick(ctx)
+	if errors.Is(err, openwitherrors.ErrNativePickerUnavailable) {
+		return "", prefserrors.ErrPickerUnavailable
+	}
+	if err != nil {
+		return "", fmt.Errorf("pick the shell: %w", err)
+	}
+	return path, nil
+}
+
+// terminalShellSource reads the shell chosen in the settings for each new terminal. A failed read
+// is logged and the platform default applies, so a damaged setting never blocks the terminal.
+func terminalShellSource(get *prefsapp.GetTerminalShell, logger *slog.Logger) func(ctx context.Context) string {
+	return func(ctx context.Context) string {
+		shell, err := get.Execute(ctx)
+		if err != nil {
+			logger.Warn("cannot read the terminal shell; using the default", "error", err)
+			return ""
+		}
+		return shell.Path()
+	}
 }

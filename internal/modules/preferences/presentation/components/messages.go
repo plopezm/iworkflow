@@ -195,3 +195,63 @@ var (
 		Fr: "Enregistrer le port",
 	}
 )
+
+// User-visible texts of the terminal shell card.
+var (
+	shellCardTitle = i18n.Msg{
+		En: "Terminal",
+		Es: "Terminal",
+		Zh: "终端",
+		De: "Terminal",
+		Fr: "Terminal",
+	}
+	shellCardHelp = i18n.Msg{
+		En: "Program that runs in the terminals. Leave it empty to use the default: PowerShell on Windows, your $SHELL elsewhere.",
+		Es: "Programa que se ejecuta en las terminales. Déjalo vacío para usar el predeterminado: PowerShell en Windows, tu $SHELL en el resto.",
+		Zh: "终端中运行的程序。留空则使用默认值：Windows 上为 PowerShell，其他系统为 $SHELL。",
+		De: "Programm, das in den Terminals läuft. Leer lassen für den Standard: PowerShell unter Windows, sonst deine $SHELL.",
+		Fr: "Programme exécuté dans les terminaux. Laissez vide pour la valeur par défaut : PowerShell sous Windows, votre $SHELL ailleurs.",
+	}
+	shellFieldLabel = i18n.Msg{
+		En: "Shell executable",
+		Es: "Ejecutable del shell",
+		Zh: "Shell 可执行文件",
+		De: "Shell-Programm",
+		Fr: "Exécutable du shell",
+	}
+	shellPlaceholder = i18n.Msg{
+		En: "Default (e.g. C:\\Program Files\\PowerShell\\7\\pwsh.exe)",
+		Es: "Predeterminado (p. ej. C:\\Program Files\\PowerShell\\7\\pwsh.exe)",
+		Zh: "默认（例如 C:\\Program Files\\PowerShell\\7\\pwsh.exe）",
+		De: "Standard (z. B. C:\\Program Files\\PowerShell\\7\\pwsh.exe)",
+		Fr: "Par défaut (p. ex. C:\\Program Files\\PowerShell\\7\\pwsh.exe)",
+	}
+	shellSave = i18n.Msg{
+		En: "Save",
+		Es: "Guardar",
+		Zh: "保存",
+		De: "Speichern",
+		Fr: "Enregistrer",
+	}
+	shellBrowse = i18n.Msg{
+		En: "Browse…",
+		Es: "Examinar…",
+		Zh: "浏览…",
+		De: "Durchsuchen…",
+		Fr: "Parcourir…",
+	}
+	shellReset = i18n.Msg{
+		En: "Use default",
+		Es: "Usar el predeterminado",
+		Zh: "使用默认值",
+		De: "Standard verwenden",
+		Fr: "Utiliser la valeur par défaut",
+	}
+	shellAppliesNote = i18n.Msg{
+		En: "Applies to the terminals you open from now on; open terminals keep their shell.",
+		Es: "Se aplica a las terminales que abras a partir de ahora; las abiertas conservan su shell.",
+		Zh: "对之后打开的终端生效；已打开的终端保持原 shell。",
+		De: "Gilt für Terminals, die du ab jetzt öffnest; offene Terminals behalten ihre Shell.",
+		Fr: "S'applique aux terminaux ouverts à partir de maintenant ; les terminaux ouverts gardent leur shell.",
+	}
+)

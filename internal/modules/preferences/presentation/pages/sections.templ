@@ -31,3 +31,8 @@ templ LanguagePromptSection(chosen bool) {
 templ NetworkSection() {
 	@components.NetworkAccessPlaceholder()
 }
+
+// TerminalSection is the terminal shell card, loaded lazily by the settings page.
+templ TerminalSection() {
+	@components.TerminalShellPlaceholder()
+}

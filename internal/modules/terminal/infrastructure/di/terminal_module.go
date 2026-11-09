@@ -25,6 +25,8 @@ type Dependencies struct {
 	HomeDir string
 	// Shell is the fixed shell. Empty means the user's $SHELL.
 	Shell string
+	// ShellSource returns the shell chosen in the settings, read each time a terminal opens. May be nil.
+	ShellSource pty.ShellSource
 	// Logger receives the diagnostics of the WebSocket transport. Nil means the default logger.
 	Logger *slog.Logger
 }
@@ -69,7 +71,7 @@ func NewModule(deps Dependencies) *Module {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	sessions := pty.NewAdapter(deps.Shell)
+	sessions := pty.NewAdapter(deps.Shell, deps.ShellSource)
 	paths := resolver.NewWorkspacePathAdapter(deps.WorkspaceResolver)
 	taskPaths := resolver.NewTaskPathAdapter(deps.TaskResolver)
 	module := &Module{

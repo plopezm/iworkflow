@@ -18,6 +18,7 @@ type fakeRepository struct {
 	listenPort    *models.ListenPort
 	requireToken  bool
 	accessToken   *models.AccessToken
+	terminalShell models.TerminalShell
 	// readErr fails every read; writeErr fails every write.
 	readErr  error
 	writeErr error
@@ -78,6 +79,18 @@ func (f *fakeRepository) SaveRequireAccessToken(_ context.Context, required bool
 	return f.writeErr
 }
 
+func (f *fakeRepository) TerminalShell(context.Context) (models.TerminalShell, error) {
+	return f.terminalShell, f.readErr
+}
+
+func (f *fakeRepository) SaveTerminalShell(_ context.Context, shell models.TerminalShell) error {
+	f.writes++
+	if f.writeErr == nil {
+		f.terminalShell = shell
+	}
+	return f.writeErr
+}
+
 func (f *fakeRepository) AccessToken(context.Context) (*models.AccessToken, error) {
 	return f.accessToken, f.readErr
 }
@@ -121,4 +134,14 @@ type fakeRestarter struct {
 
 func (f *fakeRestarter) RequestRestart() {
 	f.requests++
+}
+
+// fakePicker is an in-memory outbound.ExecutablePicker.
+type fakePicker struct {
+	path string
+	err  error
+}
+
+func (f *fakePicker) Pick(context.Context) (string, error) {
+	return f.path, f.err
 }

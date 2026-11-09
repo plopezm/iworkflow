@@ -67,3 +67,22 @@ func firstTarget(view state.NetworkAccessView) *dto.AccessTargetDTO {
 	first := view.Access.Targets[0]
 	return &first
 }
+
+// Routes of the terminal shell card. The handlers mount these exact paths.
+const (
+	terminalShellPath      = "/preferences/terminal-shell"
+	terminalShellPickPath  = "/preferences/terminal-shell/pick"
+	terminalShellResetPath = "/preferences/terminal-shell/reset"
+	// terminalShellID is the swap target: every action replaces the whole card.
+	terminalShellID = "terminal-shell-card"
+)
+
+// terminalShellActionAttrs posts to path and swaps the whole card with the answer.
+func terminalShellActionAttrs(path string) templ.Attributes {
+	return templ.Attributes{
+		"hx-post":         path,
+		"hx-target":       "#" + terminalShellID,
+		"hx-swap":         "outerHTML",
+		"hx-disabled-elt": "this",
+	}
+}

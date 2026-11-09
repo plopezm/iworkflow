@@ -26,6 +26,9 @@ type UseCases struct {
 	SaveRequireAccessToken *application.SaveRequireAccessToken
 	RegenerateAccessToken  *application.RegenerateAccessToken
 	RequestServerRestart   *application.RequestServerRestart
+	GetTerminalShell       *application.GetTerminalShell
+	SaveTerminalShell      *application.SaveTerminalShell
+	PickTerminalShell      *application.PickTerminalShell
 }
 
 // Handlers answers the settings actions. Each action runs one use case, then renders the network
@@ -56,6 +59,10 @@ func (h *Handlers) Routes(r chi.Router) {
 		r.Post("/token/regenerate", h.regenerateToken)
 		r.Post("/restart", h.restart)
 		r.Post("/language/{code}", h.saveLanguage)
+		r.Get("/terminal-shell", h.showTerminalShell)
+		r.Post("/terminal-shell", h.saveTerminalShell)
+		r.Post("/terminal-shell/pick", h.pickTerminalShell)
+		r.Post("/terminal-shell/reset", h.resetTerminalShell)
 	})
 }
 
@@ -180,4 +187,41 @@ func (h *Handlers) networkView(ctx context.Context) (state.NetworkAccessView, er
 
 func badRequest(w http.ResponseWriter, err error) {
 	http.Error(w, "invalid request: "+err.Error(), http.StatusBadRequest)
+}
+
+func (h *Handlers) showTerminalShell(w http.ResponseWriter, r *http.Request) {
+	h.renderTerminalShell(w, r, nil)
+}
+
+func (h *Handlers) saveTerminalShell(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		badRequest(w, err)
+		return
+	}
+	_, saveErr := h.useCases.SaveTerminalShell.Execute(r.Context(), r.PostForm.Get("shell"))
+	h.renderTerminalShell(w, r, saveErr)
+}
+
+func (h *Handlers) resetTerminalShell(w http.ResponseWriter, r *http.Request) {
+	_, saveErr := h.useCases.SaveTerminalShell.Execute(r.Context(), "")
+	h.renderTerminalShell(w, r, saveErr)
+}
+
+// pickTerminalShell opens the native file dialog of the machine this server runs on and stores the choice.
+func (h *Handlers) pickTerminalShell(w http.ResponseWriter, r *http.Request) {
+	h.renderTerminalShell(w, r, h.useCases.PickTerminalShell.Execute(r.Context()))
+}
+
+// renderTerminalShell answers with the whole card. actionErr is the failed action, if any.
+func (h *Handlers) renderTerminalShell(w http.ResponseWriter, r *http.Request, actionErr error) {
+	shell, err := h.useCases.GetTerminalShell.Execute(r.Context())
+	if err != nil {
+		h.logger.Warn("could not read the terminal shell", "error", err)
+		actionErr = err
+	}
+	view := state.NewTerminalShellView(shell.Path())
+	if actionErr != nil {
+		view = view.WithError(actionErr.Error())
+	}
+	web.Render(w, r, http.StatusOK, components.TerminalShellCard(view))
 }
