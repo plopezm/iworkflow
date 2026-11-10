@@ -35,7 +35,7 @@ func TestPlaceholderLoadsTheBarOnPageLoad(t *testing.T) {
 	require.Contains(t, body, `hx-trigger="load"`)
 }
 
-func TestBarRendersEverySelectorAndTheFooter(t *testing.T) {
+func TestBarRendersEverySelectorWithoutAFooter(t *testing.T) {
 	props := components.AgentSettingsBarProps{
 		Runtime:        selectSlot("pi", ui.SelectOption{Value: "pi", Label: "pi"}),
 		Model:          selectSlot(""),
@@ -47,14 +47,13 @@ func TestBarRendersEverySelectorAndTheFooter(t *testing.T) {
 		ActiveThinking: "Medium",
 		ActiveProfile:  "Gemini (activo)",
 		Tooltip:        "tip",
-		Footer:         "Applies to new tasks.",
 	}
 
 	body := render(t, components.AgentSettingsBar(props))
 
 	require.Equal(t, 4, strings.Count(body, "select-pill-input"))
 	require.Contains(t, body, `title="tip"`)
-	require.Contains(t, body, "Applies to new tasks.")
+	require.NotContains(t, body, "leading-none", "the bar has no footer note")
 	require.Contains(t, body, `<option value="pi" selected>pi</option>`)
 	require.Contains(t, body, "data-theme-cycle")
 	require.Contains(t, body, "session-bar-root")
@@ -68,7 +67,6 @@ func TestBarHidesProfileSelectorWhenShowProfileIsFalse(t *testing.T) {
 		Profile:     selectSlot(""),
 		ShowProfile: false,
 		StatusTitle: "Ajustes de sesión",
-		Footer:      "Applies to new tasks.",
 	}
 
 	body := render(t, components.AgentSettingsBar(props))
@@ -78,11 +76,10 @@ func TestBarHidesProfileSelectorWhenShowProfileIsFalse(t *testing.T) {
 }
 
 func TestBarShowsOnlyTheErrorWhenTheSettingsCannotBeRead(t *testing.T) {
-	body := render(t, components.AgentSettingsBar(components.AgentSettingsBarProps{Error: "boom", Footer: "f"}))
+	body := render(t, components.AgentSettingsBar(components.AgentSettingsBarProps{Error: "boom"}))
 
 	require.Contains(t, body, "boom")
 	require.NotContains(t, body, "select-pill-input")
-	require.Contains(t, body, "f", "the footer stays")
 }
 
 func TestBarSlotErrorReplacesOnlyThatSelector(t *testing.T) {

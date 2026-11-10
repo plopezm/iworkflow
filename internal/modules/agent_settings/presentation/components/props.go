@@ -26,7 +26,7 @@ type BarSlot struct {
 // reasoning level and the profile of the next tasks.
 //
 // Error is set when the stored settings cannot be read; the bar then shows only that error.
-// Tooltip is the hover text of the bar and Footer the note under the selectors; both are translated.
+// Tooltip is the translated hover text of the bar.
 type AgentSettingsBarProps struct {
 	Runtime        BarSlot
 	Model          BarSlot
@@ -40,7 +40,6 @@ type AgentSettingsBarProps struct {
 	StatusTitle    string
 	Error          string
 	Tooltip        string
-	Footer         string
 }
 
 // ResourceLimitsProps configures the card with the RAM and CPU caps of each task's agent.

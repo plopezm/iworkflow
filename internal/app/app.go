@@ -66,10 +66,13 @@ type Deps struct {
 	Preferences Preferences
 	// Restart is the handle the settings screen uses to ask for a restart.
 	Restart *restart.Handle
+	// Version is the build version shown in the sidebar footer; empty hides it.
+	Version string
 }
 
 // App is the assembled server: the router and the modules it mounts.
 type App struct {
+	version       string
 	logger        *slog.Logger
 	staticDir     string
 	guard         *prefsinbound.AccessGuard
@@ -244,6 +247,7 @@ func New(deps Deps) (*App, error) {
 	}
 
 	return &App{
+		version:       deps.Version,
 		logger:        deps.Logger,
 		staticDir:     deps.StaticDir,
 		guard:         guard,
@@ -327,7 +331,7 @@ func (a *App) Router() http.Handler {
 //
 //nolint:contextcheck // templ components receive the request context at Render time; the linter cannot see through the closures
 func (a *App) page(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, http.StatusOK, shellPage(a.tasks.Sidebar(r.Context())))
+	web.Render(w, r, http.StatusOK, shellPage(a.tasks.Sidebar(r.Context()), a.version))
 }
 
 // settingsSections are the sections of the settings screen, in display order.

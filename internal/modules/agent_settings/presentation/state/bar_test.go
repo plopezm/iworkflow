@@ -69,7 +69,7 @@ func TestBarSettingsErrorReplacesTheWholeBar(t *testing.T) {
 
 	require.Equal(t, "perfil no encontrado: x", props.Error)
 	require.Empty(t, props.Runtime.Select.Options)
-	require.NotEmpty(t, props.Footer, "the footer is still translated")
+	require.NotEmpty(t, props.Tooltip, "the tooltip is still translated")
 }
 
 func TestBarListErrorReplacesOnlyItsSelector(t *testing.T) {
@@ -99,28 +99,20 @@ func TestBarChangeAttributesPostTheValueAndSwapTheWholeBar(t *testing.T) {
 	require.Equal(t, "/agent-settings/profile", props.Profile.Select.Attrs["hx-post"])
 }
 
-// The footer and the tooltip are the only texts that every language must carry; each one is checked
-// here so a missing translation shows up as an empty string.
-func TestBarHintIsTranslatedInEveryLanguage(t *testing.T) {
-	expected := map[i18n.Locale]string{
-		i18n.En: "Applies to new tasks.",
-		i18n.Es: "Se aplica a las tareas nuevas.",
-		i18n.Zh: "适用于新任务。",
-		i18n.De: "Gilt für neue Aufgaben.",
-		i18n.Fr: "S'applique aux nouvelles tâches.",
-	}
-	for locale, text := range expected {
+// The tooltip is the text that every language must carry; it is checked here so a missing
+// translation shows up as an empty string.
+func TestBarTooltipIsTranslatedInEveryLanguage(t *testing.T) {
+	for _, locale := range []i18n.Locale{i18n.En, i18n.Es, i18n.Zh, i18n.De, i18n.Fr} {
 		props := state.Bar(inLocale(locale), healthyData())
-		require.Equal(t, text, props.Footer, string(locale))
 		require.NotEmpty(t, props.Tooltip, string(locale))
 	}
 }
 
-func TestBarReturnsFootersAndTooltipsForTheErrorCaseToo(t *testing.T) {
+func TestBarReturnsTheTooltipForTheErrorCaseToo(t *testing.T) {
 	props := state.Bar(inLocale(i18n.Fr), state.BarData{SettingsErr: "x"})
 
-	require.Equal(t, "S'applique aux nouvelles tâches.", props.Footer)
-	require.Equal(t, components.AgentSettingsBarProps{Error: "x", Footer: props.Footer, Tooltip: props.Tooltip}, props)
+	require.NotEmpty(t, props.Tooltip)
+	require.Equal(t, components.AgentSettingsBarProps{Error: "x", Tooltip: props.Tooltip}, props)
 }
 
 func TestLimitsTranslateAndReportEmptyCapsAsNoLimit(t *testing.T) {

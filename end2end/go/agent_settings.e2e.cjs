@@ -67,12 +67,12 @@ async function pillTitle(ctx, label) {
   return (await pillLabel(ctx, label).getAttribute('title')) || '';
 }
 
-// Navigates to /settings and waits for the bar. "Se aplica a las tareas nuevas" only appears once the
+// Navigates to /settings and waits for the bar. the bar selects only appear once the
 // htmx request that loads the bar has swapped it in.
 async function goToSettingsBar(ctx) {
   await ctx.page.addInitScript(BAR_SETTLE_SCRIPT);
   await ctx.goto('/settings');
-  await ctx.page.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 15000 });
+  await ctx.page.locator('#agent-settings-bar select').first().waitFor({ timeout: 15000 });
   await waitForBarSettled(ctx.page);
 }
 
@@ -101,7 +101,7 @@ module.exports = {
         ctx.assert(rTitle.length > 0, `el razonamiento no se muestra (title="${rTitle}")`);
         ctx.assert(pTitle.length > 0, `el perfil no se muestra (title="${pTitle}")`);
         // La barra indica que los cambios afectan a tareas nuevas.
-        await ctx.page.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 8000 });
+        await ctx.page.locator('#agent-settings-bar select').first().waitFor({ timeout: 8000 });
       },
     },
     {
@@ -157,7 +157,7 @@ module.exports = {
         try {
           await other.addInitScript(BAR_SETTLE_SCRIPT);
           await other.goto(ctx.base + '/settings', { waitUntil: 'domcontentloaded' });
-          await other.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 15000 });
+          await other.locator('#agent-settings-bar select').first().waitFor({ timeout: 15000 });
           await waitForBarSettled(other);
           // Marks the page: a reload (not a morph) would drop it.
           await other.evaluate(() => { window.__iwfNotReloaded = true; });

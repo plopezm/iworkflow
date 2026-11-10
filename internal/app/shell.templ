@@ -12,12 +12,12 @@ import (
 
 // shellPage is the full document of a page visit: the sidebar, the dock that hosts the tabs, the
 // notifications and the first-run language prompt. boardSidebar is the board part of the sidebar.
-templ shellPage(boardSidebar templ.Component) {
+templ shellPage(boardSidebar templ.Component, version string) {
 	@web.Shell(msgBrand.T(ctx)) {
 		<div hx-ext="sse,morph" sse-connect="/api/tasks/events" class="contents">
 			@components.AppShell(components.AppShellProps{
 				Brand:   msgBrand.T(ctx),
-				Sidebar: sidebar(boardSidebar),
+				Sidebar: sidebar(boardSidebar, version),
 				Content: dock.Placeholder(),
 			})
 		</div>
@@ -34,7 +34,7 @@ templ shellPage(boardSidebar templ.Component) {
 }
 
 // sidebar is the sidebar content: brand, the navigation of the migrated screens, the board lists and the footer.
-templ sidebar(boardSidebar templ.Component) {
+templ sidebar(boardSidebar templ.Component, version string) {
 	<div class="flex shrink-0 items-center gap-2 px-3 pt-3 pb-1">
 		<span class="live-dot text-accent" aria-hidden="true"></span>
 		<span class="flex-1 text-sm font-semibold tracking-tight">
@@ -57,6 +57,9 @@ templ sidebar(boardSidebar templ.Component) {
 	</div>
 	<div class="stack shrink-0 border-t border-border p-2.5">
 		@agentsettingscomponents.AgentSettingsBarPlaceholder()
+		if version != "" {
+			<p class="text-center text-xs text-muted" data-app-version>v{ version }</p>
+		}
 	</div>
 }
 

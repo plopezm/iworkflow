@@ -110,8 +110,8 @@ async function isReachable(ctx) {
 // Navega a /settings y espera a la barra del agente (las 4 pílduras).
 async function goToSettingsBar(ctx) {
   await ctx.goto('/settings');
-  // El "Se aplica a las tareas nuevas" sólo aparece cuando la barra está hidratada.
-  await ctx.page.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 15000 });
+  // Los selectores de la barra sólo aparecen cuando la barra está hidratada.
+  await ctx.page.locator('#agent-settings-bar select').first().waitFor({ timeout: 15000 });
 }
 
 // ---- tests ----
@@ -139,7 +139,7 @@ module.exports = {
         ctx.assert(rTitle.length > 0, `el razonamiento no se muestra (title="${rTitle}")`);
         ctx.assert(pTitle.length > 0, `el perfil no se muestra (title="${pTitle}")`);
         // La barra indica que los cambios afectan a tareas nuevas.
-        await ctx.page.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 8000 });
+        await ctx.page.locator('#agent-settings-bar select').first().waitFor({ timeout: 8000 });
       },
     },
     {
