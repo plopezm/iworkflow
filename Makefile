@@ -15,6 +15,9 @@ SKIP_SERVER_BUILD ?=
 # Single source of truth for the release version: electron/package.json (set by `make bump-version`).
 APP_VERSION ?= $(shell sed -n 's/^  "version": "\(.*\)",/\1/p' electron/package.json | head -n1)
 
+# Stamps the electron/package.json version into main.version, so dev and local builds show the same version as the release.
+VERSION_LDFLAGS := $(if $(APP_VERSION),-ldflags="-X main.version=$(APP_VERSION)",)
+
 # Audio transcription (sherpa-onnx, Qwen3-ASR). The cgo adapter sits behind the `sherpa` build tag; the default
 # GO_TAGS enable it, `make build GO_TAGS=` gives a CGO-free binary where transcription reports "unavailable".
 GO_TAGS ?= sherpa
@@ -85,15 +88,15 @@ css:
 	tailwindcss -i web/tailwind.css -o web/static/app.css --minify
 
 build: generate
-	go build $(GO_BUILD_TAGS) -o bin/$(BIN_FILE) ./cmd/iworkflow
+	go build $(GO_BUILD_TAGS) $(VERSION_LDFLAGS) -o bin/$(BIN_FILE) ./cmd/iworkflow
 
 dev: generate
-	go run $(GO_BUILD_TAGS) ./cmd/iworkflow $(ARGS)
+	go run $(GO_BUILD_TAGS) $(VERSION_LDFLAGS) ./cmd/iworkflow $(ARGS)
 
 # Same as dev over HTTPS, which browsers need to expose the microphone of the voice dictation to other devices. The server
 # creates a self-signed certificate in $IWF_HOME/tls on first use and reuses it; browsers ask to accept it once.
 dev-https: generate
-	IWF_TLS=auto go run $(GO_BUILD_TAGS) ./cmd/iworkflow $(ARGS)
+	IWF_TLS=auto go run $(GO_BUILD_TAGS) $(VERSION_LDFLAGS) ./cmd/iworkflow $(ARGS)
 
 # Release package: stripped binary plus the static site, in $(DIST_DIR).
 dist: generate

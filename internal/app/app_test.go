@@ -35,6 +35,7 @@ func newRouter(t *testing.T) http.Handler {
 		StaticDir: static,
 		Listen:    listen.Info{Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), 3000)},
 		Restart:   restart.NewHandle(),
+		Version:   "9.8.7",
 	})
 	require.NoError(t, err)
 	return application.Router()
@@ -64,6 +65,13 @@ func TestStaticAssetsAreServed(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "body{}", rec.Body.String())
+}
+
+func TestShellShowsTheBuildVersionInTheSidebar(t *testing.T) {
+	rec := get(t, newRouter(t), "/")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `data-app-version>v9.8.7<`)
 }
 
 func TestShellRendersDockAndMigratedNavigation(t *testing.T) {

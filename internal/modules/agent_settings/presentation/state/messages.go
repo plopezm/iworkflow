@@ -14,18 +14,11 @@ var (
 		De: "Änderungen gelten für neu gestartete Aufgaben, nicht für bereits laufende oder fortgesetzte.",
 		Fr: "Les modifications s'appliquent aux nouvelles tâches démarrées, pas à celles déjà en cours ni à celles qui sont reprises.",
 	}
-	msgAgent             = i18n.Msg{En: "Agent", Es: "Agente", Zh: "智能体", De: "Agent", Fr: "Agent"}
-	msgModel             = i18n.Msg{En: "Model", Es: "Modelo", Zh: "模型", De: "Modell", Fr: "Modèle"}
-	msgProfile           = i18n.Msg{En: "Profile", Es: "Perfil", Zh: "配置文件", De: "Profil", Fr: "Profil"}
-	msgThinking          = i18n.Msg{En: "Reasoning", Es: "Razonamiento", Zh: "推理", De: "Reasoning", Fr: "Raisonnement"}
-	msgDefault           = i18n.Msg{En: "Default", Es: "Por defecto", Zh: "默认", De: "Standard", Fr: "Par défaut"}
-	msgAppliesToNewTasks = i18n.Msg{
-		En: "Applies to new tasks.",
-		Es: "Se aplica a las tareas nuevas.",
-		Zh: "适用于新任务。",
-		De: "Gilt für neue Aufgaben.",
-		Fr: "S'applique aux nouvelles tâches.",
-	}
+	msgAgent           = i18n.Msg{En: "Agent", Es: "Agente", Zh: "智能体", De: "Agent", Fr: "Agent"}
+	msgModel           = i18n.Msg{En: "Model", Es: "Modelo", Zh: "模型", De: "Modell", Fr: "Modèle"}
+	msgProfile         = i18n.Msg{En: "Profile", Es: "Perfil", Zh: "配置文件", De: "Profil", Fr: "Profil"}
+	msgThinking        = i18n.Msg{En: "Reasoning", Es: "Razonamiento", Zh: "推理", De: "Reasoning", Fr: "Raisonnement"}
+	msgDefault         = i18n.Msg{En: "Default", Es: "Por defecto", Zh: "默认", De: "Standard", Fr: "Par défaut"}
 	msgActiveSuffix    = i18n.Msg{En: "{name} (active)", Es: "{name} (activo)", Zh: "{name}（当前）", De: "{name} (aktiv)", Fr: "{name} (actif)"}
 	msgSessionSettings = i18n.Msg{
 		En: "Session Settings",

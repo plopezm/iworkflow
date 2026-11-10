@@ -42,13 +42,11 @@ type BarData struct {
 // whole bar; a failed list replaces only its own selector.
 func Bar(ctx context.Context, data BarData) presentation.AgentSettingsBarProps {
 	if data.SettingsErr != "" {
-		return presentation.AgentSettingsBarProps{Error: data.SettingsErr, Footer: msgAppliesToNewTasks.T(ctx), Tooltip: msgAppliesToNewTasksHint.T(ctx)}
+		return presentation.AgentSettingsBarProps{Error: data.SettingsErr, Tooltip: msgAppliesToNewTasksHint.T(ctx)}
 	}
-	tooltip, footer := BarHint(ctx)
 	showProfile := dto.RuntimeSupportsProfiles(data.Settings.Runtime) && len(data.Profiles.Names) > 0 && data.ProfilesErr == ""
 	return presentation.AgentSettingsBarProps{
-		Tooltip:        tooltip,
-		Footer:         footer,
+		Tooltip:        msgAppliesToNewTasksHint.T(ctx),
 		StatusTitle:    msgSessionSettings.T(ctx),
 		Runtime:        runtimeSlot(ctx, data),
 		Model:          modelSlot(ctx, data),
@@ -148,11 +146,6 @@ func profileSlot(ctx context.Context, data BarData) presentation.BarSlot {
 			Attrs:        changeAttrs(profileEndpoint),
 		},
 	}
-}
-
-// BarHint returns the tooltip of the bar and its footer text, in the language of ctx.
-func BarHint(ctx context.Context) (tooltip, footer string) {
-	return msgAppliesToNewTasksHint.T(ctx), msgAppliesToNewTasks.T(ctx)
 }
 
 // thinkingLabel is the translated text of a reasoning level; unknown identifiers show as they are.

@@ -26,7 +26,7 @@ function uniqueGitRepo(prefix) {
 // the caller can restore it.
 async function setRuntime(ctx, runtime) {
   await ctx.goto('/settings');
-  await ctx.page.getByText('Se aplica a las tareas nuevas').first().waitFor({ timeout: 15000 });
+  await ctx.page.locator('#agent-settings-bar select').first().waitFor({ timeout: 15000 });
   const select = ctx.page.locator('.select-pill').filter({ hasText: 'Agente' }).first().locator('select').first();
   await select.waitFor({ timeout: 15000 });
   const previous = await select.inputValue();

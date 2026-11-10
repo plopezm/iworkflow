@@ -235,6 +235,7 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		Listen:      info,
 		Preferences: prefs,
 		Restart:     restartHandle,
+		Version:     version,
 	})
 	if err != nil {
 		return fmt.Errorf("compose application: %w", err)

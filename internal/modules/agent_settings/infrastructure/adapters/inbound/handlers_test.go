@@ -168,7 +168,7 @@ func TestBarRendersTheFourSelectorsWithTheStoredValues(t *testing.T) {
 	require.Contains(t, body, `hx-post="/agent-settings/model"`)
 	require.Contains(t, body, `hx-post="/agent-settings/thinking"`)
 	require.Contains(t, body, `hx-post="/agent-settings/profile"`)
-	require.Contains(t, body, "Applies to new tasks.", "no cookie means English")
+	require.Contains(t, body, `title="Changes apply to newly started tasks`, "no cookie means English")
 }
 
 func TestBarIsTranslatedFromTheLanguageCookie(t *testing.T) {
@@ -180,7 +180,7 @@ func TestBarIsTranslatedFromTheLanguageCookie(t *testing.T) {
 	h.router.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	require.Contains(t, body, "Se aplica a las tareas nuevas.")
+	require.Contains(t, body, `title="Los cambios se aplican a las tareas nuevas`)
 	require.Contains(t, body, `<span class="sr-only">Razonamiento</span>`)
 	require.Contains(t, body, `<option value="" selected>Por defecto</option>`)
 	require.Contains(t, body, `<option value="off">No reasoning</option>`)
