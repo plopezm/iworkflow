@@ -381,12 +381,12 @@ var (
 		Fr: "La tâche a été créée, mais elle n'a pas pu être liée à Jira : {error}",
 	}
 
-	msgViewTaskButton = i18n.Msg{
-		En: "View task",
-		Es: "Ver tarea",
-		Zh: "查看任务",
-		De: "Aufgabe ansehen",
-		Fr: "Voir la tâche",
+	msgBoardButton = i18n.Msg{
+		En: "Go to board",
+		Es: "Ir al tablero",
+		Zh: "前往看板",
+		De: "Zum Board",
+		Fr: "Aller au tableau",
 	}
 
 	msgConvertTabTitle = i18n.Msg{

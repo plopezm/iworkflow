@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/jira/presentation/state"
@@ -43,7 +44,7 @@ func ConversionBranchContainer(branches []dto.ConversionBranchDTO) templ.Compone
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(msgBaseBranchLabel.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 16, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 17, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -56,7 +57,7 @@ func ConversionBranchContainer(branches []dto.ConversionBranchDTO) templ.Compone
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgBaseBranchLabel.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 17, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 18, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
@@ -69,7 +70,7 @@ func ConversionBranchContainer(branches []dto.ConversionBranchDTO) templ.Compone
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msgDefaultBranchHint.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 18, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 19, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -87,7 +88,7 @@ func ConversionBranchContainer(branches []dto.ConversionBranchDTO) templ.Compone
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(b.Name).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 20, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 21, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -100,7 +101,7 @@ func ConversionBranchContainer(branches []dto.ConversionBranchDTO) templ.Compone
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(formatBranchOption(ctx, b))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 20, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 21, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -144,7 +145,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(FormatConvertHeading(ctx, view.Preparation.Issue.Key))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 32, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 33, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -157,7 +158,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(fmt.Sprintf("/jira/%s", view.Preparation.Issue.Key))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 33, Col: 80}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 34, Col: 80}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -170,7 +171,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(msgViewJiraIssue.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 34, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 35, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -183,7 +184,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(msgReviewHint.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 37, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 38, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -200,85 +201,95 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 			}
 		}
 		if view.Converted != nil {
-			templ_7745c5c3_Var12 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-				if !templ_7745c5c3_IsBuffer {
-					defer func() {
-						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-						if templ_7745c5c3_Err == nil {
-							templ_7745c5c3_Err = templ_7745c5c3_BufErr
-						}
-					}()
+			if view.Converted.StartError == nil || *view.Converted.StartError == "" {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<p class=\"sr-only\" data-dock-leave=\"/\"></p>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
 				}
-				ctx = templ.InitializeContext(ctx)
-				if view.Converted.StartError != nil && *view.Converted.StartError != "" {
+			} else {
+				templ_7745c5c3_Var12 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+					templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+					templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+					if !templ_7745c5c3_IsBuffer {
+						defer func() {
+							templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+							if templ_7745c5c3_Err == nil {
+								templ_7745c5c3_Err = templ_7745c5c3_BufErr
+							}
+						}()
+					}
+					ctx = templ.InitializeContext(ctx)
 					templ_7745c5c3_Err = shared.ErrorText(*view.Converted.StartError).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, " <div class=\"row flex-wrap gap-2 pt-2\"><a href=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "<div class=\"row flex-wrap gap-2 pt-2\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Var13 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+						templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+						templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+						if !templ_7745c5c3_IsBuffer {
+							defer func() {
+								templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+								if templ_7745c5c3_Err == nil {
+									templ_7745c5c3_Err = templ_7745c5c3_BufErr
+								}
+							}()
+						}
+						ctx = templ.InitializeContext(ctx)
+						var templ_7745c5c3_Var14 string
+						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(msgBoardButton.T(ctx))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 52, Col: 31}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						return nil
+					})
+					templ_7745c5c3_Err = link.Tab(link.Props{Href: "/", Class: "btn-primary", Role: "button", Reuse: "board"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var13), templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<a href=\"")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var15 string
+					templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(fmt.Sprintf("/jira/%s", view.Preparation.Issue.Key))).ResolveURL(ctx)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 54, Col: 83}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" class=\"btn-ghost\">")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var16 string
+					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(msgViewJiraIssue.T(ctx))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 55, Col: 33}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</a></div>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					return nil
+				})
+				templ_7745c5c3_Err = shared.Card(msgTaskCreated.T(ctx)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var13 string
-				templ_7745c5c3_Var13, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(fmt.Sprintf("/tasks/%s", view.Converted.TaskID))).ResolveURL(ctx)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 49, Col: 78}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" class=\"btn-primary\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var14 string
-				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(msgViewTaskButton.T(ctx))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 50, Col: 33}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "</a> <a href=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var15 string
-				templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(fmt.Sprintf("/jira/%s", view.Preparation.Issue.Key))).ResolveURL(ctx)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 52, Col: 82}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\" class=\"btn-ghost\">")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var16 string
-				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(msgViewJiraIssue.T(ctx))
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 53, Col: 32}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</a></div>")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				return nil
-			})
-			templ_7745c5c3_Err = shared.Card(msgTaskCreated.T(ctx)).Render(templ.WithChildren(ctx, templ_7745c5c3_Var12), templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
 			}
 		} else {
 			templ_7745c5c3_Var17 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -300,7 +311,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(fmt.Sprintf("/jira/%s/convert", view.Preparation.Issue.Key))).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 62, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 65, Col: 89}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 				if templ_7745c5c3_Err != nil {
@@ -313,7 +324,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var19 string
 				templ_7745c5c3_Var19, templ_7745c5c3_Err = templruntime.NewAttributeExpression(fmt.Sprintf("/jira/%s/convert", view.Preparation.Issue.Key)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 63, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 66, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 				if templ_7745c5c3_Err != nil {
@@ -331,7 +342,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var20 string
 					templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoWorkspacePrefix.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 69, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 72, Col: 37}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 					if templ_7745c5c3_Err != nil {
@@ -344,7 +355,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoWorkspaceLink.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 70, Col: 70}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 73, Col: 70}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -357,7 +368,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var22 string
 					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoWorkspaceSuffix.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 71, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 74, Col: 37}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 					if templ_7745c5c3_Err != nil {
@@ -375,7 +386,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var23 string
 					templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(msgWorkspaceLabel.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 75, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 78, Col: 76}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 					if templ_7745c5c3_Err != nil {
@@ -388,7 +399,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var24 string
 					templ_7745c5c3_Var24, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgWorkspaceLabel.T(ctx)).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 79, Col: 46}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 82, Col: 46}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 					if templ_7745c5c3_Err != nil {
@@ -401,7 +412,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var25 string
 					templ_7745c5c3_Var25, templ_7745c5c3_Err = templruntime.NewAttributeExpression(fmt.Sprintf("/jira/%s/convert/branches", view.Preparation.Issue.Key)).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 81, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 84, Col: 86}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 					if templ_7745c5c3_Err != nil {
@@ -419,7 +430,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 						var templ_7745c5c3_Var26 string
 						templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(msgPickWorkspace.T(ctx))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 86, Col: 52}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 89, Col: 52}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 						if templ_7745c5c3_Err != nil {
@@ -438,7 +449,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 						var templ_7745c5c3_Var27 string
 						templ_7745c5c3_Var27, templ_7745c5c3_Err = templruntime.NewAttributeExpression(ws.ID).Resolve(ctx)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 90, Col: 24}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 93, Col: 24}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 						if templ_7745c5c3_Err != nil {
@@ -461,7 +472,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 						var templ_7745c5c3_Var28 string
 						templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s (%s)", ws.Name, ws.BaseBranch))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 93, Col: 59}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 96, Col: 59}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 						if templ_7745c5c3_Err != nil {
@@ -488,7 +499,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(msgTitleLabel.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 103, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 106, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -501,7 +512,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var30 string
 				templ_7745c5c3_Var30, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgTitleLabel.T(ctx)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 108, Col: 41}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 111, Col: 41}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 				if templ_7745c5c3_Err != nil {
@@ -514,7 +525,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var31 string
 				templ_7745c5c3_Var31, templ_7745c5c3_Err = templruntime.NewAttributeExpression(view.Preparation.Title).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 109, Col: 38}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 112, Col: 38}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 				if templ_7745c5c3_Err != nil {
@@ -527,7 +538,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(msgPromptLabel.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 115, Col: 72}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 118, Col: 72}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 				if templ_7745c5c3_Err != nil {
@@ -540,7 +551,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgPromptLabel.T(ctx)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 119, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 122, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var33)
 				if templ_7745c5c3_Err != nil {
@@ -553,7 +564,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(view.Preparation.Prompt)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 121, Col: 33}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 124, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -566,7 +577,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var35 string
 				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(msgPriorityLabel.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 125, Col: 74}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 128, Col: 74}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 				if templ_7745c5c3_Err != nil {
@@ -579,7 +590,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var36 string
 				templ_7745c5c3_Var36, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgPriorityLabel.T(ctx)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 126, Col: 81}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 129, Col: 81}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 				if templ_7745c5c3_Err != nil {
@@ -597,7 +608,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var37 string
 					templ_7745c5c3_Var37, templ_7745c5c3_Err = templruntime.NewAttributeExpression(opt.Value).Resolve(ctx)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 129, Col: 27}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 132, Col: 27}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
 					if templ_7745c5c3_Err != nil {
@@ -620,7 +631,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 					var templ_7745c5c3_Var38 string
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(opt.LabelText(i18n.StateFrom(ctx).Locale))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 132, Col: 53}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 135, Col: 53}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {
@@ -638,7 +649,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(msgStartNowLabel.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 140, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 143, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 				if templ_7745c5c3_Err != nil {
@@ -661,7 +672,7 @@ func JiraConvertPage(view state.ConvertIssueView) templ.Component {
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(msgCreateTaskButton.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 145, Col: 36}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/pages/jira_convert_page.templ`, Line: 148, Col: 36}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {

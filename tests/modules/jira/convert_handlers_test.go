@@ -129,9 +129,8 @@ func TestConvertHandlers_ConvertSuccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, res.Code)
 	body := res.Body.String()
-	assert.Contains(t, body, "Tarea creada")
-	assert.Contains(t, body, "/tasks/task-42")
-	assert.Contains(t, body, "/jira/A-1")
+	assert.Contains(t, body, `data-dock-leave="/"`, "a clean convert leaves the form for the board")
+	assert.NotContains(t, body, "Tarea creada")
 	require.Len(t, f.tasks.created, 1)
 	assert.Equal(t, "Tarea convertida", f.tasks.created[0].Title)
 	assert.True(t, f.tasks.created[0].StartNow)
@@ -165,7 +164,7 @@ func TestConvertHandlers_ConvertError(t *testing.T) {
 	req1.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res1 := f.serve(req1)
 	assert.Equal(t, http.StatusOK, res1.Code)
-	assert.Contains(t, res1.Body.String(), "Tarea creada")
+	assert.Contains(t, res1.Body.String(), `data-dock-leave="/"`)
 
 	// Now submitting again should report already converted error
 	req2 := httptest.NewRequest(http.MethodPost, "/jira/A-1/convert", strings.NewReader(formValid.Encode()))
@@ -220,5 +219,6 @@ func TestConvertHandlers_ConvertWithStartError(t *testing.T) {
 	body := res.Body.String()
 	assert.Contains(t, body, "Tarea creada")
 	assert.Contains(t, body, "agente no disponible")
-	assert.Contains(t, body, "/tasks/task-99")
+	assert.NotContains(t, body, "data-dock-leave", "a start failure keeps the tab so the error is read")
+	assert.Contains(t, body, `data-dock-path="/"`, "and offers the way to the board")
 }

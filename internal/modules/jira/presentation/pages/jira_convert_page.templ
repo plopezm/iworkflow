@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/jira/presentation/state"
@@ -41,18 +42,20 @@ templ JiraConvertPage(view state.ConvertIssueView) {
 			}
 
 			if view.Converted != nil {
-				@shared.Card(msgTaskCreated.T(ctx)) {
-					if view.Converted.StartError != nil && *view.Converted.StartError != "" {
+				if view.Converted.StartError == nil || *view.Converted.StartError == "" {
+					<p class="sr-only" data-dock-leave="/"></p>
+				} else {
+					@shared.Card(msgTaskCreated.T(ctx)) {
 						@shared.ErrorText(*view.Converted.StartError)
+						<div class="row flex-wrap gap-2 pt-2">
+							@link.Tab(link.Props{Href: "/", Class: "btn-primary", Role: "button", Reuse: "board"}) {
+								{ msgBoardButton.T(ctx) }
+							}
+							<a href={ templ.SafeURL(fmt.Sprintf("/jira/%s", view.Preparation.Issue.Key)) } class="btn-ghost">
+								{ msgViewJiraIssue.T(ctx) }
+							</a>
+						</div>
 					}
-					<div class="row flex-wrap gap-2 pt-2">
-						<a href={ templ.SafeURL(fmt.Sprintf("/tasks/%s", view.Converted.TaskID)) } class="btn-primary">
-							{ msgViewTaskButton.T(ctx) }
-						</a>
-						<a href={ templ.SafeURL(fmt.Sprintf("/jira/%s", view.Preparation.Issue.Key)) } class="btn-ghost">
-							{ msgViewJiraIssue.T(ctx) }
-						</a>
-					</div>
 				}
 			} else {
 				@shared.Card("") {

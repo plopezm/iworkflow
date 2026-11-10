@@ -3,7 +3,6 @@ package inbound
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -12,7 +11,6 @@ import (
 
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/jira/application"
-	jiraerrors "iworkflow/internal/modules/jira/domain/errors"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/jira/presentation/pages"
 	"iworkflow/internal/modules/jira/presentation/state"
@@ -102,21 +100,6 @@ func (h *IssueHandlers) IssuePage(ctx context.Context, key string) templ.Compone
 		TransitionsErr: transitionsErr,
 	}
 	return pages.JiraIssuePage(view)
-}
-
-// GetIssuePage handles GET /jira/{key}.
-func (h *IssueHandlers) GetIssuePage(w http.ResponseWriter, r *http.Request) {
-	key := chi.URLParam(r, "key")
-	_, err := h.GetIssue.Execute(r.Context(), key)
-	if err != nil {
-		if errors.Is(err, jiraerrors.IssueNotFound(key)) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	web.Render(w, r, http.StatusOK, h.IssuePage(r.Context(), key))
 }
 
 // AddCommentHandler handles POST /jira/{key}/comments.
@@ -292,21 +275,6 @@ func (h *IssueHandlers) ConvertPage(ctx context.Context, key string) templ.Compo
 		Preparation: prepDTO,
 		Branches:    branchesDTO,
 	})
-}
-
-// GetConvertPage handles GET /jira/{key}/convert.
-func (h *IssueHandlers) GetConvertPage(w http.ResponseWriter, r *http.Request) {
-	key := chi.URLParam(r, "key")
-	_, err := h.GetIssue.Execute(r.Context(), key)
-	if err != nil {
-		if errors.Is(err, jiraerrors.IssueNotFound(key)) {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	web.Render(w, r, http.StatusOK, h.ConvertPage(r.Context(), key))
 }
 
 // GetBranches handles GET /jira/{key}/convert/branches.

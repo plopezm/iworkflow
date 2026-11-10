@@ -315,7 +315,22 @@ module.exports = {
         await wsSelect.selectOption({ label: `${wsName} (main)` });
         await ctx.page.getByLabel('Prioridad').first().selectOption({ label: 'Normal' }, { noScroll: true });
         await ctx.page.getByRole('button', { name: /Crear tarea/ }).first().click();
-        await sleep(3000);
+        // A clean convert leaves the form: its tab closes and the board (the panel) takes over.
+        const boardTab = ctx.page.locator('[data-dock-tab-button][data-dock-path="/"]');
+        await boardTab.first().waitFor({ timeout: 15000 });
+        await ctx.page.waitForFunction(
+          () => !document.querySelector('[data-dock-tab-button][data-dock-path="/jira/ABC-3/convert"]'),
+          null,
+          { timeout: 15000 },
+        );
+        ctx.assert(
+          (await boardTab.first().getAttribute('aria-selected')) === 'true',
+          'el tablero debería quedar como pestaña activa tras convertir',
+        );
+        ctx.assert(
+          (await ctx.page.getByText('Tarea creada').count()) === 0,
+          'ya no debe mostrarse la pantalla intermedia "Tarea creada"',
+        );
         await ctx.goto('/jira/ABC-3');
         await ctx.page.getByText('ABC-3: Documentar la API').first().waitFor({ timeout: 15000 });
         await ctx.page.getByText('Ver tarea de iworkflow').first().waitFor({ timeout: 15000 });
