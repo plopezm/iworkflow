@@ -648,12 +648,13 @@ func (b *jiraTaskCreation) Create(ctx context.Context, input jiraoutbound.NewLin
 		priority = tasksmodels.PriorityUrgent
 	}
 	out, err := b.create.Execute(ctx, tasksmodels.NewTask{
-		WorkspaceID: input.WorkspaceID,
-		BaseBranch:  input.BaseBranch,
-		Title:       input.Title,
-		Prompt:      input.Prompt,
-		Priority:    priority,
-		StartNow:    input.StartNow,
+		WorkspaceID:       input.WorkspaceID,
+		BaseBranch:        input.BaseBranch,
+		Title:             input.Title,
+		Prompt:            input.Prompt,
+		Priority:          priority,
+		StartNow:          input.StartNow,
+		RelatedProjectIDs: input.RelatedProjectIDs,
 	})
 	if err != nil {
 		return jiraoutbound.CreatedLinkedTask{}, err
@@ -688,6 +689,7 @@ func (b *jiraWorkspaceCatalog) Workspaces(ctx context.Context) ([]jiramodels.Wor
 			ID:         ws.ID.String(),
 			Name:       ws.Name,
 			BaseBranch: ws.BaseBranch,
+			Path:       ws.Path,
 		})
 	}
 	return opts, nil

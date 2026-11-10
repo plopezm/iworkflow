@@ -114,15 +114,28 @@ templ JiraConvertPage(view state.ConvertIssueView) {
 							/>
 						</label>
 
-						<label class="stack gap-1.5">
-							<span class="text-sm font-medium text-fg">{ msgPromptLabel.T(ctx) }</span>
-							<textarea
-								class="input min-h-32"
-								name="prompt"
-								aria-label={ msgPromptLabel.T(ctx) }
-								required
-							>{ view.Preparation.Prompt }</textarea>
-						</label>
+						@relatedProjectsField(view)
+
+						<div
+							class="stack gap-1.5 composer"
+							data-composer
+							data-files-path="/board/tasks/composer/files"
+							data-remove-label={ msgRemoveReference.T(ctx) }
+						>
+							<label class="text-sm font-medium text-fg" for="jira-convert-prompt">{ msgPromptLabel.T(ctx) }</label>
+							<div class="composer-field composer-field-task relative" data-composer-field>
+								<ul class="composer-menu" role="listbox" aria-label={ msgSuggestions.T(ctx) } data-composer-menu hidden></ul>
+								<textarea
+									id="jira-convert-prompt"
+									class="input input-lg min-h-32 resize-y"
+									name="prompt"
+									required
+									data-composer-input
+								>{ view.Preparation.Prompt }</textarea>
+								<span class="composer-grip" data-composer-grip aria-hidden="true"></span>
+							</div>
+							<ul class="composer-refs flex flex-wrap gap-1" data-composer-refs hidden></ul>
+						</div>
 
 						<label class="stack gap-1.5">
 							<span class="text-sm font-medium text-fg">{ msgPriorityLabel.T(ctx) }</span>
@@ -153,4 +166,40 @@ templ JiraConvertPage(view state.ConvertIssueView) {
 			}
 		</div>
 	</div>
+}
+
+// relatedProjectsField lets the user choose other workspaces the task may read and complete with @. Its markup carries
+// the data attributes web/static/js/task_form.js and composer.js act on, as the task forms do.
+templ relatedProjectsField(view state.ConvertIssueView) {
+	if len(view.Preparation.Workspaces) > 1 {
+		<div class="stack gap-2" data-related-projects>
+			<span class="text-sm font-medium text-fg">{ msgRelatedProjects.T(ctx) }</span>
+			<p class="text-xs text-muted">{ msgRelatedProjectsHint.T(ctx) }</p>
+			<div class="row flex-wrap items-center gap-2">
+				<button type="button" class="btn-secondary self-start" data-related-open>
+					<span>{ msgChooseProjects.T(ctx) }</span>
+					<span class="text-xs text-muted" data-related-count></span>
+				</button>
+				<ul class="flex flex-wrap gap-1" data-related-summary></ul>
+			</div>
+			@shared.Modal(shared.ModalProps{Title: msgRelatedProjects.T(ctx), Open: false}) {
+				<input type="search" class="input" placeholder={ msgFilterProjects.T(ctx) } aria-label={ msgFilterProjects.T(ctx) } autocomplete="off" data-related-filter/>
+				<div class="stack max-h-[50vh] overflow-y-auto" data-related-list>
+					for _, ws := range view.Preparation.Workspaces {
+						<label class="row min-h-10 items-center gap-2 text-sm text-fg" data-related-row data-related-name={ ws.Name } data-related-text={ ws.Name + " " + ws.Path }>
+							<input type="checkbox" name="related_project_id" value={ ws.ID } data-workspace-id={ ws.ID } class="h-5 w-5" checked?={ view.IsRelated(ws.ID) }/>
+							<span class="stack gap-0.5">
+								<span>{ ws.Name }</span>
+								<span class="text-xs text-muted">{ ws.Path }</span>
+							</span>
+						</label>
+					}
+					<p class="text-sm text-muted" data-related-empty hidden>{ msgNoProjects.T(ctx) }</p>
+				</div>
+				<div class="row justify-end">
+					<button type="button" class="btn-primary" data-modal-close>{ msgDone.T(ctx) }</button>
+				</div>
+			}
+		</div>
+	}
 }

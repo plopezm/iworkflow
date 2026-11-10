@@ -105,6 +105,7 @@ type WorkspaceDTO struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	BaseBranch string `json:"base_branch"`
+	Path       string `json:"path"`
 }
 
 // ConversionBranchDTO is a branch a converted task can start from.
@@ -132,17 +133,20 @@ type ConversionPreparationDTO struct {
 	Prompt     string         `json:"prompt"`
 	Priority   string         `json:"priority"`
 	Workspaces []WorkspaceDTO `json:"workspaces"`
+	// RelatedProjectIDs are the projects chosen before a failed conversion, kept when the form is shown again.
+	RelatedProjectIDs []string `json:"related_project_ids,omitempty"`
 }
 
 // ConvertIssueDTO is the user-confirmed mapping of an issue onto a task.
 type ConvertIssueDTO struct {
-	Key         string  `json:"key"`
-	WorkspaceID string  `json:"workspace_id"`
-	BaseBranch  *string `json:"base_branch"`
-	Title       string  `json:"title"`
-	Prompt      string  `json:"prompt"`
-	Priority    string  `json:"priority"`
-	StartNow    bool    `json:"start_now"`
+	Key               string   `json:"key"`
+	WorkspaceID       string   `json:"workspace_id"`
+	BaseBranch        *string  `json:"base_branch"`
+	Title             string   `json:"title"`
+	Prompt            string   `json:"prompt"`
+	Priority          string   `json:"priority"`
+	StartNow          bool     `json:"start_now"`
+	RelatedProjectIDs []string `json:"related_project_ids"`
 }
 
 // ConvertedIssueDTO is the created task and the non-fatal problems around it.
@@ -256,7 +260,7 @@ func TransitionFromDomain(transition models.Transition) TransitionDTO {
 func PreparationFromDomain(prepared application.ConversionPreparation) ConversionPreparationDTO {
 	workspaces := make([]WorkspaceDTO, 0, len(prepared.Workspaces))
 	for _, workspace := range prepared.Workspaces {
-		workspaces = append(workspaces, WorkspaceDTO{ID: workspace.ID, Name: workspace.Name, BaseBranch: workspace.BaseBranch})
+		workspaces = append(workspaces, WorkspaceDTO{ID: workspace.ID, Name: workspace.Name, BaseBranch: workspace.BaseBranch, Path: workspace.Path})
 	}
 	return ConversionPreparationDTO{
 		Issue:      IssueFromDomain(prepared.Issue),
@@ -270,13 +274,14 @@ func PreparationFromDomain(prepared application.ConversionPreparation) Conversio
 // ToConversionRequest maps the confirmed mapping. An unknown priority falls back to normal.
 func (d ConvertIssueDTO) ToConversionRequest() models.ConversionRequest {
 	return models.ConversionRequest{
-		Key:         d.Key,
-		WorkspaceID: d.WorkspaceID,
-		BaseBranch:  d.BaseBranch,
-		Title:       d.Title,
-		Prompt:      d.Prompt,
-		Priority:    models.ParsePriorityHint(d.Priority),
-		StartNow:    d.StartNow,
+		Key:               d.Key,
+		WorkspaceID:       d.WorkspaceID,
+		BaseBranch:        d.BaseBranch,
+		Title:             d.Title,
+		Prompt:            d.Prompt,
+		Priority:          models.ParsePriorityHint(d.Priority),
+		StartNow:          d.StartNow,
+		RelatedProjectIDs: d.RelatedProjectIDs,
 	}
 }
 

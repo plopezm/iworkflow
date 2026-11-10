@@ -23,6 +23,7 @@ type WorkspaceOption struct {
 	ID         string
 	Name       string
 	BaseBranch string
+	Path       string
 }
 
 // BranchOption is a branch a task worktree can start from.

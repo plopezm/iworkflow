@@ -64,3 +64,9 @@ func TestIssueDTOKeepsEmptyLabelsAsAnArray(t *testing.T) {
 
 	assert.Contains(t, string(encoded), `"labels":[]`)
 }
+
+func TestConvertIssueDTOCarriesTheRelatedProjects(t *testing.T) {
+	request := dto.ConvertIssueDTO{Key: "A-1", RelatedProjectIDs: []string{"w2"}}.ToConversionRequest()
+
+	assert.Equal(t, []string{"w2"}, request.RelatedProjectIDs)
+}

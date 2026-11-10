@@ -15,6 +15,16 @@ type ConvertIssueView struct {
 	Error       string
 }
 
+// IsRelated reports whether the project was chosen as related, so a form shown again keeps the choice.
+func (v ConvertIssueView) IsRelated(workspaceID string) bool {
+	for _, id := range v.Preparation.RelatedProjectIDs {
+		if id == workspaceID {
+			return true
+		}
+	}
+	return false
+}
+
 // FormatBranch formats the branch name using this view's helper.
 func (v ConvertIssueView) FormatBranch(branch dto.ConversionBranchDTO, locale i18n.Locale) string {
 	return FormatBranch(branch, locale)

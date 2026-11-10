@@ -54,6 +54,8 @@ type ConversionRequest struct {
 	Prompt      string
 	Priority    PriorityHint
 	StartNow    bool
+	// RelatedProjectIDs are the other workspaces the task may read and reference with @.
+	RelatedProjectIDs []string
 }
 
 // Validated trims the user input and checks the required fields. The title is cut to the maximum
@@ -79,14 +81,30 @@ func (r ConversionRequest) Validated() (ConversionRequest, error) {
 		}
 	}
 	return ConversionRequest{
-		Key:         r.Key,
-		WorkspaceID: workspaceID,
-		BaseBranch:  baseBranch,
-		Title:       truncateRunes(title, maxTitleChars),
-		Prompt:      prompt,
-		Priority:    r.Priority,
-		StartNow:    r.StartNow,
+		Key:               r.Key,
+		WorkspaceID:       workspaceID,
+		BaseBranch:        baseBranch,
+		Title:             truncateRunes(title, maxTitleChars),
+		Prompt:            prompt,
+		Priority:          r.Priority,
+		StartNow:          r.StartNow,
+		RelatedProjectIDs: cleanRelatedProjects(r.RelatedProjectIDs, workspaceID),
 	}, nil
+}
+
+// cleanRelatedProjects trims the ids and drops blanks, duplicates and the workspace the task runs in.
+func cleanRelatedProjects(ids []string, own string) []string {
+	var cleaned []string
+	seen := map[string]struct{}{own: {}}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if _, dup := seen[id]; id == "" || dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		cleaned = append(cleaned, id)
+	}
+	return cleaned
 }
 
 // truncateRunes keeps the first limit characters (runes), never splitting a multi-byte character.

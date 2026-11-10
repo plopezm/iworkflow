@@ -18,6 +18,8 @@ type NewLinkedTask struct {
 	Prompt      string
 	Priority    models.PriorityHint
 	StartNow    bool
+	// RelatedProjectIDs are the other workspaces the task may read and reference.
+	RelatedProjectIDs []string
 }
 
 // CreatedLinkedTask is the task that was created.
