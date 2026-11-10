@@ -293,6 +293,7 @@ func (h *IssueHandlers) ConvertHandler(w http.ResponseWriter, r *http.Request) {
 	title := r.FormValue("title")
 	prompt := r.FormValue("prompt")
 	priority := r.FormValue("priority")
+	relatedProjectIDs := r.Form["related_project_id"]
 	startNow := r.FormValue("start_now") == "true" || r.FormValue("start_now") == "on" || r.FormValue("start_now") == "1"
 
 	var baseBranchPtr *string
@@ -309,7 +310,7 @@ func (h *IssueHandlers) ConvertHandler(w http.ResponseWriter, r *http.Request) {
 		Prompt:            prompt,
 		Priority:          priority,
 		StartNow:          startNow,
-		RelatedProjectIDs: r.Form["related_project_id"],
+		RelatedProjectIDs: relatedProjectIDs,
 	}
 
 	converted, err := h.ConvertIssue.Execute(r.Context(), convertDTO.ToConversionRequest())
@@ -324,7 +325,7 @@ func (h *IssueHandlers) ConvertHandler(w http.ResponseWriter, r *http.Request) {
 		prepDTO.Title = title
 		prepDTO.Prompt = prompt
 		prepDTO.Priority = priority
-		prepDTO.RelatedProjectIDs = r.Form["related_project_id"]
+		prepDTO.RelatedProjectIDs = relatedProjectIDs
 
 		targetWS := strings.TrimSpace(workspaceID)
 		if targetWS == "" && len(prepDTO.Workspaces) > 0 {

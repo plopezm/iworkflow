@@ -28,7 +28,8 @@ func TestConvertPagePromptCompletesFilesAndOffersRelatedProjects(t *testing.T) {
 
 	assert.Contains(t, html, `data-composer`)
 	assert.Contains(t, html, `data-files-path="/board/tasks/composer/files"`)
-	assert.Contains(t, html, `name="related_project_id" value="w2"`)
+	assert.Regexp(t, `<input[^>]*value="w2"[^>]*checked`, html, "a chosen related project stays checked")
+	assert.NotRegexp(t, `<input[^>]*value="w1"[^>]*checked`, html, "an unchosen project is not checked")
 	assert.Contains(t, html, `data-workspace-id="w1"`)
 }
 
