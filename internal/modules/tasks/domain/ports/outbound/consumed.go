@@ -35,8 +35,8 @@ const (
 	RemoteMerged RemoteMergeOutcome = iota + 1
 	// RemoteNoOpenRequest means the task has no open merge request (or no provider): it is integrated locally.
 	RemoteNoOpenRequest
-	// RemoteAlreadyMerged means the merge request was already merged on the provider: the local merge is skipped,
-	// since it would conflict with the remote one.
+	// RemoteAlreadyMerged means the merge request already carries the whole task branch, merged or still open: the
+	// local merge is skipped (it would conflict with the remote one) and only the worktree is cleaned up.
 	RemoteAlreadyMerged
 )
 
