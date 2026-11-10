@@ -117,6 +117,16 @@ func TestUnifiedViewShowsSignsAndBothLineNumbers(t *testing.T) {
 	assert.NotContains(t, html, ">Before<")
 }
 
+func TestCodeCellsCarryTheTextAndTheFilenameForSyntaxHighlighting(t *testing.T) {
+	t.Parallel()
+	file := patchFile(t, modifyPatch)
+	for _, mode := range []state.ViewMode{state.ViewSplit, state.ViewUnified} {
+		html := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", mode), true))
+		assert.Contains(t, html, `<span data-code-text="`, string(mode))
+		assert.Contains(t, html, `data-code-filename="src/a.rs"`, string(mode))
+	}
+}
+
 func TestEmptyCellOfASplitAdditionIsBlank(t *testing.T) {
 	t.Parallel()
 	file := patchFile(t, "diff --git a/n.txt b/n.txt\nnew file mode 100644\n--- /dev/null\n+++ b/n.txt\n@@ -0,0 +1,1 @@\n+a\n")
