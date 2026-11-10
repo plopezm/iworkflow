@@ -13,11 +13,11 @@ import (
 
 // The screen state of the diff view travels in the address of the view: layout (view), tree (tree) and fold.
 
-func TestDefaultDiffLayoutIsSplitWithTheTreeOpenAndCardsExpanded(t *testing.T) {
+func TestDefaultDiffLayoutIsUnifiedWithTheTreeOpenAndCardsExpanded(t *testing.T) {
 	t.Parallel()
 	layout := state.ParseDiffLayout(url.Values{})
 
-	assert.Equal(t, state.ViewSplit, layout.Mode)
+	assert.Equal(t, state.ViewUnified, layout.Mode)
 	assert.True(t, layout.TreeOpen)
 	assert.False(t, layout.Collapsed)
 }
@@ -35,11 +35,11 @@ func TestLayoutTogglesChangeOnlyTheirField(t *testing.T) {
 	t.Parallel()
 	base := state.DefaultDiffLayout()
 
-	assert.Equal(t, state.ViewUnified, base.WithMode(state.ViewUnified).Mode)
-	assert.True(t, base.WithMode(state.ViewUnified).TreeOpen)
+	assert.Equal(t, state.ViewSplit, base.WithMode(state.ViewSplit).Mode)
+	assert.True(t, base.WithMode(state.ViewSplit).TreeOpen)
 	assert.False(t, base.WithTree(false).TreeOpen)
 	assert.True(t, base.WithCollapsed(true).Collapsed)
-	assert.Equal(t, state.ViewSplit, base.WithCollapsed(true).Mode)
+	assert.Equal(t, state.ViewUnified, base.WithCollapsed(true).Mode)
 	assert.False(t, base.Collapsed, "the toggles return a copy and never change the receiver")
 }
 
@@ -83,4 +83,29 @@ func TestNewDiffViewParsesThePatchAndBuildsTheTree(t *testing.T) {
 	require.Len(t, view.Tree, 2)
 	assert.Equal(t, "src", view.Tree[0].Name)
 	assert.Equal(t, diff, view.Diff)
+}
+
+func TestReportPathsCarryTheLayoutSoClosingTheReportKeepsIt(t *testing.T) {
+	t.Parallel()
+	layout := state.DefaultDiffLayout().WithMode(state.ViewSplit).WithTree(false).WithCollapsed(true)
+
+	for _, path := range []string{
+		state.DiffReportPath("task-1", "ab12", "close", layout),
+		state.DiffReportPollPath("task-1", "ab12", 7, layout),
+	} {
+		parsed, err := url.Parse(path)
+		require.NoError(t, err)
+		assert.Equal(t, "/tasks/task-1/diff/report", parsed.Path)
+		assert.Equal(t, layout, state.ParseDiffLayout(parsed.Query()), path)
+		assert.Equal(t, "ab12", parsed.Query().Get("scope"), path)
+	}
+	assert.Equal(t, "7", mustQuery(t, state.DiffReportPollPath("task-1", "", 7, layout)).Get("since"))
+	assert.Empty(t, mustQuery(t, state.DiffReportPath("task-1", "", "plain", layout)).Get("scope"))
+}
+
+func mustQuery(t *testing.T, path string) url.Values {
+	t.Helper()
+	parsed, err := url.Parse(path)
+	require.NoError(t, err)
+	return parsed.Query()
 }

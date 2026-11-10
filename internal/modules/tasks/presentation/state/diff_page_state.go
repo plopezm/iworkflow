@@ -20,9 +20,9 @@ type DiffLayout struct {
 	Collapsed bool
 }
 
-// DefaultDiffLayout is the layout of a diff that nobody has changed: split, tree open, cards expanded.
+// DefaultDiffLayout is the layout of a diff that nobody has changed: unified, tree open, cards expanded.
 func DefaultDiffLayout() DiffLayout {
-	return DiffLayout{Mode: ViewSplit, TreeOpen: true}
+	return DiffLayout{Mode: ViewUnified, TreeOpen: true}
 }
 
 // ParseDiffLayout reads the layout of a query: view (split or unified), tree ("0" hides the tree) and fold
@@ -111,19 +111,20 @@ func DiffViewPath(view DiffView, layout DiffLayout) string {
 }
 
 // DiffReportPath is the address that answers a report action of the task (plain, explained, close), carrying the
-// instance scope.
-func DiffReportPath(taskID string, scope string, action string) string {
-	path := "/tasks/" + taskID + "/diff/report?action=" + action
-	if scope == "" {
-		return path
+// instance scope and the layout of the view, so closing the report gives the view back the way it was.
+func DiffReportPath(taskID string, scope string, action string, layout DiffLayout) string {
+	values := layout.query()
+	values.Set("action", action)
+	if scope != "" {
+		values.Set("scope", scope)
 	}
-	return path + "&scope=" + scope
+	return "/tasks/" + taskID + "/diff/report?" + values.Encode()
 }
 
 // DiffReportPollPath is the address that asks again for the report that waits for the agent. since is the length of
 // the transcript when the explanation was asked.
-func DiffReportPollPath(taskID string, scope string, since int) string {
-	return DiffReportPath(taskID, scope, "poll") + "&since=" + strconv.Itoa(since)
+func DiffReportPollPath(taskID string, scope string, since int, layout DiffLayout) string {
+	return DiffReportPath(taskID, scope, "poll", layout) + "&since=" + strconv.Itoa(since)
 }
 
 // DiffViewRegionID is the id of the element the controls swap for one instance of the view.

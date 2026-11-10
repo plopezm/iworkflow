@@ -44,9 +44,9 @@ func lineClass(line string) string {
 
 // diffReportCancelAttrs returns the htmx attributes that close the report: they answer the diff view region that
 // renders it, so the overlay of the report swaps back to the diff.
-func diffReportCancelAttrs(taskID string, scope string) templ.Attributes {
+func diffReportCancelAttrs(taskID string, scope string, layout state.DiffLayout) templ.Attributes {
 	return templ.Attributes{
-		"hx-get":    state.DiffReportPath(taskID, scope, "close"),
+		"hx-get":    state.DiffReportPath(taskID, scope, "close", layout),
 		"hx-target": "#" + state.DiffViewRegionID(scope),
 		"hx-swap":   "outerHTML",
 	}
@@ -54,9 +54,9 @@ func diffReportCancelAttrs(taskID string, scope string) templ.Attributes {
 
 // diffReportPollAttrs returns the htmx attributes that ask again for the report that waits for the agent. The answer
 // swaps the diff view region, and with it the element that polls, so the polling stops with the wait.
-func diffReportPollAttrs(taskID string, scope string, since int) templ.Attributes {
+func diffReportPollAttrs(taskID string, scope string, since int, layout state.DiffLayout) templ.Attributes {
 	return templ.Attributes{
-		"hx-get":     state.DiffReportPollPath(taskID, scope, since),
+		"hx-get":     state.DiffReportPollPath(taskID, scope, since, layout),
 		"hx-trigger": "every 2s",
 		"hx-target":  "#" + state.DiffViewRegionID(scope),
 		"hx-swap":    "outerHTML",

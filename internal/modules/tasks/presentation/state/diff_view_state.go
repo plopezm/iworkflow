@@ -30,12 +30,12 @@ const (
 	ViewUnified ViewMode = "unified"
 )
 
-// ParseViewMode reads the layout of a query value. Anything but "unified" is the split layout, the default.
+// ParseViewMode reads the layout of a query value. Anything but "split" is the unified layout, the default.
 func ParseViewMode(raw string) ViewMode {
-	if raw == string(ViewUnified) {
-		return ViewUnified
+	if raw == string(ViewSplit) {
+		return ViewSplit
 	}
-	return ViewSplit
+	return ViewUnified
 }
 
 // Toggled is the other layout.

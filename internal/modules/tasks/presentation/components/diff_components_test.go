@@ -3,6 +3,7 @@ package components_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
@@ -115,6 +116,29 @@ func TestUnifiedViewShowsSignsAndBothLineNumbers(t *testing.T) {
 	assert.Contains(t, html, `<td class="diff-sign">-</td>`)
 	assert.Contains(t, html, `<td class="diff-sign">+</td>`)
 	assert.NotContains(t, html, ">Before<")
+}
+
+func TestEveryNonBlankCodeCellCarriesTheTextAndTheFilenameForSyntaxHighlighting(t *testing.T) {
+	t.Parallel()
+	file := patchFile(t, modifyPatch)
+	const marker = `<span data-code-text="`
+	unified := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", state.ViewUnified), true))
+	split := renderIn(t, i18n.En, components.DiffFileCard(file, cardView("", state.ViewSplit), true))
+
+	var unifiedLines, splitCells int
+	for _, hunk := range file.Hunks {
+		unifiedLines += len(hunk.Lines)
+		for _, row := range hunk.Rows {
+			for _, cell := range []*state.Cell{row.Left, row.Right} {
+				if cell != nil && cell.Text != "" {
+					splitCells++
+				}
+			}
+		}
+	}
+	assert.Equal(t, unifiedLines, strings.Count(unified, marker), "one span per unified line")
+	assert.Equal(t, splitCells, strings.Count(split, marker), "one span per non-blank split cell")
+	assert.Equal(t, strings.Count(unified, marker)+strings.Count(split, marker), strings.Count(unified+split, `data-code-filename="src/a.rs"`))
 }
 
 func TestEmptyCellOfASplitAdditionIsBlank(t *testing.T) {
