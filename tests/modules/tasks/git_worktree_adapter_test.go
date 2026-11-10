@@ -562,6 +562,83 @@ func TestCreateFetchesARemoteBaseBranchFirst(t *testing.T) {
 	assert.FileExists(t, filepath.Join(worktree, "newer.txt"))
 }
 
+// A remote base branch is refreshed even when a stale local branch of the same name exists: the task starts
+// from the remote tip, not from the local branch.
+func TestCreateFetchesARemoteBaseBranchEvenWithALocalNamesake(t *testing.T) {
+	remote := newRemoteFixture(t)
+	gitCmd(t, remote.repo, "branch", "-q", "develop", "origin/develop")
+	other := realDir(t, t.TempDir())
+	origin := gitCmd(t, remote.repo, "remote", "get-url", "origin")
+	gitCmd(t, other, "clone", "-q", origin, ".")
+	gitCmd(t, other, "config", "user.email", "test@example.com")
+	gitCmd(t, other, "config", "user.name", "Test")
+	gitCmd(t, other, "config", "commit.gpgsign", "false")
+	gitCmd(t, other, "checkout", "-q", "develop")
+	require.NoError(t, os.WriteFile(filepath.Join(other, "newer.txt"), []byte("new\n"), 0o644))
+	gitCmd(t, other, "add", ".")
+	gitCmd(t, other, "commit", "-q", "-m", "newer")
+	gitCmd(t, other, "push", "-q", "origin", "develop")
+	worktree := remote.adapter.WorktreePath("demo", "1234-namesake")
+
+	require.NoError(t, remote.adapter.Create(bg(), remote.repo, "origin/develop", taskBranch, worktree))
+
+	assert.FileExists(t, filepath.Join(worktree, "newer.txt"))
+}
+
+// When the remote base branch cannot be fetched, the worktree is not created: the task must never start from a
+// stale copy of a remote branch.
+func TestCreateFailsWhenARemoteBaseBranchCannotBeFetched(t *testing.T) {
+	remote := newRemoteFixture(t)
+	gitCmd(t, remote.repo, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing"))
+	worktree := remote.adapter.WorktreePath("demo", "1234-offline")
+
+	err := remote.adapter.Create(bg(), remote.repo, "origin/develop", taskBranch, worktree)
+
+	require.Error(t, err)
+	assert.NoDirExists(t, worktree)
+	assert.Empty(t, gitCmd(t, remote.repo, "branch", "--list", taskBranch))
+}
+
+// A local base whose name has a slash is not a remote-tracking branch: it is never fetched, so an unreachable
+// remote does not stop the worktree.
+func TestCreateLocalSlashBaseDoesNotFetch(t *testing.T) {
+	remote := newRemoteFixture(t)
+	gitCmd(t, remote.repo, "branch", "-q", "feature/x", "main")
+	gitCmd(t, remote.repo, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing"))
+	worktree := remote.adapter.WorktreePath("demo", "1234-slash")
+
+	require.NoError(t, remote.adapter.Create(bg(), remote.repo, "feature/x", taskBranch, worktree))
+
+	assert.Equal(t, taskBranch, gitCmd(t, worktree, "branch", "--show-current"))
+}
+
+// With remotes "origin" and "origin2", a base of origin2/x is fetched from origin2 and not from origin. The
+// unreachable origin proves the fetch did not go there.
+func TestCreateFetchesFromTheRemoteNamedInTheBase(t *testing.T) {
+	remote := newRemoteFixture(t)
+	second := realDir(t, t.TempDir())
+	gitCmd(t, second, "init", "-q", "--bare")
+	gitCmd(t, remote.repo, "remote", "add", "origin2", second)
+	gitCmd(t, remote.repo, "push", "-q", "origin2", "main:x")
+	gitCmd(t, remote.repo, "fetch", "-q", "origin2")
+	other := realDir(t, t.TempDir())
+	gitCmd(t, other, "clone", "-q", second, ".")
+	gitCmd(t, other, "config", "user.email", "test@example.com")
+	gitCmd(t, other, "config", "user.name", "Test")
+	gitCmd(t, other, "config", "commit.gpgsign", "false")
+	gitCmd(t, other, "checkout", "-q", "x")
+	require.NoError(t, os.WriteFile(filepath.Join(other, "newer.txt"), []byte("new\n"), 0o644))
+	gitCmd(t, other, "add", ".")
+	gitCmd(t, other, "commit", "-q", "-m", "newer")
+	gitCmd(t, other, "push", "-q", "origin", "x")
+	gitCmd(t, remote.repo, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing"))
+	worktree := remote.adapter.WorktreePath("demo", "1234-origin2")
+
+	require.NoError(t, remote.adapter.Create(bg(), remote.repo, "origin2/x", taskBranch, worktree))
+
+	assert.FileExists(t, filepath.Join(worktree, "newer.txt"))
+}
+
 // Rust: task_branch_does_not_track_the_remote_base_branch. A push from the task branch must never
 // reach the base branch.
 func TestTaskBranchDoesNotTrackTheRemoteBaseBranch(t *testing.T) {
