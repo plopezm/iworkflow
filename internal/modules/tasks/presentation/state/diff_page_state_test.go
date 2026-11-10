@@ -84,3 +84,28 @@ func TestNewDiffViewParsesThePatchAndBuildsTheTree(t *testing.T) {
 	assert.Equal(t, "src", view.Tree[0].Name)
 	assert.Equal(t, diff, view.Diff)
 }
+
+func TestReportPathsCarryTheLayoutSoClosingTheReportKeepsIt(t *testing.T) {
+	t.Parallel()
+	layout := state.DefaultDiffLayout().WithMode(state.ViewSplit).WithTree(false).WithCollapsed(true)
+
+	for _, path := range []string{
+		state.DiffReportPath("task-1", "ab12", "close", layout),
+		state.DiffReportPollPath("task-1", "ab12", 7, layout),
+	} {
+		parsed, err := url.Parse(path)
+		require.NoError(t, err)
+		assert.Equal(t, "/tasks/task-1/diff/report", parsed.Path)
+		assert.Equal(t, layout, state.ParseDiffLayout(parsed.Query()), path)
+		assert.Equal(t, "ab12", parsed.Query().Get("scope"), path)
+	}
+	assert.Equal(t, "7", mustQuery(t, state.DiffReportPollPath("task-1", "", 7, layout)).Get("since"))
+	assert.Empty(t, mustQuery(t, state.DiffReportPath("task-1", "", "plain", layout)).Get("scope"))
+}
+
+func mustQuery(t *testing.T, path string) url.Values {
+	t.Helper()
+	parsed, err := url.Parse(path)
+	require.NoError(t, err)
+	return parsed.Query()
+}

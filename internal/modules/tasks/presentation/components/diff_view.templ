@@ -18,19 +18,19 @@ templ DiffView(view state.DiffView) {
 		} else {
 			@diffToolbar(view)
 			if view.ReportPhase().HasReport() {
-				@DiffReport(view.TaskID, view.Scope, view.Title, view.Diff, view.ReportPhase())
+				@DiffReport(view.TaskID, view.Scope, view.Layout, view.Title, view.Diff, view.ReportPhase())
 			}
 			if view.ReportPhase().IsFailed() {
 				<div class="notice notice-warn row justify-between animate-fade-in">
 					@coreui.ErrorText(view.ReportPhase().Error)
-					<button type="button" class="btn-secondary" { diffReportCancelAttrs(view.TaskID, view.Scope)... }>{ msgReportClose.T(ctx) }</button>
+					<button type="button" class="btn-secondary" { diffReportCancelAttrs(view.TaskID, view.Scope, view.Layout)... }>{ msgReportClose.T(ctx) }</button>
 				</div>
 			}
 			if view.ReportPhase().IsWaiting() {
-				<div hidden { diffReportPollAttrs(view.TaskID, view.Scope, view.Report.Since)... }></div>
+				<div hidden { diffReportPollAttrs(view.TaskID, view.Scope, view.Report.Since, view.Layout)... }></div>
 			}
 			if view.ReportPhase().IsBusy() {
-				@coreui.ProgressDialog(diffReportProgressTitle(ctx), diffReportProgressMessage(ctx, view.ReportPhase()), true, diffReportCancelAttrs(view.TaskID, view.Scope))
+				@coreui.ProgressDialog(diffReportProgressTitle(ctx), diffReportProgressMessage(ctx, view.ReportPhase()), true, diffReportCancelAttrs(view.TaskID, view.Scope, view.Layout))
 			}
 			@diffSummary(view.Diff.Commits, view.Diff.Stat)
 			if view.Diff.Truncated {
@@ -65,8 +65,8 @@ templ diffToolbar(view state.DiffView) {
 		<button type="button" class="btn-secondary" hx-get={ state.DiffViewPath(view, view.Layout.WithCollapsed(false)) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgExpandAll.T(ctx) }</button>
 		<button type="button" class="btn-secondary" hx-get={ state.DiffViewPath(view, view.Layout.WithCollapsed(true)) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgCollapseAll.T(ctx) }</button>
 		<button type="button" class="btn-secondary" aria-pressed={ boolText(view.Layout.TreeOpen) } hx-get={ state.DiffViewPath(view, view.Layout.WithTree(!view.Layout.TreeOpen)) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgTree.T(ctx) }</button>
-		<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(view.TaskID, view.Scope, "plain") } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgExportPdf.T(ctx) }</button>
-		<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(view.TaskID, view.Scope, "explained") } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgPdfWithExplanations.T(ctx) }</button>
+		<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(view.TaskID, view.Scope, "plain", view.Layout) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgExportPdf.T(ctx) }</button>
+		<button type="button" class="btn-secondary" hx-get={ state.DiffReportPath(view.TaskID, view.Scope, "explained", view.Layout) } hx-target={ "#" + state.DiffViewRegionID(view.Scope) } hx-swap="outerHTML">{ msgPdfWithExplanations.T(ctx) }</button>
 	</div>
 }
 

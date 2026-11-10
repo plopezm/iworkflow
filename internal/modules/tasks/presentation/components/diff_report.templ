@@ -10,11 +10,11 @@ import (
 // report is rendered as is, a complete explained one renders the answer of the agent. The save itself is the print
 // dialog of the browser, where "Save as PDF" is available; the close answers the report of the task through the diff
 // view that renders it.
-templ DiffReport(taskID string, scope string, title string, diff dto.TaskDiffDTO, phase state.ReportPhase) {
+templ DiffReport(taskID string, scope string, layout state.DiffLayout, title string, diff dto.TaskDiffDTO, phase state.ReportPhase) {
 	<div class="print-report">
 		<div class="print-report-toolbar">
 			<button type="button" class="btn-primary" data-print-report>{ msgSaveAsPDF.T(ctx) }</button>
-			<button type="button" class="btn-secondary" { diffReportCancelAttrs(taskID, scope)... }>{ msgReportClose.T(ctx) }</button>
+			<button type="button" class="btn-secondary" { diffReportCancelAttrs(taskID, scope, layout)... }>{ msgReportClose.T(ctx) }</button>
 		</div>
 		<article class="print-report-page">
 			<h1>{ title }</h1>

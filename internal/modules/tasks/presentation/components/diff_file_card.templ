@@ -52,9 +52,9 @@ templ splitBody(path string, hunks []state.Hunk) {
 					for _, row := range hunk.Rows {
 						<tr>
 							<td class="diff-num">{ cellNumber(row.Left) }</td>
-							<td class={ cellClass(row.Left) }><span data-code-text={ cellText(row.Left) } data-code-filename={ path }>{ cellText(row.Left) }</span></td>
+							<td class={ cellClass(row.Left) }>@codeText(path, cellText(row.Left))</td>
 							<td class="diff-num">{ cellNumber(row.Right) }</td>
-							<td class={ cellClass(row.Right) }><span data-code-text={ cellText(row.Right) } data-code-filename={ path }>{ cellText(row.Right) }</span></td>
+							<td class={ cellClass(row.Right) }>@codeText(path, cellText(row.Right))</td>
 						</tr>
 					}
 				}
@@ -77,11 +77,19 @@ templ unifiedBody(path string, hunks []state.Hunk) {
 							<td class="diff-num">{ lineNumber(line.OldNumber) }</td>
 							<td class="diff-num">{ lineNumber(line.NewNumber) }</td>
 							<td class="diff-sign">{ kindSign(line.Kind) }</td>
-							<td class={ kindClass(line.Kind) }><span data-code-text={ line.Text } data-code-filename={ path }>{ line.Text }</span></td>
+							<td class={ kindClass(line.Kind) }>@codeText(path, line.Text)</td>
 						</tr>
 					}
 				}
 			</tbody>
 		</table>
 	</div>
+}
+
+// codeText is the text of a code cell. The syntax highlighter finds it by data-code-text, picks the language from
+// data-code-filename and replaces the plain text, which stays as the fallback. A blank cell has nothing to highlight.
+templ codeText(path string, text string) {
+	if text != "" {
+		<span data-code-text={ text } data-code-filename={ path }>{ text }</span>
+	}
 }

@@ -19,7 +19,7 @@ import (
 // report is rendered as is, a complete explained one renders the answer of the agent. The save itself is the print
 // dialog of the browser, where "Save as PDF" is available; the close answers the report of the task through the diff
 // view that renders it.
-func DiffReport(taskID string, scope string, title string, diff dto.TaskDiffDTO, phase state.ReportPhase) templ.Component {
+func DiffReport(taskID string, scope string, layout state.DiffLayout, title string, diff dto.TaskDiffDTO, phase state.ReportPhase) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -61,7 +61,7 @@ func DiffReport(taskID string, scope string, title string, diff dto.TaskDiffDTO,
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_ElementWriter, "button", diffReportCancelAttrs(taskID, scope))
+			templ_7745c5c3_Err = templruntime.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_ElementWriter, "button", diffReportCancelAttrs(taskID, scope, layout))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -82,7 +82,7 @@ func DiffReport(taskID string, scope string, title string, diff dto.TaskDiffDTO,
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(msgReportClose.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/diff_report.templ`, Line: 17, Col: 114}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/diff_report.templ`, Line: 17, Col: 122}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
