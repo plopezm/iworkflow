@@ -108,6 +108,7 @@ func TestFinishTaskKeepsTheWorktreeAndBranch(t *testing.T) {
 // before the agent is touched or git is called.
 func TestFinishTaskAcceptsOnlyTheFinishableStatuses(t *testing.T) {
 	finishable := []models.TaskStatus{
+		models.StatusFinishing, // a finish that died leaves it here; retrying is the way out (the in-flight claim guards live ones)
 		models.StatusRunning,
 		models.StatusIdle,
 		models.StatusInterrupted,
@@ -197,4 +198,45 @@ func TestFinishTaskPublishesTheStatusEventsInOrder(t *testing.T) {
 		models.StatusKind(models.StatusAwaitingReview, nil),
 	}, fixture.repo.events)
 	assert.Len(t, fixture.publisher.published, 2)
+}
+
+// cancellingWorktree cancels the request while the commit runs, as a closed tab or an aborted htmx request does.
+type cancellingWorktree struct {
+	*fakeWorktree
+	cancel context.CancelFunc
+}
+
+func (w cancellingWorktree) CommitAll(ctx context.Context, path string, message string) (bool, error) {
+	w.cancel()
+	return w.fakeWorktree.CommitAll(ctx, path, message)
+}
+
+// Bug: a request cancelled mid finish must not leave the task in finishing. The finish runs detached from the request,
+// so it completes and the task reaches awaiting review.
+func TestFinishTaskRequestCancelledMidFinishStillCompletes(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fixture.repo})
+	fixture.lifecycle = lifecycle
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fixture.worktrees = &fakeWorktree{}
+	useCase := application.NewFinishTask(lifecycle, cancellingWorktree{fakeWorktree: fixture.worktrees, cancel: cancel}, fixture.runtime, application.NewAttachmentCleanup(fixture.attachments, fixture.storage))
+
+	require.NoError(t, useCase.Execute(ctx, task.ID))
+
+	assert.Equal(t, models.StatusAwaitingReview, fixture.repo.tasks[task.ID].Status)
+}
+
+// Bug: a failure after the request was cancelled still marks the task failed instead of leaving it in finishing.
+func TestFinishTaskCancelledRequestWithCommitFailureStillMarksFailed(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fixture.repo})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fixture.worktrees = &fakeWorktree{commitErr: werrors.Git("index.lock")}
+	useCase := application.NewFinishTask(lifecycle, cancellingWorktree{fakeWorktree: fixture.worktrees, cancel: cancel}, fixture.runtime, application.NewAttachmentCleanup(fixture.attachments, fixture.storage))
+
+	require.ErrorIs(t, useCase.Execute(ctx, task.ID), werrors.Git("index.lock"))
+
+	assert.Equal(t, models.StatusFailed, fixture.repo.tasks[task.ID].Status)
 }

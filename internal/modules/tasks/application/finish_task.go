@@ -88,25 +88,28 @@ func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
 		}
 		return preErr
 	}
-	if err := u.lifecycle.Transition(ctx, id, models.StatusFinishing, nil); err != nil {
+	// From here the finish is detached from the request: a closed tab or an aborted htmx call must not leave the task
+	// in finishing, because the status writes of a cancelled context would fail and nothing would ever leave it.
+	detached := context.WithoutCancel(ctx)
+	if err := u.lifecycle.Transition(detached, id, models.StatusFinishing, nil); err != nil {
 		return err
 	}
-	if err := u.consolidate(ctx, task); err != nil {
+	if err := u.consolidate(detached, task); err != nil {
 		message := err.Error()
 		// Intentional improvement over Rust: when marking the task failed fails too, both errors are returned, so the
 		// consolidation error is not masked. errors.Join keeps errors.Is and errors.As working on each of them.
-		if transitionErr := u.lifecycle.Transition(ctx, id, models.StatusFailed, &message); transitionErr != nil {
+		if transitionErr := u.lifecycle.Transition(detached, id, models.StatusFailed, &message); transitionErr != nil {
 			return errors.Join(err, transitionErr)
 		}
 		return err
 	}
-	if err := u.lifecycle.Transition(ctx, id, models.StatusAwaitingReview, nil); err != nil {
+	if err := u.lifecycle.Transition(detached, id, models.StatusAwaitingReview, nil); err != nil {
 		return err
 	}
 	// The post hooks run once the task awaits review; their failure does not fail the finish.
 	task.Status = models.StatusAwaitingReview
 	runPostLifecycleHooks(ctx, u.hooks, models.HookEventFinish, task, workspacePath)
-	u.cleanup.CleanupTask(ctx, id)
+	u.cleanup.CleanupTask(detached, id)
 	return nil
 }
 

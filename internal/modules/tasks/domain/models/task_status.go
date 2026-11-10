@@ -132,10 +132,11 @@ func exitDetail(code *int32) string {
 	return "código " + strconv.FormatInt(int64(*code), 10)
 }
 
-// CanFinish reports whether the task can be finished (its agent closed and changes consolidated).
+// CanFinish reports whether the task can be finished (its agent closed and changes consolidated). Finishing is
+// included so a finish that died halfway can be retried; FinishTask refuses it while a finish is really in flight.
 func (s TaskStatus) CanFinish() bool {
 	switch s {
-	case StatusRunning, StatusIdle, StatusInterrupted, StatusFailed, StatusConflict:
+	case StatusFinishing, StatusRunning, StatusIdle, StatusInterrupted, StatusFailed, StatusConflict:
 		return true
 	default:
 		return false

@@ -94,3 +94,30 @@ func TestTaskActionsOffersOpenWithBesideTheTerminalOnlyWithAWorktree(t *testing.
 	assert.Contains(t, with, `id="task-open-with-abc123"`)
 	assert.Contains(t, with, "Open with")
 }
+
+// A task stuck in finishing offers the finish again and tells the user what pressing it does; any other status shows
+// no such hint.
+func TestTaskActionsExplainsTheRetryOfAStuckFinish(t *testing.T) {
+	t.Parallel()
+
+	view := taskActionsView("t1", false, false)
+	view.Task.Status = "finishing"
+	view.Task.Actions.CanFinish = true
+
+	body := renderIn(t, i18n.Es, components.TaskActions(view))
+
+	assert.Contains(t, body, "La finalización no se completó")
+	assert.Contains(t, body, ">Finalizar</button>", "the finish stays offered so the user can retry")
+}
+
+func TestTaskActionsShowsNoFinishHintOutsideFinishing(t *testing.T) {
+	t.Parallel()
+
+	view := taskActionsView("t1", false, false)
+	view.Task.Status = "idle"
+	view.Task.Actions.CanFinish = true
+
+	body := renderIn(t, i18n.Es, components.TaskActions(view))
+
+	assert.NotContains(t, body, "La finalización no se completó")
+}
