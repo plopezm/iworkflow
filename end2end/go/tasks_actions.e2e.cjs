@@ -11,7 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 const tag = Date.now().toString();
 const TMP = process.env.SMOKE_TMP_DIR || process.env.WORK_TMP_DIR || '/tmp';
 
@@ -110,6 +110,17 @@ async function finishedTask(ctx, key, opts = {}) {
   return t;
 }
 
+// Forces a task into "finishing" in the server database, as a finish that died halfway (older versions) left it. The
+// server keeps no in-memory claim for it, exactly like a task stuck before an upgrade.
+function forceStatus(id, status) {
+  const worktrees = process.env.SMOKE_WORKTREES;
+  if (!worktrees) throw new Error('falta SMOKE_WORKTREES (directorio de worktrees del servidor)');
+  const db = path.join(path.dirname(worktrees), 'workspaces.db');
+  execFileSync('python3', ['-I', '-c',
+    'import sqlite3,sys; c=sqlite3.connect(sys.argv[1], timeout=15); c.execute("UPDATE tasks SET status=? WHERE id=?", (sys.argv[2], sys.argv[3])); c.commit(); c.close()',
+    db, status, id], { stdio: 'ignore' });
+}
+
 // ---- tests ----
 module.exports = {
   name: 'tasks_actions',
@@ -118,6 +129,55 @@ module.exports = {
       name: 'finish_task: "Finalizar" deja la tarea pendiente de revisión',
       fn: async (ctx) => {
         await finishedTask(ctx, 'finish');
+      },
+    },
+    {
+      name: 'finish_task: una tarea atascada en "Finalizando" muestra la ayuda y "Finalizar" la reintenta',
+      fn: async (ctx) => {
+        const t = await liveTask(ctx, 'stuckfin');
+        const page = ctx.page;
+        forceStatus(t.id, 'finishing');
+        await ctx.goto(`/tasks/${t.id}`);
+        await page.locator('h1 + div .badge', { hasText: 'Finalizando' }).first().waitFor({ timeout: 15000 });
+        await openActions(ctx);
+        // What the user sees: the way out is explained and the finish is offered again.
+        await page.getByText(/La finalización no se completó/).first().waitFor({ timeout: 10000 });
+        await page.getByRole('button', { name: 'Finalizar' }).click();
+        await page.getByText('Pendiente de revisión').first().waitFor({ timeout: 25000 });
+        await page.getByText(/La finalización no se completó/).first().waitFor({ state: 'detached', timeout: 10000 });
+        await page.locator('h1 + div .badge', { hasText: 'Finalizando' }).first().waitFor({ state: 'detached', timeout: 10000 });
+      },
+    },
+    {
+      name: 'finish_task: cerrar la petición a mitad no deja la tarea en "Finalizando"',
+      fn: async (ctx) => {
+        const t = await liveTask(ctx, 'abortfin');
+        const page = ctx.page;
+        await openActions(ctx);
+        // The click posts the finish and the page leaves right after the request went out, which cancels it on the
+        // server. The finish must still complete: the task is never left in "Finalizando" nor needs a second try.
+        const sent = page.waitForRequest((r) => r.url().includes(`/tasks/${t.id}/finish`), { timeout: 10000 });
+        await page.getByRole('button', { name: 'Finalizar' }).click();
+        await sent;
+        await ctx.goto('/');
+        await sleep(4000);
+        await ctx.goto(`/tasks/${t.id}`);
+        await page.getByRole('tab', { name: 'Acciones' }).first().waitFor({ timeout: 15000 });
+        const stuck = await page.locator('h1 + div .badge', { hasText: 'Finalizando' }).first().isVisible().catch(() => false);
+        ctx.assert(!stuck, 'la tarea se quedó en "Finalizando" tras cancelar la petición');
+        await page.getByText('Pendiente de revisión').first().waitFor({ timeout: 10000 });
+      },
+    },
+    {
+      name: 'finish_task: finalizar una tarea ya finalizada muestra el error de estado al usuario',
+      fn: async (ctx) => {
+        const t = await finishedTask(ctx, 'refused');
+        const res = await ctx.page.request.post(`${require('../harness.cjs').BASE}/tasks/${t.id}/finish`, { headers: { 'HX-Request': 'true' } });
+        const body = await res.text();
+        ctx.assert(res.status() === 200, `finish respondió ${res.status()}`);
+        ctx.assert(/operación no permitida en estado awaiting_review: finalizar/.test(body), `el usuario no ve el error de estado: ${body.slice(0, 300)}`);
+        await ctx.goto(`/tasks/${t.id}`);
+        await ctx.page.getByText('Pendiente de revisión').first().waitFor({ timeout: 15000 });
       },
     },
     {
