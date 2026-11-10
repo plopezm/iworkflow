@@ -43,7 +43,7 @@ func diffTestFile(t *testing.T, statusHeader string, path string, binary bool) s
 
 func TestViewModeTogglesAndLabels(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, state.ViewSplit, state.ParseViewMode(""))
+	assert.Equal(t, state.ViewUnified, state.ParseViewMode(""))
 	assert.Equal(t, state.ViewSplit, state.ViewSplit.Toggled().Toggled())
 	assert.Equal(t, state.ViewUnified, state.ViewSplit.Toggled())
 	assert.Equal(t, state.ViewSplit, state.ViewUnified.Toggled())
@@ -53,11 +53,11 @@ func TestViewModeTogglesAndLabels(t *testing.T) {
 	assert.Equal(t, "Unificado", state.ViewUnified.Label(langContext(i18n.Es)))
 }
 
-func TestParseViewModeReadsTheQueryValueAndDefaultsToSplit(t *testing.T) {
+func TestParseViewModeReadsTheQueryValueAndDefaultsToUnified(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, state.ViewUnified, state.ParseViewMode("unified"))
 	assert.Equal(t, state.ViewSplit, state.ParseViewMode("split"))
-	assert.Equal(t, state.ViewSplit, state.ParseViewMode("bogus"))
+	assert.Equal(t, state.ViewUnified, state.ParseViewMode("bogus"))
 }
 
 func TestAnchorIDIsDOMSafeAndInjective(t *testing.T) {

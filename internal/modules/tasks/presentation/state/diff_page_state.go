@@ -20,9 +20,9 @@ type DiffLayout struct {
 	Collapsed bool
 }
 
-// DefaultDiffLayout is the layout of a diff that nobody has changed: split, tree open, cards expanded.
+// DefaultDiffLayout is the layout of a diff that nobody has changed: unified, tree open, cards expanded.
 func DefaultDiffLayout() DiffLayout {
-	return DiffLayout{Mode: ViewSplit, TreeOpen: true}
+	return DiffLayout{Mode: ViewUnified, TreeOpen: true}
 }
 
 // ParseDiffLayout reads the layout of a query: view (split or unified), tree ("0" hides the tree) and fold
