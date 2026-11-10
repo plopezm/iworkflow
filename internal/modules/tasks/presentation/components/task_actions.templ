@@ -12,6 +12,9 @@ import (
 templ TaskActions(view state.TaskDetailView) {
 	<section class="card stack">
 		<span class="eyebrow">{ msgSectionAgent.T(ctx) }</span>
+		if view.Task.Status == "finishing" {
+			<p class="muted" role="status">{ msgFinishStuckHint.T(ctx) }</p>
+		}
 		<div class="row gap-2">
 			if view.Task.Actions.CanFinish {
 				@taskAction(view, "finish", msgFinishAndReview.T(ctx), "btn-primary", msgConfirmFinish.T(ctx), false)
