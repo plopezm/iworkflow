@@ -41,8 +41,11 @@ func (u *MergeTaskMergeRequest) Execute(ctx context.Context, taskID string) (mod
 // ExecuteIfOpen is Execute, but it returns nil and no error, without pushing or merging, when the
 // branch has no open merge request.
 func (u *MergeTaskMergeRequest) ExecuteIfOpen(ctx context.Context, taskID string) (*models.MergeRequestStatus, error) {
-	status, _, err := u.ExecuteIfOpenOrDetectMerged(ctx, taskID)
-	return status, err
+	inspected, err := u.inspect(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return u.mergeInspected(ctx, inspected)
 }
 
 // inspectedRequest is what the provider says about the latest merge request of a task branch.
@@ -50,8 +53,9 @@ type inspectedRequest struct {
 	resolved ResolvedTask
 	// open is the latest request when it is still open, nil otherwise.
 	open *models.MergeRequest
-	// mergedAtTip reports that the latest request was merged with the current tip of the branch.
-	mergedAtTip bool
+	// atTip reports that the latest request, open or merged, carries the current tip of the branch: every
+	// commit of the task is already on the provider, so the task flow has nothing left to push or merge.
+	atTip bool
 }
 
 // inspect reads, without pushing or merging, the latest merge request of the branch of the task.
@@ -65,54 +69,76 @@ func (u *MergeTaskMergeRequest) inspect(ctx context.Context, taskID string) (ins
 	if err != nil {
 		return inspectedRequest{}, err
 	}
-	if found != nil && found.IsMerged() {
-		// Only a request that merged the whole local branch lets the task skip the local integration:
-		// commits made after the merge would be lost. When the branch moved, or the provider did not say
-		// which commit it merged, the task is integrated locally instead. A branch that cannot be read
-		// is treated the same way: the local integration reports the real problem, if there is one.
-		head, err := u.remote.BranchHead(ctx, resolved.Source.RepoPath, branch)
-		if err != nil {
-			slog.Warn("could not read the task branch; integrating locally", "task_id", taskID, "branch", branch, "error", err)
-			return inspectedRequest{resolved: resolved}, nil //nolint:nilerr // Unreadable branch: fall back to the local integration.
-		}
-		return inspectedRequest{resolved: resolved, mergedAtTip: found.HeadSHA != "" && found.HeadSHA == head}, nil
+	if found == nil || (!found.IsMerged() && !found.IsOpen()) {
+		return inspectedRequest{resolved: resolved}, nil
 	}
-	if found == nil || !found.IsOpen() {
+	// Only a request that carries the whole local branch lets the task skip the integration: commits made
+	// after the request head would be lost. When the branch moved, or the provider did not say which commit
+	// the request holds, an open request is pushed and merged and a merged one is integrated locally.
+	head, err := u.remote.BranchHead(ctx, resolved.Source.RepoPath, branch)
+	if err != nil {
+		slog.Warn("could not read the task branch", "task_id", taskID, "branch", branch, "error", err)
+		if found.IsMerged() {
+			// Unreadable branch: the local integration reports the real problem, if there is one.
+			return inspectedRequest{resolved: resolved}, nil //nolint:nilerr // Fall back to the local integration.
+		}
+		return inspectedRequest{resolved: resolved, open: found}, nil //nolint:nilerr // The push reports the real problem, if there is one.
+	}
+	if found.HeadSHA != "" && found.HeadSHA == head {
+		return inspectedRequest{resolved: resolved, atTip: true, open: openOnly(found)}, nil
+	}
+	if found.IsMerged() {
 		return inspectedRequest{resolved: resolved}, nil
 	}
 	return inspectedRequest{resolved: resolved, open: found}, nil
 }
 
+// openOnly returns the request when it is open and nil when it is merged.
+func openOnly(request *models.MergeRequest) *models.MergeRequest {
+	if request.IsOpen() {
+		return request
+	}
+	return nil
+}
+
 // Preview reports, without pushing or merging, whether the latest merge request of the branch is open and
-// whether it was already merged with the current tip of the branch.
-func (u *MergeTaskMergeRequest) Preview(ctx context.Context, taskID string) (open bool, mergedAtTip bool, err error) {
+// and whether it already carries the current tip of the branch, merged or not.
+func (u *MergeTaskMergeRequest) Preview(ctx context.Context, taskID string) (open bool, atTip bool, err error) {
 	inspected, err := u.inspect(ctx, taskID)
 	if err != nil {
 		return false, false, err
 	}
-	return inspected.open != nil, inspected.mergedAtTip, nil
+	return inspected.open != nil, inspected.atTip, nil
 }
 
 // ExecuteIfOpenOrDetectMerged is ExecuteIfOpen that also reports, without pushing or merging, whether the
-// latest merge request of the branch was already merged on the provider with the current tip of the branch.
+// latest merge request of the branch, open or merged, already carries the current tip of the branch. An open
+// request in that state is left open: only the local worktree needs cleaning.
 func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context, taskID string) (*models.MergeRequestStatus, bool, error) {
 	inspected, err := u.inspect(ctx, taskID)
 	if err != nil {
 		return nil, false, err
 	}
-	if inspected.mergedAtTip {
+	if inspected.atTip {
 		return nil, true, nil
 	}
+	status, err := u.mergeInspected(ctx, inspected)
+	return status, false, err
+}
+
+// mergeInspected pushes the pending commits and merges the open request found by inspect. It returns nil
+// and no error, without pushing or merging, when there is no open request.
+func (u *MergeTaskMergeRequest) mergeInspected(ctx context.Context, inspected inspectedRequest) (*models.MergeRequestStatus, error) {
 	if inspected.open == nil {
-		return nil, false, nil
+		return nil, nil
 	}
 	resolved, branch, found := inspected.resolved, inspected.resolved.Source.Branch, inspected.open
 	if err := u.remote.PublishBranch(ctx, resolved.Source.RepoPath, branch, resolved.Settings, resolved.Project); err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	merged, err := resolved.Client.MergeMergeRequest(ctx, resolved.Settings, resolved.Project, found.IID)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	// The merge already happened: a failure reading the pipeline must not look like a failed merge
 	// (the user would retry it). The merged request is returned without its pipeline instead.
@@ -122,7 +148,7 @@ func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context,
 			Provider:     resolved.Settings.Provider(),
 			ProjectPath:  resolved.Project,
 			MergeRequest: merged,
-		}, false, nil
+		}, nil
 	}
-	return &status, false, nil
+	return &status, nil
 }

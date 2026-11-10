@@ -30,8 +30,8 @@ func (r *RemoteMerge) Bind(merge *MergeTaskMergeRequest) {
 }
 
 // MergeOpenRequest merges the open merge request of the task. Tasks without a remote provider, or
-// without an open request, report RemoteMergeNoOpenRequest and no error. A request already merged on
-// the provider reports RemoteMergeAlreadyMerged: nothing is pushed or merged.
+// without an open request, report RemoteMergeNoOpenRequest and no error. A request that already carries the
+// whole branch, merged or still open, reports RemoteMergeAlreadyMerged: nothing is pushed or merged.
 func (r *RemoteMerge) MergeOpenRequest(ctx context.Context, taskID string) (inbound.RemoteMergeOutcome, error) {
 	merge := r.merge.Load()
 	if merge == nil {
@@ -60,7 +60,7 @@ func (r *RemoteMerge) PreviewMergeOpenRequest(ctx context.Context, taskID string
 	if merge == nil {
 		return inbound.RemoteMergeNoOpenRequest, nil
 	}
-	open, mergedAtTip, err := merge.Preview(ctx, taskID)
+	open, atTip, err := merge.Preview(ctx, taskID)
 	if err != nil {
 		if errors.IsRemoteMergeNotApplicable(err) {
 			return inbound.RemoteMergeNoOpenRequest, nil
@@ -68,7 +68,7 @@ func (r *RemoteMerge) PreviewMergeOpenRequest(ctx context.Context, taskID string
 		return 0, err
 	}
 	switch {
-	case mergedAtTip:
+	case atTip:
 		return inbound.RemoteMergeAlreadyMerged, nil
 	case open:
 		return inbound.RemoteMergeMerged, nil

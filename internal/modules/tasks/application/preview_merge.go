@@ -19,8 +19,8 @@ func NewPreviewMerge(lifecycle *TaskLifecycle, remote outbound.RemoteMerge) *Pre
 	return &PreviewMerge{lifecycle: lifecycle, remote: remote}
 }
 
-// Execute reports whether merging the task only cleans up: its merge request was already merged on the provider, so
-// no merge runs and only the worktree is removed. A task that cannot be merged, or whose provider cannot be read,
+// Execute reports whether merging the task only cleans up: its merge request, merged or still open, already carries
+// the whole branch, so no merge runs and only the worktree is removed. A task that cannot be merged, or whose provider cannot be read,
 // reports false: the action then keeps its merge label.
 func (u *PreviewMerge) Execute(ctx context.Context, id models.TaskID) (bool, error) {
 	if u.remote == nil {

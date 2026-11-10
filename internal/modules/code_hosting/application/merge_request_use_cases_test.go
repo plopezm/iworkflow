@@ -195,10 +195,23 @@ func TestMergeMergesTheOpenMergeRequest(t *testing.T) {
 	require.Equal(t, []uint64{7}, f.client.merged)
 }
 
+func TestMergeStillMergesAnOpenRequestThatAlreadyCarriesTheWholeBranch(t *testing.T) {
+	f := newFixture(t)
+	open := mergeRequest(7, "opened")
+	f.client.findResult = &open
+
+	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, "merged", status.MergeRequest.State, "only the task flow skips it: the merge request panel merges explicitly")
+	require.Equal(t, []uint64{7}, f.client.merged)
+}
+
 func TestMergePushesTheBranchBeforeMerging(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
+	f.remote.head = unpushedHead
 
 	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
 
@@ -211,6 +224,7 @@ func TestMergeFailedPushPreventsTheMerge(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
+	f.remote.head = unpushedHead
 	f.remote.publishErr = codeerrors.BranchPublishFailed("pi/feature", "rejected")
 
 	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).ExecuteIfOpen(context.Background(), taskID)
@@ -246,6 +260,7 @@ func TestMergeProviderRefusalIsPropagatedWithItsMessage(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
+	f.remote.head = unpushedHead
 	f.client.mergeErr = codeerrors.API(models.GitLab, 405, "Branch cannot be merged")
 
 	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
@@ -257,6 +272,7 @@ func TestMergeAPipelineFailureAfterMergingStillReportsTheMerge(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
+	f.remote.head = unpushedHead
 	f.client.pipelineErr = codeerrors.Network("caído")
 
 	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)

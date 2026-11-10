@@ -254,6 +254,9 @@ func taskSource() *models.TaskSource {
 	}
 }
 
+// unpushedHead is a local branch tip that differs from the head of every mergeRequest: commits the request lacks.
+const unpushedHead = "newer-local-commit"
+
 func mergeRequest(iid uint64, state string) models.MergeRequest {
 	return models.MergeRequest{
 		IID:          iid,

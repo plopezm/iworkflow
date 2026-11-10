@@ -12,9 +12,9 @@ const (
 	// RemoteMergeNoOpenRequest means there is nothing to merge remotely: the task is integrated
 	// locally instead (no open request, or no remote provider for the task).
 	RemoteMergeNoOpenRequest
-	// RemoteMergeAlreadyMerged means the merge request of the task branch was already merged on the
-	// provider: nothing is merged or pushed and the task must not be integrated locally, because that
-	// would conflict with the merge that already happened.
+	// RemoteMergeAlreadyMerged means the merge request of the task branch already carries the whole branch,
+	// merged or still open: nothing is merged or pushed, an open request stays open, and the task must not
+	// be integrated locally, because that would conflict with the merge on the provider.
 	RemoteMergeAlreadyMerged
 )
 

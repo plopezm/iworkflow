@@ -31,12 +31,61 @@ func TestBoundRemoteMergeReportsMergedWhenTheRequestIsMerged(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
+	f.remote.head = unpushedHead
 
 	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
 
 	require.NoError(t, err)
 	require.Equal(t, inbound.RemoteMergeMerged, outcome)
 	require.Equal(t, []uint64{7}, f.client.merged)
+}
+
+func TestBoundRemoteMergeReportsAlreadyUploadedForAnOpenRequestWithTheWholeBranch(t *testing.T) {
+	f := newFixture(t)
+	open := mergeRequest(7, "opened")
+	f.client.findResult = &open
+
+	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeAlreadyMerged, outcome, "everything is on the request: only the worktree is cleaned")
+	require.Empty(t, f.client.merged, "the open request is left open")
+	require.Empty(t, f.remote.publishes)
+}
+
+func TestPreviewReportsCleanupOnlyForAnOpenRequestWithTheWholeBranch(t *testing.T) {
+	f := newFixture(t)
+	open := mergeRequest(7, "opened")
+	f.client.findResult = &open
+
+	outcome, err := boundRemoteMerge(f).PreviewMergeOpenRequest(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeAlreadyMerged, outcome)
+}
+
+func TestPreviewKeepsMergeForAnOpenRequestWithPendingCommits(t *testing.T) {
+	f := newFixture(t)
+	open := mergeRequest(7, "opened")
+	f.client.findResult = &open
+	f.remote.head = unpushedHead
+
+	outcome, err := boundRemoteMerge(f).PreviewMergeOpenRequest(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeMerged, outcome)
+}
+
+func TestBoundRemoteMergeKeepsMergingAnOpenRequestWhenTheBranchCannotBeRead(t *testing.T) {
+	f := newFixture(t)
+	open := mergeRequest(7, "opened")
+	f.client.findResult = &open
+	f.remote.headErr = codeerrors.Git("sin rama")
+
+	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeMerged, outcome)
 }
 
 func TestBoundRemoteMergeReportsNoOpenRequestWithoutAnOpenRequest(t *testing.T) {
@@ -125,6 +174,7 @@ func TestBoundRemoteMergePropagatesOtherFailures(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
+	f.remote.head = unpushedHead
 	f.remote.publishErr = codeerrors.BranchPublishFailed("pi/feature", "rejected")
 
 	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
