@@ -97,7 +97,9 @@ func (a *WorktreeAdapter) Create(ctx context.Context, repo string, baseBranch st
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return werrors.Git(fmt.Sprintf("no se pudo crear %s: %v", filepath.Dir(path), err))
 	}
-	a.refreshRemoteBase(ctx, repo, baseBranch)
+	if err := a.refreshRemoteBase(ctx, repo, baseBranch); err != nil {
+		return err
+	}
 	_, err := git(ctx, repo, "worktree", "add", "--no-track", "-b", branch, path, baseBranch)
 	return err
 }
@@ -105,27 +107,30 @@ func (a *WorktreeAdapter) Create(ctx context.Context, repo string, baseBranch st
 // fetchTimeout bounds the refresh of a remote base branch, so an unreachable remote cannot stall a start.
 const fetchTimeout = 30 * time.Second
 
-// refreshRemoteBase fetches baseBranch from its remote when it is a remote-tracking branch with no local
-// namesake, so the task starts from the current remote tip and not from the last fetch. It is best effort:
-// offline, the existing remote-tracking ref is used and the failure is only logged.
-func (a *WorktreeAdapter) refreshRemoteBase(ctx context.Context, repo string, baseBranch string) {
-	local, err := refExists(ctx, repo, localRefsPrefix+baseBranch)
-	if err != nil || local {
-		return
+// refreshRemoteBase fetches baseBranch from its remote when it is a remote-tracking branch, so the task
+// starts from the current remote tip whether or not a local branch of the same name exists. A failed fetch
+// is an error: the worktree is not created from a stale copy of a remote branch. Bases that are not
+// remote-tracking branches are left alone.
+func (a *WorktreeAdapter) refreshRemoteBase(ctx context.Context, repo string, baseBranch string) error {
+	tracking, err := refExists(ctx, repo, remoteRefsPrefix+baseBranch)
+	if err != nil || !tracking {
+		return err
 	}
 	remotes, err := git(ctx, repo, "remote")
 	if err != nil {
-		return
+		return err
 	}
 	remote, branch, found := splitRemoteBranch(baseBranch, remotes)
 	if !found {
-		return
+		return nil
 	}
 	fetchCtx, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
-	if _, err := git(fetchCtx, repo, "fetch", "--quiet", remote, branch); err != nil {
-		slog.Warn("could not refresh the remote base branch; using the last fetched one", "base", baseBranch, "error", err)
+	refspec := "+" + localRefsPrefix + branch + ":" + remoteRefsPrefix + baseBranch
+	if _, err := git(fetchCtx, repo, "fetch", "--quiet", remote, refspec); err != nil {
+		return werrors.Git(fmt.Sprintf("no se pudo actualizar la rama remota %s: %v", baseBranch, err))
 	}
+	return nil
 }
 
 // CommitAll stages every change and commits it. The boolean is false when there was nothing to commit.
