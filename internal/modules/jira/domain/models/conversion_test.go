@@ -102,3 +102,15 @@ func TestValidatedTruncatesTheTitle(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 120, utf8.RuneCountInString(valid.Title))
 }
+
+func TestValidatedCleansTheRelatedProjects(t *testing.T) {
+	request := models.ConversionRequest{
+		Key: "A-1", WorkspaceID: "w1", Title: "t", Prompt: "p",
+		RelatedProjectIDs: []string{" w2 ", "", "w1", "w2", "w3"},
+	}
+
+	validated, err := request.Validated()
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"w2", "w3"}, validated.RelatedProjectIDs)
+}

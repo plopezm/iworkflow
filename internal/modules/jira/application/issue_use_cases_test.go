@@ -349,3 +349,15 @@ func keysOf(issues []models.Issue) []string {
 }
 
 var _ outbound.IssueRepository = (*membershipIssues)(nil)
+
+func TestConvertPassesTheRelatedProjectsToTheTask(t *testing.T) {
+	tasks := &fakeTasks{result: outbound.CreatedLinkedTask{TaskID: "task-1"}}
+	request := conversionRequest()
+	request.RelatedProjectIDs = []string{"w2", "w3"}
+
+	_, err := application.NewConvertIssue(transitionIssues(models.IssueLocalStateNew), tasks).Execute(context.Background(), request)
+
+	require.NoError(t, err)
+	require.Len(t, tasks.calls, 1)
+	assert.Equal(t, []string{"w2", "w3"}, tasks.calls[0].RelatedProjectIDs)
+}

@@ -304,6 +304,43 @@ module.exports = {
       },
     },
     {
+      name: 'convert_related: la conversión ofrece proyectos relacionados y completa @ con sus ficheros',
+      fn: async (ctx) => {
+        await connectAndSync(ctx);
+        const own = await registerWorkspace(ctx, `ws-rel-a-${tag}`);
+        const other = await registerWorkspace(ctx, `ws-rel-b-${tag}`);
+        await ctx.goto('/jira/ABC-1/convert');
+        await ctx.page.getByText(/Convertir ABC-1 en tarea de iworkflow/).first().waitFor({ timeout: 15000 });
+        await selectWhenReady(ctx.page, 'Workspace', `${own} (main)`);
+        await ctx.page.getByLabel('Workspace').selectOption({ label: `${own} (main)` });
+        const form = ctx.page.locator('form:has(select[name=workspace_id]):visible');
+        const otherId = await form.locator('select[name=workspace_id] option', { hasText: other }).getAttribute('value');
+        const ownId = await form.locator('select[name=workspace_id] option', { hasText: own }).getAttribute('value');
+
+        // The chooser lists the other project; the project the task runs in is hidden.
+        await form.getByRole('button', { name: 'Elegir proyectos' }).click();
+        const otherBox = form.locator(`input[name=related_project_id][value="${otherId}"]`);
+        await otherBox.waitFor({ state: 'visible', timeout: 5000 });
+        ctx.assert(!(await form.locator(`input[name=related_project_id][value="${ownId}"]`).isVisible()), 'el proyecto propio no debe poder relacionarse');
+
+        // @ completes the files of the chosen workspace only, then also those of the related project.
+        const prompt = form.locator('textarea[name=prompt]');
+        const items = ctx.page.locator('[data-composer-item]:visible');
+        const typeAt = async () => {
+          await prompt.fill('');
+          await prompt.pressSequentially('@README');
+          await items.first().waitFor({ timeout: 8000 });
+          await sleep(500);
+          return items.count();
+        };
+        const withoutRelated = await typeAt();
+        await otherBox.check();
+        await form.getByRole('button', { name: 'Hecho' }).click();
+        const withRelated = await typeAt();
+        ctx.assert(withRelated > withoutRelated, `@ debería ofrecer también ficheros del proyecto relacionado (${withoutRelated} -> ${withRelated})`);
+      },
+    },
+    {
       name: 'convert_issue: convertir ABC-3 crea una tarea y la marca Convertida',
       fn: async (ctx) => {
         await connectAndSync(ctx);

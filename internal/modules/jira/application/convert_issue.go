@@ -48,12 +48,13 @@ func (u *ConvertIssue) Execute(ctx context.Context, request models.ConversionReq
 		return ConvertedIssue{}, jiraerrors.AlreadyConverted(validated.Key)
 	}
 	created, err := u.tasks.Create(ctx, outbound.NewLinkedTask{
-		WorkspaceID: validated.WorkspaceID,
-		BaseBranch:  validated.BaseBranch,
-		Title:       validated.Title,
-		Prompt:      validated.Prompt,
-		Priority:    validated.Priority,
-		StartNow:    validated.StartNow,
+		WorkspaceID:       validated.WorkspaceID,
+		BaseBranch:        validated.BaseBranch,
+		Title:             validated.Title,
+		Prompt:            validated.Prompt,
+		Priority:          validated.Priority,
+		StartNow:          validated.StartNow,
+		RelatedProjectIDs: validated.RelatedProjectIDs,
 	})
 	if err != nil {
 		return ConvertedIssue{}, err
