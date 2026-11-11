@@ -1,21 +1,21 @@
 -- name: ListJiraIssues :many
 SELECT key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
-       jira_updated_at, local_state, task_id, synced_at
+       jira_updated_at, local_state, task_id, synced_at, epic_key
 FROM jira_issues
 ORDER BY jira_updated_at DESC;
 
 -- name: GetJiraIssue :one
 SELECT key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
-       jira_updated_at, local_state, task_id, synced_at
+       jira_updated_at, local_state, task_id, synced_at, epic_key
 FROM jira_issues
 WHERE key = sqlc.arg(key);
 
 -- name: InsertJiraIssueIfAbsent :execrows
 INSERT INTO jira_issues (key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
-                         jira_updated_at, local_state, task_id, synced_at)
+                         jira_updated_at, local_state, task_id, synced_at, epic_key)
 VALUES (sqlc.arg(key), sqlc.arg(summary), sqlc.arg(description), sqlc.arg(status), sqlc.arg(issue_type),
         sqlc.narg(priority), sqlc.narg(assignee), sqlc.narg(reporter), sqlc.arg(labels), sqlc.arg(url),
-        sqlc.arg(jira_updated_at), sqlc.arg(local_state), NULL, sqlc.arg(synced_at))
+        sqlc.arg(jira_updated_at), sqlc.arg(local_state), NULL, sqlc.arg(synced_at), sqlc.narg(epic_key))
 ON CONFLICT (key) DO NOTHING;
 
 -- name: RefreshJiraIssueRemote :execrows
@@ -30,7 +30,8 @@ SET summary = sqlc.arg(summary),
     labels = sqlc.arg(labels),
     url = sqlc.arg(url),
     jira_updated_at = sqlc.arg(jira_updated_at),
-    synced_at = sqlc.arg(synced_at)
+    synced_at = sqlc.arg(synced_at),
+    epic_key = sqlc.narg(epic_key)
 WHERE key = sqlc.arg(key);
 
 -- name: SetJiraIssueLocalState :execrows

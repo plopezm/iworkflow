@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	jiraerrors "iworkflow/internal/modules/jira/domain/errors"
@@ -43,6 +44,9 @@ type JiraClient struct {
 	strict  *http.Client
 	lenient *http.Client
 	now     func() time.Time
+	// mu guards epicFields, the Epic Link field id found for each server.
+	mu         sync.Mutex
+	epicFields map[string]string
 }
 
 var _ outbound.JiraClient = (*JiraClient)(nil)
@@ -50,7 +54,7 @@ var _ outbound.JiraClient = (*JiraClient)(nil)
 // NewJiraClient builds the client. Two HTTP clients are kept: one verifies certificates strictly and
 // one accepts untrusted certificates, because that is a property of the server the user configured.
 func NewJiraClient(now func() time.Time) *JiraClient {
-	return &JiraClient{strict: newHTTPClient(false), lenient: newHTTPClient(true), now: now}
+	return &JiraClient{strict: newHTTPClient(false), lenient: newHTTPClient(true), now: now, epicFields: map[string]string{}}
 }
 
 // Verify checks URL and token and returns the display name of the authenticated user.
@@ -74,12 +78,13 @@ func (c *JiraClient) Verify(ctx context.Context, connection models.Connection) (
 
 // Search returns the issues of one JQL query, following the pages up to MaxImportedIssues.
 func (c *JiraClient) Search(ctx context.Context, connection models.Connection, jql string) ([]models.RemoteIssue, error) {
+	epicField := c.epicField(ctx, connection)
 	var all []models.RemoteIssue
 	startAt := 0
 	for {
 		query := url.Values{}
 		query.Set("jql", jql)
-		query.Set("fields", issueFields)
+		query.Set("fields", fieldList(epicField))
 		query.Set("startAt", strconv.Itoa(startAt))
 		query.Set("maxResults", strconv.Itoa(pageSize))
 		body, err := c.send(ctx, connection, http.MethodGet, "search", query, nil, "")
@@ -90,7 +95,7 @@ func (c *JiraClient) Search(ctx context.Context, connection models.Connection, j
 		if err != nil {
 			return nil, err
 		}
-		page, next, total, err := searchPageFromJSON(connection, c.now, doc)
+		page, next, total, err := searchPageFromJSON(connection, c.now, epicField, doc)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +117,8 @@ func (c *JiraClient) GetIssue(ctx context.Context, connection models.Connection,
 	if err != nil {
 		return models.RemoteIssue{}, err
 	}
-	query := url.Values{"fields": {issueFields}}
+	epicField := c.epicField(ctx, connection)
+	query := url.Values{"fields": {fieldList(epicField)}}
 	body, err := c.send(ctx, connection, http.MethodGet, path, query, nil, key)
 	if err != nil {
 		return models.RemoteIssue{}, err
@@ -121,7 +127,32 @@ func (c *JiraClient) GetIssue(ctx context.Context, connection models.Connection,
 	if err != nil {
 		return models.RemoteIssue{}, err
 	}
-	return issueFromJSON(connection, c.now, doc)
+	return issueFromJSON(connection, c.now, epicField, doc)
+}
+
+// epicField returns the id of the Epic Link custom field of the instance, cached per server. A
+// failed lookup is not fatal and not cached: issues are then imported without an Epic Link.
+func (c *JiraClient) epicField(ctx context.Context, connection models.Connection) string {
+	server := connection.APIURL("")
+	c.mu.Lock()
+	cached, known := c.epicFields[server]
+	c.mu.Unlock()
+	if known {
+		return cached
+	}
+	body, err := c.send(ctx, connection, http.MethodGet, "field", nil, nil, "")
+	if err != nil {
+		return ""
+	}
+	doc, err := decodeDocument(body)
+	if err != nil {
+		return ""
+	}
+	id := epicLinkFieldID(doc)
+	c.mu.Lock()
+	c.epicFields[server] = id
+	c.mu.Unlock()
+	return id
 }
 
 // Comments reads the latest comments of an issue.

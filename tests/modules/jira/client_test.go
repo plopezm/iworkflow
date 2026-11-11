@@ -76,6 +76,20 @@ func (f *fakeJira) serve(writer http.ResponseWriter, request *http.Request) {
 	switch {
 	case request.URL.Path == "/rest/api/2/myself":
 		_, _ = writer.Write([]byte(`{"displayName":"Ana Pérez"}`))
+	case request.URL.Path == "/rest/api/2/field":
+		_, _ = writer.Write([]byte(`[{"id":"summary","schema":{"type":"string"}},` +
+			`{"id":"customfield_10014","schema":{"custom":"com.pyxis.greenhopper.jira:gh-epic-link"}}]`))
+	case request.URL.Path == "/rest/api/2/issue/LNK-1":
+		_, _ = writer.Write([]byte(`{"key":"LNK-1","fields":{"summary":"s","status":{"name":"To Do"},` +
+			`"issuetype":{"name":"Story"},"customfield_10014":"EP-1","updated":"2024-05-01T10:00:00.000+0000"}}`))
+	case request.URL.Path == "/rest/api/2/issue/PAR-1":
+		_, _ = writer.Write([]byte(`{"key":"PAR-1","fields":{"summary":"s","status":{"name":"To Do"},` +
+			`"issuetype":{"name":"Story"},"parent":{"key":"EP-2","fields":{"issuetype":{"name":"Epic"}}},` +
+			`"updated":"2024-05-01T10:00:00.000+0000"}}`))
+	case request.URL.Path == "/rest/api/2/issue/SUB-1":
+		_, _ = writer.Write([]byte(`{"key":"SUB-1","fields":{"summary":"s","status":{"name":"To Do"},` +
+			`"issuetype":{"name":"Sub-task"},"parent":{"key":"ST-1","fields":{"issuetype":{"name":"Story"}}},` +
+			`"updated":"2024-05-01T10:00:00.000+0000"}}`))
 	case request.URL.Path == "/rest/api/2/search":
 		f.search(writer, request)
 	case request.URL.Path == "/rest/api/2/issue/NOPE-1":
@@ -180,6 +194,9 @@ func TestSearchFollowsPaginationAndSendsTheJQL(t *testing.T) {
 
 	var starts []string
 	for _, call := range fake.requests() {
+		if call.path != "/rest/api/2/search" {
+			continue
+		}
 		query, err := url.ParseQuery(call.query)
 		require.NoError(t, err)
 		assert.Equal(t, "project = X", query.Get("jql"))
@@ -319,4 +336,24 @@ func TestAJSONNonAnswerIsAnInvalidAnswer(t *testing.T) {
 
 	require.ErrorIs(t, err, jiraerrors.Remote(""))
 	assert.Contains(t, err.Error(), "respuesta no válida")
+}
+
+func TestAnIssueCarriesItsEpicFromTheEpicLinkFieldOrAnEpicParent(t *testing.T) {
+	fake := newFakeJira(t)
+	connection := connectionTo(t, fake.url(), testToken)
+	client := newClient()
+
+	linked, err := client.GetIssue(context.Background(), connection, "LNK-1")
+	require.NoError(t, err)
+	require.NotNil(t, linked.EpicKey)
+	assert.Equal(t, "EP-1", *linked.EpicKey)
+
+	child, err := client.GetIssue(context.Background(), connection, "PAR-1")
+	require.NoError(t, err)
+	require.NotNil(t, child.EpicKey)
+	assert.Equal(t, "EP-2", *child.EpicKey)
+
+	subtask, err := client.GetIssue(context.Background(), connection, "SUB-1")
+	require.NoError(t, err)
+	assert.Nil(t, subtask.EpicKey, "the parent of a sub-task is a story, not an epic")
 }

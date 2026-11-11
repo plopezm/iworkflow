@@ -7,15 +7,17 @@ import (
 
 // RemoteIssue is an issue as Jira reports it. Optional Jira fields are nil when Jira sends null.
 type RemoteIssue struct {
-	Key           string
-	Summary       string
-	Description   string
-	Status        string
-	IssueType     string
-	Priority      *string
-	Assignee      *string
-	Reporter      *string
-	Labels        []string
+	Key         string
+	Summary     string
+	Description string
+	Status      string
+	IssueType   string
+	Priority    *string
+	Assignee    *string
+	Reporter    *string
+	Labels      []string
+	// EpicKey is the key of the Epic the issue belongs to; nil when it has none.
+	EpicKey       *string
 	URL           string
 	JiraUpdatedAt time.Time
 }
