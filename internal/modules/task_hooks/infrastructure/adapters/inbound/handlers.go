@@ -56,11 +56,13 @@ func NewHandlers(uc UseCases) *Handlers { return &Handlers{uc: uc} }
 
 // Mount registers the endpoints. The screen itself is a dock tab (Page), so its address is not mounted here.
 //
-//	GET  /hooks/library                                     the library tab
+//	GET  /hooks/library                                     the library tab: the list of hooks
 //	GET  /hooks/history                                     the run history, filtered by its query
-//	GET  /hooks/group                                       the run order of a project, event and moment (query)
-//	GET  /hooks/editor                                      the editor: a new hook, a stored one (?hook=) or a changed kind
-//	GET  /hooks/{hook}                                      the library with the assignments of the hook open
+//	GET  /hooks/group                                       the run order tab of a project, event and moment (query)
+//	GET  /hooks/editor                                      the editor dialog: a new hook, a stored one (?hook=) or a changed kind
+//	GET  /hooks/{hook}                                      the assignments view of the hook
+//	GET  /hooks/{hook}/assignments/new                      the add-assignment dialog over the view
+//	GET  /hooks/{hook}/test/new                             the test dialog over the view
 //	POST /hooks                                             save the editor form (create, or edit when it carries an id)
 //	POST /hooks/order                                       set the order of a group
 //	POST /hooks/{hook}/delete                               delete the hook with its assignments
@@ -74,6 +76,8 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Get("/hooks/group", h.groupTab)
 	r.Get("/hooks/editor", h.editor)
 	r.Get("/hooks/{hook}", h.open)
+	r.Get("/hooks/{hook}/assignments/new", h.assignDialog)
+	r.Get("/hooks/{hook}/test/new", h.testDialog)
 	r.Post("/hooks", h.save)
 	r.Post("/hooks/order", h.reorder)
 	r.Post("/hooks/{hook}/delete", h.remove)
@@ -89,7 +93,8 @@ func (h *Handlers) Page(ctx context.Context) templ.Component {
 }
 
 // screenOptions is what an answer shows: the tab, the outcome of the action, what is open and the forms as they were
-// submitted, so a rejected form keeps what the user typed.
+// submitted, so a rejected form keeps what the user typed. A form that is set is a dialog that is open: the editor, the
+// add-assignment form and the test form; a dialog closes by leaving its form unset.
 type screenOptions struct {
 	tab      state.Tab
 	notice   state.Notice
@@ -111,7 +116,7 @@ func (h *Handlers) load(ctx context.Context, opts screenOptions) state.Screen {
 	if tab == "" {
 		tab = state.TabLibrary
 	}
-	screen := state.Screen{Tab: tab, Notice: opts.notice, Failure: opts.failure, Editor: opts.editor, Browser: opts.browser}
+	screen := state.Screen{Tab: tab, Notice: opts.notice, Failure: opts.failure, Editor: opts.editor, Browser: opts.browser, Modal: modalOf(opts)}
 	projects, err := h.uc.Projects.Execute(ctx)
 	if err != nil {
 		screen.Failure = firstFailure(screen.Failure, err)
@@ -121,19 +126,49 @@ func (h *Handlers) load(ctx context.Context, opts screenOptions) state.Screen {
 	items, err := h.uc.List.Execute(ctx)
 	if err != nil {
 		screen.Failure = firstFailure(screen.Failure, err)
-		return screen
+		return withModalFailure(screen)
 	}
-	screen.Hooks = hookRows(items, opts.selected)
+	screen.Hooks = hookRows(items)
 	if opts.selected != "" {
 		screen.Selected, err = h.detail(opts, items, names)
 		if err != nil {
 			screen.Failure = firstFailure(screen.Failure, err)
 		}
 	}
-	screen.Group = h.groupOf(ctx, opts.group, projects, &screen)
+	if tab == state.TabOrder {
+		screen.Group = h.groupOf(ctx, opts.group, projects, &screen)
+	}
 	if tab == state.TabHistory {
 		screen.History = h.historyOf(ctx, opts.history, items, projects, names, &screen)
 	}
+	return withModalFailure(screen)
+}
+
+// modalOf is the dialog the options open. The editor wins over the forms of a hook: an editor is never opened over them.
+func modalOf(opts screenOptions) state.Modal {
+	switch {
+	case opts.editor != nil:
+		return state.Modal{Kind: state.ModalEditor}
+	case opts.add != nil:
+		return state.Modal{Kind: state.ModalAssign}
+	case opts.test != nil:
+		return state.Modal{Kind: state.ModalTest}
+	default:
+		return state.Modal{}
+	}
+}
+
+// withModalFailure settles the dialog and its failure. The failure moves into the dialog that is open, where the user is
+// looking. A dialog of a hook needs the hook open: without it no dialog is shown, so the failure stays with the screen.
+func withModalFailure(screen state.Screen) state.Screen {
+	needsHook := screen.Modal.Kind == state.ModalAssign || screen.Modal.Kind == state.ModalTest
+	if needsHook && screen.Selected == nil {
+		screen.Modal = state.Modal{}
+	}
+	if screen.Modal.Kind == state.ModalNone {
+		return screen
+	}
+	screen.Modal.Failure, screen.Failure = screen.Failure, ""
 	return screen
 }
 
@@ -218,14 +253,28 @@ func (h *Handlers) historyTab(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabHistory, history: dto.HistoryFromQuery(r.URL.Query())}))
 }
 
-// groupTab shows the run order of the project, event and moment the query names.
+// groupTab shows the run order tab of the project, event and moment the query names.
 func (h *Handlers) groupTab(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabLibrary, group: dto.GroupFromForm(r.URL.Query())}))
+	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabOrder, group: dto.GroupFromForm(r.URL.Query())}))
 }
 
-// open shows the library with the assignments of one hook open.
+// open shows the assignments view of one hook, in place of the library list.
 func (h *Handlers) open(w http.ResponseWriter, r *http.Request) {
 	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabLibrary, selected: chi.URLParam(r, "hook")}))
+}
+
+// assignDialog opens the add-assignment dialog over the assignments view of the hook, with a new assignment's values.
+func (h *Handlers) assignDialog(w http.ResponseWriter, r *http.Request) {
+	hookID := chi.URLParam(r, "hook")
+	add := defaultAssignmentForm("")
+	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabLibrary, selected: hookID, add: &add}))
+}
+
+// testDialog opens the test dialog over the assignments view of the hook, with the default place of a test.
+func (h *Handlers) testDialog(w http.ResponseWriter, r *http.Request) {
+	hookID := chi.URLParam(r, "hook")
+	test := defaultAssignmentForm("")
+	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabLibrary, selected: hookID, test: &test}))
 }
 
 // editor opens the editor. Without a kind in the query it starts from the stored hook (?hook=) or from a new one. With a
@@ -327,7 +376,7 @@ func (h *Handlers) reorder(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	group := dto.GroupFromForm(r.PostForm)
-	opts := screenOptions{tab: state.TabLibrary, notice: state.NoticeOrdered, group: group}
+	opts := screenOptions{tab: state.TabOrder, notice: state.NoticeOrdered, group: group}
 	if err := h.uc.Reorder.Execute(ctx, group.Project, group.Event, group.Phase, dto.ReorderFromForm(r.PostForm)); err != nil {
 		opts.notice = state.NoticeNone
 		opts.failure = err.Error()

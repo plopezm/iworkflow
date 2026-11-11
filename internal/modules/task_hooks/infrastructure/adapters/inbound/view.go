@@ -22,7 +22,7 @@ const defaultTimeoutSeconds = "600"
 const timeLayout = "2006-01-02 15:04"
 
 // hookRows maps the library to its rows, in the order the use case gives them.
-func hookRows(items []application.HookListItem, selected string) []state.HookRow {
+func hookRows(items []application.HookListItem) []state.HookRow {
 	rows := make([]state.HookRow, 0, len(items))
 	for _, item := range items {
 		hook := item.Hook
@@ -32,7 +32,6 @@ func hookRows(items []application.HookListItem, selected string) []state.HookRow
 			Kind:        string(hook.Kind()),
 			Assignments: len(item.Assignments),
 			LastError:   lastError(item.LastFailure),
-			Selected:    hook.ID() == selected,
 		})
 	}
 	return rows

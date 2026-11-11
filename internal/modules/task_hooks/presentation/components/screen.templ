@@ -5,15 +5,16 @@ import (
 	"iworkflow/internal/modules/task_hooks/presentation/state"
 )
 
-// Screen is the Hooks screen: the library with its editors, or the run history. It replaces its own host, so every
-// action answers it again with the refreshed screen and the outcome of the action. Every value is escaped by templ,
-// the output of a test and of a run included.
+// Screen is the Hooks screen: three tabs (the library, the run order and the errors and runs), and the dialog open over
+// them. It replaces its own host, so every action answers it again with the refreshed screen and the outcome of the
+// action. Every value is escaped by templ, the output of a test and of a run included.
 templ Screen(view state.Screen) {
 	<section id={ state.HostID } class="stack h-full min-h-0 gap-4 overflow-y-auto p-4" data-hooks-screen>
 		<div class="row justify-between gap-2 flex-wrap">
 			<p class="muted text-sm">{ msgIntro.T(ctx) }</p>
-			<div class="row gap-2">
+			<div class="row gap-2 flex-wrap">
 				<button type="button" class={ tabClass(view.Tab == state.TabLibrary) } aria-pressed={ pressedText(view.Tab == state.TabLibrary) } hx-get={ state.LibraryPath() } hx-target={ hostTarget } hx-swap="outerHTML">{ msgTabLibrary.T(ctx) }</button>
+				<button type="button" class={ tabClass(view.Tab == state.TabOrder) } aria-pressed={ pressedText(view.Tab == state.TabOrder) } hx-get={ state.GroupPath() } hx-target={ hostTarget } hx-swap="outerHTML">{ msgOrderTitle.T(ctx) }</button>
 				<button type="button" class={ tabClass(view.Tab == state.TabHistory) } aria-pressed={ pressedText(view.Tab == state.TabHistory) } hx-get={ state.HistoryPath("", "", true) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgTabHistory.T(ctx) }</button>
 			</div>
 		</div>
@@ -25,19 +26,23 @@ templ Screen(view state.Screen) {
 		}
 		if view.Tab == state.TabHistory && view.History != nil {
 			@history(view.History)
+		} else if view.Tab == state.TabOrder && view.Group != nil {
+			@runOrder(view.Group, view.Projects)
 		} else {
 			@library(view)
 		}
+		@dialogs(view)
+		<script type="module" src="/static/js/hooks_dialog.js"></script>
 	</section>
 }
 
-// library is the list of hooks with the editor of one, the assignments of the selected hook and the run order panel.
+// library is the list of hooks: the new hook, and per hook its assignments, its editor and its delete. With a hook
+// open, its assignments view replaces the list.
 templ library(view state.Screen) {
-	<div class="stack gap-5" data-hooks-library>
-		if view.Editor != nil {
-			@editor(view)
-		}
-		<div class="stack gap-3">
+	if view.Selected != nil {
+		@assignmentsView(view.Selected)
+	} else {
+		<div class="stack gap-3" data-hooks-library>
 			<div class="row justify-between gap-2">
 				<h2 class="text-base font-semibold text-fg">{ msgTitle.T(ctx) }</h2>
 				<button type="button" class="btn-primary" hx-get={ state.EditorPath() } hx-target={ hostTarget } hx-swap="outerHTML">{ msgNewHook.T(ctx) }</button>
@@ -47,23 +52,15 @@ templ library(view state.Screen) {
 			}
 			for _, row := range view.Hooks {
 				@hookRow(row)
-				if row.Selected && view.Selected != nil {
-					@assignments(view.Selected, view.Projects)
-				}
-			}
-			if view.Selected != nil && !hasSelectedRow(view) {
-				@assignments(view.Selected, view.Projects)
 			}
 		</div>
-		if view.Group != nil {
-			@group(view.Group, view.Projects)
-		}
-	</div>
+	}
 }
 
-// hookRow is one hook of the library: its kind, how many projects it is assigned to and its latest error.
+// hookRow is one hook of the library: its kind, how many projects it is assigned to and its latest error. Its actions
+// open its assignments, its editor, or delete it.
 templ hookRow(row state.HookRow) {
-	<div class={ hookRowClass(row.Selected) } data-hook={ row.ID }>
+	<div class="stack gap-1.5 rounded-xl border border-border/60 p-3" data-hook={ row.ID }>
 		<div class="row justify-between gap-2 flex-wrap">
 			<div class="stack gap-1 min-w-0">
 				<span class="row gap-1.5 flex-wrap">
@@ -93,20 +90,116 @@ templ lastError(last *state.LastError) {
 	}
 }
 
-// editor is the form of a new hook or of the one being edited. The kind switch reloads it, so the fields of the kind
-// show; the form submits the whole editor to the save endpoint. The field names are the ones the DTO reads.
+// assignmentsView is the open hook: the way back to the library, its name, its assignments and the two actions that
+// open their dialogs. Nothing is typed here; the add-assignment form and the test are dialogs over this view.
+templ assignmentsView(detail *state.HookDetail) {
+	<section class="stack gap-4" data-hook-assignments={ detail.HookID }>
+		<div class="row justify-between gap-2 flex-wrap">
+			<button type="button" class="btn-ghost" hx-get={ state.LibraryPath() } hx-target={ hostTarget } hx-swap="outerHTML">{ msgBackToHooks.T(ctx) }</button>
+			<div class="row gap-2 flex-wrap">
+				<button type="button" class="btn-primary" hx-get={ state.AssignDialogPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgAddAssignment.T(ctx) }</button>
+				<button type="button" class="btn-secondary" hx-get={ state.RunDialogPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgTest.T(ctx) }</button>
+			</div>
+		</div>
+		<div class="stack gap-1">
+			<h2 class="text-base font-semibold text-fg">{ detail.Name }</h2>
+			<p class="muted text-[11px]">{ msgWhereRunsHint.T(ctx) }</p>
+		</div>
+		<div class="stack gap-2">
+			if len(detail.Assignments) == 0 {
+				<p class="muted text-sm">{ msgNoAssignments.T(ctx) }</p>
+			}
+			for _, row := range detail.Assignments {
+				@assignmentRow(detail.HookID, row)
+			}
+		</div>
+	</section>
+}
+
+// assignmentRow is one project, event and moment the hook runs for. The toggle posts the stored values with the new
+// enabled flag; the delete removes the assignment and keeps the hook in the library.
+templ assignmentRow(hookID string, row state.AssignmentRow) {
+	<div class="row justify-between gap-2 flex-wrap border-t border-border/40 pt-2" data-assignment={ row.Form.ID }>
+		<div class="stack gap-0.5 min-w-0">
+			<span class="row gap-1.5 flex-wrap">
+				<span class="text-sm font-medium">{ row.ProjectName }</span>
+				<span class="badge badge-muted">{ eventTitle(ctx, row.Form.Event) }</span>
+				<span class="badge badge-muted">{ phaseText(ctx, row.Form.Phase) }</span>
+				<span class={ "badge " + activeBadge(row.Form.Enabled) }>
+					if row.Form.Enabled {
+						{ msgActive.T(ctx) }
+					} else {
+						{ msgInactive.T(ctx) }
+					}
+				</span>
+			</span>
+			<span class="text-[11px] text-muted">{ msgPolicyLabel.T(ctx) }: { failureText(ctx, row.Form.OnFailure) }</span>
+		</div>
+		<div class="row gap-2 shrink-0">
+			if row.Form.Enabled {
+				<button type="button" class="btn-ghost" hx-post={ state.AssignmentPath(hookID, row.Form.ID) } hx-vals={ assignmentVals(row.Form, false) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDisable.T(ctx) }</button>
+			} else {
+				<button type="button" class="btn-ghost" hx-post={ state.AssignmentPath(hookID, row.Form.ID) } hx-vals={ assignmentVals(row.Form, true) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgEnable.T(ctx) }</button>
+			}
+			<button type="button" class="btn-ghost" hx-post={ state.AssignmentDeletePath(hookID, row.Form.ID) } hx-confirm={ msgConfirmDelAssign.T(ctx) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDelete.T(ctx) }</button>
+		</div>
+	</div>
+}
+
+// dialogs is the dialog the state opens over the screen, if any. The dialog of an assignment or of a test belongs to
+// the open hook, so without one there is no dialog.
+templ dialogs(view state.Screen) {
+	if view.Modal.Kind == state.ModalEditor && view.Editor != nil {
+		@editorDialog(view)
+	} else if view.Modal.Kind == state.ModalAssign && view.Selected != nil {
+		@assignDialog(view.Selected, view.Projects, view.Modal.Failure)
+	} else if view.Modal.Kind == state.ModalTest && view.Selected != nil {
+		@testDialog(view.Selected, view.Projects, view.Modal.Failure)
+	}
+}
+
+// dialog is the frame of a modal dialog over the screen. The script opens it as a modal after the swap; its close button
+// and its cancel return to the view it names, and the server answers with that view, without the dialog.
+templ dialog(title string, dismissPath string) {
+	<dialog
+		class="m-auto max-h-[90dvh] w-[min(100%,36rem)] overflow-y-auto rounded-2xl border border-border/60 bg-surface p-0 text-fg shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm"
+		aria-labelledby="hook-dialog-title"
+		data-hook-dialog
+		data-dismiss-path={ dismissPath }
+	>
+		<div class="stack gap-4 p-5">
+			<div class="row justify-between gap-2">
+				<h2 id="hook-dialog-title" class="text-lg font-semibold text-fg">{ title }</h2>
+				<button type="button" class="btn-ghost min-h-10 min-w-10 rounded-full px-2" aria-label={ msgCloseDialog.T(ctx) } hx-get={ dismissPath } hx-target={ hostTarget } hx-swap="outerHTML">✕</button>
+			</div>
+			{ children... }
+		</div>
+	</dialog>
+}
+
+// editorDialog is the editor of a new hook or of the one being edited, in its dialog.
+templ editorDialog(view state.Screen) {
+	@dialog(editorTitle(ctx, view.Editor.ID), view.DismissPath()) {
+		@editor(view)
+	}
+}
+
+// editor is the form of the editor. The kind switch reloads it, so the fields of the kind show; the form submits the
+// whole editor to the save endpoint. The field names are the ones the DTO reads.
 templ editor(view state.Screen) {
 	<form
 		id="hooks-editor-form"
-		class="stack gap-3 rounded-xl border border-border/60 p-3"
+		class="stack gap-3"
 		hx-post={ state.SavePath() }
 		hx-target={ hostTarget }
 		hx-swap="outerHTML"
 		data-hook-editor
 	>
-		<span class="eyebrow">{ editorTitle(ctx, view.Editor.ID) }</span>
 		if view.Editor.ID != "" {
 			<input type="hidden" name="id" value={ view.Editor.ID }/>
+		}
+		if view.Modal.Failure != "" {
+			@ui.ErrorText(msgActionFailed.T(ctx) + " " + view.Modal.Failure)
 		}
 		@ui.TextField(ui.FieldProps{Label: msgNameLabel.T(ctx), Name: "name", Value: view.Editor.Name, Placeholder: msgNameHint.T(ctx), Required: true})
 		@kindSwitch(view)
@@ -122,7 +215,7 @@ templ editor(view state.Screen) {
 		}
 		<div class="row gap-2">
 			<button type="submit" class="btn-primary">{ msgSave.T(ctx) }</button>
-			<button type="button" class="btn-ghost" hx-get={ state.LibraryPath() } hx-target={ hostTarget } hx-swap="outerHTML">{ msgCancel.T(ctx) }</button>
+			<button type="button" class="btn-ghost" hx-get={ view.DismissPath() } hx-target={ hostTarget } hx-swap="outerHTML">{ msgCancel.T(ctx) }</button>
 		</div>
 	</form>
 }
@@ -235,70 +328,14 @@ templ agentFields(form *state.HookForm) {
 	@ui.TextField(ui.FieldProps{Label: msgProfile.T(ctx), Name: "profile", Value: form.Profile})
 }
 
-// assignments is the detail of the open hook, shown right under its row: where it runs, a form to add a place, and a
-// folded test. Adding a place is the main action, so its form is open; the test is secondary and folded until used.
-templ assignments(detail *state.HookDetail, projects []state.Choice) {
-	<section class="stack gap-4 rounded-xl border border-border/60 bg-surface/40 p-4 md:ml-6" data-hook-assignments={ detail.HookID }>
-		<div class="stack gap-1">
-			<h3 class="text-sm font-semibold text-fg">{ msgWhereRuns.T(ctx) } · { detail.Name }</h3>
-			<p class="muted text-[11px]">{ msgWhereRunsHint.T(ctx) }</p>
-		</div>
-		<div class="stack gap-2">
-			if len(detail.Assignments) == 0 {
-				<p class="muted text-sm">{ msgNoAssignments.T(ctx) }</p>
+// assignDialog adds the hook to a project, event and moment, in its dialog. A repeated one is refused by the use case,
+// and the refusal keeps the dialog open with the values as typed. Cancel returns to the assignments view.
+templ assignDialog(detail *state.HookDetail, projects []state.Choice, failure string) {
+	@dialog(msgAssignTitle.T(ctx), state.HookPath(detail.HookID)) {
+		<form class="stack gap-3" hx-post={ state.AssignmentsPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" data-assignment-form>
+			if failure != "" {
+				@ui.ErrorText(msgActionFailed.T(ctx) + " " + failure)
 			}
-			for _, row := range detail.Assignments {
-				@assignmentRow(detail.HookID, row)
-			}
-		</div>
-		@assignForm(detail, projects)
-		<details class="stack gap-3 rounded-lg border border-border/60 p-3" data-hook-test-section open?={ detail.Result != nil }>
-			<summary class="cursor-pointer text-sm font-semibold text-fg">{ msgRunTest.T(ctx) }</summary>
-			<div class="stack gap-3 pt-3">
-				@testForm(detail, projects)
-				if detail.Result != nil {
-					@testResult(detail.Result)
-				}
-			</div>
-		</details>
-	</section>
-}
-
-// assignmentRow is one project, event and moment the hook runs for. The toggle posts the stored values with the new
-// enabled flag; the delete removes the assignment and keeps the hook in the library.
-templ assignmentRow(hookID string, row state.AssignmentRow) {
-	<div class="row justify-between gap-2 flex-wrap border-t border-border/40 pt-2" data-assignment={ row.Form.ID }>
-		<div class="stack gap-0.5 min-w-0">
-			<span class="row gap-1.5 flex-wrap">
-				<span class="text-sm font-medium">{ row.ProjectName }</span>
-				<span class="badge badge-muted">{ eventTitle(ctx, row.Form.Event) }</span>
-				<span class="badge badge-muted">{ phaseText(ctx, row.Form.Phase) }</span>
-				<span class={ "badge " + activeBadge(row.Form.Enabled) }>
-					if row.Form.Enabled {
-						{ msgActive.T(ctx) }
-					} else {
-						{ msgInactive.T(ctx) }
-					}
-				</span>
-			</span>
-			<span class="text-[11px] text-muted">{ msgPolicyLabel.T(ctx) }: { failureText(ctx, row.Form.OnFailure) }</span>
-		</div>
-		<div class="row gap-2 shrink-0">
-			if row.Form.Enabled {
-				<button type="button" class="btn-ghost" hx-post={ state.AssignmentPath(hookID, row.Form.ID) } hx-vals={ assignmentVals(row.Form, false) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDisable.T(ctx) }</button>
-			} else {
-				<button type="button" class="btn-ghost" hx-post={ state.AssignmentPath(hookID, row.Form.ID) } hx-vals={ assignmentVals(row.Form, true) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgEnable.T(ctx) }</button>
-			}
-			<button type="button" class="btn-ghost" hx-post={ state.AssignmentDeletePath(hookID, row.Form.ID) } hx-confirm={ msgConfirmDelAssign.T(ctx) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDelete.T(ctx) }</button>
-		</div>
-	</div>
-}
-
-// assignForm adds the hook to a project, event and moment. A repeated one is refused by the use case.
-templ assignForm(detail *state.HookDetail, projects []state.Choice) {
-	<details class="stack gap-3 rounded-lg border border-border/60 p-3" open>
-		<summary class="cursor-pointer text-sm font-semibold text-fg">{ msgAddAssignment.T(ctx) }</summary>
-		<form class="stack gap-3 pt-3" hx-post={ state.AssignmentsPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" data-assignment-form>
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: detail.Add.Project, Placeholder: msgProjectChoose.T(ctx), Required: true, Options: choiceOptions(projects)})
 				@ui.SelectField(ui.SelectFieldProps{Label: msgOnFailure.T(ctx), Name: "on_failure", Value: detail.Add.OnFailure, Options: failureOptions(ctx)})
@@ -310,25 +347,40 @@ templ assignForm(detail *state.HookDetail, projects []state.Choice) {
 					<input type="checkbox" name="enabled" value="on" checked?={ detail.Add.Enabled }/>
 					<span class="text-sm">{ msgEnabledLabel.T(ctx) }</span>
 				</label>
-				<button type="submit" class="btn-primary">{ msgAssignAdd.T(ctx) }</button>
+				<div class="row gap-2">
+					<button type="button" class="btn-ghost" hx-get={ state.HookPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgCancel.T(ctx) }</button>
+					<button type="submit" class="btn-primary">{ msgAssignAdd.T(ctx) }</button>
+				</div>
 			</div>
 		</form>
-	</details>
+	}
 }
 
-// testForm runs the hook once, as if it were assigned to the chosen project, event and moment.
-templ testForm(detail *state.HookDetail, projects []state.Choice) {
-	<form class="stack gap-3" hx-post={ state.TestPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" hx-disabled-elt="find button" data-hook-test-form>
-		<p class="muted text-[11px]">{ msgTestHint.T(ctx) }</p>
-		<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-			@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: detail.Test.Project, Placeholder: msgProjectChoose.T(ctx), Required: true, Options: choiceOptions(projects)})
-			@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: detail.Test.Event, Options: eventOptions(ctx)})
-			@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: detail.Test.Phase, Options: phaseOptions(ctx)})
+// testDialog runs the hook once, as if it were assigned to the chosen project, event and moment. The run is shown in
+// the same dialog, which stays open until it is closed.
+templ testDialog(detail *state.HookDetail, projects []state.Choice, failure string) {
+	@dialog(msgRunTest.T(ctx), state.HookPath(detail.HookID)) {
+		<form class="stack gap-3" hx-post={ state.TestPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" hx-disabled-elt="find button" data-hook-test-form>
+			<p class="muted text-[11px]">{ msgTestHint.T(ctx) }</p>
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+				@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: detail.Test.Project, Placeholder: msgProjectChoose.T(ctx), Required: true, Options: choiceOptions(projects)})
+				@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: detail.Test.Event, Options: eventOptions(ctx)})
+				@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: detail.Test.Phase, Options: phaseOptions(ctx)})
+			</div>
+			<div class="row">
+				<button type="submit" class="btn-secondary">{ msgTest.T(ctx) }</button>
+			</div>
+		</form>
+		if failure != "" {
+			@ui.ErrorText(msgActionFailed.T(ctx) + " " + failure)
+		}
+		if detail.Result != nil {
+			@testResult(detail.Result)
+		}
+		<div class="row justify-end">
+			<button type="button" class="btn-ghost" hx-get={ state.HookPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgCloseDialog.T(ctx) }</button>
 		</div>
-		<div class="row">
-			<button type="submit" class="btn-secondary">{ msgTest.T(ctx) }</button>
-		</div>
-	</form>
+	}
 }
 
 templ testResult(result *state.TestResult) {
@@ -341,27 +393,24 @@ templ testResult(result *state.TestResult) {
 	</div>
 }
 
-// group is the run order of one project, event and moment. It is folded until a project is chosen. The moves submit the
-// whole order of the group.
-templ group(group *state.Group, projects []state.Choice) {
-	<details class="stack gap-3 rounded-xl border border-border/60 p-4" data-hooks-group open?={ group.Project != "" }>
-		<summary class="cursor-pointer text-base font-semibold text-fg">{ msgOrderTitle.T(ctx) }</summary>
-		<div class="stack gap-3 pt-3">
-			<p class="muted text-[11px]">{ msgOrderHint.T(ctx) }</p>
-			<form class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end" hx-get={ state.GroupPath() } hx-target={ hostTarget } hx-swap="outerHTML">
-				@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: group.Project, Placeholder: msgProjectChoose.T(ctx), Options: choiceOptions(projects)})
-				@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: group.Event, Options: eventOptions(ctx)})
-				@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: group.Phase, Options: phaseOptions(ctx)})
-				<button type="submit" class="btn-secondary">{ msgShow.T(ctx) }</button>
-			</form>
-			if group.Project != "" && len(group.Rows) == 0 {
-				<p class="muted text-sm">{ msgNoGroup.T(ctx) }</p>
-			}
-			for _, row := range group.Rows {
-				@groupRow(*group, row)
-			}
-		</div>
-	</details>
+// runOrder is the run order tab: the choice of a project, event and moment, and the assignments of that group in the
+// order they run. The moves submit the whole order of the group.
+templ runOrder(group *state.Group, projects []state.Choice) {
+	<div class="stack gap-3 rounded-xl border border-border/60 p-4" data-hooks-group>
+		<p class="muted text-[11px]">{ msgOrderHint.T(ctx) }</p>
+		<form class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end" hx-get={ state.GroupPath() } hx-target={ hostTarget } hx-swap="outerHTML">
+			@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: group.Project, Placeholder: msgProjectChoose.T(ctx), Options: choiceOptions(projects)})
+			@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: group.Event, Options: eventOptions(ctx)})
+			@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: group.Phase, Options: phaseOptions(ctx)})
+			<button type="submit" class="btn-secondary">{ msgShow.T(ctx) }</button>
+		</form>
+		if group.Project != "" && len(group.Rows) == 0 {
+			<p class="muted text-sm">{ msgNoGroup.T(ctx) }</p>
+		}
+		for _, row := range group.Rows {
+			@groupRow(*group, row)
+		}
+	</div>
 }
 
 templ groupRow(group state.Group, row state.GroupRow) {

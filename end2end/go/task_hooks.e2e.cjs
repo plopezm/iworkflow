@@ -56,32 +56,41 @@ async function createScriptHook(ctx, name, command) {
   await rowOf(ctx, name).waitFor({ timeout: 10000 });
 }
 
-// Opens the assignments of a hook in the library.
+// Opens the assignments view of a hook from the library.
 async function openAssignments(ctx, name) {
   await rowOf(ctx, name).getByRole('button', { name: 'Asignaciones', exact: true }).click();
   await ctx.page.locator('[data-hook-assignments]').waitFor({ timeout: 10000 });
 }
 
-// Assigns the open hook to a project, event and moment through its assignment form.
+// Goes back from the assignments view to the library list.
+async function backToLibrary(ctx) {
+  await ctx.page.getByRole('button', { name: '← Hooks', exact: true }).click();
+  await ctx.page.locator('[data-hooks-library]').waitFor({ timeout: 10000 });
+}
+
+// Assigns the open hook to a project, event and moment: the add-assignment dialog opens from the view, is filled and
+// saved, and closes.
 async function assignTo(ctx, project, event, phase) {
+  await ctx.page.getByRole('button', { name: 'Asignar a un proyecto +', exact: true }).click();
   const form = ctx.page.locator('[data-assignment-form]');
+  await form.waitFor({ timeout: 10000 });
   await form.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
   await form.getByLabel('Evento', { exact: true }).selectOption(event);
   await form.getByLabel('Momento', { exact: true }).selectOption(phase);
   await form.getByRole('button', { name: 'Asignar +', exact: true }).click();
   await ctx.page.getByText('Asignación añadida.').waitFor({ timeout: 10000 });
+  await ctx.page.locator('[data-assignment-form]').waitFor({ state: 'detached', timeout: 10000 });
 }
 
-// The run order panel of a project, event and moment. It is folded until a project is chosen.
+// Opens the run order tab, where the order of a project, event and moment is shown and moved.
+async function openOrder(ctx) {
+  await ctx.page.getByRole('button', { name: 'Orden de ejecución', exact: true }).click();
+  await ctx.page.locator('[data-hooks-group]').waitFor({ timeout: 10000 });
+}
+
+// The run order panel of the order tab.
 function orderPanel(ctx) {
   return ctx.page.locator('[data-hooks-group]');
-}
-
-// Unfolds a <details> section when it is folded, so its controls can be used.
-async function unfold(section) {
-  if (!(await section.evaluate((element) => element.open))) {
-    await section.locator('> summary').click();
-  }
 }
 
 module.exports = {
@@ -102,6 +111,7 @@ module.exports = {
         const assignment = ctx.page.locator('[data-assignment]').filter({ hasText: project }).first();
         await assignment.waitFor({ timeout: 10000 });
         ctx.assert((await assignment.innerText()).includes('Antes de'), 'la asignación no muestra su momento');
+        await backToLibrary(ctx);
         ctx.assert((await rowOf(ctx, name).innerText()).includes('1 asignaciones'), 'la fila no cuenta la asignación');
       },
     },
@@ -170,10 +180,11 @@ module.exports = {
           await createScriptHook(ctx, name, name);
           await openAssignments(ctx, name);
           await assignTo(ctx, project, 'task_start', 'pre');
+          await backToLibrary(ctx);
         }
 
+        await openOrder(ctx);
         const panel = orderPanel(ctx);
-        await unfold(panel);
         await panel.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
         await panel.getByRole('button', { name: 'Mostrar', exact: true }).click();
         const rows = () => orderPanel(ctx).locator('[data-group-row]').allInnerTexts();
@@ -215,8 +226,9 @@ module.exports = {
         await createScriptHook(ctx, name, 'echo');
         await openAssignments(ctx, name);
 
-        await unfold(ctx.page.locator('[data-hook-test-section]'));
+        await ctx.page.getByRole('button', { name: 'Probar', exact: true }).click();
         const form = ctx.page.locator('[data-hook-test-form]');
+        await form.waitFor({ timeout: 10000 });
         await form.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
         await form.getByRole('button', { name: 'Probar', exact: true }).click();
 

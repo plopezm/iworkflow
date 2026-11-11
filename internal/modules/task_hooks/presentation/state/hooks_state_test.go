@@ -35,3 +35,10 @@ func TestHistoryPathCarriesItsFilters(t *testing.T) {
 	assert.Equal(t, "/hooks/history?applied=1&failed=1&hook=h-1&project=ws-1", HistoryPath("h-1", "ws-1", true))
 	assert.Equal(t, "/hooks/history?applied=1&hook=&project=", HistoryPath("", "", false))
 }
+
+// The dialogs of a hook are addressed under the hook: the add-assignment one and the test one.
+func TestDialogPathsAddressTheHook(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "/hooks/h-1/assignments/new", AssignDialogPath("h-1"))
+	assert.Equal(t, "/hooks/h-1/test/new", RunDialogPath("h-1"))
+}

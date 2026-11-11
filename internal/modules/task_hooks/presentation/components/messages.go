@@ -67,8 +67,10 @@ var (
 	msgTimeoutHint      = i18n.Msg{En: "Whole seconds, at most %d.", Es: "Segundos enteros, como máximo %d.", Zh: "整数秒，最多 %d。", De: "Ganze Sekunden, höchstens %d.", Fr: "Secondes entières, %d au maximum."}
 	msgSave             = i18n.Msg{En: "Save", Es: "Guardar", Zh: "保存", De: "Speichern", Fr: "Enregistrer"}
 	msgCancel           = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
-	msgAddAssignment    = i18n.Msg{En: "Assign to a project", Es: "Asignar a un proyecto", Zh: "分配到项目", De: "Projekt zuweisen", Fr: "Affecter à un projet"}
-	msgWhereRuns        = i18n.Msg{En: "Where it runs", Es: "Dónde se ejecuta", Zh: "运行位置", De: "Wo er läuft", Fr: "Où il s'exécute"}
+	msgAddAssignment    = i18n.Msg{En: "Assign to a project +", Es: "Asignar a un proyecto +", Zh: "分配到项目 +", De: "Projekt zuweisen +", Fr: "Affecter à un projet +"}
+	msgAssignTitle      = i18n.Msg{En: "Assign to a project", Es: "Asignar a un proyecto", Zh: "分配到项目", De: "Projekt zuweisen", Fr: "Affecter à un projet"}
+	msgBackToHooks      = i18n.Msg{En: "← Hooks", Es: "← Hooks", Zh: "← Hooks", De: "← Hooks", Fr: "← Hooks"}
+	msgCloseDialog      = i18n.Msg{En: "Close", Es: "Cerrar", Zh: "关闭", De: "Schließen", Fr: "Fermer"}
 	msgWhereRunsHint    = i18n.Msg{En: "Each line is a project, an event and a moment where this hook runs.", Es: "Cada línea es un proyecto, un evento y un momento en los que se ejecuta este hook.", Zh: "每一行是此钩子运行的项目、事件和时机。", De: "Jede Zeile ist ein Projekt, ein Ereignis und ein Zeitpunkt, an dem dieser Hook läuft.", Fr: "Chaque ligne est un projet, un événement et un moment où ce hook s'exécute."}
 	msgAssignAdd        = i18n.Msg{En: "Assign +", Es: "Asignar +", Zh: "分配 +", De: "Zuweisen +", Fr: "Affecter +"}
 	msgNoAssignments    = i18n.Msg{En: "Not assigned to any project yet.", Es: "Aún no está asignado a ningún proyecto.", Zh: "尚未分配到任何项目。", De: "Noch keinem Projekt zugewiesen.", Fr: "Pas encore affecté à un projet."}

@@ -9,10 +9,22 @@ import (
 // Tab is the section of the Hooks screen that is shown.
 type Tab string
 
-// Values of Tab.
+// Values of Tab: the library of hooks, the run order of a project, event and moment, and the errors and runs.
 const (
 	TabLibrary Tab = "library"
+	TabOrder   Tab = "order"
 	TabHistory Tab = "history"
+)
+
+// ModalKind is the dialog open over the screen. ModalNone is no dialog.
+type ModalKind string
+
+// Values of ModalKind: the editor of a hook, the add-assignment form and the test of a hook.
+const (
+	ModalNone   ModalKind = ""
+	ModalEditor ModalKind = "editor"
+	ModalAssign ModalKind = "assign"
+	ModalTest   ModalKind = "test"
 )
 
 // Notice is the outcome of the last action of the screen, shown as a badge.
@@ -44,7 +56,8 @@ const (
 const HostID = "hooks-screen"
 
 // Screen is the whole Hooks screen. Failure is the error of the last action or of a read; the screen keeps what it
-// can show. Selected is the hook whose assignments are open, Group the order panel, History the run history.
+// can show. Selected is the hook whose assignments view is open, Group the run order, History the run history. Modal
+// is the dialog open over the screen; Editor, Browser, Selected.Add and Selected.Test hold what the dialogs show.
 type Screen struct {
 	Tab      Tab
 	Notice   Notice
@@ -56,6 +69,23 @@ type Screen struct {
 	Selected *HookDetail
 	Group    *Group
 	History  *History
+	Modal    Modal
+}
+
+// Modal is the dialog open over the screen and its own error. The error is shown inside the dialog, so the user sees it
+// with the values still typed.
+type Modal struct {
+	Kind    ModalKind
+	Failure string
+}
+
+// DismissPath is the view a dialog returns to when it is cancelled: the editor returns to the library, the other two to
+// the assignments view of the hook.
+func (s Screen) DismissPath() string {
+	if s.Modal.Kind == ModalEditor || s.Selected == nil {
+		return LibraryPath()
+	}
+	return HookPath(s.Selected.HookID)
 }
 
 // Choice is a value of a drop-down: a project or a hook, with the name shown.
@@ -71,7 +101,6 @@ type HookRow struct {
 	Kind        string
 	Assignments int
 	LastError   *LastError
-	Selected    bool
 }
 
 // LastError is the latest failed run of a hook, with the address of its history.
@@ -134,8 +163,8 @@ type AssignmentRow struct {
 	Position    int
 }
 
-// HookDetail is the assignment editor of the selected hook: its assignments, the form of a new one and the outcome of
-// the last test.
+// HookDetail is the assignments view of the selected hook: its assignments, the values of the add-assignment dialog and
+// of the test dialog, and the outcome of the last test.
 type HookDetail struct {
 	HookID      string
 	Name        string
@@ -145,7 +174,7 @@ type HookDetail struct {
 	Result      *TestResult
 }
 
-// TestResult is the outcome of a test of a hook, shown under its editor. ExitCode is -1 when the run has none.
+// TestResult is the outcome of a test of a hook, shown inside its test dialog. ExitCode is -1 when the run has none.
 type TestResult struct {
 	Status   string
 	ExitCode int
@@ -153,7 +182,7 @@ type TestResult struct {
 	Failure  string
 }
 
-// Group is the order panel: the assignments of one project, event and phase, in the order they run.
+// Group is the run order: the assignments of one project, event and phase, in the order they run.
 type Group struct {
 	Project string
 	Event   string
@@ -243,6 +272,12 @@ func AssignmentPath(hookID string, assignmentID string) string {
 func AssignmentDeletePath(hookID string, assignmentID string) string {
 	return AssignmentPath(hookID, assignmentID) + "/delete"
 }
+
+// AssignDialogPath opens the add-assignment dialog of a hook over its assignments view.
+func AssignDialogPath(hookID string) string { return HookPath(hookID) + "/assignments/new" }
+
+// RunDialogPath opens the test dialog of a hook over its assignments view.
+func RunDialogPath(hookID string) string { return HookPath(hookID) + "/test/new" }
 
 // OrderPath sets the order of a group.
 func OrderPath() string { return ScreenPath + "/order" }

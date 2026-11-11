@@ -125,14 +125,6 @@ func runStatusClass(status string) string {
 	}
 }
 
-// hookRowClass is the frame of a hook of the library; the selected one is highlighted.
-func hookRowClass(selected bool) string {
-	if selected {
-		return "stack gap-1.5 rounded-xl border border-border p-3"
-	}
-	return "stack gap-1.5 rounded-xl border border-border/60 p-3"
-}
-
 // outputText is the captured output, or a placeholder when there is none.
 func outputText(ctx context.Context, output string) string {
 	if output == "" {
