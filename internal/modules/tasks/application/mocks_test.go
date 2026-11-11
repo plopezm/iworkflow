@@ -85,6 +85,7 @@ type fakeRepository struct {
 	diffRanges              []models.DiffRange
 	recordRangeErr          error
 	eventsAfter             *int64
+	storedEvents            []models.TaskEvent
 	insertErr               error
 	appendErr               error
 	// claimResult and revertResult, when set, are returned instead of the real conditional check.
@@ -271,7 +272,7 @@ func (r *fakeRepository) ListActive(_ context.Context, workspaceID *string) ([]m
 func (r *fakeRepository) Events(_ context.Context, id models.TaskID, afterSeq *int64) ([]models.TaskEvent, error) {
 	r.eventsTask = id
 	r.eventsAfter = afterSeq
-	return nil, nil
+	return r.storedEvents, nil
 }
 
 func (r *fakeRepository) ListDonePage(_ context.Context, workspaceID *string, limit int64, offset int64) ([]models.Task, error) {

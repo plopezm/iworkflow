@@ -32,6 +32,7 @@ const (
 	kindLaneNotFound
 	kindDefaultLaneImmutable
 	kindRepository
+	kindInvalidDuration
 )
 
 // Error is a business failure. Two errors match with errors.Is when they have the same kind, so
@@ -63,6 +64,8 @@ func (e Error) Error() string {
 		return "tarea de Jira no encontrada: " + e.detail
 	case kindAlreadyConverted:
 		return fmt.Sprintf("la tarea %s ya se convirtió en una tarea de iworkflow", e.detail)
+	case kindInvalidDuration:
+		return "duración inválida: usa un formato como 1h 30m (d, h y m)"
 	case kindEmptyComment:
 		return "el comentario no puede estar vacío"
 	case kindEmptyTitle:
@@ -122,6 +125,9 @@ func IssueNotFound(key string) error { return Error{kind: kindIssueNotFound, det
 
 // AlreadyConverted means the issue already has an iworkflow task.
 func AlreadyConverted(key string) error { return Error{kind: kindAlreadyConverted, detail: key} }
+
+// InvalidDuration means the time to log is not a positive Jira duration such as `1h 30m`.
+func InvalidDuration(text string) error { return Error{kind: kindInvalidDuration, detail: text} }
 
 // EmptyComment means the comment has no text.
 func EmptyComment() error { return Error{kind: kindEmptyComment} }
