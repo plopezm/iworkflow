@@ -59,3 +59,18 @@ func TestTaskHooksWorkspaceBridgeRefusesUnknownWorkspaces(t *testing.T) {
 		})
 	}
 }
+
+// The Hooks screen lists the workspaces as the projects a hook can be assigned to.
+func TestTaskHooksProjectsListsTheWorkspaces(t *testing.T) {
+	t.Parallel()
+	db := dbtest.New(t)
+	seedBridgeWorkspace(t, db)
+	bridge := &taskHooksProjects{list: workspacesapp.NewListWorkspaces(workspacespersistence.NewWorkspaceRepository(db))}
+
+	projects, err := bridge.Projects(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, projects, 1)
+	assert.Equal(t, bridgeWorkspaceID, projects[0].ID)
+	assert.Equal(t, "one", projects[0].Name)
+}

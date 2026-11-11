@@ -7,11 +7,8 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// Texts of the hook status strip of a task, and the Hooks entry of the workspace menu. The hooks themselves are
-// configured in the Hooks tab of a workspace.
+// Texts of the hook status strip of a task. The hooks themselves are configured in the Hooks screen.
 var (
-	msgAddHookMenu      = i18n.Msg{En: "Add hook", Es: "Añadir hook", Zh: "添加 hook", De: "Hook hinzufügen", Fr: "Ajouter un hook"}
-	msgHooksMenu        = i18n.Msg{En: "Hooks", Es: "Hooks", Zh: "钩子", De: "Hooks", Fr: "Hooks"}
 	msgTaskHooks        = i18n.Msg{En: "Hooks", Es: "Hooks", Zh: "钩子", De: "Hooks", Fr: "Hooks"}
 	msgHookPhasePre     = i18n.Msg{En: "Before", Es: "Antes de", Zh: "之前", De: "Vor", Fr: "Avant"}
 	msgHookPhasePost    = i18n.Msg{En: "After", Es: "Después de", Zh: "之后", De: "Nach", Fr: "Après"}

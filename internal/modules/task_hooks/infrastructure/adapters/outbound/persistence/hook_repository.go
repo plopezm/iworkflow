@@ -15,9 +15,9 @@ import (
 	"iworkflow/internal/modules/task_hooks/infrastructure/adapters/outbound/persistence/gen"
 )
 
-// HookRepository stores the hooks and the per-task skips. Arguments and environment are stored as JSON text.
+// HookRepository stores the hooks of the library and the per-task skips. Arguments and environment are stored as
+// JSON text.
 type HookRepository struct {
-	db      *sql.DB
 	queries *gen.Queries
 }
 
@@ -28,7 +28,7 @@ var (
 
 // NewHookRepository builds the repository on an open database.
 func NewHookRepository(db *sql.DB) *HookRepository {
-	return &HookRepository{db: db, queries: gen.New(db)}
+	return &HookRepository{queries: gen.New(db)}
 }
 
 type envRecord struct {
@@ -36,24 +36,25 @@ type envRecord struct {
 	Value string `json:"value"`
 }
 
-// List returns the hooks of a workspace in position order.
-func (r *HookRepository) List(ctx context.Context, workspaceID string) ([]models.Hook, error) {
-	rows, err := r.queries.ListWorkspaceHooks(ctx, workspaceID)
+// List returns the hooks of the library ordered by name.
+func (r *HookRepository) List(ctx context.Context) ([]models.Hook, error) {
+	rows, err := r.queries.ListHooks(ctx)
 	if err != nil {
 		return nil, repositoryError(err)
 	}
-	return toDomainAll(rows)
-}
-
-// ListFor returns the hooks of a workspace attached to one event and phase, in position order.
-func (r *HookRepository) ListFor(ctx context.Context, workspaceID string, event models.Event, phase models.Phase) ([]models.Hook, error) {
-	rows, err := r.queries.ListHooksFor(ctx, gen.ListHooksForParams{
-		WorkspaceID: workspaceID, Event: string(event), Phase: string(phase),
-	})
-	if err != nil {
-		return nil, repositoryError(err)
+	hooks := make([]models.Hook, 0, len(rows))
+	for _, row := range rows {
+		hook, err := hookFromColumns(hookColumns{
+			ID: row.ID, Name: row.Name, Kind: row.Kind, TimeoutSeconds: row.TimeoutSeconds, Command: row.Command,
+			Args: row.Args, Env: row.Env, UseShell: row.UseShell, WorkingDir: row.WorkingDir, Prompt: row.Prompt,
+			Runtime: row.Runtime, Model: row.Model, Thinking: row.Thinking, Profile: row.Profile,
+		})
+		if err != nil {
+			return nil, err
+		}
+		hooks = append(hooks, hook)
 	}
-	return toDomainAll(rows)
+	return hooks, nil
 }
 
 // Get returns the hook or errors.ErrHookNotFound.
@@ -65,12 +66,14 @@ func (r *HookRepository) Get(ctx context.Context, id string) (models.Hook, error
 	if err != nil {
 		return models.Hook{}, repositoryError(err)
 	}
-	return toDomain(row)
+	return hookFromColumns(hookColumns{
+		ID: row.ID, Name: row.Name, Kind: row.Kind, TimeoutSeconds: row.TimeoutSeconds, Command: row.Command,
+		Args: row.Args, Env: row.Env, UseShell: row.UseShell, WorkingDir: row.WorkingDir, Prompt: row.Prompt,
+		Runtime: row.Runtime, Model: row.Model, Thinking: row.Thinking, Profile: row.Profile,
+	})
 }
 
-// Save inserts a new hook at the end of its workspace list, or updates the existing one keeping its position. An id
-// that already belongs to another workspace is not written: the storage reports it as ErrInvalidHook instead of
-// succeeding without a change.
+// Save inserts the hook or updates the existing one.
 func (r *HookRepository) Save(ctx context.Context, hook models.Hook) error {
 	script := hook.Script()
 	args, err := json.Marshal(script.Args)
@@ -86,24 +89,19 @@ func (r *HookRepository) Save(ctx context.Context, hook models.Hook) error {
 		return repositoryError(err)
 	}
 	agent := hook.Agent()
-	affected, err := r.queries.UpsertHook(ctx, gen.UpsertHookParams{
-		ID: hook.ID(), WorkspaceID: hook.WorkspaceID(), Phase: string(hook.Phase()), Event: string(hook.Event()),
-		Kind: string(hook.Kind()), Enabled: boolToInt(hook.Enabled()), OnFailure: string(hook.OnFailure()),
-		TimeoutSeconds: int64(hook.Timeout() / time.Second),
-		Command:        script.Command, Args: string(args), Env: string(env), UseShell: boolToInt(script.UseShell),
+	err = r.queries.UpsertHook(ctx, gen.UpsertHookParams{
+		ID: hook.ID(), Name: hook.Name(), Kind: string(hook.Kind()), TimeoutSeconds: int64(hook.Timeout() / time.Second),
+		Command: script.Command, Args: string(args), Env: string(env), UseShell: boolToInt(script.UseShell),
 		WorkingDir: script.WorkingDir,
 		Prompt:     agent.Prompt, Runtime: agent.Runtime, Model: agent.Model, Thinking: agent.Thinking, Profile: agent.Profile,
 	})
 	if err != nil {
 		return repositoryError(err)
 	}
-	if affected == 0 {
-		return fmt.Errorf("%w: hook %s belongs to another workspace", hookerrors.ErrInvalidHook, hook.ID())
-	}
 	return nil
 }
 
-// Delete removes the hook or returns errors.ErrHookNotFound.
+// Delete removes the hook, with its assignments, or returns errors.ErrHookNotFound.
 func (r *HookRepository) Delete(ctx context.Context, id string) error {
 	affected, err := r.queries.DeleteHook(ctx, id)
 	if err != nil {
@@ -115,33 +113,13 @@ func (r *HookRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-// Reorder sets the positions of the workspace hooks to the order of ids, atomically.
-func (r *HookRepository) Reorder(ctx context.Context, workspaceID string, ids []string) error {
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return repositoryError(err)
-	}
-	queries := r.queries.WithTx(tx)
-	for index, id := range ids {
-		if err := queries.SetHookPosition(ctx, gen.SetHookPositionParams{
-			Position: int64(index + 1), ID: id, WorkspaceID: workspaceID,
-		}); err != nil {
-			return rollback(tx, err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return repositoryError(err)
-	}
-	return nil
-}
-
-// SetSkipped disables or re-enables one hook for one task.
-func (r *HookRepository) SetSkipped(ctx context.Context, taskID string, hookID string, skipped bool) error {
+// SetSkipped disables or re-enables one assignment for one task.
+func (r *HookRepository) SetSkipped(ctx context.Context, taskID string, assignmentID string, skipped bool) error {
 	var err error
 	if skipped {
-		err = r.queries.InsertHookSkip(ctx, gen.InsertHookSkipParams{TaskID: taskID, HookID: hookID})
+		err = r.queries.InsertHookSkip(ctx, gen.InsertHookSkipParams{TaskID: taskID, AssignmentID: assignmentID})
 	} else {
-		err = r.queries.DeleteHookSkip(ctx, gen.DeleteHookSkipParams{TaskID: taskID, HookID: hookID})
+		err = r.queries.DeleteHookSkip(ctx, gen.DeleteHookSkipParams{TaskID: taskID, AssignmentID: assignmentID})
 	}
 	if err != nil {
 		return repositoryError(err)
@@ -149,8 +127,8 @@ func (r *HookRepository) SetSkipped(ctx context.Context, taskID string, hookID s
 	return nil
 }
 
-// SkippedHookIDs returns the ids of the hooks disabled for the task.
-func (r *HookRepository) SkippedHookIDs(ctx context.Context, taskID string) ([]string, error) {
+// SkippedAssignmentIDs returns the ids of the assignments disabled for the task.
+func (r *HookRepository) SkippedAssignmentIDs(ctx context.Context, taskID string) ([]string, error) {
 	ids, err := r.queries.ListHookSkips(ctx, taskID)
 	if err != nil {
 		return nil, repositoryError(err)
@@ -158,26 +136,25 @@ func (r *HookRepository) SkippedHookIDs(ctx context.Context, taskID string) ([]s
 	return ids, nil
 }
 
-func rollback(tx *sql.Tx, cause error) error {
-	if err := tx.Rollback(); err != nil {
-		return repositoryError(fmt.Errorf("%w (rollback: %w)", cause, err))
-	}
-	return repositoryError(cause)
+// hookColumns are the stored columns of a hook, shared by the queries that read one.
+type hookColumns struct {
+	ID             string
+	Name           string
+	Kind           string
+	TimeoutSeconds int64
+	Command        string
+	Args           string
+	Env            string
+	UseShell       int64
+	WorkingDir     string
+	Prompt         string
+	Runtime        string
+	Model          string
+	Thinking       string
+	Profile        string
 }
 
-func toDomainAll(rows []gen.TaskHook) ([]models.Hook, error) {
-	hooks := make([]models.Hook, 0, len(rows))
-	for _, row := range rows {
-		hook, err := toDomain(row)
-		if err != nil {
-			return nil, err
-		}
-		hooks = append(hooks, hook)
-	}
-	return hooks, nil
-}
-
-func toDomain(row gen.TaskHook) (models.Hook, error) {
+func hookFromColumns(row hookColumns) (models.Hook, error) {
 	var args []string
 	if err := json.Unmarshal([]byte(row.Args), &args); err != nil {
 		return models.Hook{}, repositoryError(fmt.Errorf("decode hook %s args: %w", row.ID, err))
@@ -191,10 +168,8 @@ func toDomain(row gen.TaskHook) (models.Hook, error) {
 		env = append(env, models.EnvVar{Name: record.Name, Value: record.Value})
 	}
 	hook, err := models.NewHook(models.HookParams{
-		ID: row.ID, WorkspaceID: row.WorkspaceID, Phase: models.Phase(row.Phase), Event: models.Event(row.Event),
-		Kind: models.Kind(row.Kind), Enabled: row.Enabled != 0, OnFailure: models.FailurePolicy(row.OnFailure),
-		Timeout: time.Duration(row.TimeoutSeconds) * time.Second,
-		Script:  models.ScriptSpec{Command: row.Command, Args: args, Env: env, UseShell: row.UseShell != 0, WorkingDir: row.WorkingDir},
+		ID: row.ID, Name: row.Name, Kind: models.Kind(row.Kind), Timeout: time.Duration(row.TimeoutSeconds) * time.Second,
+		Script: models.ScriptSpec{Command: row.Command, Args: args, Env: env, UseShell: row.UseShell != 0, WorkingDir: row.WorkingDir},
 		Agent: models.AgentSpec{
 			Prompt: row.Prompt, Runtime: row.Runtime, Model: row.Model, Thinking: row.Thinking, Profile: row.Profile,
 		},

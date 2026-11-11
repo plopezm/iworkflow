@@ -8,23 +8,38 @@ import (
 	"iworkflow/internal/modules/task_hooks/domain/models"
 )
 
-// HookRepository stores the hooks. Get and Delete return errors.ErrHookNotFound for an unknown id. Lists
-// return the hooks of a workspace in position order.
+// HookRepository stores the hooks of the library. Get and Delete return errors.ErrHookNotFound for an unknown id.
+// Deleting a hook deletes its assignments; its run records stay.
 type HookRepository interface {
-	List(ctx context.Context, workspaceID string) ([]models.Hook, error)
-	ListFor(ctx context.Context, workspaceID string, event models.Event, phase models.Phase) ([]models.Hook, error)
+	List(ctx context.Context) ([]models.Hook, error)
 	Get(ctx context.Context, id string) (models.Hook, error)
-	// Save inserts a new hook at the end of its workspace list, or updates an existing one keeping its position.
+	// Save inserts a new hook or updates an existing one.
 	Save(ctx context.Context, hook models.Hook) error
 	Delete(ctx context.Context, id string) error
-	// Reorder sets the position of the workspace hooks to the order of ids.
-	Reorder(ctx context.Context, workspaceID string, ids []string) error
 }
 
-// SkipRepository stores which hooks are disabled for one task.
+// AssignmentRepository stores which hook runs for which workspace, event and phase. Get and Delete return
+// errors.ErrAssignmentNotFound for an unknown id. Lists come in position order.
+type AssignmentRepository interface {
+	// ListByWorkspace returns every assignment of a workspace with its hook, ordered by event, phase and position.
+	ListByWorkspace(ctx context.Context, workspaceID string) ([]models.AssignedHook, error)
+	// ListFor returns the assignments of a workspace attached to one event and phase, with their hooks.
+	ListFor(ctx context.Context, workspaceID string, event models.Event, phase models.Phase) ([]models.AssignedHook, error)
+	// ListByHook returns the assignments of one hook.
+	ListByHook(ctx context.Context, hookID string) ([]models.Assignment, error)
+	Get(ctx context.Context, id string) (models.Assignment, error)
+	// Save inserts a new assignment at the end of its workspace, event and phase, or updates an existing one keeping
+	// its position. Assigning the same hook twice to one workspace, event and phase is errors.ErrInvalidHook.
+	Save(ctx context.Context, assignment models.Assignment) error
+	Delete(ctx context.Context, id string) error
+	// Reorder sets the position of the assignments of one workspace, event and phase to the order of ids.
+	Reorder(ctx context.Context, workspaceID string, event models.Event, phase models.Phase, ids []string) error
+}
+
+// SkipRepository stores which assignments are disabled for one task.
 type SkipRepository interface {
-	SetSkipped(ctx context.Context, taskID string, hookID string, skipped bool) error
-	SkippedHookIDs(ctx context.Context, taskID string) ([]string, error)
+	SetSkipped(ctx context.Context, taskID string, assignmentID string, skipped bool) error
+	SkippedAssignmentIDs(ctx context.Context, taskID string) ([]string, error)
 }
 
 // IDGenerator creates the identifiers of new hooks.
@@ -45,12 +60,25 @@ type AgentRunner interface {
 	Run(ctx context.Context, hook models.Hook, run models.RunContext) (models.RunOutcome, error)
 }
 
+// RunFilter narrows the run history. Empty fields do not filter; FailedOnly keeps the runs that did not end ok
+// or skipped. Limit bounds the result (newest first).
+type RunFilter struct {
+	HookID      string
+	WorkspaceID string
+	FailedOnly  bool
+	Limit       int
+}
+
 // RunRepository stores the run records of the tasks. Save inserts or updates by id; ListByTask returns the
-// records of one task in start order. FailStaleRunning closes every record still running, as errored at finishedAt,
-// and returns how many it closed; it is for the start of the process, when no run of this process can be alive.
+// records of one task in start order; List returns the history, newest first; LastFailures returns the latest
+// failed record of each hook that has one, by hook id. FailStaleRunning closes every record still running, as
+// errored at finishedAt, and returns how many it closed; it is for the start of the process, when no run of this
+// process can be alive.
 type RunRepository interface {
 	Save(ctx context.Context, run models.HookRun) error
 	ListByTask(ctx context.Context, taskID string) ([]models.HookRun, error)
+	List(ctx context.Context, filter RunFilter) ([]models.HookRun, error)
+	LastFailures(ctx context.Context) (map[string]models.HookRun, error)
 	FailStaleRunning(ctx context.Context, finishedAt time.Time) (int64, error)
 }
 

@@ -1,527 +1,310 @@
 package inbound_test
 
 import (
+	"bytes"
 	"context"
-	"errors"
-	"fmt"
+	"database/sql"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"iworkflow/internal/core/db/dbtest"
 	"iworkflow/internal/core/dock"
+	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/modules/task_hooks/application"
-	hookerrors "iworkflow/internal/modules/task_hooks/domain/errors"
-	"iworkflow/internal/modules/task_hooks/domain/models"
-	"iworkflow/internal/modules/task_hooks/infrastructure/adapters/inbound"
 	"iworkflow/internal/modules/task_hooks/infrastructure/adapters/inbound/dto"
+	"iworkflow/internal/modules/task_hooks/infrastructure/adapters/outbound/system"
+	"iworkflow/internal/modules/task_hooks/infrastructure/di"
 )
 
-const workspace = "w1"
+// staticProjects lists the two projects the tests seed.
+type staticProjects struct{}
 
-// memHooks keeps the hooks in memory, in position order, with the semantics of the storage the use cases rely on.
-type memHooks struct{ hooks []models.Hook }
-
-func (m *memHooks) List(_ context.Context, workspaceID string) ([]models.Hook, error) {
-	var out []models.Hook
-	for _, h := range m.hooks {
-		if h.WorkspaceID() == workspaceID {
-			out = append(out, h)
-		}
-	}
-	return out, nil
+func (staticProjects) Projects(context.Context) ([]application.ProjectOption, error) {
+	return []application.ProjectOption{{ID: "ws-1", Name: "alpha"}, {ID: "ws-2", Name: "beta"}}, nil
 }
 
-func (m *memHooks) ListFor(_ context.Context, _ string, event models.Event, phase models.Phase) ([]models.Hook, error) {
-	var out []models.Hook
-	for _, h := range m.hooks {
-		if h.Event() == event && h.Phase() == phase {
-			out = append(out, h)
-		}
-	}
-	return out, nil
+// dirLookup gives every workspace the same directory, where a test of a hook runs.
+type dirLookup struct{ dir string }
+
+func (d dirLookup) Path(context.Context, string) (string, error) { return d.dir, nil }
+
+// fixture is the Hooks screen composed over a temporary database, served by the routes of the module.
+type fixture struct {
+	t      *testing.T
+	db     *sql.DB
+	module *di.Module
+	router chi.Router
 }
 
-func (m *memHooks) Get(_ context.Context, id string) (models.Hook, error) {
-	for _, h := range m.hooks {
-		if h.ID() == id {
-			return h, nil
-		}
-	}
-	return models.Hook{}, hookerrors.ErrHookNotFound
-}
-
-func (m *memHooks) Save(_ context.Context, hook models.Hook) error {
-	for i, h := range m.hooks {
-		if h.ID() == hook.ID() {
-			m.hooks[i] = hook
-			return nil
-		}
-	}
-	m.hooks = append(m.hooks, hook)
-	return nil
-}
-
-func (m *memHooks) Delete(_ context.Context, id string) error {
-	for i, h := range m.hooks {
-		if h.ID() == id {
-			m.hooks = append(m.hooks[:i], m.hooks[i+1:]...)
-			return nil
-		}
-	}
-	return hookerrors.ErrHookNotFound
-}
-
-func (m *memHooks) Reorder(_ context.Context, workspaceID string, ids []string) error {
-	byID := map[string]models.Hook{}
-	var others []models.Hook
-	for _, h := range m.hooks {
-		if h.WorkspaceID() == workspaceID {
-			byID[h.ID()] = h
-		} else {
-			others = append(others, h)
-		}
-	}
-	var ordered []models.Hook
-	for _, id := range ids {
-		ordered = append(ordered, byID[id])
-	}
-	m.hooks = append(others, ordered...)
-	return nil
-}
-
-func (m *memHooks) order(workspaceID string) []string {
-	var ids []string
-	for _, h := range m.hooks {
-		if h.WorkspaceID() == workspaceID {
-			ids = append(ids, h.ID())
-		}
-	}
-	return ids
-}
-
-// scripts answers every script run with a fixed outcome and counts the runs.
-type scripts struct {
-	outcome models.RunOutcome
-	err     error
-	runs    int
-}
-
-func (s *scripts) Run(context.Context, models.Hook, models.RunContext) (models.RunOutcome, error) {
-	s.runs++
-	return s.outcome, s.err
-}
-
-type fixedWorkspace struct{}
-
-func (fixedWorkspace) Path(context.Context, string) (string, error) { return "/work/w1", nil }
-
-// fakeBrowser lists a fixed folder and fails for a path named missing.
-type fakeBrowser struct{}
-
-func (fakeBrowser) List(_ context.Context, dir string) (models.Listing, error) {
-	if strings.HasSuffix(dir, "missing") {
-		return models.Listing{}, fmt.Errorf("list %s: no such directory", dir)
-	}
-	return models.Listing{Path: dir, Parent: "/work", Entries: []models.DirEntry{
-		{Name: "sub", Path: dir + "/sub", IsDir: true},
-		{Name: "check.sh", Path: dir + "/check.sh"},
-	}}, nil
-}
-
-type sequentialIDs struct{ n int }
-
-func (s *sequentialIDs) NewID() string { s.n++; return fmt.Sprintf("new-%d", s.n) }
-
-type rig struct {
-	router http.Handler
-	hooks  *memHooks
-	runner *scripts
-}
-
-// newRig mounts the handlers over the real use cases, with the given hooks stored.
-func newRig(t *testing.T, stored ...models.Hook) rig {
+func newFixture(t *testing.T) *fixture {
 	t.Helper()
-	hooks := &memHooks{hooks: stored}
-	runner := &scripts{outcome: models.RunOutcome{Status: models.RunOK, ExitCode: 0, Output: "hello\n"}}
-	ids := &sequentialIDs{}
-	handlers := inbound.NewHandlers(inbound.UseCases{
-		List:       application.NewListHooks(hooks),
-		Save:       application.NewSaveHook(hooks, ids),
-		Delete:     application.NewDeleteHook(hooks),
-		Reorder:    application.NewReorderHooks(hooks),
-		SetEnabled: application.NewSetHookEnabled(hooks),
-		Test:       application.NewTestHook(hooks, fixedWorkspace{}, runner, &scripts{}),
-		Browse:     application.NewBrowsePath(fixedWorkspace{}, fakeBrowser{}),
+	db := dbtest.New(t)
+	for _, ws := range []struct{ id, name string }{{"ws-1", "alpha"}, {"ws-2", "beta"}} {
+		_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES (?, ?, ?, 'main', '2026-01-01T00:00:00Z')`,
+			ws.id, ws.name, t.TempDir())
+		require.NoError(t, err)
+	}
+	module := di.NewModule(di.Deps{
+		DB:         db,
+		Clock:      system.NewClock(),
+		Workspaces: dirLookup{dir: t.TempDir()},
+		Projects:   staticProjects{},
 	})
-	r := chi.NewRouter()
-	handlers.Mount(r)
-	return rig{router: r, hooks: hooks, runner: runner}
+	router := chi.NewRouter()
+	module.Routes(router)
+	return &fixture{t: t, db: db, module: module, router: router}
 }
 
-func hook(t *testing.T, id string, phase models.Phase, event models.Event, command string) models.Hook {
-	t.Helper()
-	h, err := models.NewHook(models.HookParams{
-		ID: id, WorkspaceID: workspace, Phase: phase, Event: event, Kind: models.KindScript,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: time.Minute,
-		Script: models.ScriptSpec{Command: command},
+// send posts or gets the path with the form, in English, the way the screen does.
+func (f *fixture) send(method string, path string, form url.Values) *httptest.ResponseRecorder {
+	f.t.Helper()
+	request := httptest.NewRequest(method, path, strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	request.Header.Set("HX-Request", "true")
+	request = request.WithContext(i18n.WithState(request.Context(), i18n.State{Locale: i18n.En, Chosen: true}))
+	recorder := httptest.NewRecorder()
+	f.router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// saveScript creates a script hook with the name and the command, and returns its id.
+func (f *fixture) saveScript(name string, command string) string {
+	f.t.Helper()
+	rec := f.send(http.MethodPost, "/hooks", url.Values{
+		dto.FieldName: {name}, dto.FieldKind: {"script"}, dto.FieldTimeout: {"30"}, dto.FieldCommand: {command},
 	})
-	require.NoError(t, err)
-	return h
+	require.Equal(f.t, http.StatusOK, rec.Code)
+	var id string
+	require.NoError(f.t, f.db.QueryRow(`SELECT id FROM hooks WHERE name = ?`, name).Scan(&id))
+	return id
 }
 
-func do(t *testing.T, h http.Handler, method string, path string, form url.Values) *httptest.ResponseRecorder {
-	t.Helper()
-	body := ""
-	if form != nil {
-		body = form.Encode()
-	}
-	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	if form != nil {
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	}
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-	return rec
+// assign adds the hook to a project, event and moment, and returns the answer of the screen.
+func (f *fixture) assign(hookID string, project string, event string, phase string) *httptest.ResponseRecorder {
+	return f.send(http.MethodPost, "/hooks/"+hookID+"/assignments", url.Values{
+		dto.FieldProject: {project}, dto.FieldEvent: {event}, dto.FieldPhase: {phase},
+		dto.FieldOnFailure: {"block"}, dto.FieldEnabled: {"on"},
+	})
 }
 
-func scriptForm(command string) url.Values {
-	return url.Values{
-		dto.FieldEvent: {"task_start"}, dto.FieldPhase: {"pre"}, dto.FieldKind: {"script"},
-		dto.FieldEnabled: {"on"}, dto.FieldOnFailure: {"warn"}, dto.FieldTimeout: {"90"},
-		dto.FieldCommand: {command}, dto.FieldArgs: {"--fast"}, dto.FieldEnv: {"MODE=ci"},
-	}
+// assignmentID returns the id of the one assignment of the hook for the project, event and moment.
+func (f *fixture) assignmentID(hookID string, project string, event string, phase string) string {
+	f.t.Helper()
+	var id string
+	require.NoError(f.t, f.db.QueryRow(`SELECT id FROM hook_assignments WHERE hook_id = ? AND workspace_id = ? AND event = ? AND phase = ?`,
+		hookID, project, event, phase).Scan(&id))
+	return id
 }
 
-func panelPath(suffix string) string { return "/workspaces/" + workspace + "/hooks" + suffix }
+// seedRun stores one run of the hook for a task of the first workspace.
+func (f *fixture) seedRun(id string, hookID string, status string, output string, started string) {
+	f.t.Helper()
+	_, err := f.db.Exec(`INSERT OR IGNORE INTO tasks (id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, created_at, updated_at)
+		VALUES ('t1', 'ws-1', 't', 'p', 'b', 'main', '/tmp/wt', 'backlog', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`)
+	require.NoError(f.t, err)
+	_, err = f.db.Exec(`INSERT INTO task_hook_runs (id, task_id, hook_id, assignment_id, hook_name, workspace_id, phase, event, status, exit_code, output, started_at, finished_at)
+		VALUES (?, 't1', ?, 'a', 'lint', 'ws-1', 'pre', 'task_start', ?, 2, ?, ?, ?)`, id, hookID, status, output, started, started)
+	require.NoError(f.t, err)
+}
 
-// The save of a valid form creates the hook in its group and answers the tab with the notice; nothing else changes.
-func TestSaveCreatesTheHookAndAnswersTheTab(t *testing.T) {
+// The library lists the hooks with their assignments and their latest error; names are escaped.
+func TestLibraryListsTheHooksWithTheirLastError(t *testing.T) {
 	t.Parallel()
-	r := newRig(t)
+	f := newFixture(t)
+	hookID := f.saveScript("<b>lint</b>", "make")
+	f.seedRun("r-old", hookID, "failed", "old", "2026-01-01T09:00:00Z")
+	f.seedRun("r-new", hookID, "timeout", "slow", "2026-01-02T09:00:00Z")
 
-	rec := do(t, r.router, http.MethodPost, panelPath(""), scriptForm("./setup.sh"))
+	rec := f.send(http.MethodGet, "/hooks/library", nil)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Header().Get("Content-Type"), "text/html")
-	assert.Contains(t, rec.Body.String(), "Hook saved.")
-	assert.Contains(t, rec.Body.String(), `data-hook="new-1"`)
-	require.Len(t, r.hooks.hooks, 1)
-	stored := r.hooks.hooks[0]
-	assert.Equal(t, models.PhasePre, stored.Phase())
-	assert.Equal(t, models.FailureWarn, stored.OnFailure())
-	assert.Equal(t, 90*time.Second, stored.Timeout())
-	assert.Equal(t, []string{"--fast"}, stored.Script().Args)
-}
-
-// A rejected form is answered inside the tab with status 200: the message is shown, the editor stays with the values
-// as typed, and nothing is stored.
-func TestSaveRejectedKeepsTheEditorAndTheTypedValues(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		mutate  func(url.Values)
-		message string
-	}{
-		{name: "empty command", mutate: func(f url.Values) { f[dto.FieldCommand] = []string{""} }, message: "the command is required"},
-		{name: "timeout is not a number", mutate: func(f url.Values) { f[dto.FieldTimeout] = []string{"soon"} }, message: "whole number of seconds"},
-		{name: "variable without equals", mutate: func(f url.Values) { f[dto.FieldEnv] = []string{"NOPE"} }, message: "NAME=VALUE"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			r := newRig(t)
-			form := scriptForm("./typed.sh")
-			tt.mutate(form)
-
-			rec := do(t, r.router, http.MethodPost, panelPath(""), form)
-
-			require.Equal(t, http.StatusOK, rec.Code)
-			body := rec.Body.String()
-			assert.Contains(t, body, tt.message)
-			assert.Contains(t, body, `data-hook-editor`, "the editor stays open")
-			assert.Empty(t, r.hooks.hooks, "a rejected hook is not stored")
-		})
-	}
-}
-
-func TestSaveWithAMalformedFormIsBadRequest(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	req := httptest.NewRequest(http.MethodPost, panelPath(""), strings.NewReader("command=%zz"))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := httptest.NewRecorder()
-
-	r.router.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.Empty(t, r.hooks.hooks)
-}
-
-// Saving with the id of a stored hook edits it, and the id of another workspace is refused in the tab.
-func TestSaveEditsTheHookOfTheWorkspaceOnly(t *testing.T) {
-	t.Parallel()
-	stored := hook(t, "h1", models.PhasePre, models.EventTaskStart, "old")
-	other, err := models.NewHook(models.HookParams{
-		ID: "h2", WorkspaceID: "w2", Phase: models.PhasePre, Event: models.EventTaskStart, Kind: models.KindScript,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: time.Minute, Script: models.ScriptSpec{Command: "theirs"},
-	})
-	require.NoError(t, err)
-	r := newRig(t, stored, other)
-
-	edit := scriptForm("new")
-	edit.Set(dto.FieldID, "h1")
-	rec := do(t, r.router, http.MethodPost, panelPath(""), edit)
-	assert.Contains(t, rec.Body.String(), "Hook updated.")
-	assert.Equal(t, "new", r.hooks.hooks[0].Script().Command)
-
-	steal := scriptForm("hijack")
-	steal.Set(dto.FieldID, "h2")
-	rec = do(t, r.router, http.MethodPost, panelPath(""), steal)
-	assert.Contains(t, rec.Body.String(), "belongs to another workspace")
-	assert.Equal(t, "theirs", r.hooks.hooks[1].Script().Command)
-}
-
-// The editor of a stored hook is filled with its values; a changed kind keeps what was typed.
-func TestEditorLoadsTheStoredHookAndKeepsTypedValuesOnKindChange(t *testing.T) {
-	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "make"))
-
-	loaded := do(t, r.router, http.MethodGet, panelPath("/editor?hook=h1"), nil)
-	require.Equal(t, http.StatusOK, loaded.Code)
-	assert.Contains(t, loaded.Body.String(), `name="id" value="h1"`)
-	assert.Contains(t, loaded.Body.String(), `value="make"`)
-
-	changed := do(t, r.router, http.MethodGet, panelPath("/editor?"+url.Values{
-		dto.FieldID: {"h1"}, dto.FieldKind: {"agent"}, dto.FieldPrompt: {"keep me"}, dto.FieldTimeout: {"30"},
-	}.Encode()), nil)
-	assert.Contains(t, changed.Body.String(), `name="prompt"`)
-	assert.Contains(t, changed.Body.String(), "keep me")
-	assert.NotContains(t, changed.Body.String(), `name="command"`)
-}
-
-func TestEditorOfAnUnknownHookShowsTheFailure(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-
-	rec := do(t, r.router, http.MethodGet, panelPath("/editor?hook=missing"), nil)
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Contains(t, rec.Body.String(), "hook not found")
-	assert.NotContains(t, rec.Body.String(), "data-hook-editor")
-}
-
-// A new hook opened from a group starts in that group, with the defaults of the form.
-func TestEditorOfANewHookStartsInItsGroup(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-
-	rec := do(t, r.router, http.MethodGet, panelPath("/editor?event=task_finish&phase=post"), nil)
-
 	body := rec.Body.String()
-	assert.Contains(t, body, "New hook")
-	assert.Contains(t, body, `<option value="task_finish" selected>`)
-	assert.Contains(t, body, `<option value="post" selected>`)
-	assert.Contains(t, body, `name="timeout" class="input" value="600"`)
+	assert.Contains(t, body, `data-hook="`+hookID+`"`)
+	assert.Contains(t, body, "&lt;b&gt;lint&lt;/b&gt;", "the name is escaped")
+	assert.NotContains(t, body, "<b>lint</b>")
+	assert.Contains(t, body, "Timed out · 2026-01-02 09:00", "the latest failure is the timeout, the newest one")
+	assert.Contains(t, body, "hook="+hookID, "the error opens the history of the hook")
 }
 
-// The order submitted is the whole workspace order; a partial one is refused and nothing moves.
-func TestReorderStoresTheWholeOrderOrRefusesIt(t *testing.T) {
+// A new hook needs a name: the screen stays open with the values as typed and the reason.
+func TestSaveWithoutANameKeepsTheEditorOpen(t *testing.T) {
 	t.Parallel()
-	a := hook(t, "a", models.PhasePre, models.EventTaskStart, "a")
-	b := hook(t, "b", models.PhasePre, models.EventTaskStart, "b")
-	c := hook(t, "c", models.PhasePost, models.EventTaskFinish, "c")
-	r := newRig(t, a, b, c)
+	f := newFixture(t)
 
-	ok := do(t, r.router, http.MethodPost, panelPath("/reorder"), url.Values{dto.FieldOrder: {"b,a,c"}})
-	assert.Contains(t, ok.Body.String(), "Order saved.")
-	assert.Equal(t, []string{"b", "a", "c"}, r.hooks.order(workspace))
-
-	partial := do(t, r.router, http.MethodPost, panelPath("/reorder"), url.Values{dto.FieldOrder: {"a,c"}})
-	assert.Contains(t, partial.Body.String(), "must name the 3 hooks")
-	assert.Equal(t, []string{"b", "a", "c"}, r.hooks.order(workspace))
-}
-
-func TestEnabledFollowsTheFormCheckbox(t *testing.T) {
-	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "x"))
-
-	do(t, r.router, http.MethodPost, panelPath("/h1/enabled"), nil)
-	assert.False(t, r.hooks.hooks[0].Enabled())
-
-	do(t, r.router, http.MethodPost, panelPath("/h1/enabled"), url.Values{dto.FieldEnabled: {"on"}})
-	assert.True(t, r.hooks.hooks[0].Enabled())
-}
-
-func TestDeleteRemovesTheHookOfTheWorkspace(t *testing.T) {
-	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "x"))
-
-	rec := do(t, r.router, http.MethodPost, panelPath("/h1/delete"), nil)
-
-	assert.Contains(t, rec.Body.String(), "Hook deleted.")
-	assert.Empty(t, r.hooks.hooks)
-}
-
-// Probar runs the hook and shows its status, exit code and escaped output in its row.
-func TestTestShowsTheOutcomeInTheRowEscaped(t *testing.T) {
-	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "echo"))
-	r.runner.outcome = models.RunOutcome{Status: models.RunFailed, ExitCode: 2, Output: "<b>boom</b>"}
-
-	rec := do(t, r.router, http.MethodPost, panelPath("/h1/test"), nil)
+	rec := f.send(http.MethodPost, "/hooks", url.Values{dto.FieldKind: {"script"}, dto.FieldTimeout: {"30"}, dto.FieldCommand: {"make"}})
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, 1, r.runner.runs)
 	body := rec.Body.String()
-	assert.Contains(t, body, `data-hook-test="failed"`)
-	assert.Contains(t, body, "Failed · exit code 2")
-	assert.Contains(t, body, "&lt;b&gt;boom&lt;/b&gt;")
-	assert.NotContains(t, body, "<b>boom</b>")
+	assert.Contains(t, body, "The action failed:")
+	assert.Contains(t, body, "the name is required")
+	assert.Contains(t, body, `data-hook-editor`, "the editor stays open")
+	assert.Contains(t, body, `value="make"`, "the command is kept as typed")
 }
 
-// A test that could not start is shown in the row with its reason, not as a failure of the tab.
-func TestTestThatCannotStartIsShownInItsRow(t *testing.T) {
+// A malformed form is the only bad request; every other refusal is answered with the screen.
+func TestMalformedFormIsTheOnlyBadRequest(t *testing.T) {
 	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "echo"))
-	r.runner.err = fmt.Errorf("%w: missing directory", hookerrors.ErrRunNotStarted)
+	f := newFixture(t)
+	request := httptest.NewRequest(http.MethodPost, "/hooks", strings.NewReader("name=%zz"))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recorder := httptest.NewRecorder()
 
-	rec := do(t, r.router, http.MethodPost, panelPath("/h1/test"), nil)
+	f.router.ServeHTTP(recorder, request)
 
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+// The same hook cannot run twice for one project, event and moment: the second assignment is refused on the screen,
+// which keeps the hook open.
+func TestAssignmentRefusesTheSameGroupTwice(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	hookID := f.saveScript("lint", "make")
+
+	first := f.assign(hookID, "ws-1", "task_start", "pre")
+	require.Equal(t, http.StatusOK, first.Code)
+	assert.Contains(t, first.Body.String(), "Assignment added.")
+
+	second := f.assign(hookID, "ws-1", "task_start", "pre")
+
+	require.Equal(t, http.StatusOK, second.Code)
+	body := second.Body.String()
+	assert.Contains(t, body, "The action failed:")
+	assert.Contains(t, body, "invalid hook")
+	assert.Contains(t, body, `data-hook-assignments="`+hookID+`"`, "the assignments of the hook stay open")
+}
+
+// A toggle posts the stored values; without the enabled flag the assignment is disabled, and a delete detaches it while
+// the hook stays in the library.
+func TestToggleAndDeleteAnAssignment(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	hookID := f.saveScript("lint", "make")
+	require.Equal(t, http.StatusOK, f.assign(hookID, "ws-1", "task_start", "pre").Code)
+	assignmentID := f.assignmentID(hookID, "ws-1", "task_start", "pre")
+
+	toggled := f.send(http.MethodPost, "/hooks/"+hookID+"/assignments/"+assignmentID, url.Values{
+		dto.FieldID: {assignmentID}, dto.FieldProject: {"ws-1"}, dto.FieldEvent: {"task_start"}, dto.FieldPhase: {"pre"},
+		dto.FieldOnFailure: {"block"},
+	})
+
+	require.Equal(t, http.StatusOK, toggled.Code)
+	assert.Contains(t, toggled.Body.String(), "Assignment updated.")
+	assert.Contains(t, toggled.Body.String(), `data-assignment="`+assignmentID+`"`)
+	assert.Contains(t, toggled.Body.String(), ">Enable<", "the assignment is off and offers to enable it")
+
+	deleted := f.send(http.MethodPost, "/hooks/"+hookID+"/assignments/"+assignmentID+"/delete", nil)
+
+	require.Equal(t, http.StatusOK, deleted.Code)
+	assert.Contains(t, deleted.Body.String(), "Assignment removed.")
+	assert.NotContains(t, deleted.Body.String(), `data-assignment="`+assignmentID+`"`)
+	assert.Contains(t, f.send(http.MethodGet, "/hooks/library", nil).Body.String(), `data-hook="`+hookID+`"`, "the hook stays")
+}
+
+// A test that cannot start the hook shows the run as an error in its result, with the reason.
+func TestTestShowsARunThatCannotStart(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	hookID := f.saveScript("missing", "/does/not/exist/hook")
+
+	rec := f.send(http.MethodPost, "/hooks/"+hookID+"/test", url.Values{
+		dto.FieldProject: {"ws-1"}, dto.FieldEvent: {"task_start"}, dto.FieldPhase: {"pre"},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.Contains(t, body, `data-hook-test="error"`)
-	assert.Contains(t, body, "missing directory")
+	assert.Contains(t, body, "Could not run")
+	assert.Contains(t, body, "could not start the hook")
 }
 
-// A run that errors while it is attempted keeps the tab: the workspace hooks stay listed and the failure is shown inline.
-func TestTestErrorKeepsTheTabAndShowsTheFailureInline(t *testing.T) {
+// The history shows only the failures until the filter is applied with the failed box unchecked.
+func TestHistoryIsFailedOnlyUntilAFilterIsApplied(t *testing.T) {
 	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "echo"))
-	r.runner.err = errors.New("pipe closed")
+	f := newFixture(t)
+	hookID := f.saveScript("lint", "make")
+	f.seedRun("r-failed", hookID, "failed", "boom", "2026-01-01T09:00:00Z")
+	f.seedRun("r-ok", hookID, "ok", "fine", "2026-01-01T10:00:00Z")
 
-	rec := do(t, r.router, http.MethodPost, panelPath("/h1/test"), nil)
+	defaults := f.send(http.MethodGet, "/hooks/history", nil)
+
+	require.Equal(t, http.StatusOK, defaults.Code)
+	assert.Contains(t, defaults.Body.String(), `data-run="r-failed"`)
+	assert.NotContains(t, defaults.Body.String(), `data-run="r-ok"`)
+	assert.Contains(t, defaults.Body.String(), "checked", "the failed-only box is on")
+
+	all := f.send(http.MethodGet, "/hooks/history?applied=1&hook="+hookID+"&project=", nil)
+
+	require.Equal(t, http.StatusOK, all.Code)
+	assert.Contains(t, all.Body.String(), `data-run="r-ok"`, "an applied filter with the box unchecked shows every run")
+	assert.Contains(t, all.Body.String(), "boom", "the output of a failure is kept and shown")
+}
+
+// The order must name each assignment of the group: a partial order is refused and nothing changes.
+func TestReorderNeedsEveryAssignmentOfTheGroup(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	first := f.saveScript("first", "make")
+	second := f.saveScript("second", "make")
+	require.Equal(t, http.StatusOK, f.assign(first, "ws-1", "task_start", "pre").Code)
+	require.Equal(t, http.StatusOK, f.assign(second, "ws-1", "task_start", "pre").Code)
+
+	rec := f.send(http.MethodPost, "/hooks/order", url.Values{
+		dto.FieldProject: {"ws-1"}, dto.FieldEvent: {"task_start"}, dto.FieldPhase: {"pre"},
+		dto.FieldOrder: {f.assignmentID(first, "ws-1", "task_start", "pre")},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "must name the 2 assignments of the group")
+	assert.Contains(t, rec.Body.String(), `data-group-row=`, "the group is still shown")
+}
+
+// Deleting a hook removes it and its assignments from the library.
+func TestDeleteRemovesTheHookFromTheLibrary(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+	hookID := f.saveScript("doomed", "make")
+
+	rec := f.send(http.MethodPost, "/hooks/"+hookID+"/delete", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Hook deleted.")
+	assert.NotContains(t, rec.Body.String(), `data-hook="`+hookID+`"`)
+}
+
+// Switching the kind keeps what was typed in the editor, and the fields of the new kind show.
+func TestEditorKindSwitchKeepsWhatWasTyped(t *testing.T) {
+	t.Parallel()
+	f := newFixture(t)
+
+	rec := f.send(http.MethodGet, "/hooks/editor?kind=agent&name=review&prompt=check+the+diff&timeout=60", nil)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	assert.Contains(t, body, `id="workspace-hooks-w1"`, "the tab is still rendered")
-	assert.Contains(t, body, `data-hook="h1"`, "the hooks of the workspace are still listed")
-	assert.Contains(t, body, "pipe closed", "the failure is shown inline")
+	assert.Contains(t, body, `value="review"`)
+	assert.Contains(t, body, "check the diff", "the prompt is kept")
+	assert.NotContains(t, body, `name="command"`, "a script field is not shown for an agent")
 }
 
-func TestTestOfAnUnknownHookIsTheTabFailure(t *testing.T) {
+// The dock tab renders the same screen as the htmx answers, with the library in it.
+func TestDockTabRendersTheScreen(t *testing.T) {
 	t.Parallel()
-	r := newRig(t)
+	f := newFixture(t)
+	require.Len(t, f.module.Tabs(), 1)
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true})
 
-	rec := do(t, r.router, http.MethodPost, panelPath("/nope/test"), nil)
+	var out bytes.Buffer
+	require.NoError(t, f.module.Tabs()[0].Render(ctx, dock.Params{}).Render(ctx, &out))
 
-	assert.Equal(t, 0, r.runner.runs)
-	assert.Contains(t, rec.Body.String(), "hook not found")
-}
-
-// The test runs real commands, so the endpoint is POST only.
-func TestTestIsNotAvailableWithGet(t *testing.T) {
-	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "echo"))
-
-	rec := do(t, r.router, http.MethodGet, panelPath("/h1/test"), nil)
-
-	assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
-	assert.Equal(t, 0, r.runner.runs)
-}
-
-// The tab is the same fragment whether or not the request came from htmx: the dock loads it and the actions swap it.
-func TestPanelIsTheSameFragmentWithOrWithoutHtmx(t *testing.T) {
-	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "echo"))
-
-	plain := do(t, r.router, http.MethodGet, panelPath("/panel"), nil)
-	req := httptest.NewRequest(http.MethodGet, panelPath("/panel"), nil)
-	req.Header.Set("HX-Request", "true")
-	htmx := httptest.NewRecorder()
-	r.router.ServeHTTP(htmx, req)
-
-	assert.Equal(t, plain.Body.String(), htmx.Body.String())
-	assert.Contains(t, plain.Body.String(), `data-hook="h1"`)
-}
-
-// The dock tab renders the same panel, and a failure to read the hooks is shown in the tab.
-func TestTabRendersThePanelOfTheRouteWorkspace(t *testing.T) {
-	t.Parallel()
-	r := newRig(t, hook(t, "h1", models.PhasePre, models.EventTaskStart, "echo"))
-	handlers := inbound.NewHandlers(inbound.UseCases{List: application.NewListHooks(r.hooks)})
-
-	var out strings.Builder
-	component := handlers.Tab(context.Background(), dock.Params{"id": workspace})
-	require.NoError(t, component.Render(context.Background(), &out))
-
-	assert.Contains(t, out.String(), `id="workspace-hooks-w1"`)
-	assert.Contains(t, out.String(), `data-hook="h1"`)
-}
-
-// The browse button reloads the editor with the form as typed and the files and folders of the workspace folder.
-func TestEditorBrowsesFilesForTheCommandAndFoldersForTheWorkingDirectory(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-
-	command := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&command=run&browse=command"), nil).Body.String()
-	assert.Contains(t, command, `data-hook-browser="command"`)
-	assert.Contains(t, command, "📄 check.sh")
-	assert.Contains(t, command, "sub")
-	assert.Contains(t, command, `value="run"`)
-	assert.NotContains(t, command, "Use this folder")
-
-	dir := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&browse=working_dir"), nil).Body.String()
-	assert.Contains(t, dir, `data-hook-browser="working_dir"`)
-	assert.Contains(t, dir, "/work/w1")
-	assert.NotContains(t, dir, "📄 check.sh")
-	assert.Contains(t, dir, "Use this folder")
-}
-
-// Picking a path fills the browsed field and closes the browser; a folder that cannot be listed is shown in it.
-func TestEditorPickFillsTheFieldAndAnUnlistableFolderShowsItsError(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-
-	picked := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&browse=working_dir&pick=%2Fopt%2Fproj"), nil).Body.String()
-	assert.Contains(t, picked, `value="/opt/proj"`)
-	assert.NotContains(t, picked, "data-hook-browser")
-
-	failed := do(t, r.router, http.MethodGet, panelPath("/editor?kind=script&timeout=30&browse=command&browse_path=%2Fmissing"), nil).Body.String()
-	assert.Contains(t, failed, "no such directory")
-	assert.Contains(t, failed, "data-hook-editor")
-}
-
-// The working directory is saved with the hook and shown again when it is edited.
-func TestSaveKeepsTheWorkingDirectory(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	form := scriptForm("make")
-	form.Set(dto.FieldWorkingDir, " /opt/proj ")
-
-	do(t, r.router, http.MethodPost, panelPath(""), form)
-
-	require.Len(t, r.hooks.hooks, 1)
-	assert.Equal(t, "/opt/proj", r.hooks.hooks[0].Script().WorkingDir)
-	edit := do(t, r.router, http.MethodGet, panelPath("/editor?hook=new-1"), nil).Body.String()
-	assert.Contains(t, edit, `value="/opt/proj"`)
-}
-
-// The menu entry opens the tab with the editor of a new hook, and the tab scrolls.
-func TestNewTabOpensTheEditorAndThePanelScrolls(t *testing.T) {
-	t.Parallel()
-	r := newRig(t)
-	handlers := inbound.NewHandlers(inbound.UseCases{List: application.NewListHooks(r.hooks)})
-
-	var out strings.Builder
-	require.NoError(t, handlers.NewTab(context.Background(), dock.Params{"id": workspace}).Render(context.Background(), &out))
-
-	assert.Contains(t, out.String(), "data-hook-editor")
-	assert.Contains(t, out.String(), "overflow-y-auto")
-	assert.Contains(t, out.String(), "Browse")
+	assert.Contains(t, out.String(), "data-hooks-screen")
+	assert.Equal(t, "/hooks", f.module.Tabs()[0].Pattern)
+	assert.True(t, regexp.MustCompile(`data-hooks-library`).MatchString(out.String()))
 }

@@ -63,14 +63,19 @@ const StaleRunOutput = "the server stopped before the hook finished"
 
 // HookRun is the record of one hook execution for one task, kept to show its status and log.
 type HookRun struct {
-	ID         string
-	TaskID     string
-	HookID     string
-	Phase      Phase
-	Event      Event
-	Status     RunStatus
-	ExitCode   int
-	Output     string
-	StartedAt  time.Time
-	FinishedAt time.Time
+	ID     string
+	TaskID string
+	HookID string
+	// AssignmentID, HookName and WorkspaceID are kept on the record so the history outlives the hook and its
+	// assignment.
+	AssignmentID string
+	HookName     string
+	WorkspaceID  string
+	Phase        Phase
+	Event        Event
+	Status       RunStatus
+	ExitCode     int
+	Output       string
+	StartedAt    time.Time
+	FinishedAt   time.Time
 }

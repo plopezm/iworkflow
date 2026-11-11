@@ -1,10 +1,10 @@
 // end2end/go/task_hooks_strip.e2e.cjs
-// Go-mode e2e of the hook status strip of a task (T5b): the hooks of the workspace show in the Actions tab of a started
-// task with their status and their folded log, and the per-task toggle skips and includes each one again. The workspace
-// menu links to the Hooks tab of the workspace. The hook is created through the Hooks tab of the workspace (T5a), so
-// this suite depends on it. A backlog task has no Actions tab, so the task is started: its hook is a `true` command
-// that exits 0 in the worktree, so the strip shows it as run. The suite runs in Spanish. Each test registers its own
-// git repo as a workspace, so the tests do not see each other.
+// Go-mode e2e of the hook status strip of a task (T5b): the assignments of the workspace show in the Actions tab of a
+// started task with their status and their folded log, and the per-task toggle skips and includes each one again. The
+// hook is created in the Hooks screen and assigned to the workspace before the start (T5a), so this suite depends on it.
+// A backlog task has no Actions tab, so the task is started: its hook is a `true` command that exits 0 in the worktree,
+// so the strip shows it as run. The suite runs in Spanish. Each test registers its own git repo as a workspace, so the
+// tests do not see each other.
 
 const fs = require('fs');
 const path = require('path');
@@ -36,28 +36,30 @@ async function registerWs(ctx, name) {
   return name;
 }
 
-// Opens the Hooks tab of a workspace from its menu in the sidebar, and returns its address. The menu is the one of the
-// row with the name of the workspace (the row carries data-workspace-row): the first Hooks link of the sidebar may
-// belong to another workspace.
-async function openHooksTab(ctx, wsName) {
-  await ctx.goto('/');
-  const row = ctx.page.locator('#board-sidebar [data-workspace-row]', { has: ctx.page.getByRole('link', { name: wsName }) });
-  const link = row.locator('a[href$="/hooks"]').first();
-  await link.waitFor({ state: 'attached', timeout: 10000 });
-  const href = await link.getAttribute('href');
-  await ctx.goto(href);
-  await ctx.page.getByRole('button', { name: 'Añadir hook +' }).first().waitFor({ timeout: 10000 });
-  return href;
+// Opens the Hooks screen, a top-level section, at its address.
+async function openHooksScreen(ctx) {
+  await ctx.goto('/hooks');
+  await ctx.page.locator('[data-hooks-screen]').waitFor({ timeout: 10000 });
 }
 
-// Creates a script hook that runs before the start of a task, through the Hooks tab. The first "Añadir hook +" belongs
-// to the group before a task starts, so the hook gets that phase and event. It waits for the saved row of the hook.
-async function addBeforeStartHook(ctx, command) {
+// Creates a script hook in the Hooks screen and assigns it to the workspace before the start of a task: the default
+// event and moment of a new assignment. It waits for the assignment to be listed.
+async function addBeforeStartHook(ctx, wsName, command) {
   const page = ctx.page;
-  await page.getByRole('button', { name: 'Añadir hook +' }).first().click();
-  await page.getByLabel('Comando').fill(command);
-  await page.getByRole('button', { name: 'Guardar' }).click();
-  await page.locator('[data-hook]').filter({ hasText: command }).first().waitFor({ timeout: 10000 });
+  await page.getByRole('button', { name: 'Nuevo hook +' }).click();
+  const editor = page.locator('[data-hook-editor]');
+  await editor.waitFor({ timeout: 10000 });
+  await editor.getByLabel('Nombre', { exact: true }).fill(command);
+  await editor.getByLabel('Comando', { exact: true }).fill(command);
+  await editor.getByRole('button', { name: 'Guardar', exact: true }).click();
+  const row = page.locator('[data-hook]').filter({ hasText: command }).first();
+  await row.waitFor({ timeout: 10000 });
+  await row.getByRole('button', { name: 'Asignaciones', exact: true }).click();
+  const form = page.locator('[data-assignment-form]');
+  await form.waitFor({ timeout: 10000 });
+  await form.getByLabel('Proyecto', { exact: true }).selectOption({ label: wsName });
+  await form.getByRole('button', { name: 'Asignar +', exact: true }).click();
+  await page.locator('[data-assignment]').filter({ hasText: wsName }).first().waitFor({ timeout: 10000 });
 }
 
 // Creates a task in the workspace, starts it, and opens its detail on the Actions tab.
@@ -104,8 +106,8 @@ module.exports = {
       name: 'strip: el hook corrido muestra su estado y registro, y el toggle lo omite e incluye',
       fn: async (ctx) => {
         const wsName = await registerWs(ctx, `hs-toggle-${tag}`);
-        await openHooksTab(ctx, wsName);
-        await addBeforeStartHook(ctx, 'true');
+        await openHooksScreen(ctx);
+        await addBeforeStartHook(ctx, wsName, 'true');
         await createStartedTask(ctx, wsName, `hookstrip-${tag}`);
         const strip = ctx.page.locator('[data-task-hooks]');
 
@@ -123,12 +125,14 @@ module.exports = {
       },
     },
     {
-      name: 'menú del workspace: el enlace Hooks abre la pestaña de hooks del workspace',
+      name: 'pantalla Hooks: se abre en su dirección y el menú del workspace ya no enlaza a hooks',
       fn: async (ctx) => {
         const wsName = await registerWs(ctx, `hs-menu-${tag}`);
-        const href = await openHooksTab(ctx, wsName);
-        ctx.assert(/\/workspaces\/[^/]+\/hooks$/.test(href), `el enlace Hooks apunta a ${href}`);
-        ctx.assert(await ctx.page.getByRole('button', { name: 'Añadir hook +' }).first().count() > 0, 'la pestaña de hooks no abrió');
+        await openHooksScreen(ctx);
+        ctx.assert(await ctx.page.getByRole('button', { name: 'Nuevo hook +' }).count() > 0, 'la pantalla de hooks no abrió');
+        await ctx.goto('/');
+        const row = ctx.page.locator('#board-sidebar [data-workspace-row]', { has: ctx.page.getByRole('link', { name: wsName }) });
+        ctx.assert(await row.locator('a[href$="/hooks"]').count() === 0, 'el menú del workspace todavía enlaza a hooks');
       },
     },
   ],

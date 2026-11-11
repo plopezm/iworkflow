@@ -1,10 +1,17 @@
 package components
 
-import "encoding/json"
+import (
+	"encoding/json"
 
-// orderVals is the hx-vals of a move: the whole order of the workspace hooks, comma-separated.
-func orderVals(order string) string {
-	return jsonVals(map[string]string{"order": order})
+	"iworkflow/internal/modules/task_hooks/presentation/state"
+)
+
+// hostTarget is the selector of the screen: every action replaces it.
+const hostTarget = "#" + state.HostID
+
+// hookVals is the query of the editor that opens a stored hook.
+func hookVals(id string) string {
+	return jsonVals(map[string]string{"hook": id})
 }
 
 // kindVals is the hx-vals of a kind button: the kind it switches the editor to.
@@ -12,12 +19,38 @@ func kindVals(kind string) string {
 	return jsonVals(map[string]string{"kind": kind})
 }
 
-// enabledVals is the hx-vals of the toggle: the checkbox-like field is sent only to enable the hook.
-func enabledVals(enable bool) string {
-	if !enable {
-		return jsonVals(map[string]string{})
+// assignmentVals is the hx-vals of a stored assignment's toggle: its values, with the enabled flag set to the new
+// state. A disabled assignment omits the flag, as the checkbox of the form does.
+func assignmentVals(form state.AssignmentForm, enabled bool) string {
+	values := map[string]string{
+		"id": form.ID, "project": form.Project, "event": form.Event, "phase": form.Phase, "on_failure": form.OnFailure,
 	}
-	return jsonVals(map[string]string{"enabled": "on"})
+	if enabled {
+		values["enabled"] = "on"
+	}
+	return jsonVals(values)
+}
+
+// orderVals is the hx-vals of a move: the group the move is in and the whole order of that group.
+func orderVals(group state.Group, order string) string {
+	return jsonVals(map[string]string{"project": group.Project, "event": group.Event, "phase": group.Phase, "order": order})
+}
+
+// browseVals is the hx-vals of a browser button: the field it browses and the folder to list or the path to pick.
+func browseVals(field string, path string, pick string) string {
+	values := map[string]string{state.BrowseField: field}
+	if path != "" {
+		values[state.BrowsePathField] = path
+	}
+	if pick != "" {
+		values[state.PickField] = pick
+	}
+	return jsonVals(values)
+}
+
+// closeVals is the hx-vals that load the editor again without the browser.
+func closeVals() string {
+	return jsonVals(map[string]string{state.BrowseField: ""})
 }
 
 // jsonVals encodes a map of strings for an hx-vals attribute. A map of strings always encodes, so Marshal cannot fail
@@ -25,21 +58,4 @@ func enabledVals(enable bool) string {
 func jsonVals(values map[string]string) string {
 	encoded, _ := json.Marshal(values)
 	return string(encoded)
-}
-
-// browseVals is the hx-vals of a browser button: the field it browses and the folder to list or the path to pick.
-func browseVals(field string, path string, pick string) string {
-	values := map[string]string{"browse": field}
-	if path != "" {
-		values["browse_path"] = path
-	}
-	if pick != "" {
-		values["pick"] = pick
-	}
-	return jsonVals(values)
-}
-
-// closeVals is the hx-vals that load the editor again without the browser.
-func closeVals() string {
-	return jsonVals(map[string]string{"browse": ""})
 }

@@ -26,6 +26,7 @@ const hookDescriptionMaxChars = 80
 // HookStripRow is one hook of the status strip of a task. ToggleSkipped is the value the skip toggle posts: true skips
 // the hook for this task, false includes it again. Output is the log of the latest run, shown only when HasRun is true.
 type HookStripRow struct {
+	AssignmentID  string
 	HookID        string
 	Kind          string
 	Description   string
@@ -73,6 +74,7 @@ func newHookStripRow(hook dto.HookStripDTO) HookStripRow {
 		status = HookStatusSkipped
 	}
 	return HookStripRow{
+		AssignmentID:  hook.AssignmentID,
 		HookID:        hook.HookID,
 		Kind:          hook.Kind,
 		Description:   truncateRunes(hook.Description, hookDescriptionMaxChars),

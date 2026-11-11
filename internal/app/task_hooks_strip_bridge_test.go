@@ -18,7 +18,7 @@ import (
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
 
-// stripListerFake answers the hook states of a task, or the error it is set to.
+// stripListerFake answers the assignment states of a task, or the error it is set to.
 type stripListerFake struct {
 	states      []hookapp.TaskHookState
 	err         error
@@ -34,43 +34,48 @@ func (f *stripListerFake) Execute(_ context.Context, workspaceID string, taskID 
 
 // stripSkipperFake records the skip it is asked to set, or fails with the error it is set to.
 type stripSkipperFake struct {
-	err         error
-	workspaceID string
-	taskID      string
-	hookID      string
-	skipped     bool
-	calls       int
+	err          error
+	workspaceID  string
+	taskID       string
+	assignmentID string
+	skipped      bool
+	calls        int
 }
 
-func (f *stripSkipperFake) Execute(_ context.Context, workspaceID string, taskID string, hookID string, skipped bool) error {
+func (f *stripSkipperFake) Execute(_ context.Context, workspaceID string, taskID string, assignmentID string, skipped bool) error {
 	f.calls++
 	f.workspaceID = workspaceID
 	f.taskID = taskID
-	f.hookID = hookID
+	f.assignmentID = assignmentID
 	f.skipped = skipped
 	return f.err
 }
 
-// stripScriptHook is an enabled script hook of the workspace, attached to the start of the task.
+// stripScriptHook is a script hook of the library.
 func stripScriptHook(t *testing.T, id string) hookmodels.Hook {
 	t.Helper()
 	hook, err := hookmodels.NewHook(hookmodels.HookParams{
-		ID:          id,
-		WorkspaceID: "ws-1",
-		Phase:       hookmodels.PhasePre,
-		Event:       hookmodels.EventTaskStart,
-		Kind:        hookmodels.KindScript,
-		Enabled:     true,
-		OnFailure:   hookmodels.FailureBlock,
-		Timeout:     time.Minute,
-		Script:      hookmodels.ScriptSpec{Command: "make", Args: []string{"test"}},
+		ID: id, Name: "make test", Kind: hookmodels.KindScript, Timeout: time.Minute,
+		Script: hookmodels.ScriptSpec{Command: "make", Args: []string{"test"}},
 	})
 	require.NoError(t, err)
 	return hook
 }
 
-func TestTaskHooksStripStateMapsHookWithoutRun(t *testing.T) {
-	lister := &stripListerFake{states: []hookapp.TaskHookState{{Hook: stripScriptHook(t, "h-1")}}}
+// stripAssignment attaches a hook to the start of a task of the workspace, before the action.
+func stripAssignment(t *testing.T, id string, hookID string, enabled bool, phase hookmodels.Phase, event hookmodels.Event) hookmodels.Assignment {
+	t.Helper()
+	assignment, err := hookmodels.NewAssignment(hookmodels.AssignmentParams{
+		ID: id, HookID: hookID, WorkspaceID: "ws-1", Event: event, Phase: phase,
+		Enabled: enabled, OnFailure: hookmodels.FailureBlock, Position: 1,
+	})
+	require.NoError(t, err)
+	return assignment
+}
+
+func TestTaskHooksStripStateMapsAssignmentWithoutRun(t *testing.T) {
+	assignment := stripAssignment(t, "a-1", "h-1", true, hookmodels.PhasePre, hookmodels.EventTaskStart)
+	lister := &stripListerFake{states: []hookapp.TaskHookState{{Hook: stripScriptHook(t, "h-1"), Assignment: assignment}}}
 	strip := NewTaskHooksStrip()
 	strip.Bind(lister, &stripSkipperFake{})
 
@@ -81,31 +86,26 @@ func TestTaskHooksStripStateMapsHookWithoutRun(t *testing.T) {
 	assert.Equal(t, "task-1", lister.taskID)
 	require.Len(t, hooks, 1)
 	assert.Equal(t, tasksoutbound.StripHook{
-		HookID:      "h-1",
-		Kind:        "script",
-		Description: "make",
-		Phase:       "pre",
-		Event:       "task_start",
-		Enabled:     true,
-		Skipped:     false,
-		LastStatus:  tasksoutbound.StripStatusNone,
+		AssignmentID: "a-1",
+		HookID:       "h-1",
+		Kind:         "script",
+		Description:  "make",
+		Phase:        "pre",
+		Event:        "task_start",
+		Enabled:      true,
+		Skipped:      false,
+		LastStatus:   tasksoutbound.StripStatusNone,
 	}, hooks[0])
 }
 
-func TestTaskHooksStripStateMapsSkippedAgentHookAndEveryRunStatus(t *testing.T) {
+func TestTaskHooksStripStateMapsSkippedAgentAssignmentAndEveryRunStatus(t *testing.T) {
 	started := time.Date(2026, 11, 7, 10, 0, 0, 0, time.UTC)
 	agent, err := hookmodels.NewHook(hookmodels.HookParams{
-		ID:          "h-agent",
-		WorkspaceID: "ws-1",
-		Phase:       hookmodels.PhasePost,
-		Event:       hookmodels.EventTaskFinish,
-		Kind:        hookmodels.KindAgent,
-		Enabled:     false,
-		OnFailure:   hookmodels.FailureWarn,
-		Timeout:     time.Minute,
-		Agent:       hookmodels.AgentSpec{Prompt: "run the linter"},
+		ID: "h-agent", Name: "lint", Kind: hookmodels.KindAgent, Timeout: time.Minute,
+		Agent: hookmodels.AgentSpec{Prompt: "run the linter"},
 	})
 	require.NoError(t, err)
+	assignment := stripAssignment(t, "a-agent", "h-agent", false, hookmodels.PhasePost, hookmodels.EventTaskFinish)
 	runCases := map[hookmodels.RunStatus]string{
 		hookmodels.RunOK:       tasksoutbound.StripStatusOK,
 		hookmodels.RunFailed:   tasksoutbound.StripStatusFailed,
@@ -116,10 +116,10 @@ func TestTaskHooksStripStateMapsSkippedAgentHookAndEveryRunStatus(t *testing.T) 
 	}
 	for runStatus, want := range runCases {
 		run := hookmodels.HookRun{
-			ID: "run-1", TaskID: "task-1", HookID: "h-agent", Status: runStatus,
+			ID: "run-1", TaskID: "task-1", HookID: "h-agent", AssignmentID: "a-agent", Status: runStatus,
 			ExitCode: 3, Output: "boom <script>", StartedAt: started,
 		}
-		lister := &stripListerFake{states: []hookapp.TaskHookState{{Hook: agent, Skipped: true, LastRun: &run}}}
+		lister := &stripListerFake{states: []hookapp.TaskHookState{{Hook: agent, Assignment: assignment, Skipped: true, LastRun: &run}}}
 		strip := NewTaskHooksStrip()
 		strip.Bind(lister, &stripSkipperFake{})
 
@@ -127,6 +127,7 @@ func TestTaskHooksStripStateMapsSkippedAgentHookAndEveryRunStatus(t *testing.T) 
 
 		require.NoError(t, err, string(runStatus))
 		require.Len(t, hooks, 1)
+		assert.Equal(t, "a-agent", hooks[0].AssignmentID, string(runStatus))
 		assert.Equal(t, "agent", hooks[0].Kind, string(runStatus))
 		assert.Equal(t, "run the linter", hooks[0].Description, string(runStatus))
 		assert.Equal(t, "post", hooks[0].Phase, string(runStatus))
@@ -151,18 +152,18 @@ func TestTaskHooksStripStateWrapsListError(t *testing.T) {
 	assert.ErrorIs(t, err, failure)
 }
 
-func TestTaskHooksStripSetSkippedPassesThrough(t *testing.T) {
+func TestTaskHooksStripSetSkippedPassesTheAssignmentThrough(t *testing.T) {
 	for _, skipped := range []bool{true, false} {
 		skipper := &stripSkipperFake{}
 		strip := NewTaskHooksStrip()
 		strip.Bind(&stripListerFake{}, skipper)
 
-		require.NoError(t, strip.SetSkipped(context.Background(), "ws-1", "task-1", "h-1", skipped))
+		require.NoError(t, strip.SetSkipped(context.Background(), "ws-1", "task-1", "a-1", skipped))
 
 		assert.Equal(t, 1, skipper.calls)
 		assert.Equal(t, "ws-1", skipper.workspaceID, "the skip is checked against the workspace of the task")
 		assert.Equal(t, "task-1", skipper.taskID)
-		assert.Equal(t, "h-1", skipper.hookID)
+		assert.Equal(t, "a-1", skipper.assignmentID)
 		assert.Equal(t, skipped, skipper.skipped)
 	}
 }
@@ -172,7 +173,7 @@ func TestTaskHooksStripSetSkippedWrapsError(t *testing.T) {
 	strip := NewTaskHooksStrip()
 	strip.Bind(&stripListerFake{}, &stripSkipperFake{err: failure})
 
-	err := strip.SetSkipped(context.Background(), "ws-1", "task-1", "h-1", true)
+	err := strip.SetSkipped(context.Background(), "ws-1", "task-1", "a-1", true)
 
 	assert.ErrorIs(t, err, failure)
 }
@@ -184,28 +185,24 @@ func TestTaskHooksStripUnboundShowsNothingAndRefusesSkips(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, hooks)
 
-	assert.Error(t, strip.SetSkipped(context.Background(), "ws-1", "task-1", "h-1", true))
+	assert.Error(t, strip.SetSkipped(context.Background(), "ws-1", "task-1", "a-1", true))
 }
 
-// The task page must carry the strip of the workspace hooks in its Actions tab. Reproduces the e2e symptom at the
-// composed router: a pre-start hook of the workspace, a task of that workspace, and the page of the task.
+// The task page must carry the strip of the workspace assignments in its Actions tab. Reproduces the e2e symptom at the
+// composed router: a pre-start assignment of the workspace, a task of that workspace, and the page of the task.
 func TestTaskPageRendersTheHookStripOfTheWorkspace(t *testing.T) {
 	ctx := context.Background()
 	application := composeWithTasks(t)
 	workspace := registerRepository(t, application)
-	_, err := application.taskHooks.SaveHook.Execute(ctx, hookapp.SaveHookInput{
-		WorkspaceID: workspace.ID.String(), Phase: hookmodels.PhasePre, Event: hookmodels.EventTaskStart,
-		Kind: hookmodels.KindScript, Enabled: true, OnFailure: hookmodels.FailureBlock,
-		Timeout: time.Minute, Script: hookmodels.ScriptSpec{Command: "true"},
-	})
-	require.NoError(t, err)
+	assignHook(t, application, workspace.ID.String(), hookmodels.EventTaskStart, hookmodels.PhasePre, hookmodels.FailureBlock,
+		hookapp.SaveHookInput{Name: "true", Kind: hookmodels.KindScript, Timeout: time.Minute, Script: hookmodels.ScriptSpec{Command: "true"}})
 	task := createTask(t, application, workspace)
 	started, err := application.tasks.Start.Execute(ctx, task.ID)
 	require.NoError(t, err)
 	require.NotEqual(t, tasksmodels.StatusBacklog, started.Status, "the start must leave the backlog")
 	states, err := application.taskHooks.ListTaskHookState.Execute(ctx, workspace.ID.String(), task.ID.String())
 	require.NoError(t, err)
-	require.Len(t, states, 1, "the workspace hook must be listed for the task")
+	require.Len(t, states, 1, "the workspace assignment must be listed for the task")
 
 	request := httptest.NewRequest(http.MethodGet, "/dock/pane?path=/tasks/"+task.ID.String(), nil)
 	request.AddCookie(&http.Cookie{Name: i18n.LocaleCookie, Value: "es"})
@@ -215,6 +212,6 @@ func TestTaskPageRendersTheHookStripOfTheWorkspace(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.Contains(t, body, "data-task-hooks", "the strip is rendered in the actions tab")
-	assert.Contains(t, body, `data-task-hook="`+states[0].Hook.ID()+`"`, "the row of the workspace hook is rendered")
-	assert.Contains(t, body, `/tasks/`+task.ID.String()+`/hooks/`+states[0].Hook.ID()+`/skip`, "the row carries its skip toggle")
+	assert.Contains(t, body, `data-task-hook="`+states[0].Assignment.ID()+`"`, "the row of the assignment is rendered")
+	assert.Contains(t, body, `/tasks/`+task.ID.String()+`/hooks/`+states[0].Assignment.ID()+`/skip`, "the row carries its skip toggle")
 }

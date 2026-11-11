@@ -13,30 +13,30 @@ import (
 // enabled flag: a skipped hook is recorded as skipped and does not run for that task. The hook must belong to the
 // workspace of the task, so a skip cannot be stored for a hook the task would never run.
 type SetTaskHookSkipped struct {
-	hooks outbound.HookRepository
-	skips outbound.SkipRepository
+	assignments outbound.AssignmentRepository
+	skips       outbound.SkipRepository
 }
 
 // NewSetTaskHookSkipped builds the use case.
-func NewSetTaskHookSkipped(hooks outbound.HookRepository, skips outbound.SkipRepository) *SetTaskHookSkipped {
-	return &SetTaskHookSkipped{hooks: hooks, skips: skips}
+func NewSetTaskHookSkipped(assignments outbound.AssignmentRepository, skips outbound.SkipRepository) *SetTaskHookSkipped {
+	return &SetTaskHookSkipped{assignments: assignments, skips: skips}
 }
 
 // Execute sets the skip of the hook for the task. Setting it twice is the same as setting it once. An unknown hook is
 // ErrHookNotFound; a hook of another workspace is ErrInvalidHook, and nothing is stored in either case.
-func (u *SetTaskHookSkipped) Execute(ctx context.Context, workspaceID string, taskID string, hookID string, skipped bool) error {
-	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(taskID) == "" || strings.TrimSpace(hookID) == "" {
+func (u *SetTaskHookSkipped) Execute(ctx context.Context, workspaceID string, taskID string, assignmentID string, skipped bool) error {
+	if strings.TrimSpace(workspaceID) == "" || strings.TrimSpace(taskID) == "" || strings.TrimSpace(assignmentID) == "" {
 		return fmt.Errorf("%w: the workspace, the task and the hook are required", hookerrors.ErrInvalidHook)
 	}
-	hook, err := u.hooks.Get(ctx, hookID)
+	assignment, err := u.assignments.Get(ctx, assignmentID)
 	if err != nil {
-		return fmt.Errorf("load hook %s: %w", hookID, err)
+		return fmt.Errorf("load assignment %s: %w", assignmentID, err)
 	}
-	if hook.WorkspaceID() != workspaceID {
-		return fmt.Errorf("%w: hook %s belongs to another workspace", hookerrors.ErrInvalidHook, hookID)
+	if assignment.WorkspaceID() != workspaceID {
+		return fmt.Errorf("%w: assignment %s belongs to another workspace", hookerrors.ErrInvalidHook, assignmentID)
 	}
-	if err := u.skips.SetSkipped(ctx, taskID, hookID, skipped); err != nil {
-		return fmt.Errorf("set skip of hook %s for task %s: %w", hookID, taskID, err)
+	if err := u.skips.SetSkipped(ctx, taskID, assignmentID, skipped); err != nil {
+		return fmt.Errorf("set skip of hook %s for task %s: %w", assignmentID, taskID, err)
 	}
 	return nil
 }

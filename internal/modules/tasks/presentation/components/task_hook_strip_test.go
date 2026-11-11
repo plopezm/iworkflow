@@ -17,12 +17,12 @@ import (
 func hookStripForTest(output string) state.HookStrip {
 	return state.NewHookStrip("abc123", "t1", []dto.HookStripDTO{
 		{
-			HookID: "h-1", Kind: "script", Description: "make test", Phase: "pre", Event: "task_start",
+			AssignmentID: "h-1", HookID: "hook-1", Kind: "script", Description: "make test", Phase: "pre", Event: "task_start",
 			Enabled: true, LastStatus: "failed", LastOutput: output, LastExitCode: 2,
 			LastStartedAt: time.Date(2026, 11, 7, 9, 30, 0, 0, time.UTC),
 		},
 		{
-			HookID: "h-2", Kind: "agent", Description: "run the linter", Phase: "post", Event: "task_finish",
+			AssignmentID: "h-2", HookID: "hook-2", Kind: "agent", Description: "run the linter", Phase: "post", Event: "task_finish",
 			Enabled: true, Skipped: true, LastStatus: "none",
 		},
 	})
@@ -122,15 +122,15 @@ func countOf(body string, fragment string) int {
 	return count
 }
 
-// The workspace menu links to the Hooks tab of the workspace, next to its files and its terminal.
-func TestWorkspaceMenuLinksToTheHooksTab(t *testing.T) {
+// The workspace menu no longer links to hooks: they are managed in the Hooks screen, a top-level section.
+func TestWorkspaceMenuHasNoHooksEntry(t *testing.T) {
 	t.Parallel()
 
 	rows := state.SidebarRows{Workspaces: []state.SidebarWorkspace{{ID: "ws-1", Name: "Repo"}}}
 	body := renderIn(t, i18n.En, components.SidebarBody(rows))
 
-	assert.Contains(t, body, `href="/workspaces/ws-1/hooks"`)
-	assert.Contains(t, body, ">Hooks</a>")
+	assert.NotContains(t, body, `/workspaces/ws-1/hooks`)
+	assert.Contains(t, body, `href="/workspaces/ws-1/terminal"`, "the menu keeps its other entries")
 }
 
 // A hook skipped for the task after it ran shows the status skipped, not the result of its last run, and keeps its
@@ -138,7 +138,7 @@ func TestWorkspaceMenuLinksToTheHooksTab(t *testing.T) {
 func TestTaskHookStripShowsASkippedHookThatRanAsSkipped(t *testing.T) {
 	t.Parallel()
 	strip := state.NewHookStrip("abc123", "t1", []dto.HookStripDTO{{
-		HookID: "h-1", Kind: "script", Description: "make test", Phase: "pre", Event: "task_start",
+		AssignmentID: "h-1", HookID: "hook-1", Kind: "script", Description: "make test", Phase: "pre", Event: "task_start",
 		Enabled: true, Skipped: true, LastStatus: "ok", LastOutput: "all green", LastExitCode: 0,
 		LastStartedAt: time.Date(2026, 11, 7, 9, 30, 0, 0, time.UTC),
 	}})

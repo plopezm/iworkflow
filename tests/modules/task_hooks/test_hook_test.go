@@ -36,15 +36,19 @@ func testModule(t *testing.T, dir string) (*di.Module, *sql.DB) {
 	return di.NewModule(di.Deps{DB: db, Clock: system.NewClock(), Workspaces: workspaceAt(dir)}), db
 }
 
-func saveScript(t *testing.T, module *di.Module, enabled bool, args ...string) models.Hook {
+func saveScript(t *testing.T, module *di.Module, args ...string) models.Hook {
 	t.Helper()
 	saved, err := module.SaveHook.Execute(context.Background(), application.SaveHookInput{
-		WorkspaceID: "w1", Phase: models.PhasePre, Event: models.EventTaskStart, Kind: models.KindScript,
-		Enabled: enabled, OnFailure: models.FailureBlock, Timeout: 30 * time.Second,
+		Name: "script", Kind: models.KindScript, Timeout: 30 * time.Second,
 		Script: models.ScriptSpec{Command: "sh", Args: args},
 	})
 	require.NoError(t, err)
 	return saved
+}
+
+// preTest is the input of a test as a before-start hook of the workspace.
+func preTest(workspaceID string, hookID string) application.TestHookInput {
+	return application.TestHookInput{WorkspaceID: workspaceID, HookID: hookID, Event: models.EventTaskStart, Phase: models.PhasePre}
 }
 
 func countRuns(t *testing.T, db *sql.DB) int {
@@ -54,7 +58,7 @@ func countRuns(t *testing.T, db *sql.DB) int {
 	return runs
 }
 
-// A test runs the hook in the workspace directory with the synthetic task, even when the hook is disabled, and writes
+// A test runs the hook in the workspace directory with the synthetic task, even when the hook is assigned nowhere, and writes
 // no run record: the run history of the tasks is not touched by trying a hook.
 func TestTestHookRunsInTheWorkspaceAndRecordsNothing(t *testing.T) {
 	t.Parallel()
@@ -63,9 +67,9 @@ func TestTestHookRunsInTheWorkspaceAndRecordsNothing(t *testing.T) {
 	}
 	dir := t.TempDir()
 	module, db := testModule(t, dir)
-	hook := saveScript(t, module, false, "-c", `pwd > cwd.txt; printf %s "$IWF_TASK_TITLE" > title.txt`)
+	hook := saveScript(t, module, "-c", `pwd > cwd.txt; printf %s "$IWF_TASK_TITLE" > title.txt`)
 
-	outcome, err := module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: hook.ID()})
+	outcome, err := module.TestHook.Execute(context.Background(), preTest("w1", hook.ID()))
 
 	require.NoError(t, err)
 	assert.Equal(t, models.RunOK, outcome.Status)
@@ -85,9 +89,9 @@ func TestTestHookReportsAFailingScriptAsAnOutcome(t *testing.T) {
 		t.Skip("the script uses sh")
 	}
 	module, db := testModule(t, t.TempDir())
-	hook := saveScript(t, module, true, "-c", "echo broken; exit 3")
+	hook := saveScript(t, module, "-c", "echo broken; exit 3")
 
-	outcome, err := module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: hook.ID()})
+	outcome, err := module.TestHook.Execute(context.Background(), preTest("w1", hook.ID()))
 
 	require.NoError(t, err)
 	assert.Equal(t, models.RunFailed, outcome.Status)
@@ -104,9 +108,9 @@ func TestTestHookRefusesAWorkspaceDirectoryThatIsGone(t *testing.T) {
 	}
 	gone := filepath.Join(t.TempDir(), "removed")
 	module, db := testModule(t, gone)
-	hook := saveScript(t, module, true, "-c", "true")
+	hook := saveScript(t, module, "-c", "true")
 
-	_, err := module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: hook.ID()})
+	_, err := module.TestHook.Execute(context.Background(), preTest("w1", hook.ID()))
 
 	require.ErrorIs(t, err, hookerrors.ErrRunNotStarted)
 	assert.Zero(t, countRuns(t, db))
@@ -127,13 +131,12 @@ func TestTestHookRecordsATimeoutAsAnOutcome(t *testing.T) {
 	}
 	module, db := testModule(t, t.TempDir())
 	saved, err := module.SaveHook.Execute(context.Background(), application.SaveHookInput{
-		WorkspaceID: "w1", Phase: models.PhasePre, Event: models.EventTaskStart, Kind: models.KindScript,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: time.Second,
+		Name: "slow", Kind: models.KindScript, Timeout: time.Second,
 		Script: models.ScriptSpec{Command: "sh", Args: []string{"-c", "sleep 30"}},
 	})
 	require.NoError(t, err)
 
-	outcome, err := module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: saved.ID()})
+	outcome, err := module.TestHook.Execute(context.Background(), preTest("w1", saved.ID()))
 
 	require.NoError(t, err)
 	assert.Equal(t, models.RunTimedOut, outcome.Status)
@@ -145,13 +148,12 @@ func TestTestHookReportsAScriptThatCannotStartAsNotStarted(t *testing.T) {
 	t.Parallel()
 	module, db := testModule(t, t.TempDir())
 	saved, err := module.SaveHook.Execute(context.Background(), application.SaveHookInput{
-		WorkspaceID: "w1", Phase: models.PhasePre, Event: models.EventTaskStart, Kind: models.KindScript,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: 30 * time.Second,
+		Name: "missing", Kind: models.KindScript, Timeout: 30 * time.Second,
 		Script: models.ScriptSpec{Command: "/nonexistent/iwf-missing-command"},
 	})
 	require.NoError(t, err)
 
-	_, err = module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: saved.ID()})
+	_, err = module.TestHook.Execute(context.Background(), preTest("w1", saved.ID()))
 
 	require.ErrorIs(t, err, hookerrors.ErrRunNotStarted)
 	assert.Zero(t, countRuns(t, db))
@@ -162,32 +164,29 @@ func TestTestHookOfAnAgentWithoutASessionIsNotStarted(t *testing.T) {
 	t.Parallel()
 	module, db := testModule(t, t.TempDir())
 	saved, err := module.SaveHook.Execute(context.Background(), application.SaveHookInput{
-		WorkspaceID: "w1", Phase: models.PhasePre, Event: models.EventTaskStart, Kind: models.KindAgent,
-		Enabled: true, OnFailure: models.FailureWarn, Timeout: 30 * time.Second,
+		Name: "agent", Kind: models.KindAgent, Timeout: 30 * time.Second,
 		Agent: models.AgentSpec{Prompt: "check the branch"},
 	})
 	require.NoError(t, err)
 
-	_, err = module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: saved.ID()})
+	_, err = module.TestHook.Execute(context.Background(), preTest("w1", saved.ID()))
 
 	require.ErrorIs(t, err, hookerrors.ErrRunNotStarted)
 	assert.ErrorContains(t, err, "no agent session is configured")
 	assert.Zero(t, countRuns(t, db))
 }
 
-// An unknown hook id is not found, and a hook of another workspace is refused: the test never runs either of them.
-func TestTestHookRefusesUnknownAndForeignHooks(t *testing.T) {
+// An unknown hook id is not found, and a test without event and phase is refused: the test never runs either.
+func TestTestHookRefusesUnknownHooksAndMissingPhase(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	module, db := testModule(t, dir)
-	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES ('w2', 'two', ?, 'main', '2026-01-01T00:00:00Z')`, filepath.Join(dir, "two"))
-	require.NoError(t, err)
-	saved := saveScript(t, module, true, "-c", "touch ran.txt")
+	module, _ := testModule(t, dir)
+	saved := saveScript(t, module, "-c", "touch ran.txt")
 
-	_, err = module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: "missing"})
+	_, err := module.TestHook.Execute(context.Background(), preTest("w1", "missing"))
 	require.ErrorIs(t, err, hookerrors.ErrHookNotFound)
 
-	_, err = module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w2", HookID: saved.ID()})
+	_, err = module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: saved.ID()})
 	require.ErrorIs(t, err, hookerrors.ErrInvalidHook)
 
 	_, statErr := os.Stat(filepath.Join(dir, "ran.txt"))
@@ -207,9 +206,9 @@ func TestTestHookFailsWhenTheWorkspaceCannotBeFound(t *testing.T) {
 	require.NoError(t, err)
 	failure := errors.New("workspace removed")
 	module := di.NewModule(di.Deps{DB: db, Clock: system.NewClock(), Workspaces: failingWorkspaces{err: failure}})
-	saved := saveScript(t, module, true, "-c", "true")
+	saved := saveScript(t, module, "-c", "true")
 
-	_, err = module.TestHook.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: saved.ID()})
+	_, err = module.TestHook.Execute(context.Background(), preTest("w1", saved.ID()))
 
 	require.ErrorIs(t, err, failure)
 	assert.Zero(t, countRuns(t, db))

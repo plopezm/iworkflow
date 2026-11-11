@@ -19,12 +19,12 @@ import (
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
 
-// hookSetCall is one skip the handler asked the hook port to set.
+// hookSetCall is one skip the handler asked the hook port to set, named by its assignment.
 type hookSetCall struct {
-	workspaceID string
-	taskID      string
-	hookID      string
-	skipped     bool
+	workspaceID  string
+	taskID       string
+	assignmentID string
+	skipped      bool
 }
 
 // hookStripFake answers the hooks of a task and remembers the skips it is asked to set. A set skip changes the hook it
@@ -42,23 +42,23 @@ func (f *hookStripFake) State(_ context.Context, workspaceID string, _ string) (
 	return f.hooks, f.stateErr
 }
 
-func (f *hookStripFake) SetSkipped(_ context.Context, workspaceID string, taskID string, hookID string, skipped bool) error {
-	f.setCalls = append(f.setCalls, hookSetCall{workspaceID: workspaceID, taskID: taskID, hookID: hookID, skipped: skipped})
+func (f *hookStripFake) SetSkipped(_ context.Context, workspaceID string, taskID string, assignmentID string, skipped bool) error {
+	f.setCalls = append(f.setCalls, hookSetCall{workspaceID: workspaceID, taskID: taskID, assignmentID: assignmentID, skipped: skipped})
 	if f.setErr != nil {
 		return f.setErr
 	}
 	for i := range f.hooks {
-		if f.hooks[i].HookID == hookID {
+		if f.hooks[i].AssignmentID == assignmentID {
 			f.hooks[i].Skipped = skipped
 		}
 	}
 	return nil
 }
 
-// hookStripHookForTest is an enabled script hook of the workspace of the task, which has not run for it.
+// hookStripHookForTest is an enabled script assignment of the workspace of the task, which has not run for it.
 func hookStripHookForTest(id string) outbound.StripHook {
 	return outbound.StripHook{
-		HookID: id, Kind: "script", Description: "make test", Phase: "pre", Event: "task_start",
+		AssignmentID: id, HookID: "hook-" + id, Kind: "script", Description: "make test", Phase: "pre", Event: "task_start",
 		Enabled: true, LastStatus: outbound.StripStatusNone,
 	}
 }
@@ -74,11 +74,11 @@ func newHookStripHandlersForTest(task models.Task, getErr error, hooks outbound.
 }
 
 // postHookSkip sends the toggle of a hook the way the strip does: a form with the wanted state, in the scope of the page.
-func postHookSkip(t *testing.T, h *DetailHandlers, taskID string, hookID string, form string) *httptest.ResponseRecorder {
+func postHookSkip(t *testing.T, h *DetailHandlers, taskID string, assignmentID string, form string) *httptest.ResponseRecorder {
 	t.Helper()
 	router := chi.NewRouter()
 	h.Mount(router)
-	target := "/tasks/" + taskID + "/hooks/" + hookID + "/skip?scope=abc123"
+	target := "/tasks/" + taskID + "/hooks/" + assignmentID + "/skip?scope=abc123"
 	request := httptest.NewRequest(http.MethodPost, target, strings.NewReader(form))
 	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	request.Header.Set("HX-Request", "true")
@@ -97,7 +97,7 @@ func TestSetHookSkippedSetsTheSkipAndAnswersTheStrip(t *testing.T) {
 	recorder := postHookSkip(t, h, task.ID.String(), "h-1", "skipped=true")
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.Equal(t, []hookSetCall{{workspaceID: task.WorkspaceID, taskID: task.ID.String(), hookID: "h-1", skipped: true}}, hooks.setCalls, "the skip carries the workspace of the task, so the hook must belong to it")
+	assert.Equal(t, []hookSetCall{{workspaceID: task.WorkspaceID, taskID: task.ID.String(), assignmentID: "h-1", skipped: true}}, hooks.setCalls, "the skip carries the workspace of the task, so the hook must belong to it")
 	body := recorder.Body.String()
 	assert.Contains(t, body, `id="task-hooks-abc123"`, "the answer replaces the strip of this page")
 	assert.Contains(t, body, ">Include<", "the hook now offers to include it again")

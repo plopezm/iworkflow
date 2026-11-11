@@ -11,28 +11,10 @@ import (
 	"iworkflow/internal/modules/task_hooks/domain/ports/outbound"
 )
 
-// fakeHooks keeps the hooks in memory, in position order. The field is positional in the rigs of the tests.
+// fakeHooks keeps the hooks of the library in memory.
 type fakeHooks struct{ hooks []models.Hook }
 
-func (f *fakeHooks) List(_ context.Context, workspaceID string) ([]models.Hook, error) {
-	var out []models.Hook
-	for _, h := range f.hooks {
-		if h.WorkspaceID() == workspaceID {
-			out = append(out, h)
-		}
-	}
-	return out, nil
-}
-
-func (f *fakeHooks) ListFor(_ context.Context, _ string, event models.Event, phase models.Phase) ([]models.Hook, error) {
-	var out []models.Hook
-	for _, h := range f.hooks {
-		if h.Event() == event && h.Phase() == phase {
-			out = append(out, h)
-		}
-	}
-	return out, nil
-}
+func (f *fakeHooks) List(context.Context) ([]models.Hook, error) { return f.hooks, nil }
 
 func (f *fakeHooks) Get(_ context.Context, id string) (models.Hook, error) {
 	for _, h := range f.hooks {
@@ -64,48 +46,107 @@ func (f *fakeHooks) Delete(_ context.Context, id string) error {
 	return hookerrors.ErrHookNotFound
 }
 
-// Reorder moves the hooks of the workspace to the end of the list in the order of ids; other workspaces keep
-// their place.
-func (f *fakeHooks) Reorder(_ context.Context, workspaceID string, ids []string) error {
-	var others []models.Hook
-	byID := map[string]models.Hook{}
-	for _, h := range f.hooks {
-		if h.WorkspaceID() == workspaceID {
-			byID[h.ID()] = h
-		} else {
-			others = append(others, h)
+// fakeAssignments keeps the assignments in position order; the hooks of the joined lists come from hooks.
+type fakeAssignments struct {
+	items       []models.Assignment
+	hooks       *fakeHooks
+	reorderedTo []string
+}
+
+func (f *fakeAssignments) join(ctx context.Context, items []models.Assignment) []models.AssignedHook {
+	var out []models.AssignedHook
+	for _, a := range items {
+		hook, err := f.hooks.Get(ctx, a.HookID())
+		if err == nil {
+			out = append(out, models.AssignedHook{Assignment: a, Hook: hook})
 		}
 	}
-	ordered := make([]models.Hook, 0, len(ids))
-	for _, id := range ids {
-		h, ok := byID[id]
-		if !ok {
-			return hookerrors.ErrHookNotFound
+	return out
+}
+
+func (f *fakeAssignments) ListByWorkspace(ctx context.Context, workspaceID string) ([]models.AssignedHook, error) {
+	var items []models.Assignment
+	for _, a := range f.items {
+		if a.WorkspaceID() == workspaceID {
+			items = append(items, a)
 		}
-		ordered = append(ordered, h)
 	}
-	f.hooks = append(others, ordered...)
+	return f.join(ctx, items), nil
+}
+
+func (f *fakeAssignments) ListFor(ctx context.Context, workspaceID string, event models.Event, phase models.Phase) ([]models.AssignedHook, error) {
+	var items []models.Assignment
+	for _, a := range f.items {
+		if a.WorkspaceID() == workspaceID && a.Event() == event && a.Phase() == phase {
+			items = append(items, a)
+		}
+	}
+	return f.join(ctx, items), nil
+}
+
+func (f *fakeAssignments) ListByHook(_ context.Context, hookID string) ([]models.Assignment, error) {
+	var out []models.Assignment
+	for _, a := range f.items {
+		if a.HookID() == hookID {
+			out = append(out, a)
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeAssignments) Get(_ context.Context, id string) (models.Assignment, error) {
+	for _, a := range f.items {
+		if a.ID() == id {
+			return a, nil
+		}
+	}
+	return models.Assignment{}, hookerrors.ErrAssignmentNotFound
+}
+
+func (f *fakeAssignments) Save(_ context.Context, assignment models.Assignment) error {
+	for i, a := range f.items {
+		if a.ID() == assignment.ID() {
+			f.items[i] = assignment
+			return nil
+		}
+	}
+	f.items = append(f.items, assignment)
 	return nil
 }
 
-// fakeSkips keeps the ids of the skipped hooks. It does not track the task: the tests use one task at a time.
+func (f *fakeAssignments) Delete(_ context.Context, id string) error {
+	for i, a := range f.items {
+		if a.ID() == id {
+			f.items = append(f.items[:i], f.items[i+1:]...)
+			return nil
+		}
+	}
+	return hookerrors.ErrAssignmentNotFound
+}
+
+func (f *fakeAssignments) Reorder(_ context.Context, _ string, _ models.Event, _ models.Phase, ids []string) error {
+	f.reorderedTo = ids
+	return nil
+}
+
+// fakeSkips keeps the ids of the skipped assignments. It does not track the task: the tests use one task at a time.
 type fakeSkips struct{ ids []string }
 
-func (f *fakeSkips) SetSkipped(_ context.Context, _ string, hookID string, skipped bool) error {
+func (f *fakeSkips) SetSkipped(_ context.Context, _ string, assignmentID string, skipped bool) error {
 	kept := f.ids[:0:0]
 	for _, id := range f.ids {
-		if id != hookID {
+		if id != assignmentID {
 			kept = append(kept, id)
 		}
 	}
 	if skipped {
-		kept = append(kept, hookID)
+		kept = append(kept, assignmentID)
 	}
 	f.ids = kept
 	return nil
 }
 
-func (f *fakeSkips) SkippedHookIDs(context.Context, string) ([]string, error) {
+func (f *fakeSkips) SkippedAssignmentIDs(context.Context, string) ([]string, error) {
 	return f.ids, nil
 }
 
@@ -132,6 +173,32 @@ func (f *fakeRuns) ListByTask(_ context.Context, taskID string) ([]models.HookRu
 		}
 	}
 	return out, nil
+}
+
+// List returns the saves that match the filter, newest first.
+func (f *fakeRuns) List(_ context.Context, filter outbound.RunFilter) ([]models.HookRun, error) {
+	var out []models.HookRun
+	for i := len(f.saved) - 1; i >= 0; i-- {
+		run := f.saved[i]
+		if filter.HookID != "" && run.HookID != filter.HookID || filter.WorkspaceID != "" && run.WorkspaceID != filter.WorkspaceID {
+			continue
+		}
+		if filter.FailedOnly && (run.Status == models.RunOK || run.Status == models.RunSkipped || run.Status == models.RunRunning) {
+			continue
+		}
+		out = append(out, run)
+	}
+	return out, nil
+}
+
+func (f *fakeRuns) LastFailures(context.Context) (map[string]models.HookRun, error) {
+	failures := map[string]models.HookRun{}
+	for _, run := range f.saved {
+		if run.Status != models.RunOK && run.Status != models.RunSkipped && run.Status != models.RunRunning {
+			failures[run.HookID] = run
+		}
+	}
+	return failures, nil
 }
 
 func (f *fakeRuns) FailStaleRunning(_ context.Context, finishedAt time.Time) (int64, error) {

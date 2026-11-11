@@ -8,6 +8,7 @@ import (
 
 // HookStripDTO is one hook of the status strip of a task, as the presentation shows it.
 type HookStripDTO struct {
+	AssignmentID  string
 	HookID        string
 	Kind          string
 	Description   string
@@ -24,6 +25,7 @@ type HookStripDTO struct {
 // HookStripFromPort maps a hook of the strip port to its DTO.
 func HookStripFromPort(hook outbound.StripHook) HookStripDTO {
 	return HookStripDTO{
+		AssignmentID:  hook.AssignmentID,
 		HookID:        hook.HookID,
 		Kind:          hook.Kind,
 		Description:   hook.Description,

@@ -121,12 +121,21 @@ func TestTaskHooksMigrationsDownAndUpAgain(t *testing.T) {
 	require.NoError(t, err)
 	provider, err := goose.NewProvider(goose.DialectSQLite3, handle, files)
 	require.NoError(t, err)
-	for _, name := range []string{"task_hooks", "task_hook_skips", "task_hook_runs"} {
+	for _, name := range []string{"hooks", "hook_assignments", "task_hook_skips", "task_hook_runs"} {
 		require.Equal(t, 1, tableCount(t, handle, name), "Up must create %s", name)
 	}
+	require.Equal(t, 0, tableCount(t, handle, "task_hooks"), "Up must drop the per-workspace hooks")
 
 	// Later migrations may exist, so each step rolls back to an explicit version instead of assuming the hooks
 	// migrations are the last ones.
+	_, err = provider.DownTo(ctx, 20261108100000)
+	require.NoError(t, err)
+	require.Equal(t, 1, tableCount(t, handle, "task_hooks"), "Down must restore the per-workspace hooks")
+	require.Equal(t, 1, tableCount(t, handle, "task_hook_skips"), "Down must restore the per-task skips")
+	require.Equal(t, 1, tableCount(t, handle, "task_hook_runs"), "Down must restore the run records")
+	require.Equal(t, 0, tableCount(t, handle, "hooks"), "Down must drop the hooks library")
+	require.Equal(t, 0, tableCount(t, handle, "hook_assignments"), "Down must drop the assignments")
+
 	_, err = provider.DownTo(ctx, 20261107100000)
 	require.NoError(t, err)
 	require.Equal(t, 0, tableCount(t, handle, "task_hook_runs"), "rolling back to the hooks migration must drop the run records")
@@ -140,9 +149,10 @@ func TestTaskHooksMigrationsDownAndUpAgain(t *testing.T) {
 
 	_, err = provider.Up(ctx)
 	require.NoError(t, err)
-	for _, name := range []string{"task_hooks", "task_hook_skips", "task_hook_runs"} {
+	for _, name := range []string{"hooks", "hook_assignments", "task_hook_skips", "task_hook_runs"} {
 		require.Equal(t, 1, tableCount(t, handle, name), "Up must create %s again", name)
 	}
+	require.Equal(t, 0, tableCount(t, handle, "task_hooks"), "Up must drop the per-workspace hooks again")
 }
 
 func tableCount(t *testing.T, handle *sql.DB, name string) int {

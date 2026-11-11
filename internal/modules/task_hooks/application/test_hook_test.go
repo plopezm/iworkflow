@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,20 +39,9 @@ func (c *capturingRunner) Run(_ context.Context, _ models.Hook, run models.RunCo
 	return c.outcome, c.err
 }
 
-func savedHook(t *testing.T, id string, workspaceID string, kind models.Kind, phase models.Phase, event models.Event) models.Hook {
+func savedHook(t *testing.T, id string, kind models.Kind) models.Hook {
 	t.Helper()
-	params := models.HookParams{
-		ID: id, WorkspaceID: workspaceID, Phase: phase, Event: event, Kind: kind,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: time.Minute,
-	}
-	if kind == models.KindScript {
-		params.Script = models.ScriptSpec{Command: "echo", Args: []string{"hello"}}
-	} else {
-		params.Agent = models.AgentSpec{Prompt: "check the branch"}
-	}
-	hook, err := models.NewHook(params)
-	require.NoError(t, err)
-	return hook
+	return libraryHook(t, id, kind)
 }
 
 // The test runs one hook through the same runner a real run uses, but with a synthetic task: the workspace path is
@@ -74,13 +62,13 @@ func TestTestHookRunsOneHookWithASyntheticTaskInTheWorkspace(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			hook := savedHook(t, "h1", "w1", tt.kind, tt.phase, tt.event)
+			hook := savedHook(t, "h1", tt.kind)
 			hooks := &fakeHooks{hooks: []models.Hook{hook}}
 			scripts := &capturingRunner{outcome: models.RunOutcome{Status: models.RunOK, Output: "hello\n"}}
 			agents := &capturingRunner{outcome: models.RunOutcome{Status: models.RunFailed, ExitCode: -1}}
 			useCase := application.NewTestHook(hooks, &fakeWorkspaces{path: "/work/ws"}, scripts, agents)
 
-			outcome, err := useCase.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: "h1"})
+			outcome, err := useCase.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: "h1", Event: tt.event, Phase: tt.phase})
 
 			require.NoError(t, err)
 			runner := scripts
@@ -101,40 +89,20 @@ func TestTestHookRunsOneHookWithASyntheticTaskInTheWorkspace(t *testing.T) {
 // A hook that fails is still an outcome: the test shows it, it is not an error of the use case.
 func TestTestHookReturnsAFailedRunAsAnOutcome(t *testing.T) {
 	t.Parallel()
-	hooks := &fakeHooks{hooks: []models.Hook{savedHook(t, "h1", "w1", models.KindScript, models.PhasePre, models.EventTaskStart)}}
+	hooks := &fakeHooks{hooks: []models.Hook{savedHook(t, "h1", models.KindScript)}}
 	scripts := &capturingRunner{outcome: models.RunOutcome{Status: models.RunTimedOut, ExitCode: -1, Output: "slow"}}
 	useCase := application.NewTestHook(hooks, &fakeWorkspaces{path: "/work/ws"}, scripts, &capturingRunner{})
 
-	outcome, err := useCase.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: "h1"})
+	outcome, err := useCase.Execute(context.Background(), pre("w1", "h1"))
 
 	require.NoError(t, err)
 	assert.Equal(t, models.RunTimedOut, outcome.Status)
 	assert.Equal(t, "slow", outcome.Output)
 }
 
-// A disabled hook is still runnable on request: the test is how its author checks it before enabling it.
-func TestTestHookRunsADisabledHook(t *testing.T) {
-	t.Parallel()
-	hook := savedHook(t, "h1", "w1", models.KindScript, models.PhasePre, models.EventTaskStart)
-	disabled, err := models.NewHook(func() models.HookParams {
-		params := hook.Params()
-		params.Enabled = false
-		return params
-	}())
-	require.NoError(t, err)
-	hooks := &fakeHooks{hooks: []models.Hook{disabled}}
-	scripts := &capturingRunner{outcome: models.RunOutcome{Status: models.RunOK}}
-	useCase := application.NewTestHook(hooks, &fakeWorkspaces{path: "/work/ws"}, scripts, &capturingRunner{})
-
-	_, err = useCase.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: "h1"})
-
-	require.NoError(t, err)
-	assert.Len(t, scripts.runs, 1)
-}
-
 func TestTestHookRefusesWhatItCannotRun(t *testing.T) {
 	t.Parallel()
-	hook := savedHook(t, "h1", "w1", models.KindScript, models.PhasePre, models.EventTaskStart)
+	hook := savedHook(t, "h1", models.KindScript)
 	lookupErr := errors.New("workspace gone")
 	tests := []struct {
 		name       string
@@ -146,15 +114,15 @@ func TestTestHookRefusesWhatItCannotRun(t *testing.T) {
 	}{
 		{
 			name: "unknown hook", hooks: []models.Hook{hook}, workspaces: &fakeWorkspaces{path: "/work/ws"},
-			input: application.TestHookInput{WorkspaceID: "w1", HookID: "missing"}, wantErr: hookerrors.ErrHookNotFound,
+			input: pre("w1", "missing"), wantErr: hookerrors.ErrHookNotFound,
 		},
 		{
-			name: "hook of another workspace", hooks: []models.Hook{hook}, workspaces: &fakeWorkspaces{path: "/work/ws"},
-			input: application.TestHookInput{WorkspaceID: "w2", HookID: "h1"}, wantErr: hookerrors.ErrInvalidHook,
+			name: "no phase", hooks: []models.Hook{hook}, workspaces: &fakeWorkspaces{path: "/work/ws"},
+			input: application.TestHookInput{WorkspaceID: "w1", HookID: "h1"}, wantErr: hookerrors.ErrInvalidHook,
 		},
 		{
 			name: "workspace lookup fails", hooks: []models.Hook{hook}, workspaces: &fakeWorkspaces{err: lookupErr},
-			input: application.TestHookInput{WorkspaceID: "w1", HookID: "h1"}, wantErr: lookupErr,
+			input: pre("w1", "h1"), wantErr: lookupErr,
 		},
 	}
 	for _, tt := range tests {
@@ -174,12 +142,17 @@ func TestTestHookRefusesWhatItCannotRun(t *testing.T) {
 // A run that could not even be attempted is an error, so the screen can say why nothing ran.
 func TestTestHookSurfacesARunThatCouldNotStart(t *testing.T) {
 	t.Parallel()
-	hook := savedHook(t, "h1", "w1", models.KindScript, models.PhasePre, models.EventTaskStart)
+	hook := savedHook(t, "h1", models.KindScript)
 	startErr := fmt.Errorf("%w: missing directory", hookerrors.ErrRunNotStarted)
 	scripts := &capturingRunner{err: startErr}
 	useCase := application.NewTestHook(&fakeHooks{hooks: []models.Hook{hook}}, &fakeWorkspaces{path: "/gone"}, scripts, &capturingRunner{})
 
-	_, err := useCase.Execute(context.Background(), application.TestHookInput{WorkspaceID: "w1", HookID: "h1"})
+	_, err := useCase.Execute(context.Background(), pre("w1", "h1"))
 
 	require.ErrorIs(t, err, hookerrors.ErrRunNotStarted)
+}
+
+// pre is the input of a test as a before-start hook of the workspace.
+func pre(workspaceID string, hookID string) application.TestHookInput {
+	return application.TestHookInput{WorkspaceID: workspaceID, HookID: hookID, Event: models.EventTaskStart, Phase: models.PhasePre}
 }

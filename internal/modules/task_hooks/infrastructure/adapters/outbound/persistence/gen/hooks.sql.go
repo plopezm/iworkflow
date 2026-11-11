@@ -10,7 +10,7 @@ import (
 )
 
 const deleteHook = `-- name: DeleteHook :execrows
-DELETE FROM task_hooks WHERE id = ?1
+DELETE FROM hooks WHERE id = ?1
 `
 
 func (q *Queries) DeleteHook(ctx context.Context, id string) (int64, error) {
@@ -22,66 +22,61 @@ func (q *Queries) DeleteHook(ctx context.Context, id string) (int64, error) {
 }
 
 const deleteHookSkip = `-- name: DeleteHookSkip :exec
-DELETE FROM task_hook_skips WHERE task_id = ?1 AND hook_id = ?2
+DELETE FROM task_hook_skips WHERE task_id = ?1 AND assignment_id = ?2
 `
 
 type DeleteHookSkipParams struct {
-	TaskID string
-	HookID string
+	TaskID       string
+	AssignmentID string
 }
 
 func (q *Queries) DeleteHookSkip(ctx context.Context, arg DeleteHookSkipParams) error {
-	_, err := q.db.ExecContext(ctx, deleteHookSkip, arg.TaskID, arg.HookID)
+	_, err := q.db.ExecContext(ctx, deleteHookSkip, arg.TaskID, arg.AssignmentID)
 	return err
 }
 
 const getHook = `-- name: GetHook :one
-SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile, working_dir FROM task_hooks WHERE id = ?1
+SELECT id, name, kind, timeout_seconds, command, args, env, use_shell, working_dir, prompt, runtime, model, thinking, profile FROM hooks WHERE id = ?1
 `
 
-func (q *Queries) GetHook(ctx context.Context, id string) (TaskHook, error) {
+func (q *Queries) GetHook(ctx context.Context, id string) (Hook, error) {
 	row := q.db.QueryRowContext(ctx, getHook, id)
-	var i TaskHook
+	var i Hook
 	err := row.Scan(
 		&i.ID,
-		&i.WorkspaceID,
-		&i.Phase,
-		&i.Event,
+		&i.Name,
 		&i.Kind,
-		&i.Position,
-		&i.Enabled,
-		&i.OnFailure,
 		&i.TimeoutSeconds,
 		&i.Command,
 		&i.Args,
 		&i.Env,
 		&i.UseShell,
+		&i.WorkingDir,
 		&i.Prompt,
 		&i.Runtime,
 		&i.Model,
 		&i.Thinking,
 		&i.Profile,
-		&i.WorkingDir,
 	)
 	return i, err
 }
 
 const insertHookSkip = `-- name: InsertHookSkip :exec
-INSERT OR IGNORE INTO task_hook_skips (task_id, hook_id) VALUES (?1, ?2)
+INSERT OR IGNORE INTO task_hook_skips (task_id, assignment_id) VALUES (?1, ?2)
 `
 
 type InsertHookSkipParams struct {
-	TaskID string
-	HookID string
+	TaskID       string
+	AssignmentID string
 }
 
 func (q *Queries) InsertHookSkip(ctx context.Context, arg InsertHookSkipParams) error {
-	_, err := q.db.ExecContext(ctx, insertHookSkip, arg.TaskID, arg.HookID)
+	_, err := q.db.ExecContext(ctx, insertHookSkip, arg.TaskID, arg.AssignmentID)
 	return err
 }
 
 const listHookSkips = `-- name: ListHookSkips :many
-SELECT hook_id FROM task_hook_skips WHERE task_id = ?1 ORDER BY hook_id ASC
+SELECT assignment_id FROM task_hook_skips WHERE task_id = ?1 ORDER BY assignment_id ASC
 `
 
 func (q *Queries) ListHookSkips(ctx context.Context, taskID string) ([]string, error) {
@@ -92,11 +87,11 @@ func (q *Queries) ListHookSkips(ctx context.Context, taskID string) ([]string, e
 	defer rows.Close()
 	var items []string
 	for rows.Next() {
-		var hook_id string
-		if err := rows.Scan(&hook_id); err != nil {
+		var assignment_id string
+		if err := rows.Scan(&assignment_id); err != nil {
 			return nil, err
 		}
-		items = append(items, hook_id)
+		items = append(items, assignment_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -107,47 +102,34 @@ func (q *Queries) ListHookSkips(ctx context.Context, taskID string) ([]string, e
 	return items, nil
 }
 
-const listHooksFor = `-- name: ListHooksFor :many
-SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile, working_dir FROM task_hooks
-WHERE workspace_id = ?1 AND event = ?2 AND phase = ?3
-ORDER BY position ASC
+const listHooks = `-- name: ListHooks :many
+SELECT id, name, kind, timeout_seconds, command, args, env, use_shell, working_dir, prompt, runtime, model, thinking, profile FROM hooks ORDER BY name COLLATE NOCASE ASC, id ASC
 `
 
-type ListHooksForParams struct {
-	WorkspaceID string
-	Event       string
-	Phase       string
-}
-
-func (q *Queries) ListHooksFor(ctx context.Context, arg ListHooksForParams) ([]TaskHook, error) {
-	rows, err := q.db.QueryContext(ctx, listHooksFor, arg.WorkspaceID, arg.Event, arg.Phase)
+func (q *Queries) ListHooks(ctx context.Context) ([]Hook, error) {
+	rows, err := q.db.QueryContext(ctx, listHooks)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TaskHook
+	var items []Hook
 	for rows.Next() {
-		var i TaskHook
+		var i Hook
 		if err := rows.Scan(
 			&i.ID,
-			&i.WorkspaceID,
-			&i.Phase,
-			&i.Event,
+			&i.Name,
 			&i.Kind,
-			&i.Position,
-			&i.Enabled,
-			&i.OnFailure,
 			&i.TimeoutSeconds,
 			&i.Command,
 			&i.Args,
 			&i.Env,
 			&i.UseShell,
+			&i.WorkingDir,
 			&i.Prompt,
 			&i.Runtime,
 			&i.Model,
 			&i.Thinking,
 			&i.Profile,
-			&i.WorkingDir,
 		); err != nil {
 			return nil, err
 		}
@@ -162,101 +144,28 @@ func (q *Queries) ListHooksFor(ctx context.Context, arg ListHooksForParams) ([]T
 	return items, nil
 }
 
-const listWorkspaceHooks = `-- name: ListWorkspaceHooks :many
-SELECT id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, command, args, env, use_shell, prompt, runtime, model, thinking, profile, working_dir FROM task_hooks
-WHERE workspace_id = ?1
-ORDER BY position ASC
-`
-
-func (q *Queries) ListWorkspaceHooks(ctx context.Context, workspaceID string) ([]TaskHook, error) {
-	rows, err := q.db.QueryContext(ctx, listWorkspaceHooks, workspaceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []TaskHook
-	for rows.Next() {
-		var i TaskHook
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.Phase,
-			&i.Event,
-			&i.Kind,
-			&i.Position,
-			&i.Enabled,
-			&i.OnFailure,
-			&i.TimeoutSeconds,
-			&i.Command,
-			&i.Args,
-			&i.Env,
-			&i.UseShell,
-			&i.Prompt,
-			&i.Runtime,
-			&i.Model,
-			&i.Thinking,
-			&i.Profile,
-			&i.WorkingDir,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const setHookPosition = `-- name: SetHookPosition :exec
-UPDATE task_hooks SET position = ?1
-WHERE id = ?2 AND workspace_id = ?3
-`
-
-type SetHookPositionParams struct {
-	Position    int64
-	ID          string
-	WorkspaceID string
-}
-
-func (q *Queries) SetHookPosition(ctx context.Context, arg SetHookPositionParams) error {
-	_, err := q.db.ExecContext(ctx, setHookPosition, arg.Position, arg.ID, arg.WorkspaceID)
-	return err
-}
-
-const upsertHook = `-- name: UpsertHook :execrows
-INSERT INTO task_hooks (
-    id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds,
-    command, args, env, use_shell, working_dir, prompt, runtime, model, thinking, profile
+const upsertHook = `-- name: UpsertHook :exec
+INSERT INTO hooks (
+    id, name, kind, timeout_seconds, command, args, env, use_shell, working_dir,
+    prompt, runtime, model, thinking, profile
 )
 VALUES (
-    ?1, ?2, ?3, ?4, ?5,
-    (SELECT COALESCE(MAX(position), 0) + 1 FROM task_hooks WHERE workspace_id = ?2),
-    ?6, ?7, ?8,
-    ?9, ?10, ?11, ?12, ?13,
-    ?14, ?15, ?16, ?17, ?18
+    ?1, ?2, ?3, ?4, ?5, ?6,
+    ?7, ?8, ?9,
+    ?10, ?11, ?12, ?13, ?14
 )
 ON CONFLICT (id) DO UPDATE SET
-    phase = excluded.phase, event = excluded.event, kind = excluded.kind, enabled = excluded.enabled,
-    on_failure = excluded.on_failure, timeout_seconds = excluded.timeout_seconds,
+    name = excluded.name, kind = excluded.kind, timeout_seconds = excluded.timeout_seconds,
     command = excluded.command, args = excluded.args, env = excluded.env, use_shell = excluded.use_shell,
     working_dir = excluded.working_dir,
     prompt = excluded.prompt, runtime = excluded.runtime, model = excluded.model,
     thinking = excluded.thinking, profile = excluded.profile
-WHERE task_hooks.workspace_id = excluded.workspace_id
 `
 
 type UpsertHookParams struct {
 	ID             string
-	WorkspaceID    string
-	Phase          string
-	Event          string
+	Name           string
 	Kind           string
-	Enabled        int64
-	OnFailure      string
 	TimeoutSeconds int64
 	Command        string
 	Args           string
@@ -270,15 +179,11 @@ type UpsertHookParams struct {
 	Profile        string
 }
 
-func (q *Queries) UpsertHook(ctx context.Context, arg UpsertHookParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, upsertHook,
+func (q *Queries) UpsertHook(ctx context.Context, arg UpsertHookParams) error {
+	_, err := q.db.ExecContext(ctx, upsertHook,
 		arg.ID,
-		arg.WorkspaceID,
-		arg.Phase,
-		arg.Event,
+		arg.Name,
 		arg.Kind,
-		arg.Enabled,
-		arg.OnFailure,
 		arg.TimeoutSeconds,
 		arg.Command,
 		arg.Args,
@@ -291,8 +196,5 @@ func (q *Queries) UpsertHook(ctx context.Context, arg UpsertHookParams) (int64, 
 		arg.Thinking,
 		arg.Profile,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return err
 }

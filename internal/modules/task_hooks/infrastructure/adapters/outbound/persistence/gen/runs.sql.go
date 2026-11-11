@@ -28,9 +28,66 @@ func (q *Queries) FailStaleRunning(ctx context.Context, arg FailStaleRunningPara
 	return result.RowsAffected()
 }
 
+const listHookRuns = `-- name: ListHookRuns :many
+SELECT id, task_id, hook_id, assignment_id, hook_name, workspace_id, phase, event, status, exit_code, output, started_at, finished_at FROM task_hook_runs
+WHERE (?1 = '' OR hook_id = ?1)
+  AND (?2 = '' OR workspace_id = ?2)
+  AND (?3 = 0 OR status NOT IN ('ok', 'skipped', 'running'))
+ORDER BY started_at DESC, rowid DESC
+LIMIT ?4
+`
+
+type ListHookRunsParams struct {
+	HookID      interface{}
+	WorkspaceID interface{}
+	FailedOnly  interface{}
+	RowLimit    int64
+}
+
+func (q *Queries) ListHookRuns(ctx context.Context, arg ListHookRunsParams) ([]TaskHookRun, error) {
+	rows, err := q.db.QueryContext(ctx, listHookRuns,
+		arg.HookID,
+		arg.WorkspaceID,
+		arg.FailedOnly,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaskHookRun
+	for rows.Next() {
+		var i TaskHookRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.HookID,
+			&i.AssignmentID,
+			&i.HookName,
+			&i.WorkspaceID,
+			&i.Phase,
+			&i.Event,
+			&i.Status,
+			&i.ExitCode,
+			&i.Output,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listHookRunsByTask = `-- name: ListHookRunsByTask :many
-SELECT id, task_id, hook_id, phase, event, status, exit_code, output, started_at, finished_at
-FROM task_hook_runs
+SELECT id, task_id, hook_id, assignment_id, hook_name, workspace_id, phase, event, status, exit_code, output, started_at, finished_at FROM task_hook_runs
 WHERE task_id = ?1
 ORDER BY started_at ASC, rowid ASC
 `
@@ -48,6 +105,56 @@ func (q *Queries) ListHookRunsByTask(ctx context.Context, taskID string) ([]Task
 			&i.ID,
 			&i.TaskID,
 			&i.HookID,
+			&i.AssignmentID,
+			&i.HookName,
+			&i.WorkspaceID,
+			&i.Phase,
+			&i.Event,
+			&i.Status,
+			&i.ExitCode,
+			&i.Output,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLastFailedRuns = `-- name: ListLastFailedRuns :many
+SELECT r.id, r.task_id, r.hook_id, r.assignment_id, r.hook_name, r.workspace_id, r.phase, r.event, r.status, r.exit_code, r.output, r.started_at, r.finished_at FROM task_hook_runs r
+WHERE r.status NOT IN ('ok', 'skipped', 'running')
+  AND r.rowid = (
+      SELECT x.rowid FROM task_hook_runs x
+      WHERE x.hook_id = r.hook_id AND x.status NOT IN ('ok', 'skipped', 'running')
+      ORDER BY x.started_at DESC, x.rowid DESC LIMIT 1
+  )
+`
+
+func (q *Queries) ListLastFailedRuns(ctx context.Context) ([]TaskHookRun, error) {
+	rows, err := q.db.QueryContext(ctx, listLastFailedRuns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TaskHookRun
+	for rows.Next() {
+		var i TaskHookRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.HookID,
+			&i.AssignmentID,
+			&i.HookName,
+			&i.WorkspaceID,
 			&i.Phase,
 			&i.Event,
 			&i.Status,
@@ -70,10 +177,14 @@ func (q *Queries) ListHookRunsByTask(ctx context.Context, taskID string) ([]Task
 }
 
 const upsertHookRun = `-- name: UpsertHookRun :exec
-INSERT INTO task_hook_runs (id, task_id, hook_id, phase, event, status, exit_code, output, started_at, finished_at)
+INSERT INTO task_hook_runs (
+    id, task_id, hook_id, assignment_id, hook_name, workspace_id, phase, event, status, exit_code, output,
+    started_at, finished_at
+)
 VALUES (
-    ?1, ?2, ?3, ?4, ?5, ?6,
-    ?7, ?8, ?9, ?10
+    ?1, ?2, ?3, ?4, ?5,
+    ?6, ?7, ?8, ?9,
+    ?10, ?11, ?12, ?13
 )
 ON CONFLICT (id) DO UPDATE SET
     status = excluded.status, exit_code = excluded.exit_code, output = excluded.output,
@@ -81,16 +192,19 @@ ON CONFLICT (id) DO UPDATE SET
 `
 
 type UpsertHookRunParams struct {
-	ID         string
-	TaskID     string
-	HookID     string
-	Phase      string
-	Event      string
-	Status     string
-	ExitCode   int64
-	Output     string
-	StartedAt  string
-	FinishedAt string
+	ID           string
+	TaskID       string
+	HookID       string
+	AssignmentID string
+	HookName     string
+	WorkspaceID  string
+	Phase        string
+	Event        string
+	Status       string
+	ExitCode     int64
+	Output       string
+	StartedAt    string
+	FinishedAt   string
 }
 
 func (q *Queries) UpsertHookRun(ctx context.Context, arg UpsertHookRunParams) error {
@@ -98,6 +212,9 @@ func (q *Queries) UpsertHookRun(ctx context.Context, arg UpsertHookRunParams) er
 		arg.ID,
 		arg.TaskID,
 		arg.HookID,
+		arg.AssignmentID,
+		arg.HookName,
+		arg.WorkspaceID,
 		arg.Phase,
 		arg.Event,
 		arg.Status,

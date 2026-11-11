@@ -71,55 +71,40 @@ type AgentSpec struct {
 
 // HookParams are the raw fields NewHook validates.
 type HookParams struct {
-	ID          string
-	WorkspaceID string
-	Phase       Phase
-	Event       Event
-	Kind        Kind
-	Enabled     bool
-	OnFailure   FailurePolicy
-	Timeout     time.Duration
-	Script      ScriptSpec
-	Agent       AgentSpec
+	ID      string
+	Name    string
+	Kind    Kind
+	Timeout time.Duration
+	Script  ScriptSpec
+	Agent   AgentSpec
 }
 
-// Hook is an action a workspace runs before or after a task event.
+// Hook is a reusable action of the library: what it does and for how long. Where and when it runs is decided by
+// its assignments.
 type Hook struct {
-	id          string
-	workspaceID string
-	phase       Phase
-	event       Event
-	kind        Kind
-	enabled     bool
-	onFailure   FailurePolicy
-	timeout     time.Duration
-	script      ScriptSpec
-	agent       AgentSpec
+	id      string
+	name    string
+	kind    Kind
+	timeout time.Duration
+	script  ScriptSpec
+	agent   AgentSpec
 }
 
 // NewHook validates the parameters and builds the hook. Only the spec of its kind is kept: a script needs a
 // command, an agent needs a prompt; the timeout is required and at most MaxTimeout.
 func NewHook(p HookParams) (Hook, error) {
+	name := strings.TrimSpace(p.Name)
 	switch {
 	case strings.TrimSpace(p.ID) == "":
 		return Hook{}, invalid("the id is required")
-	case strings.TrimSpace(p.WorkspaceID) == "":
-		return Hook{}, invalid("the workspace is required")
-	case p.Phase != PhasePre && p.Phase != PhasePost:
-		return Hook{}, invalid(fmt.Sprintf("%q is not a valid phase", p.Phase))
-	case p.Event != EventTaskStart && p.Event != EventTaskFinish:
-		return Hook{}, invalid(fmt.Sprintf("%q is not a valid event", p.Event))
-	case p.OnFailure != FailureBlock && p.OnFailure != FailureWarn && p.OnFailure != FailureIgnore:
-		return Hook{}, invalid(fmt.Sprintf("%q is not a valid failure policy", p.OnFailure))
+	case name == "":
+		return Hook{}, invalid("the name is required")
 	case p.Timeout <= 0:
 		return Hook{}, invalid("the timeout is required")
 	case p.Timeout > MaxTimeout:
 		return Hook{}, invalid("the timeout is too long")
 	}
-	hook := Hook{
-		id: p.ID, workspaceID: p.WorkspaceID, phase: p.Phase, event: p.Event, kind: p.Kind,
-		enabled: p.Enabled, onFailure: p.OnFailure, timeout: p.Timeout,
-	}
+	hook := Hook{id: strings.TrimSpace(p.ID), name: name, kind: p.Kind, timeout: p.Timeout}
 	switch p.Kind {
 	case KindScript:
 		script, err := newScript(p.Script)
@@ -181,23 +166,11 @@ func invalid(message string) error {
 // ID is the stable identifier of the hook.
 func (h Hook) ID() string { return h.id }
 
-// WorkspaceID is the workspace that owns the hook.
-func (h Hook) WorkspaceID() string { return h.workspaceID }
-
-// Phase is pre or post.
-func (h Hook) Phase() Phase { return h.phase }
-
-// Event is the lifecycle point of the hook.
-func (h Hook) Event() Event { return h.event }
+// Name is the label of the hook in the library.
+func (h Hook) Name() string { return h.name }
 
 // Kind is script or agent.
 func (h Hook) Kind() Kind { return h.kind }
-
-// Enabled says whether the hook runs at all.
-func (h Hook) Enabled() bool { return h.enabled }
-
-// OnFailure is the failure policy.
-func (h Hook) OnFailure() FailurePolicy { return h.onFailure }
 
 // Timeout is the longest the hook may run; exceeding it counts as a failure.
 func (h Hook) Timeout() time.Duration { return h.timeout }
@@ -215,8 +188,5 @@ func (h Hook) Agent() AgentSpec { return h.agent }
 
 // Params returns the fields the hook was built from, so a change can be validated again through NewHook.
 func (h Hook) Params() HookParams {
-	return HookParams{
-		ID: h.id, WorkspaceID: h.workspaceID, Phase: h.phase, Event: h.event, Kind: h.kind,
-		Enabled: h.enabled, OnFailure: h.onFailure, Timeout: h.timeout, Script: h.Script(), Agent: h.agent,
-	}
+	return HookParams{ID: h.id, Name: h.name, Kind: h.kind, Timeout: h.timeout, Script: h.Script(), Agent: h.agent}
 }

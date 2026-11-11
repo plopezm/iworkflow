@@ -28,30 +28,30 @@ type RunHooksReport struct {
 // disabled for the task is recorded as skipped. A failed hook follows its policy: block stops the chain and
 // fails the use case with ErrHookBlocked, warn is reported and the chain continues, ignore continues silently.
 type RunHooks struct {
-	hooks   outbound.HookRepository
-	skips   outbound.SkipRepository
-	runs    outbound.RunRepository
-	scripts outbound.ScriptRunner
-	agents  outbound.AgentRunner
-	clock   outbound.Clock
-	ids     outbound.IDGenerator
+	assigned outbound.AssignmentRepository
+	skips    outbound.SkipRepository
+	runs     outbound.RunRepository
+	scripts  outbound.ScriptRunner
+	agents   outbound.AgentRunner
+	clock    outbound.Clock
+	ids      outbound.IDGenerator
 }
 
 // NewRunHooks builds the use case.
 func NewRunHooks(
-	hooks outbound.HookRepository, skips outbound.SkipRepository, runs outbound.RunRepository,
+	assigned outbound.AssignmentRepository, skips outbound.SkipRepository, runs outbound.RunRepository,
 	scripts outbound.ScriptRunner, agents outbound.AgentRunner, clock outbound.Clock, ids outbound.IDGenerator,
 ) *RunHooks {
-	return &RunHooks{hooks: hooks, skips: skips, runs: runs, scripts: scripts, agents: agents, clock: clock, ids: ids}
+	return &RunHooks{assigned: assigned, skips: skips, runs: runs, scripts: scripts, agents: agents, clock: clock, ids: ids}
 }
 
 // Execute runs the hooks. The report always lists what ran, also when the error is ErrHookBlocked.
 func (u *RunHooks) Execute(ctx context.Context, in RunHooksInput) (RunHooksReport, error) {
-	hooks, err := u.hooks.ListFor(ctx, in.WorkspaceID, in.Run.Event, in.Run.Phase)
+	hooks, err := u.assigned.ListFor(ctx, in.WorkspaceID, in.Run.Event, in.Run.Phase)
 	if err != nil {
 		return RunHooksReport{}, fmt.Errorf("list hooks: %w", err)
 	}
-	skippedIDs, err := u.skips.SkippedHookIDs(ctx, in.Run.TaskID)
+	skippedIDs, err := u.skips.SkippedAssignmentIDs(ctx, in.Run.TaskID)
 	if err != nil {
 		return RunHooksReport{}, fmt.Errorf("list skipped hooks: %w", err)
 	}
@@ -61,14 +61,14 @@ func (u *RunHooks) Execute(ctx context.Context, in RunHooksInput) (RunHooksRepor
 	}
 
 	var report RunHooksReport
-	for _, hook := range hooks {
-		if !hook.Enabled() {
+	for _, item := range hooks {
+		if !item.Assignment.Enabled() {
 			continue
 		}
 		if err := ctx.Err(); err != nil {
 			return report, fmt.Errorf("run hooks: %w", err)
 		}
-		record, err := u.runOne(ctx, hook, in.Run, skipped[hook.ID()])
+		record, err := u.runOne(ctx, item, in.Run, skipped[item.Assignment.ID()])
 		if record.ID != "" {
 			report.Runs = append(report.Runs, record)
 		}
@@ -78,11 +78,11 @@ func (u *RunHooks) Execute(ctx context.Context, in RunHooksInput) (RunHooksRepor
 		if record.Status == models.RunOK || record.Status == models.RunSkipped {
 			continue
 		}
-		switch hook.OnFailure() {
+		switch item.Assignment.OnFailure() {
 		case models.FailureBlock:
-			return report, fmt.Errorf("%w: hook %s %s", hookerrors.ErrHookBlocked, hook.ID(), record.Status)
+			return report, fmt.Errorf("%w: hook %s %s", hookerrors.ErrHookBlocked, item.Hook.Name(), record.Status)
 		case models.FailureWarn:
-			report.Warnings = append(report.Warnings, fmt.Sprintf("hook %s %s", hook.ID(), record.Status))
+			report.Warnings = append(report.Warnings, fmt.Sprintf("hook %s %s", item.Hook.Name(), record.Status))
 		case models.FailureIgnore:
 		}
 	}
@@ -90,9 +90,11 @@ func (u *RunHooks) Execute(ctx context.Context, in RunHooksInput) (RunHooksRepor
 }
 
 // runOne records and runs one hook. Its error is only about storage; a failed hook is a record, not an error.
-func (u *RunHooks) runOne(ctx context.Context, hook models.Hook, run models.RunContext, skip bool) (models.HookRun, error) {
+func (u *RunHooks) runOne(ctx context.Context, item models.AssignedHook, run models.RunContext, skip bool) (models.HookRun, error) {
+	hook := item.Hook
 	record := models.HookRun{
-		ID: u.ids.NewID(), TaskID: run.TaskID, HookID: hook.ID(), Phase: run.Phase, Event: run.Event,
+		ID: u.ids.NewID(), TaskID: run.TaskID, HookID: hook.ID(), AssignmentID: item.Assignment.ID(),
+		HookName: hook.Name(), WorkspaceID: item.Assignment.WorkspaceID(), Phase: run.Phase, Event: run.Event,
 		Status: models.RunRunning, StartedAt: u.clock.Now(),
 	}
 	if skip {

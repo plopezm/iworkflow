@@ -1,49 +1,34 @@
--- name: ListWorkspaceHooks :many
-SELECT * FROM task_hooks
-WHERE workspace_id = sqlc.arg(workspace_id)
-ORDER BY position ASC;
-
--- name: ListHooksFor :many
-SELECT * FROM task_hooks
-WHERE workspace_id = sqlc.arg(workspace_id) AND event = sqlc.arg(event) AND phase = sqlc.arg(phase)
-ORDER BY position ASC;
+-- name: ListHooks :many
+SELECT * FROM hooks ORDER BY name COLLATE NOCASE ASC, id ASC;
 
 -- name: GetHook :one
-SELECT * FROM task_hooks WHERE id = sqlc.arg(id);
+SELECT * FROM hooks WHERE id = sqlc.arg(id);
 
--- name: UpsertHook :execrows
-INSERT INTO task_hooks (
-    id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds,
-    command, args, env, use_shell, working_dir, prompt, runtime, model, thinking, profile
+-- name: UpsertHook :exec
+INSERT INTO hooks (
+    id, name, kind, timeout_seconds, command, args, env, use_shell, working_dir,
+    prompt, runtime, model, thinking, profile
 )
 VALUES (
-    sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(phase), sqlc.arg(event), sqlc.arg(kind),
-    (SELECT COALESCE(MAX(position), 0) + 1 FROM task_hooks WHERE workspace_id = sqlc.arg(workspace_id)),
-    sqlc.arg(enabled), sqlc.arg(on_failure), sqlc.arg(timeout_seconds),
-    sqlc.arg(command), sqlc.arg(args), sqlc.arg(env), sqlc.arg(use_shell), sqlc.arg(working_dir),
+    sqlc.arg(id), sqlc.arg(name), sqlc.arg(kind), sqlc.arg(timeout_seconds), sqlc.arg(command), sqlc.arg(args),
+    sqlc.arg(env), sqlc.arg(use_shell), sqlc.arg(working_dir),
     sqlc.arg(prompt), sqlc.arg(runtime), sqlc.arg(model), sqlc.arg(thinking), sqlc.arg(profile)
 )
 ON CONFLICT (id) DO UPDATE SET
-    phase = excluded.phase, event = excluded.event, kind = excluded.kind, enabled = excluded.enabled,
-    on_failure = excluded.on_failure, timeout_seconds = excluded.timeout_seconds,
+    name = excluded.name, kind = excluded.kind, timeout_seconds = excluded.timeout_seconds,
     command = excluded.command, args = excluded.args, env = excluded.env, use_shell = excluded.use_shell,
     working_dir = excluded.working_dir,
     prompt = excluded.prompt, runtime = excluded.runtime, model = excluded.model,
-    thinking = excluded.thinking, profile = excluded.profile
-WHERE task_hooks.workspace_id = excluded.workspace_id;
+    thinking = excluded.thinking, profile = excluded.profile;
 
 -- name: DeleteHook :execrows
-DELETE FROM task_hooks WHERE id = sqlc.arg(id);
-
--- name: SetHookPosition :exec
-UPDATE task_hooks SET position = sqlc.arg(position)
-WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id);
+DELETE FROM hooks WHERE id = sqlc.arg(id);
 
 -- name: InsertHookSkip :exec
-INSERT OR IGNORE INTO task_hook_skips (task_id, hook_id) VALUES (sqlc.arg(task_id), sqlc.arg(hook_id));
+INSERT OR IGNORE INTO task_hook_skips (task_id, assignment_id) VALUES (sqlc.arg(task_id), sqlc.arg(assignment_id));
 
 -- name: DeleteHookSkip :exec
-DELETE FROM task_hook_skips WHERE task_id = sqlc.arg(task_id) AND hook_id = sqlc.arg(hook_id);
+DELETE FROM task_hook_skips WHERE task_id = sqlc.arg(task_id) AND assignment_id = sqlc.arg(assignment_id);
 
 -- name: ListHookSkips :many
-SELECT hook_id FROM task_hook_skips WHERE task_id = sqlc.arg(task_id) ORDER BY hook_id ASC;
+SELECT assignment_id FROM task_hook_skips WHERE task_id = sqlc.arg(task_id) ORDER BY assignment_id ASC;
