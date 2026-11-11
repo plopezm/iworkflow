@@ -74,7 +74,7 @@ func TestBoardHandlers_Sync(t *testing.T) {
 	f := newBoardFixture(t)
 	f.connect()
 
-	req := httptest.NewRequest(http.MethodPost, "/jira/sync", nil)
+	req := httptest.NewRequest(http.MethodPost, "/jira/sync?mode=lanes", nil)
 	req.Header.Set("HX-Request", "true")
 	res := f.serve(req)
 
@@ -92,7 +92,7 @@ func TestBoardHandlers_BoardFilter(t *testing.T) {
 	f.connectAndSync()
 
 	// Filter by search for A-1
-	req := httptest.NewRequest(http.MethodGet, "/jira/board?search=A-1", nil)
+	req := httptest.NewRequest(http.MethodGet, "/jira/board?mode=lanes&search=A-1", nil)
 	req.Header.Set("HX-Request", "true")
 	res := f.serve(req)
 
@@ -104,14 +104,14 @@ func TestBoardHandlers_BoardFilter(t *testing.T) {
 	assert.Contains(t, body, "1 de 3")
 
 	// Filter by status "To Do"
-	req2 := httptest.NewRequest(http.MethodGet, "/jira/board?status=To+Do", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/jira/board?mode=lanes&status=To+Do", nil)
 	req2.Header.Set("HX-Request", "true")
 	res2 := f.serve(req2)
 	assert.Equal(t, http.StatusOK, res2.Code)
 	assert.Contains(t, res2.Body.String(), "A-1")
 
 	// Filter by non-existent status
-	req3 := httptest.NewRequest(http.MethodGet, "/jira/board?status=Done", nil)
+	req3 := httptest.NewRequest(http.MethodGet, "/jira/board?mode=lanes&status=Done", nil)
 	req3.Header.Set("HX-Request", "true")
 	res3 := f.serve(req3)
 	assert.Equal(t, http.StatusOK, res3.Code)
@@ -265,8 +265,9 @@ func TestBoardHandlers_Page(t *testing.T) {
 	assert.Contains(t, html, "Jira")
 	assert.Contains(t, html, `id="jira-connection-card"`)
 	assert.Contains(t, html, `id="jira-board"`)
-	assert.Contains(t, html, "Mis tareas")
+	assert.Contains(t, html, "No epic", "the board opens grouped by epic")
 	assert.Contains(t, html, "A-1")
+	assert.NotContains(t, html, "Mis tareas", "lanes are only listed in the lanes mode")
 }
 
 func TestBoardHandlers_InvalidLaneOperations(t *testing.T) {

@@ -33,51 +33,65 @@ templ IssueRow(issue dto.IssueDTO) {
 			}
 			<span class="muted">{ state.ShortTimestamp(issue.JiraUpdatedAt) }</span>
 		</div>
-		<div class="row flex-wrap gap-2">
-			if issue.LocalState == "converted" && issue.TaskID != nil && *issue.TaskID != "" {
-				@link.Tab(link.Props{
-					Href:  "/tasks/" + *issue.TaskID,
-					Class: "btn-secondary min-h-8 px-3 py-1 text-xs",
-				}) {
-					{ msgViewTask.T(ctx) }
-				}
-			} else if issue.LocalState != "converted" {
-				@link.Tab(link.Props{
-					Href:  "/jira/" + issue.Key + "/convert",
-					Class: "btn-primary min-h-8 px-3 py-1 text-xs",
-				}) {
-					{ msgConvert.T(ctx) }
-				}
-			}
-			if issue.LocalState == "new" {
-				<button
-					type="button"
-					class="btn-ghost min-h-8 px-3 py-1 text-xs"
-					hx-post={ "/jira/issues/" + issue.Key + "/ignore?ignored=true" }
-					hx-target="#jira-board"
-					hx-swap="outerHTML"
-				>
-					{ msgIgnore.T(ctx) }
-				</button>
-			} else if issue.LocalState == "ignored" {
-				<button
-					type="button"
-					class="btn-ghost min-h-8 px-3 py-1 text-xs"
-					hx-post={ "/jira/issues/" + issue.Key + "/ignore?ignored=false" }
-					hx-target="#jira-board"
-					hx-swap="outerHTML"
-				>
-					{ msgRestore.T(ctx) }
-				</button>
-			}
-			<a
-				href={ templ.SafeURL(issue.URL) }
-				target="_blank"
-				rel="noreferrer noopener"
-				class="btn-ghost min-h-8 px-3 py-1 text-xs"
-			>
-				{ msgOpenInJira.T(ctx) }
-			</a>
-		</div>
+		@IssueActions(issue, false)
 	</li>
+}
+
+// IssueActions renders the actions of an imported issue: convert or view the task, ignore or restore, and
+// open it in Jira. quiet demotes the convert button to a secondary style for dense lists.
+templ IssueActions(issue dto.IssueDTO, quiet bool) {
+	{{
+		convertClass := "btn-primary min-h-8 px-3 py-1 text-xs"
+		if quiet {
+			convertClass = "btn-secondary min-h-8 px-3 py-1 text-xs"
+		}
+	}}
+	<div class="row flex-wrap gap-2">
+		if issue.LocalState == "converted" && issue.TaskID != nil && *issue.TaskID != "" {
+			@link.Tab(link.Props{
+				Href:  "/tasks/" + *issue.TaskID,
+				Class: "btn-secondary min-h-8 px-3 py-1 text-xs",
+			}) {
+				{ msgViewTask.T(ctx) }
+			}
+		} else if issue.LocalState != "converted" {
+			@link.Tab(link.Props{
+				Href:  "/jira/" + issue.Key + "/convert",
+				Class: convertClass,
+			}) {
+				{ msgConvert.T(ctx) }
+			}
+		}
+		if issue.LocalState == "new" {
+			<button
+				type="button"
+				class="btn-ghost min-h-8 px-3 py-1 text-xs"
+				hx-post={ "/jira/issues/" + issue.Key + "/ignore?ignored=true" }
+				hx-include="#jira-filters"
+				hx-target="#jira-board"
+				hx-swap="outerHTML"
+			>
+				{ msgIgnore.T(ctx) }
+			</button>
+		} else if issue.LocalState == "ignored" {
+			<button
+				type="button"
+				class="btn-ghost min-h-8 px-3 py-1 text-xs"
+				hx-post={ "/jira/issues/" + issue.Key + "/ignore?ignored=false" }
+				hx-include="#jira-filters"
+				hx-target="#jira-board"
+				hx-swap="outerHTML"
+			>
+				{ msgRestore.T(ctx) }
+			</button>
+		}
+		<a
+			href={ templ.SafeURL(issue.URL) }
+			target="_blank"
+			rel="noreferrer noopener"
+			class="btn-ghost min-h-8 px-3 py-1 text-xs"
+		>
+			{ msgOpenInJira.T(ctx) }
+		</a>
+	</div>
 }

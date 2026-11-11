@@ -29,6 +29,9 @@ type BoardHandlers struct {
 	DeleteLane       *application.DeleteLane
 	SetLaneCollapsed *application.SetLaneCollapsed
 	SetIssueIgnored  *application.SetIssueIgnored
+	ListEpics        *application.ListEpics
+	ListTransitions  *application.ListIssueTransitions
+	TransitionIssue  *application.TransitionIssue
 }
 
 // NewBoardHandlers constructs BoardHandlers with all necessary use cases.
@@ -41,6 +44,9 @@ func NewBoardHandlers(
 	deleteLane *application.DeleteLane,
 	setLaneCollapsed *application.SetLaneCollapsed,
 	setIssueIgnored *application.SetIssueIgnored,
+	listEpics *application.ListEpics,
+	listTransitions *application.ListIssueTransitions,
+	transitionIssue *application.TransitionIssue,
 ) *BoardHandlers {
 	return &BoardHandlers{
 		GetConnection:    getConnection,
@@ -51,6 +57,9 @@ func NewBoardHandlers(
 		DeleteLane:       deleteLane,
 		SetLaneCollapsed: setLaneCollapsed,
 		SetIssueIgnored:  setIssueIgnored,
+		ListEpics:        listEpics,
+		ListTransitions:  listTransitions,
+		TransitionIssue:  transitionIssue,
 	}
 }
 
@@ -70,6 +79,8 @@ func (h *BoardHandlers) MountBoardRoutes(r chi.Router) {
 	r.Post("/jira/lanes/{id}/toggle", h.ToggleCollapse)
 	r.Get("/jira/lanes/cancel", h.CancelLane)
 	r.Post("/jira/issues/{key}/ignore", h.IgnoreIssue)
+	r.Get("/jira/epics/{epic}/issues/{key}/transitions", h.StatusMenu)
+	r.Post("/jira/epics/{epic}/issues/{key}/transition", h.ChangeStatus)
 }
 
 // Mount is an alias for MountBoardRoutes.
@@ -84,17 +95,37 @@ type boardRenderOpts struct {
 	laneNotice      *string
 	laneForm        state.LaneFormView
 	confirmDeleteID string
+	// mode and epic are read from the request when empty.
+	mode state.BoardMode
+	epic string
 }
 
+// extractFilter reads the filter from the query string or the form body, so a POST that includes the
+// filter form keeps it.
 func extractFilter(r *http.Request) dto.IssueFilterDTO {
 	return state.BuildFilter(
-		r.URL.Query().Get("search"),
-		r.URL.Query().Get("status"),
-		r.URL.Query().Get("local_state"),
+		r.FormValue("search"),
+		r.FormValue("status"),
+		r.FormValue("local_state"),
 	)
 }
 
+// extractEpic reads the key of the open epic; keys are validated so nothing else reaches the view.
+func extractEpic(r *http.Request) string {
+	key := strings.TrimSpace(r.FormValue("epic"))
+	if key == models.NoEpicKey || models.IsValidIssueKey(key) {
+		return key
+	}
+	return ""
+}
+
 func (h *BoardHandlers) buildView(ctx context.Context, opts boardRenderOpts) state.IssuesPanelView {
+	if opts.mode == "" {
+		opts.mode = state.BoardModeEpics
+	}
+	if opts.mode == state.BoardModeEpics {
+		return h.buildEpicsView(ctx, opts)
+	}
 	listing, err := h.ListIssues.Execute(ctx, opts.filter.ToDomain())
 	if err != nil && opts.laneNotice == nil {
 		msg := err.Error()
@@ -118,10 +149,49 @@ func (h *BoardHandlers) buildView(ctx context.Context, opts boardRenderOpts) sta
 		Statuses:    dtoListing.Statuses,
 		Lanes:       lanes,
 		LaneForm:    opts.laneForm,
+		Mode:        opts.mode,
+		Total:       dtoListing.Total,
 	}
 }
 
+// buildEpicsView builds the board grouped by Epic. With no epic chosen (or the chosen one filtered
+// out) the first group is open, so the detail panel is never empty while there is something to show.
+func (h *BoardHandlers) buildEpicsView(ctx context.Context, opts boardRenderOpts) state.IssuesPanelView {
+	listing, err := h.ListEpics.Execute(ctx, opts.filter.ToDomain())
+	if err != nil && opts.laneNotice == nil {
+		msg := err.Error()
+		opts.laneNotice = &msg
+	}
+	epics := dto.EpicsFromDomain(listing)
+	view := state.IssuesPanelView{
+		SyncMessage:  opts.syncMsg,
+		FailedLanes:  opts.failedLanes,
+		LaneNotice:   opts.laneNotice,
+		Filters:      opts.filter,
+		Statuses:     epics.Statuses,
+		Mode:         state.BoardModeEpics,
+		Epics:        epics.Groups,
+		SelectedEpic: opts.epic,
+		Total:        epics.Total,
+	}
+	if view.SelectedGroup() == nil && len(view.Epics) > 0 {
+		view.SelectedEpic = view.Epics[0].Key
+	}
+	return view
+}
+
 func (h *BoardHandlers) renderBoard(w http.ResponseWriter, r *http.Request, opts boardRenderOpts) {
+	if opts.mode == "" {
+		// Lane management only exists in the Lanes mode, so its routes answer in it.
+		if strings.HasPrefix(r.URL.Path, "/jira/lanes") {
+			opts.mode = state.BoardModeLanes
+		} else {
+			opts.mode = state.ParseBoardMode(r.FormValue("mode"))
+		}
+	}
+	if opts.epic == "" {
+		opts.epic = extractEpic(r)
+	}
 	view := h.buildView(r.Context(), opts)
 	web.Render(w, r, http.StatusOK, components.IssuesPanel(view))
 }

@@ -6,8 +6,9 @@ import (
 	"iworkflow/internal/modules/jira/presentation/state"
 )
 
-// IssueFilters renders the search bar, Jira status selector, and local state selector.
-templ IssueFilters(filter dto.IssueFilterDTO, statuses []string) {
+// IssueFilters renders the search bar, Jira status selector, and local state selector. The board mode and
+// the open epic travel as hidden fields so a filter change keeps them.
+templ IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.BoardMode, epic string) {
 	<form
 		id="jira-filters"
 		class="grid gap-3 md:grid-cols-3"
@@ -16,6 +17,8 @@ templ IssueFilters(filter dto.IssueFilterDTO, statuses []string) {
 		hx-target="#jira-board"
 		hx-swap="outerHTML"
 	>
+		<input type="hidden" name="mode" value={ string(mode) }/>
+		<input type="hidden" name="epic" value={ epic }/>
 		<label class="stack gap-1.5">
 			<span class="text-sm font-medium text-fg">{ msgSearch.T(ctx) }</span>
 			<input

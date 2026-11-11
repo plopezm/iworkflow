@@ -40,6 +40,7 @@ type Module struct {
 	DeleteConnection       *application.DeleteConnection
 	SyncIssues             *application.SyncIssues
 	ListIssues             *application.ListIssues
+	ListEpics              *application.ListEpics
 	CreateLane             *application.CreateLane
 	UpdateLane             *application.UpdateLane
 	DeleteLane             *application.DeleteLane
@@ -129,6 +130,7 @@ func NewModule(deps Deps) *Module {
 	deleteConnection := application.NewDeleteConnection(connections, issues)
 
 	listIssues := application.NewListIssues(issues, lanes)
+	listEpics := application.NewListEpics(issues)
 	createLane := application.NewCreateLane(lanes, sync)
 	updateLane := application.NewUpdateLane(lanes, sync)
 	deleteLane := application.NewDeleteLane(lanes)
@@ -154,6 +156,9 @@ func NewModule(deps Deps) *Module {
 		deleteLane,
 		setLaneCollapsed,
 		setIssueIgnored,
+		listEpics,
+		listTransitions,
+		transitionIssue,
 	)
 	connectionHandlers.SetBoardHandlers(boardHandlers)
 	issueHandlers := inbound.NewIssueHandlers(
@@ -174,6 +179,7 @@ func NewModule(deps Deps) *Module {
 		DeleteConnection:       deleteConnection,
 		SyncIssues:             sync,
 		ListIssues:             listIssues,
+		ListEpics:              listEpics,
 		CreateLane:             createLane,
 		UpdateLane:             updateLane,
 		DeleteLane:             deleteLane,
