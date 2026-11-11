@@ -40,6 +40,34 @@ type CodeHostSetting struct {
 	InsecureTls int64
 }
 
+type Hook struct {
+	ID             string
+	Name           string
+	Kind           string
+	TimeoutSeconds int64
+	Command        string
+	Args           string
+	Env            string
+	UseShell       int64
+	WorkingDir     string
+	Prompt         string
+	Runtime        string
+	Model          string
+	Thinking       string
+	Profile        string
+}
+
+type HookAssignment struct {
+	ID          string
+	HookID      string
+	WorkspaceID string
+	Event       string
+	Phase       string
+	Position    int64
+	Enabled     int64
+	OnFailure   string
+}
+
 type JiraConnection struct {
 	ID                 int64
 	BaseUrl            string
@@ -146,44 +174,25 @@ type TaskEvent struct {
 	CreatedAt string
 }
 
-type TaskHook struct {
-	ID             string
-	WorkspaceID    string
-	Phase          string
-	Event          string
-	Kind           string
-	Position       int64
-	Enabled        int64
-	OnFailure      string
-	TimeoutSeconds int64
-	Command        string
-	Args           string
-	Env            string
-	UseShell       int64
-	Prompt         string
-	Runtime        string
-	Model          string
-	Thinking       string
-	Profile        string
-	WorkingDir     string
-}
-
 type TaskHookRun struct {
-	ID         string
-	TaskID     string
-	HookID     string
-	Phase      string
-	Event      string
-	Status     string
-	ExitCode   int64
-	Output     string
-	StartedAt  string
-	FinishedAt string
+	ID           string
+	TaskID       string
+	HookID       string
+	AssignmentID string
+	HookName     string
+	WorkspaceID  string
+	Phase        string
+	Event        string
+	Status       string
+	ExitCode     int64
+	Output       string
+	StartedAt    string
+	FinishedAt   string
 }
 
 type TaskHookSkip struct {
-	TaskID string
-	HookID string
+	TaskID       string
+	AssignmentID string
 }
 
 type TaskPosition struct {
