@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	hookerrors "iworkflow/internal/modules/task_hooks/domain/errors"
@@ -90,10 +91,19 @@ func workingDir(script models.ScriptSpec, run models.RunContext) string {
 	}
 }
 
-// buildCommand runs the command directly, or through sh -c with the arguments as positional parameters (so
-// they are never parsed by the shell).
+// shellSyntax are the characters that only a shell understands: whitespace, quoting, expansion, pipes and lists.
+const shellSyntax = " \t\n|&;<>()$`\"'*?[]#~{}!\\"
+
+// needsShell reports whether the command is a command line rather than the name or path of one program. A stored
+// UseShell flag from an older hook keeps forcing the shell.
+func needsShell(script models.ScriptSpec) bool {
+	return script.UseShell || strings.ContainsAny(script.Command, shellSyntax)
+}
+
+// buildCommand runs a bare program directly, or a command line through sh -c with the arguments as positional
+// parameters (so they are never parsed by the shell).
 func buildCommand(ctx context.Context, script models.ScriptSpec, args []string) *exec.Cmd {
-	if script.UseShell {
+	if needsShell(script) {
 		shellArgs := append([]string{"-c", script.Command, "hook"}, args...)
 		return exec.CommandContext(ctx, "sh", shellArgs...) //nolint:gosec // the command is configured by the user on purpose
 	}

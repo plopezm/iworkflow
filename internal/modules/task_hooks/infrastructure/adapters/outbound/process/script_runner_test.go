@@ -84,6 +84,38 @@ func TestUseShellPassesArgsAsPositionals(t *testing.T) {
 	assert.Equal(t, "A; TOUCH PWNED", strings.TrimSpace(out.Output))
 }
 
+func TestCommandLineRunsThroughAShellWithoutTheFlag(t *testing.T) {
+	cases := map[string]string{
+		"words":    "echo hello world",
+		"operator": "echo hello && echo world",
+	}
+	for name, command := range cases {
+		t.Run(name, func(t *testing.T) {
+			hook := newHook(t, models.ScriptSpec{Command: command}, time.Minute)
+			out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+			require.NoError(t, err)
+			assert.Equal(t, models.RunOK, out.Status)
+			assert.Contains(t, out.Output, "hello")
+		})
+	}
+}
+
+func TestBareProgramRunsDirectlyWithoutParsingItsArgs(t *testing.T) {
+	hook := newHook(t, models.ScriptSpec{Command: "printf", Args: []string{"%s", "a b; $HOME"}}, time.Minute)
+	out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+	require.NoError(t, err)
+	assert.Equal(t, models.RunOK, out.Status)
+	assert.Equal(t, "a b; $HOME", strings.TrimSpace(out.Output))
+}
+
+func TestStoredShellFlagStillForcesTheShellOnABareCommand(t *testing.T) {
+	hook := newHook(t, models.ScriptSpec{Command: "echo", Args: []string{"x"}, UseShell: true}, time.Minute)
+	out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+	require.NoError(t, err)
+	assert.Equal(t, models.RunOK, out.Status)
+	assert.Equal(t, "", strings.TrimSpace(out.Output), "echo got no positional arguments: the shell passes them as $1")
+}
+
 func TestNotStartedErrors(t *testing.T) {
 	runner := process.NewScriptRunner()
 	cases := map[string]struct {

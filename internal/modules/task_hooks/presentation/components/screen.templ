@@ -146,14 +146,15 @@ templ kindSwitch(view state.Screen) {
 
 templ scriptFields(view state.Screen) {
 	@ui.SelectField(ui.SelectFieldProps{Label: msgBrowseFrom.T(ctx), Name: "browse_project", Value: view.Editor.BrowseProject, Options: choiceOptions(view.Projects)})
-	@pathField(view, pathFieldProps{ID: "hook-command", Name: "command", Label: msgCommand.T(ctx), Value: view.Editor.Command, Placeholder: msgCommandHint.T(ctx)})
-	@ui.TextArea(ui.FieldProps{Label: msgArgs.T(ctx), Name: "args", Value: view.Editor.Args})
-	@ui.TextArea(ui.FieldProps{Label: msgEnv.T(ctx), Name: "env", Value: view.Editor.Env})
-	@pathField(view, pathFieldProps{ID: "hook-working-dir", Name: "working_dir", Label: msgWorkingDir.T(ctx), Value: view.Editor.WorkingDir, Placeholder: msgWorkingDirHint.T(ctx), Hint: msgWorkingDirNote.T(ctx)})
-	<label class="row gap-2">
-		<input type="checkbox" name="use_shell" value="on" checked?={ view.Editor.UseShell }/>
-		<span class="text-sm">{ msgUseShell.T(ctx) }</span>
-	</label>
+	@pathField(view, pathFieldProps{ID: "hook-command", Name: "command", Label: msgCommand.T(ctx), Value: view.Editor.Command, Placeholder: msgCommandHint.T(ctx), Hint: msgCommandNote.T(ctx)})
+	<details class="stack gap-3" open?={ advancedOpen(view) }>
+		<summary class="cursor-pointer text-sm font-medium text-fg">{ msgAdvanced.T(ctx) }</summary>
+		<div class="stack gap-3 pt-3">
+			@ui.TextArea(ui.FieldProps{Label: msgArgs.T(ctx), Name: "args", Value: view.Editor.Args})
+			@ui.TextArea(ui.FieldProps{Label: msgEnv.T(ctx), Name: "env", Value: view.Editor.Env})
+			@pathField(view, pathFieldProps{ID: "hook-working-dir", Name: "working_dir", Label: msgWorkingDir.T(ctx), Value: view.Editor.WorkingDir, Placeholder: msgWorkingDirHint.T(ctx), Hint: msgWorkingDirNote.T(ctx)})
+		</div>
+	</details>
 }
 
 // pathFieldProps describes a text field that can also be filled from the browser. Name is the form field and the
@@ -327,7 +328,7 @@ templ group(group *state.Group, projects []state.Choice) {
 	<section class="stack gap-2 rounded-xl border border-border/60 p-3" data-hooks-group>
 		<span class="eyebrow">{ msgOrderTitle.T(ctx) }</span>
 		<p class="muted text-[11px]">{ msgOrderHint.T(ctx) }</p>
-		<form class="row gap-2 flex-wrap items-end" hx-get={ state.GroupPath() } hx-target={ hostTarget } hx-swap="outerHTML">
+		<form class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end" hx-get={ state.GroupPath() } hx-target={ hostTarget } hx-swap="outerHTML">
 			@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: group.Project, Placeholder: msgProjectChoose.T(ctx), Options: choiceOptions(projects)})
 			@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: group.Event, Options: eventOptions(ctx)})
 			@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: group.Phase, Options: phaseOptions(ctx)})

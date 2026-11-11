@@ -124,3 +124,72 @@ func TestScreenHistoryOmitsAnExitCodeWhenThereIsNone(t *testing.T) {
 	assert.NotContains(t, body, "exit code")
 	assert.Contains(t, body, "no verdict")
 }
+
+// A script hook has no shell switch: the runner decides it from the command. The command says so, and Browse stays.
+func TestScriptEditorHasNoShellSwitch(t *testing.T) {
+	t.Parallel()
+	view := state.Screen{Tab: state.TabLibrary, Editor: &state.HookForm{Kind: "script", Timeout: "60", Command: "codegraph init"}}
+
+	body := renderIn(t, components.Screen(view))
+
+	assert.NotContains(t, body, "use_shell")
+	assert.NotContains(t, body, "Run through a shell")
+	assert.Contains(t, body, "A program or a full command line")
+	assert.Contains(t, body, "Project used to browse folders (not saved with the hook)")
+	assert.Contains(t, body, `name="command"`)
+}
+
+// The advanced options are folded while empty and unfolded when one holds a value or the folder browser is on the
+// working directory, so a typed value is never hidden.
+func TestScriptEditorFoldsTheAdvancedOptionsOnlyWhenEmpty(t *testing.T) {
+	t.Parallel()
+	cases := map[string]struct {
+		form    state.HookForm
+		browser *state.Browser
+		open    bool
+	}{
+		"empty":       {form: state.HookForm{Kind: "script", Timeout: "60"}, open: false},
+		"args":        {form: state.HookForm{Kind: "script", Timeout: "60", Args: "init"}, open: true},
+		"env":         {form: state.HookForm{Kind: "script", Timeout: "60", Env: "A=1"}, open: true},
+		"working dir": {form: state.HookForm{Kind: "script", Timeout: "60", WorkingDir: "sub"}, open: true},
+		"browsing":    {form: state.HookForm{Kind: "script", Timeout: "60"}, browser: &state.Browser{Field: "working_dir", Path: "/tmp"}, open: true},
+		"browsing the command": {
+			form: state.HookForm{Kind: "script", Timeout: "60"}, browser: &state.Browser{Field: "command", Path: "/tmp", Files: true}, open: false,
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			form := tc.form
+			body := renderIn(t, components.Screen(state.Screen{Tab: state.TabLibrary, Editor: &form, Browser: tc.browser}))
+
+			assert.Contains(t, body, "Advanced options")
+			assert.Contains(t, body, "Extra parameters")
+			if tc.open {
+				assert.Regexp(t, `<details[^>]* open`, body)
+			} else {
+				assert.NotRegexp(t, `<details[^>]* open`, body)
+			}
+		})
+	}
+}
+
+// The agent kind has none of the script fields.
+func TestAgentEditorHasNoScriptFields(t *testing.T) {
+	t.Parallel()
+	body := renderIn(t, components.Screen(state.Screen{Tab: state.TabLibrary, Editor: &state.HookForm{Kind: "agent", Timeout: "60"}}))
+
+	assert.NotContains(t, body, "Advanced options")
+	assert.NotContains(t, body, `name="command"`)
+}
+
+// The run order filter lays its three selects and the button out as a grid, so the selects are not squeezed.
+func TestGroupFilterIsAGrid(t *testing.T) {
+	t.Parallel()
+	view := state.Screen{Tab: state.TabLibrary, Group: &state.Group{Project: "ws-1", Event: "task_start", Phase: "pre"}}
+
+	body := renderIn(t, components.Screen(view))
+
+	assert.Contains(t, body, "Run order")
+	assert.Regexp(t, `<form class="grid [^"]*"[^>]*hx-get="/hooks/group`, body)
+}

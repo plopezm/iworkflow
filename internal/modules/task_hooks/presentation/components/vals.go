@@ -59,3 +59,13 @@ func jsonVals(values map[string]string) string {
 	encoded, _ := json.Marshal(values)
 	return string(encoded)
 }
+
+// advancedOpen keeps the advanced options unfolded when they hold a value or the folder browser is working on one.
+func advancedOpen(view state.Screen) bool {
+	editor := view.Editor
+	if editor == nil {
+		return false
+	}
+	browsing := view.Browser != nil && view.Browser.Field == "working_dir"
+	return editor.Args != "" || editor.Env != "" || editor.WorkingDir != "" || browsing
+}
