@@ -83,22 +83,20 @@ type LastError struct {
 
 // HookForm is the editor of a hook. Fields of the other kind are kept, so switching the kind loses nothing typed.
 type HookForm struct {
-	ID      string
-	Name    string
-	Kind    string
-	Timeout string
-	// BrowseProject is the project the path browser starts from; it is not part of the hook.
-	BrowseProject string
-	Command       string
-	Args          string
-	Env           string
-	UseShell      bool
-	WorkingDir    string
-	Prompt        string
-	Runtime       string
-	Model         string
-	Thinking      string
-	Profile       string
+	ID         string
+	Name       string
+	Kind       string
+	Timeout    string
+	Command    string
+	Args       string
+	Env        string
+	UseShell   bool
+	WorkingDir string
+	Prompt     string
+	Runtime    string
+	Model      string
+	Thinking   string
+	Profile    string
 }
 
 // Browser is the folder listing of the path field being browsed. Files says whether files can be chosen too.

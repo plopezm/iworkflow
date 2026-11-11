@@ -254,21 +254,20 @@ func hookFormFromHook(hook models.Hook) state.HookForm {
 // hookFormFromValues keeps the values of a submitted or requested editor as typed, so a rejected form shows them again.
 func hookFormFromValues(values url.Values) state.HookForm {
 	return state.HookForm{
-		ID:            strings.TrimSpace(values.Get(dto.FieldID)),
-		Name:          values.Get(dto.FieldName),
-		Kind:          values.Get(dto.FieldKind),
-		Timeout:       values.Get(dto.FieldTimeout),
-		Command:       values.Get(dto.FieldCommand),
-		Args:          values.Get(dto.FieldArgs),
-		Env:           values.Get(dto.FieldEnv),
-		UseShell:      values.Has(dto.FieldUseShell),
-		WorkingDir:    values.Get(dto.FieldWorkingDir),
-		Prompt:        values.Get(dto.FieldPrompt),
-		Runtime:       values.Get(dto.FieldRuntime),
-		Model:         values.Get(dto.FieldModel),
-		Thinking:      values.Get(dto.FieldThinking),
-		Profile:       values.Get(dto.FieldProfile),
-		BrowseProject: values.Get(dto.FieldBrowseProject),
+		ID:         strings.TrimSpace(values.Get(dto.FieldID)),
+		Name:       values.Get(dto.FieldName),
+		Kind:       values.Get(dto.FieldKind),
+		Timeout:    values.Get(dto.FieldTimeout),
+		Command:    values.Get(dto.FieldCommand),
+		Args:       values.Get(dto.FieldArgs),
+		Env:        values.Get(dto.FieldEnv),
+		UseShell:   values.Has(dto.FieldUseShell),
+		WorkingDir: values.Get(dto.FieldWorkingDir),
+		Prompt:     values.Get(dto.FieldPrompt),
+		Runtime:    values.Get(dto.FieldRuntime),
+		Model:      values.Get(dto.FieldModel),
+		Thinking:   values.Get(dto.FieldThinking),
+		Profile:    values.Get(dto.FieldProfile),
 	}
 }
 

@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,20 +19,21 @@ func (b *recordingBrowser) List(_ context.Context, dir string) (models.Listing, 
 	return models.Listing{Path: dir}, nil
 }
 
-type workspaceAt string
-
-func (w workspaceAt) Path(context.Context, string) (string, error) { return string(w), nil }
-
-func TestBrowsePathResolvesAgainstTheWorkspace(t *testing.T) {
+// An empty or relative path has no folder of its own to start from, so the browser gets an empty path and starts at the
+// home folder; an absolute one is listed as it is.
+func TestBrowsePathStartsAtTheHomeFolderUnlessGivenAnAbsolutePath(t *testing.T) {
+	absolute := filepath.Join(string(filepath.Separator), "etc")
 	tests := map[string]struct{ in, want string }{
-		"empty":    {in: "", want: "/work/w1"},
-		"relative": {in: "scripts", want: "/work/w1/scripts"},
-		"absolute": {in: "/etc", want: "/etc"},
+		"empty":      {in: "", want: ""},
+		"blank":      {in: "  ", want: ""},
+		"relative":   {in: "scripts", want: ""},
+		"absolute":   {in: absolute, want: absolute},
+		"padded abs": {in: " " + absolute + " ", want: absolute},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			browser := &recordingBrowser{}
-			_, err := application.NewBrowsePath(workspaceAt("/work/w1"), browser).Execute(context.Background(), application.BrowsePathInput{WorkspaceID: "w1", Path: tc.in})
+			browser := &recordingBrowser{dir: "unset"}
+			_, err := application.NewBrowsePath(browser).Execute(context.Background(), application.BrowsePathInput{Path: tc.in})
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, browser.dir)
 		})

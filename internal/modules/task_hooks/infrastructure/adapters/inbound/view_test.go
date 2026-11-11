@@ -118,13 +118,13 @@ func TestHookFormKeepsTheValuesAsTyped(t *testing.T) {
 	t.Parallel()
 	values := url.Values{
 		dto.FieldID: {"h-1"}, dto.FieldName: {"lint"}, dto.FieldKind: {"script"}, dto.FieldTimeout: {"soon"},
-		dto.FieldCommand: {"make"}, dto.FieldUseShell: {"on"}, dto.FieldBrowseProject: {"ws-2"},
+		dto.FieldCommand: {"make"}, dto.FieldUseShell: {"on"},
 	}
 
 	form := hookFormFromValues(values)
 
 	assert.Equal(t, state.HookForm{
-		ID: "h-1", Name: "lint", Kind: "script", Timeout: "soon", Command: "make", UseShell: true, BrowseProject: "ws-2",
+		ID: "h-1", Name: "lint", Kind: "script", Timeout: "soon", Command: "make", UseShell: true,
 	}, form)
 }
 

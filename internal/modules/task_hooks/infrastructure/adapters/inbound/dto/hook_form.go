@@ -30,8 +30,6 @@ const (
 	FieldModel      = "model"
 	FieldThinking   = "thinking"
 	FieldProfile    = "profile"
-	// FieldBrowseProject is the project the path browser starts from. It is not part of the hook.
-	FieldBrowseProject = "browse_project"
 
 	FieldProject   = "project"
 	FieldEvent     = "event"

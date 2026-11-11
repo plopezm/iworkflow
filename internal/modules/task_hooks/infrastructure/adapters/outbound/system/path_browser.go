@@ -19,10 +19,18 @@ type PathBrowser struct{}
 // NewPathBrowser builds the browser.
 func NewPathBrowser() PathBrowser { return PathBrowser{} }
 
-// List returns the entries of dir, folders first and each group by name. Hidden entries are skipped.
+// List returns the entries of dir, folders first and each group by name. Hidden entries are skipped. An empty dir
+// is the home folder: HOME on Unix, USERPROFILE on Windows.
 func (PathBrowser) List(ctx context.Context, dir string) (models.Listing, error) {
 	if err := ctx.Err(); err != nil {
 		return models.Listing{}, fmt.Errorf("list %s: %w", dir, err)
+	}
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return models.Listing{}, fmt.Errorf("find the home folder: %w", err)
+		}
+		dir = home
 	}
 	clean := filepath.Clean(dir)
 	items, err := os.ReadDir(clean)

@@ -135,7 +135,9 @@ func TestScriptEditorHasNoShellSwitch(t *testing.T) {
 	assert.NotContains(t, body, "use_shell")
 	assert.NotContains(t, body, "Run through a shell")
 	assert.Contains(t, body, "A program or a full command line")
-	assert.Contains(t, body, "Project used to browse folders (not saved with the hook)")
+	assert.NotContains(t, body, "browse_project", "the browser starts at the home folder, not at a project")
+	assert.NotContains(t, body, "Project used to browse folders")
+	assert.Contains(t, body, `data-hook-editor`)
 	assert.Contains(t, body, `name="command"`)
 }
 
@@ -192,4 +194,17 @@ func TestGroupFilterIsAGrid(t *testing.T) {
 
 	assert.Contains(t, body, "Run order")
 	assert.Regexp(t, `<form class="grid [^"]*"[^>]*hx-get="/hooks/group`, body)
+}
+
+// The history filter lays the two selects and the failed-only switch out in one grid, the switch in a box as tall as
+// the selects so the three line up.
+func TestHistoryFilterAlignsTheFailedOnlySwitchWithTheSelects(t *testing.T) {
+	t.Parallel()
+	view := state.Screen{Tab: state.TabHistory, History: &state.History{Failed: true}}
+
+	body := renderIn(t, components.Screen(view))
+
+	assert.Regexp(t, `<form class="grid [^"]*"[^>]*data-history-filter`, body)
+	assert.Regexp(t, `<span class="input row [^"]*">\s*<input type="checkbox" name="failed" value="1" checked`, body)
+	assert.Contains(t, body, "Failures only")
 }

@@ -10,36 +10,31 @@ import (
 	"iworkflow/internal/modules/task_hooks/domain/ports/outbound"
 )
 
-// BrowsePathInput is the folder to list. An empty Path, or a relative one, starts from the workspace folder.
+// BrowsePathInput is the folder to list. An empty or relative Path starts from the home folder of the user.
 type BrowsePathInput struct {
-	WorkspaceID string
-	Path        string
+	Path string
 }
 
 // BrowsePath lists a folder for the file and folder pickers of the hook editor. It writes nothing.
 type BrowsePath struct {
-	workspaces outbound.WorkspaceLookup
-	browser    outbound.PathBrowser
+	browser outbound.PathBrowser
 }
 
 // NewBrowsePath builds the use case.
-func NewBrowsePath(workspaces outbound.WorkspaceLookup, browser outbound.PathBrowser) *BrowsePath {
-	return &BrowsePath{workspaces: workspaces, browser: browser}
+func NewBrowsePath(browser outbound.PathBrowser) *BrowsePath {
+	return &BrowsePath{browser: browser}
 }
 
-// Execute lists the folder, resolving an empty or relative path against the workspace folder.
+// Execute lists the folder. A path that is not absolute has no folder of its own to be read from, so the browser
+// starts at the home folder, the same as for an empty one.
 func (u *BrowsePath) Execute(ctx context.Context, in BrowsePathInput) (models.Listing, error) {
 	dir := strings.TrimSpace(in.Path)
-	if dir == "" || !filepath.IsAbs(dir) {
-		base, err := u.workspaces.Path(ctx, in.WorkspaceID)
-		if err != nil {
-			return models.Listing{}, fmt.Errorf("find workspace %s: %w", in.WorkspaceID, err)
-		}
-		dir = filepath.Join(base, dir)
+	if !filepath.IsAbs(dir) {
+		dir = ""
 	}
 	listing, err := u.browser.List(ctx, dir)
 	if err != nil {
-		return models.Listing{}, fmt.Errorf("browse %s: %w", dir, err)
+		return models.Listing{}, fmt.Errorf("browse %q: %w", dir, err)
 	}
 	return listing, nil
 }

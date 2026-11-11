@@ -90,7 +90,7 @@ func NewModule(deps Deps) *Module {
 		ListRuns:                 application.NewListRuns(runs),
 		ListProjects:             application.NewListProjects(projects),
 		TestHook:                 application.NewTestHook(hooks, workspaces, scripts, agentRunner),
-		BrowsePath:               application.NewBrowsePath(workspaces, system.NewPathBrowser()),
+		BrowsePath:               application.NewBrowsePath(system.NewPathBrowser()),
 		RunHooks:                 application.NewRunHooks(assignments, hooks, runs, scripts, agentRunner, deps.Clock, ids),
 		ReconcileHookRuns:        application.NewReconcileHookRuns(runs, deps.Clock),
 		SetTaskHookSkipped:       application.NewSetTaskHookSkipped(assignments, hooks),

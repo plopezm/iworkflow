@@ -93,7 +93,8 @@ type WorkspaceLookup interface {
 	Path(ctx context.Context, workspaceID string) (string, error)
 }
 
-// PathBrowser lists a folder of the machine, so the editor of a hook can offer a file or a folder to pick.
+// PathBrowser lists a folder of the machine, so the editor of a hook can offer a file or a folder to pick. An empty
+// dir is the home folder of the user.
 type PathBrowser interface {
 	List(ctx context.Context, dir string) (models.Listing, error)
 }

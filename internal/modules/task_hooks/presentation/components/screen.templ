@@ -145,7 +145,6 @@ templ kindSwitch(view state.Screen) {
 }
 
 templ scriptFields(view state.Screen) {
-	@ui.SelectField(ui.SelectFieldProps{Label: msgBrowseFrom.T(ctx), Name: "browse_project", Value: view.Editor.BrowseProject, Options: choiceOptions(view.Projects)})
 	@pathField(view, pathFieldProps{ID: "hook-command", Name: "command", Label: msgCommand.T(ctx), Value: view.Editor.Command, Placeholder: msgCommandHint.T(ctx), Hint: msgCommandNote.T(ctx)})
 	<details class="stack gap-3" open?={ advancedOpen(view) }>
 		<summary class="cursor-pointer text-sm font-medium text-fg">{ msgAdvanced.T(ctx) }</summary>
@@ -367,13 +366,16 @@ templ groupRow(group state.Group, row state.GroupRow) {
 // default and the applied marker tells an unchecked box from a filter that was never sent.
 templ history(h *state.History) {
 	<div class="stack gap-3" data-hooks-history>
-		<form class="row gap-2 flex-wrap items-end rounded-xl border border-border/60 p-3" hx-get={ state.HistoryRoute } hx-trigger="change" hx-target={ hostTarget } hx-swap="outerHTML" data-history-filter>
+		<form class="grid grid-cols-1 items-end gap-3 rounded-xl border border-border/60 p-3 sm:grid-cols-2 lg:grid-cols-3" hx-get={ state.HistoryRoute } hx-trigger="change" hx-target={ hostTarget } hx-swap="outerHTML" data-history-filter>
 			<input type="hidden" name="applied" value="1"/>
 			@ui.SelectField(ui.SelectFieldProps{Label: msgHook.T(ctx), Name: "hook", Value: h.HookID, Placeholder: msgAllHooks.T(ctx), Options: choiceOptions(h.Hooks)})
 			@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: h.ProjectID, Placeholder: msgAllProjects.T(ctx), Options: choiceOptions(h.Projects)})
-			<label class="row gap-2">
-				<input type="checkbox" name="failed" value="1" checked?={ h.Failed }/>
-				<span class="text-sm">{ msgFailedOnly.T(ctx) }</span>
+			<label class="stack gap-1.5">
+				<span class="text-sm font-medium text-fg" aria-hidden="true">&nbsp;</span>
+				<span class="input row items-center gap-2">
+					<input type="checkbox" name="failed" value="1" checked?={ h.Failed }/>
+					<span class="text-sm">{ msgFailedOnly.T(ctx) }</span>
+				</span>
 			</label>
 		</form>
 		if len(h.Runs) == 0 {

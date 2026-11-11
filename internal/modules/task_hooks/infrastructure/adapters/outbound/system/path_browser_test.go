@@ -32,3 +32,18 @@ func TestPathBrowserFailsForAMissingFolder(t *testing.T) {
 	_, err := system.NewPathBrowser().List(context.Background(), filepath.Join(t.TempDir(), "nope"))
 	require.Error(t, err)
 }
+
+// An empty path lists the home folder of the user, HOME or its equivalent on each system.
+func TestPathBrowserStartsAtTheHomeFolderWhenThePathIsEmpty(t *testing.T) {
+	home := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(home, "projects"), 0o750))
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+
+	listing, err := system.NewPathBrowser().List(context.Background(), "")
+
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Clean(home), listing.Path)
+	require.Len(t, listing.Entries, 1)
+	assert.Equal(t, "projects", listing.Entries[0].Name)
+}

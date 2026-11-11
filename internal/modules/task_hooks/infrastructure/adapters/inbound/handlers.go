@@ -255,7 +255,7 @@ func (h *Handlers) editor(w http.ResponseWriter, r *http.Request) {
 }
 
 // browser applies a chosen path to the field being browsed, or lists the folder to show. It is nil when the request
-// does not browse. The folder is relative to the project the browser starts from. A folder that cannot be listed is
+// does not browse. The browser starts at the home folder. A folder that cannot be listed is
 // shown as the error of the browser, not of the screen.
 func (h *Handlers) browser(ctx context.Context, form *state.HookForm, query url.Values) *state.Browser {
 	field := query.Get(state.BrowseField)
@@ -280,7 +280,7 @@ func (h *Handlers) browser(ctx context.Context, form *state.HookForm, query url.
 		start = *current
 	}
 	browser := &state.Browser{Field: field, Files: field == dto.FieldCommand}
-	listing, err := h.uc.Browse.Execute(ctx, application.BrowsePathInput{WorkspaceID: form.BrowseProject, Path: start})
+	listing, err := h.uc.Browse.Execute(ctx, application.BrowsePathInput{Path: start})
 	if err != nil {
 		browser.Path = start
 		browser.Error = err.Error()

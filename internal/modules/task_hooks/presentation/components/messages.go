@@ -53,7 +53,6 @@ var (
 	msgProjectChoose    = i18n.Msg{En: "Choose a project", Es: "Elige un proyecto", Zh: "选择项目", De: "Projekt wählen", Fr: "Choisir un projet"}
 	msgNameLabel        = i18n.Msg{En: "Name", Es: "Nombre", Zh: "名称", De: "Name", Fr: "Nom"}
 	msgNameHint         = i18n.Msg{En: "How the hook is listed in the library.", Es: "Cómo aparece el hook en la biblioteca.", Zh: "钩子在库中的显示名称。", De: "Wie der Hook in der Bibliothek erscheint.", Fr: "Comment le hook apparaît dans la bibliothèque."}
-	msgBrowseFrom       = i18n.Msg{En: "Project used to browse folders (not saved with the hook)", Es: "Proyecto para examinar carpetas (no se guarda con el hook)", Zh: "用于浏览文件夹的项目（不随钩子保存）", De: "Projekt zum Durchsuchen der Ordner (wird nicht mit dem Hook gespeichert)", Fr: "Projet pour parcourir les dossiers (non enregistré avec le hook)"}
 	msgCommand          = i18n.Msg{En: "Command", Es: "Comando", Zh: "命令", De: "Befehl", Fr: "Commande"}
 	msgCommandHint      = i18n.Msg{En: "./scripts/check.sh", Es: "./scripts/check.sh", Zh: "./scripts/check.sh", De: "./scripts/check.sh", Fr: "./scripts/check.sh"}
 	msgArgs             = i18n.Msg{En: "Extra parameters (one per line; {{.Branch}} is expanded)", Es: "Parámetros adicionales (uno por línea; {{.Branch}} se expande)", Zh: "附加参数（每行一个；{{.Branch}} 会被展开）", De: "Zusätzliche Parameter (eines pro Zeile; {{.Branch}} wird ersetzt)", Fr: "Paramètres supplémentaires (un par ligne ; {{.Branch}} est remplacé)"}
