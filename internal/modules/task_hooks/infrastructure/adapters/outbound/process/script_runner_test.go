@@ -116,6 +116,46 @@ func TestStoredShellFlagStillForcesTheShellOnABareCommand(t *testing.T) {
 	assert.Equal(t, "", strings.TrimSpace(out.Output), "echo got no positional arguments: the shell passes them as $1")
 }
 
+func TestCommandLineReceivesTheExtraParametersAtTheEnd(t *testing.T) {
+	hook := newHook(t, models.ScriptSpec{Command: "echo base", Args: []string{"one", "two words; $HOME"}}, time.Minute)
+	out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+	require.NoError(t, err)
+	assert.Equal(t, models.RunOK, out.Status)
+	assert.Equal(t, "base one two words; $HOME", strings.TrimSpace(out.Output))
+}
+
+func TestCommandLineThatReadsPositionalsDoesNotGetThemTwice(t *testing.T) {
+	cases := map[string]string{
+		"dollar one": `echo "$1" | tr a-z A-Z`,
+		"dollar at":  `echo "$@" | tr a-z A-Z`,
+		"braces":     `echo "${1}" | tr a-z A-Z`,
+	}
+	for name, command := range cases {
+		t.Run(name, func(t *testing.T) {
+			hook := newHook(t, models.ScriptSpec{Command: command, Args: []string{"abc"}}, time.Minute)
+			out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+			require.NoError(t, err)
+			assert.Equal(t, "ABC", strings.TrimSpace(out.Output))
+		})
+	}
+}
+
+func TestExistingFileWithSpacesRunsDirectly(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "my script.sh")
+	require.NoError(t, os.WriteFile(script, []byte("#!/bin/sh\necho \"got:$1\"\n"), 0o700))
+	cases := map[string]string{"absolute": script, "relative to the working directory": "./my script.sh"}
+	for name, command := range cases {
+		t.Run(name, func(t *testing.T) {
+			hook := newHook(t, models.ScriptSpec{Command: command, Args: []string{"x y"}}, time.Minute)
+			out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(dir))
+			require.NoError(t, err)
+			assert.Equal(t, models.RunOK, out.Status)
+			assert.Equal(t, "got:x y", strings.TrimSpace(out.Output))
+		})
+	}
+}
+
 func TestNotStartedErrors(t *testing.T) {
 	runner := process.NewScriptRunner()
 	cases := map[string]struct {
