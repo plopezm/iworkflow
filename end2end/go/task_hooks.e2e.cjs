@@ -72,9 +72,16 @@ async function assignTo(ctx, project, event, phase) {
   await ctx.page.getByText('Asignación añadida.').waitFor({ timeout: 10000 });
 }
 
-// The run order panel of a project, event and moment.
+// The run order panel of a project, event and moment. It is folded until a project is chosen.
 function orderPanel(ctx) {
   return ctx.page.locator('[data-hooks-group]');
+}
+
+// Unfolds a <details> section when it is folded, so its controls can be used.
+async function unfold(section) {
+  if (!(await section.evaluate((element) => element.open))) {
+    await section.locator('> summary').click();
+  }
 }
 
 module.exports = {
@@ -166,6 +173,7 @@ module.exports = {
         }
 
         const panel = orderPanel(ctx);
+        await unfold(panel);
         await panel.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
         await panel.getByRole('button', { name: 'Mostrar', exact: true }).click();
         const rows = () => orderPanel(ctx).locator('[data-group-row]').allInnerTexts();
@@ -207,6 +215,7 @@ module.exports = {
         await createScriptHook(ctx, name, 'echo');
         await openAssignments(ctx, name);
 
+        await unfold(ctx.page.locator('[data-hook-test-section]'));
         const form = ctx.page.locator('[data-hook-test-form]');
         await form.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
         await form.getByRole('button', { name: 'Probar', exact: true }).click();

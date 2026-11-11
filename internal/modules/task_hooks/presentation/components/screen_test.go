@@ -3,6 +3,7 @@ package components_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
@@ -207,4 +208,58 @@ func TestHistoryFilterAlignsTheFailedOnlySwitchWithTheSelects(t *testing.T) {
 	assert.Regexp(t, `<form class="grid [^"]*"[^>]*data-history-filter`, body)
 	assert.Regexp(t, `<span class="input row [^"]*">\s*<input type="checkbox" name="failed" value="1" checked`, body)
 	assert.Contains(t, body, "Failures only")
+}
+
+// The detail of the open hook is shown right under its own row, not at the end of the screen, so the actions are next
+// to the hook they act on.
+func TestOpenHookDetailShowsUnderItsRow(t *testing.T) {
+	t.Parallel()
+	view := state.Screen{
+		Tab: state.TabLibrary,
+		Hooks: []state.HookRow{
+			{ID: "h-1", Name: "first", Kind: "script"},
+			{ID: "h-2", Name: "second", Kind: "script", Selected: true},
+			{ID: "h-3", Name: "third", Kind: "script"},
+		},
+		Selected: &state.HookDetail{HookID: "h-2", Name: "second"},
+	}
+
+	body := renderIn(t, components.Screen(view))
+
+	second := strings.Index(body, `data-hook="h-2"`)
+	detail := strings.Index(body, `data-hook-assignments="h-2"`)
+	third := strings.Index(body, `data-hook="h-3"`)
+	require.True(t, second >= 0 && detail >= 0 && third >= 0)
+	assert.Less(t, second, detail, "the detail follows its row")
+	assert.Less(t, detail, third, "and comes before the next hook")
+	assert.Equal(t, 1, strings.Count(body, `data-hook-assignments=`))
+	assert.Contains(t, body, "Where it runs")
+}
+
+// The form to add a place is open, since it is the main action of the detail; the test is folded until a result exists.
+func TestHookDetailKeepsTheMainActionOpenAndTheTestFolded(t *testing.T) {
+	t.Parallel()
+	detail := func(result *state.TestResult) state.Screen {
+		return state.Screen{Tab: state.TabLibrary, Selected: &state.HookDetail{HookID: "h-1", Name: "lint", Result: result}}
+	}
+
+	folded := renderIn(t, components.Screen(detail(nil)))
+	assert.Regexp(t, `<details[^>]* open[^>]*>\s*<summary[^>]*>Assign to a project`, folded)
+	assert.Regexp(t, `<details[^>]*data-hook-test-section>`, folded)
+	assert.NotRegexp(t, `<details[^>]*data-hook-test-section[^>]* open`, folded)
+
+	shown := renderIn(t, components.Screen(detail(&state.TestResult{Status: "ok", Output: "done"})))
+	assert.Regexp(t, `<details[^>]*data-hook-test-section[^>]* open`, shown)
+	assert.Contains(t, shown, "done")
+}
+
+// The run order is folded until a project is chosen, then it opens with its rows.
+func TestRunOrderIsFoldedUntilAProjectIsChosen(t *testing.T) {
+	t.Parallel()
+	closed := renderIn(t, components.Screen(state.Screen{Tab: state.TabLibrary, Group: &state.Group{Event: "task_start", Phase: "pre"}}))
+	assert.Regexp(t, `<details[^>]*data-hooks-group>`, closed)
+	assert.NotRegexp(t, `<details[^>]*data-hooks-group[^>]* open`, closed)
+
+	open := renderIn(t, components.Screen(state.Screen{Tab: state.TabLibrary, Group: &state.Group{Project: "ws-1", Event: "task_start", Phase: "pre"}}))
+	assert.Regexp(t, `<details[^>]*data-hooks-group[^>]* open`, open)
 }

@@ -33,13 +33,13 @@ templ Screen(view state.Screen) {
 
 // library is the list of hooks with the editor of one, the assignments of the selected hook and the run order panel.
 templ library(view state.Screen) {
-	<div class="stack gap-4" data-hooks-library>
+	<div class="stack gap-5" data-hooks-library>
 		if view.Editor != nil {
 			@editor(view)
 		}
-		<div class="stack gap-2">
+		<div class="stack gap-3">
 			<div class="row justify-between gap-2">
-				<span class="eyebrow">{ msgTitle.T(ctx) }</span>
+				<h2 class="text-base font-semibold text-fg">{ msgTitle.T(ctx) }</h2>
 				<button type="button" class="btn-primary" hx-get={ state.EditorPath() } hx-target={ hostTarget } hx-swap="outerHTML">{ msgNewHook.T(ctx) }</button>
 			</div>
 			if len(view.Hooks) == 0 {
@@ -47,11 +47,14 @@ templ library(view state.Screen) {
 			}
 			for _, row := range view.Hooks {
 				@hookRow(row)
+				if row.Selected && view.Selected != nil {
+					@assignments(view.Selected, view.Projects)
+				}
+			}
+			if view.Selected != nil && !hasSelectedRow(view) {
+				@assignments(view.Selected, view.Projects)
 			}
 		</div>
-		if view.Selected != nil {
-			@assignments(view.Selected, view.Projects)
-		}
 		if view.Group != nil {
 			@group(view.Group, view.Projects)
 		}
@@ -73,7 +76,7 @@ templ hookRow(row state.HookRow) {
 			<div class="row gap-2 shrink-0">
 				<button type="button" class="btn-ghost" hx-get={ state.HookPath(row.ID) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgOpen.T(ctx) }</button>
 				<button type="button" class="btn-ghost" hx-get={ state.EditorPath() } hx-vals={ hookVals(row.ID) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgEdit.T(ctx) }</button>
-				<button type="button" class="btn-danger" hx-post={ state.DeletePath(row.ID) } hx-confirm={ msgConfirmDel.T(ctx) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDelete.T(ctx) }</button>
+				<button type="button" class="btn-ghost" hx-post={ state.DeletePath(row.ID) } hx-confirm={ msgConfirmDel.T(ctx) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDelete.T(ctx) }</button>
 			</div>
 		</div>
 	</div>
@@ -232,21 +235,32 @@ templ agentFields(form *state.HookForm) {
 	@ui.TextField(ui.FieldProps{Label: msgProfile.T(ctx), Name: "profile", Value: form.Profile})
 }
 
-// assignments is the editor of the selected hook: its assignments, the form of a new one and the test of the hook.
+// assignments is the detail of the open hook, shown right under its row: where it runs, a form to add a place, and a
+// folded test. Adding a place is the main action, so its form is open; the test is secondary and folded until used.
 templ assignments(detail *state.HookDetail, projects []state.Choice) {
-	<section class="stack gap-3 rounded-xl border border-border/60 p-3" data-hook-assignments={ detail.HookID }>
-		<span class="eyebrow">{ msgOpen.T(ctx) } · { detail.Name }</span>
-		if len(detail.Assignments) == 0 {
-			<p class="muted text-sm">{ msgNoAssignments.T(ctx) }</p>
-		}
-		for _, row := range detail.Assignments {
-			@assignmentRow(detail.HookID, row)
-		}
+	<section class="stack gap-4 rounded-xl border border-border/60 bg-surface/40 p-4 md:ml-6" data-hook-assignments={ detail.HookID }>
+		<div class="stack gap-1">
+			<h3 class="text-sm font-semibold text-fg">{ msgWhereRuns.T(ctx) } · { detail.Name }</h3>
+			<p class="muted text-[11px]">{ msgWhereRunsHint.T(ctx) }</p>
+		</div>
+		<div class="stack gap-2">
+			if len(detail.Assignments) == 0 {
+				<p class="muted text-sm">{ msgNoAssignments.T(ctx) }</p>
+			}
+			for _, row := range detail.Assignments {
+				@assignmentRow(detail.HookID, row)
+			}
+		</div>
 		@assignForm(detail, projects)
-		@testForm(detail, projects)
-		if detail.Result != nil {
-			@testResult(detail.Result)
-		}
+		<details class="stack gap-3 rounded-lg border border-border/60 p-3" data-hook-test-section open?={ detail.Result != nil }>
+			<summary class="cursor-pointer text-sm font-semibold text-fg">{ msgRunTest.T(ctx) }</summary>
+			<div class="stack gap-3 pt-3">
+				@testForm(detail, projects)
+				if detail.Result != nil {
+					@testResult(detail.Result)
+				}
+			</div>
+		</details>
 	</section>
 }
 
@@ -275,37 +289,42 @@ templ assignmentRow(hookID string, row state.AssignmentRow) {
 			} else {
 				<button type="button" class="btn-ghost" hx-post={ state.AssignmentPath(hookID, row.Form.ID) } hx-vals={ assignmentVals(row.Form, true) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgEnable.T(ctx) }</button>
 			}
-			<button type="button" class="btn-danger" hx-post={ state.AssignmentDeletePath(hookID, row.Form.ID) } hx-confirm={ msgConfirmDelAssign.T(ctx) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDelete.T(ctx) }</button>
+			<button type="button" class="btn-ghost" hx-post={ state.AssignmentDeletePath(hookID, row.Form.ID) } hx-confirm={ msgConfirmDelAssign.T(ctx) } hx-target={ hostTarget } hx-swap="outerHTML">{ msgDelete.T(ctx) }</button>
 		</div>
 	</div>
 }
 
 // assignForm adds the hook to a project, event and moment. A repeated one is refused by the use case.
 templ assignForm(detail *state.HookDetail, projects []state.Choice) {
-	<form class="stack gap-2" hx-post={ state.AssignmentsPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" data-assignment-form>
-		<span class="text-sm font-semibold">{ msgAddAssignment.T(ctx) }</span>
-		@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: detail.Add.Project, Placeholder: msgProjectChoose.T(ctx), Required: true, Options: choiceOptions(projects)})
-		@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: detail.Add.Event, Options: eventOptions(ctx)})
-		@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: detail.Add.Phase, Options: phaseOptions(ctx)})
-		@ui.SelectField(ui.SelectFieldProps{Label: msgOnFailure.T(ctx), Name: "on_failure", Value: detail.Add.OnFailure, Options: failureOptions(ctx)})
-		<label class="row gap-2">
-			<input type="checkbox" name="enabled" value="on" checked?={ detail.Add.Enabled }/>
-			<span class="text-sm">{ msgEnabledLabel.T(ctx) }</span>
-		</label>
-		<div class="row">
-			<button type="submit" class="btn-primary">{ msgAssignAdd.T(ctx) }</button>
-		</div>
-	</form>
+	<details class="stack gap-3 rounded-lg border border-border/60 p-3" open>
+		<summary class="cursor-pointer text-sm font-semibold text-fg">{ msgAddAssignment.T(ctx) }</summary>
+		<form class="stack gap-3 pt-3" hx-post={ state.AssignmentsPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" data-assignment-form>
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+				@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: detail.Add.Project, Placeholder: msgProjectChoose.T(ctx), Required: true, Options: choiceOptions(projects)})
+				@ui.SelectField(ui.SelectFieldProps{Label: msgOnFailure.T(ctx), Name: "on_failure", Value: detail.Add.OnFailure, Options: failureOptions(ctx)})
+				@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: detail.Add.Event, Options: eventOptions(ctx)})
+				@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: detail.Add.Phase, Options: phaseOptions(ctx)})
+			</div>
+			<div class="row justify-between gap-3 flex-wrap">
+				<label class="row gap-2">
+					<input type="checkbox" name="enabled" value="on" checked?={ detail.Add.Enabled }/>
+					<span class="text-sm">{ msgEnabledLabel.T(ctx) }</span>
+				</label>
+				<button type="submit" class="btn-primary">{ msgAssignAdd.T(ctx) }</button>
+			</div>
+		</form>
+	</details>
 }
 
 // testForm runs the hook once, as if it were assigned to the chosen project, event and moment.
 templ testForm(detail *state.HookDetail, projects []state.Choice) {
-	<form class="stack gap-2" hx-post={ state.TestPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" hx-disabled-elt="find button" data-hook-test-form>
-		<span class="text-sm font-semibold">{ msgRunTest.T(ctx) }</span>
-		<span class="text-[11px] text-muted">{ msgTestHint.T(ctx) }</span>
-		@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: detail.Test.Project, Placeholder: msgProjectChoose.T(ctx), Required: true, Options: choiceOptions(projects)})
-		@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: detail.Test.Event, Options: eventOptions(ctx)})
-		@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: detail.Test.Phase, Options: phaseOptions(ctx)})
+	<form class="stack gap-3" hx-post={ state.TestPath(detail.HookID) } hx-target={ hostTarget } hx-swap="outerHTML" hx-disabled-elt="find button" data-hook-test-form>
+		<p class="muted text-[11px]">{ msgTestHint.T(ctx) }</p>
+		<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+			@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: detail.Test.Project, Placeholder: msgProjectChoose.T(ctx), Required: true, Options: choiceOptions(projects)})
+			@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: detail.Test.Event, Options: eventOptions(ctx)})
+			@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: detail.Test.Phase, Options: phaseOptions(ctx)})
+		</div>
 		<div class="row">
 			<button type="submit" class="btn-secondary">{ msgTest.T(ctx) }</button>
 		</div>
@@ -322,24 +341,27 @@ templ testResult(result *state.TestResult) {
 	</div>
 }
 
-// group is the run order of one project, event and moment. The moves submit the whole order of the group.
+// group is the run order of one project, event and moment. It is folded until a project is chosen. The moves submit the
+// whole order of the group.
 templ group(group *state.Group, projects []state.Choice) {
-	<section class="stack gap-2 rounded-xl border border-border/60 p-3" data-hooks-group>
-		<span class="eyebrow">{ msgOrderTitle.T(ctx) }</span>
-		<p class="muted text-[11px]">{ msgOrderHint.T(ctx) }</p>
-		<form class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end" hx-get={ state.GroupPath() } hx-target={ hostTarget } hx-swap="outerHTML">
-			@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: group.Project, Placeholder: msgProjectChoose.T(ctx), Options: choiceOptions(projects)})
-			@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: group.Event, Options: eventOptions(ctx)})
-			@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: group.Phase, Options: phaseOptions(ctx)})
-			<button type="submit" class="btn-secondary">{ msgShow.T(ctx) }</button>
-		</form>
-		if group.Project != "" && len(group.Rows) == 0 {
-			<p class="muted text-sm">{ msgNoGroup.T(ctx) }</p>
-		}
-		for _, row := range group.Rows {
-			@groupRow(*group, row)
-		}
-	</section>
+	<details class="stack gap-3 rounded-xl border border-border/60 p-4" data-hooks-group open?={ group.Project != "" }>
+		<summary class="cursor-pointer text-base font-semibold text-fg">{ msgOrderTitle.T(ctx) }</summary>
+		<div class="stack gap-3 pt-3">
+			<p class="muted text-[11px]">{ msgOrderHint.T(ctx) }</p>
+			<form class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[repeat(3,minmax(0,1fr))_auto] lg:items-end" hx-get={ state.GroupPath() } hx-target={ hostTarget } hx-swap="outerHTML">
+				@ui.SelectField(ui.SelectFieldProps{Label: msgProjectLabel.T(ctx), Name: "project", Value: group.Project, Placeholder: msgProjectChoose.T(ctx), Options: choiceOptions(projects)})
+				@ui.SelectField(ui.SelectFieldProps{Label: msgEventLabel.T(ctx), Name: "event", Value: group.Event, Options: eventOptions(ctx)})
+				@ui.SelectField(ui.SelectFieldProps{Label: msgPhaseLabel.T(ctx), Name: "phase", Value: group.Phase, Options: phaseOptions(ctx)})
+				<button type="submit" class="btn-secondary">{ msgShow.T(ctx) }</button>
+			</form>
+			if group.Project != "" && len(group.Rows) == 0 {
+				<p class="muted text-sm">{ msgNoGroup.T(ctx) }</p>
+			}
+			for _, row := range group.Rows {
+				@groupRow(*group, row)
+			}
+		</div>
+	</details>
 }
 
 templ groupRow(group state.Group, row state.GroupRow) {

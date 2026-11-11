@@ -69,3 +69,14 @@ func advancedOpen(view state.Screen) bool {
 	browsing := view.Browser != nil && view.Browser.Field == "working_dir"
 	return editor.Args != "" || editor.Env != "" || editor.WorkingDir != "" || browsing
 }
+
+// hasSelectedRow reports whether the open hook has its row in the list, where its detail is shown. Without it the
+// detail still shows, after the list, so it is never lost.
+func hasSelectedRow(view state.Screen) bool {
+	for _, row := range view.Hooks {
+		if row.Selected {
+			return true
+		}
+	}
+	return false
+}
