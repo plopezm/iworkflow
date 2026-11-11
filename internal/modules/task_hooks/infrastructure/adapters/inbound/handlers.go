@@ -1,7 +1,6 @@
-// Package inbound holds the HTTP adapter of the task_hooks module: the Hooks tab of a workspace and the htmx endpoints
-// that change it. Every response is the tab with status 200; the outcome of an action, a rejected hook included, is
-// rendered inside it. A malformed form is the only 400. The tab is one fragment whether or not the request came from
-// htmx: the dock loads it as a page and the actions swap it in place.
+// Package inbound holds the HTTP adapter of the task_hooks module: the Hooks screen and the htmx endpoints that change it.
+// Every response is the screen with status 200; the outcome of an action, a rejected hook included, is rendered inside
+// it. A malformed form is the only 400. The screen is a dock tab (Page) and each action replaces it in place.
 //
 //nolint:contextcheck // templ components receive the request context at Render time; the linter cannot see through the closures
 package inbound
@@ -17,7 +16,6 @@ import (
 	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
 
-	"iworkflow/internal/core/dock"
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/task_hooks/application"
 	hookerrors "iworkflow/internal/modules/task_hooks/domain/errors"
@@ -27,18 +25,28 @@ import (
 	"iworkflow/internal/modules/task_hooks/presentation/state"
 )
 
+// runLimit bounds the run history: the newest runs that match the filter.
+const runLimit = 200
+
+// hookParam is the query key of the editor that opens a stored hook.
+const hookParam = "hook"
+
 // UseCases are the use cases the handlers call.
 type UseCases struct {
-	List       *application.ListHooks
-	Save       *application.SaveHook
-	Delete     *application.DeleteHook
-	Reorder    *application.ReorderHooks
-	SetEnabled *application.SetHookEnabled
-	Test       *application.TestHook
-	Browse     *application.BrowsePath
+	List             *application.ListHooks
+	Projects         *application.ListProjects
+	Save             *application.SaveHook
+	Delete           *application.DeleteHook
+	SaveAssignment   *application.SaveAssignment
+	DeleteAssignment *application.DeleteAssignment
+	Reorder          *application.ReorderAssignments
+	Assignments      *application.ListWorkspaceAssignments
+	Runs             *application.ListRuns
+	Test             *application.TestHook
+	Browse           *application.BrowsePath
 }
 
-// Handlers serves the Hooks tab and its actions.
+// Handlers serves the Hooks screen and its actions.
 type Handlers struct {
 	uc UseCases
 }
@@ -46,70 +54,210 @@ type Handlers struct {
 // NewHandlers builds the handlers over the use cases.
 func NewHandlers(uc UseCases) *Handlers { return &Handlers{uc: uc} }
 
-// Mount registers the endpoints. The tab itself is a dock route (Tab), so its address is not mounted here.
+// Mount registers the endpoints. The screen itself is a dock tab (Page), so its address is not mounted here.
 //
-//	GET  /workspaces/{id}/hooks/panel             the tab without the editor
-//	GET  /workspaces/{id}/hooks/editor            the editor: a new hook, a stored one (?hook=) or a changed kind
-//	POST /workspaces/{id}/hooks                   save the editor form (create, or edit when it carries an id)
-//	POST /workspaces/{id}/hooks/reorder           set the whole order of the hooks
-//	POST /workspaces/{id}/hooks/{hook}/enabled    enable the hook when the form carries enabled, disable it otherwise
-//	POST /workspaces/{id}/hooks/{hook}/delete     delete the hook
-//	POST /workspaces/{id}/hooks/{hook}/test       run the hook once as a test and show the outcome in its row
+//	GET  /hooks/library                                     the library tab
+//	GET  /hooks/history                                     the run history, filtered by its query
+//	GET  /hooks/group                                       the run order of a project, event and moment (query)
+//	GET  /hooks/editor                                      the editor: a new hook, a stored one (?hook=) or a changed kind
+//	GET  /hooks/{hook}                                      the library with the assignments of the hook open
+//	POST /hooks                                             save the editor form (create, or edit when it carries an id)
+//	POST /hooks/order                                       set the order of a group
+//	POST /hooks/{hook}/delete                               delete the hook with its assignments
+//	POST /hooks/{hook}/test                                 run the hook once for a project, event and moment
+//	POST /hooks/{hook}/assignments                          assign the hook to a project, event and moment
+//	POST /hooks/{hook}/assignments/{assignment}             save a stored assignment (the toggle posts it)
+//	POST /hooks/{hook}/assignments/{assignment}/delete      remove an assignment
 func (h *Handlers) Mount(r chi.Router) {
-	r.Get("/workspaces/{id}/hooks/panel", h.panel)
-	r.Get("/workspaces/{id}/hooks/editor", h.editor)
-	r.Post("/workspaces/{id}/hooks", h.save)
-	r.Post("/workspaces/{id}/hooks/reorder", h.reorder)
-	r.Post("/workspaces/{id}/hooks/{hook}/enabled", h.setEnabled)
-	r.Post("/workspaces/{id}/hooks/{hook}/delete", h.remove)
-	r.Post("/workspaces/{id}/hooks/{hook}/test", h.test)
+	r.Get("/hooks/library", h.library)
+	r.Get("/hooks/history", h.historyTab)
+	r.Get("/hooks/group", h.groupTab)
+	r.Get("/hooks/editor", h.editor)
+	r.Get("/hooks/{hook}", h.open)
+	r.Post("/hooks", h.save)
+	r.Post("/hooks/order", h.reorder)
+	r.Post("/hooks/{hook}/delete", h.remove)
+	r.Post("/hooks/{hook}/test", h.test)
+	r.Post("/hooks/{hook}/assignments", h.addAssignment)
+	r.Post("/hooks/{hook}/assignments/{assignment}", h.saveAssignment)
+	r.Post("/hooks/{hook}/assignments/{assignment}/delete", h.removeAssignment)
 }
 
-// Tab renders the Hooks tab of the workspace of the route.
-func (h *Handlers) Tab(ctx context.Context, params dock.Params) templ.Component {
-	return hookcomponents.Panel(h.load(ctx, params["id"], state.View{}, nil))
+// Page renders the Hooks screen as a dock tab: the library, with nothing open.
+func (h *Handlers) Page(ctx context.Context) templ.Component {
+	return hookcomponents.Screen(h.load(ctx, screenOptions{tab: state.TabLibrary}))
 }
 
-// NewTab renders the Hooks tab of the workspace with the editor of a new hook already open.
-func (h *Handlers) NewTab(ctx context.Context, params dock.Params) templ.Component {
-	form := defaultForm("", "")
-	return hookcomponents.Panel(h.load(ctx, params["id"], state.View{Editor: &form}, nil))
+// screenOptions is what an answer shows: the tab, the outcome of the action, what is open and the forms as they were
+// submitted, so a rejected form keeps what the user typed.
+type screenOptions struct {
+	tab      state.Tab
+	notice   state.Notice
+	failure  string
+	editor   *state.HookForm
+	browser  *state.Browser
+	selected string
+	add      *state.AssignmentForm
+	test     *state.AssignmentForm
+	result   *state.TestResult
+	group    dto.Group
+	history  dto.History
 }
 
-func (h *Handlers) panel(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, h.load(r.Context(), chi.URLParam(r, "id"), state.View{}, nil))
+// load builds the screen. A failure to read the library is shown in the screen, which then has no rows; a failure to
+// read one section leaves the other sections in place.
+func (h *Handlers) load(ctx context.Context, opts screenOptions) state.Screen {
+	tab := opts.tab
+	if tab == "" {
+		tab = state.TabLibrary
+	}
+	screen := state.Screen{Tab: tab, Notice: opts.notice, Failure: opts.failure, Editor: opts.editor, Browser: opts.browser}
+	projects, err := h.uc.Projects.Execute(ctx)
+	if err != nil {
+		screen.Failure = firstFailure(screen.Failure, err)
+	}
+	names := projectNames(projects)
+	screen.Projects = projectChoices(projects)
+	items, err := h.uc.List.Execute(ctx)
+	if err != nil {
+		screen.Failure = firstFailure(screen.Failure, err)
+		return screen
+	}
+	screen.Hooks = hookRows(items, opts.selected)
+	if opts.selected != "" {
+		screen.Selected, err = h.detail(opts, items, names)
+		if err != nil {
+			screen.Failure = firstFailure(screen.Failure, err)
+		}
+	}
+	screen.Group = h.groupOf(ctx, opts.group, projects, &screen)
+	if tab == state.TabHistory {
+		screen.History = h.historyOf(ctx, opts.history, items, projects, names, &screen)
+	}
+	return screen
 }
 
-// editor opens the editor. Without a kind in the query it starts from the stored hook (?hook=) or from a default
-// new hook of the group (?event=&phase=). With a kind, the query is the form as the user left it, so a change of kind
-// keeps what was typed.
+// detail is the assignment editor of the selected hook. An unknown hook is hookerrors.ErrHookNotFound.
+func (h *Handlers) detail(opts screenOptions, items []application.HookListItem, names map[string]string) (*state.HookDetail, error) {
+	for _, item := range items {
+		if item.Hook.ID() != opts.selected {
+			continue
+		}
+		add := defaultAssignmentForm("")
+		if opts.add != nil {
+			add = *opts.add
+		}
+		test := defaultAssignmentForm("")
+		if opts.test != nil {
+			test = *opts.test
+		}
+		return hookDetail(item, names, add, test, opts.result), nil
+	}
+	return nil, hookerrors.ErrHookNotFound
+}
+
+// groupOf is the run order panel. Without a project chosen it shows the first project; without an event or a moment it
+// shows the first of each.
+func (h *Handlers) groupOf(ctx context.Context, requested dto.Group, projects []application.ProjectOption, screen *state.Screen) *state.Group {
+	group := requested
+	if group.Project == "" && len(projects) > 0 {
+		group.Project = projects[0].ID
+	}
+	if group.Event == "" {
+		group.Event = models.EventTaskStart
+	}
+	if group.Phase == "" {
+		group.Phase = models.PhasePre
+	}
+	out := &state.Group{Project: group.Project, Event: string(group.Event), Phase: string(group.Phase)}
+	if group.Project == "" {
+		return out
+	}
+	assigned, err := h.uc.Assignments.Execute(ctx, group.Project)
+	if err != nil {
+		screen.Failure = firstFailure(screen.Failure, err)
+		return out
+	}
+	out.Rows = groupRows(assigned, group)
+	return out
+}
+
+// historyOf is the run history with its filter. A failure to read it is shown in the screen and the history has no runs.
+func (h *Handlers) historyOf(ctx context.Context, filter dto.History, items []application.HookListItem, projects []application.ProjectOption, names map[string]string, screen *state.Screen) *state.History {
+	out := &state.History{
+		Failed:    filter.Failed,
+		HookID:    filter.HookID,
+		ProjectID: filter.ProjectID,
+		Hooks:     hookChoices(items),
+		Projects:  projectChoices(projects),
+	}
+	runs, err := h.uc.Runs.Execute(ctx, filter.RunFilter(runLimit))
+	if err != nil {
+		screen.Failure = firstFailure(screen.Failure, err)
+		return out
+	}
+	out.Runs = runRows(runs, names)
+	return out
+}
+
+// firstFailure keeps the first failure of the screen: the one that explains the most.
+func firstFailure(current string, err error) string {
+	if current != "" {
+		return current
+	}
+	return err.Error()
+}
+
+// library is the library tab. The run order panel shows the project the request names.
+func (h *Handlers) library(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabLibrary}))
+}
+
+// historyTab is the run history, filtered by its query. Failed-only is on until an applied filter turns it off.
+func (h *Handlers) historyTab(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabHistory, history: dto.HistoryFromQuery(r.URL.Query())}))
+}
+
+// groupTab shows the run order of the project, event and moment the query names.
+func (h *Handlers) groupTab(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabLibrary, group: dto.GroupFromForm(r.URL.Query())}))
+}
+
+// open shows the library with the assignments of one hook open.
+func (h *Handlers) open(w http.ResponseWriter, r *http.Request) {
+	h.render(w, r, h.load(r.Context(), screenOptions{tab: state.TabLibrary, selected: chi.URLParam(r, "hook")}))
+}
+
+// editor opens the editor. Without a kind in the query it starts from the stored hook (?hook=) or from a new one. With a
+// kind, the query is the form as the user left it, so a change of kind keeps what was typed.
 func (h *Handlers) editor(w http.ResponseWriter, r *http.Request) {
-	workspaceID := chi.URLParam(r, "id")
 	ctx := r.Context()
 	query := r.URL.Query()
-	var view state.View
+	opts := screenOptions{tab: state.TabLibrary}
+	var form state.HookForm
 	switch {
 	case query.Has(dto.FieldKind):
-		form := formFromValues(query)
-		view = h.load(ctx, workspaceID, state.View{Editor: &form, Browser: h.browser(ctx, workspaceID, &form, query)}, nil)
-	case query.Get("hook") != "":
-		hook, err := h.findHook(ctx, workspaceID, query.Get("hook"))
+		form = hookFormFromValues(query)
+		opts.browser = h.browser(ctx, &form, query)
+	case query.Get(hookParam) != "":
+		form = defaultHookForm()
+		hook, err := h.findHook(ctx, query.Get(hookParam))
 		if err != nil {
-			view = h.load(ctx, workspaceID, state.View{Failure: err.Error()}, nil)
-			break
+			opts.failure = err.Error()
+		} else {
+			form = hookFormFromHook(hook)
 		}
-		form := formFromHook(hook)
-		view = h.load(ctx, workspaceID, state.View{Editor: &form}, nil)
 	default:
-		form := defaultForm(query.Get(dto.FieldEvent), query.Get(dto.FieldPhase))
-		view = h.load(ctx, workspaceID, state.View{Editor: &form}, nil)
+		form = defaultHookForm()
 	}
-	h.render(w, r, view)
+	opts.editor = &form
+	h.render(w, r, h.load(ctx, opts))
 }
 
 // browser applies a chosen path to the field being browsed, or lists the folder to show. It is nil when the request
-// does not browse. A folder that cannot be listed is shown as the error of the browser, not of the tab.
-func (h *Handlers) browser(ctx context.Context, workspaceID string, form *state.HookForm, query url.Values) *state.Browser {
+// does not browse. The folder is relative to the project the browser starts from. A folder that cannot be listed is
+// shown as the error of the browser, not of the screen.
+func (h *Handlers) browser(ctx context.Context, form *state.HookForm, query url.Values) *state.Browser {
 	field := query.Get(state.BrowseField)
 	var current *string
 	switch field {
@@ -132,7 +280,7 @@ func (h *Handlers) browser(ctx context.Context, workspaceID string, form *state.
 		start = *current
 	}
 	browser := &state.Browser{Field: field, Files: field == dto.FieldCommand}
-	listing, err := h.uc.Browse.Execute(ctx, application.BrowsePathInput{WorkspaceID: workspaceID, Path: start})
+	listing, err := h.uc.Browse.Execute(ctx, application.BrowsePathInput{WorkspaceID: form.BrowseProject, Path: start})
 	if err != nil {
 		browser.Path = start
 		browser.Error = err.Error()
@@ -147,124 +295,143 @@ func (h *Handlers) browser(ctx context.Context, workspaceID string, form *state.
 	return browser
 }
 
+// save creates a hook, or edits the one the form names.
 func (h *Handlers) save(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
 	ctx := r.Context()
-	workspaceID := chi.URLParam(r, "id")
-	input, err := dto.SaveHookFromForm(r.PostForm, workspaceID)
-	notice := state.NoticeSaved
+	input, err := dto.SaveHookFromForm(r.PostForm)
+	notice := state.NoticeHookSaved
 	if err == nil {
 		if input.ID != "" {
-			notice = state.NoticeUpdated
+			notice = state.NoticeHookUpdated
 		}
 		_, err = h.uc.Save.Execute(ctx, input)
 	}
 	if err != nil {
 		// The editor stays open with the values as typed, so the user corrects them instead of typing them again.
-		form := formFromValues(r.PostForm)
-		h.render(w, r, h.load(ctx, workspaceID, state.View{Editor: &form, Failure: err.Error()}, nil))
+		form := hookFormFromValues(r.PostForm)
+		h.render(w, r, h.load(ctx, screenOptions{tab: state.TabLibrary, editor: &form, failure: err.Error()}))
 		return
 	}
-	h.render(w, r, h.load(ctx, workspaceID, state.View{Notice: notice}, nil))
+	h.render(w, r, h.load(ctx, screenOptions{tab: state.TabLibrary, notice: notice}))
 }
 
+// reorder sets the whole order of one project, event and moment. The order must name each of its assignments once.
 func (h *Handlers) reorder(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
 	ctx := r.Context()
-	workspaceID := chi.URLParam(r, "id")
-	view := state.View{Notice: state.NoticeReordered}
-	if err := h.uc.Reorder.Execute(ctx, workspaceID, dto.ReorderFromForm(r.PostForm)); err != nil {
-		view = state.View{Failure: err.Error()}
+	group := dto.GroupFromForm(r.PostForm)
+	opts := screenOptions{tab: state.TabLibrary, notice: state.NoticeOrdered, group: group}
+	if err := h.uc.Reorder.Execute(ctx, group.Project, group.Event, group.Phase, dto.ReorderFromForm(r.PostForm)); err != nil {
+		opts.notice = state.NoticeNone
+		opts.failure = err.Error()
 	}
-	h.render(w, r, h.load(ctx, workspaceID, view, nil))
+	h.render(w, r, h.load(ctx, opts))
 }
 
-func (h *Handlers) setEnabled(w http.ResponseWriter, r *http.Request) {
+// remove deletes a hook with its assignments. Its run records stay in the history.
+func (h *Handlers) remove(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	opts := screenOptions{tab: state.TabLibrary, notice: state.NoticeHookDeleted}
+	if err := h.uc.Delete.Execute(ctx, chi.URLParam(r, "hook")); err != nil {
+		opts.notice = state.NoticeNone
+		opts.failure = err.Error()
+	}
+	h.render(w, r, h.load(ctx, opts))
+}
+
+// test runs the hook once for the project, event and moment of the form. A run that could not start is shown with its
+// reason. Any other refusal (an unknown hook, an unknown project) is the failure of the screen.
+func (h *Handlers) test(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
 	ctx := r.Context()
-	workspaceID := chi.URLParam(r, "id")
-	view := state.View{Notice: state.NoticeUpdated}
-	if err := h.uc.SetEnabled.Execute(ctx, application.SetHookEnabledInput{
-		WorkspaceID: workspaceID, HookID: chi.URLParam(r, "hook"), Enabled: r.PostForm.Has(dto.FieldEnabled),
-	}); err != nil {
-		view = state.View{Failure: err.Error()}
-	}
-	h.render(w, r, h.load(ctx, workspaceID, view, nil))
-}
-
-func (h *Handlers) remove(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspaceID := chi.URLParam(r, "id")
-	view := state.View{Notice: state.NoticeDeleted}
-	if err := h.uc.Delete.Execute(ctx, workspaceID, chi.URLParam(r, "hook")); err != nil {
-		view = state.View{Failure: err.Error()}
-	}
-	h.render(w, r, h.load(ctx, workspaceID, view, nil))
-}
-
-// test runs the hook once. A run that could not start is shown in the row with its reason. Any other refusal (an
-// unknown hook, a hook of another workspace, a failed read) is the failure of the tab, shown inline: the tab keeps its
-// hooks and its sections, so the user does not lose the list while the failure is on screen.
-func (h *Handlers) test(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspaceID := chi.URLParam(r, "id")
 	hookID := chi.URLParam(r, "hook")
-	outcome, err := h.uc.Test.Execute(ctx, application.TestHookInput{WorkspaceID: workspaceID, HookID: hookID})
-	var view state.View
+	chosen := assignmentFormFromValues(r.PostForm)
+	opts := screenOptions{tab: state.TabLibrary, selected: hookID, test: &chosen}
+	outcome, err := h.uc.Test.Execute(ctx, dto.TestHookFromForm(r.PostForm, hookID))
 	switch {
 	case errors.Is(err, hookerrors.ErrRunNotStarted):
-		view = h.load(ctx, workspaceID, state.View{}, &testReport{hookID: hookID, result: state.TestResult{
-			Status: state.ResultError, ExitCode: -1, Failure: err.Error(),
-		}})
+		opts.result = &state.TestResult{Status: state.ResultError, ExitCode: -1, Failure: err.Error()}
 	case err != nil:
-		view = h.load(ctx, workspaceID, state.View{Failure: err.Error()}, nil)
+		opts.failure = err.Error()
 	default:
-		view = h.load(ctx, workspaceID, state.View{}, &testReport{hookID: hookID, result: state.TestResult{
-			Status: resultStatus(outcome.Status), ExitCode: outcome.ExitCode, Output: outcome.Output,
-		}})
+		opts.result = &state.TestResult{Status: resultStatus(outcome.Status), ExitCode: outcome.ExitCode, Output: outcome.Output}
 	}
-	h.render(w, r, view)
+	h.render(w, r, h.load(ctx, opts))
 }
 
-// load fills the view with the hooks of the workspace in position order and the outcome of a test. A failure to read
-// the hooks is shown in the tab, which then has no sections.
-func (h *Handlers) load(ctx context.Context, workspaceID string, view state.View, report *testReport) state.View {
-	view.WorkspaceID = workspaceID
-	hooks, err := h.uc.List.Execute(ctx, workspaceID)
-	if err != nil {
-		if view.Failure == "" {
-			view.Failure = err.Error()
-		}
-		return view
+// addAssignment assigns the hook to a project, event and moment. A repeated one is refused by the use case.
+func (h *Handlers) addAssignment(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
 	}
-	view.Sections = sections(workspaceID, hooks, report)
-	return view
+	ctx := r.Context()
+	hookID := chi.URLParam(r, "hook")
+	chosen := assignmentFormFromValues(r.PostForm)
+	opts := screenOptions{tab: state.TabLibrary, selected: hookID, notice: state.NoticeAssigned}
+	if _, err := h.uc.SaveAssignment.Execute(ctx, dto.SaveAssignmentFromForm(r.PostForm, hookID)); err != nil {
+		opts.notice = state.NoticeNone
+		opts.failure = err.Error()
+		opts.add = &chosen
+	}
+	h.render(w, r, h.load(ctx, opts))
 }
 
-// findHook returns the stored hook of the workspace with the id. An unknown id is ErrHookNotFound.
-func (h *Handlers) findHook(ctx context.Context, workspaceID string, hookID string) (models.Hook, error) {
-	hooks, err := h.uc.List.Execute(ctx, workspaceID)
+// saveAssignment saves a stored assignment. The toggle posts its values with the new enabled flag.
+func (h *Handlers) saveAssignment(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	ctx := r.Context()
+	hookID := chi.URLParam(r, "hook")
+	input := dto.SaveAssignmentFromForm(r.PostForm, hookID)
+	input.ID = chi.URLParam(r, "assignment")
+	opts := screenOptions{tab: state.TabLibrary, selected: hookID, notice: state.NoticeAssignmentUpdated}
+	if _, err := h.uc.SaveAssignment.Execute(ctx, input); err != nil {
+		opts.notice = state.NoticeNone
+		opts.failure = err.Error()
+	}
+	h.render(w, r, h.load(ctx, opts))
+}
+
+// removeAssignment detaches the hook from a project, event and moment. The hook stays in the library.
+func (h *Handlers) removeAssignment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	hookID := chi.URLParam(r, "hook")
+	opts := screenOptions{tab: state.TabLibrary, selected: hookID, notice: state.NoticeAssignmentDeleted}
+	if err := h.uc.DeleteAssignment.Execute(ctx, chi.URLParam(r, "assignment")); err != nil {
+		opts.notice = state.NoticeNone
+		opts.failure = err.Error()
+	}
+	h.render(w, r, h.load(ctx, opts))
+}
+
+// findHook returns the stored hook with the id. An unknown id is hookerrors.ErrHookNotFound.
+func (h *Handlers) findHook(ctx context.Context, hookID string) (models.Hook, error) {
+	items, err := h.uc.List.Execute(ctx)
 	if err != nil {
 		return models.Hook{}, fmt.Errorf("find hook: %w", err)
 	}
-	for _, hook := range hooks {
-		if hook.ID() == hookID {
-			return hook, nil
+	for _, item := range items {
+		if item.Hook.ID() == hookID {
+			return item.Hook, nil
 		}
 	}
 	return models.Hook{}, hookerrors.ErrHookNotFound
 }
 
-// render answers the tab. The fragment carries its own status, so the response is always 200.
-func (h *Handlers) render(w http.ResponseWriter, r *http.Request, view state.View) {
-	web.Render(w, r, http.StatusOK, hookcomponents.Panel(view))
+// render answers the screen. The fragment carries its own outcome, so the response is always 200.
+func (h *Handlers) render(w http.ResponseWriter, r *http.Request, view state.Screen) {
+	web.Render(w, r, http.StatusOK, hookcomponents.Screen(view))
 }
