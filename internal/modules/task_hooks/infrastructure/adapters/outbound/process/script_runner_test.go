@@ -156,6 +156,60 @@ func TestExistingFileWithSpacesRunsDirectly(t *testing.T) {
 	}
 }
 
+// A command line that ends in an operator or a comment cannot take the extra parameters at its end without changing
+// what it runs, so it is refused before anything starts, and nothing of it runs.
+func TestCommandLineEndingInATerminatorIsRefusedWithParameters(t *testing.T) {
+	cases := map[string]string{
+		"background": "touch %s &",
+		"semicolon":  "touch %s;",
+		"pipe":       "touch %s |",
+		"and":        "touch %s &&",
+		"comment":    "touch %s # note",
+		"newline":    "touch %s\necho done",
+		"backslash":  "touch %s \\",
+	}
+	for name, template := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			marker := filepath.Join(dir, "marker")
+			command := strings.Replace(template, "%s", marker, 1)
+			hook := newHook(t, models.ScriptSpec{Command: command, Args: []string{"extra"}}, time.Minute)
+
+			_, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(dir))
+
+			require.ErrorIs(t, err, hookerrors.ErrRunNotStarted)
+			assert.Contains(t, err.Error(), `"$@"`)
+			assert.NoFileExists(t, marker)
+		})
+	}
+}
+
+// Without parameters nothing is appended, so the same command lines run as written.
+func TestCommandLineEndingInATerminatorRunsWithoutParameters(t *testing.T) {
+	cases := map[string]string{
+		"comment":    "echo hi # note",
+		"background": "echo hi &",
+		"semicolon":  "echo hi;",
+	}
+	for name, command := range cases {
+		t.Run(name, func(t *testing.T) {
+			hook := newHook(t, models.ScriptSpec{Command: command}, time.Minute)
+			out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+			require.NoError(t, err)
+			assert.Equal(t, models.RunOK, out.Status)
+			assert.Contains(t, out.Output, "hi")
+		})
+	}
+}
+
+// A line that places the parameters itself is never refused, whatever it ends with.
+func TestCommandLineThatPlacesTheParametersItselfIsNeverRefused(t *testing.T) {
+	hook := newHook(t, models.ScriptSpec{Command: `echo "$@" # note`, Args: []string{"abc"}}, time.Minute)
+	out, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
+	require.NoError(t, err)
+	assert.Equal(t, "abc", strings.TrimSpace(out.Output))
+}
+
 func TestNotStartedErrors(t *testing.T) {
 	runner := process.NewScriptRunner()
 	cases := map[string]struct {
