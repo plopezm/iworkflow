@@ -20,8 +20,7 @@ import (
 func newHook(t *testing.T, spec models.ScriptSpec, timeout time.Duration) models.Hook {
 	t.Helper()
 	hook, err := models.NewHook(models.HookParams{
-		ID: "h", WorkspaceID: "w", Phase: models.PhasePost, Event: models.EventTaskFinish, Kind: models.KindScript,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: timeout, Script: spec,
+		ID: "h", Name: "hook", Kind: models.KindScript, Timeout: timeout, Script: spec,
 	})
 	require.NoError(t, err)
 	return hook
