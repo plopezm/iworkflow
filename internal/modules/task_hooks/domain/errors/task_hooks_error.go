@@ -9,6 +9,8 @@ var (
 	ErrInvalidHook = errors.New("invalid hook")
 	// ErrHookNotFound means no hook has the requested id.
 	ErrHookNotFound = errors.New("hook not found")
+	// ErrAssignmentNotFound means no assignment has the requested id.
+	ErrAssignmentNotFound = errors.New("hook assignment not found")
 	// ErrRepository means the storage failed.
 	ErrRepository = errors.New("hook storage failed")
 )
