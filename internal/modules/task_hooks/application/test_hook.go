@@ -12,15 +12,18 @@ import (
 // testTaskName is the title, branch and id the synthetic task of a test carries. A test has no task of its own.
 const testTaskName = "test"
 
-// TestHookInput names the hook to try. The test runs it in the workspace it belongs to.
+// TestHookInput names the hook to try and the workspace it runs in, with the event and phase it pretends to be
+// attached to.
 type TestHookInput struct {
 	WorkspaceID string
 	HookID      string
+	Event       models.Event
+	Phase       models.Phase
 }
 
 // TestHook runs one hook on request, as a dry run before it is enabled. It runs in the workspace directory with a
 // synthetic task, and it writes nothing: there is no run record and no task involved. The hook runs even when it
-// is disabled, and the outcome is returned as it is, failures included.
+// is not assigned, and the outcome is returned as it is, failures included.
 type TestHook struct {
 	hooks      outbound.HookRepository
 	workspaces outbound.WorkspaceLookup
@@ -33,15 +36,15 @@ func NewTestHook(hooks outbound.HookRepository, workspaces outbound.WorkspaceLoo
 	return &TestHook{hooks: hooks, workspaces: workspaces, scripts: scripts, agents: agents}
 }
 
-// Execute runs the hook and returns its outcome. An unknown hook is ErrHookNotFound, a hook of another workspace
+// Execute runs the hook and returns its outcome. An unknown hook is ErrHookNotFound, a missing event or phase
 // is ErrInvalidHook, and a run that could not be attempted is an error that wraps the cause.
 func (u *TestHook) Execute(ctx context.Context, in TestHookInput) (models.RunOutcome, error) {
 	hook, err := u.hooks.Get(ctx, in.HookID)
 	if err != nil {
 		return models.RunOutcome{}, fmt.Errorf("load hook %s: %w", in.HookID, err)
 	}
-	if hook.WorkspaceID() != in.WorkspaceID {
-		return models.RunOutcome{}, fmt.Errorf("%w: hook %s belongs to another workspace", hookerrors.ErrInvalidHook, in.HookID)
+	if in.Phase != models.PhasePre && in.Phase != models.PhasePost || in.Event != models.EventTaskStart && in.Event != models.EventTaskFinish {
+		return models.RunOutcome{}, fmt.Errorf("%w: the event and the phase of the test are required", hookerrors.ErrInvalidHook)
 	}
 	path, err := u.workspaces.Path(ctx, in.WorkspaceID)
 	if err != nil {
@@ -50,7 +53,7 @@ func (u *TestHook) Execute(ctx context.Context, in TestHookInput) (models.RunOut
 	run := models.RunContext{
 		TaskID: testTaskName, TaskTitle: testTaskName, Branch: testTaskName,
 		WorkspacePath: path, WorktreePath: path,
-		Phase: hook.Phase(), Event: hook.Event(), Result: testResult(hook.Phase()),
+		Phase: in.Phase, Event: in.Event, Result: testResult(in.Phase),
 	}
 	runner := u.scripts
 	if hook.Kind() == models.KindAgent {

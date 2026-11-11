@@ -11,80 +11,42 @@ import (
 	"iworkflow/internal/modules/task_hooks/application"
 	hookerrors "iworkflow/internal/modules/task_hooks/domain/errors"
 	"iworkflow/internal/modules/task_hooks/domain/models"
+	"iworkflow/internal/modules/task_hooks/domain/ports/outbound"
 )
 
-// workspaceHook builds a valid script hook of a workspace: pre task_start, warn on failure.
-func workspaceHook(t *testing.T, id string, workspaceID string, command string) models.Hook {
-	t.Helper()
-	h, err := models.NewHook(models.HookParams{
-		ID: id, WorkspaceID: workspaceID, Phase: models.PhasePre, Event: models.EventTaskStart, Kind: models.KindScript,
-		Enabled: true, OnFailure: models.FailureWarn, Timeout: time.Minute,
-		Script: models.ScriptSpec{Command: command},
-	})
-	require.NoError(t, err)
-	return h
-}
-
-func validSaveInput(workspaceID string) application.SaveHookInput {
+func validSaveInput() application.SaveHookInput {
 	return application.SaveHookInput{
-		WorkspaceID: workspaceID, Phase: models.PhasePost, Event: models.EventTaskFinish, Kind: models.KindScript,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: time.Minute,
+		Name: "lint", Kind: models.KindScript, Timeout: time.Minute,
 		Script: models.ScriptSpec{Command: "make", Args: []string{"lint"}},
 	}
-}
-
-func ids(hooks []models.Hook) []string {
-	out := make([]string, 0, len(hooks))
-	for _, h := range hooks {
-		out = append(out, h.ID())
-	}
-	return out
-}
-
-func TestListHooksReturnsOnlyTheWorkspaceHooksInPositionOrder(t *testing.T) {
-	t.Parallel()
-	repo := &fakeHooks{hooks: []models.Hook{
-		workspaceHook(t, "a", "w1", "x"), workspaceHook(t, "b", "w2", "x"), workspaceHook(t, "c", "w1", "x"),
-	}}
-
-	got, err := application.NewListHooks(repo).Execute(context.Background(), "w1")
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"a", "c"}, ids(got))
 }
 
 func TestSaveHookCreatesAHookWithAGeneratedID(t *testing.T) {
 	t.Parallel()
 	repo := &fakeHooks{}
-	uc := application.NewSaveHook(repo, &fakeIDs{})
 
-	saved, err := uc.Execute(context.Background(), validSaveInput("w1"))
+	hook, err := application.NewSaveHook(repo, &fakeIDs{}).Execute(context.Background(), validSaveInput())
 
 	require.NoError(t, err)
-	assert.Equal(t, "run1", saved.ID())
-	assert.Equal(t, "w1", saved.WorkspaceID())
-	assert.Equal(t, models.FailureBlock, saved.OnFailure())
-	require.Len(t, repo.hooks, 1)
-	assert.Equal(t, "make", repo.hooks[0].Script().Command)
+	assert.Equal(t, "run1", hook.ID())
+	assert.Equal(t, "lint", hook.Name())
+	assert.Len(t, repo.hooks, 1)
 }
 
 func TestSaveHookRejectsInvalidInputWithoutSaving(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name   string
-		mutate func(in *application.SaveHookInput)
-	}{
-		{name: "script without command", mutate: func(in *application.SaveHookInput) { in.Script.Command = " " }},
-		{name: "missing timeout", mutate: func(in *application.SaveHookInput) { in.Timeout = 0 }},
-		{name: "unknown event", mutate: func(in *application.SaveHookInput) { in.Event = "task_discard" }},
-		{name: "missing workspace", mutate: func(in *application.SaveHookInput) { in.WorkspaceID = "" }},
+	tests := map[string]func(*application.SaveHookInput){
+		"no name":    func(in *application.SaveHookInput) { in.Name = " " },
+		"no command": func(in *application.SaveHookInput) { in.Script.Command = "" },
+		"no timeout": func(in *application.SaveHookInput) { in.Timeout = 0 },
+		"bad kind":   func(in *application.SaveHookInput) { in.Kind = "other" },
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			repo := &fakeHooks{}
-			in := validSaveInput("w1")
-			tt.mutate(&in)
+			in := validSaveInput()
+			mutate(&in)
 
 			_, err := application.NewSaveHook(repo, &fakeIDs{}).Execute(context.Background(), in)
 
@@ -94,109 +56,178 @@ func TestSaveHookRejectsInvalidInputWithoutSaving(t *testing.T) {
 	}
 }
 
-func TestSaveHookUpdatesAnExistingHookOfItsWorkspace(t *testing.T) {
+func TestSaveHookEditsAnExistingHookAndReportsAnUnknownID(t *testing.T) {
 	t.Parallel()
-	repo := &fakeHooks{hooks: []models.Hook{workspaceHook(t, "a", "w1", "old"), workspaceHook(t, "b", "w1", "other")}}
-	in := validSaveInput("w1")
+	repo := &fakeHooks{hooks: []models.Hook{libraryHook(t, "a", models.KindScript)}}
+	uc := application.NewSaveHook(repo, &fakeIDs{})
+	in := validSaveInput()
 	in.ID = "a"
 
-	saved, err := application.NewSaveHook(repo, &fakeIDs{}).Execute(context.Background(), in)
+	hook, err := uc.Execute(context.Background(), in)
 
 	require.NoError(t, err)
-	assert.Equal(t, "a", saved.ID())
-	assert.Equal(t, []string{"a", "b"}, ids(repo.hooks))
-	assert.Equal(t, "make", repo.hooks[0].Script().Command)
-}
-
-// Review advisory (a): the SQL upsert silently ignores a hook of another workspace, so the use case must refuse it.
-func TestSaveHookRefusesAHookOfAnotherWorkspace(t *testing.T) {
-	t.Parallel()
-	repo := &fakeHooks{hooks: []models.Hook{workspaceHook(t, "a", "w2", "original")}}
-	in := validSaveInput("w1")
-	in.ID = "a"
-
-	_, err := application.NewSaveHook(repo, &fakeIDs{}).Execute(context.Background(), in)
-
-	require.ErrorIs(t, err, hookerrors.ErrInvalidHook)
+	assert.Equal(t, "lint", hook.Name())
 	require.Len(t, repo.hooks, 1)
-	assert.Equal(t, "w2", repo.hooks[0].WorkspaceID())
-	assert.Equal(t, "original", repo.hooks[0].Script().Command)
-}
+	assert.Equal(t, "lint", repo.hooks[0].Name())
 
-func TestSaveHookReportsAnUnknownID(t *testing.T) {
-	t.Parallel()
-	in := validSaveInput("w1")
 	in.ID = "missing"
-
-	_, err := application.NewSaveHook(&fakeHooks{}, &fakeIDs{}).Execute(context.Background(), in)
-
+	_, err = uc.Execute(context.Background(), in)
 	require.ErrorIs(t, err, hookerrors.ErrHookNotFound)
 }
 
-func TestDeleteHookRemovesOnlyAHookOfTheWorkspace(t *testing.T) {
+func TestDeleteHookRemovesTheHookAndReportsAnUnknownID(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name        string
-		workspaceID string
-		hookID      string
-		wantErr     error
-		wantLeft    []string
-	}{
-		{name: "own hook", workspaceID: "w1", hookID: "a", wantLeft: []string{"b", "c"}},
-		{name: "hook of another workspace", workspaceID: "w1", hookID: "c", wantErr: hookerrors.ErrInvalidHook, wantLeft: []string{"a", "b", "c"}},
-		{name: "unknown hook", workspaceID: "w1", hookID: "zzz", wantErr: hookerrors.ErrHookNotFound, wantLeft: []string{"a", "b", "c"}},
+	repo := &fakeHooks{hooks: []models.Hook{libraryHook(t, "a", models.KindScript)}}
+	uc := application.NewDeleteHook(repo)
+
+	require.NoError(t, uc.Execute(context.Background(), "a"))
+	assert.Empty(t, repo.hooks)
+	require.ErrorIs(t, uc.Execute(context.Background(), "a"), hookerrors.ErrHookNotFound)
+}
+
+func TestListHooksShowsAssignmentsAndTheLastFailureOfEachHook(t *testing.T) {
+	t.Parallel()
+	library := &fakeHooks{hooks: []models.Hook{libraryHook(t, "a", models.KindScript), libraryHook(t, "b", models.KindScript)}}
+	assignments := &fakeAssignments{hooks: library, items: []models.Assignment{
+		assignment(t, "a", "w1", models.EventTaskStart, models.PhasePre, models.FailureWarn, true),
+	}}
+	runs := &fakeRuns{saved: []models.HookRun{
+		{ID: "r1", HookID: "a", Status: models.RunFailed, Output: "first"},
+		{ID: "r2", HookID: "a", Status: models.RunFailed, Output: "second"},
+		{ID: "r3", HookID: "b", Status: models.RunOK},
+	}}
+
+	items, err := application.NewListHooks(library, assignments, runs).Execute(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Len(t, items[0].Assignments, 1)
+	require.NotNil(t, items[0].LastFailure)
+	assert.Equal(t, "second", items[0].LastFailure.Output)
+	assert.Empty(t, items[1].Assignments)
+	assert.Nil(t, items[1].LastFailure, "a hook that never failed has no last failure")
+}
+
+func validAssignmentInput() application.SaveAssignmentInput {
+	return application.SaveAssignmentInput{
+		HookID: "a", WorkspaceID: "w1", Event: models.EventTaskFinish, Phase: models.PhasePost,
+		Enabled: true, OnFailure: models.FailureBlock,
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+}
+
+func TestSaveAssignmentAttachesAHookToAWorkspaceEventAndPhase(t *testing.T) {
+	t.Parallel()
+	library := &fakeHooks{hooks: []models.Hook{libraryHook(t, "a", models.KindScript)}}
+	repo := &fakeAssignments{hooks: library}
+	uc := application.NewSaveAssignment(library, repo, &fakeIDs{})
+
+	created, err := uc.Execute(context.Background(), validAssignmentInput())
+
+	require.NoError(t, err)
+	assert.Equal(t, "run1", created.ID())
+	require.Len(t, repo.items, 1)
+
+	edit := validAssignmentInput()
+	edit.ID, edit.OnFailure, edit.Enabled = created.ID(), models.FailureIgnore, false
+	edited, err := uc.Execute(context.Background(), edit)
+	require.NoError(t, err)
+	assert.Equal(t, models.FailureIgnore, edited.OnFailure())
+	assert.False(t, edited.Enabled())
+	assert.Len(t, repo.items, 1, "an edit does not add a second assignment")
+}
+
+func TestSaveAssignmentRefusesWhatItCannotStore(t *testing.T) {
+	t.Parallel()
+	library := &fakeHooks{hooks: []models.Hook{libraryHook(t, "a", models.KindScript)}}
+	tests := map[string]struct {
+		mutate  func(*application.SaveAssignmentInput)
+		wantErr error
+	}{
+		"unknown hook":       {func(in *application.SaveAssignmentInput) { in.HookID = "missing" }, hookerrors.ErrHookNotFound},
+		"unknown assignment": {func(in *application.SaveAssignmentInput) { in.ID = "missing" }, hookerrors.ErrAssignmentNotFound},
+		"no project":         {func(in *application.SaveAssignmentInput) { in.WorkspaceID = "" }, hookerrors.ErrInvalidHook},
+		"bad phase":          {func(in *application.SaveAssignmentInput) { in.Phase = "during" }, hookerrors.ErrInvalidHook},
+		"bad event":          {func(in *application.SaveAssignmentInput) { in.Event = "task_discard" }, hookerrors.ErrInvalidHook},
+		"bad policy":         {func(in *application.SaveAssignmentInput) { in.OnFailure = "explode" }, hookerrors.ErrInvalidHook},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			repo := &fakeHooks{hooks: []models.Hook{
-				workspaceHook(t, "a", "w1", "x"), workspaceHook(t, "b", "w1", "x"), workspaceHook(t, "c", "w2", "x"),
-			}}
+			repo := &fakeAssignments{hooks: library}
+			in := validAssignmentInput()
+			tt.mutate(&in)
 
-			err := application.NewDeleteHook(repo).Execute(context.Background(), tt.workspaceID, tt.hookID)
+			_, err := application.NewSaveAssignment(library, repo, &fakeIDs{}).Execute(context.Background(), in)
 
-			if tt.wantErr != nil {
-				require.ErrorIs(t, err, tt.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
-			assert.Equal(t, tt.wantLeft, ids(repo.hooks))
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Empty(t, repo.items)
 		})
 	}
 }
 
-func TestReorderHooksAcceptsOnlyACompleteListOfTheWorkspace(t *testing.T) {
+func TestDeleteAssignmentKeepsTheHook(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name    string
-		order   []string
-		wantErr bool
-	}{
-		{name: "complete list", order: []string{"c", "a", "b"}},
-		{name: "incomplete list", order: []string{"c", "a"}, wantErr: true},
-		{name: "hook of another workspace", order: []string{"a", "b", "d"}, wantErr: true},
-		{name: "duplicate id", order: []string{"a", "a", "b"}, wantErr: true},
-		{name: "unknown id", order: []string{"a", "b", "zzz"}, wantErr: true},
+	repo := assignmentsOf(t, "w1")
+	uc := application.NewDeleteAssignment(repo)
+
+	require.NoError(t, uc.Execute(context.Background(), "as-a"))
+	assert.Empty(t, repo.items)
+	assert.Len(t, repo.hooks.hooks, 1)
+	require.ErrorIs(t, uc.Execute(context.Background(), "as-a"), hookerrors.ErrAssignmentNotFound)
+}
+
+func TestReorderAssignmentsAcceptsOnlyACompleteListOfTheGroup(t *testing.T) {
+	t.Parallel()
+	library := &fakeHooks{hooks: []models.Hook{libraryHook(t, "a", models.KindScript), libraryHook(t, "b", models.KindScript)}}
+	build := func() *fakeAssignments {
+		return &fakeAssignments{hooks: library, items: []models.Assignment{
+			assignment(t, "a", "w1", models.EventTaskStart, models.PhasePre, models.FailureWarn, true),
+			assignment(t, "b", "w1", models.EventTaskStart, models.PhasePre, models.FailureWarn, true),
+		}}
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	tests := map[string]struct {
+		ids     []string
+		wantErr error
+	}{
+		"complete":  {[]string{"as-b", "as-a"}, nil},
+		"partial":   {[]string{"as-a"}, hookerrors.ErrInvalidHook},
+		"repeated":  {[]string{"as-a", "as-a"}, hookerrors.ErrInvalidHook},
+		"unknown":   {[]string{"as-a", "as-z"}, hookerrors.ErrInvalidHook},
+		"extra one": {[]string{"as-a", "as-b", "as-c"}, hookerrors.ErrInvalidHook},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			repo := &fakeHooks{hooks: []models.Hook{
-				workspaceHook(t, "a", "w1", "x"), workspaceHook(t, "b", "w1", "x"), workspaceHook(t, "c", "w1", "x"),
-				workspaceHook(t, "d", "w2", "x"),
-			}}
+			repo := build()
 
-			err := application.NewReorderHooks(repo).Execute(context.Background(), "w1", tt.order)
+			err := application.NewReorderAssignments(repo).Execute(context.Background(), "w1", models.EventTaskStart, models.PhasePre, tt.ids)
 
-			if tt.wantErr {
-				require.ErrorIs(t, err, hookerrors.ErrInvalidHook)
-				assert.Equal(t, []string{"a", "b", "c", "d"}, ids(repo.hooks), "a rejected order changes nothing")
+			if tt.wantErr == nil {
+				require.NoError(t, err)
+				assert.Equal(t, tt.ids, repo.reorderedTo)
 				return
 			}
-			require.NoError(t, err)
-			order, listErr := repo.List(context.Background(), "w1")
-			require.NoError(t, listErr)
-			assert.Equal(t, []string{"c", "a", "b"}, ids(order))
+			require.ErrorIs(t, err, tt.wantErr)
+			assert.Nil(t, repo.reorderedTo, "a refused order changes nothing")
 		})
 	}
+}
+
+func TestListRunsPassesTheFilterToTheHistory(t *testing.T) {
+	t.Parallel()
+	runs := &fakeRuns{saved: []models.HookRun{
+		{ID: "r1", HookID: "a", WorkspaceID: "w1", Status: models.RunOK},
+		{ID: "r2", HookID: "a", WorkspaceID: "w1", Status: models.RunFailed},
+		{ID: "r3", HookID: "b", WorkspaceID: "w2", Status: models.RunErrored},
+	}}
+	uc := application.NewListRuns(runs)
+
+	failed, err := uc.Execute(context.Background(), outbound.RunFilter{FailedOnly: true})
+	require.NoError(t, err)
+	require.Len(t, failed, 2)
+	assert.Equal(t, "r3", failed[0].ID, "newest first")
+
+	byHook, err := uc.Execute(context.Background(), outbound.RunFilter{HookID: "a"})
+	require.NoError(t, err)
+	assert.Len(t, byHook, 2)
 }

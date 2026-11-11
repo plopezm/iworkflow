@@ -6,27 +6,21 @@ import (
 	"strings"
 	"time"
 
-	hookerrors "iworkflow/internal/modules/task_hooks/domain/errors"
 	"iworkflow/internal/modules/task_hooks/domain/models"
 	"iworkflow/internal/modules/task_hooks/domain/ports/outbound"
 )
 
-// SaveHookInput is the form of a hook. An empty ID creates a hook; a given ID edits the hook with that id.
+// SaveHookInput is the form of a library hook. An empty ID creates a hook; a given ID edits the hook with that id.
 type SaveHookInput struct {
-	ID          string
-	WorkspaceID string
-	Phase       models.Phase
-	Event       models.Event
-	Kind        models.Kind
-	Enabled     bool
-	OnFailure   models.FailurePolicy
-	Timeout     time.Duration
-	Script      models.ScriptSpec
-	Agent       models.AgentSpec
+	ID      string
+	Name    string
+	Kind    models.Kind
+	Timeout time.Duration
+	Script  models.ScriptSpec
+	Agent   models.AgentSpec
 }
 
-// SaveHook creates or edits a hook of a workspace. The domain validates the fields; an edit must target a hook of
-// the same workspace, because the storage would otherwise ignore the write without a word.
+// SaveHook creates or edits a hook of the library. The domain validates the fields.
 type SaveHook struct {
 	hooks outbound.HookRepository
 	ids   outbound.IDGenerator
@@ -37,25 +31,16 @@ func NewSaveHook(hooks outbound.HookRepository, ids outbound.IDGenerator) *SaveH
 	return &SaveHook{hooks: hooks, ids: ids}
 }
 
-// Execute saves the hook and returns it as stored. An unknown id is ErrHookNotFound; an id of another workspace
-// is ErrInvalidHook.
+// Execute saves the hook and returns it as stored. An unknown id is ErrHookNotFound.
 func (u *SaveHook) Execute(ctx context.Context, in SaveHookInput) (models.Hook, error) {
 	id := strings.TrimSpace(in.ID)
 	if id == "" {
 		id = u.ids.NewID()
-	} else {
-		existing, err := u.hooks.Get(ctx, id)
-		if err != nil {
-			return models.Hook{}, fmt.Errorf("load hook %s: %w", id, err)
-		}
-		if existing.WorkspaceID() != in.WorkspaceID {
-			return models.Hook{}, fmt.Errorf("%w: hook %s belongs to another workspace", hookerrors.ErrInvalidHook, id)
-		}
+	} else if _, err := u.hooks.Get(ctx, id); err != nil {
+		return models.Hook{}, fmt.Errorf("load hook %s: %w", id, err)
 	}
-
 	hook, err := models.NewHook(models.HookParams{
-		ID: id, WorkspaceID: in.WorkspaceID, Phase: in.Phase, Event: in.Event, Kind: in.Kind,
-		Enabled: in.Enabled, OnFailure: in.OnFailure, Timeout: in.Timeout, Script: in.Script, Agent: in.Agent,
+		ID: id, Name: in.Name, Kind: in.Kind, Timeout: in.Timeout, Script: in.Script, Agent: in.Agent,
 	})
 	if err != nil {
 		return models.Hook{}, fmt.Errorf("build hook: %w", err)

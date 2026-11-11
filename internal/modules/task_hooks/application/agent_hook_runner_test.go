@@ -21,11 +21,10 @@ const (
 	testMissingVerdict     = "[no VERDICT line in the agent answer]"
 )
 
-func agentHook(t *testing.T, phase models.Phase, prompt string, timeout time.Duration) models.Hook {
+func agentHook(t *testing.T, _ models.Phase, prompt string, timeout time.Duration) models.Hook {
 	t.Helper()
 	hook, err := models.NewHook(models.HookParams{
-		ID: "h1", WorkspaceID: "w", Phase: phase, Event: models.EventTaskStart, Kind: models.KindAgent,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: timeout,
+		ID: "h1", Name: "agent", Kind: models.KindAgent, Timeout: timeout,
 		Agent: models.AgentSpec{Prompt: prompt},
 	})
 	require.NoError(t, err)
@@ -131,8 +130,7 @@ func TestAgentHookRunnerExpandsPromptAndPassesOverrides(t *testing.T) {
 	t.Parallel()
 	session := &fakeAgentSession{result: outbound.AgentSessionResult{Text: "VERDICT: OK"}}
 	hook, err := models.NewHook(models.HookParams{
-		ID: "h1", WorkspaceID: "w", Phase: models.PhasePre, Event: models.EventTaskStart, Kind: models.KindAgent,
-		Enabled: true, OnFailure: models.FailureBlock, Timeout: time.Minute,
+		ID: "h1", Name: "agent", Kind: models.KindAgent, Timeout: time.Minute,
 		Agent: models.AgentSpec{Prompt: "Review {{.Branch}} for {{.TaskTitle}}", Runtime: "claude", Model: "m", Thinking: "high", Profile: "p"},
 	})
 	require.NoError(t, err)
