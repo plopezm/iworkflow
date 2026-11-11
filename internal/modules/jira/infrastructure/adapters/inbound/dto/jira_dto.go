@@ -43,10 +43,34 @@ type IssueDTO struct {
 	Assignee      *string  `json:"assignee"`
 	Reporter      *string  `json:"reporter"`
 	Labels        []string `json:"labels"`
+	EpicKey       *string  `json:"epic_key"`
 	URL           string   `json:"url"`
 	JiraUpdatedAt string   `json:"jira_updated_at"`
 	LocalState    string   `json:"local_state"`
 	TaskID        *string  `json:"task_id"`
+}
+
+// StatusCountDTO is how many issues of an epic are in one Jira status.
+type StatusCountDTO struct {
+	Status string `json:"status"`
+	Count  int    `json:"count"`
+}
+
+// EpicGroupDTO is an Epic with its child issues. The group without an Epic has the key "none".
+type EpicGroupDTO struct {
+	Key string `json:"key"`
+	// Epic is the imported Epic issue; nil when only its key is known or for the group without Epic.
+	Epic     *IssueDTO        `json:"epic"`
+	Children []IssueDTO       `json:"children"`
+	Done     int              `json:"done"`
+	Counts   []StatusCountDTO `json:"counts"`
+}
+
+// EpicListDTO is the Jira page grouped by Epic.
+type EpicListDTO struct {
+	Groups   []EpicGroupDTO `json:"groups"`
+	Statuses []string       `json:"statuses"`
+	Total    int            `json:"total"`
 }
 
 // LaneDTO is one lane of the Jira page.
@@ -207,11 +231,39 @@ func IssueFromDomain(issue models.Issue) IssueDTO {
 		Assignee:      remote.Assignee,
 		Reporter:      remote.Reporter,
 		Labels:        labels,
+		EpicKey:       remote.EpicKey,
 		URL:           remote.URL,
 		JiraUpdatedAt: remote.JiraUpdatedAt.Format(time.RFC3339),
 		LocalState:    issue.LocalState.String(),
 		TaskID:        issue.TaskID,
 	}
+}
+
+// EpicGroupFromDomain maps one epic group.
+func EpicGroupFromDomain(group models.EpicGroup) EpicGroupDTO {
+	children := make([]IssueDTO, 0, len(group.Children))
+	for _, child := range group.Children {
+		children = append(children, IssueFromDomain(child))
+	}
+	counts := make([]StatusCountDTO, 0)
+	for _, count := range group.StatusCounts() {
+		counts = append(counts, StatusCountDTO{Status: count.Status, Count: count.Count})
+	}
+	var epic *IssueDTO
+	if group.Epic != nil {
+		mapped := IssueFromDomain(*group.Epic)
+		epic = &mapped
+	}
+	return EpicGroupDTO{Key: group.Key, Epic: epic, Children: children, Done: group.Done(), Counts: counts}
+}
+
+// EpicsFromDomain maps the epic listing.
+func EpicsFromDomain(listing application.EpicListing) EpicListDTO {
+	groups := make([]EpicGroupDTO, 0, len(listing.Groups))
+	for _, group := range listing.Groups {
+		groups = append(groups, EpicGroupFromDomain(group))
+	}
+	return EpicListDTO{Groups: groups, Statuses: listing.Statuses, Total: listing.Total}
 }
 
 // LaneFromDomain maps a lane to its DTO.

@@ -127,4 +127,22 @@ type IssuesPanelView struct {
 	Statuses    []string
 	Lanes       []LaneView
 	LaneForm    LaneFormView
+	// Mode is how the issues are grouped: by Epic or by lane.
+	Mode BoardMode
+	// Epics are the epic groups, filled in the Epics mode.
+	Epics []dto.EpicGroupDTO
+	// SelectedEpic is the key of the open epic; empty when none is open.
+	SelectedEpic string
+	// Total is the number of imported issues before filtering.
+	Total int
+}
+
+// SelectedGroup returns the open epic group, or nil when none is open or it is filtered out.
+func (v IssuesPanelView) SelectedGroup() *dto.EpicGroupDTO {
+	for index := range v.Epics {
+		if v.Epics[index].Key == v.SelectedEpic {
+			return &v.Epics[index]
+		}
+	}
+	return nil
 }
