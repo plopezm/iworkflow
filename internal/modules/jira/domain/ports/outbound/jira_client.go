@@ -17,6 +17,8 @@ type JiraClient interface {
 	GetIssue(ctx context.Context, connection models.Connection, key string) (models.RemoteIssue, error)
 	Comments(ctx context.Context, connection models.Connection, key string) ([]models.Comment, error)
 	AddComment(ctx context.Context, connection models.Connection, key string, body string) error
+	// AddWorklog logs time on the issue and returns the id Jira gave the worklog.
+	AddWorklog(ctx context.Context, connection models.Connection, key string, worklog models.Worklog) (string, error)
 	Transitions(ctx context.Context, connection models.Connection, key string) ([]models.Transition, error)
 	Transition(ctx context.Context, connection models.Connection, key string, transitionID string) error
 }

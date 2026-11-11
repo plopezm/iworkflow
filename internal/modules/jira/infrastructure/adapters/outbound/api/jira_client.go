@@ -156,6 +156,37 @@ func (c *JiraClient) AddComment(ctx context.Context, connection models.Connectio
 	return err
 }
 
+// worklogStartedLayout is the timestamp format Jira Server requires for a worklog start.
+const worklogStartedLayout = "2006-01-02T15:04:05.000-0700"
+
+// AddWorklog logs time on the issue and returns the id of the created worklog.
+func (c *JiraClient) AddWorklog(ctx context.Context, connection models.Connection, key string, worklog models.Worklog) (string, error) {
+	path, err := issuePath(key, "/worklog")
+	if err != nil {
+		return "", err
+	}
+	payload, err := encodePayload(map[string]any{
+		"started":          worklog.Started().Format(worklogStartedLayout),
+		"timeSpentSeconds": worklog.TimeSpentSeconds(),
+		"comment":          worklog.Comment(),
+	})
+	if err != nil {
+		return "", err
+	}
+	body, err := c.send(ctx, connection, http.MethodPost, path, nil, payload, key)
+	if err != nil {
+		return "", err
+	}
+	doc, err := decodeDocument(body)
+	if err != nil {
+		return "", err
+	}
+	if id := textAt(doc, "/id"); id != nil {
+		return *id, nil
+	}
+	return "", nil
+}
+
 // Transitions lists the status changes Jira allows right now for the issue.
 func (c *JiraClient) Transitions(ctx context.Context, connection models.Connection, key string) ([]models.Transition, error) {
 	path, err := issuePath(key, "/transitions")

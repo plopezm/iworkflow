@@ -80,6 +80,8 @@ type fakeIssues struct {
 	updateErr    error
 	setStates    []setStateCall
 	setErr       error
+	insertErr    error
+	inserted     []models.RemoteIssue
 }
 
 type setStateCall struct {
@@ -105,6 +107,28 @@ func (f *fakeIssues) Find(_ context.Context, key string) (*models.Issue, error) 
 		}
 	}
 	return nil, nil
+}
+
+func (f *fakeIssues) FindByTaskID(_ context.Context, taskID string) (*models.Issue, error) {
+	if f.findErr != nil {
+		return nil, f.findErr
+	}
+	for index := range f.issues {
+		if f.issues[index].TaskID != nil && *f.issues[index].TaskID == taskID {
+			found := f.issues[index]
+			return &found, nil
+		}
+	}
+	return nil, nil
+}
+
+func (f *fakeIssues) InsertRemote(_ context.Context, remoteIssue models.RemoteIssue, at time.Time) error {
+	if f.insertErr != nil {
+		return f.insertErr
+	}
+	f.inserted = append(f.inserted, remoteIssue)
+	f.issues = append(f.issues, models.Issue{Remote: remoteIssue, LocalState: models.IssueLocalStateNew, SyncedAt: at})
+	return nil
 }
 
 func (f *fakeIssues) LaneMemberships(_ context.Context) (map[string][]string, error) {
@@ -236,8 +260,10 @@ type fakeClient struct {
 	addCommentFn   func(key string, body string) error
 	transitionsFn  func(key string) ([]models.Transition, error)
 	transitionFn   func(key string, transitionID string) error
+	addWorklogFn   func(key string, worklog models.Worklog) (string, error)
 	searchedJQL    []string
 	postedComments []string
+	postedWorklogs []string
 }
 
 var _ outbound.JiraClient = (*fakeClient)(nil)
@@ -290,6 +316,15 @@ func (f *fakeClient) AddComment(_ context.Context, _ models.Connection, key stri
 		return f.addCommentFn(key, body)
 	}
 	return nil
+}
+
+func (f *fakeClient) AddWorklog(_ context.Context, _ models.Connection, key string, worklog models.Worklog) (string, error) {
+	f.count("add_worklog")
+	f.postedWorklogs = append(f.postedWorklogs, key+":"+worklog.Comment())
+	if f.addWorklogFn != nil {
+		return f.addWorklogFn(key, worklog)
+	}
+	return "1", nil
 }
 
 func (f *fakeClient) Transitions(_ context.Context, _ models.Connection, key string) ([]models.Transition, error) {

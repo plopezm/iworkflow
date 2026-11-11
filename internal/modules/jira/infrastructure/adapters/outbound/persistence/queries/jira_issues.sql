@@ -10,6 +10,13 @@ SELECT key, summary, description, status, issue_type, priority, assignee, report
 FROM jira_issues
 WHERE key = sqlc.arg(key);
 
+-- name: GetJiraIssueByTaskID :one
+SELECT key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
+       jira_updated_at, local_state, task_id, synced_at
+FROM jira_issues
+WHERE task_id = sqlc.arg(task_id)
+LIMIT 1;
+
 -- name: InsertJiraIssueIfAbsent :execrows
 INSERT INTO jira_issues (key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
                          jira_updated_at, local_state, task_id, synced_at)

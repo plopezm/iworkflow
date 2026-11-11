@@ -13,6 +13,10 @@ type IssueRepository interface {
 	List(ctx context.Context) ([]models.Issue, error)
 	// Find returns nil and no error when the issue is not imported.
 	Find(ctx context.Context, key string) (*models.Issue, error)
+	// FindByTaskID returns the issue linked to the task, or nil and no error when there is none.
+	FindByTaskID(ctx context.Context, taskID string) (*models.Issue, error)
+	// InsertRemote stores an issue that no lane lists (for example one linked by key); a known key is left untouched.
+	InsertRemote(ctx context.Context, issue models.RemoteIssue, at time.Time) error
 	// LaneMemberships returns the issue keys of every lane, keyed by lane id.
 	LaneMemberships(ctx context.Context) (map[string][]string, error)
 	// ReplaceSynced stores a sync atomically: inserts new issues, refreshes the Jira data of known ones
