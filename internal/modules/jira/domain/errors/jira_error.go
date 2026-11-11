@@ -33,6 +33,8 @@ const (
 	kindDefaultLaneImmutable
 	kindRepository
 	kindInvalidDuration
+	kindEmptyWorklogDescription
+	kindTaskNotLinked
 )
 
 // Error is a business failure. Two errors match with errors.Is when they have the same kind, so
@@ -64,6 +66,10 @@ func (e Error) Error() string {
 		return "tarea de Jira no encontrada: " + e.detail
 	case kindAlreadyConverted:
 		return fmt.Sprintf("la tarea %s ya se convirtió en una tarea de iworkflow", e.detail)
+	case kindEmptyWorklogDescription:
+		return "la descripción del trabajo no puede estar vacía"
+	case kindTaskNotLinked:
+		return "la task no está vinculada a ninguna tarea de Jira"
 	case kindInvalidDuration:
 		return "duración inválida: usa un formato como 1h 30m (d, h y m)"
 	case kindEmptyComment:
@@ -128,6 +134,12 @@ func AlreadyConverted(key string) error { return Error{kind: kindAlreadyConverte
 
 // InvalidDuration means the time to log is not a positive Jira duration such as `1h 30m`.
 func InvalidDuration(text string) error { return Error{kind: kindInvalidDuration, detail: text} }
+
+// EmptyWorklogDescription means the description of the work to log has no text.
+func EmptyWorklogDescription() error { return Error{kind: kindEmptyWorklogDescription} }
+
+// TaskNotLinked means the task has no Jira issue to log time on.
+func TaskNotLinked() error { return Error{kind: kindTaskNotLinked} }
 
 // EmptyComment means the comment has no text.
 func EmptyComment() error { return Error{kind: kindEmptyComment} }

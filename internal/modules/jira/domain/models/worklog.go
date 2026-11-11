@@ -22,3 +22,15 @@ func (w Worklog) TimeSpentSeconds() int { return w.timeSpentSeconds }
 
 // Comment is the description of the work done.
 func (w Worklog) Comment() string { return w.comment }
+
+// WorklogRecord is a worklog iworkflow already sent to Jira for a task, kept to avoid logging the
+// same time twice.
+type WorklogRecord struct {
+	TaskID    string
+	IssueKey  string
+	JiraID    string
+	Seconds   int
+	Comment   string
+	StartedAt time.Time
+	LoggedAt  time.Time
+}

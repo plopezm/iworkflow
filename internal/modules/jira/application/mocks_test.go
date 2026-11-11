@@ -421,3 +421,29 @@ func sampleRemote(key string) models.RemoteIssue {
 func sampleIssue(key string) models.Issue {
 	return models.Issue{Remote: sampleRemote(key), LocalState: models.IssueLocalStateNew, SyncedAt: syncAt}
 }
+
+// fakeWorklogs is an in-memory WorklogRepository.
+type fakeWorklogs struct {
+	records []models.WorklogRecord
+	addErr  error
+}
+
+var _ outbound.WorklogRepository = (*fakeWorklogs)(nil)
+
+func (f *fakeWorklogs) Add(_ context.Context, record models.WorklogRecord) error {
+	if f.addErr != nil {
+		return f.addErr
+	}
+	f.records = append(f.records, record)
+	return nil
+}
+
+func (f *fakeWorklogs) ListByTask(_ context.Context, taskID string) ([]models.WorklogRecord, error) {
+	var found []models.WorklogRecord
+	for _, record := range f.records {
+		if record.TaskID == taskID {
+			found = append(found, record)
+		}
+	}
+	return found, nil
+}
