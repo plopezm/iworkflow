@@ -43,6 +43,8 @@ import (
 	projecttreedi "iworkflow/internal/modules/project_tree/infrastructure/di"
 	taskhookssystem "iworkflow/internal/modules/task_hooks/infrastructure/adapters/outbound/system"
 	taskhooksdi "iworkflow/internal/modules/task_hooks/infrastructure/di"
+	taskhookscomponents "iworkflow/internal/modules/task_hooks/presentation/components"
+	taskhooksstate "iworkflow/internal/modules/task_hooks/presentation/state"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksdi "iworkflow/internal/modules/tasks/infrastructure/di"
 	taskscomponents "iworkflow/internal/modules/tasks/presentation/components"
@@ -182,6 +184,7 @@ func New(deps Deps) (*App, error) {
 		AgentSession: NewTaskHooksAgentSession(
 			&launchSettings{prepareLaunch: settings.PrepareLaunch}, tasks.AgentRuntime()),
 		Workspaces: &taskHooksWorkspaces{get: workspaces.Get},
+		Projects:   &taskHooksProjects{list: workspaces.List},
 	})
 	hookStrip.Bind(taskHooks.ListTaskHookState, taskHooks.SetTaskHookSkipped)
 	tasks.Start.SetLifecycleHooks(newLifecycleHooks(taskHooks.RunHooks))
@@ -399,6 +402,7 @@ var navEntries = []navEntry{
 	{Href: workspacesPath, Icon: "▤", Title: workspacespages.ListTitle},
 	{Href: agentsFilesPath, Icon: "§", Title: agentsfilespages.TabTitle.T},
 	{Href: jiraPath, Icon: "◈", Title: func(context.Context) string { return "Jira" }},
+	{Href: taskhooksstate.ScreenPath, Icon: "⚓", Title: taskhookscomponents.TabTitle},
 	{Href: terminalsPath, Icon: "❯", Title: terminalpages.TerminalsTitle},
 	{Href: agentsettingspages.SettingsPath, Icon: "⚙", Title: agentsettingspages.SettingsTitle},
 }

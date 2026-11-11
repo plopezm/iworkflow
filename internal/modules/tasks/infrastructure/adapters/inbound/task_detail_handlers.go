@@ -122,7 +122,7 @@ func (h *DetailHandlers) Tabs() []dock.Route {
 func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/start", h.startTask)
 	r.Post("/tasks/{id}/related-projects", h.setRelatedProjects)
-	r.Post("/tasks/{id}/hooks/{hookId}/skip", h.setHookSkipped)
+	r.Post("/tasks/{id}/hooks/{assignmentId}/skip", h.setHookSkipped)
 	r.Post("/tasks/{id}/abort", h.abortTask)
 	r.Post("/tasks/{id}/resume", h.resumeTask)
 	r.Post("/tasks/{id}/new-session", h.newSession)

@@ -18,9 +18,9 @@ type TaskHookLister interface {
 	Execute(ctx context.Context, workspaceID string, taskID string) ([]hookapp.TaskHookState, error)
 }
 
-// TaskHookSkipper sets the skip of a hook of a workspace for one task. *hookapp.SetTaskHookSkipped satisfies it.
+// TaskHookSkipper sets the skip of an assignment of a workspace for one task. *hookapp.SetTaskHookSkipped satisfies it.
 type TaskHookSkipper interface {
-	Execute(ctx context.Context, workspaceID string, taskID string, hookID string, skipped bool) error
+	Execute(ctx context.Context, workspaceID string, taskID string, assignmentID string, skipped bool) error
 }
 
 // TaskHooksStrip implements the hook strip of the actions tab of a task over the task_hooks use cases.
@@ -46,7 +46,7 @@ func (b *TaskHooksStrip) Bind(lister TaskHookLister, skipper TaskHookSkipper) {
 	b.skipper = skipper
 }
 
-// State returns every hook of the workspace with its status for the task.
+// State returns every assignment of the workspace with its status for the task.
 func (b *TaskHooksStrip) State(ctx context.Context, workspaceID string, taskID string) ([]tasksoutbound.StripHook, error) {
 	if b.lister == nil {
 		return nil, nil
@@ -62,28 +62,32 @@ func (b *TaskHooksStrip) State(ctx context.Context, workspaceID string, taskID s
 	return hooks, nil
 }
 
-// SetSkipped disables a hook of the workspace for one task, or enables it again. A hook of another workspace is refused.
-func (b *TaskHooksStrip) SetSkipped(ctx context.Context, workspaceID string, taskID string, hookID string, skipped bool) error {
+// SetSkipped disables an assignment of the workspace for one task, or enables it again. An assignment of another
+// workspace is refused.
+func (b *TaskHooksStrip) SetSkipped(ctx context.Context, workspaceID string, taskID string, assignmentID string, skipped bool) error {
 	if b.skipper == nil {
 		return errTaskHooksUnbound
 	}
-	if err := b.skipper.Execute(ctx, workspaceID, taskID, hookID, skipped); err != nil {
-		return fmt.Errorf("set skip of hook %s for task %s: %w", hookID, taskID, err)
+	if err := b.skipper.Execute(ctx, workspaceID, taskID, assignmentID, skipped); err != nil {
+		return fmt.Errorf("set skip of assignment %s for task %s: %w", assignmentID, taskID, err)
 	}
 	return nil
 }
 
-// stripHookFromState maps one hook of a task to the row the strip shows. A hook without a run reports the status none.
+// stripHookFromState maps one assignment of a task to the row the strip shows. An assignment without a run reports the
+// status none.
 func stripHookFromState(state hookapp.TaskHookState) tasksoutbound.StripHook {
 	hook := state.Hook
+	assignment := state.Assignment
 	row := tasksoutbound.StripHook{
-		HookID:     hook.ID(),
-		Kind:       string(hook.Kind()),
-		Phase:      string(hook.Phase()),
-		Event:      string(hook.Event()),
-		Enabled:    hook.Enabled(),
-		Skipped:    state.Skipped,
-		LastStatus: tasksoutbound.StripStatusNone,
+		AssignmentID: assignment.ID(),
+		HookID:       hook.ID(),
+		Kind:         string(hook.Kind()),
+		Phase:        string(assignment.Phase()),
+		Event:        string(assignment.Event()),
+		Enabled:      assignment.Enabled(),
+		Skipped:      state.Skipped,
+		LastStatus:   tasksoutbound.StripStatusNone,
 	}
 	if hook.Kind() == hookmodels.KindAgent {
 		row.Description = hook.Agent().Prompt

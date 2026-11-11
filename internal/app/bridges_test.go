@@ -342,18 +342,27 @@ func TestTaskFileSearchWorkspaceFilesWithInvalidOrEmptyUUIDReturnsNil(t *testing
 	assert.Empty(t, files)
 }
 
+// assignHook stores a hook of the library and assigns it to a project, event and moment, the way the Hooks screen
+// does. The assignment is enabled.
+func assignHook(t *testing.T, application *App, workspaceID string, event hooksmodels.Event, phase hooksmodels.Phase, policy hooksmodels.FailurePolicy, hook hooksapp.SaveHookInput) {
+	t.Helper()
+	ctx := context.Background()
+	saved, err := application.taskHooks.SaveHook.Execute(ctx, hook)
+	require.NoError(t, err)
+	_, err = application.taskHooks.SaveAssignment.Execute(ctx, hooksapp.SaveAssignmentInput{
+		HookID: saved.ID(), WorkspaceID: workspaceID, Event: event, Phase: phase, Enabled: true, OnFailure: policy,
+	})
+	require.NoError(t, err)
+}
+
 // A blocking pre hook stops the start through the real hooks module: the script runs in the worktree, the task ends
 // failed with the hook named, and the run record is kept for the status strip of the task.
 func TestStartTaskRunsABlockingPreHookThroughTheRealHooks(t *testing.T) {
 	ctx := context.Background()
 	application := composeWithTasks(t)
 	workspace := registerRepository(t, application)
-	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
-		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePre, Event: hooksmodels.EventTaskStart,
-		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureBlock,
-		Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"},
-	})
-	require.NoError(t, err)
+	assignHook(t, application, workspace.ID.String(), hooksmodels.EventTaskStart, hooksmodels.PhasePre, hooksmodels.FailureBlock,
+		hooksapp.SaveHookInput{Name: "always fails", Kind: hooksmodels.KindScript, Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"}})
 	task := createTask(t, application, workspace)
 
 	started, err := application.tasks.Start.Execute(ctx, task.ID)
@@ -394,15 +403,11 @@ func TestFinishTaskRunsABlockingPreHookThroughTheRealHooks(t *testing.T) {
 	ctx := context.Background()
 	application := composeWithTasks(t)
 	workspace := registerRepository(t, application)
-	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
-		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePre, Event: hooksmodels.EventTaskFinish,
-		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureBlock,
-		Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"},
-	})
-	require.NoError(t, err)
+	assignHook(t, application, workspace.ID.String(), hooksmodels.EventTaskFinish, hooksmodels.PhasePre, hooksmodels.FailureBlock,
+		hooksapp.SaveHookInput{Name: "always fails", Kind: hooksmodels.KindScript, Timeout: time.Minute, Script: hooksmodels.ScriptSpec{Command: "false"}})
 	task := idleTaskInWorktree(t, application, createTask(t, application, workspace))
 
-	err = application.tasks.Finish.Execute(ctx, task.ID)
+	err := application.tasks.Finish.Execute(ctx, task.ID)
 
 	require.ErrorIs(t, err, taskserrors.ErrHookBlocked)
 	kept, err := application.tasks.Get.Execute(ctx, task.ID)
@@ -417,13 +422,11 @@ func TestFinishTaskRunsAPostHookAfterTheTransitionThroughTheRealHooks(t *testing
 	application := composeWithTasks(t)
 	workspace := registerRepository(t, application)
 	marker := filepath.Join(t.TempDir(), "post-finish-status")
-	_, err := application.taskHooks.SaveHook.Execute(ctx, hooksapp.SaveHookInput{
-		WorkspaceID: workspace.ID.String(), Phase: hooksmodels.PhasePost, Event: hooksmodels.EventTaskFinish,
-		Kind: hooksmodels.KindScript, Enabled: true, OnFailure: hooksmodels.FailureWarn,
-		Timeout: time.Minute,
-		Script:  hooksmodels.ScriptSpec{Command: "sh", Args: []string{"-c", `printf '%s' "$IWF_TASK_STATUS" > "$0"`, marker}},
-	})
-	require.NoError(t, err)
+	assignHook(t, application, workspace.ID.String(), hooksmodels.EventTaskFinish, hooksmodels.PhasePost, hooksmodels.FailureWarn,
+		hooksapp.SaveHookInput{
+			Name: "record status", Kind: hooksmodels.KindScript, Timeout: time.Minute,
+			Script: hooksmodels.ScriptSpec{Command: "sh", Args: []string{"-c", `printf '%s' "$IWF_TASK_STATUS" > "$0"`, marker}},
+		})
 	task := idleTaskInWorktree(t, application, createTask(t, application, workspace))
 
 	require.NoError(t, application.tasks.Finish.Execute(ctx, task.ID))
@@ -445,11 +448,13 @@ func TestStartClosesRunsLeftRunningByAPreviousProcess(t *testing.T) {
 	_, err = db.Exec(`INSERT INTO tasks (id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, created_at, updated_at)
 		VALUES ('t1', 'w1', 't', 'p', 'b', 'main', '/tmp/wt', 'backlog', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO task_hooks (id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds)
-		VALUES ('h1', 'w1', 'pre', 'task_start', 'script', 1, 1, 'warn', 30)`)
+	_, err = db.Exec(`INSERT INTO hooks (id, name, kind, timeout_seconds, command) VALUES ('h1', 'orphan hook', 'script', 30, 'false')`)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO task_hook_runs (id, task_id, hook_id, phase, event, status, exit_code, output, started_at, finished_at)
-		VALUES ('orphan', 't1', 'h1', 'pre', 'task_start', 'running', 0, '', '2026-01-01T00:00:00.000000000Z', '')`)
+	_, err = db.Exec(`INSERT INTO hook_assignments (id, hook_id, workspace_id, event, phase, position, enabled, on_failure)
+		VALUES ('a1', 'h1', 'w1', 'task_start', 'pre', 1, 1, 'warn')`)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO task_hook_runs (id, task_id, hook_id, assignment_id, hook_name, workspace_id, phase, event, status, exit_code, output, started_at, finished_at)
+		VALUES ('orphan', 't1', 'h1', 'a1', 'orphan hook', 'w1', 'pre', 'task_start', 'running', 0, '', '2026-01-01T00:00:00.000000000Z', '')`)
 	require.NoError(t, err)
 
 	application := composeOn(t, db)
@@ -493,12 +498,13 @@ func TestComposedAgentHooksReachTheRealAgentSession(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "gone")
 	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES ('3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c', 'one', ?, 'main', '2026-01-01T00:00:00Z')`, missing)
 	require.NoError(t, err)
-	_, err = db.Exec(`INSERT INTO task_hooks (id, workspace_id, phase, event, kind, position, enabled, on_failure, timeout_seconds, prompt)
-		VALUES ('h1', '3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c', 'pre', 'task_start', 'agent', 1, 1, 'warn', 30, 'say hello')`)
+	_, err = db.Exec(`INSERT INTO hooks (id, name, kind, timeout_seconds, prompt) VALUES ('h1', 'agent hook', 'agent', 30, 'say hello')`)
 	require.NoError(t, err)
 
 	application := composeOn(t, db)
-	_, err = application.taskHooks.TestHook.Execute(context.Background(), hooksapp.TestHookInput{WorkspaceID: "3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c", HookID: "h1"})
+	_, err = application.taskHooks.TestHook.Execute(context.Background(), hooksapp.TestHookInput{
+		WorkspaceID: "3f2a6b1e-7c4d-4e8a-9b0c-1d2e3f4a5b6c", HookID: "h1", Event: hooksmodels.EventTaskStart, Phase: hooksmodels.PhasePre,
+	})
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, hooksmodelserrors.ErrRunNotStarted)

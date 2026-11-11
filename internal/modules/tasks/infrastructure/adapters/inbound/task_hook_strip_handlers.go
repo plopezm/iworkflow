@@ -86,7 +86,7 @@ func (h *DetailHandlers) setHookSkipped(w http.ResponseWriter, r *http.Request) 
 		web.Render(w, r, http.StatusOK, shared.ErrorText(msgTaskUnavailable.T(ctx)))
 		return
 	}
-	failure := h.applyHookSkip(ctx, task, chi.URLParam(r, "hookId"), r)
+	failure := h.applyHookSkip(ctx, task, chi.URLParam(r, "assignmentId"), r)
 	strip := h.hookStrip(ctx, scope, task)
 	if failure != "" {
 		strip.Error = failure
@@ -94,9 +94,9 @@ func (h *DetailHandlers) setHookSkipped(w http.ResponseWriter, r *http.Request) 
 	web.Render(w, r, http.StatusOK, components.TaskHookStrip(strip))
 }
 
-// applyHookSkip reads the wanted skip from the form and sets it. It returns the text to show when the skip was not
-// set, and an empty text when it was.
-func (h *DetailHandlers) applyHookSkip(ctx context.Context, task models.Task, hookID string, r *http.Request) string {
+// applyHookSkip reads the wanted skip from the form and sets it for the assignment. It returns the text to show when the
+// skip was not set, and an empty text when it was.
+func (h *DetailHandlers) applyHookSkip(ctx context.Context, task models.Task, assignmentID string, r *http.Request) string {
 	if err := r.ParseForm(); err != nil {
 		return msgHookSkipInvalid.T(ctx)
 	}
@@ -104,8 +104,8 @@ func (h *DetailHandlers) applyHookSkip(ctx context.Context, task models.Task, ho
 	if err != nil {
 		return msgHookSkipInvalid.T(ctx)
 	}
-	if err := h.uc.HookStrip.SetSkipped(ctx, task.WorkspaceID, task.ID.String(), hookID, skipped); err != nil {
-		web.LogError(ctx, "could not set the skip of a hook", err, "task_id", task.ID.String(), "hook_id", hookID)
+	if err := h.uc.HookStrip.SetSkipped(ctx, task.WorkspaceID, task.ID.String(), assignmentID, skipped); err != nil {
+		web.LogError(ctx, "could not set the skip of a hook", err, "task_id", task.ID.String(), "assignment_id", assignmentID)
 		return msgHookSkipFailed.T(ctx)
 	}
 	return ""
