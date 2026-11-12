@@ -1,6 +1,10 @@
 package components
 
-import ui "iworkflow/internal/core/components"
+import (
+	"strconv"
+
+	ui "iworkflow/internal/core/components"
+)
 
 // TaskMergeRequestPanel is the merge/pull request panel of a task. It is a lazy container: when it
 // appears it loads its body from MergeRequestPath, and the body replaces it. The screen that embeds
@@ -25,6 +29,9 @@ templ TaskMergeRequestBody(p TaskMergeRequestBodyProps) {
 		if p.Notice != "" {
 			<p class="text-sm text-ok">{ p.Notice }</p>
 		}
+		if len(p.Steps) > 0 {
+			@stepper(p.Steps)
+		}
 		if p.Create != nil {
 			@createRequestForm(p.TaskID, *p.Create)
 		}
@@ -34,9 +41,22 @@ templ TaskMergeRequestBody(p TaskMergeRequestBodyProps) {
 	</div>
 }
 
-// createRequestForm asks for an optional title and opens the request.
+// stepper shows where the branch is on its way to the target branch.
+templ stepper(steps []StepProps) {
+	<ol class="row flex-wrap items-center gap-2 text-xs" data-testid="mr-steps">
+		for i, step := range steps {
+			<li class={ "row items-center gap-1 rounded-full border px-2 py-1", templ.KV("border-ok text-ok", step.State == "done"), templ.KV("border-accent text-fg font-medium", step.State == "current"), templ.KV("border-border/60 muted", step.State == "todo") } data-step-state={ step.State }>
+				<span aria-hidden="true">{ stepMark(i, step.State) }</span>
+				<span>{ step.Label }</span>
+			</li>
+		}
+	</ol>
+}
+
+// createRequestForm opens the request (which also publishes the branch) and, apart, offers to save
+// the commits to the remote without opening anything.
 templ createRequestForm(taskID string, c CreateRequestProps) {
-	<div class="stack gap-3">
+	<div class="stack gap-4">
 		<p class="muted text-sm">{ c.Intro }</p>
 		<form hx-post={ MergeRequestPath(taskID) } hx-target={ "#" + MergeRequestPanelID(taskID) } hx-swap="outerHTML" class="stack gap-3">
 			@ui.TextField(ui.FieldProps{Label: c.TitleLabel, Name: "title", Value: c.Title})
@@ -45,6 +65,17 @@ templ createRequestForm(taskID string, c CreateRequestProps) {
 				<button type="submit" class="btn-primary">{ c.Action }</button>
 			</div>
 		</form>
+		@saveToRemote(taskID, c.SaveLabel, c.SaveHint)
+	</div>
+}
+
+// saveToRemote pushes the branch and nothing else: a save point that opens no request and merges nothing.
+templ saveToRemote(taskID string, label string, hint string) {
+	<div class="stack gap-1 border-t border-border/40 pt-3" data-testid="mr-save">
+		<div>
+			<button type="button" class="btn-secondary min-h-8 px-3 py-1 text-xs" hx-post={ PushPath(taskID) } hx-target={ "#" + MergeRequestPanelID(taskID) } hx-swap="outerHTML">{ label }</button>
+		</div>
+		<p class="muted text-xs">{ hint }</p>
 	</div>
 }
 
@@ -65,6 +96,9 @@ templ mergeRequestStatus(s MergeRequestStatusProps) {
 				<a class="text-sm underline" href={ s.WebURL } target="_blank" rel="noopener noreferrer">{ s.OpenLabel }</a>
 			</div>
 		</div>
+		if s.Merged {
+			<p class="text-sm text-ok" data-testid="mr-merged">{ s.MergedNotice }</p>
+		}
 		if s.Pipeline != nil {
 			@pipelineView(*s.Pipeline)
 		} else {
@@ -80,9 +114,9 @@ templ mergeRequestStatus(s MergeRequestStatusProps) {
 					<button type="button" class="btn-primary" hx-get={ MergeRequestPath(s.TaskID) + "?confirm=1" } hx-target={ "#" + MergeRequestPanelID(s.TaskID) } hx-swap="outerHTML">{ s.MergeButton }</button>
 				</div>
 			}
-			<div class="row items-center gap-2">
-				<button type="button" class="btn-secondary" hx-post={ PushPath(s.TaskID) } hx-target={ "#" + MergeRequestPanelID(s.TaskID) } hx-swap="outerHTML">{ s.PushLabel }</button>
-			</div>
+		}
+		if !s.Merged {
+			@saveToRemote(s.TaskID, s.PushLabel, s.SaveHint)
 		}
 	</div>
 }
@@ -106,4 +140,12 @@ templ pipelineView(p PipelineProps) {
 			}
 		</ul>
 	</div>
+}
+
+// stepMark is the glyph before a step: a check when done, its number otherwise.
+func stepMark(index int, state string) string {
+	if state == "done" {
+		return "✓"
+	}
+	return strconv.Itoa(index + 1)
 }

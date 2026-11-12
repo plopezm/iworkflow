@@ -48,13 +48,17 @@ func MergeRequestPanel(ctx context.Context, data PanelData) components.TaskMerge
 	switch {
 	case data.Status != nil:
 		props.Status = statusProps(ctx, data.TaskID, *data.Status, data.Confirming)
+		props.Steps = steps(ctx, stageOf(data.Status.MergeRequest.State))
 	case data.NoRequest:
+		props.Steps = steps(ctx, stageNone)
 		props.Create = &components.CreateRequestProps{
 			Intro:      msgNoMRYet.T(ctx),
 			TitleLabel: msgTitleOptional.T(ctx),
 			Title:      data.Title,
 			Note:       msgNoPushNote.T(ctx),
 			Action:     msgCreateMR.T(ctx),
+			SaveLabel:  msgPushBranch.T(ctx),
+			SaveHint:   msgSaveHint.T(ctx),
 		}
 	}
 	return props
@@ -92,6 +96,9 @@ func statusProps(ctx context.Context, taskID string, status dto.MergeRequestStat
 		MergeLabel:      msgMerge.T(ctx),
 		MergeButton:     msgMergeRequestButton.Fmt(ctx, map[string]string{"abbrev": abbrev}),
 		PushLabel:       msgPushBranch.T(ctx),
+		SaveHint:        msgSaveHint.T(ctx),
+		MergedNotice:    msgMergedDone.T(ctx),
+		Merged:          request.State == "merged",
 	}
 }
 
@@ -121,4 +128,42 @@ func pipelineProps(ctx context.Context, provider string, pipeline *dto.PipelineD
 
 func badge(text string, variant string) components.BadgeProps {
 	return components.BadgeProps{Text: text, Variant: variant}
+}
+
+// Stages of a task branch on its way to the target branch.
+const (
+	stageNone = iota
+	stageOpen
+	stageMerged
+	stageClosed
+)
+
+func stageOf(state string) int {
+	switch state {
+	case "merged":
+		return stageMerged
+	case "opened", "open":
+		return stageOpen
+	default:
+		return stageClosed
+	}
+}
+
+// steps builds the flow shown above the panel: publish, open, review CI, merge.
+func steps(ctx context.Context, stage int) []components.StepProps {
+	states := [4]string{"current", "todo", "todo", "todo"}
+	switch stage {
+	case stageOpen:
+		states = [4]string{"done", "done", "current", "todo"}
+	case stageMerged:
+		states = [4]string{"done", "done", "done", "done"}
+	case stageClosed:
+		states = [4]string{"done", "done", "todo", "todo"}
+	}
+	labels := [4]string{msgStepPublish.T(ctx), msgStepRequest.T(ctx), msgStepReview.T(ctx), msgStepMerge.T(ctx)}
+	out := make([]components.StepProps, 0, len(labels))
+	for i, label := range labels {
+		out = append(out, components.StepProps{Label: label, State: states[i]})
+	}
+	return out
 }

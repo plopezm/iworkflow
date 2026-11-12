@@ -162,7 +162,7 @@ func TestOpenRequestOffersMergeAndPush(t *testing.T) {
 	require.Equal(t, "!7 Mi tarea", props.Status.Heading)
 	require.Equal(t, "pi/feature → main · g/p", props.Status.Branches)
 	require.Equal(t, "Merge MR", props.Status.MergeButton)
-	require.Equal(t, "Push branch", props.Status.PushLabel)
+	require.Equal(t, "Save to remote", props.Status.PushLabel)
 	require.Equal(t, "Open MR in GitLab", props.Status.OpenLabel)
 	require.Equal(t, "No CI pipeline.", props.Status.NoPipeline)
 }
@@ -210,4 +210,29 @@ func TestPipelineShowsItsJobsWithTheProviderNoun(t *testing.T) {
 	require.Equal(t, "(build)", props.Status.Pipeline.Jobs[0].StageLabel)
 	require.Equal(t, "ok", props.Status.Pipeline.Jobs[0].Status.Variant)
 	require.Equal(t, "successful", props.Status.Pipeline.Jobs[0].Status.Text)
+}
+
+func TestPanelWithoutRequestOffersToSaveToTheRemoteAndStartsAtTheFirstStep(t *testing.T) {
+	props := MergeRequestPanel(context.Background(), PanelData{TaskID: "task-1", NoRequest: true})
+
+	require.Equal(t, "Save to remote", props.Create.SaveLabel)
+	require.Contains(t, props.Create.SaveHint, "does not open a request or merge")
+	require.Len(t, props.Steps, 4)
+	require.Equal(t, "current", props.Steps[0].State)
+	require.Equal(t, "todo", props.Steps[3].State)
+}
+
+func TestStepsFollowTheStateOfTheRequest(t *testing.T) {
+	open := statusDTO(mergeRequestDTO("opened", "mergeable"), nil)
+	merged := statusDTO(mergeRequestDTO("merged", "checking"), nil)
+
+	openProps := MergeRequestPanel(context.Background(), PanelData{TaskID: "t", Status: &open})
+	mergedProps := MergeRequestPanel(context.Background(), PanelData{TaskID: "t", Status: &merged})
+
+	require.Equal(t, "current", openProps.Steps[2].State)
+	require.Equal(t, "done", openProps.Steps[1].State)
+	require.True(t, mergedProps.Status.Merged)
+	for _, step := range mergedProps.Steps {
+		require.Equal(t, "done", step.State)
+	}
 }

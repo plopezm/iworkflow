@@ -147,6 +147,7 @@ func TestConfirmingShowsTheMergeConfirmationPanel(t *testing.T) {
 func TestClosedRequestOffersNoActions(t *testing.T) {
 	status := openStatus()
 	status.Open = false
+	status.Merged = true
 	status.ShowMergeStatus = false
 
 	html := render(t, components.TaskMergeRequestBody(body(status)))
@@ -191,4 +192,19 @@ func TestErrorAndNoticeAreShownAboveTheContent(t *testing.T) {
 	require.Contains(t, html, "no hay merge request abierto para la rama pi/feature")
 	require.True(t, strings.Index(html, "Refresh") < strings.Index(html, "Branch pushed"),
 		"the notice is rendered below the header")
+}
+
+func TestCreateStateOffersSaveToRemoteThatOnlyPushes(t *testing.T) {
+	props := components.TaskMergeRequestBodyProps{
+		TaskID: "task-1",
+		Steps:  []components.StepProps{{Label: "Publish branch", State: "current"}, {Label: "Merge", State: "todo"}},
+		Create: &components.CreateRequestProps{Action: "Create merge/pull request", SaveLabel: "Save to remote", SaveHint: "No merge."},
+	}
+
+	html := render(t, components.TaskMergeRequestBody(props))
+
+	require.Contains(t, html, `hx-post="/code-host/tasks/task-1/push"`)
+	require.Contains(t, html, "Save to remote")
+	require.NotContains(t, html, "/merge\"")
+	require.Contains(t, html, `data-step-state="current"`)
 }

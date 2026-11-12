@@ -50,8 +50,15 @@ type TaskMergeRequestBodyProps struct {
 	RefreshLabel string
 	Error        string
 	Notice       string
+	Steps        []StepProps
 	Create       *CreateRequestProps
 	Status       *MergeRequestStatusProps
+}
+
+// StepProps is one step of the flow shown above the panel. State is done, current or todo.
+type StepProps struct {
+	Label string
+	State string
 }
 
 // CreateRequestProps configures the form that opens a merge request. Title keeps the typed title when
@@ -62,6 +69,9 @@ type CreateRequestProps struct {
 	Title      string
 	Note       string
 	Action     string
+	// SaveLabel and SaveHint describe the push-only action: it publishes the commits and nothing else.
+	SaveLabel string
+	SaveHint  string
 }
 
 // BadgeProps is a semantic label: Variant is one of ok, warn, error, info, muted.
@@ -112,4 +122,8 @@ type MergeRequestStatusProps struct {
 	MergeLabel      string
 	MergeButton     string
 	PushLabel       string
+	SaveHint        string
+	// Merged shows MergedNotice as a success banner.
+	Merged       bool
+	MergedNotice string
 }

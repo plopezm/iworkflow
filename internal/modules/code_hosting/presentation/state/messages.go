@@ -30,7 +30,8 @@ var (
 	msgOpenRequestIn      = i18n.Msg{En: "Open {abbrev} in {provider}", Es: "Abrir {abbrev} en {provider}", Zh: "在 {provider} 中打开 {abbrev}", De: "{abbrev} in {provider} öffnen", Fr: "Ouvrir la {abbrev} dans {provider}"}
 	msgMergeRequestButton = i18n.Msg{En: "Merge {abbrev}", Es: "Mezclar {abbrev}", Zh: "合并 {abbrev}", De: "{abbrev} mergen", Fr: "Fusionner la {abbrev}"}
 	msgMergeConfirm       = i18n.Msg{En: "Merge the {abbrev} into {provider}? The target branch will be updated on the server.", Es: "¿Mezclar el {abbrev} en {provider}? La rama destino se actualizará en el servidor.", Zh: "要将 {abbrev} 合并到 {provider} 吗？目标分支将在服务器上更新。", De: "{abbrev} in {provider} mergen? Der Zielbranch wird auf dem Server aktualisiert.", Fr: "Fusionner la {abbrev} dans {provider} ? La branche cible sera mise à jour sur le serveur."}
-	msgPushBranch         = i18n.Msg{En: "Push branch", Es: "Subir rama (push)", Zh: "推送分支", De: "Branch pushen", Fr: "Pousser la branche"}
+	msgPushBranch         = i18n.Msg{En: "Save to remote", Es: "Guardar en remoto", Zh: "保存到远程", De: "Auf Remote sichern", Fr: "Enregistrer sur le remote"}
+	msgSaveHint           = i18n.Msg{En: "Pushes your commits to origin as a backup. It does not open a request or merge anything.", Es: "Sube tus commits a origin como guardado. No abre solicitud ni mezcla nada.", Zh: "将提交推送到 origin 作为备份，不会创建请求或合并。", De: "Pusht deine Commits als Sicherung nach origin. Es wird keine Anfrage geöffnet und nichts gemergt.", Fr: "Pousse vos commits vers origin comme sauvegarde. N'ouvre aucune demande et ne fusionne rien."}
 	msgPushDone           = i18n.Msg{En: "Branch pushed to origin.", Es: "Rama subida a origin.", Zh: "分支已推送到 origin。", De: "Branch wurde zu origin gepusht.", Fr: "Branche poussée vers origin."}
 	msgNoPipeline         = i18n.Msg{En: "No CI pipeline.", Es: "Sin pipeline de CI.", Zh: "没有 CI 流水线。", De: "Keine CI-Pipeline.", Fr: "Aucun pipeline de CI."}
 	msgMerge              = i18n.Msg{En: "Merge", Es: "Mezclar", Zh: "合并", De: "Mergen", Fr: "Fusionner"}
@@ -38,6 +39,12 @@ var (
 	msgTitleOptional      = i18n.Msg{En: "Title (optional, defaults to the task's)", Es: "Título (opcional, por defecto el de la tarea)", Zh: "标题（可选，默认为任务标题）", De: "Titel (optional, standardmäßig der der Aufgabe)", Fr: "Titre (facultatif, par défaut celui de la tâche)"}
 	msgCreateMR           = i18n.Msg{En: "Create merge/pull request", Es: "Crear merge/pull request", Zh: "创建 merge/pull request", De: "Merge/Pull Request erstellen", Fr: "Créer une merge/pull request"}
 	msgPanelTitle         = i18n.Msg{En: "Merge / Pull request", Es: "Merge / Pull request", Zh: "Merge / Pull request", De: "Merge / Pull Request", Fr: "Merge / Pull request"}
+	msgStepPublish        = i18n.Msg{En: "Publish branch", Es: "Publicar rama", Zh: "发布分支", De: "Branch veröffentlichen", Fr: "Publier la branche"}
+	msgStepRequest        = i18n.Msg{En: "Open request", Es: "Abrir solicitud", Zh: "创建请求", De: "Anfrage öffnen", Fr: "Ouvrir la demande"}
+	msgStepReview         = i18n.Msg{En: "Review CI", Es: "Revisar CI", Zh: "检查 CI", De: "CI prüfen", Fr: "Vérifier la CI"}
+	msgStepMerge          = i18n.Msg{En: "Merge", Es: "Mezclar", Zh: "合并", De: "Mergen", Fr: "Fusionner"}
+	msgCancel             = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
+	msgMergedDone         = i18n.Msg{En: "Merged. The work is on the target branch.", Es: "Mezclado. El trabajo ya está en la rama destino.", Zh: "已合并，工作已进入目标分支。", De: "Gemergt. Die Arbeit ist im Zielbranch.", Fr: "Fusionné. Le travail est sur la branche cible."}
 	msgRefresh            = i18n.Msg{En: "Refresh", Es: "Actualizar", Zh: "刷新", De: "Aktualisieren", Fr: "Actualiser"}
 )
 
