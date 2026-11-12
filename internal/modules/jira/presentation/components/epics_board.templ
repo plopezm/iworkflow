@@ -60,7 +60,7 @@ templ epicCard(view state.IssuesPanelView, group dto.EpicGroupDTO) {
 		hx-get={ epicBoardURL(group.Key) }
 		hx-include={ epicFilterInclude }
 		hx-target="#jira-board"
-		hx-swap="outerHTML"
+		hx-swap="outerHTML show:#epic-detail:top"
 	>
 		<span class="flex min-w-0 items-center justify-between gap-2">
 			if !noEpic {
@@ -101,7 +101,7 @@ templ epicCard(view state.IssuesPanelView, group dto.EpicGroupDTO) {
 templ epicDetail(view state.IssuesPanelView) {
 	{{ group := view.SelectedGroup() }}
 	if group == nil {
-		<section class="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 text-center">
+		<section id="epic-detail" class="flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 text-center">
 			<p class="muted">{ msgSelectEpic.T(ctx) }</p>
 		</section>
 	} else {
@@ -115,7 +115,8 @@ templ epicDetailBody(group dto.EpicGroupDTO) {
 		totalText := strconv.Itoa(total)
 	}}
 	<section
-		class="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-surface p-4"
+		id="epic-detail"
+		class="flex min-w-0 scroll-mt-2 flex-col gap-4 rounded-lg border border-border bg-surface p-4"
 		aria-label={ groupTitle(ctx, group) }
 	>
 		<header class="flex min-w-0 flex-col gap-2">
@@ -233,7 +234,7 @@ func epicCardClass(selected bool, noEpic bool) string {
 	const base = "flex min-h-11 w-full min-w-0 cursor-pointer flex-col gap-2.5 rounded-lg border p-3 text-left motion-safe:transition-colors duration-150 "
 	switch {
 	case selected:
-		return base + "border-accent bg-accent/10"
+		return base + "border-l-4 border-accent bg-surface-2 shadow-sm ring-1 ring-accent"
 	case noEpic:
 		return base + "border-dashed border-border bg-transparent hover:border-accent/50 hover:bg-surface"
 	default:

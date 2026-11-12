@@ -34,7 +34,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form id=\"jira-filters\" class=\"grid gap-3 md:grid-cols-3\" hx-get=\"/jira/board\" hx-trigger=\"change, keyup delay:300ms from:input[type='search']\" hx-target=\"#jira-board\" hx-swap=\"outerHTML\"><input type=\"hidden\" name=\"mode\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<form id=\"jira-filters\" class=\"grid grid-cols-2 gap-3 md:grid-cols-3\" hx-get=\"/jira/board\" hx-trigger=\"change, keyup delay:300ms from:input[type='search']\" hx-target=\"#jira-board\" hx-swap=\"outerHTML\"><input type=\"hidden\" name=\"mode\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -60,7 +60,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"> <label class=\"stack gap-1.5\"><span class=\"text-sm font-medium text-fg\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\"> <label class=\"stack col-span-2 gap-1.5 md:col-span-1\"><span class=\"text-sm font-medium text-fg\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

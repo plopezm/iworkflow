@@ -15,7 +15,7 @@ import (
 )
 
 // EpicStatusMenu replaces the status control of one child issue with the menu of its allowed transitions.
-// The current status keeps the control's size, and the menu floats below it, so opening it does not shift
+// The current status keeps the control's size, and the menu floats above it, so the last row of a long list is never cut by the screen edge, so opening it does not shift
 // the row. Choosing a transition re-renders the whole board; Cancel re-renders the board without a change.
 func EpicStatusMenu(menu state.StatusMenuView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -113,7 +113,7 @@ func EpicStatusMenu(menu state.StatusMenuView) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" class=\"absolute top-full right-0 z-20 mt-1 flex w-72 max-w-[calc(100vw-2rem)] origin-top-right flex-col gap-1 rounded-lg border border-border bg-surface p-1.5 text-left shadow-lg motion-safe:animate-scale-in\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\" class=\"absolute bottom-full right-0 z-20 mb-1 flex w-72 max-w-[calc(100vw-2rem)] origin-bottom-right flex-col gap-1 rounded-lg border border-border bg-surface p-1.5 text-left shadow-lg motion-safe:animate-scale-in\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

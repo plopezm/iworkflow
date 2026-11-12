@@ -11,7 +11,7 @@ import (
 templ IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.BoardMode, epic string) {
 	<form
 		id="jira-filters"
-		class="grid gap-3 md:grid-cols-3"
+		class="grid grid-cols-2 gap-3 md:grid-cols-3"
 		hx-get="/jira/board"
 		hx-trigger="change, keyup delay:300ms from:input[type='search']"
 		hx-target="#jira-board"
@@ -19,7 +19,7 @@ templ IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Boar
 	>
 		<input type="hidden" name="mode" value={ string(mode) }/>
 		<input type="hidden" name="epic" value={ epic }/>
-		<label class="stack gap-1.5">
+		<label class="stack col-span-2 gap-1.5 md:col-span-1">
 			<span class="text-sm font-medium text-fg">{ msgSearch.T(ctx) }</span>
 			<input
 				type="search"

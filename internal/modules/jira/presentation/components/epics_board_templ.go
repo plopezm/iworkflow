@@ -246,7 +246,7 @@ func epicCard(view state.IssuesPanelView, group dto.EpicGroupDTO) templ.Componen
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" hx-target=\"#jira-board\" hx-swap=\"outerHTML\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "\" hx-target=\"#jira-board\" hx-swap=\"outerHTML show:#epic-detail:top\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -490,7 +490,7 @@ func epicDetail(view state.IssuesPanelView) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		group := view.SelectedGroup()
 		if group == nil {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<section class=\"flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 text-center\"><p class=\"muted\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "<section id=\"epic-detail\" class=\"flex min-h-40 flex-col items-center justify-center rounded-lg border border-dashed border-border p-6 text-center\"><p class=\"muted\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -536,14 +536,14 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		total := len(group.Children)
 		totalText := strconv.Itoa(total)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<section class=\"flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-surface p-4\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "<section id=\"epic-detail\" class=\"flex min-w-0 scroll-mt-2 flex-col gap-4 rounded-lg border border-border bg-surface p-4\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templruntime.NewAttributeExpression(groupTitle(ctx, group)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 119, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 120, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 		if templ_7745c5c3_Err != nil {
@@ -569,7 +569,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(group.Key)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 128, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 129, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -596,7 +596,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(group.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 132, Col: 59}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 133, Col: 59}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -615,7 +615,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.SafeURL(group.Epic.URL)).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 136, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 137, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 			if templ_7745c5c3_Err != nil {
@@ -628,7 +628,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(msgOpenInJira.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 141, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 142, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -646,7 +646,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var33 string
 		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(groupTitle(ctx, group))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 145, Col: 96}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 146, Col: 96}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 		if templ_7745c5c3_Err != nil {
@@ -664,7 +664,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 			var templ_7745c5c3_Var34 string
 			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoEpicHint.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 147, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 148, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 			if templ_7745c5c3_Err != nil {
@@ -682,7 +682,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templruntime.NewAttributeExpression(progressText(ctx, group)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 152, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 153, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 		if templ_7745c5c3_Err != nil {
@@ -695,7 +695,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templruntime.NewAttributeExpression(totalText).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 154, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 155, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 		if templ_7745c5c3_Err != nil {
@@ -708,7 +708,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.Itoa(group.Done)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 155, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 156, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
 		if templ_7745c5c3_Err != nil {
@@ -721,7 +721,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(progressStyle(state.ProgressPercent(group)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 158, Col: 135}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 159, Col: 135}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 		if templ_7745c5c3_Err != nil {
@@ -734,7 +734,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(progressText(ctx, group))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 160, Col: 85}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 161, Col: 85}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 		if templ_7745c5c3_Err != nil {
@@ -747,7 +747,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(msgChildIssues.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 164, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 165, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 		if templ_7745c5c3_Err != nil {
@@ -760,7 +760,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 		var templ_7745c5c3_Var41 string
 		templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(totalText)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 164, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 165, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 		if templ_7745c5c3_Err != nil {
@@ -778,7 +778,7 @@ func epicDetailBody(group dto.EpicGroupDTO) templ.Component {
 			var templ_7745c5c3_Var42 string
 			templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(msgEpicNoChildren.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 166, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 167, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 			if templ_7745c5c3_Err != nil {
@@ -850,7 +850,7 @@ func epicChildRow(epicKey string, child dto.IssueDTO) templ.Component {
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(child.Key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 188, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 189, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -872,7 +872,7 @@ func epicChildRow(epicKey string, child dto.IssueDTO) templ.Component {
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(child.Summary)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 190, Col: 81}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 191, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
@@ -885,7 +885,7 @@ func epicChildRow(epicKey string, child dto.IssueDTO) templ.Component {
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(child.IssueType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 193, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 194, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -903,7 +903,7 @@ func epicChildRow(epicKey string, child dto.IssueDTO) templ.Component {
 			var templ_7745c5c3_Var48 string
 			templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(*child.Priority)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 195, Col: 28}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 196, Col: 28}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 			if templ_7745c5c3_Err != nil {
@@ -922,7 +922,7 @@ func epicChildRow(epicKey string, child dto.IssueDTO) templ.Component {
 			var templ_7745c5c3_Var49 string
 			templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(*child.Assignee)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 198, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 199, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 			if templ_7745c5c3_Err != nil {
@@ -940,7 +940,7 @@ func epicChildRow(epicKey string, child dto.IssueDTO) templ.Component {
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(state.ShortTimestamp(child.JiraUpdatedAt))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 200, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 201, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
@@ -996,7 +996,7 @@ func epicStatusControl(epicKey string, child dto.IssueDTO) templ.Component {
 		var templ_7745c5c3_Var52 string
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templruntime.NewAttributeExpression("status-" + child.Key).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 211, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 212, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var52)
 		if templ_7745c5c3_Err != nil {
@@ -1035,7 +1035,7 @@ func epicStatusControl(epicKey string, child dto.IssueDTO) templ.Component {
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgChangeStatus.T(ctx)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 215, Col: 33}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 216, Col: 33}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 			if templ_7745c5c3_Err != nil {
@@ -1048,7 +1048,7 @@ func epicStatusControl(epicKey string, child dto.IssueDTO) templ.Component {
 			var templ_7745c5c3_Var56 string
 			templ_7745c5c3_Var56, templ_7745c5c3_Err = templruntime.NewAttributeExpression(epicTransitionsURL(epicKey, child.Key)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 217, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 218, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 			if templ_7745c5c3_Err != nil {
@@ -1061,7 +1061,7 @@ func epicStatusControl(epicKey string, child dto.IssueDTO) templ.Component {
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templruntime.NewAttributeExpression("#status-" + child.Key).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 218, Col: 37}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 219, Col: 37}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var57)
 			if templ_7745c5c3_Err != nil {
@@ -1074,7 +1074,7 @@ func epicStatusControl(epicKey string, child dto.IssueDTO) templ.Component {
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templruntime.NewAttributeExpression("#status-spin-" + child.Key).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 220, Col: 45}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 221, Col: 45}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var58)
 			if templ_7745c5c3_Err != nil {
@@ -1101,7 +1101,7 @@ func epicStatusControl(epicKey string, child dto.IssueDTO) templ.Component {
 		var templ_7745c5c3_Var59 string
 		templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(child.Status)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 223, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 224, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 		if templ_7745c5c3_Err != nil {
@@ -1114,7 +1114,7 @@ func epicStatusControl(epicKey string, child dto.IssueDTO) templ.Component {
 		var templ_7745c5c3_Var60 string
 		templ_7745c5c3_Var60, templ_7745c5c3_Err = templruntime.NewAttributeExpression("status-spin-" + child.Key).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 224, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/epics_board.templ`, Line: 225, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var60)
 		if templ_7745c5c3_Err != nil {
@@ -1134,7 +1134,7 @@ func epicCardClass(selected bool, noEpic bool) string {
 	const base = "flex min-h-11 w-full min-w-0 cursor-pointer flex-col gap-2.5 rounded-lg border p-3 text-left motion-safe:transition-colors duration-150 "
 	switch {
 	case selected:
-		return base + "border-accent bg-accent/10"
+		return base + "border-l-4 border-accent bg-surface-2 shadow-sm ring-1 ring-accent"
 	case noEpic:
 		return base + "border-dashed border-border bg-transparent hover:border-accent/50 hover:bg-surface"
 	default:
