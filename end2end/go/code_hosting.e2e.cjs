@@ -39,8 +39,10 @@ async function openMrTab(ctx) {
   await ctx.page.getByRole('tab', { name: 'PR / MR' }).first().click();
 }
 
-const SHOTS = process.env.PR_TAB_SHOTS || '/tmp/pr-tab-shots';
+// Las capturas solo se escriben si PR_TAB_SHOTS apunta a una carpeta.
+const SHOTS = process.env.PR_TAB_SHOTS;
 async function shot(ctx, name) {
+  if (!SHOTS) return;
   require('fs').mkdirSync(SHOTS, { recursive: true });
   await ctx.page.screenshot({ path: `${SHOTS}/${name}.png` });
 }

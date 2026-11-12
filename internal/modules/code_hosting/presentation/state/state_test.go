@@ -236,3 +236,12 @@ func TestStepsFollowTheStateOfTheRequest(t *testing.T) {
 		require.Equal(t, "done", step.State)
 	}
 }
+
+func TestStepsOfAClosedRequestStopBeforeTheReview(t *testing.T) {
+	closed := statusDTO(mergeRequestDTO("closed", "checking"), nil)
+
+	props := MergeRequestPanel(context.Background(), PanelData{TaskID: "t", Status: &closed})
+
+	require.Equal(t, []string{"done", "done", "todo", "todo"}, []string{props.Steps[0].State, props.Steps[1].State, props.Steps[2].State, props.Steps[3].State})
+	require.False(t, props.Status.Merged)
+}

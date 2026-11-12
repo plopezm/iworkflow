@@ -43,7 +43,6 @@ var (
 	msgStepRequest        = i18n.Msg{En: "Open request", Es: "Abrir solicitud", Zh: "创建请求", De: "Anfrage öffnen", Fr: "Ouvrir la demande"}
 	msgStepReview         = i18n.Msg{En: "Review CI", Es: "Revisar CI", Zh: "检查 CI", De: "CI prüfen", Fr: "Vérifier la CI"}
 	msgStepMerge          = i18n.Msg{En: "Merge", Es: "Mezclar", Zh: "合并", De: "Mergen", Fr: "Fusionner"}
-	msgCancel             = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
 	msgMergedDone         = i18n.Msg{En: "Merged. The work is on the target branch.", Es: "Mezclado. El trabajo ya está en la rama destino.", Zh: "已合并，工作已进入目标分支。", De: "Gemergt. Die Arbeit ist im Zielbranch.", Fr: "Fusionné. Le travail est sur la branche cible."}
 	msgRefresh            = i18n.Msg{En: "Refresh", Es: "Actualizar", Zh: "刷新", De: "Aktualisieren", Fr: "Actualiser"}
 )

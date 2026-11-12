@@ -98,7 +98,7 @@ func statusProps(ctx context.Context, taskID string, status dto.MergeRequestStat
 		PushLabel:       msgPushBranch.T(ctx),
 		SaveHint:        msgSaveHint.T(ctx),
 		MergedNotice:    msgMergedDone.T(ctx),
-		Merged:          request.State == "merged",
+		Merged:          stageOf(request.State) == stageMerged,
 	}
 }
 

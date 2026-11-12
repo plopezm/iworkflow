@@ -144,7 +144,7 @@ func TestConfirmingShowsTheMergeConfirmationPanel(t *testing.T) {
 	require.NotContains(t, html, "Merge MR")
 }
 
-func TestClosedRequestOffersNoActions(t *testing.T) {
+func TestMergedRequestOffersNoActions(t *testing.T) {
 	status := openStatus()
 	status.Open = false
 	status.Merged = true
@@ -207,4 +207,15 @@ func TestCreateStateOffersSaveToRemoteThatOnlyPushes(t *testing.T) {
 	require.Contains(t, html, "Save to remote")
 	require.NotContains(t, html, "/merge\"")
 	require.Contains(t, html, `data-step-state="current"`)
+}
+
+func TestClosedUnmergedRequestOffersOnlySaveToRemote(t *testing.T) {
+	status := openStatus()
+	status.Open = false
+	status.ShowMergeStatus = false
+
+	html := render(t, components.TaskMergeRequestBody(body(status)))
+
+	require.NotContains(t, html, "Merge MR")
+	require.Contains(t, html, `hx-post="/code-host/tasks/task-1/push"`)
 }
