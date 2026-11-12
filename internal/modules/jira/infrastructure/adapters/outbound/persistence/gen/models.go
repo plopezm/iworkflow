@@ -111,6 +111,17 @@ type JiraLaneIssue struct {
 	IssueKey string
 }
 
+type JiraWorklog struct {
+	ID            int64
+	TaskID        string
+	IssueKey      string
+	JiraWorklogID string
+	Seconds       int64
+	Comment       string
+	StartedAt     time.Time
+	LoggedAt      time.Time
+}
+
 type OpenWithLauncher struct {
 	ID       string
 	Name     string

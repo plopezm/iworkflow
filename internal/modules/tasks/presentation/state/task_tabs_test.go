@@ -8,9 +8,9 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-func TestParseTaskTabAcceptsTheFourTabsOnly(t *testing.T) {
+func TestParseTaskTabAcceptsTheFiveTabsOnly(t *testing.T) {
 	t.Parallel()
-	for _, tab := range []string{state.TaskTabActions, state.TaskTabFiles, state.TaskTabChanges, state.TaskTabCodeHost} {
+	for _, tab := range []string{state.TaskTabActions, state.TaskTabFiles, state.TaskTabChanges, state.TaskTabCodeHost, state.TaskTabJira} {
 		got, ok := state.ParseTaskTab(tab)
 		assert.True(t, ok, tab)
 		assert.Equal(t, tab, got)

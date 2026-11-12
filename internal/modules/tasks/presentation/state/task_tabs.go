@@ -4,18 +4,20 @@ import (
 	"net/url"
 )
 
-// Tabs of the detail page of a task, in the order the strip shows them. Actions is the tab the page opens on.
+// Tabs of the detail page of a task, in the order the strip shows them. Actions is the tab the page opens on. Jira is
+// the last tab and the strip shows it only when a Jira connection is configured.
 const (
 	TaskTabActions  = "actions"
 	TaskTabFiles    = "files"
 	TaskTabChanges  = "changes"
 	TaskTabCodeHost = "code-host"
+	TaskTabJira     = "jira"
 )
 
 // ParseTaskTab reads the tab of a request. A tab that the strip does not show is refused, not served.
 func ParseTaskTab(raw string) (string, bool) {
 	switch raw {
-	case TaskTabActions, TaskTabFiles, TaskTabChanges, TaskTabCodeHost:
+	case TaskTabActions, TaskTabFiles, TaskTabChanges, TaskTabCodeHost, TaskTabJira:
 		return raw, true
 	default:
 		return "", false
@@ -28,6 +30,8 @@ type TaskTabs struct {
 	Scope  string
 	TaskID string
 	Active string
+	// JiraVisible tells whether the strip shows the Jira tab: a Jira connection is configured.
+	JiraVisible bool
 }
 
 // RegionID is the element that holds the strip and the body of the active tab.

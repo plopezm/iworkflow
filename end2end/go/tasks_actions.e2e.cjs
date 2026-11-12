@@ -246,4 +246,4 @@ module.exports = {
     },
   ],
 };
-module.exports.helpers = { finishedTask, openActions, sleep };
+module.exports.helpers = { finishedTask, liveTask, openActions, sleep };

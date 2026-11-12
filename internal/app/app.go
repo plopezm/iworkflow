@@ -140,6 +140,8 @@ func New(deps Deps) (*App, error) {
 	remoteMerge := codehostingapp.NewRemoteMerge()
 	fileSearch := &taskFileSearch{}
 	panels := &taskPanels{}
+	// The Jira tab of a task needs the jira module, which is built after tasks: the panel is bound once it exists.
+	jiraPanel := &taskJiraPanel{}
 	// The hooks module needs the agent runtime of the tasks module, so the strip is created first and bound once the
 	// hooks module exists.
 	hookStrip := NewTaskHooksStrip()
@@ -170,6 +172,7 @@ func New(deps Deps) (*App, error) {
 		FileSearch:          fileSearch.Files,
 		WorkspaceFileSearch: fileSearch.WorkspaceFiles,
 		Panels:              panels,
+		JiraPanel:           jiraPanel,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose tasks: %w", err)
@@ -213,7 +216,9 @@ func New(deps Deps) (*App, error) {
 		DB:         deps.DB,
 		Tasks:      &jiraTaskCreation{create: tasks.Create},
 		Workspaces: &jiraWorkspaceCatalog{list: workspaces.List, branches: tasks.ListBranches},
+		TaskInfo:   &jiraTaskInfo{get: tasks.Get, runTime: tasks.RunTime, diff: tasks.CommittedDiff},
 	})
+	jiraPanel.inner = jiraModule
 
 	openWith := openwithdi.NewModule(openwithdi.Deps{
 		DB:        deps.DB,

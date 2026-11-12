@@ -65,6 +65,30 @@ func (r *IssueRepository) Find(ctx context.Context, key string) (*models.Issue, 
 	return &issue, nil
 }
 
+// FindByTaskID returns the issue linked to the task, or nil when there is none.
+func (r *IssueRepository) FindByTaskID(ctx context.Context, taskID string) (*models.Issue, error) {
+	row, err := r.queries.GetJiraIssueByTaskID(ctx, nullString(&taskID))
+	if isNoRows(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, dbError(err)
+	}
+	issue, err := issueFromRow(row)
+	if err != nil {
+		return nil, err
+	}
+	return &issue, nil
+}
+
+// InsertRemote stores an issue that no lane lists; a known key is left untouched.
+func (r *IssueRepository) InsertRemote(ctx context.Context, issue models.RemoteIssue, at time.Time) error {
+	if _, err := r.queries.InsertJiraIssueIfAbsent(ctx, insertParams(issue, formatTimestamp(at))); err != nil {
+		return dbError(err)
+	}
+	return nil
+}
+
 // LaneMemberships returns the issue keys of every lane, keyed by lane id.
 func (r *IssueRepository) LaneMemberships(ctx context.Context) (map[string][]string, error) {
 	rows, err := r.queries.ListJiraLaneMemberships(ctx)

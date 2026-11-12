@@ -17,8 +17,11 @@ var (
 	msgTabCodeHost = i18n.Msg{En: "PR / MR", Es: "PR / MR", Zh: "PR / MR", De: "PR / MR", Fr: "PR / MR"}
 )
 
+// msgTabJira names the Jira tab. The product name is the same in every language.
+const msgTabJira = "Jira"
+
 // taskTabItems are the tabs of the strip. Each one asks for the region with itself active, and the answer swaps the
-// region in place.
+// region in place. The Jira tab is listed only when the strip shows it.
 func taskTabItems(ctx context.Context, tabs state.TaskTabs) []coreui.TabItem {
 	labels := []struct {
 		id    string
@@ -28,6 +31,12 @@ func taskTabItems(ctx context.Context, tabs state.TaskTabs) []coreui.TabItem {
 		{state.TaskTabFiles, msgTabFiles.T(ctx)},
 		{state.TaskTabChanges, msgTabChanges.T(ctx)},
 		{state.TaskTabCodeHost, msgTabCodeHost.T(ctx)},
+	}
+	if tabs.JiraVisible {
+		labels = append(labels, struct {
+			id    string
+			label string
+		}{state.TaskTabJira, msgTabJira})
 	}
 	items := make([]coreui.TabItem, 0, len(labels))
 	for _, tab := range labels {

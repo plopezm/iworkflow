@@ -770,3 +770,70 @@ func terminalShellSource(get *prefsapp.GetTerminalShell, logger *slog.Logger) fu
 		return shell.Path()
 	}
 }
+
+// jiraTaskPanels is the Jira panel of the jira module as the detail page of a task reads it.
+type jiraTaskPanels interface {
+	TaskPanel(ctx context.Context, taskID string) (bool, templ.Component)
+}
+
+// taskJiraPanel gives the detail page of a task its Jira tab. The jira module is built after the tasks module, so the
+// panel is bound once the jira module exists; before that the tab is not offered.
+type taskJiraPanel struct {
+	inner jiraTaskPanels
+}
+
+var _ tasksinbound.JiraPanels = (*taskJiraPanel)(nil)
+
+// Panel tells whether the Jira tab of a task is offered and gives its panel.
+func (b *taskJiraPanel) Panel(ctx context.Context, taskID string) (bool, templ.Component) {
+	if b.inner == nil {
+		return false, nil
+	}
+	return b.inner.TaskPanel(ctx, taskID)
+}
+
+// jiraTaskInfo adapts the tasks use cases to the TaskInfo port of the jira module: the title and the state of a task,
+// its agent working time and its commits.
+type jiraTaskInfo struct {
+	get     *tasksapp.GetTask
+	runTime *tasksapp.GetTaskRunTime
+	diff    *tasksapp.GetTaskCommittedDiff
+}
+
+var _ jiraoutbound.TaskInfo = (*jiraTaskInfo)(nil)
+
+// Info reads the task a worklog is proposed from. The commits are optional: a branch that cannot be read yet leaves
+// the description to the title alone, and the failure is logged.
+func (b *jiraTaskInfo) Info(ctx context.Context, taskID string) (jiraoutbound.TaskSnapshot, error) {
+	id, err := tasksmodels.ParseTaskID(taskID)
+	if err != nil {
+		return jiraoutbound.TaskSnapshot{}, err
+	}
+	task, err := b.get.Execute(ctx, id)
+	if err != nil {
+		return jiraoutbound.TaskSnapshot{}, err
+	}
+	runTime, err := b.runTime.Execute(ctx, id)
+	if err != nil {
+		return jiraoutbound.TaskSnapshot{}, err
+	}
+	var commits []string
+	diff, err := b.diff.Execute(ctx, id)
+	if err != nil {
+		slog.WarnContext(ctx, "cannot read the commits of a task for its worklog", "task", taskID, "error", err)
+	} else {
+		commits = diff.Commits
+	}
+	return jiraoutbound.TaskSnapshot{
+		Title:        task.Title,
+		Finished:     jiraTaskFinished(task.Status),
+		AgentRunTime: runTime,
+		Commits:      commits,
+	}, nil
+}
+
+// jiraTaskFinished tells whether a task has ended its work, so its worklog is offered: its changes wait for review or
+// are already merged.
+func jiraTaskFinished(status tasksmodels.TaskStatus) bool {
+	return status == tasksmodels.StatusAwaitingReview || status == tasksmodels.StatusMerged
+}

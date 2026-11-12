@@ -85,6 +85,8 @@ type DetailUseCases struct {
 	// HookStrip shows the status of the hooks of the workspace of a task and toggles their skip for it. Optional: nil
 	// shows no strip and offers no toggle.
 	HookStrip outbound.HookStrip
+	// JiraPanel is the Jira panel of a task and whether the strip offers its tab. Optional: nil hides the Jira tab.
+	JiraPanel JiraPanels
 }
 
 // DetailHandlers serves the detail tab of a task and its actions.

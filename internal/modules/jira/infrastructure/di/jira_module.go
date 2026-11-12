@@ -5,12 +5,16 @@ package di
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"io"
 
 	"github.com/a-h/templ"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/dock"
+	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/modules/jira/application"
 	"iworkflow/internal/modules/jira/domain/ports/outbound"
 	"iworkflow/internal/modules/jira/infrastructure/adapters/inbound"
@@ -31,6 +35,9 @@ type Deps struct {
 	Clock application.Clock
 	// NewID creates the identifier of a new custom lane. Nil uses a random UUID.
 	NewID func() string
+	// TaskInfo reads the task a worklog is proposed from. The composition root adapts the tasks module. Nil leaves the
+	// worklog proposal unavailable: the panel shows the error instead of failing.
+	TaskInfo outbound.TaskInfo
 }
 
 // Module exposes the use cases of the jira module. Every field is ready to be called.
@@ -54,10 +61,17 @@ type Module struct {
 	PrepareConversion      *application.PrepareConversion
 	ListConversionBranches *application.ListConversionBranches
 	ConvertIssue           *application.ConvertIssue
+	GetTaskIssue           *application.GetTaskIssue
+	LinkTaskToIssue        *application.LinkTaskToIssue
+	RefreshIssue           *application.RefreshIssue
+	GetWorklogProposal     *application.GetWorklogProposal
+	RegisterWorklog        *application.RegisterWorklog
+	ListTaskWorklogs       *application.ListTaskWorklogs
 
 	handlers      *inbound.ConnectionHandlers
 	boardHandlers *inbound.BoardHandlers
 	issueHandlers *inbound.IssueHandlers
+	taskPanels    *inbound.TaskPanelHandlers
 }
 
 // Routes mounts the fragment endpoints of the module. It satisfies web.Module.
@@ -65,6 +79,39 @@ func (m *Module) Routes(r chi.Router) {
 	m.handlers.Mount(r)
 	m.boardHandlers.Mount(r)
 	m.issueHandlers.Mount(r)
+	m.taskPanels.Mount(r)
+}
+
+// msgPanelFailed is the panel of a task whose Jira configuration could not be read. The text is generic: the error
+// itself is internal and is not shown.
+var msgPanelFailed = i18n.Msg{
+	En: "The Jira connection could not be read.",
+	Es: "No se pudo leer la conexión con Jira.",
+	Zh: "无法读取 Jira 连接。",
+	De: "Die Jira-Verbindung konnte nicht gelesen werden.",
+	Fr: "La connexion à Jira n'a pas pu être lue.",
+}
+
+// TaskPanel gives the Jira panel of a task. The panel is offered when a Jira connection is configured, because any task
+// can be linked to an issue by its key. The component reads its data when it renders.
+func (m *Module) TaskPanel(ctx context.Context, taskID string) (bool, templ.Component) {
+	connection, err := m.GetConnection.Execute(ctx)
+	if err != nil {
+		return true, templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			return shared.ErrorText(msgPanelFailed.T(ctx)).Render(ctx, w)
+		})
+	}
+	if connection == nil {
+		return false, nil
+	}
+	return true, m.taskPanels.Body(taskID)
+}
+
+// unwiredTaskInfo answers a worklog proposal that has no task to read: the composition root did not provide one.
+type unwiredTaskInfo struct{}
+
+func (unwiredTaskInfo) Info(context.Context, string) (outbound.TaskSnapshot, error) {
+	return outbound.TaskSnapshot{}, errors.New("la información de la tarea no está disponible")
 }
 
 // SettingsContent returns the settings card component for embedding into the settings screen.
@@ -122,7 +169,12 @@ func NewModule(deps Deps) *Module {
 	connections := persistence.NewConnectionRepository(deps.DB, clock)
 	issues := persistence.NewIssueRepository(deps.DB)
 	lanes := persistence.NewLaneRepository(deps.DB, clock, newID)
+	worklogs := persistence.NewWorklogRepository(deps.DB)
 	client := api.NewJiraClient(clock)
+	taskInfo := deps.TaskInfo
+	if taskInfo == nil {
+		taskInfo = unwiredTaskInfo{}
+	}
 
 	sync := application.NewSyncIssues(connections, issues, lanes, client, clock)
 	getConnection := application.NewGetConnection(connections)
@@ -146,6 +198,13 @@ func NewModule(deps Deps) *Module {
 	listConversionBranches := application.NewListConversionBranches(deps.Workspaces)
 	convertIssue := application.NewConvertIssue(issues, deps.Tasks)
 
+	getTaskIssue := application.NewGetTaskIssue(issues)
+	linkTask := application.NewLinkTaskToIssue(issues, connections, client, clock)
+	refreshIssue := application.NewRefreshIssue(connections, issues, client, clock)
+	registerWorklog := application.NewRegisterWorklog(issues, connections, client, worklogs, clock)
+	listTaskWorklogs := application.NewListTaskWorklogs(worklogs)
+	getWorklogProposal := application.NewGetWorklogProposal(taskInfo, listTaskWorklogs)
+
 	connectionHandlers := inbound.NewConnectionHandlers(getConnection, saveConnection, deleteConnection)
 	boardHandlers := inbound.NewBoardHandlers(
 		getConnection,
@@ -161,6 +220,17 @@ func NewModule(deps Deps) *Module {
 		transitionIssue,
 	)
 	connectionHandlers.SetBoardHandlers(boardHandlers)
+	taskPanels := inbound.NewTaskPanelHandlers(inbound.TaskPanelUseCases{
+		GetTaskIssue:    getTaskIssue,
+		LinkTask:        linkTask,
+		RefreshIssue:    refreshIssue,
+		ListComments:    listComments,
+		ListTransitions: listTransitions,
+		TransitionIssue: transitionIssue,
+		Proposal:        getWorklogProposal,
+		ListWorklogs:    listTaskWorklogs,
+		RegisterWorklog: registerWorklog,
+	})
 	issueHandlers := inbound.NewIssueHandlers(
 		getIssue,
 		listComments,
@@ -193,8 +263,15 @@ func NewModule(deps Deps) *Module {
 		PrepareConversion:      prepareConversion,
 		ListConversionBranches: listConversionBranches,
 		ConvertIssue:           convertIssue,
+		GetTaskIssue:           getTaskIssue,
+		LinkTaskToIssue:        linkTask,
+		RefreshIssue:           refreshIssue,
+		GetWorklogProposal:     getWorklogProposal,
+		RegisterWorklog:        registerWorklog,
+		ListTaskWorklogs:       listTaskWorklogs,
 		handlers:               connectionHandlers,
 		boardHandlers:          boardHandlers,
 		issueHandlers:          issueHandlers,
+		taskPanels:             taskPanels,
 	}
 }

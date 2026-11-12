@@ -60,6 +60,22 @@ type ProjectPanels interface {
 	MergeRequestPanel(ctx context.Context, taskID string) templ.Component
 }
 
+// JiraPanels is the Jira panel of a task. Visible tells whether the strip offers the Jira tab, which needs a Jira
+// connection; the body is the panel itself, read when it renders. The composition root injects it, so tasks never
+// imports jira.
+type JiraPanels interface {
+	Panel(ctx context.Context, taskID string) (bool, templ.Component)
+}
+
+// jiraTab tells whether the strip offers the Jira tab of a task and gives its body. Without a Jira panel the tab is not
+// offered.
+func (h *DetailHandlers) jiraTab(ctx context.Context, id models.TaskID) (bool, templ.Component) {
+	if h.uc.JiraPanel == nil {
+		return false, nil
+	}
+	return h.uc.JiraPanel.Panel(ctx, id.String())
+}
+
 // fileRoutes are the dock routes of the files of a task. A file tab takes the name of its file.
 func (h *DetailHandlers) fileRoutes() []dock.Route {
 	return []dock.Route{
@@ -115,7 +131,8 @@ func (h *DetailHandlers) fileTab(ctx context.Context, rawID string, file string)
 // detailPage is the detail page of a task on its Acciones tab: the header, the tabs and the transcript.
 func (h *DetailHandlers) detailPage(ctx context.Context, scope string, task models.Task, notice string) templ.Component {
 	view := h.page(ctx, scope, task, notice)
-	tabs := state.TaskTabs{Scope: scope, TaskID: task.ID.String(), Active: state.TaskTabActions}
+	jiraVisible, _ := h.jiraTab(ctx, task.ID)
+	tabs := state.TaskTabs{Scope: scope, TaskID: task.ID.String(), Active: state.TaskTabActions, JiraVisible: jiraVisible}
 	var filesBody, changesBody, codeHostBody templ.Component
 	if h.uc.Panels != nil {
 		filesBody = h.tabBody(ctx, scope, task, state.TaskTabFiles)
@@ -127,6 +144,7 @@ func (h *DetailHandlers) detailPage(ctx context.Context, scope string, task mode
 		filesBody,
 		changesBody,
 		codeHostBody,
+		nil,
 	)
 }
 
@@ -144,6 +162,11 @@ func (h *DetailHandlers) tab(w http.ResponseWriter, r *http.Request) {
 		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
 		return
 	}
+	jiraVisible, jiraPanel := h.jiraTab(ctx, id)
+	if tab == state.TaskTabJira && !jiraVisible {
+		http.NotFound(w, r)
+		return
+	}
 	task, err := h.uc.Get.Execute(ctx, id)
 	if errors.Is(err, werrors.NotFound("")) {
 		web.Render(w, r, http.StatusOK, components.TaskGone())
@@ -155,8 +178,8 @@ func (h *DetailHandlers) tab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
-	tabs := state.TaskTabs{Scope: scope, TaskID: id.String(), Active: tab}
-	var filesBody, changesBody, codeHostBody templ.Component
+	tabs := state.TaskTabs{Scope: scope, TaskID: id.String(), Active: tab, JiraVisible: jiraVisible}
+	var filesBody, changesBody, codeHostBody, jiraBody templ.Component
 	switch tab {
 	case state.TaskTabFiles:
 		filesBody = h.tabBody(ctx, scope, task, state.TaskTabFiles)
@@ -164,6 +187,8 @@ func (h *DetailHandlers) tab(w http.ResponseWriter, r *http.Request) {
 		changesBody = h.tabBody(ctx, scope, task, state.TaskTabChanges)
 	case state.TaskTabCodeHost:
 		codeHostBody = h.tabBody(ctx, scope, task, state.TaskTabCodeHost)
+	case state.TaskTabJira:
+		jiraBody = jiraPanel
 	}
 	web.Render(w, r, http.StatusOK, components.TaskTabRegion(
 		tabs,
@@ -171,6 +196,7 @@ func (h *DetailHandlers) tab(w http.ResponseWriter, r *http.Request) {
 		filesBody,
 		changesBody,
 		codeHostBody,
+		jiraBody,
 	))
 }
 

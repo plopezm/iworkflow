@@ -9,9 +9,12 @@
 //   POST {base}/rest/api/2/issue/<KEY>/comment           body {"body": str}
 //   GET  {base}/rest/api/2/issue/<KEY>/transitions
 //   POST {base}/rest/api/2/issue/<KEY>/transitions       body {"transition":{"id":str}}
+//   POST {base}/rest/api/2/issue/<KEY>/worklog           body {"started", "timeSpentSeconds", "comment"}
+//                                                        -> 201 {"id": "<n>"}
 // Control (no Jira):
-//   POST /_reset   -> re-siembra issues, limpia comentarios añadidos y estados
-//   GET  /_health  -> 200 ok
+//   POST /_reset     -> re-siembra issues, limpia comentarios, worklogs añadidos y estados
+//   GET  /_health    -> 200 ok
+//   GET  /__worklogs -> worklogs registrados desde el último reset (para leerlos en los tests)
 //
 // Escucha en 127.0.0.1:<JIRA_MOCK_PORT> (default 9999).
 // El cliente envía `Authorization: Bearer <token>` y `Accept: application/json`.
@@ -74,7 +77,7 @@ const TRANSITIONS = [
 let state = {};
 
 function seed() {
-  state = { issues: {}, comments: {} };
+  state = { issues: {}, comments: {}, worklogs: [], lastWorklogId: 0 };
   for (const i of SEED) {
     state.issues[i.key] = { key: i.key, fields: JSON.parse(JSON.stringify(i.fields)) };
     state.comments[i.key] = [];
@@ -241,6 +244,24 @@ async function run(req, res, route, key, action) {
         return json(res, { id, author: { displayName: 'E2E', name: 'e2e' }, body, created: '2024-05-10T10:00:00.000+0200' });
       }
     }
+    if (action === 'worklog') {
+      if (req.method === 'POST') {
+        if (!issueDoc(key)) return error(res, 404, 'Issue not found');
+        const parsed = parseJson(await readBody(req));
+        const seconds = parsed ? parsed.timeSpentSeconds : undefined;
+        if (!Number.isInteger(seconds) || seconds <= 0) return error(res, 400, 'timeSpentSeconds no válido');
+        state.lastWorklogId += 1;
+        const id = String(state.lastWorklogId);
+        state.worklogs.push({
+          id,
+          issueKey: key,
+          timeSpentSeconds: seconds,
+          started: parsed.started ?? null,
+          comment: parsed.comment ?? null,
+        });
+        return json(res, { id }, 201);
+      }
+    }
     if (action === 'transitions') {
       if (req.method === 'GET') {
         const r = handlers['GET transitions'](key);
@@ -277,6 +298,7 @@ const server = http.createServer(async (req, res) => {
     seed();
     return json(res, { reset: true, issues: Object.keys(state.issues) });
   }
+  if (path === '/__worklogs') return json(res, state.worklogs.map((w) => ({ ...w })));
 
   if (!path.startsWith('/rest/api/2/')) return error(res, 404, 'ruta desconocida');
   const clean = path.replace(/^\/rest\/api\/2\//, '').replace(/^\//, '');
