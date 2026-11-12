@@ -82,6 +82,42 @@ function seed() {
 }
 seed();
 
+// Epic Link custom field of Jira Software, as GET /field reports it.
+const EPIC_LINK_FIELD = 'customfield_10014';
+
+function epicIssue(key, summary, status, type, epic, updated) {
+  const fields = {
+    summary,
+    description: '',
+    status: { name: status },
+    issuetype: { name: type },
+    priority: { name: 'Medium' },
+    assignee: { displayName: 'Ana', name: 'ana' },
+    reporter: { displayName: 'Luis', name: 'luis' },
+    labels: [],
+    updated,
+  };
+  if (epic) fields[EPIC_LINK_FIELD] = epic;
+  return { key, fields };
+}
+
+// Opt-in data (POST /_seed_epics): two epics with children, next to the three default issues.
+const EPIC_SEED = [
+  epicIssue('EP-10', 'Checkout rediseñado', 'In Progress', 'Epic', null, '2024-06-05T10:00:00.000+0200'),
+  epicIssue('CK-1', 'Pasarela de pago', 'Done', 'Story', 'EP-10', '2024-06-04T10:00:00.000+0200'),
+  epicIssue('CK-2', 'Validar la tarjeta', 'In Progress', 'Story', 'EP-10', '2024-06-03T10:00:00.000+0200'),
+  epicIssue('CK-3', 'Recibo por email', 'To Do', 'Task', 'EP-10', '2024-06-02T10:00:00.000+0200'),
+  epicIssue('EP-20', 'Onboarding guiado', 'To Do', 'Epic', null, '2024-06-01T10:00:00.000+0200'),
+  epicIssue('ON-1', 'Pantalla de bienvenida', 'To Do', 'Story', 'EP-20', '2024-05-31T10:00:00.000+0200'),
+];
+
+function seedEpics() {
+  for (const i of EPIC_SEED) {
+    state.issues[i.key] = { key: i.key, fields: JSON.parse(JSON.stringify(i.fields)) };
+    state.comments[i.key] = [];
+  }
+}
+
 function json(res, value, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify(value, null, 2));
@@ -164,6 +200,13 @@ async function run(req, res, route, key, action) {
     json(res, r.body, r.status);
     return;
   }
+  if (route === 'field' && req.method === 'GET') {
+    json(res, [
+      { id: 'summary', name: 'Summary', schema: { type: 'string', system: 'summary' } },
+      { id: EPIC_LINK_FIELD, name: 'Epic Link', schema: { type: 'any', custom: 'com.pyxis.greenhopper.jira:gh-epic-link' } },
+    ]);
+    return;
+  }
   if (route === 'search' && req.method === 'GET') {
     const r = handlers['GET search']();
     json(res, r.body, r.status);
@@ -226,6 +269,10 @@ const server = http.createServer(async (req, res) => {
   void u.searchParams;
 
   if (path === '/_health') return json(res, { ok: true, service: 'jira-mock', issues: Object.keys(state.issues) });
+  if (path === '/_seed_epics') {
+    seedEpics();
+    return json(res, { seeded: true, issues: Object.keys(state.issues) });
+  }
   if (path === '/_reset') {
     seed();
     return json(res, { reset: true, issues: Object.keys(state.issues) });

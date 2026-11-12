@@ -23,6 +23,7 @@ templ IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Boar
 			<span class="text-sm font-medium text-fg">{ msgSearch.T(ctx) }</span>
 			<input
 				type="search"
+				id="jira-search"
 				name="search"
 				class="input"
 				aria-label={ msgSearch.T(ctx) }

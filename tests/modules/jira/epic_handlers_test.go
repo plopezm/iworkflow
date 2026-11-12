@@ -86,3 +86,16 @@ func TestEpicHandlers_LaneRoutesAnswerInTheLanesMode(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.Code)
 	assert.Contains(t, res.Body.String(), "Mis tareas")
 }
+
+func TestEpicHandlers_BoardKeepsTheFilterAndTheOpenEpic(t *testing.T) {
+	f := newBoardFixture(t)
+	f.connectAndSync()
+
+	req := httptest.NewRequest(http.MethodGet, "/jira/board?mode=epics&epic=none&search=A-1&status=To+Do", nil)
+	req.Header.Set("HX-Request", "true")
+	body := f.serve(req).Body.String()
+
+	assert.Contains(t, body, `<option value="To Do" selected>`)
+	assert.Contains(t, body, `value="A-1"`)
+	assert.Contains(t, body, `name="epic" value="none"`)
+}

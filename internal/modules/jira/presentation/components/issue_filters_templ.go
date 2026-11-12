@@ -73,14 +73,14 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</span> <input type=\"search\" name=\"search\" class=\"input\" aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</span> <input type=\"search\" id=\"jira-search\" name=\"search\" class=\"input\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var5 string
 		templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgSearch.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 28, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 29, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
@@ -93,7 +93,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var6 string
 		templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgSearchPlaceholder.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 29, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 30, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 		if templ_7745c5c3_Err != nil {
@@ -106,7 +106,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(filter.Search).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 30, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 31, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
@@ -119,7 +119,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(msgJiraStatus.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 34, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 35, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -132,7 +132,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgJiraStatus.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 38, Col: 37}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 39, Col: 37}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
@@ -155,7 +155,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(msgAll.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 40, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 41, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -173,7 +173,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(st).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 42, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 43, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
@@ -196,7 +196,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(st)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 42, Col: 89}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 43, Col: 89}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -214,7 +214,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(msgLocalStatus.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 47, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 48, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -227,7 +227,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgLocalStatus.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 51, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 52, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -250,7 +250,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(msgAll.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 53, Col: 103}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 54, Col: 103}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 		if templ_7745c5c3_Err != nil {
@@ -273,7 +273,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(state.LocalStateLabel("new", i18n.StateFrom(ctx).Locale))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 55, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 56, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -296,7 +296,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(state.LocalStateLabel("converted", i18n.StateFrom(ctx).Locale))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 58, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 59, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -319,7 +319,7 @@ func IssueFilters(filter dto.IssueFilterDTO, statuses []string, mode state.Board
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(state.LocalStateLabel("ignored", i18n.StateFrom(ctx).Locale))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 61, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issue_filters.templ`, Line: 62, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
