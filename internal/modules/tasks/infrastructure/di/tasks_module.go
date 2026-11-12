@@ -94,6 +94,9 @@ type Deps struct {
 	// HookStrip shows the status of the task hooks in the actions tab of a task and toggles their skip for it. Optional:
 	// nil shows no strip. The composition root implements it with the task_hooks module.
 	HookStrip outbound.HookStrip
+	// JiraPanel is the Jira panel of a task and whether the Jira tab is offered. Optional: nil hides the tab. The
+	// composition root implements it with the jira module, which is built after this one.
+	JiraPanel httpinbound.JiraPanels
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -122,6 +125,10 @@ type Module struct {
 	Finish       *application.FinishTask
 	Reset        *application.ResetTask
 	Discard      *application.DiscardTask
+	// RunTime is how long the agent worked on a task, and CommittedDiff its commits against the base. The Jira panel
+	// proposes worklogs from both.
+	RunTime       *application.GetTaskRunTime
+	CommittedDiff *application.GetTaskCommittedDiff
 	// Reconcile marks the tasks a restart interrupted; the composition root runs it once at start-up.
 	Reconcile *application.ReconcileTasks
 	// The git side: the worktree port (cached diffs) and the use cases over it.
@@ -271,6 +278,7 @@ func NewModule(deps Deps) (*Module, error) {
 	discardTask := application.NewDiscardTask(lifecycle, worktrees, agentRuntime)
 	mergeTask := application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote)
 	getSubagents := application.NewGetTaskSubagents(lifecycle, agentRuntime)
+	committedDiff := application.NewGetTaskCommittedDiff(lifecycle, worktrees)
 	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{
 		Get:                 getTask,
 		Events:              getEvents,
@@ -284,7 +292,8 @@ func NewModule(deps Deps) (*Module, error) {
 		Discard:             discardTask,
 		Delete:              deleteTask,
 		Panels:              deps.Panels,
-		CommittedDiff:       application.NewGetTaskCommittedDiff(lifecycle, worktrees),
+		CommittedDiff:       committedDiff,
+		JiraPanel:           deps.JiraPanel,
 		Merge:               mergeTask,
 		MergePreview:        application.NewPreviewMerge(lifecycle, deps.Remote),
 		Subagents:           getSubagents,
@@ -336,6 +345,8 @@ func NewModule(deps Deps) (*Module, error) {
 		Delete:              deleteTask,
 		AnswerDialog:        answerDialog,
 		GetSubagents:        getSubagents,
+		RunTime:             application.NewGetTaskRunTime(repository, clock),
+		CommittedDiff:       committedDiff,
 		DeleteWorkspace:     application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
 		Start:               start,
 		Send:                send,

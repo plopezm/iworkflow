@@ -51,6 +51,7 @@ func TestTaskDetailPageRendersSideBySideWithCollapsiblePanelWhenRunning(t *testi
 		nil,
 		nil,
 		nil,
+		nil,
 	))
 
 	// Left column has header and transcript scroller
@@ -82,6 +83,7 @@ func TestTaskDetailPageInBacklogDoesNotRenderRightPanel(t *testing.T) {
 		view,
 		tabs,
 		templ.Raw("<p>acciones-body</p>"),
+		nil,
 		nil,
 		nil,
 		nil,

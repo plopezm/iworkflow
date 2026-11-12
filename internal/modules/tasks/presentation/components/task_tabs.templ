@@ -12,8 +12,9 @@ func taskPaneClass(active bool) string {
 	return "hidden"
 }
 
-// TaskTabRegion is the strip of the detail tabs of a task and the four kept tab panes.
-templ TaskTabRegion(tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody templ.Component) {
+// TaskTabRegion is the strip of the detail tabs of a task and its kept tab panes. The Jira pane exists only when the
+// strip shows the Jira tab.
+templ TaskTabRegion(tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody, jiraBody templ.Component) {
 	<div id={ tabs.RegionID() } class="flex min-h-0 flex-1 flex-col">
 		@coreui.TabBar(taskTabItems(ctx, tabs), tabs.Active)
 		<div class="flex min-h-0 flex-1 flex-col">
@@ -37,6 +38,13 @@ templ TaskTabRegion(tabs state.TaskTabs, actionsBody, filesBody, changesBody, co
 					@codeHostBody
 				}
 			</div>
+			if tabs.JiraVisible {
+				<div id={ tabs.RegionID() + "-jira" } class={ taskPaneClass(tabs.Active == state.TaskTabJira) } hidden?={ tabs.Active != state.TaskTabJira }>
+					if jiraBody != nil {
+						@jiraBody
+					}
+				</div>
+			}
 		</div>
 	</div>
 }

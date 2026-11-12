@@ -8,7 +8,7 @@ import (
 
 // TaskDetailPage is the detail tab of a task: its header, then its backlog body or its transcript with the right collapsible
 // panel of task tabs, and the result slot where a leaving action answers.
-templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody templ.Component) {
+templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody, jiraBody templ.Component) {
 	<div id={ state.Scoped("task-detail", view.Scope) } class="flex h-full min-h-0">
 		<div class="flex min-w-0 flex-1 flex-col">
 			<div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 md:px-4 md:py-2.5">
@@ -60,7 +60,7 @@ templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody
 						{ msgClose.T(ctx) }
 					</button>
 				</div>
-				@components.TaskTabRegion(tabs, actionsBody, filesBody, changesBody, codeHostBody)
+				@components.TaskTabRegion(tabs, actionsBody, filesBody, changesBody, codeHostBody, jiraBody)
 			}
 		}
 		<div id={ state.Scoped("task-detail-result", view.Scope) }></div>

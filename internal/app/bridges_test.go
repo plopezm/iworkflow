@@ -511,3 +511,27 @@ func TestComposedAgentHooksReachTheRealAgentSession(t *testing.T) {
 	assert.Contains(t, err.Error(), "does not exist")
 	assert.NotContains(t, err.Error(), "no agent session is configured")
 }
+
+func TestJiraTaskFinishedOnlyWhenTheWorkEndedForReview(t *testing.T) {
+	t.Parallel()
+	tests := map[tasksmodels.TaskStatus]bool{
+		tasksmodels.StatusAwaitingReview: true,
+		tasksmodels.StatusMerged:         true,
+		tasksmodels.StatusRunning:        false,
+		tasksmodels.StatusBacklog:        false,
+		tasksmodels.StatusDiscarded:      false,
+	}
+	for status, want := range tests {
+		assert.Equal(t, want, jiraTaskFinished(status), string(status))
+	}
+}
+
+func TestTaskJiraPanelIsNotOfferedBeforeTheJiraModuleIsBound(t *testing.T) {
+	t.Parallel()
+	var panel taskJiraPanel
+
+	visible, body := panel.Panel(context.Background(), "t1")
+
+	assert.False(t, visible)
+	assert.Nil(t, body)
+}
