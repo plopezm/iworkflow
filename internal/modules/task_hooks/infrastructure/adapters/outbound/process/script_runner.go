@@ -97,9 +97,6 @@ func workingDir(script models.ScriptSpec, run models.RunContext) string {
 // shellSyntax are the characters that only a shell understands: whitespace, quoting, expansion, pipes and lists.
 const shellSyntax = " \t\n|&;<>()$`\"'*?[]#~{}!\\"
 
-// positionals are the spellings with which a command line reads its own arguments.
-var positionals = []string{"$1", "$@", "$*", "${1", "${@", "${*"}
-
 // isFile reports whether the command names an existing file, relative paths being taken from the working directory.
 // A path of that kind runs directly even when it holds spaces or other characters a shell would parse.
 func isFile(command, dir string) bool {
@@ -125,7 +122,12 @@ func needsShell(script models.ScriptSpec, dir string) bool {
 
 // readsPositionals reports whether the command line already uses its arguments by itself.
 func readsPositionals(command string) bool {
-	for _, marker := range positionals {
+	return readsAny(command, positionals)
+}
+
+// readsAny reports whether the command line contains any of the markers a shell uses to read its arguments.
+func readsAny(command string, markers []string) bool {
+	for _, marker := range markers {
 		if strings.Contains(command, marker) {
 			return true
 		}
@@ -140,7 +142,7 @@ func canAppendParameters(command string) bool {
 	return trimmed != "" && !strings.ContainsAny(trimmed, "#\n") && !strings.ContainsAny(trimmed[len(trimmed)-1:], "&;|\\(")
 }
 
-// buildCommand runs a bare program directly, or a command line through sh -c. A hook saved with the old shell flag
+// buildCommand runs a bare program directly, or a command line through the platform shell (sh -c, PowerShell on Windows). A hook saved with the old shell flag
 // gets the arguments as positional parameters only. A command line detected here also receives them at its end,
 // unless it reads them itself, so the extra parameters are never dropped. The shell never parses them. When the
 // parameters cannot be added without changing the line, the run does not start and the error says where to put them.
@@ -151,12 +153,11 @@ func buildCommand(ctx context.Context, script models.ScriptSpec, args []string, 
 	command := script.Command
 	if !script.UseShell && len(args) > 0 && !readsPositionals(command) {
 		if !canAppendParameters(command) {
-			return nil, fmt.Errorf("%w: the command line ends in an operator, a comment or has several lines, so the extra parameters cannot be added at its end: write \"$@\" where they go", hookerrors.ErrRunNotStarted)
+			return nil, fmt.Errorf("%w: the command line ends in an operator, a comment or has several lines, so the extra parameters cannot be added at its end: write %s where they go", hookerrors.ErrRunNotStarted, parametersToken)
 		}
-		command += ` "$@"`
+		command += appendedParameters
 	}
-	shellArgs := append([]string{"-c", command, "hook"}, args...)
-	return exec.CommandContext(ctx, "sh", shellArgs...), nil //nolint:gosec // the command is configured by the user on purpose
+	return shellCommand(ctx, command, args), nil
 }
 
 func expandArgs(args []string, run models.RunContext) ([]string, error) {
