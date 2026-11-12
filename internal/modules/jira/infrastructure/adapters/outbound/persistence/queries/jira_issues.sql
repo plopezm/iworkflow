@@ -12,7 +12,7 @@ WHERE key = sqlc.arg(key);
 
 -- name: GetJiraIssueByTaskID :one
 SELECT key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
-       jira_updated_at, local_state, task_id, synced_at
+       jira_updated_at, local_state, task_id, synced_at, epic_key
 FROM jira_issues
 WHERE task_id = sqlc.arg(task_id)
 LIMIT 1;

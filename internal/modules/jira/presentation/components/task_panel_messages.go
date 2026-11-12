@@ -53,8 +53,8 @@ var (
 		De: "Auswählen…",
 		Fr: "Choisir…",
 	}
-	msgApplyTransition = i18n.Msg{En: "Apply", Es: "Aplicar", Zh: "应用", De: "Anwenden", Fr: "Appliquer"}
-	msgNoTransitions   = i18n.Msg{
+	msgApplyTransition   = i18n.Msg{En: "Apply", Es: "Aplicar", Zh: "应用", De: "Anwenden", Fr: "Appliquer"}
+	msgTaskNoTransitions = i18n.Msg{
 		En: "No status changes are available.",
 		Es: "No hay cambios de estado disponibles.",
 		Zh: "没有可用的状态更改。",
