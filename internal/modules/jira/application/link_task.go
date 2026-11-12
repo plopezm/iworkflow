@@ -39,6 +39,9 @@ func (u *LinkTaskToIssue) Execute(ctx context.Context, taskID string, key string
 	if err != nil {
 		return models.Issue{}, err
 	}
+	if err := u.refuseOtherLink(ctx, taskID, normalized); err != nil {
+		return models.Issue{}, err
+	}
 	issue, err := u.issues.Find(ctx, normalized)
 	if err != nil {
 		return models.Issue{}, err
@@ -61,6 +64,19 @@ func (u *LinkTaskToIssue) Execute(ctx context.Context, taskID string, key string
 		return models.Issue{}, jiraerrors.IssueNotFound(normalized)
 	}
 	return *linked, nil
+}
+
+// refuseOtherLink keeps one issue per task: a task already linked to another issue would make the
+// task-to-issue lookup ambiguous.
+func (u *LinkTaskToIssue) refuseOtherLink(ctx context.Context, taskID string, key string) error {
+	current, err := u.issues.FindByTaskID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	if current != nil && current.Key() != key {
+		return jiraerrors.TaskAlreadyLinked(current.Key())
+	}
+	return nil
 }
 
 func (u *LinkTaskToIssue) importIssue(ctx context.Context, connection models.Connection, key string) error {

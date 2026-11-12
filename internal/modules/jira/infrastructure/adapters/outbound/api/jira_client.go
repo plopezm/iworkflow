@@ -177,9 +177,11 @@ func (c *JiraClient) AddWorklog(ctx context.Context, connection models.Connectio
 	if err != nil {
 		return "", err
 	}
+	// Jira already created the worklog: an unreadable answer must not look like a failure, or the user
+	// would log the same time twice. The id is only a convenience, so it stays empty.
 	doc, err := decodeDocument(body)
 	if err != nil {
-		return "", err
+		return "", nil //nolint:nilerr // the 2xx answer means the worklog exists; only its id is unknown
 	}
 	if id := textAt(doc, "/id"); id != nil {
 		return *id, nil

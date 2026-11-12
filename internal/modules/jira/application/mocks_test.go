@@ -2,6 +2,7 @@ package application_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -426,11 +427,17 @@ func sampleIssue(key string) models.Issue {
 type fakeWorklogs struct {
 	records []models.WorklogRecord
 	addErr  error
+	// failAddTimes makes the next N Add calls fail with a transient error.
+	failAddTimes int
 }
 
 var _ outbound.WorklogRepository = (*fakeWorklogs)(nil)
 
 func (f *fakeWorklogs) Add(_ context.Context, record models.WorklogRecord) error {
+	if f.failAddTimes > 0 {
+		f.failAddTimes--
+		return errors.New("transient")
+	}
 	if f.addErr != nil {
 		return f.addErr
 	}

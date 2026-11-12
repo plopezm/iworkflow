@@ -17,6 +17,10 @@ const (
 	workDay = 8 * time.Hour
 	// maxDescriptionCommits bounds the commit list of a generated description.
 	maxDescriptionCommits = 20
+	// maxWorklogDuration bounds one worklog; it also keeps the arithmetic far from overflow.
+	maxWorklogDuration = 30 * workDay
+	// maxAmountDigits bounds each number typed in the duration.
+	maxAmountDigits = 5
 )
 
 // ProposeWorklogTime is the time to suggest for a worklog: the agent working time not logged yet,
@@ -58,6 +62,9 @@ func ParseJiraDuration(text string) (time.Duration, error) {
 				return 0, jiraerrors.InvalidDuration(text)
 			}
 		case char >= '0' && char <= '9':
+			if digits.Len() >= maxAmountDigits {
+				return 0, jiraerrors.InvalidDuration(text)
+			}
 			digits.WriteRune(char)
 		default:
 			unit, known := units[char]
@@ -73,7 +80,7 @@ func ParseJiraDuration(text string) (time.Duration, error) {
 			digits.Reset()
 		}
 	}
-	if digits.Len() > 0 || total <= 0 {
+	if digits.Len() > 0 || total <= 0 || total > maxWorklogDuration {
 		return 0, jiraerrors.InvalidDuration(text)
 	}
 	return total, nil

@@ -35,6 +35,8 @@ const (
 	kindInvalidDuration
 	kindEmptyWorklogDescription
 	kindTaskNotLinked
+	kindTaskAlreadyLinked
+	kindDuplicateWorklog
 )
 
 // Error is a business failure. Two errors match with errors.Is when they have the same kind, so
@@ -68,6 +70,10 @@ func (e Error) Error() string {
 		return fmt.Sprintf("la tarea %s ya se convirtió en una tarea de iworkflow", e.detail)
 	case kindEmptyWorklogDescription:
 		return "la descripción del trabajo no puede estar vacía"
+	case kindTaskAlreadyLinked:
+		return "la task ya está vinculada a la tarea de Jira " + e.detail
+	case kindDuplicateWorklog:
+		return "ese mismo tiempo se acaba de registrar: espera unos minutos si quieres registrarlo otra vez"
 	case kindTaskNotLinked:
 		return "la task no está vinculada a ninguna tarea de Jira"
 	case kindInvalidDuration:
@@ -137,6 +143,12 @@ func InvalidDuration(text string) error { return Error{kind: kindInvalidDuration
 
 // EmptyWorklogDescription means the description of the work to log has no text.
 func EmptyWorklogDescription() error { return Error{kind: kindEmptyWorklogDescription} }
+
+// TaskAlreadyLinked means the task already points at another Jira issue (key).
+func TaskAlreadyLinked(key string) error { return Error{kind: kindTaskAlreadyLinked, detail: key} }
+
+// DuplicateWorklog means an identical worklog was registered moments ago.
+func DuplicateWorklog() error { return Error{kind: kindDuplicateWorklog} }
 
 // TaskNotLinked means the task has no Jira issue to log time on.
 func TaskNotLinked() error { return Error{kind: kindTaskNotLinked} }
