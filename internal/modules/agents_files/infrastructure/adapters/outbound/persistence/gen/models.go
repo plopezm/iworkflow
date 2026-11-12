@@ -93,6 +93,7 @@ type JiraIssue struct {
 	LocalState    string
 	TaskID        sql.NullString
 	SyncedAt      time.Time
+	EpicKey       sql.NullString
 }
 
 type JiraLane struct {
