@@ -162,6 +162,29 @@ module.exports = {
       },
     },
     {
+      name: 'jira_tab_scroll: con poca altura el panel Jira hace scroll y el botón "Registrar en Jira" es alcanzable',
+      fn: async (ctx) => {
+        await connectAndSync(ctx, { fresh: true });
+        await finishedTask(ctx, 'tab-scroll');
+        await linkIssue(ctx, ISSUE);
+        await ctx.page.setViewportSize({ width: 1280, height: 480 });
+        await sleep(300);
+        const pane = panel(ctx);
+        const metrics = await pane.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+        ctx.assert(metrics.scrollHeight > metrics.clientHeight, `el panel debía desbordar (scrollHeight ${metrics.scrollHeight} <= clientHeight ${metrics.clientHeight})`);
+        await pane.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+        await sleep(200);
+        const top = await pane.evaluate((el) => el.scrollTop);
+        ctx.assert(top > 0, 'el panel no se desplazó (scrollTop 0)');
+        const button = pane.getByRole('button', { name: 'Registrar en Jira', exact: true });
+        const box = await button.boundingBox();
+        const view = ctx.page.viewportSize();
+        ctx.assert(box && box.y >= 0 && box.y + box.height <= view.height, 'el botón Registrar en Jira no es visible tras hacer scroll');
+        await shot(ctx, '03-scrolled-low-viewport');
+        await ctx.page.setViewportSize({ width: 1440, height: 860 });
+      },
+    },
+    {
       name: 'log_worklog_invalid: un tiempo inválido ("abc") muestra error inline y no envía nada',
       fn: async (ctx) => {
         await connectAndSync(ctx, { fresh: true });

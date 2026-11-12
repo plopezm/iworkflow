@@ -48,15 +48,15 @@ templ taskIssueSummary(view state.TaskPanelView) {
 		<p class="font-medium">{ view.Issue.Summary }</p>
 		<dl class="grid gap-x-3 gap-y-1 md:grid-cols-2">
 			<div>
-				<dt class="muted inline">{ msgStatus.T(ctx) }</dt>
+				<dt class="muted inline mr-1.5">{ msgStatus.T(ctx) }</dt>
 				<dd class="inline">{ view.Issue.Status }</dd>
 			</div>
 			<div>
-				<dt class="muted inline">{ msgPriority.T(ctx) }</dt>
+				<dt class="muted inline mr-1.5">{ msgPriority.T(ctx) }</dt>
 				<dd class="inline">{ optionalText(view.Issue.Priority) }</dd>
 			</div>
 			<div>
-				<dt class="muted inline">{ msgAssignee.T(ctx) }</dt>
+				<dt class="muted inline mr-1.5">{ msgAssignee.T(ctx) }</dt>
 				<dd class="inline">{ optionalText(view.Issue.Assignee) }</dd>
 			</div>
 		</dl>
@@ -75,17 +75,17 @@ templ taskTransitionForm(view state.TaskPanelView) {
 	if view.TransitionsErr != "" {
 		@shared.ErrorText(view.TransitionsErr)
 	} else if len(view.Transitions) > 0 {
-		<form class="row flex-wrap items-center gap-2 text-sm" hx-post={ view.Path("transition") } hx-target={ "#" + view.RootID() } hx-swap="outerHTML">
-			<label class="row items-center gap-2">
-				<span class="muted">{ msgTransition.T(ctx) }</span>
-				<select class="input" name="transition_id" aria-label={ msgTransition.T(ctx) } required>
+		<form class="stack gap-1.5 text-sm" hx-post={ view.Path("transition") } hx-target={ "#" + view.RootID() } hx-swap="outerHTML">
+			<label for={ "transition-" + view.TaskID } class="muted">{ msgTransition.T(ctx) }</label>
+			<div class="row items-center gap-2">
+				<select id={ "transition-" + view.TaskID } class="input min-w-0 flex-1" name="transition_id" required>
 					<option value="" selected?={ view.SelectedTransition == "" }>{ msgPickTransition.T(ctx) }</option>
 					for _, transition := range view.Transitions {
 						<option value={ transition.ID } selected?={ view.SelectedTransition == transition.ID }>{ fmt.Sprintf("%s → %s", transition.Name, transition.ToStatus) }</option>
 					}
 				</select>
-			</label>
-			<button type="submit" class="btn-secondary">{ msgApplyTransition.T(ctx) }</button>
+				<button type="submit" class="btn-secondary shrink-0">{ msgApplyTransition.T(ctx) }</button>
+			</div>
 		</form>
 	} else {
 		<p class="muted text-sm">{ msgNoTransitions.T(ctx) }</p>
