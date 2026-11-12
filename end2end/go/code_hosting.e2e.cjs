@@ -15,7 +15,7 @@
 // The "PR / MR" tab is the task tab that the tasks screen embeds with the merge request panel. The
 // tests need the tasks screen to exist (finishedTask and openActions come from it).
 const tasks = require('./tasks_actions.e2e.cjs');
-const { finishedTask, openActions } = tasks.helpers;
+const { finishedTask, liveTask, openActions } = tasks.helpers;
 
 const GITLAB_URL = process.env.GITLAB_MOCK_URL || 'http://127.0.0.1:9998';
 const GOOD_TOKEN = 'gl-good-token';
@@ -37,6 +37,18 @@ async function saveSettings(ctx, token) {
 
 async function openMrTab(ctx) {
   await ctx.page.getByRole('tab', { name: 'PR / MR' }).first().click();
+}
+
+// Las capturas solo se escriben si PR_TAB_SHOTS apunta a una carpeta.
+const SHOTS = process.env.PR_TAB_SHOTS;
+async function shot(ctx, name) {
+  if (!SHOTS) return;
+  require('fs').mkdirSync(SHOTS, { recursive: true });
+  await ctx.page.screenshot({ path: `${SHOTS}/${name}.png` });
+}
+
+async function createOnly(ctx) {
+  await ctx.page.getByRole('button', { name: 'Crear merge/pull request' }).first().click();
 }
 
 // Tarea finalizada en un workspace cuyo `origin` apunta al GitLab mock.
@@ -86,39 +98,69 @@ module.exports = {
       fn: async (ctx) => {
         await mrTask(ctx, 'mr-none');
         await ctx.page.getByText('Esta rama aún no tiene merge/pull request.').first().waitFor({ timeout: 20000 });
+        ctx.assert(await ctx.page.getByTestId('mr-steps').count() > 0, 'falta el indicador de pasos');
         await ctx.page.getByRole('button', { name: 'Crear merge/pull request' }).first().waitFor({ timeout: 5000 });
+        await ctx.page.getByRole('button', { name: 'Guardar en remoto' }).first().waitFor({ timeout: 5000 });
+        ctx.assert(await ctx.page.getByRole('button', { name: /Publicar y mezclar/ }).count() === 0, 'no debe haber un botón que publique y mezcle de una vez');
+        await shot(ctx, '01-sin-pr');
+      },
+    },
+    {
+      name: 'tarea en ejecución: la pestaña PR / MR ofrece guardar en remoto sin haber subido la rama',
+      fn: async (ctx) => {
+        await saveSettings(ctx, GOOD_TOKEN);
+        await liveTask(ctx, 'mr-live', { origin: `${GITLAB_URL}/e2e/mr-live-${tag}.git` });
+        await openMrTab(ctx);
+        await ctx.page.getByRole('button', { name: 'Guardar en remoto' }).first().waitFor({ timeout: 20000 });
+        await shot(ctx, '00-tarea-en-ejecucion');
+      },
+    },
+    {
+      name: 'push_task_branch: "Guardar en remoto" sube la rama sin abrir PR/MR ni mezclar',
+      fn: async (ctx) => {
+        await mrTask(ctx, 'mr-save');
+        await ctx.page.getByRole('button', { name: 'Guardar en remoto' }).first().click();
+        await ctx.page.getByText('Rama subida a origin.').first().waitFor({ timeout: 25000 });
+        await ctx.page.getByRole('button', { name: 'Crear merge/pull request' }).first().waitFor({ timeout: 5000 });
+        ctx.assert(await ctx.page.getByText('abierto', { exact: true }).count() === 0, 'guardar no debe abrir una PR/MR');
+        await shot(ctx, '02-guardado-en-remoto-sin-pr');
       },
     },
     {
       name: 'create_task_merge_request: crear el MR lo muestra como abierto',
       fn: async (ctx) => {
         await mrTask(ctx, 'mr-create');
-        await ctx.page.getByRole('button', { name: 'Crear merge/pull request' }).first().click();
+        await createOnly(ctx);
         await ctx.page.getByText('abierto', { exact: true }).first().waitFor({ timeout: 25000 });
         ctx.assert(await ctx.page.getByRole('button', { name: /^Mezclar/ }).count() > 0, 'falta el botón Mezclar');
+        await shot(ctx, '03-pr-abierta');
       },
     },
     {
       name: 'merge_task_merge_request: Mezclar deja el MR como mezclado',
       fn: async (ctx) => {
         await mrTask(ctx, 'mr-merge');
-        await ctx.page.getByRole('button', { name: 'Crear merge/pull request' }).first().click();
+        await createOnly(ctx);
         await ctx.page.getByText('abierto', { exact: true }).first().waitFor({ timeout: 25000 });
         await ctx.page.getByRole('button', { name: /^Mezclar/ }).first().click();
         // ConfirmPanel inline: el botón de confirmación también se llama "Mezclar".
         const confirm = ctx.page.locator('button.btn-primary', { hasText: /^Mezclar$/ }).first();
         await confirm.waitFor({ timeout: 8000 });
+        await shot(ctx, '04-confirmar-mezcla');
         await confirm.click();
         await ctx.page.getByText('mezclado', { exact: true }).first().waitFor({ timeout: 25000 });
+        await ctx.page.getByTestId('mr-merged').waitFor({ timeout: 5000 });
+        ctx.assert(await ctx.page.getByRole('button', { name: 'Guardar en remoto' }).count() === 0, 'tras mezclar no se ofrece guardar');
+        await shot(ctx, '05-mezclado');
       },
     },
     {
-      name: 'push_task_branch: "Subir rama (push)" publica la rama en origin',
+      name: 'push_task_branch: con PR abierta, "Guardar en remoto" publica la rama en origin',
       fn: async (ctx) => {
         await mrTask(ctx, 'mr-push');
-        await ctx.page.getByRole('button', { name: 'Crear merge/pull request' }).first().click();
+        await createOnly(ctx);
         await ctx.page.getByText('abierto', { exact: true }).first().waitFor({ timeout: 25000 });
-        await ctx.page.getByRole('button', { name: 'Subir rama (push)' }).first().click();
+        await ctx.page.getByRole('button', { name: 'Guardar en remoto' }).first().click();
         await ctx.page.getByText('Rama subida a origin.').first().waitFor({ timeout: 25000 });
       },
     },
