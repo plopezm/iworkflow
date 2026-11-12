@@ -241,6 +241,10 @@ module.exports = {
         const cardBox = await card(ctx, 'Checkout rediseñado').boundingBox();
         ctx.assert(cardBox && cardBox.height >= 44, 'la tarjeta de epic debe medir al menos 44px de alto');
         await shot(ctx, '06-movil');
+        await card(ctx, 'Onboarding guiado').click();
+        await detail(ctx, 'Onboarding guiado').waitFor({ timeout: 10000 });
+        await page.waitForTimeout(700);
+        await shot(ctx, '07-movil-detalle');
       },
     },
   ],
