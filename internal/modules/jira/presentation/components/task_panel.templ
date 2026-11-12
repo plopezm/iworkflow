@@ -1,0 +1,171 @@
+package components
+
+import (
+	"fmt"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// JiraTaskPanel is the Jira panel of a task: the field to link an issue when there is none, otherwise the issue,
+// its latest comments, a status change and the worklog form. Every action answers with the whole panel, so the
+// errors and the typed values stay inline.
+templ JiraTaskPanel(view state.TaskPanelView) {
+	<div id={ view.RootID() } class="stack gap-3">
+		if view.ActionErr != "" {
+			@shared.ErrorText(view.ActionErr)
+		}
+		if view.Linked() {
+			@taskIssueSummary(view)
+			@taskTransitionForm(view)
+			@taskCommentsList(view)
+			@taskWorklogSection(view)
+		} else {
+			@taskLinkForm(view)
+		}
+	</div>
+}
+
+templ taskLinkForm(view state.TaskPanelView) {
+	<form class="stack gap-2" hx-post={ view.Path("link") } hx-target={ "#" + view.RootID() } hx-swap="outerHTML">
+		<p class="muted text-sm">{ msgLinkHint.T(ctx) }</p>
+		<div class="row flex-wrap items-end gap-2">
+			<label class="stack min-w-0 flex-1 gap-1.5">
+				<span class="text-sm font-medium text-fg">{ msgIssueKey.T(ctx) }</span>
+				<input class="input" name="key" value={ view.LinkKey } placeholder="PROJ-123" autocomplete="off" required/>
+			</label>
+			<button type="submit" class="btn-primary">{ msgLinkAction.T(ctx) }</button>
+		</div>
+	</form>
+}
+
+templ taskIssueSummary(view state.TaskPanelView) {
+	<div class="stack gap-2 text-sm">
+		<div class="row flex-wrap items-center justify-between gap-2">
+			<a href={ templ.SafeURL(view.Issue.URL) } target="_blank" rel="noopener noreferrer" class="font-semibold">{ view.Issue.Key }</a>
+			<button type="button" class="btn-ghost" hx-post={ view.Path("refresh") } hx-target={ "#" + view.RootID() } hx-swap="outerHTML">{ msgRefresh.T(ctx) }</button>
+		</div>
+		<p class="font-medium">{ view.Issue.Summary }</p>
+		<dl class="grid gap-x-3 gap-y-1 md:grid-cols-2">
+			<div>
+				<dt class="muted inline">{ msgStatus.T(ctx) }</dt>
+				<dd class="inline">{ view.Issue.Status }</dd>
+			</div>
+			<div>
+				<dt class="muted inline">{ msgPriority.T(ctx) }</dt>
+				<dd class="inline">{ optionalText(view.Issue.Priority) }</dd>
+			</div>
+			<div>
+				<dt class="muted inline">{ msgAssignee.T(ctx) }</dt>
+				<dd class="inline">{ optionalText(view.Issue.Assignee) }</dd>
+			</div>
+		</dl>
+		<details>
+			<summary class="muted cursor-pointer">{ msgDescription.T(ctx) }</summary>
+			if view.Issue.Description != "" {
+				<pre class="mt-2 whitespace-pre-wrap break-words text-sm">{ view.Issue.Description }</pre>
+			} else {
+				<p class="muted mt-2">{ msgNoDescription.T(ctx) }</p>
+			}
+		</details>
+	</div>
+}
+
+templ taskTransitionForm(view state.TaskPanelView) {
+	if view.TransitionsErr != "" {
+		@shared.ErrorText(view.TransitionsErr)
+	} else if len(view.Transitions) > 0 {
+		<form class="row flex-wrap items-center gap-2 text-sm" hx-post={ view.Path("transition") } hx-target={ "#" + view.RootID() } hx-swap="outerHTML">
+			<label class="row items-center gap-2">
+				<span class="muted">{ msgTransition.T(ctx) }</span>
+				<select class="input" name="transition_id" aria-label={ msgTransition.T(ctx) } required>
+					<option value="" selected?={ view.SelectedTransition == "" }>{ msgPickTransition.T(ctx) }</option>
+					for _, transition := range view.Transitions {
+						<option value={ transition.ID } selected?={ view.SelectedTransition == transition.ID }>{ fmt.Sprintf("%s → %s", transition.Name, transition.ToStatus) }</option>
+					}
+				</select>
+			</label>
+			<button type="submit" class="btn-secondary">{ msgApplyTransition.T(ctx) }</button>
+		</form>
+	} else {
+		<p class="muted text-sm">{ msgNoTransitions.T(ctx) }</p>
+	}
+}
+
+templ taskCommentsList(view state.TaskPanelView) {
+	<section class="stack gap-2 text-sm">
+		<h3 class="font-semibold">{ msgComments.T(ctx) }</h3>
+		if view.CommentsErr != "" {
+			@shared.ErrorText(view.CommentsErr)
+		} else if len(view.Comments) == 0 {
+			<p class="muted">{ msgNoComments.T(ctx) }</p>
+		} else {
+			<ul class="stack gap-2">
+				for _, comment := range view.LatestComments() {
+					<li class="stack gap-1 border-l-2 border-border pl-3">
+						<p class="text-xs">
+							<strong>{ comment.Author }</strong>
+							<span class="muted">{ fmt.Sprintf(" · %s", state.ShortTimestamp(comment.CreatedAt)) }</span>
+						</p>
+						<pre class="whitespace-pre-wrap break-words text-sm">{ comment.Body }</pre>
+					</li>
+				}
+			</ul>
+		}
+	</section>
+}
+
+templ taskWorklogSection(view state.TaskPanelView) {
+	<section class="stack gap-2 border-t border-border pt-3 text-sm">
+		if view.ShowBanner() {
+			<div role="status" class="notice notice-info">{ fmt.Sprintf(msgBanner.T(ctx), view.ProposedTime) }</div>
+		}
+		<h3 class="font-semibold">{ msgWorklogTitle.T(ctx) }</h3>
+		if view.HasLogged() {
+			<p class="font-medium">{ fmt.Sprintf(msgRegistered.T(ctx), view.Logged) }</p>
+		}
+		if view.WorklogErr != "" {
+			@shared.ErrorText(view.WorklogErr)
+		}
+		<form class="stack gap-2" hx-post={ view.Path("worklog") } hx-target={ "#" + view.RootID() } hx-swap="outerHTML">
+			<label class="stack gap-1.5">
+				<span class="text-sm font-medium text-fg">{ msgTimeLabel.T(ctx) }</span>
+				<input class="input" name="time" value={ view.TimeText } placeholder="1h 30m" autocomplete="off" required/>
+			</label>
+			<label class="stack gap-1.5">
+				<span class="text-sm font-medium text-fg">{ msgWorklogDescription.T(ctx) }</span>
+				<textarea class="input min-h-24" name="description" required>{ view.Description }</textarea>
+			</label>
+			<label class="row items-center gap-2">
+				<input type="checkbox" name="also_comment" value="on" checked?={ view.AlsoComment }/>
+				<span>{ msgAlsoComment.T(ctx) }</span>
+			</label>
+			<div class="row items-center justify-between gap-2">
+				if !view.Pending && view.WorklogErr == "" {
+					<span class="muted">{ msgNothingPending.T(ctx) }</span>
+				} else {
+					<span></span>
+				}
+				<button type="submit" class="btn-primary" disabled?={ !view.Pending }>{ msgRegister.T(ctx) }</button>
+			</div>
+		</form>
+		if len(view.Worklogs) > 0 {
+			<div class="stack gap-1">
+				<h4 class="muted text-xs">{ msgPreviousWorklogs.T(ctx) }</h4>
+				<ul class="stack gap-1 text-xs">
+					for _, worklog := range view.Worklogs {
+						<li>{ fmt.Sprintf("%s · %s", worklog.LoggedAt, worklog.Time) }</li>
+					}
+				</ul>
+			</div>
+		}
+	</section>
+}
+
+// optionalText shows an optional Jira field, or a dash when Jira sent none.
+func optionalText(value *string) string {
+	if value == nil || *value == "" {
+		return "—"
+	}
+	return *value
+}
