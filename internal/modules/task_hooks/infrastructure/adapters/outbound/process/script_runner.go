@@ -122,7 +122,12 @@ func needsShell(script models.ScriptSpec, dir string) bool {
 
 // readsPositionals reports whether the command line already uses its arguments by itself.
 func readsPositionals(command string) bool {
-	for _, marker := range positionals {
+	return readsAny(command, positionals)
+}
+
+// readsAny reports whether the command line contains any of the markers a shell uses to read its arguments.
+func readsAny(command string, markers []string) bool {
+	for _, marker := range markers {
 		if strings.Contains(command, marker) {
 			return true
 		}

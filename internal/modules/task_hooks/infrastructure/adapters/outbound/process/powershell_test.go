@@ -34,7 +34,24 @@ func TestPowerShellScriptWithoutArgumentsHasNoLiterals(t *testing.T) {
 	assert.Contains(t, powershellScript("echo hi", nil), "echo hi\n}\n$ok = $?")
 }
 
-// A line that reads its arguments, by $args or by splatting them, must not get @args added again.
-func TestPowerShellPositionalsCoverEveryWayOfReadingTheArguments(t *testing.T) {
-	assert.Subset(t, powershellPositionals, []string{"$args", "@args"})
+// A line that reads its arguments, by $args or by splatting them, must not get @args added again; one that does not
+// read them must. The check runs against the PowerShell markers on every platform.
+func TestPowerShellPositionalsTellAReadingLineFromANonReadingOne(t *testing.T) {
+	cases := map[string]struct {
+		command string
+		reads   bool
+	}{
+		"splat":        {"echo @args", true},
+		"index":        {"echo $args[0]", true},
+		"whole array":  {"Write-Output $args", true},
+		"pipeline in":  {"$input | Sort-Object", true},
+		"no arguments": {"codegraph init ; codegraph index", false},
+		"bash style":   {`echo "$@"`, false},
+		"other var":    {"echo $env:HOME", false},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.reads, readsAny(tc.command, powershellPositionals))
+		})
+	}
 }
