@@ -84,6 +84,9 @@ func (f *fakeJira) serve(writer http.ResponseWriter, request *http.Request) {
 		_, _ = writer.Write([]byte(`{"comments":[{"id":"9","author":{"displayName":"Luis"},"body":"hola","created":"2024-05-01T10:00:00.000+0000"}]}`))
 	case strings.HasSuffix(request.URL.Path, "/comment"):
 		writer.WriteHeader(http.StatusCreated)
+	case strings.HasSuffix(request.URL.Path, "/worklog") && request.Method == http.MethodPost:
+		writer.WriteHeader(http.StatusCreated)
+		_, _ = writer.Write([]byte(`{"id":"777"}`))
 	case strings.HasSuffix(request.URL.Path, "/transitions") && request.Method == http.MethodGet:
 		_, _ = writer.Write([]byte(`{"transitions":[{"id":"31","name":"Cerrar","to":{"name":"Done"}}]}`))
 	case strings.HasSuffix(request.URL.Path, "/transitions"):
