@@ -13,7 +13,48 @@ import (
 )
 
 // issueFields are the fields requested from Jira; they keep the responses small.
-const issueFields = "summary,description,status,issuetype,priority,assignee,reporter,labels,updated"
+const issueFields = "summary,description,status,issuetype,priority,assignee,reporter,labels,updated,parent"
+
+// epicType is the issue type name Jira gives to Epics.
+const epicType = "Epic"
+
+// fieldList is issueFields plus the instance-specific Epic Link custom field, when known.
+func fieldList(epicField string) string {
+	if epicField == "" {
+		return issueFields
+	}
+	return issueFields + "," + epicField
+}
+
+// epicLinkFieldID finds the Epic Link custom field in the answer of GET /field. It returns "" when
+// the instance has none (for example without Jira Software).
+func epicLinkFieldID(doc any) string {
+	list, ok := doc.([]any)
+	if !ok {
+		return ""
+	}
+	for _, entry := range list {
+		custom := textAt(entry, "/schema/custom")
+		id := textAt(entry, "/id")
+		if custom != nil && id != nil && *custom == "com.pyxis.greenhopper.jira:gh-epic-link" {
+			return *id
+		}
+	}
+	return ""
+}
+
+// epicKeyOf reads the Epic of an issue: the Epic Link field first, else a parent that is an Epic.
+func epicKeyOf(doc any, epicField string) *string {
+	if epicField != "" {
+		if key := textAt(doc, "/fields/"+epicField); key != nil && *key != "" {
+			return key
+		}
+	}
+	if kind := textAt(doc, "/fields/parent/fields/issuetype/name"); kind != nil && *kind == epicType {
+		return textAt(doc, "/fields/parent/key")
+	}
+	return nil
+}
 
 // jiraDateLayout is the Jira timestamp form: an offset without a colon (2024-05-01T10:00:00.000+0200).
 const jiraDateLayout = "2006-01-02T15:04:05.000-0700"
@@ -95,7 +136,7 @@ func personAt(root any, pointer string) *string {
 }
 
 // issueFromJSON maps one issue document of REST v2 to the remote issue.
-func issueFromJSON(connection models.Connection, now func() time.Time, doc any) (models.RemoteIssue, error) {
+func issueFromJSON(connection models.Connection, now func() time.Time, epicField string, doc any) (models.RemoteIssue, error) {
 	key := textAt(doc, "/key")
 	if key == nil {
 		return models.RemoteIssue{}, jiraerrors.Remote("respuesta de Jira sin clave de tarea")
@@ -120,6 +161,7 @@ func issueFromJSON(connection models.Connection, now func() time.Time, doc any) 
 		Assignee:      personAt(doc, "/fields/assignee"),
 		Reporter:      personAt(doc, "/fields/reporter"),
 		Labels:        labels,
+		EpicKey:       epicKeyOf(doc, epicField),
 		URL:           connection.BrowseURL(*key),
 		JiraUpdatedAt: dateAt(doc, "/fields/updated", now),
 	}, nil
@@ -127,7 +169,7 @@ func issueFromJSON(connection models.Connection, now func() time.Time, doc any) 
 
 // searchPageFromJSON reads one page of /search: the issues plus the offset of the next page and the
 // total, which decide whether another page is needed.
-func searchPageFromJSON(connection models.Connection, now func() time.Time, doc any) ([]models.RemoteIssue, int, int, error) {
+func searchPageFromJSON(connection models.Connection, now func() time.Time, epicField string, doc any) ([]models.RemoteIssue, int, int, error) {
 	raw, ok := valueAt(doc, "/issues")
 	list, isList := raw.([]any)
 	if !ok || !isList {
@@ -135,7 +177,7 @@ func searchPageFromJSON(connection models.Connection, now func() time.Time, doc 
 	}
 	issues := make([]models.RemoteIssue, 0, len(list))
 	for _, entry := range list {
-		issue, err := issueFromJSON(connection, now, entry)
+		issue, err := issueFromJSON(connection, now, epicField, entry)
 		if err != nil {
 			return nil, 0, 0, err
 		}

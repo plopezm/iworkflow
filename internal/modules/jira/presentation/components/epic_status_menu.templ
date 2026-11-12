@@ -1,0 +1,65 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/jira/presentation/state"
+)
+
+// EpicStatusMenu replaces the status control of one child issue with the menu of its allowed transitions.
+// The current status keeps the control's size, and the menu floats above it, so the last row of a long list is never cut by the screen edge, so opening it does not shift
+// the row. Choosing a transition re-renders the whole board; Cancel re-renders the board without a change.
+templ EpicStatusMenu(menu state.StatusMenuView) {
+	<div id={ "status-" + menu.IssueKey } class="relative shrink-0">
+		<span class={ statusBadgeClass(menu.Status) }>
+			{ menu.Status }
+			<span class="spinner invisible" aria-hidden="true"></span>
+			<span aria-hidden="true" class="opacity-70">▴</span>
+		</span>
+		<div
+			role="group"
+			aria-label={ msgChangeStatus.T(ctx) }
+			class="absolute bottom-full right-0 z-20 mb-1 flex w-72 max-w-[calc(100vw-2rem)] origin-bottom-right flex-col gap-1 rounded-lg border border-border bg-surface p-1.5 text-left shadow-lg motion-safe:animate-scale-in"
+		>
+			if menu.Err != "" {
+				<div class="px-2 py-1.5">
+					@shared.ErrorText(menu.Err)
+				</div>
+			}
+			if len(menu.Transitions) == 0 {
+				<p class="px-2 py-2 text-xs text-muted">{ msgNoTransitions.T(ctx) }</p>
+			} else {
+				<form
+					hx-post={ epicTransitionURL(menu.EpicKey, menu.IssueKey) }
+					hx-include="#jira-filters"
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+					class="flex flex-col gap-0.5"
+				>
+					for _, transition := range menu.Transitions {
+						<button
+							type="submit"
+							name="transition_id"
+							value={ transition.ID }
+							class="flex min-h-8 w-full cursor-pointer items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs text-fg motion-safe:transition-colors duration-150 hover:bg-surface-2"
+						>
+							<span class="min-w-0 truncate font-medium">{ transition.Name }</span>
+							<span class="shrink-0 text-muted">→ { transition.ToStatus }</span>
+						</button>
+					}
+				</form>
+			}
+			<div class="mt-1 border-t border-border pt-1">
+				<button
+					type="button"
+					class="btn-ghost w-full"
+					hx-get={ epicBoardURL(menu.EpicKey) }
+					hx-include="#jira-filters"
+					hx-target="#jira-board"
+					hx-swap="outerHTML"
+				>
+					{ msgCancel.T(ctx) }
+				</button>
+			</div>
+		</div>
+	</div>
+}

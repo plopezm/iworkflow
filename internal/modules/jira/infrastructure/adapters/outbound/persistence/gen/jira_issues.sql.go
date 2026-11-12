@@ -42,7 +42,7 @@ func (q *Queries) DeleteRetiredNewJiraIssues(ctx context.Context, newState strin
 
 const getJiraIssue = `-- name: GetJiraIssue :one
 SELECT key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
-       jira_updated_at, local_state, task_id, synced_at
+       jira_updated_at, local_state, task_id, synced_at, epic_key
 FROM jira_issues
 WHERE key = ?1
 `
@@ -65,16 +65,17 @@ func (q *Queries) GetJiraIssue(ctx context.Context, key string) (JiraIssue, erro
 		&i.LocalState,
 		&i.TaskID,
 		&i.SyncedAt,
+		&i.EpicKey,
 	)
 	return i, err
 }
 
 const insertJiraIssueIfAbsent = `-- name: InsertJiraIssueIfAbsent :execrows
 INSERT INTO jira_issues (key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
-                         jira_updated_at, local_state, task_id, synced_at)
+                         jira_updated_at, local_state, task_id, synced_at, epic_key)
 VALUES (?1, ?2, ?3, ?4, ?5,
         ?6, ?7, ?8, ?9, ?10,
-        ?11, ?12, NULL, ?13)
+        ?11, ?12, NULL, ?13, ?14)
 ON CONFLICT (key) DO NOTHING
 `
 
@@ -92,6 +93,7 @@ type InsertJiraIssueIfAbsentParams struct {
 	JiraUpdatedAt string
 	LocalState    string
 	SyncedAt      string
+	EpicKey       sql.NullString
 }
 
 func (q *Queries) InsertJiraIssueIfAbsent(ctx context.Context, arg InsertJiraIssueIfAbsentParams) (int64, error) {
@@ -109,6 +111,7 @@ func (q *Queries) InsertJiraIssueIfAbsent(ctx context.Context, arg InsertJiraIss
 		arg.JiraUpdatedAt,
 		arg.LocalState,
 		arg.SyncedAt,
+		arg.EpicKey,
 	)
 	if err != nil {
 		return 0, err
@@ -133,7 +136,7 @@ func (q *Queries) InsertJiraLaneMembership(ctx context.Context, arg InsertJiraLa
 
 const listJiraIssues = `-- name: ListJiraIssues :many
 SELECT key, summary, description, status, issue_type, priority, assignee, reporter, labels, url,
-       jira_updated_at, local_state, task_id, synced_at
+       jira_updated_at, local_state, task_id, synced_at, epic_key
 FROM jira_issues
 ORDER BY jira_updated_at DESC
 `
@@ -162,6 +165,7 @@ func (q *Queries) ListJiraIssues(ctx context.Context) ([]JiraIssue, error) {
 			&i.LocalState,
 			&i.TaskID,
 			&i.SyncedAt,
+			&i.EpicKey,
 		); err != nil {
 			return nil, err
 		}
@@ -216,8 +220,9 @@ SET summary = ?1,
     labels = ?8,
     url = ?9,
     jira_updated_at = ?10,
-    synced_at = ?11
-WHERE key = ?12
+    synced_at = ?11,
+    epic_key = ?12
+WHERE key = ?13
 `
 
 type RefreshJiraIssueRemoteParams struct {
@@ -232,6 +237,7 @@ type RefreshJiraIssueRemoteParams struct {
 	Url           string
 	JiraUpdatedAt string
 	SyncedAt      string
+	EpicKey       sql.NullString
 	Key           string
 }
 
@@ -248,6 +254,7 @@ func (q *Queries) RefreshJiraIssueRemote(ctx context.Context, arg RefreshJiraIss
 		arg.Url,
 		arg.JiraUpdatedAt,
 		arg.SyncedAt,
+		arg.EpicKey,
 		arg.Key,
 	)
 	if err != nil {

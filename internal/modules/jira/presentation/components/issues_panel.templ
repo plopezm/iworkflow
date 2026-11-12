@@ -1,11 +1,14 @@
 package components
 
 import (
+	"strconv"
+
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/modules/jira/presentation/state"
 )
 
-// IssuesPanel renders the imported Jira issues board with sync, lane management, filters, and lanes.
+// IssuesPanel renders the imported Jira issues board with sync, the Epics/Lanes switch, filters, and the
+// active grouping.
 templ IssuesPanel(view state.IssuesPanelView) {
 	@issuesPanelBody(view, false)
 }
@@ -30,6 +33,7 @@ templ issuesPanelBody(view state.IssuesPanelView, oob bool) {
 					class="btn-primary"
 					disabled?={ view.Syncing }
 					hx-post="/jira/sync"
+					hx-include="#jira-filters"
 					hx-target="#jira-board"
 					hx-swap="outerHTML"
 				>
@@ -39,16 +43,19 @@ templ issuesPanelBody(view state.IssuesPanelView, oob bool) {
 						{ msgSync.T(ctx) }
 					}
 				</button>
-				<button
-					type="button"
-					class="btn-secondary"
-					disabled?={ view.LaneForm.Mode != state.LaneFormClosed }
-					hx-get="/jira/lanes/new"
-					hx-target="#jira-board"
-					hx-swap="outerHTML"
-				>
-					{ msgNewLane.T(ctx) }
-				</button>
+				@BoardModeSwitch(view.Mode)
+				if view.Mode == state.BoardModeLanes {
+					<button
+						type="button"
+						class="btn-secondary"
+						disabled?={ view.LaneForm.Mode != state.LaneFormClosed }
+						hx-get="/jira/lanes/new"
+						hx-target="#jira-board"
+						hx-swap="outerHTML"
+					>
+						{ msgNewLane.T(ctx) }
+					</button>
+				}
 				if view.SyncMessage != nil && *view.SyncMessage != "" {
 					<span class="muted text-sm">{ *view.SyncMessage }</span>
 				}
@@ -59,15 +66,42 @@ templ issuesPanelBody(view state.IssuesPanelView, oob bool) {
 			if view.LaneNotice != nil && *view.LaneNotice != "" {
 				@shared.ErrorText(*view.LaneNotice)
 			}
-			@IssueFilters(view.Filters, view.Statuses)
+			@IssueFilters(view.Filters, view.Statuses, view.Mode, view.SelectedEpic)
 		}
-		if view.LaneForm.Mode != state.LaneFormClosed {
-			@LaneForm(view.LaneForm)
-		}
-		<div class="stack gap-4">
-			for _, lane := range view.Lanes {
-				@LaneSection(lane)
+		if view.Mode == state.BoardModeLanes {
+			if view.LaneForm.Mode != state.LaneFormClosed {
+				@LaneForm(view.LaneForm)
 			}
-		</div>
+			<div class="stack gap-4">
+				for _, lane := range view.Lanes {
+					@LaneSection(lane)
+				}
+			</div>
+		} else {
+			@EpicsBoard(view)
+		}
 	</div>
+}
+
+// BoardModeSwitch lists the two groupings of the board; the active one is pressed. Switching keeps the
+// filters, not the open epic.
+templ BoardModeSwitch(mode state.BoardMode) {
+	<div role="group" aria-label={ msgViewMode.T(ctx) } class="flex flex-wrap items-center gap-1.5">
+		@boardModeChip(state.BoardModeEpics, msgModeEpics.T(ctx), mode == state.BoardModeEpics)
+		@boardModeChip(state.BoardModeLanes, msgModeLanes.T(ctx), mode == state.BoardModeLanes)
+	</div>
+}
+
+templ boardModeChip(target state.BoardMode, label string, active bool) {
+	<button
+		type="button"
+		class={ "chip", templ.KV("chip-selected", active) }
+		aria-pressed={ strconv.FormatBool(active) }
+		hx-get={ "/jira/board?mode=" + string(target) }
+		hx-include={ epicFilterInclude }
+		hx-target="#jira-board"
+		hx-swap="outerHTML"
+	>
+		{ label }
+	</button>
 }

@@ -367,6 +367,118 @@ var (
 		De: "Lane {lane}",
 		Fr: "Voie {lane}",
 	}
+
+	msgViewMode = i18n.Msg{
+		En: "View",
+		Es: "Vista",
+		Zh: "视图",
+		De: "Ansicht",
+		Fr: "Affichage",
+	}
+
+	msgModeEpics = i18n.Msg{
+		En: "Epics",
+		Es: "Épicas",
+		Zh: "史诗",
+		De: "Epics",
+		Fr: "Épiques",
+	}
+
+	msgModeLanes = i18n.Msg{
+		En: "Lanes",
+		Es: "Carriles",
+		Zh: "泳道",
+		De: "Lanes",
+		Fr: "Voies",
+	}
+
+	msgNoEpic = i18n.Msg{
+		En: "No epic",
+		Es: "Sin epic",
+		Zh: "无 Epic",
+		De: "Ohne Epic",
+		Fr: "Sans épique",
+	}
+
+	msgNoEpicHint = i18n.Msg{
+		En: "Issues without an epic in Jira.",
+		Es: "Tareas sin épica en Jira.",
+		Zh: "Jira 中没有 Epic 的任务。",
+		De: "Aufgaben ohne Epic in Jira.",
+		Fr: "Tâches sans épique dans Jira.",
+	}
+
+	msgNoEpicsMatch = i18n.Msg{
+		En: "No epics match the filters",
+		Es: "Ninguna épica coincide con los filtros",
+		Zh: "没有符合筛选条件的 Epic",
+		De: "Keine Epics entsprechen den Filtern",
+		Fr: "Aucune épique ne correspond aux filtres",
+	}
+
+	msgEpicsEmptyTitle = i18n.Msg{
+		En: "No issues imported yet",
+		Es: "Todavía no hay tareas importadas",
+		Zh: "还没有导入任何任务",
+		De: "Noch keine Aufgaben importiert",
+		Fr: "Aucune tâche importée pour l'instant",
+	}
+
+	msgEpicsEmptyHint = i18n.Msg{
+		En: "Sync to bring in the issues of your lanes from Jira.",
+		Es: "Sincroniza para traer las tareas de tus carriles desde Jira.",
+		Zh: "同步以从 Jira 获取你的泳道中的任务。",
+		De: "Synchronisiere, um die Aufgaben deiner Lanes aus Jira zu laden.",
+		Fr: "Synchronisez pour récupérer les tâches de vos voies depuis Jira.",
+	}
+
+	msgSelectEpic = i18n.Msg{
+		En: "Select an epic to see its issues.",
+		Es: "Selecciona una épica para ver sus tareas.",
+		Zh: "选择一个 Epic 以查看其任务。",
+		De: "Wähle ein Epic, um seine Aufgaben zu sehen.",
+		Fr: "Sélectionnez une épique pour voir ses tâches.",
+	}
+
+	msgEpicNoChildren = i18n.Msg{
+		En: "This epic has no issues yet.",
+		Es: "Esta épica todavía no tiene tareas.",
+		Zh: "该 Epic 还没有任何任务。",
+		De: "Dieses Epic hat noch keine Aufgaben.",
+		Fr: "Cette épique n'a pas encore de tâches.",
+	}
+
+	msgProgress = i18n.Msg{
+		En: "{done} of {total} done",
+		Es: "{done} de {total} hechas",
+		Zh: "已完成 {done} / {total}",
+		De: "{done} von {total} erledigt",
+		Fr: "{done} sur {total} terminées",
+	}
+
+	msgChildIssues = i18n.Msg{
+		En: "Child issues",
+		Es: "Subtareas",
+		Zh: "子任务",
+		De: "Untergeordnete Aufgaben",
+		Fr: "Sous-tâches",
+	}
+
+	msgChangeStatus = i18n.Msg{
+		En: "Change status",
+		Es: "Cambiar estado",
+		Zh: "更改状态",
+		De: "Status ändern",
+		Fr: "Changer le statut",
+	}
+
+	msgNoTransitions = i18n.Msg{
+		En: "No status changes available.",
+		Es: "No hay cambios de estado disponibles.",
+		Zh: "没有可用的状态变更。",
+		De: "Keine Statusänderungen verfügbar.",
+		Fr: "Aucun changement de statut disponible.",
+	}
 )
 
 func formatLaneFailed(ctx context.Context, lane string) string {

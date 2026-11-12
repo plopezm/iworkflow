@@ -162,6 +162,38 @@ func TestReplaceSyncedInsertsListsNewestFirstAndFinds(t *testing.T) {
 	assert.Nil(t, missing)
 }
 
+func TestTheEpicOfAnIssueIsStoredRefreshedAndCleared(t *testing.T) {
+	_, issues, _ := newConnectionRepo(t)
+	ctx := context.Background()
+	epic := "EP-1"
+	child := remote("A-1", "To Do", 10)
+	child.EpicKey = &epic
+
+	_, err := issues.ReplaceSynced(ctx, mine(child), storedNow)
+	require.NoError(t, err)
+	found, err := issues.Find(ctx, "A-1")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	require.NotNil(t, found.Remote.EpicKey)
+	assert.Equal(t, "EP-1", *found.Remote.EpicKey)
+
+	moved := "EP-2"
+	child.EpicKey = &moved
+	_, err = issues.ReplaceSynced(ctx, mine(child), storedNow)
+	require.NoError(t, err)
+	found, err = issues.Find(ctx, "A-1")
+	require.NoError(t, err)
+	require.NotNil(t, found.Remote.EpicKey)
+	assert.Equal(t, "EP-2", *found.Remote.EpicKey, "a resync follows the epic change")
+
+	child.EpicKey = nil
+	_, err = issues.ReplaceSynced(ctx, mine(child), storedNow)
+	require.NoError(t, err)
+	found, err = issues.Find(ctx, "A-1")
+	require.NoError(t, err)
+	assert.Nil(t, found.Remote.EpicKey, "an issue taken out of its epic keeps none")
+}
+
 func TestARepeatedKeyInOneBatchDoesNotAbortTheSync(t *testing.T) {
 	_, issues, _ := newConnectionRepo(t)
 	ctx := context.Background()

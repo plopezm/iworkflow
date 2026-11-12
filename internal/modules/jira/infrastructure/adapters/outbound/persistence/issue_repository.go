@@ -208,6 +208,7 @@ func insertParams(issue models.RemoteIssue, synced string) gen.InsertJiraIssueIf
 		JiraUpdatedAt: formatTimestamp(issue.JiraUpdatedAt),
 		LocalState:    models.IssueLocalStateNew.String(),
 		SyncedAt:      synced,
+		EpicKey:       nullString(issue.EpicKey),
 	}
 }
 
@@ -224,6 +225,7 @@ func refreshParams(issue models.RemoteIssue, synced string) gen.RefreshJiraIssue
 		Url:           issue.URL,
 		JiraUpdatedAt: formatTimestamp(issue.JiraUpdatedAt),
 		SyncedAt:      synced,
+		EpicKey:       nullString(issue.EpicKey),
 		Key:           issue.Key,
 	}
 }
@@ -265,6 +267,7 @@ func issueFromRow(row gen.JiraIssue) (models.Issue, error) {
 			Assignee:      optionalString(row.Assignee),
 			Reporter:      optionalString(row.Reporter),
 			Labels:        labels,
+			EpicKey:       optionalString(row.EpicKey),
 			URL:           row.Url,
 			JiraUpdatedAt: jiraUpdatedAt,
 		},
