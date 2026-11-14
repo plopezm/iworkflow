@@ -3,6 +3,7 @@ package web
 import (
 	"net/http"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -16,7 +17,8 @@ const manifestMediaType string = "application/manifest+json"
 func StaticHandler(dir string) http.Handler {
 	files := http.StripPrefix("/static/", http.FileServer(http.FS(os.DirFS(dir))))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, manifestSuffix) {
+		// File extensions are matched case-insensitively: "manifest.WebManifest" is still a manifest.
+		if strings.EqualFold(path.Ext(r.URL.Path), manifestSuffix) {
 			w.Header().Set("Content-Type", manifestMediaType)
 		}
 		files.ServeHTTP(w, r)

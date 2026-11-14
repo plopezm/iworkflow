@@ -1,7 +1,8 @@
 // Marks the sidebar navigation link of the page that has the focus in the dock (aria-current="page"),
 // which the stylesheet lights up. The dock publishes the focused page as data-focused-path.
 
-// A link is the current page when its path is the focused one; the home board "/" never matches by prefix.
+// A link is the current page only when its path equals the focused one (exact match, no prefix match, so
+// the home board "/" does not light up on every page). An empty path on either side marks nothing.
 export function isCurrentPath(linkPath, focusedPath) {
   if (!linkPath || !focusedPath) return false;
   return linkPath === focusedPath;

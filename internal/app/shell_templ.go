@@ -272,7 +272,7 @@ func sidebar(boardSidebar templ.Component, version string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span> <kbd class=\"palette-kbd\">Ctrl K</kbd></button></div><div class=\"min-h-0 flex-1 overflow-y-auto overflow-x-hidden\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</span> <kbd class=\"palette-kbd\" data-palette-kbd>Ctrl K</kbd></button></div><div class=\"min-h-0 flex-1 overflow-y-auto overflow-x-hidden\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -151,7 +151,7 @@ templ BoardListBody(view state.BoardView) {
 						for _, group := range view.Groups {
 							if len(group.Tasks) > 0 {
 								<section class="stack gap-2" data-stage-group={ group.Stage }>
-									<h2 class="stage-heading" data-stage={ group.Stage }><span class="stage-heading-dot" aria-hidden="true"></span><span class="stage-heading-label">{ stageLabel(group.Stage).T(ctx) }</span><span class="stage-heading-count">{ itoa(len(group.Tasks)) }</span></h2>
+									<h2 class="stage-heading" data-stage={ group.Stage }><span class="stage-heading-dot" aria-hidden="true"></span><span class="stage-heading-label">{ stageLabel(group.Stage).T(ctx) }</span>{ " " }<span class="stage-heading-count">{ itoa(len(group.Tasks)) }</span></h2>
 									<div class="grid gap-2" style="grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr))">
 										for _, task := range group.Tasks {
 											@LooseTaskCard(task, view.Scope)

@@ -24,3 +24,13 @@ func TestShellSetsLanguageTitleAndAssets(t *testing.T) {
 	require.Contains(t, html, `/static/vendor/htmx.min.js`)
 	require.Contains(t, html, "pi-theme")
 }
+
+func TestShellDeclaresTheSameOriginManifestWithoutCORSMode(t *testing.T) {
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.De, Chosen: true})
+	var out bytes.Buffer
+
+	require.NoError(t, web.Shell("Board").Render(ctx, &out))
+
+	require.Contains(t, out.String(), `<link rel="manifest" href="/static/manifest.webmanifest">`)
+	require.NotContains(t, out.String(), "use-credentials")
+}

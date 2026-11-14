@@ -29,6 +29,13 @@ func TestStaticHandlerServesTheWebManifestWithItsOwnMediaType(t *testing.T) {
 	require.JSONEq(t, `{"name":"x"}`, rec.Body.String())
 }
 
+func TestStaticHandlerRecognisesTheManifestSuffixInAnyCase(t *testing.T) {
+	rec := serveStatic(t, "Manifest.WebManifest", `{"name":"x"}`)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, "application/manifest+json", rec.Header().Get("Content-Type"))
+}
+
 func TestStaticHandlerKeepsTheMediaTypeOfOtherAssets(t *testing.T) {
 	rec := serveStatic(t, "app.css", `a{}`)
 

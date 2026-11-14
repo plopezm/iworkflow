@@ -2180,14 +2180,16 @@ article.card:hover {
   @apply h-2 w-2 rounded-full;
   background: var(--c-stage-backlog);
 }
+.stage-heading[data-stage="working"] .stage-heading-dot,
+.stage-heading[data-stage="attention"] .stage-heading-dot {
+  animation: status-halo 1.8s ease-out infinite;
+}
 .stage-heading[data-stage="working"] .stage-heading-dot {
   background: var(--c-stage-working);
-  animation: status-halo 1.8s ease-out infinite;
   color: var(--c-stage-working);
 }
 .stage-heading[data-stage="attention"] .stage-heading-dot {
   background: var(--c-stage-attention);
-  animation: status-halo 1.8s ease-out infinite;
   color: var(--c-stage-attention);
 }
 .stage-heading[data-stage="review"] .stage-heading-dot { background: var(--c-stage-review); }
@@ -2196,8 +2198,8 @@ article.card:hover {
   @apply rounded-full bg-surface-2 px-1.5 py-px text-[10px] font-medium text-muted tabular-nums;
 }
 
-/* The heading already names the stage, so the cards of the grouped list do not repeat it. */
-.board-stages .loose-card > div:first-child > .badge {
+/* The heading already names the stage, so the cards of the grouped list do not repeat it. The card marks its stage badge with data-loose-stage. */
+.board-stages .loose-card [data-loose-stage] {
   display: none;
 }
 
@@ -2236,7 +2238,8 @@ article.card:hover {
   color: var(--c-error);
   animation: status-halo 1.8s ease-out infinite;
 }
-/* A running task glows softly, so the board shows what is alive. */
+/* A running task glows softly, so the board shows what is alive. The glow animates box-shadow, which replaces the
+   card elevation and its hover shadow on working cards (animations win over normal declarations). */
 .loose-card[data-stage="working"] {
   animation: working-glow 2.4s ease-in-out infinite;
 }
@@ -2245,8 +2248,12 @@ article.card:hover {
   50%      { box-shadow: 0 0 18px -2px color-mix(in srgb, var(--c-stage-working) 45%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .attention-dot,
-  .loose-card[data-stage="working"] { animation: none; }
+  .attention-dot { animation: none; }
+  /* Without the animation, the resting state of the glow applies: no shadow, as in normal motion. */
+  .loose-card[data-stage="working"] {
+    animation: none;
+    box-shadow: none;
+  }
 }
 
 /* ═══ Engram memory chip (workspaces) ═════════════ */

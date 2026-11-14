@@ -56,7 +56,7 @@ func Shell(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover\"><meta name=\"theme-color\" content=\"#0b0b12\" media=\"(prefers-color-scheme: dark)\"><meta name=\"theme-color\" content=\"#ffffff\" media=\"(prefers-color-scheme: light)\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-title\" content=\"iworkflow\"><link rel=\"manifest\" href=\"/static/manifest.webmanifest\" crossorigin=\"use-credentials\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/icons/icon.svg\"><link rel=\"apple-touch-icon\" href=\"/static/icons/icon-192.png\"><title>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover\"><meta name=\"theme-color\" content=\"#0b0b12\" media=\"(prefers-color-scheme: dark)\"><meta name=\"theme-color\" content=\"#ffffff\" media=\"(prefers-color-scheme: light)\"><meta name=\"mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-capable\" content=\"yes\"><meta name=\"apple-mobile-web-app-title\" content=\"iworkflow\"><link rel=\"manifest\" href=\"/static/manifest.webmanifest\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"/static/icons/icon.svg\"><link rel=\"apple-touch-icon\" href=\"/static/icons/icon-192.png\"><title>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

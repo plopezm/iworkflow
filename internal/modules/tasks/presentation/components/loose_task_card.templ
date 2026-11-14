@@ -19,7 +19,7 @@ templ LooseTaskCard(task dto.TaskDTO, scope string) {
 			<div class="line-clamp-2 min-w-0 text-[13px] font-medium leading-snug text-fg select-none">
 				{ state.TaskTitle(task) }
 			</div>
-			@StageBadge(task.Stage)
+			<span class="contents" data-loose-stage>@StageBadge(task.Stage)</span>
 		</div>
 		<div class="flex min-h-5 flex-wrap items-center gap-1">
 			if task.Priority != "" && task.Priority != "normal" {

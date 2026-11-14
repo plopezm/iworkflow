@@ -2,8 +2,14 @@
 // (navigation, workspaces and the tasks that need attention). It queries nothing: choosing an
 // entry clicks the original link, so the dock opens it as a tab exactly as the sidebar does.
 
+// Selectors of the sidebar markup this module reads. They are duplicated by hand from the templates:
+// NAV_LINKS from internal/core/components/shell.templ (data-app-shell) and the sidebar navigation, ROW_SELECTORS
+// from internal/modules/tasks/presentation/components/sidebar.templ (data-workspace-row, data-attention-task).
+// Renaming one of those attributes requires changing the matching constant here.
 const NAV_LINKS = '[data-app-shell] nav a[href]';
 const ROW_SELECTORS = ['[data-workspace-row]', '[data-attention-task]'];
+// The sidebar hint element; the server renders 'Ctrl K' and this module swaps in the Apple label.
+const SHORTCUT_HINT = '[data-palette-kbd]';
 
 function normalize(text) {
   return String(text).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -22,6 +28,21 @@ export function filterEntries(entries, query) {
     else if (label.includes(needle)) containing.push(entry);
   }
   return starting.concat(containing);
+}
+
+// An Enter that confirms an IME composition (CJK input, dead keys) is not a choice. Safari reports it as keyCode 229.
+export function isComposing(ev) {
+  return Boolean(ev.isComposing || ev.keyCode === 229);
+}
+
+// Apple platforms (macOS, iOS, iPadOS) read the Command key; everywhere else the hint says Ctrl.
+export function isApplePlatform(nav) {
+  const hint = (nav && nav.userAgentData && nav.userAgentData.platform) || (nav && nav.platform) || '';
+  return /mac|iphone|ipad|ipod/i.test(String(hint));
+}
+
+export function paletteShortcutLabel(isApple) {
+  return isApple ? '⌘K' : 'Ctrl K';
 }
 
 export function isPaletteShortcut(ev) {
@@ -63,7 +84,11 @@ export function collectEntries(root = document) {
   return entries;
 }
 
-export function setupCommandPalette(root = document) {
+export function setupCommandPalette(root = document, nav = globalThis.navigator) {
+  const label = paletteShortcutLabel(isApplePlatform(nav));
+  root.querySelectorAll(SHORTCUT_HINT).forEach((hint) => {
+    hint.textContent = label;
+  });
   const dialog = root.getElementById('command-palette');
   if (!dialog) return;
   const input = dialog.querySelector('[data-palette-input]');
@@ -103,7 +128,7 @@ export function setupCommandPalette(root = document) {
       if (shown.length === 0) return;
       active = (active + (ev.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length;
       paint();
-    } else if (ev.key === 'Enter' && shown[active]) {
+    } else if (ev.key === 'Enter' && !isComposing(ev) && shown[active]) {
       ev.preventDefault();
       choose(shown[active]);
     }
