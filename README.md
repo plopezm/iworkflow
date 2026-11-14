@@ -54,7 +54,7 @@ iworkflow is built **mobile-first**. Since your job is to launch, follow and rev
 
 - The UI is responsive: on small screens the side menu becomes a drawer opened from a top bar, and the tabbed workspace adapts to the viewport.
 - The agent keeps running on your machine while you are away. From the phone you check progress, answer agent questions, send a message, review the diff and merge or discard.
-- On iOS (Safari → Share → *Add to Home Screen*) and Android (Chrome → menu → *Add to Home screen*) you can pin it as a shortcut. For now it opens in the browser; it does not yet ship a web app manifest, so it is not a standalone full-screen app.
+- On iOS (Safari → Share → *Add to Home Screen*) and Android (Chrome → menu → *Add to Home screen*) you can pin it as a shortcut. It ships a web app manifest and icons, so it installs as a standalone full-screen app (Chrome and Edge also offer *Install* in the address bar). There is no service worker: the app needs the server running and shows no offline copy.
 
 The server runs on your computer and the phone is only a browser, so you need a secure way to reach it: see [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale).
 
@@ -176,6 +176,11 @@ Environment variables (`.env` is supported, see `.env.example`):
 | `IWF_TLS` | unset (plain HTTP). `auto` serves HTTPS with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)) |
 | `IWF_TLS_PORT` | HTTP port + 443 (HTTPS listener port when TLS is on) |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key; set both or neither. They win over `IWF_TLS=auto` |
+| `IWF_ENGRAM_URL` | unset: off. Base URL of the local Engram HTTP API, for example `http://127.0.0.1:7437`. When set to a valid http or https URL, it turns on the Engram memory of each workspace (see [Engram memory](#engram-memory)). An invalid value keeps it off and logs one warning at startup |
+
+### Engram memory
+
+Off by default. With `IWF_ENGRAM_URL=http://127.0.0.1:7437` (or the address of your Engram), iworkflow shows, for each workspace, how many memories Engram keeps for its project (the chip on Workspaces), and, on each task, the type, title and date of its five most recent memories (the Memory panel). The access is read-only: iworkflow only sends `GET` requests (`/projects` and `/observations/recent`) and never saves, edits or deletes memories. The content of a memory is never shown, only its type, title and date. When Engram does not answer, the screens say it is not available and keep working. Without the variable, or with an invalid URL, the feature is off and iworkflow sends no request to Engram.
 
 Moving the data folder: open **Settings → Resources**, type the new absolute folder in the **Data folder** card and press *Move folder*. The server restarts, copies everything (database, worktrees, attachments, models...), checks the copy, repoints the stored paths and the git worktrees, switches to the new folder and only then deletes the old one. It refuses while a task is starting, running or finishing (note: Claude and pi resume a conversation by folder, so tasks that already started begin a new conversation after the move; Cursor and agy tasks keep theirs), and if the new folder is not empty, not writable, nested with the old one or too small. If anything fails the old folder stays untouched and in use, and the card shows why. The choice is stored in a one-line pointer file in the per-user configuration folder (`~/.config/iworkflow/data-home` on Linux, `~/Library/Application Support/iworkflow/data-home` on macOS, `%APPDATA%\iworkflow\data-home` on Windows), outside the data folder, so updates and reinstalls keep it. `IWF_HOME` (environment or `.env`) wins over the pointer; while it is set the card is read-only. Alternatively set `IWF_HOME` yourself (on Windows the installer asks for it and stores it as a user environment variable) after copying the old `~/.iworkflow` there. On Windows the home directory is taken from `USERPROFILE` when `HOME` is missing.
 

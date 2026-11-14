@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="iworkflow">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b7dff"/>
+      <stop offset="1" stop-color="#f28dbd"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#0b0b12"/>
+  <rect x="40" y="40" width="432" height="432" rx="88" fill="url(#bg)"/>
+  <!-- A task graph: one task fans out to two successors. -->
+  <g fill="none" stroke="#0b0b12" stroke-width="28" stroke-linecap="round">
+    <path d="M170 256h92M262 256c40 0 40-96 80-96M262 256c40 0 40 96 80 96"/>
+  </g>
+  <g fill="#0b0b12">
+    <circle cx="158" cy="256" r="38"/>
+    <circle cx="354" cy="160" r="34"/>
+    <circle cx="354" cy="352" r="34"/>
+  </g>
+</svg>

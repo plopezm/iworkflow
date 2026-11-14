@@ -70,6 +70,8 @@ type Deps struct {
 	Restart *restart.Handle
 	// Version is the build version shown in the sidebar footer; empty hides it.
 	Version string
+	// EngramURL is the base URL of the Engram HTTP API (IWF_ENGRAM_URL). Optional: empty or invalid keeps the feature off.
+	EngramURL string
 }
 
 // App is the assembled server: the router and the modules it mounts.
@@ -104,12 +106,16 @@ func New(deps Deps) (*App, error) {
 		Projects:   projects,
 		Logger:     deps.Logger,
 	})
+	// Engram is optional: without a valid IWF_ENGRAM_URL both ports stay nil, and the screens show no Engram part.
+	memoryPort, taskMemory := composeEngram(deps.EngramURL, deps.Logger)
 	workspaceTasks := &workspaceTasksBridge{}
 	workspaces := workspacesdi.NewModule(workspacesdi.Deps{
 		DB:          deps.DB,
 		HomeDir:     deps.Config.HomeDir,
 		Tasks:       workspaceTasks,
 		AgentsFiles: &agentsFilesBridge{module: agentsFiles},
+		Memory:      memoryPort,
+		Logger:      deps.Logger,
 	})
 	projects.list = workspaces.List
 	projects.get = workspaces.Get
@@ -173,6 +179,7 @@ func New(deps Deps) (*App, error) {
 		WorkspaceFileSearch: fileSearch.WorkspaceFiles,
 		Panels:              panels,
 		JiraPanel:           jiraPanel,
+		TaskMemory:          taskMemory,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose tasks: %w", err)

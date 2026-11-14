@@ -43,6 +43,11 @@ templ WorkspaceTable(table state.TableView) {
 						</div>
 						<code class="truncate font-mono text-xs text-muted">{ row.Path }</code>
 						<code class="font-mono text-xs text-muted">{ row.BaseBranch }</code>
+						if row.Memory.State != state.MemoryChipHidden {
+							<div class="row">
+								<span class={ memoryChipClass(row.Memory) }>{ memoryChipText(ctx, row.Memory) }</span>
+							</div>
+						}
 					</article>
 				}
 			</div>

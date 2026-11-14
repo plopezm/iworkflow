@@ -42,6 +42,7 @@ const (
 	logLevelVar     string = "IWF_LOG_LEVEL"
 	logMaxMBVar     string = "IWF_LOG_MAX_MB"
 	logBackupsVar   string = "IWF_LOG_BACKUPS"
+	engramURLVar    string = "IWF_ENGRAM_URL"
 	defaultLogMaxMB        = 10
 	defaultBackups         = 5
 )
@@ -236,6 +237,7 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		Preferences: prefs,
 		Restart:     restartHandle,
 		Version:     version,
+		EngramURL:   strings.TrimSpace(os.Getenv(engramURLVar)),
 	})
 	if err != nil {
 		return fmt.Errorf("compose application: %w", err)

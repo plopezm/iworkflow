@@ -102,3 +102,73 @@ func TestPickerEntriesMarkGitRepositories(t *testing.T) {
 	assert.Contains(t, body, ">git</span>")
 	assert.Equal(t, 1, strings.Count(body, ">git</span>"), "only the repository carries the badge")
 }
+
+// memoryRow renders one workspace row carrying the given Engram chip.
+func memoryRow(t *testing.T, chip state.MemoryChip) string {
+	t.Helper()
+	return render(t, WorkspaceTable(state.TableView{Rows: []state.WorkspaceRow{{
+		ID: "w1", Name: "alpha", Path: "/repos/alpha", BaseBranch: "main",
+		EditHref: "/workspaces/w1/edit", TerminalHref: "/workspaces/w1/terminal",
+		Memory: chip,
+	}}}))
+}
+
+func TestMemoryChipSaysHowManyMemoriesTheWorkspaceHas(t *testing.T) {
+	many := memoryRow(t, state.MemoryChip{State: state.MemoryChipAvailable, Count: 3})
+	one := memoryRow(t, state.MemoryChip{State: state.MemoryChipAvailable, Count: 1})
+
+	assert.Contains(t, many, "Engram · 3 memorias")
+	assert.Contains(t, one, "Engram · 1 memoria", "one memory is singular")
+	assert.NotContains(t, one, "1 memorias")
+	assert.NotContains(t, many, "memory-chip-off", "an available chip keeps the accent tint")
+}
+
+func TestMemoryChipSaysThereAreNoMemoriesYetWhenEngramAnswersEmpty(t *testing.T) {
+	body := memoryRow(t, state.MemoryChip{State: state.MemoryChipEmpty})
+
+	assert.Contains(t, body, "Engram · sin memorias")
+	assert.NotContains(t, body, "memory-chip-off")
+}
+
+func TestMemoryChipIsMutedWhenEngramIsUnavailable(t *testing.T) {
+	body := memoryRow(t, state.MemoryChip{State: state.MemoryChipUnavailable})
+
+	assert.Contains(t, body, "Engram no disponible")
+	assert.Contains(t, body, `class="memory-chip memory-chip-off"`)
+	assert.NotContains(t, body, "text-error", "unavailable is a normal state, not an error style")
+}
+
+func TestMemoryChipIsAbsentWhenNoProviderIsWired(t *testing.T) {
+	body := memoryRow(t, state.MemoryChip{State: state.MemoryChipHidden})
+
+	assert.Contains(t, body, "alpha", "the row is still listed")
+	assert.NotContains(t, body, "memory-chip", "no chip at all, not even a muted one")
+	assert.NotContains(t, body, "Engram")
+}
+
+func TestMemoryChipHasNoLastActivityTitle(t *testing.T) {
+	body := memoryRow(t, state.MemoryChip{State: state.MemoryChipAvailable, Count: 2})
+
+	assert.NotContains(t, body, "Última actividad", "the chip shows no last activity: Engram does not expose it")
+}
+
+func TestMemoryChipTextsExistInEveryLanguage(t *testing.T) {
+	cases := map[string]state.MemoryChip{
+		"many":        {State: state.MemoryChipAvailable, Count: 4},
+		"one":         {State: state.MemoryChipAvailable, Count: 1},
+		"empty":       {State: state.MemoryChipEmpty},
+		"unavailable": {State: state.MemoryChipUnavailable},
+	}
+	for _, locale := range []i18n.Locale{i18n.En, i18n.Zh, i18n.De, i18n.Fr} {
+		ctx := i18n.WithState(context.Background(), i18n.State{Locale: locale, Chosen: true})
+		for name, chip := range cases {
+			text := memoryChipText(ctx, chip)
+			assert.NotEmpty(t, text, "%s in %s", name, locale)
+			assert.Contains(t, text, "Engram", "%s in %s", name, locale)
+			if locale != i18n.En {
+				assert.NotEqual(t, memoryChipText(i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true}), chip), text,
+					"%s is translated in %s", name, locale)
+			}
+		}
+	}
+}

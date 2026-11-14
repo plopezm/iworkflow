@@ -203,3 +203,31 @@ func TestModuleServesTheDiffTabAndItsView(t *testing.T) {
 	}
 	assert.Contains(t, patterns, "/tasks/{id}/diff")
 }
+
+// noMemory is a memory port that knows no project: the Memory panel stays out of the page.
+type noMemory struct{}
+
+func (noMemory) Recent(context.Context, string, string) (models.TaskMemoryFeed, error) {
+	return models.TaskMemoryFeed{}, nil
+}
+
+// The Memory panel port is optional: the module builds with it and without it, and the detail tab is mounted either way.
+func TestModuleBuildsWithOrWithoutTheMemoryPort(t *testing.T) {
+	t.Parallel()
+	for name, port := range map[string]outbound.TaskMemory{"without the port": nil, "with the port": noMemory{}} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			deps := baseDeps(t)
+			deps.TaskMemory = port
+
+			module, err := di.NewModule(deps)
+
+			require.NoError(t, err)
+			patterns := []string{}
+			for _, tab := range module.Tabs() {
+				patterns = append(patterns, tab.Pattern)
+			}
+			assert.Contains(t, patterns, "/tasks/{id}")
+		})
+	}
+}

@@ -1,7 +1,9 @@
 package app_test
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"io"
 	"log/slog"
 	"net/http"
@@ -10,8 +12,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/app"
@@ -72,6 +76,17 @@ func TestShellShowsTheBuildVersionInTheSidebar(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `data-app-version>v9.8.7<`)
+}
+
+func TestShellShowsTheVersionNextToTheBrandAtTheTopOfTheSidebar(t *testing.T) {
+	body := get(t, newRouter(t), "/").Body.String()
+
+	brand := strings.Index(body, `tracking-tight">iworkflow`)
+	version := strings.Index(body, `data-app-version`)
+	menu := strings.Index(body, `aria-label="Navegación"`)
+	require.True(t, brand > 0 && version > 0 && menu > 0, "brand, version and menu must be rendered")
+	require.Less(t, brand, version, "the version follows the brand")
+	require.Less(t, version, menu, "the version sits in the header, above the menu")
 }
 
 func TestShellRendersDockAndMigratedNavigation(t *testing.T) {
@@ -310,4 +325,130 @@ func TestTheOtherFileEditorRoutesOfTheDiffAnswerFragmentsNotTheShell(t *testing.
 			require.NotContains(t, rec.Body.String(), `id="dock`)
 		})
 	}
+}
+
+func TestShellRendersTheCommandPaletteInTheRequestLanguage(t *testing.T) {
+	rec := get(t, newRouter(t), "/")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, `id="command-palette"`)
+	require.Contains(t, body, `role="listbox"`)
+	require.Contains(t, body, `placeholder="Ir a…"`)
+	require.Contains(t, body, `/static/js/command_palette.js`)
+	require.Contains(t, body, `data-palette-open`)
+	require.Contains(t, body, `/static/js/sidebar_active.js`)
+}
+
+func TestShellDeclaresTheWebAppManifestAndItsIcons(t *testing.T) {
+	body := get(t, newRouter(t), "/").Body.String()
+
+	require.Contains(t, body, `rel="manifest" href="/static/manifest.webmanifest"`)
+	require.Contains(t, body, `name="theme-color"`)
+	require.Contains(t, body, `rel="apple-touch-icon" href="/static/icons/icon-192.png"`)
+	require.Contains(t, body, `rel="icon" type="image/svg+xml" href="/static/icons/icon.svg"`)
+}
+
+// engramTaskID is the task the Engram app tests open; insertWorkspaceAndTask stores it in workspace "demo".
+const engramTaskID = "0b6b7a1e-5f5e-4c44-9a4e-2f1d0c9a7b11"
+
+// engramWorkspaceID is the UUID of workspace "demo"; the repository rejects other IDs.
+const engramWorkspaceID = "6f1c3d2a-8b7e-4a51-9c20-3e4f5a6b7c8d"
+
+// composeWithEngram composes the server on db with the given IWF_ENGRAM_URL value and returns its router and the
+// log it wrote.
+func composeWithEngram(t *testing.T, db *sql.DB, engramURL string) (http.Handler, *bytes.Buffer) {
+	t.Helper()
+	static := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(static, "app.css"), []byte("body{}"), 0o600))
+	var logs bytes.Buffer
+	application, err := app.New(app.Deps{
+		DB:        db,
+		Config:    app.NewTestConfig(t),
+		Logger:    slog.New(slog.NewTextHandler(&logs, nil)),
+		StaticDir: static,
+		Listen:    listen.Info{Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), 3000)},
+		Restart:   restart.NewHandle(),
+		Version:   "9.8.7",
+		EngramURL: engramURL,
+	})
+	require.NoError(t, err)
+	return application.Router(), &logs
+}
+
+// insertWorkspaceAndTask stores workspace "demo" at /repos/demo and one backlog task of it.
+func insertWorkspaceAndTask(t *testing.T, db *sql.DB) {
+	t.Helper()
+	_, err := db.Exec(`INSERT INTO workspaces (id, name, path, base_branch, created_at) VALUES (?, 'demo', '/repos/demo', 'main', '2026-01-01T00:00:00Z')`, engramWorkspaceID)
+	require.NoError(t, err)
+	_, err = db.Exec(`INSERT INTO tasks (id, workspace_id, title, prompt, branch, base_branch, worktree_path, status, created_at, updated_at)
+		VALUES (?, ?, 'memoria', 'p', 'b', 'main', '/tmp/wt', 'backlog', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`, engramTaskID, engramWorkspaceID)
+	require.NoError(t, err)
+}
+
+// An unset, empty or invalid IWF_ENGRAM_URL starts the app with the feature off: no chip on Workspaces and no Memory
+// panel on the task. Only an invalid value logs a warning, and only one.
+func TestEngramFeatureIsOffWithoutAValidURL(t *testing.T) {
+	cases := map[string]struct {
+		url      string
+		warnings int
+	}{
+		"unset":     {url: "", warnings: 0},
+		"spaces":    {url: "   ", warnings: 0},
+		"not a url": {url: "not a url", warnings: 1},
+		"ftp":       {url: "ftp://127.0.0.1:7437", warnings: 1},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			db := dbtest.New(t)
+			insertWorkspaceAndTask(t, db)
+			handler, logs := composeWithEngram(t, db, tc.url)
+
+			assert.Equal(t, tc.warnings, strings.Count(logs.String(), "level=WARN"), "one warning for an invalid value, none otherwise")
+
+			workspaces := get(t, handler, "/dock/pane?path=/workspaces")
+			require.Equal(t, http.StatusOK, workspaces.Code)
+			assert.Contains(t, workspaces.Body.String(), "demo", "the workspace is still listed")
+			assert.NotContains(t, workspaces.Body.String(), "Engram", "no chip on Workspaces")
+			assert.NotContains(t, workspaces.Body.String(), "memory-chip")
+
+			detail := get(t, handler, "/dock/pane?path=/tasks/"+engramTaskID)
+			require.Equal(t, http.StatusOK, detail.Code)
+			assert.NotContains(t, detail.Body.String(), "data-task-memory", "no Memory panel on the task")
+		})
+	}
+}
+
+// With a valid URL the feature is on: the Workspaces page asks Engram for its projects once, and the task shows
+// its Memory panel. This is the control for the disabled cases above.
+func TestEngramFeatureIsOnWithAValidURLAndReadsTheProjectsOnce(t *testing.T) {
+	var projectsHits, recentHits atomic.Int32
+	engram := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/projects":
+			projectsHits.Add(1)
+			_, _ = w.Write([]byte(`{"projects":[{"name":"demo","observation_count":2,"directories":["/repos/demo"]}]}`))
+		case "/observations/recent":
+			recentHits.Add(1)
+			_, _ = w.Write([]byte(`[{"id":1,"type":"decision","title":"Usar WAL","last_seen_at":"2026-11-10 09:00:00"}]`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(engram.Close)
+	db := dbtest.New(t)
+	insertWorkspaceAndTask(t, db)
+	handler, logs := composeWithEngram(t, db, engram.URL)
+
+	workspaces := get(t, handler, "/dock/pane?path=/workspaces")
+	require.Equal(t, http.StatusOK, workspaces.Code)
+	assert.Contains(t, workspaces.Body.String(), "Engram · 2 memorias")
+	assert.Equal(t, int32(1), projectsHits.Load(), "one GET /projects for the page, however many rows")
+	assert.Equal(t, int32(0), recentHits.Load(), "the chips read no recent observations")
+	assert.Zero(t, strings.Count(logs.String(), "level=WARN"))
+
+	detail := get(t, handler, "/dock/pane?path=/tasks/"+engramTaskID)
+	require.Equal(t, http.StatusOK, detail.Code)
+	assert.Contains(t, detail.Body.String(), "data-task-memory", "the Memory panel is shown")
+	assert.Contains(t, detail.Body.String(), "Usar WAL")
 }

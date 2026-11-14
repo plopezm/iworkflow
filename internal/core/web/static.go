@@ -3,9 +3,24 @@ package web
 import (
 	"net/http"
 	"os"
+	"path"
+	"strings"
 )
 
-// StaticHandler serves the built assets (CSS, JS, fonts) from dir under /static/.
+// manifestSuffix is the extension of a web app manifest, which the system MIME tables often do not know.
+const manifestSuffix string = ".webmanifest"
+
+// manifestMediaType is the media type browsers expect for a web app manifest.
+const manifestMediaType string = "application/manifest+json"
+
+// StaticHandler serves the built assets (CSS, JS, fonts, the web app manifest) from dir under /static/.
 func StaticHandler(dir string) http.Handler {
-	return http.StripPrefix("/static/", http.FileServer(http.FS(os.DirFS(dir))))
+	files := http.StripPrefix("/static/", http.FileServer(http.FS(os.DirFS(dir))))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// File extensions are matched case-insensitively: "manifest.WebManifest" is still a manifest.
+		if strings.EqualFold(path.Ext(r.URL.Path), manifestSuffix) {
+			w.Header().Set("Content-Type", manifestMediaType)
+		}
+		files.ServeHTTP(w, r)
+	})
 }

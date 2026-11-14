@@ -99,6 +99,9 @@ type Deps struct {
 	// JiraPanel is the Jira panel of a task and whether the Jira tab is offered. Optional: nil hides the tab. The
 	// composition root implements it with the jira module, which is built after this one.
 	JiraPanel httpinbound.JiraPanels
+	// TaskMemory reads the recent memories of the Engram project of a task's workspace for the Memory panel of the detail
+	// page. Optional: nil shows no panel. The composition root implements it with the engram module.
+	TaskMemory outbound.TaskMemory
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -283,6 +286,11 @@ func NewModule(deps Deps) (*Module, error) {
 	mergeTask := application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote)
 	getSubagents := application.NewGetTaskSubagents(lifecycle, agentRuntime)
 	committedDiff := application.NewGetTaskCommittedDiff(lifecycle, worktrees)
+	// The Memory panel is built only when its port is wired, so a missing port leaves the panel out instead of failing.
+	var memory httpinbound.TaskMemoryLister
+	if deps.TaskMemory != nil {
+		memory = application.NewListTaskMemory(deps.TaskMemory, deps.Workspaces)
+	}
 	detail := httpinbound.NewDetailHandlers(httpinbound.DetailUseCases{
 		Get:                 getTask,
 		Events:              getEvents,
@@ -305,6 +313,7 @@ func NewModule(deps Deps) (*Module, error) {
 		ListRelatedProjects: listRelatedProjects,
 		Workspaces:          deps.Workspaces,
 		HookStrip:           deps.HookStrip,
+		Memory:              memory,
 	}, clock)
 	diff := httpinbound.NewDiffHandlers(httpinbound.DiffUseCases{
 		Get:     getTask,

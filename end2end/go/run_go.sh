@@ -112,6 +112,9 @@ REPO_TERMINAL="$WORK/terminal/project";         make_repo "$REPO_TERMINAL"
 PORT="$(free_port)"
 JIRA_MOCK_PORT="$(free_port)"
 GITLAB_MOCK_PORT="$(free_port)"
+# Fake Engram API: the server reads it through IWF_ENGRAM_URL (env -i drops every other variable). The engram
+# suite starts the fake on this port; the other suites see it as unavailable, as they would see the default.
+ENGRAM_PORT="$(free_port)"
 
 # Server: started from the scratch dir, since the fake agents write to their cwd. exec makes the
 # server the background process itself, so the trap stops it. stdout and stderr both go to server.log.
@@ -121,6 +124,7 @@ GITLAB_MOCK_PORT="$(free_port)"
     GIT_AUTHOR_NAME=smoke GIT_AUTHOR_EMAIL=smoke@localhost \
     GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
     IWF_HOME="$IWF_HOME_DIR" \
+    IWF_ENGRAM_URL="http://127.0.0.1:$ENGRAM_PORT" \
     IWF_GENTLE_PI_CONFIG_HOME="$WORK/home/.config/gentle-pi" \
     IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
     IWF_LOG_LEVEL=debug \
@@ -155,6 +159,7 @@ export JIRA_MOCK_URL="http://127.0.0.1:$JIRA_MOCK_PORT" JIRA_MOCK_PORT
 export GITLAB_MOCK_URL="http://127.0.0.1:$GITLAB_MOCK_PORT" GITLAB_MOCK_PORT
 export REPO_GIT_CHANGES REPO_TAB_STATE REPO_BG_JOBS REPO_TERMINAL
 export IWF_E2E_TARGET=go IWF_ASR_MODEL_DIR="$ASR_MODEL_DIR"
+export IWF_E2E_ENGRAM_URL="http://127.0.0.1:$ENGRAM_PORT"
 
 # The test processes see the isolated HOME: workspaces.e2e.cjs browses under the process HOME, which
 # must be the server's home_dir.

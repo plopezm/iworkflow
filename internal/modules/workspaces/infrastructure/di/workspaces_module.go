@@ -5,6 +5,7 @@ package di
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"time"
 
 	"github.com/a-h/templ"
@@ -30,6 +31,11 @@ type Deps struct {
 	Tasks outbound.WorkspaceTasks
 	// AgentsFiles gives access to the stored AGENTS.md files; it is provided by the agents_files module.
 	AgentsFiles outbound.AgentsFiles
+	// Memory reads what the memory provider remembers about the workspaces. Nil means no provider is wired,
+	// and the rows show no memory chip.
+	Memory outbound.MemorySummaryPort
+	// Logger is the project logger; a failed memory read is logged through it. Nil falls back to the default logger.
+	Logger *slog.Logger
 }
 
 // Module exposes the use cases, the routes and the dock tabs of the workspaces module.
@@ -42,7 +48,9 @@ type Module struct {
 	BrowseDirectories *application.BrowseDirectories
 	CreateDirectory   *application.CreateDirectory
 	ListAgentsFiles   *application.ListAgentsFileOptions
-	handlers          *inbound.Handlers
+	// ListWithMemory lists the workspaces with the memory summary of each row.
+	ListWithMemory *application.ListWorkspacesWithMemory
+	handlers       *inbound.Handlers
 }
 
 // NewModule wires the adapters into the use cases and the use cases into the handlers.
@@ -51,9 +59,11 @@ func NewModule(deps Deps) *Module {
 	gitRepository := git.NewRepositoryAdapter()
 	browser := fs.NewDirectoryBrowser(deps.HomeDir)
 	clock := application.Clock(func() time.Time { return time.Now().UTC() })
+	list := application.NewListWorkspaces(repository)
 	module := &Module{
 		Register:          application.NewRegisterWorkspace(repository, gitRepository, deps.AgentsFiles, clock, application.IDGenerator(models.NewWorkspaceID)),
-		List:              application.NewListWorkspaces(repository),
+		List:              list,
+		ListWithMemory:    application.NewListWorkspacesWithMemory(list, deps.Memory, deps.Logger),
 		Get:               application.NewGetWorkspace(repository),
 		Update:            application.NewUpdateWorkspace(repository, gitRepository, deps.AgentsFiles),
 		Delete:            application.NewDeleteWorkspace(repository, deps.Tasks),
@@ -70,6 +80,7 @@ func NewModule(deps Deps) *Module {
 		BrowseDirectory: module.BrowseDirectories,
 		CreateDirectory: module.CreateDirectory,
 		ListAgentsFiles: module.ListAgentsFiles,
+		ListWithMemory:  module.ListWithMemory,
 	})
 	return module
 }

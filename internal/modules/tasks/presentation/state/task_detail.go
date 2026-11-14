@@ -30,6 +30,9 @@ type TaskDetailView struct {
 	// HookStrip is the status strip of the hooks of the task. It is nil when there is nothing to show: no hook of the
 	// workspace, or no hooks wired.
 	HookStrip *HookStrip
+	// MemoryPanel is the Memory panel of the task: the recent memories of its Engram project. It is nil when Engram does not
+	// answer, when the project has no memories, or when the memories could not be read: the panel is then not shown.
+	MemoryPanel *MemoryPanel
 }
 
 // branchMaxChars is the longest branch the header shows; a longer one is cut in the middle.

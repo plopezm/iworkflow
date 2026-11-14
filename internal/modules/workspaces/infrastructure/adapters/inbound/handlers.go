@@ -171,13 +171,13 @@ func (h *Handlers) table(ctx context.Context, deleteErr error) state.TableView {
 	if deleteErr != nil {
 		view.Error = deleteErr.Error()
 	}
-	workspaces, err := h.uc.List.Execute(ctx)
+	entries, err := h.uc.ListWithMemory.Execute(ctx)
 	if err != nil {
 		view.Error = err.Error()
 		return view
 	}
-	for _, workspace := range workspaces {
-		view.Rows = append(view.Rows, workspaceRow(dto.FromWorkspace(workspace)))
+	for _, entry := range entries {
+		view.Rows = append(view.Rows, workspaceRow(dto.FromWorkspace(entry.Workspace), memoryChip(entry.Memory)))
 	}
 	return view
 }
@@ -212,7 +212,7 @@ func agentsOptions(options []models.AgentsFileOption) []state.AgentsOption {
 	return converted
 }
 
-func workspaceRow(workspace dto.WorkspaceDTO) state.WorkspaceRow {
+func workspaceRow(workspace dto.WorkspaceDTO, memory state.MemoryChip) state.WorkspaceRow {
 	return state.WorkspaceRow{
 		ID:           workspace.ID,
 		Name:         workspace.Name,
@@ -220,7 +220,25 @@ func workspaceRow(workspace dto.WorkspaceDTO) state.WorkspaceRow {
 		BaseBranch:   workspace.BaseBranch,
 		EditHref:     "/workspaces/" + workspace.ID + "/edit",
 		TerminalHref: "/workspaces/" + workspace.ID + "/terminal",
+		Memory:       memory,
 	}
+}
+
+// memoryChip maps the memory summary of a workspace to the view-model of its Engram chip. A disabled provider
+// gives a hidden chip, so the row shows no chip at all.
+func memoryChip(summary models.MemorySummary) state.MemoryChip {
+	chip := state.MemoryChip{Count: summary.Count, State: state.MemoryChipUnavailable}
+	switch summary.State {
+	case models.MemoryAvailable:
+		chip.State = state.MemoryChipAvailable
+	case models.MemoryEmpty:
+		chip.State = state.MemoryChipEmpty
+	case models.MemoryDisabled:
+		chip.State = state.MemoryChipHidden
+	default:
+		chip.State = state.MemoryChipUnavailable
+	}
+	return chip
 }
 
 func deref(value *string) string {
