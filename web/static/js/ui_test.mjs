@@ -219,3 +219,11 @@ test('a mobile panel open before a swap is found and opened again after it', () 
   assert.equal('data-mobile-open' in fresh.attrs, true);
   assert.equal(overlay.hidden, false);
 });
+
+test('normalizePalette keeps known palettes and falls back to default', async () => {
+  const { normalizePalette } = await import('./ui.js');
+  assert.equal(normalizePalette('ocean'), 'ocean');
+  assert.equal(normalizePalette('rose'), 'rose');
+  assert.equal(normalizePalette('neon'), 'default');
+  assert.equal(normalizePalette(null), 'default');
+});

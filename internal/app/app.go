@@ -359,6 +359,13 @@ func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, c
 				return prefspages.LanguageSection(i18n.StateFrom(ctx).Locale)
 			},
 		},
+		{
+			ID:    "appearance",
+			Label: msgSettingsAppearance.T,
+			Content: func(context.Context) templ.Component {
+				return prefspages.AppearanceSection()
+			},
+		},
 		withHomeCard(withPruneCard(settings.ResourcesSection(msgResources.T), tasks), home),
 		{
 			ID:    "network",

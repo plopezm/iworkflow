@@ -5,7 +5,10 @@ import "iworkflow/internal/core/i18n"
 // themeInitScript applies the saved theme before first paint to avoid a flash.
 const themeInitScript = `(function(){try{var m=localStorage.getItem('pi-theme');` +
 	`if(m!=='light'&&m!=='dark'){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}` +
-	`document.documentElement.setAttribute('data-theme',m);}catch(e){}})();`
+	`document.documentElement.setAttribute('data-theme',m);` +
+	`var p=localStorage.getItem('pi-palette');` +
+	`if(['ocean','forest','sunset','rose'].indexOf(p)>=0){document.documentElement.setAttribute('data-palette',p);}` +
+	`}catch(e){}})();`
 
 // Shell is the HTML document every full-page response is rendered into.
 templ Shell(title string) {
