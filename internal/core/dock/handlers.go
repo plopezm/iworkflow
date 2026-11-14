@@ -15,14 +15,12 @@ import (
 // with every request (it is the browser's copy of the state) and the response carries the new one.
 type Handlers struct {
 	registry *Registry
-	launcher templ.Component
 	empty    templ.Component
 }
 
-// NewHandlers builds the dock handlers. launcher is the entry list of the "+" menu; empty is the
-// body of an empty group. Either may be nil.
-func NewHandlers(registry *Registry, launcher, empty templ.Component) *Handlers {
-	return &Handlers{registry: registry, launcher: launcher, empty: empty}
+// NewHandlers builds the dock handlers. empty is the body of an empty group. It may be nil.
+func NewHandlers(registry *Registry, empty templ.Component) *Handlers {
+	return &Handlers{registry: registry, empty: empty}
 }
 
 // Routes mounts the dock endpoints:
@@ -79,7 +77,7 @@ func (h *Handlers) pane(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) render(w http.ResponseWriter, r *http.Request, layout *Layout) {
-	view, err := NewView(layout, h.registry, h.launcher, h.empty)
+	view, err := NewView(layout, h.registry, h.empty)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("render dock: %v", err), http.StatusInternalServerError)
 		return

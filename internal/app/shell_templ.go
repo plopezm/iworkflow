@@ -381,7 +381,7 @@ func sidebar(boardSidebar templ.Component, version string) templ.Component {
 	})
 }
 
-// launcherEntries is the entry list of the "+" menu of a group.
+// launcherEntries is the entry list of the launcher grid of an empty group.
 func launcherEntries() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

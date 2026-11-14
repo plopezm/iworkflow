@@ -40,7 +40,7 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   assert(await page.locator('#sidebar-panel [data-overlay-close]').isHidden(), 'the sidebar backdrop stays after opening a tab');
 
   await atLeast(page.locator('.dock-tab').first(), 'dock tab');
-  await atLeast(page.locator('.dock-icon-btn').first(), 'dock + / ⋯ button');
+  await atLeast(page.locator('.dock-icon-btn').first(), 'dock ⋯ button');
   const close = page.locator('.dock-tab-active .dock-tab-close');
   const closeBox = await size(close);
   // The glyph box is 32px; the transparent ::after adds 4px per side, so the tap area is 40px+ wide

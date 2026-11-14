@@ -14,7 +14,7 @@ func TestOnlyTheFirstGroupCarriesTheMobileMenuButton(t *testing.T) {
 	layout.OpenBeside("/", "Board", layout.Groups[0].ID)
 	require.Len(t, layout.Groups, 2)
 	registry := newRegistry(t, routeFixture("task", "/tasks/{id}"))
-	view, err := NewView(layout, registry, nil, nil)
+	view, err := NewView(layout, registry, nil)
 	require.NoError(t, err)
 
 	var out bytes.Buffer

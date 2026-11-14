@@ -94,7 +94,7 @@ templ sidebar(boardSidebar templ.Component, version string) {
 	</div>
 }
 
-// launcherEntries is the entry list of the "+" menu of a group.
+// launcherEntries is the entry list of the launcher grid of an empty group.
 templ launcherEntries() {
 	for _, entry := range navEntries {
 		@link.Tab(link.Props{Href: entry.Href, Class: "menu-item"}) {
