@@ -297,6 +297,22 @@ function restoreSessionBar(root = document) {
   }
 }
 
+// Opens the enlarged view of a task image thumbnail. Modified and non-primary clicks keep the link's own behaviour
+// (new tab, new window, download). Returns true when the click was handled.
+function openLightbox(event) {
+  const thumb = event.target.closest?.('[data-image-lightbox]');
+  if (!thumb || event.button > 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return false;
+  const modal = thumb.closest('section')?.querySelector('[data-lightbox]');
+  const img = modal?.querySelector('[data-lightbox-img]');
+  if (!modal || !img) return false;
+  event.preventDefault();
+  img.src = thumb.dataset.src ?? '';
+  img.alt = thumb.dataset.alt ?? '';
+  modal.style.display = 'flex';
+  modal.querySelector('[data-modal-panel]')?.focus();
+  return true;
+}
+
 function closeModal(modal) {
   modal.style.display = 'none';
 }
@@ -389,6 +405,8 @@ function onClick(event) {
       globalThis.sessionStorage?.setItem(BOARD_TAB_STORAGE_KEY, 'graph');
     } catch {}
   }
+
+  if (openLightbox(event)) return;
 
   const close = target.closest?.('[data-modal-close]');
   if (close) return closeModal(close.closest('[data-modal]'));
