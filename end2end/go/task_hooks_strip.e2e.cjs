@@ -55,9 +55,10 @@ async function addBeforeStartHook(ctx, wsName, command) {
   const row = page.locator('[data-hook]').filter({ hasText: command }).first();
   await row.waitFor({ timeout: 10000 });
   await row.getByRole('button', { name: 'Asignaciones', exact: true }).click();
+  await page.getByRole('button', { name: 'Asignar a un proyecto +', exact: true }).click();
   const form = page.locator('[data-assignment-form]');
   await form.waitFor({ timeout: 10000 });
-  await form.getByLabel('Proyecto', { exact: true }).selectOption({ label: wsName });
+  await form.getByLabel(/^Proyecto/).selectOption({ label: wsName });
   await form.getByRole('button', { name: 'Asignar +', exact: true }).click();
   await page.locator('[data-assignment]').filter({ hasText: wsName }).first().waitFor({ timeout: 10000 });
 }
@@ -83,6 +84,48 @@ async function createStartedTask(ctx, wsName, prompt) {
   await page.waitForURL(/\/tasks\/[0-9a-f-]{36}/, { timeout: 15000, waitUntil: 'commit' });
   await page.getByRole('tab', { name: 'Acciones' }).first().click();
   await page.locator('[data-task-hooks]').waitFor({ timeout: 10000 });
+}
+
+// Creates a task with "Iniciar ahora" and leaves at once, before the create -> start request ends. By default it loads
+// the board again: the browser drops the request, which cancels its context on the server. A different leave runs
+// instead of that when given (for example closing the tab of the form).
+async function createStartedTaskAndLeave(ctx, wsName, prompt, leave) {
+  await ctx.goto('/');
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name: wsName }).first().click();
+  await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+  await sleep(300);
+  const page = ctx.page;
+  await page.getByRole('button', { name: 'Nueva tarea' }).first().click();
+  await page.getByLabel(/^Workspace/).selectOption({ label: `${wsName} (main)` });
+  await page.getByLabel('Prompt').fill(prompt);
+  await page.getByLabel('Iniciar ahora').check();
+  await page.getByRole('button', { name: 'Crear tarea' }).click();
+  // Long enough for the request to reach the server and its pre hook to start, shorter than the hook.
+  await sleep(1000);
+  if (leave) await leave(page); else await ctx.goto('/');
+}
+
+// Waits for the marker a slow hook leaves, then opens the task on its Actions tab and expects the hook to have run
+// without error.
+async function expectSlowHookDone(ctx, wsName, prompt, marker) {
+  let done = false;
+  for (let attempt = 0; attempt < 30 && !done; attempt++) {
+    done = fs.existsSync(marker);
+    if (!done) await sleep(1000);
+  }
+  ctx.assert(done, 'el hook previo no terminó: se canceló con la petición de inicio');
+
+  await ctx.goto('/');
+  await ctx.page.locator('#board-sidebar').getByRole('link', { name: wsName }).first().click();
+  const link = ctx.page.locator('a[href*="/tasks/"]', { hasText: prompt }).first();
+  await link.waitFor({ state: 'attached', timeout: 15000 });
+  await ctx.goto(await link.getAttribute('href'));
+  await ctx.page.getByRole('tab', { name: 'Acciones' }).first().click();
+  await ctx.page.locator('[data-task-hooks]').waitFor({ timeout: 10000 });
+  await waitForStatus(ctx, 'Correcto');
+  const strip = ctx.page.locator('[data-task-hooks]');
+  ctx.assert(await strip.getByText('Error', { exact: true }).count() === 0, 'el hook no debe quedar con error');
+  ctx.assert((await strip.innerText()).indexOf('context canceled') === -1, 'el registro no debe mencionar la cancelación');
 }
 
 // The strip is rendered with the page, so a run that ends after the page opened shows on the next render: reload until
@@ -122,6 +165,40 @@ module.exports = {
         await strip.getByRole('button', { name: 'Incluir' }).click();
         await strip.getByRole('button', { name: 'Omitir' }).waitFor({ timeout: 10000 });
         ctx.assert(await strip.getByText('Correcto', { exact: true }).count() > 0, 'tras incluirlo vuelve a su último estado');
+      },
+    },
+    {
+      name: 'strip: un hook previo lento termina aunque el navegador abandone la petición de inicio',
+      fn: async (ctx) => {
+        const wsName = await registerWs(ctx, `hs-leave-${tag}`);
+        const marker = path.join(TMP, `hooks-strip-marker-${tag}`);
+        await openHooksScreen(ctx);
+        await addBeforeStartHook(ctx, wsName, `sleep 4 && touch ${marker}`);
+        const prompt = `hookleave-${tag}`;
+
+        await createStartedTaskAndLeave(ctx, wsName, prompt);
+
+        // The hook outlives the request: it ends by itself and leaves its marker.
+        await expectSlowHookDone(ctx, wsName, prompt, marker);
+      },
+    },
+    {
+      name: 'strip: un hook previo lento termina aunque se cierre la pestaña del formulario durante la espera',
+      fn: async (ctx) => {
+        const wsName = await registerWs(ctx, `hs-close-${tag}`);
+        const marker = path.join(TMP, `hooks-strip-marker-close-${tag}`);
+        await openHooksScreen(ctx);
+        await addBeforeStartHook(ctx, wsName, `sleep 4 && touch ${marker}`);
+        const prompt = `hookclose-${tag}`;
+
+        // The form is in the active tab: its × closes it while the request waits.
+        await createStartedTaskAndLeave(ctx, wsName, prompt, async (page) => {
+          await page.locator('[data-dock-tab-button][aria-selected=true] .dock-tab-close').first().click();
+          // The form left the document while its request was in flight.
+          await page.locator('form:has(select[name=workspace_id])').waitFor({ state: 'detached', timeout: 5000 });
+        });
+
+        await expectSlowHookDone(ctx, wsName, prompt, marker);
       },
     },
     {
