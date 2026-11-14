@@ -45,4 +45,13 @@ var (
 	msgThinkingHigh        = i18n.Msg{En: "high", Es: "alto", Zh: "高", De: "hoch", Fr: "élevé"}
 	msgThinkingXHigh       = i18n.Msg{En: "xhigh", Es: "muy alto", Zh: "超高", De: "sehr hoch", Fr: "très élevé"}
 	msgThinkingMax         = i18n.Msg{En: "max", Es: "máximo", Zh: "最大", De: "maximal", Fr: "maximal"}
+	msgSavingTask          = i18n.Msg{En: "Creating your task", Es: "Creando tu tarea", Zh: "正在创建任务", De: "Aufgabe wird erstellt", Fr: "Création de la tâche"}
+	msgSavingChanges       = i18n.Msg{En: "Saving your changes", Es: "Guardando los cambios", Zh: "正在保存更改", De: "Änderungen werden gespeichert", Fr: "Enregistrement des modifications"}
+	msgStepSave            = i18n.Msg{En: "Saving the task", Es: "Guardando la tarea", Zh: "保存任务", De: "Aufgabe speichern", Fr: "Enregistrement de la tâche"}
+	msgStepWorktree        = i18n.Msg{En: "Preparing the worktree and its branch", Es: "Preparando el worktree y su rama", Zh: "准备工作树及其分支", De: "Worktree und Branch vorbereiten", Fr: "Préparation du worktree et de sa branche"}
+	msgStepHooks           = i18n.Msg{En: "Running the start hooks", Es: "Ejecutando los hooks de inicio", Zh: "运行启动钩子", De: "Start-Hooks ausführen", Fr: "Exécution des hooks de démarrage"}
+	msgStepAgent           = i18n.Msg{En: "Starting the agent and sending the prompt", Es: "Arrancando el agente y enviando el prompt", Zh: "启动智能体并发送提示词", De: "Agent starten und Prompt senden", Fr: "Démarrage de l’agent et envoi du prompt"}
+	msgStepImages          = i18n.Msg{En: "Storing the images", Es: "Guardando las imágenes", Zh: "保存图片", De: "Bilder speichern", Fr: "Enregistrement des images"}
+	msgStepBoard           = i18n.Msg{En: "Updating the board", Es: "Actualizando el tablero", Zh: "更新看板", De: "Board aktualisieren", Fr: "Mise à jour du tableau"}
+	msgSubmitSlow          = i18n.Msg{En: "This is taking longer than usual: a slow git remote or a start hook may be the cause. You can keep waiting.", Es: "Está tardando más de lo habitual: puede deberse a un remoto git lento o a un hook de inicio. Puedes seguir esperando.", Zh: "耗时比平时长：可能是 git 远程较慢或启动钩子所致。请继续等待。", De: "Das dauert länger als üblich: Ein langsames Git-Remote oder ein Start-Hook könnte die Ursache sein. Du kannst weiter warten.", Fr: "Cela prend plus de temps que d’habitude : un dépôt git distant lent ou un hook de démarrage peut en être la cause. Vous pouvez continuer à attendre."}
 )

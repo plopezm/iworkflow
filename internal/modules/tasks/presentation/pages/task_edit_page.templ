@@ -33,6 +33,7 @@ templ TaskEditPage(form state.EditForm) {
 					}
 					<button type="submit" class="btn-primary">{ msgSaveChanges.T(ctx) }</button>
 				</div>
+				@shared.SubmitProgress(components.EditProgress(ctx))
 			</form>
 		</div>
 	</div>

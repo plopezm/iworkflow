@@ -1,0 +1,28 @@
+package components
+
+// SubmitProgress is the panel that covers a form while its htmx request is in flight (the form gets the htmx-request
+// class). It tells the user what is happening instead of leaving a disabled button: a title, the stages, a progress bar
+// and the time elapsed. web/static/js/submit_progress.js drives the stages and the clock; without it the panel still
+// shows the title and the bar. The form must be positioned (the .card class is).
+templ SubmitProgress(p SubmitProgressProps) {
+	<div class="submit-progress" data-submit-progress role="status" aria-live="polite">
+		<div class="submit-progress-panel">
+			<p class="submit-progress-title">{ p.Title }</p>
+			<ol class="submit-progress-steps">
+				for _, step := range p.Steps {
+					<li data-progress-step data-progress-phase={ step.Phase } data-state="pending">
+						<span class="submit-progress-dot" aria-hidden="true"></span>
+						<span>{ step.Label }</span>
+					</li>
+				}
+			</ol>
+			<div class="progress-track" aria-hidden="true">
+				<div class="progress-bar"></div>
+			</div>
+			<p class="submit-progress-meta">
+				<span data-progress-elapsed></span>
+				<span data-progress-slow hidden>{ p.SlowHint }</span>
+			</p>
+		</div>
+	</div>
+}
