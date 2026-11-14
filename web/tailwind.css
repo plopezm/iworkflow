@@ -23,11 +23,11 @@
   --font-display: var(--font-ui);
 
   /* Flat, softly rounded panels. */
-  --radius-sm: 3px;
-  --radius: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
 
   --color-stage-backlog: var(--c-stage-backlog);
   --color-stage-working: var(--c-stage-working);
@@ -52,14 +52,14 @@
 :root {
   color-scheme: light;
   --c-bg: #ffffff;
-  --c-surface: #f6f6f7;
-  --c-surface-2: #ececee;
-  --c-surface-3: #e1e1e5;
-  --c-border: #dcdce1;
+  --c-surface: #f6f6fa;
+  --c-surface-2: #ececf3;
+  --c-surface-3: #e0e0ea;
+  --c-border: #dcdce6;
   --c-fg: #18181b;
   --c-muted: #6b6b76;
-  --c-accent: #18181b;
-  --c-on-accent: #fafafa;
+  --c-accent: #5b4bdb;
+  --c-on-accent: #ffffff;
   --c-ok: #1f8f55;
   --c-warn: #b7791f;
   --c-error: #d1384f;
@@ -76,15 +76,15 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --c-bg: #09090b;
-  --c-surface: #111113;
-  --c-surface-2: #19191c;
-  --c-surface-3: #242428;
-  --c-border: #26262b;
+  --c-bg: #0b0b12;
+  --c-surface: #12121b;
+  --c-surface-2: #1a1a26;
+  --c-surface-3: #252534;
+  --c-border: #2a2a3a;
   --c-fg: #e8e8ea;
   --c-muted: #8b8b94;
-  --c-accent: #e8e8ea;
-  --c-on-accent: #09090b;
+  --c-accent: #8b7dff;
+  --c-on-accent: #0b0b12;
   --c-ok: #5fd38d;
   --c-warn: #f0b429;
   --c-error: #ff6b78;
@@ -565,7 +565,31 @@ select optgroup,
 
 /* ── Badges (status + stage) ────────────────────── */
 .badge {
-  @apply inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-0.5 text-[11px] font-semibold;
+  @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold;
+}
+/* Status dot: the colour of the badge is also a shape, so the state reads at a glance. */
+.badge:not(.badge-muted)::before {
+  content: "";
+  @apply h-1.5 w-1.5 shrink-0 rounded-full bg-current;
+}
+/* A badge that brings its own marker (the dashboard counters) keeps just that one. */
+.badge:has(> span:first-child)::before {
+  display: none;
+}
+/* Only the states that ask for the user's eyes move. */
+.badge-working::before,
+.badge-attention::before {
+  animation: status-halo 1.8s ease-out infinite;
+}
+@keyframes status-halo {
+  0%   { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
+  100% { box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 0%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .badge-working::before,
+  .badge-attention::before {
+    animation: none;
+  }
 }
 .badge-ok {
   @apply border-ok/40 bg-ok/10 text-ok;
@@ -1955,4 +1979,272 @@ form.htmx-request > .submit-progress {
   [data-collapse-root][style*="--panel-width"] > aside {
     width: var(--panel-width);
   }
+}
+
+/* ── Command palette (Ctrl/Cmd+K) ───────────────── */
+.palette {
+  @apply m-0 w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-surface p-0 text-fg shadow-2xl;
+  position: fixed;
+  top: 12vh;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.palette::backdrop {
+  background: color-mix(in srgb, var(--c-bg) 55%, transparent);
+  backdrop-filter: blur(4px);
+}
+.palette-input {
+  @apply w-full border-0 border-b border-border bg-transparent px-4 py-3 text-sm text-fg outline-none placeholder:text-muted;
+}
+.palette-list {
+  @apply m-0 max-h-72 list-none overflow-y-auto p-1.5;
+}
+.palette-item {
+  @apply cursor-pointer truncate rounded-md px-3 py-2 text-sm;
+}
+.palette-item:hover,
+.palette-item[aria-selected="true"] {
+  @apply bg-accent/15 text-fg;
+}
+.palette-empty {
+  @apply px-4 py-3 text-sm;
+}
+.palette-hint {
+  @apply m-0 border-t border-border px-4 py-2 text-[11px] text-muted;
+}
+
+/* ═══ Redesign: depth, accent and presence ════════ */
+/* Outside the components layer on purpose: these rules win over the flat base styles above. */
+
+/* Soft accent glow behind the content, so the canvas is no longer a flat slab. */
+main {
+  background:
+    radial-gradient(60rem 22rem at 50% -8rem, color-mix(in srgb, var(--c-accent) 11%, transparent), transparent 70%),
+    var(--color-bg);
+}
+
+/* Sidebar: a quiet vertical gradient and a brand mark instead of a dot. */
+aside[aria-label] {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c-accent) 5%, var(--c-surface)) 0%, var(--c-surface) 38%);
+}
+.live-dot.text-accent {
+  @apply h-3 w-3 rounded-md;
+  background: linear-gradient(135deg, var(--c-accent), var(--c-pink));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--c-accent) 55%, transparent);
+  animation: none;
+}
+
+/* Search field that opens the palette. */
+.palette-trigger {
+  @apply flex w-full cursor-pointer items-center gap-2 rounded-lg border border-border bg-bg/60 px-2.5 py-1.5 text-xs text-muted transition-all duration-150 hover:border-accent/60 hover:text-fg;
+}
+.palette-trigger:hover {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 14%, transparent);
+}
+.palette-kbd {
+  @apply rounded-md border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted;
+}
+
+/* Navigation rows: icon chips, accent pill for the page you are on. */
+.sidebar-nav {
+  @apply relative gap-3 rounded-lg px-2 py-1.5 font-medium;
+}
+.sidebar-nav-icon {
+  @apply flex h-6 w-6 items-center justify-center rounded-md bg-surface-2 text-[13px] transition-colors duration-150;
+}
+.sidebar-nav:hover .sidebar-nav-icon {
+  background: color-mix(in srgb, var(--c-accent) 22%, var(--c-surface-2));
+  color: var(--c-accent);
+}
+.sidebar-nav-active,
+.sidebar-nav[aria-current="page"] {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--c-accent) 20%, transparent), color-mix(in srgb, var(--c-accent) 4%, transparent));
+  color: var(--color-fg);
+}
+.sidebar-nav-active::before,
+.sidebar-nav[aria-current="page"]::before {
+  content: "";
+  @apply absolute top-1.5 bottom-1.5 left-0 w-[3px] rounded-full bg-accent;
+  box-shadow: 0 0 10px var(--c-accent);
+}
+.sidebar-nav-active .sidebar-nav-icon,
+.sidebar-nav[aria-current="page"] .sidebar-nav-icon {
+  background: var(--c-accent);
+  color: var(--c-on-accent);
+}
+
+/* Section headings read as labels, not as body text. */
+.sidebar-section-toggle {
+  @apply text-[10px] font-semibold tracking-[0.08em] uppercase;
+}
+
+/* Buttons. */
+.btn-primary {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c-accent) 88%, white), var(--c-accent));
+  border-color: color-mix(in srgb, var(--c-accent) 70%, black);
+  box-shadow: 0 1px 0 color-mix(in srgb, white 25%, transparent) inset, 0 4px 14px color-mix(in srgb, var(--c-accent) 35%, transparent);
+  @apply rounded-lg font-semibold;
+}
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 1px 0 color-mix(in srgb, white 25%, transparent) inset, 0 6px 20px color-mix(in srgb, var(--c-accent) 50%, transparent);
+  transform: translateY(-1px);
+  opacity: 1;
+}
+.btn-secondary,
+.btn-ghost {
+  @apply rounded-lg;
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-border));
+}
+
+/* Cards: rounded, lifted, and they react to the pointer. */
+.card {
+  @apply rounded-xl;
+  box-shadow: 0 1px 2px color-mix(in srgb, black 18%, transparent), 0 8px 24px -12px color-mix(in srgb, black 35%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c-accent) 3%, var(--c-surface)), var(--c-surface));
+}
+article.card:hover {
+  border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-border));
+  box-shadow: 0 1px 2px color-mix(in srgb, black 18%, transparent), 0 14px 32px -12px color-mix(in srgb, var(--c-accent) 40%, transparent);
+  transform: translateY(-2px);
+}
+.card-title {
+  @apply text-[11px] tracking-[0.06em] uppercase;
+}
+
+/* Titles. */
+.page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Tabs: the active one is lit by the accent. */
+.dock-tabbar {
+  background: linear-gradient(180deg, var(--c-surface-2), var(--c-surface));
+}
+.dock-tab-active {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c-accent) 10%, var(--c-bg)), var(--c-bg));
+}
+.dock-tab-active::after {
+  @apply h-[3px] rounded-t-full;
+  background: var(--c-accent);
+  box-shadow: 0 0 12px var(--c-accent);
+}
+.tab-selected {
+  background: color-mix(in srgb, var(--c-accent) 18%, var(--c-surface-3));
+  color: var(--color-fg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-accent) 40%, transparent) inset;
+}
+
+/* Empty state: the launcher is a grid of tiles. */
+.launcher-grid {
+  @apply grid w-full max-w-xl grid-cols-2 gap-3 sm:grid-cols-3;
+}
+.launcher-grid .menu-item {
+  @apply flex flex-col items-center gap-2 rounded-xl border border-border bg-surface px-3 py-4 text-center text-[13px] font-medium transition-all duration-150;
+}
+.launcher-grid .menu-item > span {
+  @apply mr-0 flex h-9 w-9 items-center justify-center rounded-lg text-base;
+  background: color-mix(in srgb, var(--c-accent) 16%, var(--c-surface-2));
+  color: var(--c-accent);
+}
+.launcher-grid .menu-item:hover {
+  border-color: color-mix(in srgb, var(--c-accent) 60%, var(--c-border));
+  background: color-mix(in srgb, var(--c-accent) 8%, var(--c-surface));
+  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--c-accent) 55%, transparent);
+  transform: translateY(-2px);
+}
+
+/* Slim scrollbars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--c-muted) 45%, transparent) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary:hover:not(:disabled),
+  article.card:hover,
+  .launcher-grid .menu-item:hover {
+    transform: none;
+  }
+}
+
+/* ═══ Redesign: board ═════════════════════════════ */
+/* Stage heading: a colour dot and a count pill instead of grey uppercase text. */
+.stage-heading {
+  @apply m-0 flex items-center gap-2 text-xs font-semibold tracking-[0.08em] text-fg uppercase;
+}
+.stage-heading-dot {
+  @apply h-2 w-2 rounded-full;
+  background: var(--c-stage-backlog);
+}
+.stage-heading[data-stage="working"] .stage-heading-dot {
+  background: var(--c-stage-working);
+  animation: status-halo 1.8s ease-out infinite;
+  color: var(--c-stage-working);
+}
+.stage-heading[data-stage="attention"] .stage-heading-dot {
+  background: var(--c-stage-attention);
+  animation: status-halo 1.8s ease-out infinite;
+  color: var(--c-stage-attention);
+}
+.stage-heading[data-stage="review"] .stage-heading-dot { background: var(--c-stage-review); }
+.stage-heading[data-stage="done"] .stage-heading-dot { background: var(--c-stage-done); }
+.stage-heading-count {
+  @apply rounded-full bg-surface-2 px-1.5 py-px text-[10px] font-medium text-muted tabular-nums;
+}
+
+/* The heading already names the stage, so the cards of the grouped list do not repeat it. */
+.board-stages .loose-card > div:first-child > .badge {
+  display: none;
+}
+
+/* Priority is a rail on the card edge, readable before the text is. */
+.loose-card {
+  border-left-width: 3px;
+}
+.loose-card[data-priority="high"] { border-left-color: var(--c-warn); }
+.loose-card[data-priority="urgent"] { border-left-color: var(--c-error); }
+.loose-card[data-priority="low"] { border-left-color: var(--c-stage-backlog); }
+
+/* Secondary actions step back so Iniciar leads. */
+.loose-card .btn-ghost {
+  border-color: var(--c-border);
+}
+.loose-card .btn-ghost:hover {
+  border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-border));
+  color: var(--color-fg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-heading-dot { animation: none !important; }
+}
+
+/* ═══ Redesign: attention ═════════════════════════ */
+.sidebar-count {
+  @apply rounded-full bg-surface-2 px-1.5 py-px text-[10px] font-medium text-muted tabular-nums;
+}
+/* The section that lists tasks waiting for the user lights up as soon as it is not empty. */
+[data-section]:has([data-attention-task]) .sidebar-count {
+  background: var(--c-error);
+  color: var(--c-bg);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c-error) 55%, transparent);
+}
+.attention-dot {
+  color: var(--c-error);
+  animation: status-halo 1.8s ease-out infinite;
+}
+/* A running task glows softly, so the board shows what is alive. */
+.loose-card[data-stage="working"] {
+  animation: working-glow 2.4s ease-in-out infinite;
+}
+@keyframes working-glow {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-stage-working) 0%, transparent); }
+  50%      { box-shadow: 0 0 18px -2px color-mix(in srgb, var(--c-stage-working) 45%, transparent); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .attention-dot,
+  .loose-card[data-stage="working"] { animation: none; }
 }

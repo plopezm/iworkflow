@@ -12,6 +12,7 @@ templ LooseTaskCard(task dto.TaskDTO, scope string) {
 		title={ msgDragHint.T(ctx) }
 		data-task-id={ task.ID }
 		data-stage={ task.Stage }
+		data-priority={ task.Priority }
 		data-loose-task
 	>
 		<div class="flex items-start justify-between gap-2">

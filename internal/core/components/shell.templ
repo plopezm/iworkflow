@@ -124,7 +124,7 @@ templ SidebarSection(p SidebarSectionProps) {
 			if p.Actions != nil {
 				@p.Actions
 			}
-			<span class="text-[10px] text-muted">{ fmtCount(p.Count) }</span>
+			<span class="sidebar-count">{ fmtCount(p.Count) }</span>
 		</div>
 		<div class="flex flex-col gap-0.5 px-1.5 pb-2" data-section-body>
 			{ children... }
@@ -147,7 +147,7 @@ templ SidebarItem(p SidebarItemProps, menu templ.Component) {
 		@link.Tab(link.Props{Href: p.Href, Title: p.Title, Class: "sidebar-row-link min-w-0 flex-1 px-2.5 py-1.5"}) {
 			<div class="flex items-center gap-1.5">
 				if p.Highlight {
-					<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-error" title={ msgNeedsAttn.T(ctx) }></span>
+					<span class="attention-dot h-2 w-2 shrink-0 rounded-full bg-error" title={ msgNeedsAttn.T(ctx) }></span>
 				}
 				<span class="truncate text-[13px] font-medium text-fg">{ p.Title }</span>
 			</div>
