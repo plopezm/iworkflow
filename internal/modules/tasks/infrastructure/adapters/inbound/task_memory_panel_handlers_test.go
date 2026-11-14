@@ -133,9 +133,15 @@ func TestDetailPageHidesTheMemoryPanelWhenEngramIsUnavailableOrEmpty(t *testing.
 
 // blockingMemoryLister stands in for an Engram that never answers: it waits for its context. A safety timer keeps a
 // broken implementation from hanging the test; it then answers a populated panel, so the test fails on the panel.
-type blockingMemoryLister struct{}
+type blockingMemoryLister struct {
+	// deadline is the deadline of the context the handler gave the lister; zero when it had none.
+	deadline *time.Time
+}
 
-func (blockingMemoryLister) Execute(ctx context.Context, _ application.TaskMemoryInput) (models.TaskMemoryFeed, error) {
+func (l blockingMemoryLister) Execute(ctx context.Context, _ application.TaskMemoryInput) (models.TaskMemoryFeed, error) {
+	if deadline, ok := ctx.Deadline(); ok {
+		*l.deadline = deadline
+	}
 	select {
 	case <-ctx.Done():
 		return models.TaskMemoryFeed{}, ctx.Err()
@@ -147,16 +153,22 @@ func (blockingMemoryLister) Execute(ctx context.Context, _ application.TaskMemor
 }
 
 // The task detail page waits for Engram at most one second; past that the panel is absent and the page renders.
+// The bound is asserted on the deadline the handler hands to the lister, not on wall-clock time, so a slow or loaded
+// machine cannot make the test flaky. The wall-clock check below only guards against waiting for the 5s late answer.
 func TestDetailPageAnswersWithinOneSecondWhenEngramBlocks(t *testing.T) {
 	task := memoryPanelTaskForTest(t)
-	h := memoryPanelHandlersForTest(task, blockingMemoryLister{})
+	var deadline time.Time
+	h := memoryPanelHandlersForTest(task, blockingMemoryLister{deadline: &deadline})
 
 	started := time.Now()
 	recorder := serveDetailPageForTest(t, h, task.ID.String())
 	elapsed := time.Since(started)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	assert.Less(t, elapsed, 1500*time.Millisecond, "the page must not wait for Engram past its one-second bound")
+	require.False(t, deadline.IsZero(), "the handler must give Engram a context with a deadline")
+	assert.LessOrEqual(t, deadline.Sub(started), time.Second+250*time.Millisecond,
+		"the deadline handed to Engram must be about one second away")
+	assert.Less(t, elapsed, 4*time.Second, "the page must not wait for the late answer of a blocked Engram")
 	assert.NotContains(t, recorder.Body.String(), "data-task-memory")
 	assert.NotContains(t, recorder.Body.String(), "late memory")
 }

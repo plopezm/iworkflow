@@ -3,10 +3,20 @@ package application
 import (
 	"context"
 	"log/slog"
+	"regexp"
 
 	"iworkflow/internal/modules/workspaces/domain/models"
 	"iworkflow/internal/modules/workspaces/domain/ports/outbound"
 )
+
+// urlPattern matches an http(s) URL inside an error text, credentials included.
+var urlPattern = regexp.MustCompile(`(?i)https?://[^\s"']+`)
+
+// redactURLs replaces every URL in an error text, so the provider address and any credentials inside it never
+// reach the log even when a port error carries them. The rest of the message is kept: it is what helps debugging.
+func redactURLs(text string) string {
+	return urlPattern.ReplaceAllString(text, "[url]")
+}
 
 // ListWorkspacesWithMemory lists the registered workspaces with what the memory provider remembers about each
 // one. The provider is read once per page, for all the rows together. A memory failure never fails the list: the
@@ -44,7 +54,7 @@ func (u *ListWorkspacesWithMemory) Execute(ctx context.Context) ([]models.Worksp
 
 // summaries reads the memory of every workspace with one port call. A failing port, or an answer that does not
 // line up with the workspaces, is the unavailable state for every row: the failure is logged once and the page still
-// renders. The log line never carries the provider URL; the port errors do not hold it.
+// renders. The log line never carries a URL: the error text is redacted here, whatever the port put in it.
 func (u *ListWorkspacesWithMemory) summaries(ctx context.Context, workspaces []models.Workspace) []models.MemorySummary {
 	summaries := make([]models.MemorySummary, len(workspaces))
 	if u.memory == nil {
@@ -60,7 +70,7 @@ func (u *ListWorkspacesWithMemory) summaries(ctx context.Context, workspaces []m
 	switch {
 	case err != nil:
 		u.logger.WarnContext(ctx, "could not read the memory of the workspaces; every row is unavailable",
-			"workspaces", len(workspaces), "reason", "read failed", "error", err)
+			"workspaces", len(workspaces), "reason", "read failed", "error", redactURLs(err.Error()))
 	case len(read) != len(workspaces):
 		u.logger.WarnContext(ctx, "could not read the memory of the workspaces; every row is unavailable",
 			"workspaces", len(workspaces), "reason", "answer does not match the workspaces", "answers", len(read))

@@ -235,3 +235,22 @@ func TestListWorkspacesWithMemoryDoesNotLogHealthyOrUnavailableBatches(t *testin
 	require.NoError(t, err)
 	assert.Empty(t, memoryLogLines(t, &logs))
 }
+
+// Defense in depth: whatever a port error says, the log line never carries a URL or the credentials inside it.
+func TestListWorkspacesWithMemoryLogNeverCarriesURLsFromThePortError(t *testing.T) {
+	leaky := errors.New(`Get "http://user:s3cret@127.0.0.1:7437/projects": dial tcp 127.0.0.1:7437: connection refused`)
+	repository := newFakeRepository(workspaceAt(t, "alpha", "/repos/alpha", "main"))
+	var logs bytes.Buffer
+	useCase := application.NewListWorkspacesWithMemory(
+		application.NewListWorkspaces(repository), &fakeMemoryPort{err: leaky}, slog.New(slog.NewJSONHandler(&logs, nil)))
+
+	_, err := useCase.Execute(context.Background())
+
+	require.NoError(t, err)
+	line := logs.String()
+	require.NotEmpty(t, line, "the failure is still logged")
+	assert.NotContains(t, line, "s3cret")
+	assert.NotContains(t, line, "user:")
+	assert.NotContains(t, line, "http://")
+	assert.Contains(t, line, "connection refused", "the useful part of the error survives")
+}
