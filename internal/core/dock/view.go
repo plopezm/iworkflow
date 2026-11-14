@@ -7,23 +7,22 @@ import (
 	"github.com/a-h/templ"
 )
 
-// View is everything the dock fragment needs to render one layout. Launcher fills the "+" menu of
-// every group; Empty is the body of a group without tabs.
+// View is everything the dock fragment needs to render one layout. Empty is the body of a group
+// without tabs.
 type View struct {
 	Layout   *Layout
 	Data     string
 	registry *Registry
-	launcher templ.Component
 	empty    templ.Component
 }
 
 // NewView builds the view of layout. Data is the serialized layout the client keeps in its storage.
-func NewView(layout *Layout, registry *Registry, launcher, empty templ.Component) (View, error) {
+func NewView(layout *Layout, registry *Registry, empty templ.Component) (View, error) {
 	data, err := layout.ToJSON()
 	if err != nil {
 		return View{}, err
 	}
-	return View{Layout: layout, Data: data, registry: registry, launcher: launcher, empty: empty}, nil
+	return View{Layout: layout, Data: data, registry: registry, empty: empty}, nil
 }
 
 // focusedPath is the path the address bar shows, or empty when the focused group has no tab.

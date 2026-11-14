@@ -56,8 +56,8 @@ registry, err := dock.NewRegistry(
 - A route that matches nothing renders the built-in "Not found" page.
 - `NewRegistry` fails on a bad pattern or a duplicated `Name`: check its error at start-up.
 
-Pass the registry to `dock.NewHandlers(registry, launcher, empty)` and mount it with `Routes(r)`.
-`launcher` is the entry list of the `+` menu (build its entries with `dock/link.Tab`, see below). `empty` is the body of an empty group. Both may be nil.
+Pass the registry to `dock.NewHandlers(registry, empty)` and mount it with `Routes(r)`.
+`empty` is the body of an empty group (build its entries with `dock/link.Tab`, see below). It may be nil.
 
 ## Shell markup (the page that hosts the dock)
 

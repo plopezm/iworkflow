@@ -9,15 +9,41 @@ package web
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "iworkflow/internal/core/i18n"
+import (
+	"encoding/json"
+	"strings"
 
-// themeInitScript applies the saved theme before first paint to avoid a flash.
-const themeInitScript = `(function(){try{var m=localStorage.getItem('pi-theme');` +
-	`if(m!=='light'&&m!=='dark'){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}` +
-	`document.documentElement.setAttribute('data-theme',m);` +
-	`var p=localStorage.getItem('pi-palette');` +
-	`if(['ocean','forest','sunset','rose'].indexOf(p)>=0){document.documentElement.setAttribute('data-palette',p);}` +
-	`}catch(e){}})();`
+	"iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+)
+
+// namedPalettes lists the palettes that set a data-palette attribute: every option of the selector but the default,
+// which keeps the original variables. The init script is built from the same list as the selector.
+func namedPalettes() []string {
+	names := make([]string, 0)
+	for _, option := range components.PaletteOptions() {
+		if option.Palette != components.PaletteDefault {
+			names = append(names, string(option.Palette))
+		}
+	}
+	return names
+}
+
+// themeInitScript applies the saved theme and palette before first paint to avoid a flash.
+func themeInitScript() string {
+	names, err := json.Marshal(namedPalettes())
+	if err != nil {
+		return ""
+	}
+	return strings.Join([]string{
+		`(function(){try{var m=localStorage.getItem('pi-theme');`,
+		`if(m!=='light'&&m!=='dark'){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}`,
+		`document.documentElement.setAttribute('data-theme',m);`,
+		`var p=localStorage.getItem('pi-palette');`,
+		`if(` + string(names) + `.indexOf(p)>=0){document.documentElement.setAttribute('data-palette',p);}`,
+		`}catch(e){}})();`,
+	}, "")
+}
 
 // Shell is the HTML document every full-page response is rendered into.
 func Shell(title string) templ.Component {
@@ -45,7 +71,7 @@ func Shell(title string) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.NewAttributeExpression(i18n.StateFrom(ctx).Locale.Code()).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/web/shell.templ`, Line: 16, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/web/shell.templ`, Line: 42, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -55,7 +81,7 @@ func Shell(title string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.Raw("<script>"+themeInitScript+"</script>").Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templ.Raw("<script>"+themeInitScript()+"</script>").Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -66,7 +92,7 @@ func Shell(title string) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/web/shell.templ`, Line: 29, Col: 17}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/web/shell.templ`, Line: 55, Col: 17}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

@@ -35,3 +35,14 @@ func TestShellDeclaresTheSameOriginManifestWithoutCORSMode(t *testing.T) {
 	require.Contains(t, out.String(), `<link rel="manifest" href="/static/manifest.webmanifest">`)
 	require.NotContains(t, out.String(), "use-credentials")
 }
+
+func TestShellInitScriptRestoresEveryNamedPalette(t *testing.T) {
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true})
+	var out bytes.Buffer
+
+	require.NoError(t, web.Shell("Board").Render(ctx, &out))
+
+	html := out.String()
+	require.Contains(t, html, `["ocean","forest","sunset","rose"].indexOf(p)`)
+	require.NotContains(t, html, `"default"].indexOf`)
+}

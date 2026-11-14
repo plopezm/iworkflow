@@ -24,7 +24,7 @@ func testRouter(t *testing.T) chi.Router {
 	)
 	require.NoError(t, err)
 	router := chi.NewRouter()
-	NewHandlers(registry, nil, nil).Routes(router)
+	NewHandlers(registry, nil).Routes(router)
 	return router
 }
 

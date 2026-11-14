@@ -275,7 +275,7 @@ func New(deps Deps) (*App, error) {
 		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
 		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
-		dock:          dock.NewHandlers(registry, launcherMenu(), emptyGroup()),
+		dock:          dock.NewHandlers(registry, emptyGroup()),
 	}, nil
 }
 
@@ -445,11 +445,6 @@ func notMigratedRoute(pattern string, icon string, title i18n.Msg) dock.Route {
 			return notMigratedPane()
 		},
 	}
-}
-
-// launcherMenu is the entry list of the "+" menu: the migrated destinations.
-func launcherMenu() templ.Component {
-	return launcherEntries()
 }
 
 // emptyGroup is the body of a group without tabs.

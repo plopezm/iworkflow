@@ -42,7 +42,7 @@ templ split(v View, s *Split) {
 	</div>
 }
 
-// group is a group of tabs: its tab bar (tabs, "+" and "⋯") and its body with the kept-alive panes.
+// group is a group of tabs: its tab bar (tabs and "⋯") and its body with the kept-alive panes.
 templ group(v View, g *Group) {
 	if g != nil {
 		<section class={ groupClass(v.Layout.Focused == g.ID) } data-dock-group={ id(g.ID) }>
@@ -55,11 +55,6 @@ templ group(v View, g *Group) {
 						@tabButton(v, g, tab)
 					}
 				</div>
-				@components.DropdownMenu(components.DropdownMenuProps{Label: "+", AriaLabel: msgNewTab.T(ctx), TriggerClass: "dock-icon-btn", MenuClass: "min-w-52"}) {
-					if v.launcher != nil {
-						@v.launcher
-					}
-				}
 				@components.DropdownMenu(components.DropdownMenuProps{Label: "⋯", AriaLabel: msgGroupOptions.T(ctx), TriggerClass: "dock-icon-btn", MenuClass: "min-w-52"}) {
 					<button type="button" class="menu-item" data-dock-action="split_group" data-dock-group={ id(g.ID) } data-dock-dir="Row">{ msgSplitRight.T(ctx) }</button>
 					<button type="button" class="menu-item" data-dock-action="split_group" data-dock-group={ id(g.ID) } data-dock-dir="Column">{ msgSplitDown.T(ctx) }</button>

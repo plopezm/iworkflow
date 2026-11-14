@@ -266,7 +266,7 @@ function applyTheme(choice) {
   updateThemeIndicators(choice);
 }
 
-function markPalette(root, palette) {
+export function markPalette(root, palette) {
   for (const button of root.querySelectorAll('[data-palette-choice]')) {
     const selected = button.dataset.paletteChoice === palette;
     button.setAttribute('aria-pressed', String(selected));
@@ -279,7 +279,7 @@ function restorePalette(root = document) {
 }
 
 // The default palette removes the attribute, so the original variables apply untouched.
-function applyPalette(choice) {
+export function applyPalette(choice) {
   const palette = normalizePalette(choice);
   storage()?.setItem(PALETTE_STORAGE_KEY, palette);
   if (palette === 'default') document.documentElement.removeAttribute('data-palette');

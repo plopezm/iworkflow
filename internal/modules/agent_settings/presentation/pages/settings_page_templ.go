@@ -64,6 +64,7 @@ func SettingsPage(p SettingsPageProps) templ.Component {
 			Options:   sectionSegments(p),
 			Selected:  p.Active,
 			AriaLabel: p.SectionsName,
+			Class:     "segmented-scroll",
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err

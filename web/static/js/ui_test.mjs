@@ -227,3 +227,49 @@ test('normalizePalette keeps known palettes and falls back to default', async ()
   assert.equal(normalizePalette('neon'), 'default');
   assert.equal(normalizePalette(null), 'default');
 });
+
+function fakePaletteDom() {
+  const attrs = {};
+  const store = new Map();
+  const button = (choice) => {
+    const state = { pressed: null, selected: false };
+    return {
+      state,
+      dataset: { paletteChoice: choice },
+      setAttribute: (name, value) => { if (name === 'aria-pressed') state.pressed = value; },
+      classList: { toggle: (name, on) => { if (name === 'chip-selected') state.selected = on; } },
+    };
+  };
+  const buttons = ['default', 'ocean', 'rose'].map(button);
+  globalThis.localStorage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) };
+  globalThis.document = {
+    documentElement: {
+      setAttribute: (name, value) => { attrs[name] = value; },
+      removeAttribute: (name) => { delete attrs[name]; },
+    },
+    querySelectorAll: () => buttons,
+  };
+  return { attrs, store, buttons };
+}
+
+test('applyPalette stores the choice, sets data-palette and marks only the chosen button', async () => {
+  const { applyPalette, PALETTE_STORAGE_KEY } = await import('./ui.js');
+  const dom = fakePaletteDom();
+  applyPalette('ocean');
+  assert.equal(dom.store.get(PALETTE_STORAGE_KEY), 'ocean');
+  assert.equal(dom.attrs['data-palette'], 'ocean');
+  assert.deepEqual(dom.buttons.map((b) => [b.state.pressed, b.state.selected]), [['false', false], ['true', true], ['false', false]]);
+});
+
+test('applyPalette with the default or an unknown value removes data-palette', async () => {
+  const { applyPalette, PALETTE_STORAGE_KEY } = await import('./ui.js');
+  const dom = fakePaletteDom();
+  applyPalette('rose');
+  applyPalette('default');
+  assert.equal('data-palette' in dom.attrs, false);
+  applyPalette('rose');
+  applyPalette('neon');
+  assert.equal('data-palette' in dom.attrs, false);
+  assert.equal(dom.store.get(PALETTE_STORAGE_KEY), 'default');
+  assert.equal(dom.buttons[0].state.pressed, 'true');
+});

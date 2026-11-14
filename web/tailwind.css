@@ -99,27 +99,36 @@
   --c-grain-opacity: 0;
 }
 
+/* The dark accent of each color theme: the one place the color is written. The dark theme block and the settings
+   swatch both read it. */
+:root {
+  --palette-ocean: #5aa9ff;
+  --palette-forest: #5fd38d;
+  --palette-sunset: #ff9a52;
+  --palette-rose: #f28dbd;
+}
+
 /* Color themes: data-palette on <html>, chosen in Settings. The default palette sets no attribute and keeps the
    variables above. Each theme overrides the accent in both modes and tints the dark surfaces. */
 :root[data-palette="ocean"] { --c-accent: #1f6fd1; --c-on-accent: #ffffff; --c-purple: #3b6fb8; }
 :root[data-palette="ocean"][data-theme="dark"] {
   --c-bg: #0a0e14; --c-surface: #101620; --c-surface-2: #172030; --c-surface-3: #212d42; --c-border: #26334a;
-  --c-accent: #5aa9ff; --c-on-accent: #07101c; --c-purple: #8fbcff;
+  --c-accent: var(--palette-ocean); --c-on-accent: #07101c; --c-purple: #8fbcff;
 }
 :root[data-palette="forest"] { --c-accent: #1f8f55; --c-on-accent: #ffffff; --c-purple: #3f8a62; }
 :root[data-palette="forest"][data-theme="dark"] {
   --c-bg: #0a110d; --c-surface: #0f1812; --c-surface-2: #16231b; --c-surface-3: #203227; --c-border: #263a2d;
-  --c-accent: #5fd38d; --c-on-accent: #07120b; --c-purple: #8fdcae;
+  --c-accent: var(--palette-forest); --c-on-accent: #07120b; --c-purple: #8fdcae;
 }
 :root[data-palette="sunset"] { --c-accent: #c2570f; --c-on-accent: #ffffff; --c-purple: #b0612f; }
 :root[data-palette="sunset"][data-theme="dark"] {
   --c-bg: #120d0a; --c-surface: #1a1410; --c-surface-2: #251c16; --c-surface-3: #33271e; --c-border: #3a2d23;
-  --c-accent: #ff9a52; --c-on-accent: #1a0d03; --c-purple: #ffb98a;
+  --c-accent: var(--palette-sunset); --c-on-accent: #1a0d03; --c-purple: #ffb98a;
 }
 :root[data-palette="rose"] { --c-accent: #be3f80; --c-on-accent: #ffffff; --c-purple: #a8457a; }
 :root[data-palette="rose"][data-theme="dark"] {
   --c-bg: #130a10; --c-surface: #1b1018; --c-surface-2: #271722; --c-surface-3: #36202f; --c-border: #3d2636;
-  --c-accent: #f28dbd; --c-on-accent: #1a0712; --c-purple: #f7b3d2;
+  --c-accent: var(--palette-rose); --c-on-accent: #1a0712; --c-purple: #f7b3d2;
 }
 
 /* Swatch shown inside each color theme button of the settings card. */
@@ -132,10 +141,10 @@
   vertical-align: -1px;
   background: var(--swatch, #8b7dff);
 }
-.palette-swatch-ocean { --swatch: #5aa9ff; }
-.palette-swatch-forest { --swatch: #5fd38d; }
-.palette-swatch-sunset { --swatch: #ff9a52; }
-.palette-swatch-rose { --swatch: #f28dbd; }
+.palette-swatch-ocean { --swatch: var(--palette-ocean); }
+.palette-swatch-forest { --swatch: var(--palette-forest); }
+.palette-swatch-sunset { --swatch: var(--palette-sunset); }
+.palette-swatch-rose { --swatch: var(--palette-rose); }
 
 html,
 body {
@@ -1905,6 +1914,20 @@ select optgroup,
   color: var(--color-fg);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
 }
+.segmented-scroll {
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.segmented-scroll::-webkit-scrollbar {
+  display: none;
+}
+.segmented-scroll .segment {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .board-tabs {
   display: none;
 }
@@ -2116,7 +2139,9 @@ aside[aria-label] {
   @apply text-[10px] font-semibold tracking-[0.08em] uppercase;
 }
 
-/* Buttons. */
+/* Buttons. The primary button is a gradient with a 1px inner highlight. The hover rule repeats that same inset
+   highlight on purpose: it keeps the button flat (no outer shadow) and only lifts it by 1px, whatever the base
+   hover rule in the components layer adds. */
 .btn-primary {
   background: linear-gradient(180deg, color-mix(in srgb, var(--c-accent) 88%, white), var(--c-accent));
   border-color: color-mix(in srgb, var(--c-accent) 70%, black);
@@ -2136,7 +2161,8 @@ aside[aria-label] {
   border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-border));
 }
 
-/* Cards: rounded, lifted, and they react to the pointer. */
+/* Cards: rounded, lifted, and they react to the pointer. The shadows are kept this small (1-3px, 8-12% black) so a
+   card sits on the surface instead of floating over it; only the border and a 1px lift mark the hover. */
 .card {
   @apply rounded-xl;
   box-shadow: 0 1px 2px color-mix(in srgb, black 8%, transparent);
