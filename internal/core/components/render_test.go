@@ -66,6 +66,18 @@ func TestCollapsePanelRendersTheCollapsedStateAndPersistKey(t *testing.T) {
 	require.Contains(t, closed, "‹", "a closed right panel points left to expand")
 }
 
+func TestCollapsePanelRendersAResizeHandlePerSide(t *testing.T) {
+	left := renderHTML(t, components.CollapsePanel(components.CollapsePanelProps{Side: components.LeftPanel, Open: true}))
+	require.Contains(t, left, `data-resize-handle`)
+	require.Contains(t, left, `data-side="left"`)
+	require.Contains(t, left, `data-resize-key="iwf-panel-width-left"`)
+	require.Contains(t, left, `role="separator"`)
+
+	right := renderHTML(t, components.CollapsePanel(components.CollapsePanelProps{Side: components.RightPanel, Open: true}))
+	require.Contains(t, right, `data-side="right"`)
+	require.Contains(t, right, `data-resize-key="iwf-panel-width-right"`)
+}
+
 func TestAppShellHasTheSidebarRailAndNoMobileHeader(t *testing.T) {
 	html := renderHTML(t, components.AppShell(components.AppShellProps{
 		Brand:   "iworkflow",
