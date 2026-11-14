@@ -55,10 +55,11 @@ async function addBeforeStartHook(ctx, wsName, command) {
   const row = page.locator('[data-hook]').filter({ hasText: command }).first();
   await row.waitFor({ timeout: 10000 });
   await row.getByRole('button', { name: 'Asignaciones', exact: true }).click();
+  // "Asignaciones" only lists them; the form opens from the add button.
   await page.getByRole('button', { name: 'Asignar a un proyecto +', exact: true }).click();
   const form = page.locator('[data-assignment-form]');
   await form.waitFor({ timeout: 10000 });
-  await form.getByLabel(/^Proyecto/).selectOption({ label: wsName });
+  await form.locator('select[name="project"]').selectOption({ label: wsName });
   await form.getByRole('button', { name: 'Asignar +', exact: true }).click();
   await page.locator('[data-assignment]').filter({ hasText: wsName }).first().waitFor({ timeout: 10000 });
 }

@@ -423,7 +423,7 @@ Copyright 2026 Pablo López (plopezm). Licensed under the [PolyForm Shield Licen
 
 You may use, modify and distribute iworkflow freely, including inside companies and for commercial work, but you may not use it to provide a product that competes with it (for example, reselling it or offering it as a hosted service). This is a source-available license, not an OSI-approved open-source one.
 
-Bundled third-party assets keep their own licenses: xterm.js (MIT) and highlight.js (BSD-3-Clause) in `public/vendor/`, and the Instrument Serif and Martian Mono fonts (SIL OFL 1.1) in `public/fonts/`. Go dependencies are declared in `go.mod`; see [NOTICE](NOTICE) for attributions.
+Bundled third-party assets keep their own licenses: xterm.js (MIT) and highlight.js (BSD-3-Clause) in `web/static/vendor/`, and the Instrument Serif and Martian Mono fonts (SIL OFL 1.1) in `web/static/fonts/`. Go dependencies are declared in `go.mod`; see [NOTICE](NOTICE) for attributions.
 
 ## Support the project
 

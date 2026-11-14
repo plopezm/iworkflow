@@ -23,6 +23,29 @@ func (s PanelSide) anchor() string {
 	return "left-0 border-r"
 }
 
+// side is the name of the edge, used by the resize handle and as part of its storage key.
+func (s PanelSide) side() string {
+	if s == RightPanel {
+		return "right"
+	}
+	return "left"
+}
+
+// resizeKey is the localStorage key of the desktop width of the panels on that edge. The width is shared by
+// every panel of the edge, so a task panel keeps the width the user chose in the previous task.
+func resizeKey(side PanelSide) string {
+	return "iwf-panel-width-" + side.side()
+}
+
+// resizeHandleClass is the drag strip on the inner edge of a panel (desktop only).
+func resizeHandleClass(side PanelSide) string {
+	base := "absolute inset-y-0 z-10 hidden w-1.5 cursor-col-resize touch-none bg-transparent transition-colors hover:bg-fg/20 focus-visible:bg-fg/30 group-data-[resizing]:bg-fg/30 md:block group-data-[collapsed]:md:hidden"
+	if side == RightPanel {
+		return base + " left-0 -translate-x-1/2"
+	}
+	return base + " right-0 translate-x-1/2"
+}
+
 // HandleGlyph is the glyph of the collapse handle: it points toward the direction of the collapse.
 func HandleGlyph(side PanelSide, open bool) string {
 	if (side == LeftPanel) == open {
