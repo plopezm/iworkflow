@@ -71,11 +71,7 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 		}
 		writeFragments(w, r, components.WorkspaceRegister(form))
 	default:
-		table := h.table(ctx, nil)
-		table.OutOfBand = true
-		writeFragments(w, r,
-			components.WorkspaceRegister(h.registerForm(ctx, dto.RegisterWorkspaceDTO{})),
-			components.WorkspaceTable(table))
+		writeFragments(w, r, pages.RegisterSaved())
 	}
 }
 
@@ -218,6 +214,7 @@ func workspaceRow(workspace dto.WorkspaceDTO, memory state.MemoryChip) state.Wor
 		Name:         workspace.Name,
 		Path:         workspace.Path,
 		BaseBranch:   workspace.BaseBranch,
+		BoardHref:    "/board/" + workspace.ID,
 		EditHref:     "/workspaces/" + workspace.ID + "/edit",
 		TerminalHref: "/workspaces/" + workspace.ID + "/terminal",
 		Memory:       memory,

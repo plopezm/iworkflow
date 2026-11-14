@@ -40,6 +40,7 @@ const INIT_BTN = /Inicializar|Crear e inicializar|Crear commit/i;
 // Si `expectConfirm` es true, confirma la inicialización inline de una carpeta no-git.
 async function registerWs(ctx, { name, gitRepo, nonGitDir, baseBranch = 'main', expectConfirm = false } = {}) {
   await ctx.goto('/workspaces');
+  await ctx.page.getByRole('link', { name: /Nuevo workspace/ }).first().click();
   await ctx.page.getByLabel('Nombre').fill(name);
   const dir = gitRepo || nonGitDir;
   ctx.assert(dir, 'falta gitRepo o nonGitDir en registerWs');

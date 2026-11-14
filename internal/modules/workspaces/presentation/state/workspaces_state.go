@@ -41,6 +41,8 @@ type WorkspaceRow struct {
 	Name       string
 	Path       string
 	BaseBranch string
+	// BoardHref opens the task board of the workspace.
+	BoardHref string
 	// EditHref opens the edit tab of the workspace.
 	EditHref string
 	// TerminalHref opens the terminal tab of the workspace (served by the terminal module).
@@ -101,10 +103,18 @@ type TableView struct {
 	OutOfBand bool
 }
 
-// WorkspacesPage is the whole workspaces tab.
+// WorkspacesPage is the whole workspaces tab: the list and the way to the registration tab.
 type WorkspacesPage struct {
-	Form  RegisterForm
-	Table TableView
+	// NewHref opens the registration tab.
+	NewHref string
+	Table   TableView
+}
+
+// NewPage is the registration tab: the form and the folder picker.
+type NewPage struct {
+	Form RegisterForm
+	// ListHref is where the tab goes on cancel and after a successful registration.
+	ListHref string
 }
 
 // EditPage is the edit tab of one workspace.

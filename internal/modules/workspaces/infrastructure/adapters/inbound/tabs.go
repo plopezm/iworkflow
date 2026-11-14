@@ -15,11 +15,19 @@ import (
 	"iworkflow/internal/modules/workspaces/presentation/state"
 )
 
-// ListTab renders the workspaces tab: registration, the picker and the list.
+// ListTab renders the workspaces tab: the list and the button that opens the registration tab.
 func (h *Handlers) ListTab(ctx context.Context, _ dock.Params) templ.Component {
 	return pages.WorkspacesPage(state.WorkspacesPage{
-		Form:  h.registerForm(ctx, dto.RegisterWorkspaceDTO{}),
-		Table: h.table(ctx, nil),
+		NewHref: "/workspaces/new",
+		Table:   h.table(ctx, nil),
+	})
+}
+
+// NewTab renders the registration tab: the form and the folder picker.
+func (h *Handlers) NewTab(ctx context.Context, _ dock.Params) templ.Component {
+	return pages.WorkspaceNewPage(state.NewPage{
+		Form:     h.registerForm(ctx, dto.RegisterWorkspaceDTO{}),
+		ListHref: "/workspaces",
 	})
 }
 

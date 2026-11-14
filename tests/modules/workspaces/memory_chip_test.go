@@ -111,14 +111,3 @@ func TestWorkspacesPageShowsNoMemoryChipWhenNoProviderIsWired(t *testing.T) {
 	assert.NotContains(t, recorder.Body.String(), "Engram")
 	assert.NotContains(t, recorder.Body.String(), "memory-chip")
 }
-
-func TestRegisterFragmentAlsoCarriesTheEngramChip(t *testing.T) {
-	fixture := newMemoryFixture(t, memoryPortFake{summaries: map[string]models.MemorySummary{
-		"Demo": {State: models.MemoryAvailable, Count: 1},
-	}})
-
-	body := fixture.register("Demo", newGitRepo(t))
-
-	assert.Contains(t, body, "Engram · 1 memoria", "the refreshed table is rendered with the same chips")
-	assert.Contains(t, body, `hx-swap-oob="true"`)
-}

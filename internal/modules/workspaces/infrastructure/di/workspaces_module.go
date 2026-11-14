@@ -90,7 +90,7 @@ func (m *Module) Routes(r chi.Router) {
 	m.handlers.Mount(r)
 }
 
-// Tabs returns the dock routes of the module: the workspaces list and the edit page of one workspace.
+// Tabs returns the dock routes of the module: the workspaces list, the registration page and the edit page of one workspace.
 // The parent registers them in the dock registry.
 func (m *Module) Tabs() []dock.Route {
 	return []dock.Route{
@@ -114,6 +114,17 @@ func (m *Module) Tabs() []dock.Route {
 			},
 			Render: func(ctx context.Context, params dock.Params) templ.Component {
 				return m.handlers.EditTab(ctx, params)
+			},
+		},
+		{
+			Name:    "workspace_new",
+			Pattern: "/workspaces/new",
+			Icon:    "+",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return pages.NewTitle(ctx)
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return m.handlers.NewTab(ctx, params)
 			},
 		},
 	}

@@ -16,7 +16,7 @@ templ WorkspaceTable(table state.TableView) {
 		if len(table.Rows) == 0 {
 			<p class="muted">{ msgNoWorkspaces.T(ctx) }</p>
 		} else {
-			<div class="stack sm:hidden">
+			<div class="stack">
 				for _, row := range table.Rows {
 					<article class="card stack gap-1.5 animate-slide-up">
 						<div class="row justify-between">
@@ -25,6 +25,9 @@ templ WorkspaceTable(table state.TableView) {
 								{ row.Name }
 							</span>
 							<div class="row gap-1.5">
+								@link.Tab(link.Props{Href: row.BoardHref, Class: "btn-primary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
+									{ msgOpenBoard.T(ctx) }
+								}
 								@link.Tab(link.Props{Href: row.EditHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
 									{ msgEdit.T(ctx) }
 								}

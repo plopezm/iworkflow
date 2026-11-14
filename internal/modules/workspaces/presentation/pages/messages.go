@@ -13,6 +13,7 @@ var (
 	msgWorkspacesTitle    = i18n.Msg{En: "Workspaces", Es: "Workspaces", Zh: "工作区", De: "Workspaces", Fr: "Espaces de travail"}
 	msgRegisterTitle      = i18n.Msg{En: "Register workspace", Es: "Registrar workspace", Zh: "注册工作区", De: "Workspace registrieren", Fr: "Enregistrer un espace de travail"}
 	msgRegisteredTitle    = i18n.Msg{En: "Registered", Es: "Registrados", Zh: "已注册", De: "Registriert", Fr: "Enregistrés"}
+	msgNewWorkspace       = i18n.Msg{En: "New workspace", Es: "Nuevo workspace", Zh: "新建工作区", De: "Neuer Workspace", Fr: "Nouvel espace de travail"}
 	msgEditTitle          = i18n.Msg{En: "Edit workspace", Es: "Editar workspace", Zh: "编辑工作区", De: "Workspace bearbeiten", Fr: "Modifier l'espace de travail"}
 	msgNameLabel          = i18n.Msg{En: "Name", Es: "Nombre", Zh: "名称", De: "Name", Fr: "Nom"}
 	msgNamePlaceholder    = i18n.Msg{En: "my-project", Es: "mi-proyecto", Zh: "我的项目", De: "mein-projekt", Fr: "mon-projet"}
@@ -35,6 +36,9 @@ func editFormOptions(options []state.AgentsOption) []shared.FormOption {
 
 // ListTitle is the default title of the workspaces tab.
 func ListTitle(ctx context.Context) string { return msgWorkspacesTitle.T(ctx) }
+
+// NewTitle is the default title of the registration tab.
+func NewTitle(ctx context.Context) string { return msgNewWorkspace.T(ctx) }
 
 // EditTitle is the default title of the edit tab.
 func EditTitle(ctx context.Context) string { return msgEditTitle.T(ctx) }

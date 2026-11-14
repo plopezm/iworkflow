@@ -1,0 +1,31 @@
+package pages
+
+import (
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/workspaces/presentation/components"
+	"iworkflow/internal/modules/workspaces/presentation/state"
+)
+
+// WorkspaceNewPage is the registration tab: the form and the folder picker. A successful registration
+// replaces the tab with the list (see RegisterSaved).
+templ WorkspaceNewPage(page state.NewPage) {
+	<div class="h-full min-h-0 overflow-y-auto">
+		<div class="mx-auto w-full max-w-3xl p-4 pb-10 md:p-6 md:pb-12">
+			<div class="card stack gap-4 p-5 md:p-6">
+				<h1 class="page-title">{ msgRegisterTitle.T(ctx) }</h1>
+				@components.WorkspaceRegister(page.Form)
+				@components.DirectoryPicker(state.DirectoryPicker{})
+				<div class="row justify-end gap-2">
+					@link.Tab(link.Props{Href: page.ListHref, Class: "btn-secondary"}) {
+						{ msgCancelLabel.T(ctx) }
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// RegisterSaved replaces the registration tab with the list once the workspace is registered.
+templ RegisterSaved() {
+	<span data-dock-redirect="/workspaces"></span>
+}
