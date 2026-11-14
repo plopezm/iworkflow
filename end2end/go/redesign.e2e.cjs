@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { openWorkspaceTerminal } = require('../terminal.e2e.cjs').helpers;
+const { openWorkspaceTerminal, screenHas } = require('../terminal.e2e.cjs').helpers;
 
 const tag = Date.now().toString();
 const TMP = process.env.SMOKE_TMP_DIR || process.env.WORK_TMP_DIR || '/tmp';
@@ -209,8 +209,11 @@ module.exports = {
           { timeout: 5000 },
         );
         await ctx.page.keyboard.press('Control+k');
-        // Settle: the palette would open synchronously on keydown, so a short wait is enough to see it.
-        await ctx.page.waitForTimeout(300);
+        // Condition, not a pause: a marker typed after Ctrl+K must reach the xterm screen. If Ctrl+K had opened
+        // the palette, its input would hold the focus and the marker would never appear in the terminal.
+        const marker = `ctrlk-${tag}`;
+        await ctx.page.keyboard.type(marker);
+        await screenHas(ctx.page, marker, 1, 10000);
         ctx.assert((await paletteOpen(ctx.page)) === false, 'Ctrl+K dentro de la terminal abrió la paleta');
       },
     },

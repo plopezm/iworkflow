@@ -8,7 +8,9 @@
 // server reads Engram on every page render, so the fake only has to be up when the page is requested.
 //
 // The memory content is a unique secret: it must reach the server's JSON answer but never a rendered page (S4).
-// The suite runs in Spanish. Tests run in declaration order: the last one stops the fake.
+// The suite runs in Spanish. Every test is self-contained: it starts the fake for its own page loads through
+// withFake (which stops it again when the test ends) and gets its workspaces and task from readyFixture. So each
+// test passes alone and the suite passes in any order; no test reads state that an earlier test left behind.
 
 const http = require('http');
 const fs = require('fs');
@@ -101,6 +103,17 @@ async function stopFake() {
   await new Promise((resolve) => server.close(resolve));
 }
 
+// Runs `body` with the fake listening and stops it when `body` ends, even on failure. Tests that need Engram
+// up use this, so the fake never outlives the test that started it (other suites expect Engram unavailable).
+async function withFake(body) {
+  await ensureFake();
+  try {
+    return await body();
+  } finally {
+    await stopFake();
+  }
+}
+
 // Creates a git repo with one commit and returns its real path (the server stores the path it was given).
 let repoCount = 0;
 function uniqueGitRepo(prefix) {
@@ -144,17 +157,17 @@ async function createTask(ctx, ws, title) {
   return id;
 }
 
-// Shared fixture: a workspace whose repo the fake reports as the project directory, a workspace with no
-// matching project, and one task in the matching workspace. Built once by the first test that needs it; later
-// tests reuse the same promise, so a failed build is reported by its first test and not retried into bad repos.
+// Shared fixture, built on demand: a workspace whose repo the fake reports as the project directory, a workspace
+// with no matching project, and one task in the matching workspace. The build only sets the data the fake will
+// answer; it does not need the fake to be listening. The promise is cached per process, so the first test that
+// needs it builds it and the others reuse it; a test that runs alone builds it itself.
 let fixturePromise = null;
-function ensureFixture(ctx) {
+function readyFixture(ctx) {
   if (!fixturePromise) fixturePromise = buildFixture(ctx);
   return fixturePromise;
 }
 
 async function buildFixture(ctx) {
-  await ensureFake();
   const matchName = `eng-match-${tag}`;
   const otherName = `eng-other-${tag}`;
   const matchDir = uniqueGitRepo('match');
@@ -175,59 +188,68 @@ module.exports = {
     {
       name: 'chip: la fila del workspace con proyecto coincidente muestra "Engram · 3 memorias"',
       fn: async (ctx) => {
-        const f = await ensureFixture(ctx);
-        await ctx.goto('/workspaces');
-        await rowOf(ctx, f.matchName).getByText(CHIP_MANY, { exact: true }).waitFor({ timeout: 10000 });
+        const f = await readyFixture(ctx);
+        await withFake(async () => {
+          await ctx.goto('/workspaces');
+          await rowOf(ctx, f.matchName).getByText(CHIP_MANY, { exact: true }).waitFor({ timeout: 10000 });
+        });
       },
     },
     {
       name: 'chip: un workspace sin proyecto coincidente muestra "Engram · sin memorias"',
       fn: async (ctx) => {
-        const f = await ensureFixture(ctx);
-        await ctx.goto('/workspaces');
-        await rowOf(ctx, f.otherName).getByText(CHIP_NONE, { exact: true }).waitFor({ timeout: 10000 });
-        ctx.assert((await rowOf(ctx, f.otherName).getByText(CHIP_MANY).count()) === 0, 'el workspace sin proyecto muestra memorias');
+        const f = await readyFixture(ctx);
+        await withFake(async () => {
+          await ctx.goto('/workspaces');
+          await rowOf(ctx, f.otherName).getByText(CHIP_NONE, { exact: true }).waitFor({ timeout: 10000 });
+          ctx.assert((await rowOf(ctx, f.otherName).getByText(CHIP_MANY).count()) === 0, 'el workspace sin proyecto muestra memorias');
+        });
       },
     },
     {
       name: 'panel: el detalle de la tarea trae "Memoria" colapsado y al abrirlo lista título y tipo de cada memoria',
       fn: async (ctx) => {
-        const f = await ensureFixture(ctx);
-        await ctx.goto(`/tasks/${f.taskId}`);
-        const panel = ctx.page.locator('details[data-task-memory]');
-        await panel.waitFor({ state: 'attached', timeout: 10000 });
-        ctx.assert((await panel.evaluate((el) => el.open)) === false, 'el panel de memoria nace abierto');
-        ctx.assert((await panel.locator('summary').innerText()).trim() === PANEL_TITLE, 'el resumen del panel no es "Memoria"');
-        await panel.locator('summary').click();
-        const rows = panel.locator('[data-memory-row]');
-        await rows.nth(MEMORIES.length - 1).waitFor({ state: 'visible', timeout: 5000 });
-        ctx.assert((await rows.count()) === MEMORIES.length, `el panel lista ${await rows.count()} memorias, no ${MEMORIES.length}`);
-        for (const memory of MEMORIES) {
-          const row = panel.locator('[data-memory-row]', { hasText: memory.title });
-          ctx.assert((await row.count()) === 1, `falta la memoria "${memory.title}"`);
-          ctx.assert((await row.innerText()).includes(memory.type), `la memoria "${memory.title}" no muestra su tipo ${memory.type}`);
-        }
+        const f = await readyFixture(ctx);
+        await withFake(async () => {
+          await ctx.goto(`/tasks/${f.taskId}`);
+          const panel = ctx.page.locator('details[data-task-memory]');
+          await panel.waitFor({ state: 'attached', timeout: 10000 });
+          ctx.assert((await panel.evaluate((el) => el.open)) === false, 'el panel de memoria nace abierto');
+          ctx.assert((await panel.locator('summary').innerText()).trim() === PANEL_TITLE, 'el resumen del panel no es "Memoria"');
+          await panel.locator('summary').click();
+          const rows = panel.locator('[data-memory-row]');
+          await rows.nth(MEMORIES.length - 1).waitFor({ state: 'visible', timeout: 5000 });
+          ctx.assert((await rows.count()) === MEMORIES.length, `el panel lista ${await rows.count()} memorias, no ${MEMORIES.length}`);
+          for (const memory of MEMORIES) {
+            const row = panel.locator('[data-memory-row]', { hasText: memory.title });
+            ctx.assert((await row.count()) === 1, `falta la memoria "${memory.title}"`);
+            ctx.assert((await row.innerText()).includes(memory.type), `la memoria "${memory.title}" no muestra su tipo ${memory.type}`);
+          }
+        });
       },
     },
     {
       name: 'privacidad: el contenido de una memoria nunca aparece en la página de la tarea',
       fn: async (ctx) => {
-        const f = await ensureFixture(ctx);
-        await ctx.goto(`/tasks/${f.taskId}`);
-        const panel = ctx.page.locator('details[data-task-memory]');
-        await panel.waitFor({ state: 'attached', timeout: 10000 });
-        await panel.locator('summary').click();
-        await panel.locator('[data-memory-row]').first().waitFor({ state: 'visible', timeout: 5000 });
-        const html = await ctx.page.content();
-        ctx.assert(!html.includes(SECRET), 'el contenido de la memoria aparece en el HTML de la página');
-        const text = await ctx.page.innerText('body');
-        ctx.assert(!text.includes(SECRET), 'el contenido de la memoria aparece en el texto de la página');
+        const f = await readyFixture(ctx);
+        await withFake(async () => {
+          await ctx.goto(`/tasks/${f.taskId}`);
+          const panel = ctx.page.locator('details[data-task-memory]');
+          await panel.waitFor({ state: 'attached', timeout: 10000 });
+          await panel.locator('summary').click();
+          await panel.locator('[data-memory-row]').first().waitFor({ state: 'visible', timeout: 5000 });
+          const html = await ctx.page.content();
+          ctx.assert(!html.includes(SECRET), 'el contenido de la memoria aparece en el HTML de la página');
+          const text = await ctx.page.innerText('body');
+          ctx.assert(!text.includes(SECRET), 'el contenido de la memoria aparece en el texto de la página');
+        });
       },
     },
     {
       name: 'sin Engram: Workspaces responde con "Engram no disponible" y el detalle no trae panel de memoria',
       fn: async (ctx) => {
-        const f = await ensureFixture(ctx);
+        const f = await readyFixture(ctx);
+        // Engram must be down for this test: stop it if it is up (a no-op when no fake is listening).
         await stopFake();
         const response = await ctx.page.goto(`${ctx.base}/workspaces`, { waitUntil: 'domcontentloaded' });
         ctx.assert(response && response.status() === 200, `Workspaces respondió ${response && response.status()}`);
@@ -242,15 +264,24 @@ module.exports = {
     },
     {
       name: 'solo lectura: el servidor de Engram solo recibió peticiones GET',
-      // No browser state is needed: the requests the fake recorded are the evidence.
-      fn: async () => {
-        if (fake.requests.length === 0) throw new Error('el servidor no consultó Engram en ninguna prueba');
-        const others = fake.requests.filter((request) => !request.startsWith('GET '));
-        if (others.length > 0) throw new Error(`peticiones que no son GET: ${others.join(', ')}`);
-        const paths = new Set(fake.requests.map((request) => request.slice(4).split('?')[0]));
-        if (!paths.has('/projects') || !paths.has('/observations/recent')) {
-          throw new Error(`faltan lecturas de Engram: ${[...paths].join(', ')}`);
-        }
+      // The test makes its own page loads with the fake up and checks the requests those loads produced. Requests
+      // from the fixture build or from other tests are not evidence, so the log is cleared first.
+      fn: async (ctx) => {
+        const f = await readyFixture(ctx);
+        await withFake(async () => {
+          fake.requests.length = 0;
+          await ctx.goto('/workspaces');
+          await rowOf(ctx, f.matchName).getByText(CHIP_MANY, { exact: true }).waitFor({ timeout: 10000 });
+          await ctx.goto(`/tasks/${f.taskId}`);
+          await ctx.page.locator('details[data-task-memory]').waitFor({ state: 'attached', timeout: 10000 });
+          if (fake.requests.length === 0) throw new Error('el servidor no consultó Engram al cargar las páginas');
+          const others = fake.requests.filter((request) => !request.startsWith('GET '));
+          if (others.length > 0) throw new Error(`peticiones que no son GET: ${others.join(', ')}`);
+          const paths = new Set(fake.requests.map((request) => request.slice(4).split('?')[0]));
+          if (!paths.has('/projects') || !paths.has('/observations/recent')) {
+            throw new Error(`faltan lecturas de Engram: ${[...paths].join(', ')}`);
+          }
+        });
       },
     },
   ],
