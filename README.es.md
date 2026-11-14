@@ -54,7 +54,7 @@ iworkflow está pensada **primero para el móvil**. Como tu trabajo es lanzar, s
 
 - La interfaz es responsive: en pantallas pequeñas el menú lateral pasa a ser un panel desplegable desde una barra superior y el espacio de trabajo con pestañas se adapta al viewport.
 - El agente sigue ejecutándose en tu máquina mientras estás fuera. Desde el móvil consultas el progreso, respondes a las preguntas del agente, envías un mensaje, revisas el diff e integras o descartas.
-- En iOS (Safari → Compartir → *Añadir a pantalla de inicio*) y Android (Chrome → menú → *Añadir a pantalla de inicio*) puedes fijarla como acceso directo. Por ahora se abre en el navegador; aún no incluye un manifiesto de aplicación web, así que no es una app independiente a pantalla completa.
+- En iOS (Safari → Compartir → *Añadir a pantalla de inicio*) y Android (Chrome → menú → *Añadir a pantalla de inicio*) puedes fijarla como acceso directo. Incluye un manifiesto de aplicación web e iconos, así que se instala como una app independiente a pantalla completa (Chrome y Edge también ofrecen *Instalar* en la barra de direcciones). No hay service worker: la app necesita el servidor en marcha y no muestra copia sin conexión.
 
 El servidor corre en tu ordenador y el móvil es solo un navegador, así que necesitas una forma segura de alcanzarlo: consulta [Desarrollar desde el móvil con Tailscale](#desarrollar-desde-el-móvil-con-tailscale).
 

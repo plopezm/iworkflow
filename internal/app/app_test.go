@@ -335,3 +335,12 @@ func TestShellRendersTheCommandPaletteInTheRequestLanguage(t *testing.T) {
 	require.Contains(t, body, `data-palette-open`)
 	require.Contains(t, body, `/static/js/sidebar_active.js`)
 }
+
+func TestShellDeclaresTheWebAppManifestAndItsIcons(t *testing.T) {
+	body := get(t, newRouter(t), "/").Body.String()
+
+	require.Contains(t, body, `rel="manifest" href="/static/manifest.webmanifest"`)
+	require.Contains(t, body, `name="theme-color"`)
+	require.Contains(t, body, `rel="apple-touch-icon" href="/static/icons/icon-192.png"`)
+	require.Contains(t, body, `rel="icon" type="image/svg+xml" href="/static/icons/icon.svg"`)
+}

@@ -15,6 +15,14 @@ templ Shell(title string) {
 			<meta charset="utf-8"/>
 			@templ.Raw("<script>" + themeInitScript + "</script>")
 			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
+			<meta name="theme-color" content="#0b0b12" media="(prefers-color-scheme: dark)"/>
+			<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"/>
+			<meta name="mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-capable" content="yes"/>
+			<meta name="apple-mobile-web-app-title" content="iworkflow"/>
+			<link rel="manifest" href="/static/manifest.webmanifest" crossorigin="use-credentials"/>
+			<link rel="icon" type="image/svg+xml" href="/static/icons/icon.svg"/>
+			<link rel="apple-touch-icon" href="/static/icons/icon-192.png"/>
 			<title>{ title }</title>
 			<link rel="stylesheet" href="/static/app.css"/>
 			<script src="/static/vendor/htmx.min.js"></script>

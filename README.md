@@ -54,7 +54,7 @@ iworkflow is built **mobile-first**. Since your job is to launch, follow and rev
 
 - The UI is responsive: on small screens the side menu becomes a drawer opened from a top bar, and the tabbed workspace adapts to the viewport.
 - The agent keeps running on your machine while you are away. From the phone you check progress, answer agent questions, send a message, review the diff and merge or discard.
-- On iOS (Safari → Share → *Add to Home Screen*) and Android (Chrome → menu → *Add to Home screen*) you can pin it as a shortcut. For now it opens in the browser; it does not yet ship a web app manifest, so it is not a standalone full-screen app.
+- On iOS (Safari → Share → *Add to Home Screen*) and Android (Chrome → menu → *Add to Home screen*) you can pin it as a shortcut. It ships a web app manifest and icons, so it installs as a standalone full-screen app (Chrome and Edge also offer *Install* in the address bar). There is no service worker: the app needs the server running and shows no offline copy.
 
 The server runs on your computer and the phone is only a browser, so you need a secure way to reach it: see [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale).
 
