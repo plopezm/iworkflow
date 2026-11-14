@@ -3,6 +3,9 @@ package components_test
 import (
 	"bytes"
 	"context"
+	"os"
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -33,4 +36,21 @@ func TestPaletteCardOffersEveryPaletteAndTheDefaultFirst(t *testing.T) {
 	require.Less(t, bytes.Index(out.Bytes(), []byte(`data-palette-choice="default"`)), bytes.Index(out.Bytes(), []byte(`data-palette-choice="ocean"`)))
 	require.Contains(t, html, "Tema de color")
 	require.Contains(t, html, "Predeterminado")
+}
+
+func TestPaletteListMatchesTheClientScript(t *testing.T) {
+	source, err := os.ReadFile("../../../web/static/js/ui.js")
+	require.NoError(t, err)
+	match := regexp.MustCompile(`PALETTES = \[([^\]]*)\]`).FindSubmatch(source)
+	require.NotNil(t, match, "ui.js must declare PALETTES")
+
+	var client []string
+	for _, quoted := range strings.Split(string(match[1]), ",") {
+		client = append(client, strings.Trim(strings.TrimSpace(quoted), "'\""))
+	}
+	var server []string
+	for _, option := range components.PaletteOptions() {
+		server = append(server, string(option.Palette))
+	}
+	require.Equal(t, server, client)
 }

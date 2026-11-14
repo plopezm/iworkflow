@@ -1,14 +1,40 @@
 package web
 
-import "iworkflow/internal/core/i18n"
+import (
+	"encoding/json"
+	"strings"
 
-// themeInitScript applies the saved theme before first paint to avoid a flash.
-const themeInitScript = `(function(){try{var m=localStorage.getItem('pi-theme');` +
-	`if(m!=='light'&&m!=='dark'){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}` +
-	`document.documentElement.setAttribute('data-theme',m);` +
-	`var p=localStorage.getItem('pi-palette');` +
-	`if(['ocean','forest','sunset','rose'].indexOf(p)>=0){document.documentElement.setAttribute('data-palette',p);}` +
-	`}catch(e){}})();`
+	"iworkflow/internal/core/components"
+	"iworkflow/internal/core/i18n"
+)
+
+// namedPalettes lists the palettes that set a data-palette attribute: every option of the selector but the default,
+// which keeps the original variables. The init script is built from the same list as the selector.
+func namedPalettes() []string {
+	names := make([]string, 0)
+	for _, option := range components.PaletteOptions() {
+		if option.Palette != components.PaletteDefault {
+			names = append(names, string(option.Palette))
+		}
+	}
+	return names
+}
+
+// themeInitScript applies the saved theme and palette before first paint to avoid a flash.
+func themeInitScript() string {
+	names, err := json.Marshal(namedPalettes())
+	if err != nil {
+		return ""
+	}
+	return strings.Join([]string{
+		`(function(){try{var m=localStorage.getItem('pi-theme');`,
+		`if(m!=='light'&&m!=='dark'){m=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}`,
+		`document.documentElement.setAttribute('data-theme',m);`,
+		`var p=localStorage.getItem('pi-palette');`,
+		`if(` + string(names) + `.indexOf(p)>=0){document.documentElement.setAttribute('data-palette',p);}`,
+		`}catch(e){}})();`,
+	}, "")
+}
 
 // Shell is the HTML document every full-page response is rendered into.
 templ Shell(title string) {
@@ -16,7 +42,7 @@ templ Shell(title string) {
 	<html lang={ i18n.StateFrom(ctx).Locale.Code() }>
 		<head>
 			<meta charset="utf-8"/>
-			@templ.Raw("<script>" + themeInitScript + "</script>")
+			@templ.Raw("<script>" + themeInitScript() + "</script>")
 			<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"/>
 			<meta name="theme-color" content="#0b0b12" media="(prefers-color-scheme: dark)"/>
 			<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)"/>
