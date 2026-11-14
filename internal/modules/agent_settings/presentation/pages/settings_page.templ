@@ -12,6 +12,7 @@ templ SettingsPage(p SettingsPageProps) {
 				Options:   sectionSegments(p),
 				Selected:  p.Active,
 				AriaLabel: p.SectionsName,
+				Class:     "segmented-scroll",
 			})
 		</div>
 		<div class="stack min-h-0 flex-1 overflow-y-auto p-4">

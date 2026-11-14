@@ -1905,6 +1905,20 @@ select optgroup,
   color: var(--color-fg);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.1);
 }
+.segmented-scroll {
+  max-width: 100%;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.segmented-scroll::-webkit-scrollbar {
+  display: none;
+}
+.segmented-scroll .segment {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .board-tabs {
   display: none;
 }

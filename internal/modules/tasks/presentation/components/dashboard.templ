@@ -31,10 +31,9 @@ templ DashboardBody(view state.DashboardView) {
 		<h1 class="page-title">{ msgBoard.T(ctx) }</h1>
 		<span class="badge badge-working"><span class="live-dot"></span>{ msgDashRunning.T(ctx) } · { itoa(view.Running) }</span>
 		<span class="badge badge-backlog">{ msgDashPending.T(ctx) } · { itoa(view.Pending) }</span>
-		<div class="min-w-0 flex-1"></div>
-		@link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary min-h-8", Title: msgNewTask.T(ctx), Role: "button"}) {
-			<span class="text-lg leading-none">+</span>
-			<span class="hidden sm:inline">{ msgNewTask.T(ctx) }</span>
+		@link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary size-8 p-0", Title: msgNewTask.T(ctx), Role: "button"}) {
+			<span class="text-lg leading-none" aria-hidden="true">+</span>
+			<span class="sr-only">{ msgNewTask.T(ctx) }</span>
 		}
 	</header>
 	if view.LoadError != "" {
