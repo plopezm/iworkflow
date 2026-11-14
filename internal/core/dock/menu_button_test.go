@@ -22,3 +22,19 @@ func TestOnlyTheFirstGroupCarriesTheMobileMenuButton(t *testing.T) {
 
 	require.Equal(t, 1, bytes.Count(out.Bytes(), []byte(`data-target="sidebar-panel"`)))
 }
+
+func TestTheTabBarHasNoNewTabMenu(t *testing.T) {
+	layout := New()
+	layout.Open("/jira", "Jira", layout.Groups[0].ID)
+	registry := newRegistry(t, routeFixture("task", "/tasks/{id}"))
+	view, err := NewView(layout, registry, nil)
+	require.NoError(t, err)
+
+	var out bytes.Buffer
+	require.NoError(t, Root(view).Render(context.Background(), &out))
+
+	html := out.String()
+	require.NotContains(t, html, ">+<")
+	require.NotContains(t, html, "New tab")
+	require.Contains(t, html, "⋯", "the group options menu stays")
+}

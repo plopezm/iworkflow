@@ -94,8 +94,8 @@ templ sidebar(boardSidebar templ.Component, version string) {
 	</div>
 }
 
-// launcherEntries is the entry list of the launcher grid of an empty group.
-templ launcherEntries() {
+// emptyGroupEntries is the entry list of the launcher grid of an empty group (the tab bar has no "+" menu).
+templ emptyGroupEntries() {
 	for _, entry := range navEntries {
 		@link.Tab(link.Props{Href: entry.Href, Class: "menu-item"}) {
 			<span class="mr-2 inline-block w-4 text-center text-muted" aria-hidden="true">{ entry.Icon }</span>
@@ -109,7 +109,7 @@ templ emptyGroupBody() {
 	<div class="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
 		<p class="text-sm text-muted">{ msgEmptyGroup.T(ctx) }</p>
 		<div class="launcher-grid">
-			@launcherEntries()
+			@emptyGroupEntries()
 		</div>
 	</div>
 }
