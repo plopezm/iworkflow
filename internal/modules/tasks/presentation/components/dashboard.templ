@@ -27,14 +27,16 @@ templ Dashboard(view state.DashboardView) {
 
 // DashboardBody is the content of the dashboard. It is what the dashboard address answers.
 templ DashboardBody(view state.DashboardView) {
-	<header class="row flex-wrap items-center gap-3 px-4 pt-4 pb-2">
-		<h1 class="page-title">{ msgBoard.T(ctx) }</h1>
+	<header class="row flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-4 pb-2">
+		<div class="flex w-full items-center justify-between gap-3 sm:contents">
+			<h1 class="page-title">{ msgBoard.T(ctx) }</h1>
+			@link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary !size-9 !min-h-0 !rounded-full p-0 sm:order-last", Title: msgNewTask.T(ctx), Role: "button"}) {
+				<span class="text-lg leading-none" aria-hidden="true">+</span>
+				<span class="sr-only">{ msgNewTask.T(ctx) }</span>
+			}
+		</div>
 		<span class="badge badge-working"><span class="live-dot"></span>{ msgDashRunning.T(ctx) } · { itoa(view.Running) }</span>
 		<span class="badge badge-backlog">{ msgDashPending.T(ctx) } · { itoa(view.Pending) }</span>
-		@link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary size-8 p-0", Title: msgNewTask.T(ctx), Role: "button"}) {
-			<span class="text-lg leading-none" aria-hidden="true">+</span>
-			<span class="sr-only">{ msgNewTask.T(ctx) }</span>
-		}
 	</header>
 	if view.LoadError != "" {
 		@LoadFailed(view.LoadError)
