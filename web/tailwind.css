@@ -1949,3 +1949,10 @@ form.htmx-request > .submit-progress {
 @media (prefers-reduced-motion: reduce) {
   .submit-progress-steps > li[data-state='active'] .submit-progress-dot { animation: none; }
 }
+
+/* Desktop panels the user resized: the width set by web/static/js/panel_resize.js wins over the default class. */
+@media (min-width: 48rem) {
+  [data-collapse-root][style*="--panel-width"] > aside {
+    width: var(--panel-width);
+  }
+}

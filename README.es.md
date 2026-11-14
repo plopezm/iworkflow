@@ -420,7 +420,7 @@ Copyright 2026 Pablo López (plopezm). Distribuido bajo la [licencia PolyForm Sh
 
 Puedes usar, modificar y distribuir iworkflow libremente, también dentro de empresas y para trabajo comercial, pero no usarlo para ofrecer un producto que compita con él (por ejemplo, revenderlo u ofrecerlo como servicio alojado). Es una licencia *source-available*, no una licencia open source aprobada por la OSI.
 
-Los recursos de terceros incluidos mantienen su propia licencia: xterm.js (MIT) y highlight.js (BSD-3-Clause) en `public/vendor/`, y las fuentes Instrument Serif y Martian Mono (SIL OFL 1.1) en `public/fonts/`. Las dependencias de Go se declaran en `go.mod`; las atribuciones están en [NOTICE](NOTICE).
+Los recursos de terceros incluidos mantienen su propia licencia: xterm.js (MIT) y highlight.js (BSD-3-Clause) en `web/static/vendor/`, y las fuentes Instrument Serif y Martian Mono (SIL OFL 1.1) en `web/static/fonts/`. Las dependencias de Go se declaran en `go.mod`; las atribuciones están en [NOTICE](NOTICE).
 
 ## Apoya el proyecto
 
