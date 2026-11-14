@@ -311,3 +311,27 @@ func TestTheOtherFileEditorRoutesOfTheDiffAnswerFragmentsNotTheShell(t *testing.
 		})
 	}
 }
+
+func TestShellShowsTheVersionNextToTheBrandAtTheTopOfTheSidebar(t *testing.T) {
+	body := get(t, newRouter(t), "/").Body.String()
+
+	brand := strings.Index(body, `tracking-tight">iworkflow`)
+	version := strings.Index(body, `data-app-version`)
+	menu := strings.Index(body, `aria-label="Navegación"`)
+	require.True(t, brand > 0 && version > 0 && menu > 0, "brand, version and menu must be rendered")
+	require.Less(t, brand, version, "the version follows the brand")
+	require.Less(t, version, menu, "the version sits in the header, above the menu")
+}
+
+func TestShellRendersTheCommandPaletteInTheRequestLanguage(t *testing.T) {
+	rec := get(t, newRouter(t), "/")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, `id="command-palette"`)
+	require.Contains(t, body, `role="listbox"`)
+	require.Contains(t, body, `placeholder="Ir a…"`)
+	require.Contains(t, body, `/static/js/command_palette.js`)
+	require.Contains(t, body, `data-palette-open`)
+	require.Contains(t, body, `/static/js/sidebar_active.js`)
+}

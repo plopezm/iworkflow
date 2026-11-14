@@ -15,4 +15,9 @@ var (
 	msgSettingsTerminal = i18n.Msg{En: "Terminal", Es: "Terminal", Zh: "终端", De: "Terminal", Fr: "Terminal"}
 	msgSettingsNet      = i18n.Msg{En: "Network", Es: "Red", Zh: "网络", De: "Netzwerk", Fr: "Réseau"}
 	msgTitleTasks       = i18n.Msg{En: "Task", Es: "Tarea", Zh: "任务", De: "Aufgabe", Fr: "Tâches"}
+
+	msgPaletteTitle       = i18n.Msg{En: "Command palette", Es: "Paleta de comandos", Zh: "命令面板", De: "Befehlspalette", Fr: "Palette de commandes"}
+	msgPalettePlaceholder = i18n.Msg{En: "Go to…", Es: "Ir a…", Zh: "跳转到…", De: "Gehe zu …", Fr: "Aller à…"}
+	msgPaletteEmpty       = i18n.Msg{En: "No results", Es: "Sin resultados", Zh: "没有结果", De: "Keine Ergebnisse", Fr: "Aucun résultat"}
+	msgPaletteHint        = i18n.Msg{En: "↑↓ move · Enter open · Esc close", Es: "↑↓ mover · Intro abrir · Esc cerrar", Zh: "↑↓ 移动 · Enter 打开 · Esc 关闭", De: "↑↓ bewegen · Enter öffnen · Esc schließen", Fr: "↑↓ déplacer · Entrée ouvrir · Échap fermer"}
 )
