@@ -134,13 +134,23 @@ func TestDetailPageHidesTheMemoryPanelWhenEngramIsUnavailableOrEmpty(t *testing.
 // blockingMemoryLister stands in for an Engram that never answers: it waits for its context. A safety timer keeps a
 // broken implementation from hanging the test; it then answers a populated panel, so the test fails on the panel.
 type blockingMemoryLister struct {
-	// deadline is the deadline of the context the handler gave the lister; zero when it had none.
-	deadline *time.Time
+	// seen receives, once, what the handler gave the lister. It is buffered, so the lister never blocks on it and
+	// the test reads it after the page has been served, with no shared memory between the two sides.
+	seen chan lastContext
+}
+
+// lastContext is the deadline of the context the handler gave the lister, read at the moment of the call.
+type lastContext struct {
+	deadline time.Time
+	hasIt    bool
+	calledAt time.Time
 }
 
 func (l blockingMemoryLister) Execute(ctx context.Context, _ application.TaskMemoryInput) (models.TaskMemoryFeed, error) {
-	if deadline, ok := ctx.Deadline(); ok {
-		*l.deadline = deadline
+	deadline, hasIt := ctx.Deadline()
+	select {
+	case l.seen <- lastContext{deadline: deadline, hasIt: hasIt, calledAt: time.Now()}:
+	default:
 	}
 	select {
 	case <-ctx.Done():
@@ -153,21 +163,30 @@ func (l blockingMemoryLister) Execute(ctx context.Context, _ application.TaskMem
 }
 
 // The task detail page waits for Engram at most one second; past that the panel is absent and the page renders.
-// The bound is asserted on the deadline the handler hands to the lister, not on wall-clock time, so a slow or loaded
-// machine cannot make the test flaky. The wall-clock check below only guards against waiting for the 5s late answer.
+// The bound is asserted on the deadline the handler hands to the lister, measured from the moment the lister is
+// called, not on wall-clock time: a slow or loaded machine cannot make the test flaky, and a deadline that is missing,
+// far too long or far too short (a few milliseconds would hide the panel for everyone) is caught. The coarse
+// wall-clock check at the end only guards against waiting for the 5s late answer of a blocked Engram.
 func TestDetailPageAnswersWithinOneSecondWhenEngramBlocks(t *testing.T) {
 	task := memoryPanelTaskForTest(t)
-	var deadline time.Time
-	h := memoryPanelHandlersForTest(task, blockingMemoryLister{deadline: &deadline})
+	seen := make(chan lastContext, 1)
+	h := memoryPanelHandlersForTest(task, blockingMemoryLister{seen: seen})
 
 	started := time.Now()
 	recorder := serveDetailPageForTest(t, h, task.ID.String())
 	elapsed := time.Since(started)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.False(t, deadline.IsZero(), "the handler must give Engram a context with a deadline")
-	assert.LessOrEqual(t, deadline.Sub(started), time.Second+250*time.Millisecond,
-		"the deadline handed to Engram must be about one second away")
+	var got lastContext
+	select {
+	case got = <-seen:
+	default:
+		t.Fatal("the handler never asked Engram for the memories")
+	}
+	require.True(t, got.hasIt, "the handler must give Engram a context with a deadline")
+	remaining := got.deadline.Sub(got.calledAt)
+	assert.LessOrEqual(t, remaining, time.Second, "Engram must not be given more than one second")
+	assert.Greater(t, remaining, 500*time.Millisecond, "Engram must be given about one second, not a token amount of time")
 	assert.Less(t, elapsed, 4*time.Second, "the page must not wait for the late answer of a blocked Engram")
 	assert.NotContains(t, recorder.Body.String(), "data-task-memory")
 	assert.NotContains(t, recorder.Body.String(), "late memory")
