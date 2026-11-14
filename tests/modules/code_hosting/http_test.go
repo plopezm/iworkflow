@@ -180,7 +180,7 @@ func TestPanelShowsAnOpenRequestWithItsActions(t *testing.T) {
 	body := recorder.Body.String()
 	require.Contains(t, body, "!7 T")
 	require.Contains(t, body, "Merge MR")
-	require.Contains(t, body, "Push branch")
+	require.Contains(t, body, "Save to remote")
 	require.Contains(t, body, "No CI pipeline.")
 }
 
