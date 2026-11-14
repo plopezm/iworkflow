@@ -1,8 +1,13 @@
 package application_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,8 +23,10 @@ import (
 type fakeMemoryPort struct {
 	summaries map[string]models.MemorySummary
 	err       error
-	batches   int
-	asked     []string
+	// short drops the last summary of the answer, so it does not line up with the workspaces.
+	short   bool
+	batches int
+	asked   []string
 }
 
 func (p *fakeMemoryPort) Summaries(_ context.Context, workspaces []models.Workspace) ([]models.MemorySummary, error) {
@@ -35,6 +42,9 @@ func (p *fakeMemoryPort) Summaries(_ context.Context, workspaces []models.Worksp
 			summary = models.MemorySummary{State: models.MemoryUnavailable}
 		}
 		out = append(out, summary)
+	}
+	if p.short && len(out) > 0 {
+		out = out[:len(out)-1]
 	}
 	return out, nil
 }
@@ -66,7 +76,7 @@ func TestListWorkspacesWithMemoryPairsEachWorkspaceWithItsSummary(t *testing.T) 
 		t.Run(name, func(t *testing.T) {
 			repository := newFakeRepository(workspaceAt(t, "alpha", "/repos/alpha", "main"))
 			port := &fakeMemoryPort{summaries: map[string]models.MemorySummary{"alpha": tc.summary}, err: tc.err}
-			useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port)
+			useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port, discardLogger())
 
 			entries, err := useCase.Execute(context.Background())
 
@@ -89,7 +99,7 @@ func TestListWorkspacesWithMemoryAsksOneBatchPerPage(t *testing.T) {
 		"beta":  {State: models.MemoryAvailable, Count: 1},
 		"gamma": {State: models.MemoryEmpty},
 	}}
-	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port)
+	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port, discardLogger())
 
 	entries, err := useCase.Execute(context.Background())
 
@@ -108,7 +118,7 @@ func TestListWorkspacesWithMemoryFailedBatchMarksEveryRowUnavailable(t *testing.
 		summaries: map[string]models.MemorySummary{"alpha": {State: models.MemoryAvailable, Count: 2}},
 		err:       errors.New("provider down"),
 	}
-	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port)
+	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port, discardLogger())
 
 	entries, err := useCase.Execute(context.Background())
 
@@ -122,7 +132,7 @@ func TestListWorkspacesWithMemoryFailedBatchMarksEveryRowUnavailable(t *testing.
 
 func TestListWorkspacesWithMemoryWithoutAProviderHidesEveryChip(t *testing.T) {
 	repository := newFakeRepository(workspaceAt(t, "alpha", "/repos/alpha", "main"))
-	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), nil)
+	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), nil, discardLogger())
 
 	entries, err := useCase.Execute(context.Background())
 
@@ -137,7 +147,7 @@ func TestListWorkspacesWithMemoryKeepsTheWorkspaceOrder(t *testing.T) {
 		workspaceAt(t, "Alpha", "/repos/alpha", "main"),
 	)
 	port := &fakeMemoryPort{summaries: map[string]models.MemorySummary{}}
-	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port)
+	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port, discardLogger())
 
 	entries, err := useCase.Execute(context.Background())
 
@@ -150,11 +160,78 @@ func TestListWorkspacesWithMemoryPropagatesRepositoryErrors(t *testing.T) {
 	repository := newFakeRepository()
 	repository.listErr = werrors.Repository("boom")
 	port := &fakeMemoryPort{}
-	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port)
+	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port, discardLogger())
 
 	_, err := useCase.Execute(context.Background())
 
 	require.ErrorIs(t, err, werrors.Repository(""))
 	assert.EqualError(t, err, "error de persistencia: boom")
 	assert.Zero(t, port.batches, "no memory is read when the workspaces cannot be listed")
+}
+
+// discardLogger is the project logger of the tests that do not read the log.
+func discardLogger() *slog.Logger {
+	return slog.New(slog.NewTextHandler(io.Discard, nil))
+}
+
+// memoryLogLines returns the log lines of a JSON handler, one per record.
+func memoryLogLines(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var records []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		record := map[string]any{}
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		records = append(records, record)
+	}
+	return records
+}
+
+// A failed batch is logged once through the project logger, and every row still degrades to unavailable.
+func TestListWorkspacesWithMemoryLogsAFailedBatchOnceAndDegradesEveryRow(t *testing.T) {
+	cases := map[string]*fakeMemoryPort{
+		"port error": {err: errors.New("provider exploded")},
+		"answer that does not line up with the workspaces": {
+			summaries: map[string]models.MemorySummary{"alpha": {State: models.MemoryAvailable, Count: 2}},
+			short:     true,
+		},
+	}
+	for name, port := range cases {
+		t.Run(name, func(t *testing.T) {
+			repository := newFakeRepository(
+				workspaceAt(t, "alpha", "/repos/alpha", "main"),
+				workspaceAt(t, "beta", "/repos/beta", "main"),
+			)
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, nil))
+			useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port, logger)
+
+			entries, err := useCase.Execute(context.Background())
+
+			require.NoError(t, err)
+			require.Len(t, entries, 2)
+			for _, entry := range entries {
+				assert.Equal(t, models.MemoryUnavailable, entry.Memory.State, entry.Workspace.Name)
+			}
+			records := memoryLogLines(t, &logs)
+			require.Len(t, records, 1, "one log line per failed batch")
+			assert.Equal(t, "WARN", records[0]["level"])
+			assert.Contains(t, records[0]["msg"], "could not read the memory of the workspaces")
+		})
+	}
+}
+
+// A healthy batch and an unavailable provider are not failures: nothing is logged.
+func TestListWorkspacesWithMemoryDoesNotLogHealthyOrUnavailableBatches(t *testing.T) {
+	repository := newFakeRepository(workspaceAt(t, "alpha", "/repos/alpha", "main"))
+	port := &fakeMemoryPort{summaries: map[string]models.MemorySummary{"alpha": {State: models.MemoryUnavailable}}}
+	var logs bytes.Buffer
+	useCase := application.NewListWorkspacesWithMemory(application.NewListWorkspaces(repository), port, slog.New(slog.NewJSONHandler(&logs, nil)))
+
+	_, err := useCase.Execute(context.Background())
+
+	require.NoError(t, err)
+	assert.Empty(t, memoryLogLines(t, &logs))
 }

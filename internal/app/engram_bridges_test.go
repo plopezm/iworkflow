@@ -1,8 +1,12 @@
 package app
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -225,4 +229,46 @@ func TestEngramTaskMemoryBridgeReturnsUnexpectedEngramErrors(t *testing.T) {
 	_, err := bridge.Recent(context.Background(), "Demo", "/repos/demo")
 
 	require.ErrorIs(t, err, boom)
+}
+
+// composeWarnings returns the records written to a JSON log buffer.
+func composeWarnings(t *testing.T, logs *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var records []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(logs.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		record := map[string]any{}
+		require.NoError(t, json.Unmarshal([]byte(line), &record))
+		records = append(records, record)
+	}
+	return records
+}
+
+// A URL that is not valid, or that carries credentials, disables the feature with one warning. The warning and the
+// feature state never echo the configured value.
+func TestComposeEngramDisablesTheFeatureWithOneWarningThatNeverEchoesTheURL(t *testing.T) {
+	const secret = "s3cr3t-token"
+	for name, raw := range map[string]string{
+		"credentials":    "http://user:" + secret + "@127.0.0.1:7437",
+		"token only":     "https://" + secret + "@engram.local",
+		"not http":       "ftp://user:" + secret + "@host",
+		"malformed host": "http://user:" + secret + "@ho st",
+	} {
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+			logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+			memory, tasks := composeEngram(raw, logger)
+
+			assert.Nil(t, memory)
+			assert.Nil(t, tasks)
+			records := composeWarnings(t, &logs)
+			require.Len(t, records, 1, "exactly one warning")
+			assert.Equal(t, "WARN", records[0]["level"])
+			assert.NotContains(t, logs.String(), secret)
+			assert.NotContains(t, logs.String(), "@")
+		})
+	}
 }

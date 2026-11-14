@@ -115,6 +115,7 @@ func New(deps Deps) (*App, error) {
 		Tasks:       workspaceTasks,
 		AgentsFiles: &agentsFilesBridge{module: agentsFiles},
 		Memory:      memoryPort,
+		Logger:      deps.Logger,
 	})
 	projects.list = workspaces.List
 	projects.get = workspaces.Get

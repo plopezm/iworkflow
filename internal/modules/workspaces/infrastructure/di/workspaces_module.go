@@ -5,6 +5,7 @@ package di
 import (
 	"context"
 	"database/sql"
+	"log/slog"
 	"time"
 
 	"github.com/a-h/templ"
@@ -33,6 +34,8 @@ type Deps struct {
 	// Memory reads what the memory provider remembers about the workspaces. Nil means no provider is wired,
 	// and the rows show no memory chip.
 	Memory outbound.MemorySummaryPort
+	// Logger is the project logger; a failed memory read is logged through it. Nil falls back to the default logger.
+	Logger *slog.Logger
 }
 
 // Module exposes the use cases, the routes and the dock tabs of the workspaces module.
@@ -60,7 +63,7 @@ func NewModule(deps Deps) *Module {
 	module := &Module{
 		Register:          application.NewRegisterWorkspace(repository, gitRepository, deps.AgentsFiles, clock, application.IDGenerator(models.NewWorkspaceID)),
 		List:              list,
-		ListWithMemory:    application.NewListWorkspacesWithMemory(list, deps.Memory),
+		ListWithMemory:    application.NewListWorkspacesWithMemory(list, deps.Memory, deps.Logger),
 		Get:               application.NewGetWorkspace(repository),
 		Update:            application.NewUpdateWorkspace(repository, gitRepository, deps.AgentsFiles),
 		Delete:            application.NewDeleteWorkspace(repository, deps.Tasks),

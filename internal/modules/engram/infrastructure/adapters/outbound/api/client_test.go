@@ -198,12 +198,66 @@ func TestClientReportsUnavailableWhenEngramCannotAnswer(t *testing.T) {
 	}
 }
 
-func TestClientRejectsMemoryWithUnreadableTimestamp(t *testing.T) {
-	client := mustClient(t, startServer(t, respondWith(http.StatusOK, `[{"id":1,"last_seen_at":"yesterday"}]`)).URL, requestTimeout)
+// One memory with an unreadable last_seen_at is skipped; the readable ones still come back.
+func TestClientSkipsOnlyTheMemoryWithUnreadableTimestamp(t *testing.T) {
+	body := `[{"id":1,"type":"bugfix","title":"bad","last_seen_at":"yesterday"},` +
+		`{"id":2,"type":"decision","title":"good","last_seen_at":"2026-11-11 17:25:30"}]`
+	client := mustClient(t, startServer(t, respondWith(http.StatusOK, body)).URL, requestTimeout)
 
-	_, err := client.Recent(context.Background(), "iworkflow", 5)
+	memories, err := client.Recent(context.Background(), "iworkflow", 5)
+
+	require.NoError(t, err)
+	require.Len(t, memories, 1)
+	assert.Equal(t, 2, memories[0].ID)
+	assert.Equal(t, "good", memories[0].Title)
+}
+
+// The client never follows a redirect: the redirect target gets no request, and the 3xx answer is unavailable.
+func TestClientDoesNotFollowRedirects(t *testing.T) {
+	for _, status := range []int{http.StatusMovedPermanently, http.StatusFound, http.StatusTemporaryRedirect} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			var targetHits int
+			var mu sync.Mutex
+			target := startServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				mu.Lock()
+				targetHits++
+				mu.Unlock()
+				_, _ = io.WriteString(w, projectsBody)
+			}))
+			redirector := startServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				http.Redirect(w, r, target.URL+r.URL.Path, status)
+			}))
+			client := mustClient(t, redirector.URL, requestTimeout)
+
+			_, err := client.Projects(context.Background())
+
+			require.ErrorIs(t, err, engramerrors.ErrUnavailable)
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Zero(t, targetHits, "the redirect target must receive no request")
+		})
+	}
+}
+
+// Errors never carry the configured URL: it may hold credentials or a host the operator wants out of logs.
+func TestClientErrorsNeverEchoTheConfiguredURL(t *testing.T) {
+	server := httptest.NewServer(respondWith(http.StatusOK, "[]"))
+	host := server.Listener.Addr().String()
+	server.Close()
+	client := mustClient(t, "http://"+host, requestTimeout)
+
+	_, err := client.Projects(context.Background())
 
 	require.ErrorIs(t, err, engramerrors.ErrUnavailable)
+	assert.NotContains(t, err.Error(), "http://"+host)
+}
+
+func TestNewClientErrorNeverEchoesTheURL(t *testing.T) {
+	const secret = "s3cr3t-token"
+	_, err := NewClient("http://user:" + secret + "@ho st")
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), secret)
 }
 
 func TestClientPropagatesCancellationWithoutMarkingUnavailable(t *testing.T) {

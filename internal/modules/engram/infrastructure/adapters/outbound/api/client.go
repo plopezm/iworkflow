@@ -5,6 +5,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +29,9 @@ const (
 	maxResponseBytes = 4 << 20
 	sqliteTimeLayout = "2006-01-02 15:04:05"
 )
+
+// errInvalidBaseURL never echoes the URL: it may carry credentials, and parse errors embed the whole input.
+var errInvalidBaseURL = errors.New("engram base url must be an absolute http or https URL with a host and no credentials")
 
 // Client implements outbound.MemoryStore over the Engram HTTP API.
 type Client struct {
@@ -63,13 +67,17 @@ func NewClient(baseURL string) (*Client, error) {
 
 func newClient(baseURL string, timeout time.Duration) (*Client, error) {
 	parsed, err := url.Parse(baseURL)
-	if err != nil {
-		return nil, fmt.Errorf("parse engram base url: %w", err)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" || parsed.User != nil {
+		return nil, errInvalidBaseURL
 	}
-	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return nil, fmt.Errorf("engram base url %q must be an absolute http or https URL", baseURL)
+	// Redirects are never followed: a 3xx answer reaches get as a non-200 status and counts as unavailable.
+	httpClient := &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
-	return &Client{baseURL: parsed, http: &http.Client{Timeout: timeout}}, nil
+	return &Client{baseURL: parsed, http: httpClient}, nil
 }
 
 // Projects lists the Engram projects with their directories.
@@ -98,7 +106,8 @@ func (c *Client) Recent(ctx context.Context, project string, limit int) ([]model
 	for _, observation := range body {
 		lastSeen, err := parseTimestamp(observation.LastSeenAt)
 		if err != nil {
-			return nil, fmt.Errorf("engram %s: observation %d timestamp: %w: %w", recentPath, observation.ID, engramerrors.ErrUnavailable, err)
+			// Only this memory is skipped: an unreadable timestamp must not hide the readable memories of the project.
+			continue
 		}
 		memories = append(memories, models.NewMemory(observation.ID, observation.Type, observation.Title, lastSeen))
 	}
@@ -136,7 +145,17 @@ func classify(ctx context.Context, path string, action string, err error) error 
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return fmt.Errorf("engram %s %s: %w", path, action, ctxErr)
 	}
-	return fmt.Errorf("engram %s %s: %w: %w", path, action, engramerrors.ErrUnavailable, err)
+	return fmt.Errorf("engram %s %s: %w: %w", path, action, engramerrors.ErrUnavailable, withoutURL(err))
+}
+
+// withoutURL drops the request URL that net/http puts in its url.Error, so the configured URL never reaches an error
+// text or a log line. The transport cause is kept.
+func withoutURL(err error) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return urlErr.Err
+	}
+	return err
 }
 
 // parseTimestamp reads last_seen_at, which Engram stores as SQLite UTC text. An empty value is unknown.

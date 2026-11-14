@@ -2,6 +2,7 @@ package inbound
 
 import (
 	"context"
+	"time"
 
 	"iworkflow/internal/core/web"
 	"iworkflow/internal/modules/tasks/application"
@@ -11,6 +12,10 @@ import (
 
 // memoryDateLayout is the date each memory of the Memory panel shows.
 const memoryDateLayout = "2006-01-02"
+
+// memoryPanelWait is the longest the task detail page waits for Engram. Past it the panel is left out and the page
+// renders without it.
+const memoryPanelWait = time.Second
 
 // TaskMemoryLister reads the Memory panel of a task. *application.ListTaskMemory satisfies it. It is optional: when it is
 // nil the detail page shows no Memory panel.
@@ -25,7 +30,9 @@ func (h *DetailHandlers) memoryPanel(ctx context.Context, scope string, task mod
 	if h.uc.Memory == nil {
 		return nil
 	}
-	feed, err := h.uc.Memory.Execute(ctx, application.TaskMemoryInput{WorkspaceID: task.WorkspaceID})
+	waitCtx, cancel := context.WithTimeout(ctx, memoryPanelWait)
+	defer cancel()
+	feed, err := h.uc.Memory.Execute(waitCtx, application.TaskMemoryInput{WorkspaceID: task.WorkspaceID})
 	if err != nil {
 		web.LogError(ctx, "could not read the memories of the task", err, "task_id", task.ID.String())
 		return nil

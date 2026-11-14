@@ -130,3 +130,33 @@ func TestDetailPageHidesTheMemoryPanelWhenEngramIsUnavailableOrEmpty(t *testing.
 		})
 	}
 }
+
+// blockingMemoryLister stands in for an Engram that never answers: it waits for its context. A safety timer keeps a
+// broken implementation from hanging the test; it then answers a populated panel, so the test fails on the panel.
+type blockingMemoryLister struct{}
+
+func (blockingMemoryLister) Execute(ctx context.Context, _ application.TaskMemoryInput) (models.TaskMemoryFeed, error) {
+	select {
+	case <-ctx.Done():
+		return models.TaskMemoryFeed{}, ctx.Err()
+	case <-time.After(5 * time.Second):
+		return models.TaskMemoryFeed{Available: true, Memories: []models.TaskMemory{
+			{Type: "decision", Title: "late memory", LastSeenAt: time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)},
+		}}, nil
+	}
+}
+
+// The task detail page waits for Engram at most one second; past that the panel is absent and the page renders.
+func TestDetailPageAnswersWithinOneSecondWhenEngramBlocks(t *testing.T) {
+	task := memoryPanelTaskForTest(t)
+	h := memoryPanelHandlersForTest(task, blockingMemoryLister{})
+
+	started := time.Now()
+	recorder := serveDetailPageForTest(t, h, task.ID.String())
+	elapsed := time.Since(started)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Less(t, elapsed, 1500*time.Millisecond, "the page must not wait for Engram past its one-second bound")
+	assert.NotContains(t, recorder.Body.String(), "data-task-memory")
+	assert.NotContains(t, recorder.Body.String(), "late memory")
+}

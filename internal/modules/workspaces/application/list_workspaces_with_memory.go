@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"log/slog"
 
 	"iworkflow/internal/modules/workspaces/domain/models"
 	"iworkflow/internal/modules/workspaces/domain/ports/outbound"
@@ -13,12 +14,17 @@ import (
 type ListWorkspacesWithMemory struct {
 	list   *ListWorkspaces
 	memory outbound.MemorySummaryPort
+	logger *slog.Logger
 }
 
-// NewListWorkspacesWithMemory builds the use case over the workspace listing and the memory port. A nil port means
-// no provider is wired: every row is MemoryDisabled and no memory is read.
-func NewListWorkspacesWithMemory(list *ListWorkspaces, memory outbound.MemorySummaryPort) *ListWorkspacesWithMemory {
-	return &ListWorkspacesWithMemory{list: list, memory: memory}
+// NewListWorkspacesWithMemory builds the use case over the workspace listing, the memory port and the project logger.
+// A nil port means no provider is wired: every row is MemoryDisabled and no memory is read. A nil logger falls back
+// to the default one.
+func NewListWorkspacesWithMemory(list *ListWorkspaces, memory outbound.MemorySummaryPort, logger *slog.Logger) *ListWorkspacesWithMemory {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &ListWorkspacesWithMemory{list: list, memory: memory, logger: logger}
 }
 
 // Execute returns the workspaces in the order ListWorkspaces gives them. Repository errors are returned as
@@ -37,8 +43,8 @@ func (u *ListWorkspacesWithMemory) Execute(ctx context.Context) ([]models.Worksp
 }
 
 // summaries reads the memory of every workspace with one port call. A failing port, or an answer that does not
-// line up with the workspaces, is the unavailable state for every row: the error is deliberately folded into the
-// state, because the page must still render.
+// line up with the workspaces, is the unavailable state for every row: the failure is logged once and the page still
+// renders. The log line never carries the provider URL; the port errors do not hold it.
 func (u *ListWorkspacesWithMemory) summaries(ctx context.Context, workspaces []models.Workspace) []models.MemorySummary {
 	summaries := make([]models.MemorySummary, len(workspaces))
 	if u.memory == nil {
@@ -51,11 +57,18 @@ func (u *ListWorkspacesWithMemory) summaries(ctx context.Context, workspaces []m
 		return summaries
 	}
 	read, err := u.memory.Summaries(ctx, workspaces)
-	if err != nil || len(read) != len(workspaces) {
-		for index := range summaries {
-			summaries[index] = models.MemorySummary{State: models.MemoryUnavailable}
-		}
-		return summaries
+	switch {
+	case err != nil:
+		u.logger.WarnContext(ctx, "could not read the memory of the workspaces; every row is unavailable",
+			"workspaces", len(workspaces), "reason", "read failed", "error", err)
+	case len(read) != len(workspaces):
+		u.logger.WarnContext(ctx, "could not read the memory of the workspaces; every row is unavailable",
+			"workspaces", len(workspaces), "reason", "answer does not match the workspaces", "answers", len(read))
+	default:
+		return read
 	}
-	return read
+	for index := range summaries {
+		summaries[index] = models.MemorySummary{State: models.MemoryUnavailable}
+	}
+	return summaries
 }
