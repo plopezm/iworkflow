@@ -4,6 +4,8 @@
 // Replaces the signal-based state of src/core/components/*.rs.
 
 export const THEME_STORAGE_KEY = 'pi-theme';
+export const PALETTE_STORAGE_KEY = 'pi-palette';
+export const PALETTES = ['default', 'ocean', 'forest', 'sunset', 'rose'];
 export const SIDEBAR_STORAGE_KEY = 'iwf-sidebar-open';
 export const BOARD_TAB_STORAGE_KEY = 'iwf-board-tab';
 export const SESSION_BAR_STORAGE_KEY = 'iwf-session-bar-open';
@@ -85,6 +87,11 @@ export function restoreBoardTab(root = document) {
 export function resolveTheme(stored, systemPrefersDark) {
   if (stored === 'light' || stored === 'dark') return stored;
   return systemPrefersDark ? 'dark' : 'light';
+}
+
+// Resolves a stored color theme to a known one; anything else is the default palette.
+export function normalizePalette(stored) {
+  return PALETTES.includes(stored) ? stored : 'default';
 }
 
 // The sidebar is open unless it was explicitly stored closed ("0").
@@ -259,6 +266,27 @@ function applyTheme(choice) {
   updateThemeIndicators(choice);
 }
 
+function markPalette(root, palette) {
+  for (const button of root.querySelectorAll('[data-palette-choice]')) {
+    const selected = button.dataset.paletteChoice === palette;
+    button.setAttribute('aria-pressed', String(selected));
+    button.classList.toggle('chip-selected', selected);
+  }
+}
+
+function restorePalette(root = document) {
+  markPalette(root, normalizePalette(storage()?.getItem(PALETTE_STORAGE_KEY)));
+}
+
+// The default palette removes the attribute, so the original variables apply untouched.
+function applyPalette(choice) {
+  const palette = normalizePalette(choice);
+  storage()?.setItem(PALETTE_STORAGE_KEY, palette);
+  if (palette === 'default') document.documentElement.removeAttribute('data-palette');
+  else document.documentElement.setAttribute('data-palette', palette);
+  markPalette(document, palette);
+}
+
 function cycleTheme() {
   const current = storage()?.getItem(THEME_STORAGE_KEY) || 'system';
   const next = current === 'system' ? 'light' : current === 'light' ? 'dark' : 'system';
@@ -390,6 +418,9 @@ function onClick(event) {
   const choice = target.closest?.('[data-theme-choice]');
   if (choice) return applyTheme(choice.dataset.themeChoice);
 
+  const paletteChoice = target.closest?.('[data-palette-choice]');
+  if (paletteChoice) return applyPalette(paletteChoice.dataset.paletteChoice);
+
   const cycle = target.closest?.('[data-theme-cycle]');
   if (cycle) return cycleTheme();
 
@@ -505,6 +536,7 @@ function init() {
       restoreSidebars(event.target);
       restoreSessionBar(event.target);
       restoreTheme(event.target);
+      restorePalette(event.target);
       restoreBoardTab(event.target);
       setupDashboardFilters(event.target);
       // Moving or opening tabs closes the mobile sidebar overlay.
@@ -514,6 +546,7 @@ function init() {
   restoreSidebars();
   restoreSessionBar();
   restoreTheme();
+  restorePalette();
   armToasts(document);
   loadPanes(document);
   restoreBoardTab(document);

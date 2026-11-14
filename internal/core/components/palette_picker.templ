@@ -1,0 +1,18 @@
+package components
+
+// PaletteCard is the settings card with one button per color theme. web/static/js/ui.js stores the
+// choice, applies data-palette to the document and marks the stored theme as pressed.
+templ PaletteCard() {
+	<section class="card stack">
+		<h2 class="card-title">{ msgPaletteTitle.T(ctx) }</h2>
+		<p class="muted text-sm">{ msgPaletteHelp.T(ctx) }</p>
+		<div class="row flex-wrap gap-2" role="group" aria-label={ msgPaletteTitle.T(ctx) }>
+			for _, option := range PaletteOptions() {
+				<button type="button" class="chip" aria-pressed="false" data-palette-choice={ string(option.Palette) }>
+					<span class={ "palette-swatch palette-swatch-" + string(option.Palette) } aria-hidden="true"></span>
+					{ option.Label.T(ctx) }
+				</button>
+			}
+		</div>
+	</section>
+}

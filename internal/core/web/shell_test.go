@@ -23,6 +23,7 @@ func TestShellSetsLanguageTitleAndAssets(t *testing.T) {
 	require.Contains(t, html, `/static/app.css`)
 	require.Contains(t, html, `/static/vendor/htmx.min.js`)
 	require.Contains(t, html, "pi-theme")
+	require.Contains(t, html, "pi-palette")
 }
 
 func TestShellDeclaresTheSameOriginManifestWithoutCORSMode(t *testing.T) {

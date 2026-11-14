@@ -27,6 +27,11 @@ templ LanguagePromptSection(chosen bool) {
 	@corecomponents.LanguagePrompt(chosen, LanguageChoiceAttrs)
 }
 
+// AppearanceSection is the color theme card. The choice lives in the browser, so it needs no server state.
+templ AppearanceSection() {
+	@corecomponents.PaletteCard()
+}
+
 // NetworkSection is the network access card, loaded lazily by the settings page.
 templ NetworkSection() {
 	@components.NetworkAccessPlaceholder()

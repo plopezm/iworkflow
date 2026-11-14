@@ -43,3 +43,13 @@ func TestLanguageChoiceAttrsPostToTheModuleRoute(t *testing.T) {
 
 	require.Equal(t, "/preferences/language/fr", attrs["hx-post"])
 }
+
+func TestAppearanceSectionRendersTheColorThemeChoices(t *testing.T) {
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true})
+	var buf bytes.Buffer
+
+	require.NoError(t, pages.AppearanceSection().Render(ctx, &buf))
+
+	require.Contains(t, buf.String(), `data-palette-choice="default"`)
+	require.Contains(t, buf.String(), `data-palette-choice="ocean"`)
+}
