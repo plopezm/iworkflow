@@ -68,7 +68,7 @@ async function taskDetail(ctx, key, prompt, opts = {}) {
   await page.getByRole('button', { name: 'Crear tarea' }).click();
   // Navigating before the create -> start chain ends cancels the start (as tasks.e2e does): wait for the modal to close.
   await page.getByRole('button', { name: 'Crear tarea' }).waitFor({ state: 'detached', timeout: 15000 });
-  const link = page.locator('a[href*="/tasks/"]', { hasText: prompt }).first();
+  const link = page.locator('a[href*="/tasks/"]', { hasText: opts.match ?? prompt }).first();
   await link.waitFor({ state: 'attached', timeout: 15000 });
   if (opts.start) await sleep(1500);
   const href = await link.getAttribute('href');
@@ -246,4 +246,4 @@ module.exports = {
     },
   ],
 };
-module.exports.helpers = { finishedTask, liveTask, openActions, sleep };
+module.exports.helpers = { finishedTask, liveTask, openActions, sleep, taskDetail };
