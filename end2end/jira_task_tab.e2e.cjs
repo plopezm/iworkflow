@@ -58,6 +58,8 @@ async function connectAndSync(ctx, { fresh = false } = {}) {
     await ctx.page.getByText('Editar conexión').first().waitFor({ timeout: 15000 });
   }
   await ctx.page.getByRole('button', { name: /Sincronizar/ }).first().click();
+  // The board opens grouped by epic; the lanes live in the Lanes view.
+  await ctx.page.getByRole('button', { name: /^Carriles$/ }).first().click();
   await ctx.page.getByText('Mis tareas').first().waitFor({ timeout: 15000 });
   await ctx.page.getByText('ABC-1').first().waitFor({ timeout: 15000 });
   await sleep(1200);
