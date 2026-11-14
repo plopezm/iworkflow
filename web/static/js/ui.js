@@ -390,6 +390,20 @@ function onClick(event) {
     } catch {}
   }
 
+  // A task image thumbnail opens enlarged in the lightbox dialog instead of navigating away.
+  const thumb = target.closest?.('[data-image-lightbox]');
+  if (thumb) {
+    const modal = thumb.closest('section')?.querySelector('[data-lightbox]');
+    const img = modal?.querySelector('[data-lightbox-img]');
+    if (modal && img) {
+      event.preventDefault();
+      img.src = thumb.dataset.src ?? '';
+      img.alt = thumb.dataset.alt ?? '';
+      modal.style.display = 'flex';
+      return;
+    }
+  }
+
   const close = target.closest?.('[data-modal-close]');
   if (close) return closeModal(close.closest('[data-modal]'));
   if (target.matches?.('[data-modal]')) return closeModal(target);

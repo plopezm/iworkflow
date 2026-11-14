@@ -16,12 +16,15 @@ templ TaskAttachmentsList(items []dto.TaskAttachmentDTO, failure string) {
 			<ul class="flex flex-wrap gap-2" aria-label={ msgTaskImages.T(ctx) }>
 				for _, item := range items {
 					<li class="h-20 w-20 overflow-hidden rounded-md border border-border bg-surface">
-						<a href={ templ.SafeURL(item.URL) } target="_blank" rel="noopener">
+						<a href={ templ.SafeURL(item.URL) } target="_blank" rel="noopener" class="block h-full w-full cursor-zoom-in" data-image-lightbox data-src={ item.URL } data-alt={ item.Name }>
 							<img src={ item.URL } alt={ item.Name } title={ item.Name } class="h-full w-full object-cover"/>
 						</a>
 					</li>
 				}
 			</ul>
+			@shared.Modal(shared.ModalProps{Title: msgAttachments.T(ctx), Open: false, CloseAttrs: templ.Attributes{"data-lightbox": ""}}) {
+				<img alt="" class="max-h-[70dvh] w-full rounded-md object-contain" data-lightbox-img/>
+			}
 		</section>
 	}
 }
