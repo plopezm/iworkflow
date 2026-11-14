@@ -149,3 +149,16 @@ func TestTranscriptBodyGivesEveryItemAStableID(t *testing.T) {
 	assert.Contains(t, html, `id="tr-t1-0"`)
 	assert.Contains(t, html, `id="tr-t1-1"`)
 }
+
+// Rule: URLs and paths of the disk in an agent message are links; paths carry the attribute the page script opens.
+func TestTranscriptBodyLinksURLsAndPathsOfTheDisk(t *testing.T) {
+	t.Parallel()
+
+	html := bodyOf(t, agentEvent(dto.TranscriptAssistantMessage{
+		Text: "Mira https://a.dev/x, edita src/main.go:7 y `C:\\Users\\me\\a.txt`.",
+	}))
+
+	assert.Contains(t, html, `<a href="https://a.dev/x" target="_blank" rel="noopener noreferrer">`)
+	assert.Contains(t, html, `data-file-path="src/main.go:7"`)
+	assert.Contains(t, html, `data-file-path="C:\Users\me\a.txt"`)
+}

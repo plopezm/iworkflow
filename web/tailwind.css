@@ -647,8 +647,35 @@ select optgroup,
 .markdown ol {
   @apply list-decimal pl-5;
 }
+/* Links of the chat: blue for URLs, teal for paths of the disk. The accent of the theme is near black or white, so it
+   does not stand out from the text. */
 .markdown a {
-  @apply text-accent underline;
+  --link-color: #2563eb;
+  color: var(--link-color);
+  @apply underline underline-offset-2;
+}
+.markdown a:hover {
+  background: color-mix(in srgb, var(--link-color) 12%, transparent);
+}
+.markdown a.file-link {
+  --link-color: #0f766e;
+  @apply cursor-pointer decoration-dotted;
+}
+.markdown a.file-link code {
+  color: inherit;
+}
+.markdown a.file-link-error {
+  --link-color: #ef4444;
+  @apply line-through;
+}
+:root[data-theme="dark"] .markdown a {
+  --link-color: #60a5fa;
+}
+:root[data-theme="dark"] .markdown a.file-link {
+  --link-color: #2dd4bf;
+}
+:root[data-theme="dark"] .markdown a.file-link-error {
+  --link-color: #f87171;
 }
 .markdown code {
   @apply rounded bg-surface-2 px-1 font-mono text-xs;
