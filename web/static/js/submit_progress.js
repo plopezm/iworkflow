@@ -27,8 +27,9 @@ export function formatElapsed(ms) {
   return `${Math.floor(ms / 1000)} s`;
 }
 
-function start(form, overlay) {
-  stop(overlay);
+/** Starts the stages and the clock of the panel. The interval stops by itself once the panel leaves the document. */
+export function startProgress(form, overlay) {
+  stopProgress(overlay);
   const steps = visibleSteps(form, overlay);
   const elapsed = overlay.querySelector('[data-progress-elapsed]');
   const slow = overlay.querySelector('[data-progress-slow]');
@@ -38,6 +39,11 @@ function start(form, overlay) {
   if (slow) slow.hidden = true;
   if (elapsed) elapsed.textContent = formatElapsed(0);
   const timer = setInterval(() => {
+    // The form was swapped out or its tab closed while the request was in flight: no event will stop this interval.
+    if (!overlay.isConnected) {
+      stopProgress(overlay);
+      return;
+    }
     const waited = Date.now() - began;
     index = Math.min(Math.floor(waited / STEP_MS), steps.length - 1);
     showStage(steps, index);
@@ -47,7 +53,8 @@ function start(form, overlay) {
   timers.set(overlay, timer);
 }
 
-function stop(overlay) {
+/** Stops the clock of the panel. Safe to call when it is not running. */
+export function stopProgress(overlay) {
   clearInterval(timers.get(overlay));
   timers.delete(overlay);
 }
@@ -63,10 +70,15 @@ function panelOf(event) {
 export function installSubmitProgress(root) {
   root.addEventListener('htmx:beforeRequest', (event) => {
     const panel = panelOf(event);
-    if (panel) start(panel.form, panel.overlay);
+    if (panel) startProgress(panel.form, panel.overlay);
   });
   root.addEventListener('htmx:afterRequest', (event) => {
     const panel = panelOf(event);
-    if (panel) stop(panel.overlay);
+    if (panel) stopProgress(panel.overlay);
+  });
+  // htmx is about to remove or swap out the form: stop its clock now, whatever the state of the request.
+  root.addEventListener('htmx:beforeCleanupElement', (event) => {
+    const panel = panelOf(event);
+    if (panel) stopProgress(panel.overlay);
   });
 }
