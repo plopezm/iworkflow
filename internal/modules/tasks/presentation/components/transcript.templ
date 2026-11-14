@@ -17,6 +17,7 @@ templ TranscriptPanel(view state.TaskDetailView) {
 		<div
 			id={ state.Scoped("task-transcript", view.Scope) }
 			class="transcript stack"
+			data-task-id={ view.Task.ID }
 			hx-get={ state.TranscriptPath(view.Task.ID) }
 			hx-trigger={ state.ActivityTrigger(view.Task.ID) }
 			hx-sync="this:replace"

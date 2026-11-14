@@ -1,7 +1,9 @@
 // Package markdown renders Markdown agent messages to HTML safely.
 //
 // Raw HTML is shown as escaped text, never injected into the DOM. Links and images with schemes
-// other than http, https, mailto, fragments and root-relative paths are replaced by "#".
+// other than http, https, mailto, fragments and root-relative paths are replaced by "#". Bare URLs become links and
+// open in a new tab. Paths of the disk (Unix, Windows, UNC, with an optional :line) become anchors with a
+// data-file-path attribute that the page script opens; they never carry a destination of their own.
 package markdown
 
 import (
@@ -33,6 +35,12 @@ func isSafeURL(url string) bool {
 		(strings.HasPrefix(lower, "/") && !strings.HasPrefix(lower, "//") && !strings.HasPrefix(lower, "/\\"))
 }
 
+// isExternalURL reports whether url leaves the application, so it opens in a new tab.
+func isExternalURL(url string) bool {
+	lower := strings.ToLower(strings.TrimSpace(url))
+	return strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://")
+}
+
 // sanitizer neutralizes unsafe link and image destinations before rendering.
 type sanitizer struct{}
 
@@ -47,6 +55,9 @@ func (sanitizer) Transform(doc *ast.Document, _ text.Reader, _ parser.Context) {
 		case *ast.Link:
 			if !isSafeURL(string(typed.Destination)) {
 				typed.Destination = []byte(placeholderURL)
+			} else if isExternalURL(string(typed.Destination)) {
+				typed.SetAttribute([]byte("target"), []byte("_blank"))
+				typed.SetAttribute([]byte("rel"), []byte("noopener noreferrer"))
 			}
 		case *ast.Image:
 			if !isSafeURL(string(typed.Destination)) {
@@ -111,16 +122,24 @@ func renderSafeAutoLink(w util.BufWriter, source []byte, node ast.Node, entering
 	if link.AutoLinkType == ast.AutoLinkEmail && !strings.HasPrefix(strings.ToLower(href), "mailto:") {
 		href = "mailto:" + href
 	}
+	if strings.HasPrefix(strings.ToLower(href), "www.") {
+		href = "http://" + href
+	}
 	if !isSafeURL(href) {
 		href = placeholderURL
 	}
-	if _, err := w.WriteString(`<a href="`); err != nil {
+	opening := `<a href="`
+	closing := `">`
+	if isExternalURL(href) {
+		closing = `" target="_blank" rel="noopener noreferrer">`
+	}
+	if _, err := w.WriteString(opening); err != nil {
 		return ast.WalkStop, fmt.Errorf("write autolink: %w", err)
 	}
 	if err := writeEscaped(w, []byte(href)); err != nil {
 		return ast.WalkStop, err
 	}
-	if _, err := w.WriteString(`">`); err != nil {
+	if _, err := w.WriteString(closing); err != nil {
 		return ast.WalkStop, fmt.Errorf("write autolink: %w", err)
 	}
 	if err := writeEscaped(w, link.Label(source)); err != nil {
@@ -148,13 +167,13 @@ func writeEscaped(w util.BufWriter, raw []byte) error {
 // Render converts Markdown to HTML without raw HTML or dangerous links.
 func Render(source string) (string, error) {
 	md := goldmark.New(
-		goldmark.WithExtensions(extension.Table, extension.Strikethrough, extension.TaskList),
+		goldmark.WithExtensions(extension.Table, extension.Strikethrough, extension.TaskList, extension.Linkify),
 		goldmark.WithParserOptions(
-			parser.WithASTTransformers(util.Prioritized(sanitizer{}, 100)),
+			parser.WithASTTransformers(util.Prioritized(sanitizer{}, 100), util.Prioritized(pathLinker{}, 200)),
 		),
 		// In goldmark a lower priority value overrides the built-in renderers (priority 1000).
 		goldmark.WithRendererOptions(
-			renderer.WithNodeRenderers(util.Prioritized(textRenderer{}, 100)),
+			renderer.WithNodeRenderers(util.Prioritized(textRenderer{}, 100), util.Prioritized(fileLinkRenderer{}, 100)),
 		),
 	)
 	var out bytes.Buffer

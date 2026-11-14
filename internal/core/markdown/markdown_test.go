@@ -75,3 +75,60 @@ func TestEnablesTablesStrikethroughAndTaskLists(t *testing.T) {
 	assert.Contains(t, html, "<del>gone</del>")
 	assert.Contains(t, html, `type="checkbox"`)
 }
+
+func TestLinksBareURLsInANewTab(t *testing.T) {
+	html := mustRender(t, "ver https://a.dev/x?q=1 y www.b.dev.")
+
+	assert.Contains(t, html, `<a href="https://a.dev/x?q=1" target="_blank" rel="noopener noreferrer">`)
+	assert.Contains(t, html, `href="http://www.b.dev"`)
+}
+
+func TestExplicitHTTPLinksOpenInANewTab(t *testing.T) {
+	html := mustRender(t, "[ok](https://a.dev) [local](/tasks/1)")
+
+	assert.Contains(t, html, `target="_blank"`)
+	assert.Contains(t, html, `<a href="/tasks/1">local</a>`)
+}
+
+func TestLinksPathsOfTheDiskInEveryOS(t *testing.T) {
+	cases := map[string]string{
+		"abre /home/u/app/main.go ahora":       "/home/u/app/main.go",
+		"mira ~/notas/a.md":                    "~/notas/a.md",
+		"en ./src/lib.rs y listo":              "./src/lib.rs",
+		"edita src/main.go.":                   "src/main.go",
+		"falla en /srv/app/x.go:42:7 hoy":      "/srv/app/x.go:42:7",
+		"en C:\\Users\\me\\app\\main.go ok":    "C:\\Users\\me\\app\\main.go",
+		"en D:/work/app/main.go ok":            "D:/work/app/main.go",
+		"**/var/log/syslog**":                  "/var/log/syslog",
+		"`\\\\server\\share\\doc.txt`":         "\\\\server\\share\\doc.txt",
+		"`C:\\Program Files`":                  "",
+		"`internal/core/markdown/markdown.go`": "internal/core/markdown/markdown.go",
+	}
+	for source, path := range cases {
+		t.Run(source, func(t *testing.T) {
+			html := mustRender(t, source)
+			if path == "" {
+				assert.NotContains(t, html, "data-file-path")
+				return
+			}
+			assert.Contains(t, html, `class="file-link" data-file-path="`+path+`"`)
+			assert.Contains(t, html, `href="#"`)
+		})
+	}
+}
+
+func TestDoesNotLinkProseThatIsNotAPath(t *testing.T) {
+	for _, source := range []string{"y/o 1/2 and TCP/IP", "usa `fmt.Println` o `go test`", "https://a.dev/some/file.go"} {
+		t.Run(source, func(t *testing.T) {
+			assert.NotContains(t, mustRender(t, source), "data-file-path")
+		})
+	}
+}
+
+func TestPathLinksKeepEscapingAndContext(t *testing.T) {
+	html := mustRender(t, "[doc](/docs/a.md) y `/tmp/<x>.go`")
+
+	assert.NotContains(t, html, "data-file-path")
+	html = mustRender(t, "ver /tmp/a&b.go")
+	assert.Contains(t, html, `data-file-path="/tmp/a&amp;b.go"`)
+}

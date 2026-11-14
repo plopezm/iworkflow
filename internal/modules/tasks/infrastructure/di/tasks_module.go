@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/a-h/templ"
@@ -22,6 +23,7 @@ import (
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/events"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/files"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/git"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/opener"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/probe"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime"
@@ -182,6 +184,8 @@ type Module struct {
 	PruneSetting *httpinbound.PruneSettingHandlers
 	// TaskFile serves the inline editor of a file of the diff view (the Edit button of its cards).
 	TaskFile *httpinbound.TaskFileHandlers
+	// OpenPath opens the paths of the disk that the chat links to.
+	OpenPath *httpinbound.OpenPathHandlers
 
 	runtime          outbound.AgentRuntime
 	relatedRestarter *application.RelatedProjectsRestarter
@@ -388,6 +392,7 @@ func NewModule(deps Deps) (*Module, error) {
 		PruneMerged:         application.NewPruneMergedTasks(lifecycle, attachmentStorage, prunePreference),
 		PruneSetting:        httpinbound.NewPruneSettingHandlers(prunePreference),
 		TaskFile:            httpinbound.NewTaskFileHandlers(httpinbound.TaskFileUseCases{Read: getFile, Write: saveFile}),
+		OpenPath:            httpinbound.NewOpenPathHandlers(application.NewOpenTaskPath(lifecycle, opener.NewOSOpener(), userHome())),
 		runtime:             agentRuntime,
 		relatedRestarter:    relatedRestarter,
 	}, nil
@@ -479,6 +484,7 @@ func (m *Module) Routes(r chi.Router) {
 	m.Graph.Mount(r)
 	m.PruneSetting.Mount(r)
 	m.TaskFile.Mount(r)
+	m.OpenPath.Mount(r)
 }
 
 // Sidebar returns the board part of the sidebar: the workspaces and the tasks that need the user.
@@ -525,4 +531,13 @@ func (m *Module) FlushEvents() {
 // application stops; events reported afterwards are processed inline.
 func (m *Module) ShutdownEvents() {
 	m.EventSink.Shutdown()
+}
+
+// userHome is the home folder that a leading ~ of a path in the chat stands for. Without it, "~" paths do not open.
+func userHome() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	return home
 }
