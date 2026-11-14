@@ -73,7 +73,8 @@ func (r *ScriptRunner) Run(ctx context.Context, hook models.Hook, run models.Run
 	case errors.Is(runCtx.Err(), context.DeadlineExceeded):
 		outcome.Status, outcome.ExitCode = models.RunTimedOut, -1
 	case ctx.Err() != nil:
-		return models.RunOutcome{}, fmt.Errorf("%w: %w", hookerrors.ErrRunNotStarted, ctx.Err())
+		// The process was started and then stopped with its owner: it is cancelled, not "not started".
+		return models.RunOutcome{}, fmt.Errorf("%w: %w", hookerrors.ErrRunCancelled, ctx.Err())
 	case errors.As(err, &exitErr):
 		outcome.Status, outcome.ExitCode = models.RunFailed, exitErr.ExitCode()
 	default:
