@@ -26,6 +26,6 @@ templ WorkspaceNewPage(page state.NewPage) {
 }
 
 // RegisterSaved replaces the registration tab with the list once the workspace is registered.
-templ RegisterSaved() {
-	<span data-dock-redirect="/workspaces"></span>
+templ RegisterSaved(listHref string) {
+	<span data-dock-redirect={ listHref }></span>
 }

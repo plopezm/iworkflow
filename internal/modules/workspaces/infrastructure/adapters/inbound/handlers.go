@@ -71,7 +71,7 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 		}
 		writeFragments(w, r, components.WorkspaceRegister(form))
 	default:
-		writeFragments(w, r, pages.RegisterSaved())
+		writeFragments(w, r, pages.RegisterSaved(state.ListPath))
 	}
 }
 
@@ -95,7 +95,7 @@ func (h *Handlers) update(w http.ResponseWriter, r *http.Request) {
 		writeFragments(w, r, shared.ErrorText(err.Error()))
 		return
 	}
-	writeFragments(w, r, pages.EditSaved())
+	writeFragments(w, r, pages.EditSaved(state.ListPath))
 }
 
 // delete removes a workspace and answers with the new table, with the error of the attempt if it failed.

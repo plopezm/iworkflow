@@ -97,6 +97,7 @@ func TestRegisterSuccessRedirectsTheTabToTheList(t *testing.T) {
 	body := fixture.register("Demo", repo)
 
 	assert.Contains(t, body, `data-dock-redirect="/workspaces"`, "the registration tab is replaced by the list")
+	assert.NotContains(t, body, "workspace-register-slot", "the form is not rendered again: the dock replaces the tab")
 	assert.NotContains(t, body, "workspace-register-prompt", "a successful registration asks nothing")
 	assert.Equal(t, 1, len(mustList(t, fixture)))
 }
@@ -304,6 +305,18 @@ func TestWrongMethodIsRejected(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
 }
 
+// tabNamed finds a dock route by name, so the tests do not depend on the order of Tabs().
+func tabNamed(t *testing.T, f *httpFixture, name string) dock.Route {
+	t.Helper()
+	for _, route := range f.module.Tabs() {
+		if route.Name == name {
+			return route
+		}
+	}
+	require.FailNow(t, "no dock route named "+name)
+	return dock.Route{}
+}
+
 func mustList(t *testing.T, f *httpFixture) []models.Workspace {
 	t.Helper()
 	workspaces, err := f.module.List.Execute(context.Background())
@@ -329,7 +342,7 @@ func TestWorkspacesTabRendersTheListWithoutTheRegistrationForm(t *testing.T) {
 
 func TestNewTabRendersTheRegistrationFormAndThePicker(t *testing.T) {
 	fixture := newHTTPFixture(t)
-	tab := fixture.module.Tabs()[2]
+	tab := tabNamed(t, fixture, "workspace_new")
 
 	body := renderTab(t, tab.Render(spanishContext(), dock.Params{}))
 

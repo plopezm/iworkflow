@@ -7,6 +7,14 @@ import (
 	"strings"
 )
 
+// Addresses of the workspaces tabs, shared by the dock routes, the handlers and the templates.
+const (
+	// ListPath is the workspaces list tab.
+	ListPath = "/workspaces"
+	// NewPath is the registration tab.
+	NewPath = "/workspaces/new"
+)
+
 // Initialization reasons, as the template needs them to pick the message and the confirm label.
 const (
 	ReasonMissingFolder = "MissingFolder"

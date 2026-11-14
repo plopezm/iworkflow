@@ -18,7 +18,7 @@ import (
 // ListTab renders the workspaces tab: the list and the button that opens the registration tab.
 func (h *Handlers) ListTab(ctx context.Context, _ dock.Params) templ.Component {
 	return pages.WorkspacesPage(state.WorkspacesPage{
-		NewHref: "/workspaces/new",
+		NewHref: state.NewPath,
 		Table:   h.table(ctx, nil),
 	})
 }
@@ -27,7 +27,7 @@ func (h *Handlers) ListTab(ctx context.Context, _ dock.Params) templ.Component {
 func (h *Handlers) NewTab(ctx context.Context, _ dock.Params) templ.Component {
 	return pages.WorkspaceNewPage(state.NewPage{
 		Form:     h.registerForm(ctx, dto.RegisterWorkspaceDTO{}),
-		ListHref: "/workspaces",
+		ListHref: state.ListPath,
 	})
 }
 

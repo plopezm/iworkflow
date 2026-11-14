@@ -30,7 +30,7 @@ templ WorkspaceEditPage(page state.EditPage) {
 					}
 				</div>
 				<div class="row justify-end gap-2">
-					@link.Tab(link.Props{Href: "/workspaces", Class: "btn-secondary"}) {
+					@link.Tab(link.Props{Href: state.ListPath, Class: "btn-secondary"}) {
 						{ msgCancelLabel.T(ctx) }
 					}
 					<button type="submit" class="btn-primary">{ msgSaveChangesLabel.T(ctx) }</button>
@@ -41,6 +41,6 @@ templ WorkspaceEditPage(page state.EditPage) {
 }
 
 // EditSaved replaces the edit tab with the list once the workspace is saved.
-templ EditSaved() {
-	<span data-dock-redirect="/workspaces"></span>
+templ EditSaved(listHref string) {
+	<span data-dock-redirect={ listHref }></span>
 }

@@ -54,8 +54,12 @@ async function registerWs(ctx, { name, gitRepo, nonGitDir, baseBranch = 'main', 
     await ctx.page.getByRole('button', { name: INIT_BTN }).first().click();
     await ctx.page.waitForTimeout(1500);
   }
-  // Asegura que el workspace se registró correctamente.
+  // Asegura que el workspace se registró correctamente: la pestaña de registro se sustituye por el listado.
   await ctx.page.getByText(name).first().waitFor({ timeout: 12000 });
+  ctx.assert(
+    (await ctx.page.locator('#workspace-register-slot').count()) === 0,
+    'tras registrar, la pestaña de registro debe sustituirse por el listado',
+  );
 }
 
 // Índice del artículo de la tabla que contiene a `name` (o -1).

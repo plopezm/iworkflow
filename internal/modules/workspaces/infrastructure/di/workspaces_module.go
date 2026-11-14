@@ -20,6 +20,7 @@ import (
 	"iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/git"
 	"iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/persistence"
 	"iworkflow/internal/modules/workspaces/presentation/pages"
+	"iworkflow/internal/modules/workspaces/presentation/state"
 )
 
 // Deps are the resources the module needs from the composition root.
@@ -96,7 +97,7 @@ func (m *Module) Tabs() []dock.Route {
 	return []dock.Route{
 		{
 			Name:    "workspaces",
-			Pattern: "/workspaces",
+			Pattern: state.ListPath,
 			Icon:    "▤",
 			Title: func(ctx context.Context, _ dock.Params) string {
 				return pages.ListTitle(ctx)
@@ -118,7 +119,7 @@ func (m *Module) Tabs() []dock.Route {
 		},
 		{
 			Name:    "workspace_new",
-			Pattern: "/workspaces/new",
+			Pattern: state.NewPath,
 			Icon:    "+",
 			Title: func(ctx context.Context, _ dock.Params) string {
 				return pages.NewTitle(ctx)
