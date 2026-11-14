@@ -3,6 +3,7 @@ package components
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 
 	"github.com/a-h/templ"
 
@@ -59,4 +60,29 @@ func oobAttributes(on bool) templ.Attributes {
 		return templ.Attributes{"hx-swap-oob": "true"}
 	}
 	return templ.Attributes{}
+}
+
+// memoryChipText is the visible text of the Engram chip of a row.
+func memoryChipText(ctx context.Context, chip state.MemoryChip) string {
+	switch chip.State {
+	case state.MemoryChipHidden:
+		return ""
+	case state.MemoryChipUnavailable:
+		return msgMemoryUnavailable.T(ctx)
+	case state.MemoryChipEmpty:
+		return msgMemoryNone.T(ctx)
+	default:
+		if chip.Count == 1 {
+			return msgMemoryOne.T(ctx)
+		}
+		return msgMemoryMany.Fmt(ctx, map[string]string{"count": strconv.Itoa(chip.Count)})
+	}
+}
+
+// memoryChipClass is the class of the Engram chip: unavailable is muted, the others carry the accent tint.
+func memoryChipClass(chip state.MemoryChip) string {
+	if chip.State == state.MemoryChipUnavailable {
+		return "memory-chip memory-chip-off"
+	}
+	return "memory-chip"
 }

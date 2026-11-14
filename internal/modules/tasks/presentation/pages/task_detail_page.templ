@@ -26,6 +26,11 @@ templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody
 					</button>
 				}
 			</div>
+			if view.MemoryPanel != nil {
+				<div class="shrink-0 border-b border-border bg-surface px-3 py-2 md:px-4">
+					@components.MemoryPanel(*view.MemoryPanel)
+				</div>
+			}
 			if view.Task.Stage == state.StageBacklog {
 				<div class="min-h-0 flex-1 overflow-y-auto p-4">
 					@components.BacklogView(view)

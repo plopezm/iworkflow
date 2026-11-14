@@ -1,0 +1,24 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/tasks/presentation/state"
+)
+
+// MemoryPanel is the collapsed Memory panel of a task: the recent memories of its Engram project, one row each with
+// its type, its title and its date. The panel is collapsed by default; it never renders memory content.
+templ MemoryPanel(panel state.MemoryPanel) {
+	<details id={ state.Scoped("task-memory", panel.Scope) } class="memory-panel" data-task-memory>
+		<summary class="memory-panel-summary">{ msgMemoryPanelTitle.T(ctx) }</summary>
+		<p class="muted memory-panel-hint">{ msgMemoryPanelHint.T(ctx) }</p>
+		<ul class="memory-panel-list">
+			for _, row := range panel.Rows {
+				<li class="memory-panel-row" data-memory-row>
+					@shared.Badge(row.Type, "muted")
+					<span class="memory-panel-title">{ row.Title }</span>
+					<time class="muted">{ row.Date }</time>
+				</li>
+			}
+		</ul>
+	</details>
+}

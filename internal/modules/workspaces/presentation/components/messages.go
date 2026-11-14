@@ -9,11 +9,17 @@ import (
 // User-facing texts of the workspaces screens. Each one copies the Rust `Msg` constant it replaces
 // (src/modules/workspaces/presentation/**), so every language keeps the original wording.
 var (
-	msgNoWorkspaces  = i18n.Msg{En: "No workspaces registered yet.", Es: "Aún no hay workspaces registrados.", Zh: "还没有已注册的工作区。", De: "Noch keine Workspaces registriert.", Fr: "Aucun espace de travail enregistré pour le moment."}
-	msgEdit          = i18n.Msg{En: "Edit", Es: "Editar", Zh: "编辑", De: "Bearbeiten", Fr: "Modifier"}
-	msgOpenTerminal  = i18n.Msg{En: "Open terminal", Es: "Abrir terminal", Zh: "打开终端", De: "Terminal öffnen", Fr: "Ouvrir un terminal"}
-	msgRemove        = i18n.Msg{En: "Remove", Es: "Quitar", Zh: "移除", De: "Entfernen", Fr: "Retirer"}
-	msgConfirmRemove = i18n.Msg{En: "Remove the workspace \"{name}\"?", Es: "¿Quitar el workspace \"{name}\"?", Zh: "要移除工作区“{name}”吗？", De: "Workspace „{name}“ entfernen?", Fr: "Retirer l'espace de travail « {name} » ?"}
+	msgNoWorkspaces = i18n.Msg{En: "No workspaces registered yet.", Es: "Aún no hay workspaces registrados.", Zh: "还没有已注册的工作区。", De: "Noch keine Workspaces registriert.", Fr: "Aucun espace de travail enregistré pour le moment."}
+	msgEdit         = i18n.Msg{En: "Edit", Es: "Editar", Zh: "编辑", De: "Bearbeiten", Fr: "Modifier"}
+	msgOpenTerminal = i18n.Msg{En: "Open terminal", Es: "Abrir terminal", Zh: "打开终端", De: "Terminal öffnen", Fr: "Ouvrir un terminal"}
+	msgRemove       = i18n.Msg{En: "Remove", Es: "Quitar", Zh: "移除", De: "Entfernen", Fr: "Retirer"}
+
+	// Engram chip of a workspace row. Counts use the {count} placeholder; one memory has its own singular text.
+	msgMemoryMany        = i18n.Msg{En: "Engram · {count} memories", Es: "Engram · {count} memorias", Zh: "Engram · {count} 条记忆", De: "Engram · {count} Erinnerungen", Fr: "Engram · {count} souvenirs"}
+	msgMemoryOne         = i18n.Msg{En: "Engram · 1 memory", Es: "Engram · 1 memoria", Zh: "Engram · 1 条记忆", De: "Engram · 1 Erinnerung", Fr: "Engram · 1 souvenir"}
+	msgMemoryNone        = i18n.Msg{En: "Engram · no memories yet", Es: "Engram · sin memorias", Zh: "Engram · 暂无记忆", De: "Engram · noch keine Erinnerungen", Fr: "Engram · aucun souvenir pour l'instant"}
+	msgMemoryUnavailable = i18n.Msg{En: "Engram unavailable", Es: "Engram no disponible", Zh: "Engram 不可用", De: "Engram nicht verfügbar", Fr: "Engram indisponible"}
+	msgConfirmRemove     = i18n.Msg{En: "Remove the workspace \"{name}\"?", Es: "¿Quitar el workspace \"{name}\"?", Zh: "要移除工作区“{name}”吗？", De: "Workspace „{name}“ entfernen?", Fr: "Retirer l'espace de travail « {name} » ?"}
 
 	msgName                   = i18n.Msg{En: "Name", Es: "Nombre", Zh: "名称", De: "Name", Fr: "Nom"}
 	msgNamePlaceholder        = i18n.Msg{En: "my-project", Es: "mi-proyecto", Zh: "我的项目", De: "mein-projekt", Fr: "mon-projet"}

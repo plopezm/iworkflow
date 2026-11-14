@@ -2248,3 +2248,59 @@ article.card:hover {
   .attention-dot,
   .loose-card[data-stage="working"] { animation: none; }
 }
+
+/* ═══ Engram memory chip (workspaces) ═════════════ */
+.memory-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-accent);
+  background: color-mix(in srgb, var(--c-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 35%, transparent);
+}
+/* Engram did not answer: the chip steps back, it is information, not an error. */
+.memory-chip-off {
+  color: var(--c-muted);
+  background: transparent;
+  border: 1px dashed var(--c-border);
+}
+
+/* ═══ Task memory panel (Engram, task detail) ═════════════ */
+.memory-panel {
+  font-size: 0.8125rem;
+  color: var(--color-fg);
+}
+.memory-panel-summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.memory-panel-hint {
+  margin: 0.25rem 0 0.5rem;
+}
+.memory-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.memory-panel-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.memory-panel-title {
+  flex: 1 1 12rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

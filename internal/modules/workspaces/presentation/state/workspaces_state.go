@@ -14,6 +14,27 @@ const (
 	ReasonNoCommits     = "NoCommits"
 )
 
+// MemoryChipState is what the Engram chip of a workspace row tells.
+type MemoryChipState string
+
+// Engram chip states, as the templates need them to pick the text and the style.
+const (
+	// MemoryChipAvailable means Engram has memories for the workspace.
+	MemoryChipAvailable MemoryChipState = "available"
+	// MemoryChipEmpty means Engram answered but the workspace has no memories yet.
+	MemoryChipEmpty MemoryChipState = "empty"
+	// MemoryChipUnavailable means Engram could not be read; the chip is muted, not an error.
+	MemoryChipUnavailable MemoryChipState = "unavailable"
+	// MemoryChipHidden means no Engram is wired: the row carries no chip at all.
+	MemoryChipHidden MemoryChipState = "hidden"
+)
+
+// MemoryChip is the Engram summary shown on a workspace row. The texts are chosen by the components.
+type MemoryChip struct {
+	State MemoryChipState
+	Count int
+}
+
 // WorkspaceRow is one registered workspace in the list.
 type WorkspaceRow struct {
 	ID         string
@@ -24,6 +45,8 @@ type WorkspaceRow struct {
 	EditHref string
 	// TerminalHref opens the terminal tab of the workspace (served by the terminal module).
 	TerminalHref string
+	// Memory is the Engram chip of the row.
+	Memory MemoryChip
 }
 
 // AgentsOption is a stored AGENTS.md offered in a drop-down.

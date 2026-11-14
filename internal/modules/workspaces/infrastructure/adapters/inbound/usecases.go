@@ -14,4 +14,6 @@ type UseCases struct {
 	BrowseDirectory *application.BrowseDirectories
 	CreateDirectory *application.CreateDirectory
 	ListAgentsFiles *application.ListAgentsFileOptions
+	// ListWithMemory lists the workspaces of the table with their memory summary.
+	ListWithMemory *application.ListWorkspacesWithMemory
 }

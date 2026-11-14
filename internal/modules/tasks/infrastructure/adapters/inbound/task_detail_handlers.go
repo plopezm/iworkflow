@@ -85,6 +85,8 @@ type DetailUseCases struct {
 	// HookStrip shows the status of the hooks of the workspace of a task and toggles their skip for it. Optional: nil
 	// shows no strip and offers no toggle.
 	HookStrip outbound.HookStrip
+	// Memory reads the Memory panel of a task: the recent memories of its Engram project. Optional: nil shows no panel.
+	Memory TaskMemoryLister
 	// JiraPanel is the Jira panel of a task and whether the strip offers its tab. Optional: nil hides the Jira tab.
 	JiraPanel JiraPanels
 }
@@ -188,6 +190,7 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 			view.HookStrip = &strip
 		}
 	}
+	view.MemoryPanel = h.memoryPanel(ctx, scope, task)
 	stored, err := h.uc.ListAttachments.Execute(ctx, task.ID)
 	if err != nil {
 		view.AttachmentsError = err.Error()
