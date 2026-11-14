@@ -33,6 +33,7 @@ templ TaskCreatePage(form state.CreateForm) {
 					}
 					<button type="submit" class="btn-primary">{ msgCreateTask.T(ctx) }</button>
 				</div>
+				@shared.SubmitProgress(components.CreateProgress(ctx))
 			</form>
 		</div>
 	</div>
