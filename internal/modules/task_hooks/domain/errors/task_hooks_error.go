@@ -18,5 +18,8 @@ var (
 // ErrRunNotStarted means a hook could not even be attempted (bad template, missing directory, no executable).
 var ErrRunNotStarted = errors.New("could not start the hook")
 
+// ErrRunCancelled means the hook was started and then stopped because the context that owned it was cancelled.
+var ErrRunCancelled = errors.New("the hook was cancelled")
+
 // ErrHookBlocked means a hook with the block policy failed, so the task action must not continue.
 var ErrHookBlocked = errors.New("a hook blocked the action")

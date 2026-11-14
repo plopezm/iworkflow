@@ -264,3 +264,19 @@ func TestMissingWorkingDirectoryDoesNotStartTheRun(t *testing.T) {
 	_, err := process.NewScriptRunner().Run(context.Background(), hook, runCtx(t.TempDir()))
 	require.ErrorIs(t, err, hookerrors.ErrRunNotStarted)
 }
+
+// A run whose owner is cancelled while the process runs is reported as cancelled, not as "could not start": the
+// process did start, and it is stopped with its owner.
+func TestCancelledRunIsReportedAsCancelledNotAsNotStarted(t *testing.T) {
+	hook := newHook(t, models.ScriptSpec{Command: "sleep", Args: []string{"30"}}, time.Minute)
+	ctx, cancel := context.WithCancel(context.Background())
+	time.AfterFunc(200*time.Millisecond, cancel)
+
+	started := time.Now()
+	_, err := process.NewScriptRunner().Run(ctx, hook, runCtx(t.TempDir()))
+
+	require.ErrorIs(t, err, hookerrors.ErrRunCancelled)
+	assert.NotErrorIs(t, err, hookerrors.ErrRunNotStarted)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, time.Since(started), 10*time.Second, "the process was stopped")
+}

@@ -807,11 +807,14 @@ type recordingHooks struct {
 	postErr  error
 	warnings []string
 	calls    []models.HookRequest
-	onRun    func(req models.HookRequest)
+	// ctxErrs is the error of the context each run received, read when the run ended.
+	ctxErrs []error
+	onRun   func(req models.HookRequest)
 }
 
-func (h *recordingHooks) Run(_ context.Context, req models.HookRequest) (models.HookReport, error) {
+func (h *recordingHooks) Run(ctx context.Context, req models.HookRequest) (models.HookReport, error) {
 	h.calls = append(h.calls, req)
+	defer func() { h.ctxErrs = append(h.ctxErrs, ctx.Err()) }()
 	if h.onRun != nil {
 		h.onRun(req)
 	}

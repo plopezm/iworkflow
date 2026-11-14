@@ -299,9 +299,36 @@ func (r cancelAwareRepository) UpdateStatus(ctx context.Context, id models.TaskI
 	return r.fakeRepository.UpdateStatus(ctx, id, status, errorText)
 }
 
-// Review advisory (h): the request is cancelled while the pre start hook runs. The task must still end in failed with
-// the hook message, not be left in starting, and the start reports that outcome like any failed launch.
-func TestStartTaskCancelledPreHookStillMarksTheTaskFailed(t *testing.T) {
+// Rule: the start waits for its hooks and does not depend on the request. The request is cancelled while the pre start
+// hook runs (a client that reloads): the hook is not cancelled with it, the agent starts and the post hook runs.
+func TestStartTaskWaitsForTheHooksWhenTheRequestIsCancelledMidHook(t *testing.T) {
+	t.Parallel()
+	task := newTask(models.StatusBacklog)
+	fx := newStartFixture(task)
+	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fx.repo})
+	fx.lifecycle = lifecycle
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hooks := &recordingHooks{onRun: func(req models.HookRequest) {
+		if req.Phase == models.HookPhasePre {
+			cancel()
+		}
+	}}
+	useCase := fx.start(newUUID)
+	useCase.SetLifecycleHooks(hooks)
+
+	started, err := useCase.Execute(ctx, task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.StatusStarting, started.Status)
+	assert.Nil(t, started.Error)
+	require.Len(t, hooks.calls, 2, "the pre and the post hook both run")
+	assert.Equal(t, []error{nil, nil}, hooks.ctxErrs, "no hook sees a cancelled context")
+	assert.NotEmpty(t, fx.runtime.started, "the agent starts")
+}
+
+// Rule: a pre start hook that fails while the request is cancelled still leaves the task in failed, not in starting.
+func TestStartTaskFailedPreHookWithACancelledRequestStillMarksTheTaskFailed(t *testing.T) {
 	t.Parallel()
 	task := newTask(models.StatusBacklog)
 	fx := newStartFixture(task)
@@ -310,7 +337,7 @@ func TestStartTaskCancelledPreHookStillMarksTheTaskFailed(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	hooks := &recordingHooks{
-		preErr: fmt.Errorf("hook interrupted: %w", context.Canceled),
+		preErr: errors.New("exit 1"),
 		onRun:  func(models.HookRequest) { cancel() },
 	}
 	useCase := fx.start(newUUID)
@@ -322,7 +349,6 @@ func TestStartTaskCancelledPreHookStillMarksTheTaskFailed(t *testing.T) {
 	assert.Equal(t, models.StatusFailed, started.Status)
 	require.NotNil(t, started.Error)
 	assert.Contains(t, *started.Error, "un hook previo al inicio falló")
-	assert.Contains(t, *started.Error, context.Canceled.Error())
 	assert.Equal(t, models.StatusFailed, fx.repo.tasks[task.ID].Status, "the task is not left in starting")
 	assert.Empty(t, fx.runtime.started, "no agent starts")
 }
