@@ -53,6 +53,7 @@ var (
 	msgClosePanel    = i18n.Msg{En: "Close panel", Es: "Cerrar panel", Zh: "关闭面板", De: "Bereich schließen", Fr: "Fermer le panneau"}
 	msgCollapsePanel = i18n.Msg{En: "Collapse panel", Es: "Colapsar panel", Zh: "折叠面板", De: "Bereich einklappen", Fr: "Réduire le panneau"}
 	msgExpandPanel   = i18n.Msg{En: "Expand panel", Es: "Expandir panel", Zh: "展开面板", De: "Bereich ausklappen", Fr: "Développer le panneau"}
+	msgResizePanel   = i18n.Msg{En: "Resize panel", Es: "Cambiar el ancho del panel", Zh: "调整面板宽度", De: "Bereichsbreite ändern", Fr: "Redimensionner le panneau"}
 	msgHideSidebar   = i18n.Msg{En: "Hide sidebar", Es: "Ocultar barra lateral", Zh: "隐藏侧边栏", De: "Seitenleiste ausblenden", Fr: "Masquer la barre latérale"}
 	msgShowSidebar   = i18n.Msg{En: "Show sidebar", Es: "Mostrar barra lateral", Zh: "显示侧边栏", De: "Seitenleiste einblenden", Fr: "Afficher la barre latérale"}
 	msgSidebar       = i18n.Msg{En: "Sidebar", Es: "Barra lateral", Zh: "侧边栏", De: "Seitenleiste", Fr: "Barre latérale"}

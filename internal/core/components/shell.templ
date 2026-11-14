@@ -45,6 +45,16 @@ templ CollapsePanel(p CollapsePanelProps) {
 		<aside class={ collapsePanelClass(p.Side), p.Width } aria-label={ p.Label }>
 			{ children... }
 		</aside>
+		<div
+			class={ resizeHandleClass(p.Side) }
+			role="separator"
+			aria-orientation="vertical"
+			aria-label={ msgResizePanel.T(ctx) }
+			tabindex="0"
+			data-resize-handle
+			data-side={ p.Side.side() }
+			data-resize-key={ resizeKey(p.Side) }
+		></div>
 		<button
 			type="button"
 			class={ collapseHandleClass(p.Side) }

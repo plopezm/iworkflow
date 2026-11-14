@@ -109,6 +109,10 @@ func (u *StartTask) Execute(ctx context.Context, id models.TaskID) (models.Task,
 	if !claimed {
 		return models.Task{}, u.lifecycle.Conflict(ctx, id, "iniciar")
 	}
+	// The claim is made: from here the start runs to its end, detached from the request. A client that disconnects
+	// mid-start (a reload, a closed dialog) must not kill a pre hook half way (an index build, say) nor leave the claimed
+	// task in starting. The hooks are still bounded by their own timeouts.
+	ctx = context.WithoutCancel(ctx)
 	task.Branch, task.WorktreePath, task.BaseBranch = branch, worktreePath, baseBranch
 	// The claim left the task starting; the hooks see the task in that status.
 	task.Status = models.StatusStarting
@@ -118,7 +122,8 @@ func (u *StartTask) Execute(ctx context.Context, id models.TaskID) (models.Task,
 	}
 
 	// The pre hooks run in the worktree, before the status changes and the agent starts. A failure keeps the worktree
-	// and ends the task in failed, as a failed launch does; no agent is started.
+	// and ends the task in failed, as a failed launch does; no agent is started. The start waits for them to finish
+	// (each is bounded by its own timeout).
 	preReport, preErr := runLifecycleHooks(ctx, u.hooks, models.HookRequest{
 		Event:         models.HookEventStart,
 		Phase:         models.HookPhasePre,

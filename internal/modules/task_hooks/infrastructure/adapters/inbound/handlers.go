@@ -408,7 +408,7 @@ func (h *Handlers) test(w http.ResponseWriter, r *http.Request) {
 	opts := screenOptions{tab: state.TabLibrary, selected: hookID, test: &chosen}
 	outcome, err := h.uc.Test.Execute(ctx, dto.TestHookFromForm(r.PostForm, hookID))
 	switch {
-	case errors.Is(err, hookerrors.ErrRunNotStarted):
+	case errors.Is(err, hookerrors.ErrRunNotStarted), errors.Is(err, hookerrors.ErrRunCancelled):
 		opts.result = &state.TestResult{Status: state.ResultError, ExitCode: -1, Failure: err.Error()}
 	case err != nil:
 		opts.failure = err.Error()

@@ -74,9 +74,9 @@ async function assignTo(ctx, project, event, phase) {
   await ctx.page.getByRole('button', { name: 'Asignar a un proyecto +', exact: true }).click();
   const form = ctx.page.locator('[data-assignment-form]');
   await form.waitFor({ timeout: 10000 });
-  await form.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
-  await form.getByLabel('Evento', { exact: true }).selectOption(event);
-  await form.getByLabel('Momento', { exact: true }).selectOption(phase);
+  await form.locator('select[name="project"]').selectOption({ label: project });
+  await form.locator('select[name="event"]').selectOption(event);
+  await form.locator('select[name="phase"]').selectOption(phase);
   await form.getByRole('button', { name: 'Asignar +', exact: true }).click();
   await ctx.page.getByText('Asignación añadida.').waitFor({ timeout: 10000 });
   await ctx.page.locator('[data-assignment-form]').waitFor({ state: 'detached', timeout: 10000 });
@@ -143,6 +143,8 @@ module.exports = {
         await editor.waitFor({ timeout: 10000 });
         await editor.getByLabel('Nombre', { exact: true }).fill(`invalido-${tag}`);
         await editor.getByLabel('Comando', { exact: true }).fill('make');
+        // The environment variables live in the folded advanced options.
+        await editor.getByText('Opciones avanzadas', { exact: true }).click();
         await editor.getByLabel(/^Variables de entorno/).fill('SIN_IGUAL');
         await editor.getByRole('button', { name: 'Guardar', exact: true }).click();
 
@@ -185,10 +187,12 @@ module.exports = {
 
         await openOrder(ctx);
         const panel = orderPanel(ctx);
-        await panel.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
+        await panel.locator('select[name="project"]').selectOption({ label: project });
         await panel.getByRole('button', { name: 'Mostrar', exact: true }).click();
         const rows = () => orderPanel(ctx).locator('[data-group-row]').allInnerTexts();
-        ctx.assert((await rows()).length === 2, 'el grupo debe mostrar las dos asignaciones');
+        // "Mostrar" answers with the group through htmx: wait for the rows of this test, not for any rows.
+        await orderPanel(ctx).locator('[data-group-row]').filter({ hasText: second }).waitFor({ timeout: 10000 });
+        ctx.assert((await rows()).length === 2, `el grupo debe mostrar las dos asignaciones: ${JSON.stringify(await rows())}`);
         ctx.assert((await rows())[0].includes(first), `orden inicial: ${await rows()}`);
 
         await orderPanel(ctx).locator('[data-group-row]').filter({ hasText: first }).getByRole('button', { name: 'Bajar' }).click();
@@ -229,7 +233,7 @@ module.exports = {
         await ctx.page.getByRole('button', { name: 'Probar', exact: true }).click();
         const form = ctx.page.locator('[data-hook-test-form]');
         await form.waitFor({ timeout: 10000 });
-        await form.getByLabel('Proyecto', { exact: true }).selectOption({ label: project });
+        await form.locator('select[name="project"]').selectOption({ label: project });
         await form.getByRole('button', { name: 'Probar', exact: true }).click();
 
         const result = ctx.page.locator('[data-hook-test]');
