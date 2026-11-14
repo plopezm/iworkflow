@@ -90,17 +90,16 @@ func (f *httpFixture) registeredID() string {
 	return workspaces[0].ID.String()
 }
 
-func TestRegisterFragmentReplacesTheFormAndRefreshesTheTable(t *testing.T) {
+func TestRegisterSuccessRedirectsTheTabToTheList(t *testing.T) {
 	fixture := newHTTPFixture(t)
 	repo := newGitRepo(t)
 
 	body := fixture.register("Demo", repo)
 
-	assert.Contains(t, body, `id="workspace-register-slot"`, "the form slot is replaced with a fresh one")
-	assert.Contains(t, body, `id="workspace-table"`)
-	assert.Contains(t, body, `hx-swap-oob="true"`, "the table is refreshed out of band")
-	assert.Contains(t, body, "Demo")
+	assert.Contains(t, body, `data-dock-redirect="/workspaces"`, "the registration tab is replaced by the list")
+	assert.NotContains(t, body, "workspace-register-slot", "the form is not rendered again: the dock replaces the tab")
 	assert.NotContains(t, body, "workspace-register-prompt", "a successful registration asks nothing")
+	assert.Equal(t, 1, len(mustList(t, fixture)))
 }
 
 func TestRegisterOfMissingFolderAsksForConfirmationAndResubmitsWithInitialize(t *testing.T) {
@@ -121,7 +120,7 @@ func TestRegisterOfMissingFolderAsksForConfirmationAndResubmitsWithInitialize(t 
 	confirmed := fixture.post("/workspaces/register", url.Values{
 		"name": {"Nuevo"}, "path": {missing}, "base_branch": {"main"}, "initialize": {"true"},
 	})
-	assert.Contains(t, confirmed.Body.String(), `hx-swap-oob="true"`)
+	assert.Contains(t, confirmed.Body.String(), `data-dock-redirect="/workspaces"`)
 	assert.DirExists(t, filepath.Join(missing, ".git"))
 }
 
@@ -306,7 +305,26 @@ func TestWrongMethodIsRejected(t *testing.T) {
 	assert.Equal(t, http.StatusMethodNotAllowed, response.Code)
 }
 
-func TestWorkspacesTabRendersTheRegistrationAndTheList(t *testing.T) {
+// tabNamed finds a dock route by name, so the tests do not depend on the order of Tabs().
+func tabNamed(t *testing.T, f *httpFixture, name string) dock.Route {
+	t.Helper()
+	for _, route := range f.module.Tabs() {
+		if route.Name == name {
+			return route
+		}
+	}
+	require.FailNow(t, "no dock route named "+name)
+	return dock.Route{}
+}
+
+func mustList(t *testing.T, f *httpFixture) []models.Workspace {
+	t.Helper()
+	workspaces, err := f.module.List.Execute(context.Background())
+	require.NoError(t, err)
+	return workspaces
+}
+
+func TestWorkspacesTabRendersTheListWithoutTheRegistrationForm(t *testing.T) {
 	fixture := newHTTPFixture(t)
 	fixture.register("Demo", newGitRepo(t))
 	tab := fixture.module.Tabs()[0]
@@ -314,10 +332,24 @@ func TestWorkspacesTabRendersTheRegistrationAndTheList(t *testing.T) {
 	body := renderTab(t, tab.Render(spanishContext(), dock.Params{}))
 
 	assert.Contains(t, body, "<h1")
+	assert.NotContains(t, body, `id="workspace-register-slot"`, "registering lives in its own tab")
+	assert.NotContains(t, body, `id="workspace-picker"`)
+	assert.Contains(t, body, `href="/workspaces/new"`, "the button opens the registration tab")
+	assert.Contains(t, body, `href="/workspaces/`+fixture.registeredID()+`/edit"`, "each row links to its edit tab")
+	assert.Contains(t, body, `href="/board/`+fixture.registeredID()+`"`, "each row links to the board of its project")
+	assert.Contains(t, body, "Demo")
+}
+
+func TestNewTabRendersTheRegistrationFormAndThePicker(t *testing.T) {
+	fixture := newHTTPFixture(t)
+	tab := tabNamed(t, fixture, "workspace_new")
+
+	body := renderTab(t, tab.Render(spanishContext(), dock.Params{}))
+
+	assert.Equal(t, "/workspaces/new", tab.Pattern)
 	assert.Contains(t, body, `id="workspace-register-slot"`)
 	assert.Contains(t, body, `id="workspace-picker"`)
-	assert.Contains(t, body, `href="/workspaces/`+fixture.registeredID()+`/edit"`, "each row links to its edit tab")
-	assert.Contains(t, body, "Demo")
+	assert.Contains(t, body, `href="/workspaces"`, "cancel returns to the list")
 }
 
 func TestEditTabPrefillsTheWorkspace(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 	"iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/git"
 	"iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/persistence"
 	"iworkflow/internal/modules/workspaces/presentation/pages"
+	"iworkflow/internal/modules/workspaces/presentation/state"
 )
 
 // Deps are the resources the module needs from the composition root.
@@ -90,13 +91,13 @@ func (m *Module) Routes(r chi.Router) {
 	m.handlers.Mount(r)
 }
 
-// Tabs returns the dock routes of the module: the workspaces list and the edit page of one workspace.
+// Tabs returns the dock routes of the module: the workspaces list, the registration page and the edit page of one workspace.
 // The parent registers them in the dock registry.
 func (m *Module) Tabs() []dock.Route {
 	return []dock.Route{
 		{
 			Name:    "workspaces",
-			Pattern: "/workspaces",
+			Pattern: state.ListPath,
 			Icon:    "▤",
 			Title: func(ctx context.Context, _ dock.Params) string {
 				return pages.ListTitle(ctx)
@@ -114,6 +115,17 @@ func (m *Module) Tabs() []dock.Route {
 			},
 			Render: func(ctx context.Context, params dock.Params) templ.Component {
 				return m.handlers.EditTab(ctx, params)
+			},
+		},
+		{
+			Name:    "workspace_new",
+			Pattern: state.NewPath,
+			Icon:    "+",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return pages.NewTitle(ctx)
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return m.handlers.NewTab(ctx, params)
 			},
 		},
 	}
