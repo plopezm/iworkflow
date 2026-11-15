@@ -3,6 +3,7 @@ package usagelimits_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -153,4 +154,74 @@ func TestCacheKeepsAGoodReadingEvenIfTheContextIsCancelledAfterIt(t *testing.T) 
 	require.NoError(t, err)
 	require.Len(t, usage.Windows(), 1)
 	assert.InDelta(t, 42, usage.Windows()[0].UsedPct(), 0.001)
+}
+
+func TestCacheStopsServingStaleDataPastTheMaximumAge(t *testing.T) {
+	inner := &scriptedProvider{results: []result{{usage: reading(t, 10)}, {err: usageerrors.ErrUnavailable}}}
+	clock := &movingClock{now: testNow}
+	provider := cache.NewProvider(inner, clock, time.Minute).WithMaxStale(10 * time.Minute)
+	_, err := provider.Fetch(context.Background())
+	require.NoError(t, err)
+
+	clock.now = testNow.Add(9 * time.Minute)
+	stale, err := provider.Fetch(context.Background())
+	require.NoError(t, err)
+	clock.now = testNow.Add(11 * time.Minute)
+	_, err = provider.Fetch(context.Background())
+
+	assert.True(t, stale.Stale())
+	require.ErrorIs(t, err, usageerrors.ErrUnavailable)
+}
+
+// gatedProvider blocks every read until released and counts them.
+type gatedProvider struct {
+	mu      sync.Mutex
+	calls   int
+	started chan struct{}
+	release chan struct{}
+	usage   models.ProviderUsage
+}
+
+func (*gatedProvider) ID() models.ProviderID { return models.ProviderClaude }
+
+func (g *gatedProvider) Fetch(context.Context) (models.ProviderUsage, error) {
+	g.mu.Lock()
+	g.calls++
+	g.mu.Unlock()
+	g.started <- struct{}{}
+	<-g.release
+	return g.usage, nil
+}
+
+func TestCacheLetsOneCallerReadWhileOthersWaitAndHonourTheirContext(t *testing.T) {
+	inner := &gatedProvider{started: make(chan struct{}, 4), release: make(chan struct{}), usage: reading(t, 5)}
+	provider := cache.NewProvider(inner, &movingClock{now: testNow}, time.Minute)
+	leaderDone := make(chan error, 1)
+	go func() {
+		_, err := provider.Fetch(context.Background())
+		leaderDone <- err
+	}()
+	<-inner.started
+
+	// A second caller waits behind the read in flight and gives up with its own context.
+	waiterCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err := provider.Fetch(waiterCtx)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+
+	// A third caller waits too, and gets the leader's reading without a second read.
+	followerDone := make(chan models.ProviderUsage, 1)
+	go func() {
+		usage, _ := provider.Fetch(context.Background())
+		followerDone <- usage
+	}()
+	time.Sleep(20 * time.Millisecond)
+	close(inner.release)
+
+	require.NoError(t, <-leaderDone)
+	follower := <-followerDone
+	require.Len(t, follower.Windows(), 1)
+	inner.mu.Lock()
+	defer inner.mu.Unlock()
+	assert.Equal(t, 1, inner.calls)
 }

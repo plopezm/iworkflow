@@ -2,6 +2,7 @@ package usagelimits_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -156,4 +157,37 @@ func TestClaudeFetchNeverFollowsARedirectWithTheToken(t *testing.T) {
 
 	require.ErrorIs(t, err, usageerrors.ErrUnavailable)
 	assert.False(t, leaked, "the token must not reach the redirect target")
+}
+
+func TestClaudeFetchRefusesAnEndpointTheTokenMustNotTravelTo(t *testing.T) {
+	for name, endpoint := range map[string]string{
+		"plain http to another host": "http://example.com/usage",
+		"not a web scheme":           "file:///etc/passwd",
+		"no host":                    "https:///usage",
+		"garbage":                    "://",
+	} {
+		t.Run(name, func(t *testing.T) {
+			var attempts int
+			provider := claude.NewProvider(claude.Config{
+				CredentialsPath: validCredentials(t),
+				Endpoint:        endpoint,
+				Client:          &http.Client{Transport: countingTransport{attempts: &attempts}},
+				Clock:           stoppedClock{now: testNow},
+			})
+
+			_, err := provider.Fetch(context.Background())
+
+			require.ErrorIs(t, err, usageerrors.ErrUnavailable)
+			assert.NotContains(t, err.Error(), secretToken)
+			assert.Zero(t, attempts, "no request may be attempted, so the token cannot leave")
+		})
+	}
+}
+
+// countingTransport counts the requests it is asked to send and fails them all.
+type countingTransport struct{ attempts *int }
+
+func (c countingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	*c.attempts++
+	return nil, errors.New("no network in tests")
 }

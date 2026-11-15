@@ -5,7 +5,7 @@ import "iworkflow/internal/modules/usage_limits/presentation/state"
 // UsageBarPlaceholder is the element that loads the usage bar with htmx on page load. The shell renders it
 // in the sidebar footer, just above the agent settings bar.
 templ UsageBarPlaceholder() {
-	<div id={ BarID } hx-get={ BarPath } hx-trigger="load" hx-swap="outerHTML"></div>
+	<div id={ BarID } hx-get={ BarPath } hx-trigger="load, every 15s" hx-swap="outerHTML"></div>
 }
 
 // UsageBar is the usage bar. Its root keeps polling every 60 seconds even when hidden, so a provider that

@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -88,52 +87,36 @@ func (p *Provider) Fetch(ctx context.Context) (models.ProviderUsage, error) {
 		return models.ProviderUsage{}, fmt.Errorf("decode the rate limits: %w", usageerrors.ErrUnavailable)
 	}
 	stamp, _ := time.Parse(time.RFC3339Nano, event.Timestamp) // an unreadable stamp only loses relative resets
+	now := p.clock.Now()
 	windows := make([]models.Window, 0, 2)
 	for position, limit := range []*limitDTO{event.Payload.RateLimits.Primary, event.Payload.RateLimits.Secondary} {
 		window, ok, err := toWindow(position, limit, stamp)
 		if err != nil {
 			return models.ProviderUsage{}, fmt.Errorf("%w: %w", usageerrors.ErrUnavailable, err)
 		}
-		if ok {
+		// A window whose reset has passed was renewed since the rollout was written: its number is old news.
+		if ok && (window.ResetsAt().IsZero() || window.ResetsAt().After(now)) {
 			windows = append(windows, window)
 		}
 	}
-	usage, err := models.NewProviderUsage(models.ProviderCodex, windows, p.clock.Now())
+	if len(windows) == 0 {
+		return models.ProviderUsage{}, fmt.Errorf("the last Codex rate limits are already renewed: %w", usageerrors.ErrNotConfigured)
+	}
+	usage, err := models.NewProviderUsage(models.ProviderCodex, windows, now)
 	if err != nil {
 		return models.ProviderUsage{}, fmt.Errorf("%w: %w", usageerrors.ErrUnavailable, err)
 	}
 	return usage, nil
 }
 
-// rolloutsNewestFirst lists the rollout files, most recently modified first. A directory without rollouts means the
-// provider is not configured.
+// rolloutsNewestFirst lists the newest rollout files, most recently modified first. The sessions are kept in
+// year/month/day folders, so only the newest folders are read, never the whole history; a folder that cannot be
+// read is skipped. No rollout means the provider is not configured.
 func (p *Provider) rolloutsNewestFirst(ctx context.Context) ([]string, error) {
 	if _, err := os.Stat(p.sessionsDir); errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("no Codex sessions: %w", usageerrors.ErrNotConfigured)
 	}
-	type rollout struct {
-		path    string
-		modTime time.Time
-	}
-	var found []rollout
-	err := filepath.WalkDir(p.sessionsDir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("walk the sessions: %w", err)
-		}
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasPrefix(name, "rollout-") || !strings.HasSuffix(name, ".jsonl") {
-			return nil
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("stat a rollout: %w", err)
-		}
-		found = append(found, rollout{path: path, modTime: info.ModTime()})
-		return nil
-	})
+	found, err := collectNewest(ctx, p.sessionsDir, maxRolloutsTried)
 	if err != nil {
 		return nil, fmt.Errorf("list the Codex sessions: %w", usageerrors.ErrUnavailable)
 	}
@@ -146,6 +129,44 @@ func (p *Provider) rolloutsNewestFirst(ctx context.Context) ([]string, error) {
 		paths = append(paths, entry.path)
 	}
 	return paths, nil
+}
+
+type rollout struct {
+	path    string
+	modTime time.Time
+}
+
+// collectNewest gathers the rollouts of dir, visiting the sub-folders in descending name order (the newest dates
+// first) and stopping once enough files are known; the folder being read is always finished.
+func collectNewest(ctx context.Context, dir string, want int) ([]rollout, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("walk the sessions: %w", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, nil //nolint:nilerr // an unreadable folder is skipped, the others still count
+	}
+	var found []rollout
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasPrefix(name, "rollout-") || !strings.HasSuffix(name, ".jsonl") {
+			continue
+		}
+		if info, infoErr := entry.Info(); infoErr == nil {
+			found = append(found, rollout{path: filepath.Join(dir, name), modTime: info.ModTime()})
+		}
+	}
+	for index := len(entries) - 1; index >= 0 && len(found) < want; index-- {
+		if !entries[index].IsDir() {
+			continue
+		}
+		deeper, err := collectNewest(ctx, filepath.Join(dir, entries[index].Name()), want-len(found))
+		if err != nil {
+			return nil, err
+		}
+		found = append(found, deeper...)
+	}
+	return found, nil
 }
 
 // firstRateLimitsLine returns the rate limits line of the newest rollout that has one: a fresh session may not have

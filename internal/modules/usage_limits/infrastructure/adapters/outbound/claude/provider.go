@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"os"
 	"time"
 
@@ -43,6 +45,8 @@ type Provider struct {
 	endpoint        string
 	client          *http.Client
 	clock           outbound.ClockPort
+	// endpointErr is set when the endpoint is not one the token may be sent to; Fetch then refuses to call.
+	endpointErr error
 }
 
 var _ outbound.UsageProviderPort = (*Provider)(nil)
@@ -57,7 +61,35 @@ func NewProvider(cfg Config) *Provider {
 	if client == nil {
 		client = &http.Client{Timeout: requestTimeout, CheckRedirect: refuseRedirect}
 	}
-	return &Provider{credentialsPath: cfg.CredentialsPath, endpoint: endpoint, client: client, clock: cfg.Clock}
+	return &Provider{
+		credentialsPath: cfg.CredentialsPath, endpoint: endpoint, client: client, clock: cfg.Clock,
+		endpointErr: checkEndpoint(endpoint),
+	}
+}
+
+// checkEndpoint accepts https, and plain http only towards the loopback (the e2e mock): the bearer token must not
+// travel in clear text to another host.
+func checkEndpoint(raw string) error {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("usage endpoint is not a URL: %w", usageerrors.ErrUnavailable)
+	}
+	switch {
+	case parsed.Scheme == "https" && parsed.Hostname() != "":
+		return nil
+	case parsed.Scheme == "http" && isLoopback(parsed.Hostname()):
+		return nil
+	default:
+		return fmt.Errorf("usage endpoint must be https (or http on the loopback): %w", usageerrors.ErrUnavailable)
+	}
+}
+
+func isLoopback(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.IsLoopback()
 }
 
 // refuseRedirect stops the default client from following redirects: the usage endpoint never redirects, and a
@@ -86,6 +118,9 @@ type usageDTO struct {
 // Fetch asks the endpoint for the usage of the subscription. A missing credentials file or token means the
 // provider is not configured. Error messages never carry the token or the response body.
 func (p *Provider) Fetch(ctx context.Context) (models.ProviderUsage, error) {
+	if p.endpointErr != nil {
+		return models.ProviderUsage{}, p.endpointErr
+	}
 	token, err := p.token()
 	if err != nil {
 		return models.ProviderUsage{}, err
