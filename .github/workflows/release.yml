@@ -12,7 +12,9 @@ permissions:
   contents: read
 
 env:
-  # Pinned to the versions that produced the committed generated code (go.mod / sqlc headers).
+  # Pinned to the versions that produced the committed generated code (go.mod / sqlc headers). A bump of
+  # TEMPL_VERSION or TAILWIND_VERSION goes with `make generate`, so the committed *_templ.go and app.css match.
+  # TAILWIND_VERSION is also pinned in the Makefile; the "Check Tailwind pin" step fails when the two differ.
   TEMPL_VERSION: v0.3.1118
   SQLC_VERSION: v1.31.1
   TAILWIND_VERSION: v4.3.5
@@ -84,6 +86,14 @@ jobs:
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
+
+      - name: Check Tailwind pin matches the Makefile
+        run: |
+          set -euo pipefail
+          if ! grep -qxF "TAILWIND_VERSION ?= ${TAILWIND_VERSION}" Makefile; then
+            echo "TAILWIND_VERSION ${TAILWIND_VERSION} here differs from the Makefile pin; bump both and the per-asset checksums." >&2
+            exit 1
+          fi
 
       - name: Install code generators
         run: |
