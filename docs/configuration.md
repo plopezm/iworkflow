@@ -20,7 +20,7 @@ Environment variables (`.env` is supported, see `.env.example`):
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key; set both or neither. They win over `IWF_TLS=auto` |
 | `IWF_ENGRAM_URL` | unset: off. Base URL of the local Engram HTTP API, for example `http://127.0.0.1:7437`. When set to a valid http or https URL, it turns on the Engram memory of each workspace (see [Engram memory](integrations.md#engram-memory)). An invalid value keeps it off and logs one warning at startup |
 | `IWF_CLAUDE_CREDENTIALS` | `~/.claude/.credentials.json`. OAuth credentials of Claude Code, read by the [usage bar](workspace.md#usage-limits) |
-| `IWF_CLAUDE_USAGE_URL` | `unset: the real Anthropic usage endpoint. Overrides the Claude subscription usage endpoint |
+| `IWF_CLAUDE_USAGE_URL` | unset: the real Anthropic usage endpoint. Overrides the Claude subscription usage endpoint |
 | `IWF_CODEX_SESSIONS_DIR` | `~/.codex/sessions`. Where Codex writes its session files, read for the Codex limits |
 
 
