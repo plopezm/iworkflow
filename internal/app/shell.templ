@@ -8,6 +8,7 @@ import (
 	"iworkflow/internal/core/web"
 	agentsettingscomponents "iworkflow/internal/modules/agent_settings/presentation/components"
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
+	usagelimitscomponents "iworkflow/internal/modules/usage_limits/presentation/components"
 )
 
 // shellPage is the full document of a page visit: the sidebar, the dock that hosts the tabs, the
@@ -25,7 +26,6 @@ templ shellPage(boardSidebar templ.Component, version string) {
 		@components.Modal(components.ModalProps{Title: msgImagePreview.T(ctx), Open: false, CloseAttrs: templ.Attributes{"data-chat-image-modal": ""}}) {
 			<img alt="" class="max-h-[70dvh] w-full rounded-md object-contain" data-chat-image/>
 		}
-		@commandPalette()
 		@prefspages.LanguagePromptSection(i18n.StateFrom(ctx).Chosen)
 		<script type="module" src="/static/js/ui.js"></script>
 		<script type="module" src="/static/js/panel_resize.js"></script>
@@ -37,28 +37,8 @@ templ shellPage(boardSidebar templ.Component, version string) {
 		<script type="module" src="/static/js/task_form.js"></script>
 		<script type="module" src="/static/js/graph.js"></script>
 		<script type="module" src="/static/js/code.js"></script>
-		<script type="module" src="/static/js/command_palette.js"></script>
 		<script type="module" src="/static/js/sidebar_active.js"></script>
 	}
-}
-
-// commandPalette is the Ctrl/Cmd+K quick switcher. It starts closed and empty: command_palette.js fills the list
-// from the sidebar links, so the palette needs no data of its own.
-templ commandPalette() {
-	<dialog id="command-palette" class="palette" aria-label={ msgPaletteTitle.T(ctx) }>
-		<input
-			type="text"
-			class="palette-input"
-			placeholder={ msgPalettePlaceholder.T(ctx) }
-			aria-label={ msgPaletteTitle.T(ctx) }
-			autocomplete="off"
-			spellcheck="false"
-			data-palette-input
-		/>
-		<ul role="listbox" class="palette-list" data-palette-list></ul>
-		<p class="palette-empty muted" hidden data-palette-empty>{ msgPaletteEmpty.T(ctx) }</p>
-		<p class="palette-hint">{ msgPaletteHint.T(ctx) }</p>
-	</dialog>
 }
 
 // sidebar is the sidebar content: brand, the navigation of the migrated screens, the board lists and the footer.
@@ -72,13 +52,6 @@ templ sidebar(boardSidebar templ.Component, version string) {
 			}
 		</span>
 		@components.SidebarToggle(components.SidebarToggleProps{Class: "hidden md:flex"})
-	</div>
-	<div class="shrink-0 px-3 pt-2 pb-1">
-		<button type="button" class="palette-trigger" data-palette-open aria-label={ msgPaletteTitle.T(ctx) }>
-			<span aria-hidden="true">⌕</span>
-			<span class="flex-1 text-left">{ msgPalettePlaceholder.T(ctx) }</span>
-			<kbd class="palette-kbd" data-palette-kbd>Ctrl K</kbd>
-		</button>
 	</div>
 	<div class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
 		@components.SidebarSection(components.SidebarSectionProps{Title: msgMenu.T(ctx), Count: len(navEntries)}) {
@@ -94,6 +67,7 @@ templ sidebar(boardSidebar templ.Component, version string) {
 		@boardSidebar
 	</div>
 	<div class="stack shrink-0 border-t border-border p-2.5">
+		@usagelimitscomponents.UsageBarPlaceholder()
 		@agentsettingscomponents.AgentSettingsBarPlaceholder()
 	</div>
 }

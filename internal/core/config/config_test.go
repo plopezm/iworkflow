@@ -33,6 +33,23 @@ func TestDefaultsLiveUnderTheDataFolderInHome(t *testing.T) {
 	require.Equal(t, "agent", cfg.CursorBin)
 	require.Equal(t, "agy", cfg.AgyBin)
 	require.Equal(t, "/home/u", cfg.HomeDir)
+	require.Equal(t, "/home/u/.claude/.credentials.json", cfg.ClaudeCredentialsPath)
+	require.Equal(t, "", cfg.ClaudeUsageURL)
+	require.Equal(t, "/home/u/.codex/sessions", cfg.CodexSessionsDir)
+}
+
+func TestUsageSourcesCanBeOverriddenFromTheEnvironment(t *testing.T) {
+	cfg, err := config.FromEnv(env(map[string]string{
+		"HOME":                   "/home/u",
+		"IWF_CLAUDE_CREDENTIALS": "/x/creds.json",
+		"IWF_CLAUDE_USAGE_URL":   " http://127.0.0.1:9/usage ",
+		"IWF_CODEX_SESSIONS_DIR": "/x/codex",
+	}))
+
+	require.NoError(t, err)
+	require.Equal(t, "/x/creds.json", cfg.ClaudeCredentialsPath)
+	require.Equal(t, "http://127.0.0.1:9/usage", cfg.ClaudeUsageURL)
+	require.Equal(t, "/x/codex", cfg.CodexSessionsDir)
 }
 
 func TestUserProfileIsUsedWhenHomeIsMissingOrEmpty(t *testing.T) {
