@@ -11,4 +11,6 @@ var (
 	ErrOpenPathBlocked = errors.New("this kind of file is not opened from the chat")
 	// ErrOpenPathMissing is a path that does not exist on disk.
 	ErrOpenPathMissing = errors.New("the path does not exist")
+	// ErrOpenPathTooLarge is an image that is too big to be previewed in the page.
+	ErrOpenPathTooLarge = errors.New("the image is too large to be previewed")
 )

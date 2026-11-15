@@ -50,3 +50,31 @@ func ResolveOpenPath(raw string, worktree string, home string) (string, error) {
 	}
 	return path, nil
 }
+
+// MaxPreviewImageBytes bounds the size of an image that the chat previews in the page.
+const MaxPreviewImageBytes int64 = 20 << 20
+
+// previewImageTypes are the images the page can preview, by extension. SVG is left out on purpose: it can carry scripts.
+var previewImageTypes = map[string]string{
+	".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp",
+}
+
+// PreviewImage is an image of the disk that the chat shows in the page.
+type PreviewImage struct {
+	ContentType string
+	Data        []byte
+}
+
+// ResolvePreviewImage resolves a path of the chat like ResolveOpenPath and returns, with it, the content type of the
+// image. A path that is not one of the previewable image kinds is ErrOpenPathBlocked.
+func ResolvePreviewImage(raw string, worktree string, home string) (string, string, error) {
+	path, err := ResolveOpenPath(raw, worktree, home)
+	if err != nil {
+		return "", "", err
+	}
+	contentType, ok := previewImageTypes[strings.ToLower(filepath.Ext(path))]
+	if !ok {
+		return "", "", werrors.ErrOpenPathBlocked
+	}
+	return path, contentType, nil
+}

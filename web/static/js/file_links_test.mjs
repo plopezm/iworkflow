@@ -1,7 +1,7 @@
 // Run with: node --test web/static/js/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { openFileLink, openPathURL, onClick, OPEN_PATH_ERROR_CLASS } from './file_links.js';
+import { openFileLink, openPathURL, previewImageURL, showImage, onClick, OPEN_PATH_ERROR_CLASS } from './file_links.js';
 
 function fakeLink(path, taskId) {
   const classes = new Set();
@@ -53,4 +53,42 @@ test('onClick keeps the browser on the page for a file link only', () => {
   prevented = false;
   onClick({ target: { closest: () => null }, preventDefault: () => { prevented = true; } });
   assert.equal(prevented, false);
+});
+
+function fakeDocument() {
+  const img = { src: '', alt: '' };
+  const panel = { focus() {} };
+  const modal = {
+    style: {},
+    querySelector: (s) => (s === '[data-chat-image]' ? img : s === '[data-modal-panel]' ? panel : null),
+  };
+  return { img, modal, querySelector: (s) => (s === '[data-chat-image-modal]' ? modal : null) };
+}
+
+test('the preview endpoint names the task and encodes the path', () => {
+  assert.equal(previewImageURL('t 1', '/tmp/a b.png'), '/tasks/t%201/preview-image?path=%2Ftmp%2Fa%20b.png');
+});
+
+test('showImage fills and opens the lightbox of the page', () => {
+  const doc = fakeDocument();
+  assert.equal(showImage('t1', '/tmp/a.png', doc), true);
+  assert.equal(doc.img.src, '/tasks/t1/preview-image?path=%2Ftmp%2Fa.png');
+  assert.equal(doc.modal.style.display, 'flex');
+  assert.equal(showImage('t1', '/tmp/a.png', { querySelector: () => null }), false);
+});
+
+test('an image link opens the lightbox and does not open the system viewer', async () => {
+  const doc = fakeDocument();
+  const previous = globalThis.document;
+  globalThis.document = doc;
+  try {
+    const link = fakeLink('/tmp/shots/1-tree.PNG', 't1');
+    let posted = false;
+    const ok = await openFileLink(link, async () => { posted = true; return { ok: true }; });
+    assert.equal(ok, true);
+    assert.equal(posted, false);
+    assert.equal(doc.modal.style.display, 'flex');
+  } finally {
+    globalThis.document = previous;
+  }
 });

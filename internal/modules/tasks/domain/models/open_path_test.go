@@ -45,3 +45,31 @@ func TestResolveOpenPathRefusals(t *testing.T) {
 		assert.ErrorIs(t, err, werrors.ErrOpenPathBlocked, raw)
 	}
 }
+
+func TestResolvePreviewImage(t *testing.T) {
+	cases := []struct {
+		name        string
+		raw         string
+		contentType string
+		wantErr     error
+	}{
+		{"png", "/tmp/a/1.png", "image/png", nil},
+		{"upper case jpeg with position", "/tmp/a/1.JPEG:3", "image/jpeg", nil},
+		{"webp", "/tmp/a.webp", "image/webp", nil},
+		{"svg can carry scripts", "/tmp/a.svg", "", werrors.ErrOpenPathBlocked},
+		{"text file", "/etc/hosts", "", werrors.ErrOpenPathBlocked},
+		{"relative without worktree", "a.png", "", werrors.ErrOpenPathInvalid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path, contentType, err := models.ResolvePreviewImage(tc.raw, "", "/home/me")
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.contentType, contentType)
+			assert.NotEmpty(t, path)
+		})
+	}
+}

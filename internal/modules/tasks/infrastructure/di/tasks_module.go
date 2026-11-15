@@ -401,7 +401,7 @@ func NewModule(deps Deps) (*Module, error) {
 		PruneMerged:         application.NewPruneMergedTasks(lifecycle, attachmentStorage, prunePreference),
 		PruneSetting:        httpinbound.NewPruneSettingHandlers(prunePreference),
 		TaskFile:            httpinbound.NewTaskFileHandlers(httpinbound.TaskFileUseCases{Read: getFile, Write: saveFile}),
-		OpenPath:            httpinbound.NewOpenPathHandlers(application.NewOpenTaskPath(lifecycle, opener.NewOSOpener(), userHome())),
+		OpenPath:            newOpenPathHandlers(lifecycle),
 		runtime:             agentRuntime,
 		relatedRestarter:    relatedRestarter,
 	}, nil
@@ -549,4 +549,11 @@ func userHome() string {
 		return ""
 	}
 	return home
+}
+
+// newOpenPathHandlers wires the links to the disk of the chat: opening a path with the system and previewing an image.
+func newOpenPathHandlers(lifecycle *application.TaskLifecycle) *httpinbound.OpenPathHandlers {
+	open := application.NewOpenTaskPath(lifecycle, opener.NewOSOpener(), userHome())
+	preview := application.NewPreviewTaskImage(lifecycle, opener.NewFileImageReader(), userHome())
+	return httpinbound.NewOpenPathHandlers(open).WithPreview(preview)
 }
