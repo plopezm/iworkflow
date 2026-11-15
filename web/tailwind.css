@@ -2162,7 +2162,7 @@ aside[aria-label] {
 }
 
 /* Cards: rounded, lifted, and they react to the pointer. The shadows are kept this small (1-3px, 8-12% black) so a
-   card sits on the surface instead of floating over it; only the border and a 1px lift mark the hover. */
+   card sits on the surface instead of floating over it; only the border marks the hover. */
 .card {
   @apply rounded-xl;
   box-shadow: 0 1px 2px color-mix(in srgb, black 8%, transparent);
@@ -2171,7 +2171,6 @@ aside[aria-label] {
 article.card:hover {
   border-color: color-mix(in srgb, var(--c-accent) 55%, var(--c-border));
   box-shadow: 0 1px 3px color-mix(in srgb, black 12%, transparent);
-  transform: translateY(-1px);
 }
 .card-title {
   @apply text-[11px] tracking-[0.06em] uppercase;
@@ -2218,7 +2217,6 @@ article.card:hover {
   border-color: color-mix(in srgb, var(--c-accent) 60%, var(--c-border));
   background: color-mix(in srgb, var(--c-accent) 8%, var(--c-surface));
   box-shadow: 0 1px 3px color-mix(in srgb, black 12%, transparent);
-  transform: translateY(-1px);
 }
 
 /* Slim scrollbars. */
@@ -2229,7 +2227,6 @@ article.card:hover {
 
 @media (prefers-reduced-motion: reduce) {
   .btn-primary:hover:not(:disabled),
-  article.card:hover,
   .launcher-grid .menu-item:hover {
     transform: none;
   }
