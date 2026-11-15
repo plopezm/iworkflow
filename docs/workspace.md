@@ -23,7 +23,7 @@ Each workspace has its own **board**: a canvas of task nodes joined by arrows (`
 ## Task lifecycle
 
 <p align="center">
-  <img src="docs/media/task-review.gif" alt="iworkflow task review: launch an agent, follow it live, review its diff and merge it" width="800" />
+  <img src="media/task-review.gif" alt="iworkflow task review: launch an agent, follow it live, review its diff and merge it" width="800" />
   <br />
   <sub>One task end to end: launch, follow the agent live, review the diff, merge.</sub>
 </p>
@@ -46,6 +46,10 @@ starting → running ⇄ idle → finishing → awaiting_review → merged
 
 ## Usage limits
 
+<p align="center">
+  <img src="media/usage-limits.gif" alt="The usage bar showing the five-hour and weekly windows of Claude and Codex with warn and critical colors" width="800" />
+</p>
+
 The app shows how much of your subscription limits you have consumed, so you know whether an agent is about to be throttled before launching more tasks.
 
 - A **usage bar** shows, per provider, the rolling five-hour window and the weekly (seven-day) window with their consumed percentage and renewal time. The color changes to *warn* from 70 % and *critical* from 90 %.
@@ -54,6 +58,10 @@ The app shows how much of your subscription limits you have consumed, so you kno
 - Reading Claude usage is optional and uses [`IWF_CLAUDE_CREDENTIALS`, `IWF_CLAUDE_USAGE_URL` and `IWF_CODEX_SESSIONS_DIR`](configuration.md#environment-variables).
 
 ## Task hooks
+
+<p align="center">
+  <img src="media/task-hooks.gif" alt="Creating a script hook, assigning it to a project event and seeing it run when a task starts" width="800" />
+</p>
 
 The **Hooks** tab (⚓) holds a library of actions that run **before or after a task starts or finishes**. Create a hook once and assign it to the projects it applies to.
 
