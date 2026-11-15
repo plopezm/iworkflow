@@ -36,7 +36,7 @@ async function registerWs(ctx, name, opts = {}) {
     execSync(`git init -q --bare '${bare}'`, { stdio: 'ignore' });
     execSync(`git -C '${dir}' config 'url.${bare}.pushInsteadOf' '${opts.origin}'`, { stdio: 'ignore' });
   }
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new'); // registration has its own tab
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');
