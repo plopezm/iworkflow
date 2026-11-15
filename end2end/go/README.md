@@ -67,11 +67,26 @@ The smokes in `end2end/*_smoke.cjs` run one by one with `IWF_E2E_SCRIPTS`. The r
 `IWF_E2E_ENGRAM_URL`. The `engram` suite starts the fake on that port; every other suite sees Engram as not available,
 which is what they would see with the default address.
 
-- `redesign.e2e.cjs`: Ctrl+K palette, PWA head (manifest and icons), sidebar header and current page, board of a
+- `redesign.e2e.cjs`: PWA head (manifest and icons), sidebar header and current page, board of a
   workspace with two seeded tasks, status badges. Run it alone with `end2end/go/run_go.sh redesign`.
 - `engram.e2e.cjs`: the Engram chip of the Workspaces screen and the collapsed Memory panel of a task, against the
   fake. The fake records every request, and the suite checks that only GET reached it. Run it alone with
   `end2end/go/run_go.sh engram`. Its tests run in order: the last one stops the fake.
+
+## Usage bar (usage_limits)
+
+`end2end/go/usage_limits.e2e.cjs` covers the usage bar in the sidebar footer. Run it alone with
+`end2end/go/run_go.sh usage_limits`.
+
+- `end2end/usage_mock.cjs`: fake Claude usage API on `USAGE_MOCK_PORT` (`GET /api/oauth/usage`, `/_health`). It
+  answers 401 unless the request carries `Authorization: Bearer <token>` and `anthropic-beta: oauth-2025-04-20`.
+  It returns Claude 13 % (5 h, resets in about 2 h 10 min) and 25 % (week, resets in 3 days).
+- The runner writes a fake `$WORK/home/.claude/.credentials.json` (mode 600) and a Codex rollout under
+  `$WORK/home/.codex/sessions/2026/11/15/rollout-e2e.jsonl` with 75 % (5 h) and 95 % (week). The server reads them
+  through `IWF_CLAUDE_CREDENTIALS`, `IWF_CLAUDE_USAGE_URL` (pointing at the mock) and `IWF_CODEX_SESSIONS_DIR`.
+- `SMOKE_SCREENSHOT_DIR` is set by the runner to `<run dir>/screenshots` (default `/tmp/iwf-e2e-screenshots` when
+  the suite runs without the runner). The suite saves `usage-bar.png` and `usage-sidebar-full.png` there and prints
+  their absolute paths.
 
 ## Node unit steps
 

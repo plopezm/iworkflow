@@ -28,6 +28,8 @@ const (
 	defaultModelsDir         = "models"
 	defaultASRModelName      = "sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25"
 	defaultGentlePiConfigDir = ".pi/gentle-ai"
+	defaultClaudeCredentials = ".claude/.credentials.json"
+	defaultCodexSessionsDir  = ".codex/sessions"
 )
 
 // ErrMissingHome is returned when neither HOME nor USERPROFILE is set.
@@ -63,6 +65,13 @@ type Config struct {
 	AgentsFilesDir string
 	// AttachmentsDir stores the images attached to tasks.
 	AttachmentsDir string
+	// ClaudeCredentialsPath is the file Claude Code keeps its OAuth login in (IWF_CLAUDE_CREDENTIALS); the usage bar
+	// reads the subscription token from it.
+	ClaudeCredentialsPath string
+	// ClaudeUsageURL overrides the Claude usage endpoint (IWF_CLAUDE_USAGE_URL); empty keeps the real one.
+	ClaudeUsageURL string
+	// CodexSessionsDir is the folder of the Codex session rollouts (IWF_CODEX_SESSIONS_DIR).
+	CodexSessionsDir string
 	// ASRModelDir is the folder of the pre-converted Qwen3-ASR model that transcribes the recorded prompts.
 	ASRModelDir string
 }
@@ -120,6 +129,10 @@ func FromEnv(getenv func(string) string) (Config, error) {
 		AgentsFilesDir:     filepath.Join(dataDir, defaultAgentsFilesDir),
 		AttachmentsDir:     filepath.Join(dataDir, defaultAttachmentsDir),
 		ASRModelDir:        filepath.Join(dataDir, defaultModelsDir, defaultASRModelName),
+
+		ClaudeCredentialsPath: valueOr(getenv("IWF_CLAUDE_CREDENTIALS"), filepath.Join(home, defaultClaudeCredentials)),
+		ClaudeUsageURL:        strings.TrimSpace(getenv("IWF_CLAUDE_USAGE_URL")),
+		CodexSessionsDir:      valueOr(getenv("IWF_CODEX_SESSIONS_DIR"), filepath.Join(home, defaultCodexSessionsDir)),
 	}, nil
 }
 

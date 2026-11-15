@@ -10,6 +10,8 @@
 #   IWF_E2E_SCRIPTS="end2end/dock_smoke.cjs end2end/tab_state_smoke.cjs" end2end/go/run_go.sh
 #                                              # standalone smoke scripts, one after another
 #   IWF_E2E_UNIT=1 end2end/go/run_go.sh        # also run the Node unit steps first (no server needed)
+#   end2end/go/run_go.sh usage_limits          # usage bar e2e: fake Claude OAuth usage API + fake Codex rollout;
+#                                              # screenshots land in $RUN_DIR/screenshots (SMOKE_SCREENSHOT_DIR)
 #
 # The standalone scripts load end2end/go/lang_shim.cjs, which sets the language cookie they do not set.
 # Every run keeps its server log, mock logs and runner output under RUN_DIR (printed at the end).
@@ -18,6 +20,7 @@
 #   PLAYWRIGHT_BROWSERS_PATH=/path/to/browsers           (defaults to ~/.cache/ms-playwright)
 #   SMOKE_CHROMIUM_PATH=/path/to/chrome                  (optional)
 #   IWF_E2E_RUN_DIR=/path/to/run-dir                     (optional; default /tmp/iwf-e2e-go-runs/<stamp>-<pid>)
+#   SMOKE_SCREENSHOT_DIR                                 (set by the runner to $RUN_DIR/screenshots)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -31,8 +34,8 @@ mkdir -p "$RUN_DIR"
 # copied before the removal so a failing run still leaves its evidence behind.
 finish() {
   local status=$?
-  kill "${SERVER_PID:-}" "${MOCK_PID:-}" "${GITLAB_PID:-}" 2>/dev/null || true
-  wait "${SERVER_PID:-}" "${MOCK_PID:-}" "${GITLAB_PID:-}" 2>/dev/null || true
+  kill "${SERVER_PID:-}" "${MOCK_PID:-}" "${GITLAB_PID:-}" "${USAGE_PID:-}" 2>/dev/null || true
+  wait "${SERVER_PID:-}" "${MOCK_PID:-}" "${GITLAB_PID:-}" "${USAGE_PID:-}" 2>/dev/null || true
   mkdir -p "$RUN_DIR"
   cp "$WORK"/*.log "$RUN_DIR"/ 2>/dev/null || true
   rm -rf "$WORK"
@@ -88,6 +91,40 @@ mkdir -p "$IWF_HOME_DIR/models"
 
 # Isolated home: gentle-pi config, pi agents and the database live under $WORK.
 mkdir -p "$WORK/home/.config/gentle-pi" "$WORK/tmp"
+# Fake subscription logins for the usage bar: a Claude OAuth credentials file (read by the usage mock, which accepts
+# any token) and one Codex rollout whose rate_limits give the bar its warn (75 %) and critical (95 %) levels.
+python3 -I - "$WORK/home" <<'PY'
+import datetime
+import json
+import os
+import pathlib
+import sys
+
+home = pathlib.Path(sys.argv[1])
+creds_dir = home / ".claude"
+creds_dir.mkdir(parents=True, exist_ok=True)
+creds = creds_dir / ".credentials.json"
+creds.write_text(json.dumps({"claudeAiOauth": {"accessToken": "e2e-fake-token"}}), encoding="utf-8")
+os.chmod(creds, 0o600)
+
+sessions = home / ".codex" / "sessions" / "2026" / "11" / "15"
+sessions.mkdir(parents=True, exist_ok=True)
+now = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+event = {
+    "timestamp": now,
+    "type": "event_msg",
+    "payload": {
+        "type": "token_count",
+        "info": None,
+        "rate_limits": {
+            "primary": {"used_percent": 75.0, "window_minutes": 300, "resets_in_seconds": 1800},
+            "secondary": {"used_percent": 95.0, "window_minutes": 10080, "resets_in_seconds": 86400},
+        },
+    },
+}
+# Compact separators: the Codex facade looks for the literal '"rate_limits":{', as Codex writes it.
+(sessions / "rollout-e2e.jsonl").write_text(json.dumps(event, separators=(",", ":")) + "\n", encoding="utf-8")
+PY
 # Seed one active profile and the global routing from the fixture, so the profile screens have data.
 python3 -I - "$ROOT/tests/fixtures/gentle_pi_profile.export.json" "$WORK/home/.config/gentle-pi" <<'PY'
 import json
@@ -115,6 +152,8 @@ GITLAB_MOCK_PORT="$(free_port)"
 # Fake Engram API: the server reads it through IWF_ENGRAM_URL (env -i drops every other variable). The engram
 # suite starts the fake on this port; the other suites see it as unavailable, as they would see the default.
 ENGRAM_PORT="$(free_port)"
+# Fake Claude usage API (usage_mock.cjs) for the usage bar; the server reads it through IWF_CLAUDE_USAGE_URL.
+USAGE_MOCK_PORT="$(free_port)"
 
 # Server: started from the scratch dir, since the fake agents write to their cwd. exec makes the
 # server the background process itself, so the trap stops it. stdout and stderr both go to server.log.
@@ -125,6 +164,9 @@ ENGRAM_PORT="$(free_port)"
     GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
     IWF_HOME="$IWF_HOME_DIR" \
     IWF_ENGRAM_URL="http://127.0.0.1:$ENGRAM_PORT" \
+    IWF_CLAUDE_CREDENTIALS="$WORK/home/.claude/.credentials.json" \
+    IWF_CLAUDE_USAGE_URL="http://127.0.0.1:$USAGE_MOCK_PORT/api/oauth/usage" \
+    IWF_CODEX_SESSIONS_DIR="$WORK/home/.codex/sessions" \
     IWF_GENTLE_PI_CONFIG_HOME="$WORK/home/.config/gentle-pi" \
     IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
     IWF_LOG_LEVEL=debug \
@@ -145,9 +187,12 @@ JIRA_MOCK_PORT="$JIRA_MOCK_PORT" node end2end/jira_mock.cjs > "$WORK/jira_mock.l
 MOCK_PID=$!
 GITLAB_MOCK_PORT="$GITLAB_MOCK_PORT" node end2end/gitlab_mock.cjs > "$WORK/gitlab_mock.log" 2>&1 &
 GITLAB_PID=$!
+USAGE_MOCK_PORT="$USAGE_MOCK_PORT" node end2end/usage_mock.cjs > "$WORK/usage_mock.log" 2>&1 &
+USAGE_PID=$!
 for _ in $(seq 1 25); do
   curl -fs "http://127.0.0.1:$JIRA_MOCK_PORT/_health" > /dev/null && \
-    curl -fs "http://127.0.0.1:$GITLAB_MOCK_PORT/_health" > /dev/null && break
+    curl -fs "http://127.0.0.1:$GITLAB_MOCK_PORT/_health" > /dev/null && \
+    curl -fs "http://127.0.0.1:$USAGE_MOCK_PORT/_health" > /dev/null && break
   sleep 0.1
 done
 
@@ -159,6 +204,9 @@ export JIRA_MOCK_URL="http://127.0.0.1:$JIRA_MOCK_PORT" JIRA_MOCK_PORT
 export GITLAB_MOCK_URL="http://127.0.0.1:$GITLAB_MOCK_PORT" GITLAB_MOCK_PORT
 export REPO_GIT_CHANGES REPO_TAB_STATE REPO_BG_JOBS REPO_TERMINAL
 export IWF_E2E_TARGET=go IWF_ASR_MODEL_DIR="$ASR_MODEL_DIR"
+# Screenshots of the suites that take them (usage_limits): kept with the run logs.
+export SMOKE_SCREENSHOT_DIR="$RUN_DIR/screenshots"
+mkdir -p "$SMOKE_SCREENSHOT_DIR"
 export IWF_E2E_ENGRAM_URL="http://127.0.0.1:$ENGRAM_PORT"
 
 # The test processes see the isolated HOME: workspaces.e2e.cjs browses under the process HOME, which
