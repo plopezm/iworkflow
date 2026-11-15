@@ -2,7 +2,7 @@
 
 > 🇪🇸 Versión en castellano: [ARCHITECTURE.es.md](ARCHITECTURE.es.md)
 
-A map of the iworkflow code: where things live, how they are wired and how to add to them. Product behaviour is in [README.md](README.md); coding and process rules are in [AGENTS.md](AGENTS.md). File paths are relative to the repository root and diagrams use [Mermaid](https://mermaid.js.org/).
+A map of the iworkflow code: where things live, how they are wired and how to add to them. Product behaviour is in [README.md](README.md) and the pages under [docs/](docs/getting-started.md) (workspace and lifecycle, integrations, configuration, production, desktop, mobile); coding and process rules are in [AGENTS.md](AGENTS.md). File paths are relative to the repository root and diagrams use [Mermaid](https://mermaid.js.org/).
 
 ## Contents
 
@@ -39,14 +39,15 @@ internal/
   app/                  composition of all modules, router, shell, cross-module bridges
   core/                 transversal code; never imports internal/modules
   modules/<feature>/    one vertical slice per feature (section 3)
+docs/                   user documentation (docs/*.md, docs/es/*.md) and the GIFs of the README (docs/media/)
 web/                    tailwind.css and static assets (web/static/: compiled CSS, JS)
 electron/               desktop shell and Windows/macOS/Linux installers
 tests/modules/<f>/      integration tests per module (temporary SQLite)
 end2end/                Playwright suites; end2end/go/run_go.sh runs them against the Go server
-scripts/                packaging helpers (stage_server.sh, copy_sherpa_libs.sh)
+scripts/                packaging helpers (stage_server.sh, copy_sherpa_libs.sh) and the documentation GIF recorder (see docs/media/README.md)
 ```
 
-The `migrations/` folder at the root is a leftover of the Rust version (Diesel layout) and is not used by the Go server; the live migrations are in `internal/core/db/migrations/`.
+The migrations live in `internal/core/db/migrations/` (embedded in the binary).
 
 ## 3. Architecture rules
 
@@ -103,7 +104,8 @@ There is no global state and no DI framework: dependencies travel through constr
 - **Use cases** (`application`): one file each, e.g. `create_task`, `finish_task`, `discard_task`, `add_task_dependency`, `get_task_graph`, `prune_merged_tasks`.
 - **Inbound** (`infrastructure/adapters/inbound`): handlers per resource (board, detail, diff, form, composer, files, graph, subagents), `sse.go` for the live stream and `dto/`.
 - **Outbound** (`infrastructure/adapters/outbound`): `persistence` (sqlc), `git` (worktrees and merge), `runtime/{pi,claude,cursor,agy}`, `events`, `files`, `storage`, `probe`.
-- **Background** (`infrastructure/background`): loops that start tasks whose predecessors are merged, resume interrupted tasks and prune merged ones.
+- **Background** (`infrastructure/background`): loops that start tasks whose predecessors are merged, resume interrupted tasks and tasks stopped by a usage limit (`rate_limited`, resumed when the window renews), and prune merged ones. `internal/app/tasks_loops.go` owns their goroutines.
+- **Lifecycle hooks** (`application/lifecycle_hooks.go`): before and after a task starts or finishes, the lifecycle asks a `task_hooks` port for the hooks to run; the bridge lives in `internal/app` (section 9).
 - **Presentation** (`presentation/{state,pages,components}`): templ pages for create, detail, diff and edit.
 
 Starting a task, end to end:
@@ -169,6 +171,10 @@ Each codec translates between the runtime's wire format and the domain `AgentCom
 | `preferences` | Language, network access, port, access token, restart request. |
 | `open_with` | External launchers and executable picker. |
 | `transcription` | Voice dictation with sherpa-onnx (Qwen3-ASR). |
+| `task_hooks` | Library of hooks (script or agent) assigned per project to `task_start` / `task_finish`, pre or post, with a failure policy (`block`, `warn`, `ignore`), a test run and a run history. Agent hooks run as an ephemeral agent session (no task row, no graph node) through the bridges in `internal/app/task_hooks_*_bridge.go`, which connect it to the tasks module without importing it. |
+| `usage_limits` | Usage bar: five-hour and weekly windows of the Claude subscription (OAuth credentials + usage endpoint) and of Codex (newest session rollout file, no network). A cache serves the last good reading as stale when a provider fails. |
+| `engram` | Read-only client of the local Engram HTTP API (`IWF_ENGRAM_URL`): memory counts per workspace and recent memories per task. Off when the variable is unset. |
+| `data_home` | Settings card that requests moving the data folder; the move itself runs at startup (see below). |
 
 | `internal/core` package | Purpose |
 |---|---|
@@ -191,7 +197,7 @@ The data folder is resolved by `config.DataDir`: `IWF_HOME` first, then the poin
 | `tls/` | Self-signed certificate (`IWF_TLS=auto`) |
 | `logs/` | `iworkflow.log`, rotated and gzip-compressed |
 
-Other variables: the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`, `IWF_AGY_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in the README. On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
+Other variables: the usage bar sources (`IWF_CLAUDE_CREDENTIALS`, `IWF_CLAUDE_USAGE_URL`, `IWF_CODEX_SESSIONS_DIR`), `IWF_ENGRAM_URL`, the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`, `IWF_AGY_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in [docs/configuration.md](docs/configuration.md). On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
 
 ### Moving the data folder
 

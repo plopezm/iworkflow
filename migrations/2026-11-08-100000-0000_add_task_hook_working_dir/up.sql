@@ -1,1 +1,0 @@
-ALTER TABLE task_hooks ADD COLUMN working_dir TEXT NOT NULL DEFAULT '';

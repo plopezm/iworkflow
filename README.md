@@ -10,7 +10,7 @@
   <sub>Chain tasks on a board; when one is merged, the tasks that depend on it start on their own.</sub>
 </p>
 
-> **Status:** early and actively developed. It runs on your own machine, has no user accounts (only an optional access token for network access) and is source-available (PolyForm Shield 1.0.0), not OSI open source. See [Quick start](#quick-start) and [License](#license).
+> **Status:** early and actively developed. It runs on your own machine, has no user accounts (only an optional access token for network access) and is source-available (PolyForm Shield 1.0.0), not OSI open source. See [License](#license).
 
 ## Highlights
 
@@ -18,49 +18,16 @@
 - **Isolated by design**: every task gets its own **git worktree**, so agents never overwrite each other.
 - **Review, don't redo**: when an agent finishes you read its diff and either merge it (`merge --no-ff`) or discard it.
 - **Task graph**: chain tasks on a board; a task starts by itself once its predecessors are merged.
-- **Integrated**: GitLab / GitHub (MR/PR and CI status) and Jira Server / Data Center.
+- **Usage limits at a glance**: a usage bar shows your Claude and Codex five-hour and weekly windows, and tasks stopped by a limit resume when it renews.
+- **Task hooks**: run scripts or agent prompts before or after a task starts or finishes, per project.
+- **Integrated**: GitLab / GitHub (MR/PR and CI status), Jira Server / Data Center and Engram memory.
 - **Mobile-first**: check progress, answer an agent's question and merge from your phone (through Tailscale).
-- **Tabbed IDE-like workspace**: board, task, diff, terminal and file editor as draggable, splittable tabs.
+- **Tabbed IDE-like workspace**: board, task, diff, terminal and file editor as draggable, splittable tabs, plus voice dictation for prompts.
+- **Desktop app**: an Electron installer for Linux, macOS and Windows wraps the same server.
 
-iworkflow imposes no workflow: each agent uses the configuration and plugins you already have installed, plus the project's `AGENTS.md`. Under the hood agents are driven over RPC (or ACP / stream-json, depending on the runtime). It is built with Go (`net/http` + `chi`), SSR with `templ` and `htmx`, Tailwind CSS, `sqlc` and SQLite (`modernc.org/sqlite`).
-
-## Index
-
-- [Designed for mobile](#designed-for-mobile)
-- [Quick start](#quick-start)
-- [Tabbed workspace](#tabbed-workspace)
-- [Workspace board](#workspace-board)
-- [Task lifecycle](#task-lifecycle)
-- [GitLab and GitHub integration](#gitlab-and-github-integration)
-- [Jira integration (Server / Data Center)](#jira-integration-server--data-center)
-- [Agent profiles and models](#agent-profiles-and-models)
-- [Configuration](#configuration)
-  - [Logging](#logging)
-  - [Voice dictation](#voice-dictation)
-  - [HTTPS](#https)
-  - [Agent runtimes](#agent-runtimes)
-  - [Executable arguments](#executable-arguments)
-  - [Access from other devices](#access-from-other-devices)
-- [Production](#production)
-- [Desktop app (Electron)](#desktop-app-electron)
-- [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale)
-- [Development](#development)
-- [License](#license)
-- [Support the project](#support-the-project)
-
-## Designed for mobile
-
-iworkflow is built **mobile-first**. Since your job is to launch, follow and review agents (not to type code), it works well from a phone:
-
-- The UI is responsive: on small screens the side menu becomes a drawer opened from a top bar, and the tabbed workspace adapts to the viewport.
-- The agent keeps running on your machine while you are away. From the phone you check progress, answer agent questions, send a message, review the diff and merge or discard.
-- On iOS (Safari → Share → *Add to Home Screen*) and Android (Chrome → menu → *Add to Home screen*) you can pin it as a shortcut. It ships a web app manifest and icons, so it installs as a standalone full-screen app (Chrome and Edge also offer *Install* in the address bar). There is no service worker: the app needs the server running and shows no offline copy.
-
-The server runs on your computer and the phone is only a browser, so you need a secure way to reach it: see [Developing from your phone with Tailscale](#developing-from-your-phone-with-tailscale).
+iworkflow imposes no workflow: each agent uses the configuration and plugins you already have installed, plus the project's `AGENTS.md`. Under the hood agents are driven over RPC (or ACP / stream-json, depending on the runtime). It is built with Go (`net/http` + `chi`), SSR with `templ` and `htmx`, Tailwind CSS, `sqlc` and SQLite.
 
 ## Quick start
-
-Requirements: `git`, Go (the version in `go.mod`), `templ`, `tailwindcss` and at least one agent CLI installed and logged in (`gentle-shell`, `pi`, `claude`, `agent` for Cursor, or `agy` for Antigravity).
 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
@@ -68,38 +35,9 @@ cd iworkflow
 make dev                    # http://127.0.0.1:3000
 ```
 
-1. **Workspaces** → register a folder with git (it needs at least one commit).
-2. **Tasks** → pick a workspace, write the prompt and launch.
-3. In the task detail you follow the agent live and can:
-   - send messages (a prompt if it is waiting; *steer* or *follow-up* if it is working),
-   - answer agent dialogs (`ask_user_question`, confirmations…),
-   - abort the current run.
-4. **Finish and review** → closes the agent, commits whatever is pending and shows the diff.
-5. **Merge** (integrates with `--no-ff` and deletes the worktree) or **Discard**.
+You need `git`, Go, `templ`, `tailwindcss` and at least one agent CLI installed and logged in. Then register a workspace, write a prompt, follow the agent live, review the diff and merge. The full walkthrough is in [Getting started](docs/getting-started.md).
 
-> **Security:** iworkflow is protected only by an optional access token and launches agents that run commands as your user. Do not expose it to untrusted networks; see [Production](#production) and [Tailscale](#developing-from-your-phone-with-tailscale). Development listens on `127.0.0.1:3000`; the production script on `0.0.0.0:9000`.
-
-## Tabbed workspace
-
-The interface is an IDE-like workspace: every screen (board, task, diff, terminal, settings, files…) opens as a **tab** inside groups you can split by dragging. Tabs can be reordered by dragging them within their bar, moved to another group or dropped into a new split.
-
-- **File explorer and editor** (with syntax highlighting) over a workspace or over a task's worktree. In the task panel: **Review → Explore files**.
-- Modified, added, untracked, deleted or conflicted files and folders are colored according to `git status`.
-- While you edit, the left gutter marks added, modified and deleted lines against `HEAD` (as in VS Code).
-- When **editing a task**, the CPU and memory limits live under *Advanced options*.
-- **Related projects:** the create and edit task screens list the other workspaces under *Related projects*. A task keeps the ones you tick; when its agent starts it is told their paths and not to modify them, may read their files, and, when present, query each project's codegraph (`.codegraph/`) and its engram memory (only if `engram` is installed). Claude also gets the folders through `--add-dir`, and its edit tools (`Edit`, `Write`, `NotebookEdit`) are denied inside them. Shell commands are not sandboxed, so this is not a hard guarantee. Typing `@` in the prompt completes files of the current project and of the ticked ones, written as `@<project>:<path>` (spaces in the project name become dashes).
-
-## Workspace board
-
-Each workspace has its own **board**: a canvas of task nodes joined by arrows (`/board/<workspace>`; `/` opens the first workspace by name). Clicking a workspace in the sidebar opens its board, and the workspace chips at the top of the board switch between workspaces. The sidebar item menu keeps **View files** (the project tree), **Open terminal** and **Manage workspaces**.
-
-- **Dependency graph:** drag from a node's right port onto another task to make it wait for the first one. Select an arrow to delete it. Self-references, duplicates, cycles, arrows across workspaces and arrows into a task that is no longer in *To do* are rejected with a message.
-- **Merge trigger:** a task with predecessors starts on its own, on its configured base branch, once **all** of them are `merged`. A *To do* task without predecessors is started manually with **Start**. Arrows are drawn muted while the predecessor is pending, with a flowing dashed line while it works, and solid green once it is merged. (Edge conditions are not implemented yet; the model leaves room for them.)
-- **Nested and parallel tasks:** *Add next task* creates a task that depends on the selected one; *Add parallel task* creates one with the same predecessors. Both are created in *To do*.
-- **Canvas:** drag the background to pan, use the wheel to zoom and **Fit view** to frame everything. Node positions are saved; tasks without a saved position are laid out automatically in layers.
-- **Loose tasks panel:** on the left, tasks with no arrows and no saved position (every task made with *New task* starts here) are listed with their usual actions (Start, Edit, Delete, Open, Merge…), so they can run standalone without any chain. Drag a card onto the canvas, or press **Add to graph**, to make it a node; *Add next / parallel task* tasks go straight into the graph. **Remove from graph** on a node deletes all its arrows and saved position (atomically) and sends it back to this panel; successors left without predecessors become ordinary standalone tasks. The panel is collapsible and counts its tasks; on screens under 768 px it becomes a **Loose (N) / Graph** tab switch.
-
-## Task lifecycle
+> **Security:** iworkflow is protected only by an optional access token and launches agents that run commands as your user. Do not expose it to untrusted networks.
 
 <p align="center">
   <img src="docs/media/task-review.gif" alt="iworkflow task review: launch an agent, follow it live, review its diff and merge it" width="800" />
@@ -107,320 +45,20 @@ Each workspace has its own **board**: a canvas of task nodes joined by arrows (`
   <sub>One task end to end: launch, follow the agent live, review the diff, merge.</sub>
 </p>
 
-```text
-starting → running ⇄ idle → finishing → awaiting_review → merged
-                                              │               ↘ discarded
-                                              ↓
-              conflict · failed · interrupted ── Resume (gentle-shell --continue)
-```
+## Learn more
 
-| Situation | What the app does |
+| Topic | What you will find |
 |---|---|
-| Conflict while integrating | `merge --abort`; the task moves to `conflict` and keeps its worktree. Resume the agent to resolve it. |
-| Base branch with uncommitted changes | Rejects the merge without touching anything. |
-| Base branch not checked out | Integrates in a temporary worktree. |
-| Server restart | Active tasks move to `interrupted`; they can be resumed. |
-
-## GitLab and GitHub integration
-
-From each task you can create a merge request (GitLab) or pull request (GitHub), watch its CI and merge it. A workspace can be a repository on either: the provider is detected from the host of the `origin` remote and that provider's configuration is applied.
-
-1. **Settings** has one card per provider.
-   - **GitLab**: your instance URL (e.g. `https://gitlab.mycompany.local`) and a personal token with the `api` scope.
-   - **GitHub**: `https://github.com` (proposed by default) or your GitHub Enterprise URL, and a personal token (`repo` scope; fine-grained: Pull requests and Contents read/write, Actions read).
-   Use "Test connection" to validate them. If your certificate comes from an internal CA or is self-signed, tick "Accept untrusted TLS certificate".
-2. The project is derived from the `origin` remote (https, ssh or scp). Its host must match the URL of a configured provider; if it matches none you are warned, and if it is github.com and GitHub is not configured you are asked to configure it. On GitHub the repository is `owner/repository`.
-3. In the task panel, **PR / MR** tab: create the MR/PR (task branch → base branch), see its status and the latest pipeline (GitLab) or workflow (GitHub) with its jobs, and **Merge** (asks for confirmation).
-
-Notes:
-- Creating the MR/PR publishes the task branch to `origin` with `git push` if it is not there yet. The push goes to `<provider URL>/<project>.git` over HTTPS and authenticates with the token configured here (HTTP Basic, user `x-access-token` on GitHub and `oauth2` on GitLab), so it works even if `origin` is an SSH remote and needs no git credentials of your own. The token is handed to git through the process environment (never the command line), only for that instance, and any credential helper is ignored.
-- The target is the task's base branch **as named on the server**: a remote reference such as `origin/develop` is sent as `develop`. If that branch is not on `origin`, or it is the task's own branch, creation is rejected with an explicit message instead of the provider's raw error.
-- The token is stored in clear text in the local database (`workspaces.db` in the data folder) and is never sent to the browser. Leaving it empty when editing keeps the stored one, unless you change the URL: then it has to be entered again, so it is not sent to a different server.
-- HTTP redirects are disabled so the token does not leak to another host.
-
-## Jira integration (Server / Data Center)
-
-The **Jira** tab connects to an on-premise Jira using the server URL and a personal access token (PAT, `Authorization: Bearer`, REST API v2). On save, the connection is validated against Jira; the token is stored in the local database and never returns to the browser (leaving it empty when editing keeps the stored one).
-
-- **Import**: "Sync" fetches the issues matching the connection's JQL (default `assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC`, at most 500). The local state (new / converted / ignored) is preserved across syncs; new issues Jira no longer returns are removed.
-- **Manage**: list with search and filters, detail with description and comments, and writing back to Jira: change the status (workflow transitions) and comment. Ignore/restore is local only.
-- **Convert**: the "Convert to task" button opens a form with the title, prompt and priority proposed from the Jira issue (priority is mapped from the Jira name); you choose the workspace and base branch, edit whatever you want and the task is created (optionally started). The Jira issue is marked as converted and linked.
-- If the server uses a self-signed certificate or one from an internal CA the system does not know, tick "Accept unverified certificate" in the connection.
-
-## Agent profiles and models
-
-This feature is the integration with [Gentle AI](https://github.com/Gentleman-Programming/gentle-ai), the agent harness behind `gentle-shell` and its gentle-pi package. Profiles and per-agent model routing are Gentle AI concepts: iworkflow does not define its own, it reads and writes the same configuration files (`profiles.json`, `models.json`), so changes made here are seen by the Gentle AI TUI and vice versa. Install and configure Gentle AI first; without it these screens have nothing to manage.
-
-Two screens equivalent to the gentle-pi commands, working on the same files:
-
-| Screen | Equivalent to | What it does |
-|---|---|---|
-| `/profiles` | `/gentle:profiles` | Create, duplicate, rename, delete, import and export profiles (`profiles.json`), edit model and effort per agent and create new agent roles. |
-| `/models` | `/gentle:models` | Edit the global routing (`models.json`): model and effort per agent. |
-
-Profiles are chosen in the agent settings dropdown, which reads the same `profiles.json`. These screens do not activate a profile globally; they only manage them. The write lock prevents clobbering within one process, not against another process (e.g. the gentle-pi TUI) editing at the same time.
-
-## Configuration
-
-Environment variables (`.env` is supported, see `.env.example`):
-
-| Variable | Default |
-|---|---|
-| `IWF_HOME` | `~/.iworkflow`. Data folder; everything below is derived from it and cannot be set separately: `workspaces.db` (SQLite, automatic migrations), `worktrees/`, `attachments/` (images attached to tasks; deleted when the task ends), `agents-files/` (`AGENTS.md` library), `cursor-sessions/` and `agy-sessions/` (each task's ACP session id, to resume it), `models/` (speech model for voice dictation; `make model` downloads it), `tls/` and `logs/` |
-| `IWF_GENTLE_SHELL_BIN` | `gentle-shell` (launched as `--mode rpc` with `GENTLE_SHELL_INTERACTIVE_HOST=1`) |
-| `IWF_PI_BIN` | `pi` (`pi` runtime, launched as `--mode rpc`) |
-| `IWF_CLAUDE_BIN` | `claude` (`claude` runtime: Claude Code with `-p` and the stream-json protocol; chosen in the runtime selector of the side menu; accepts file edits, asks for confirmation for the rest and reads the project's `AGENTS.md`) |
-| `IWF_CURSOR_BIN` | `agent` (`cursor` runtime: Cursor CLI in ACP server mode, `agent acp`; requires having signed in with `agent login`) |
-| `IWF_AGY_BIN` | `agy` (`agy` runtime: Antigravity CLI in ACP server mode, `agy acp`) |
-| `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contains `profiles.json` and `models.json`) |
-| `IWF_TLS` | unset (plain HTTP). `auto` serves HTTPS with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)) |
-| `IWF_TLS_PORT` | HTTP port + 443 (HTTPS listener port when TLS is on) |
-| `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key; set both or neither. They win over `IWF_TLS=auto` |
-| `IWF_ENGRAM_URL` | unset: off. Base URL of the local Engram HTTP API, for example `http://127.0.0.1:7437`. When set to a valid http or https URL, it turns on the Engram memory of each workspace (see [Engram memory](#engram-memory)). An invalid value keeps it off and logs one warning at startup |
-
-### Engram memory
-
-Off by default. With `IWF_ENGRAM_URL=http://127.0.0.1:7437` (or the address of your Engram), iworkflow shows, for each workspace, how many memories Engram keeps for its project (the chip on Workspaces), and, on each task, the type, title and date of its five most recent memories (the Memory panel). The access is read-only: iworkflow only sends `GET` requests (`/projects` and `/observations/recent`) and never saves, edits or deletes memories. The content of a memory is never shown, only its type, title and date. When Engram does not answer, the screens say it is not available and keep working. Without the variable, or with an invalid URL, the feature is off and iworkflow sends no request to Engram.
-
-Moving the data folder: open **Settings → Resources**, type the new absolute folder in the **Data folder** card and press *Move folder*. The server restarts, copies everything (database, worktrees, attachments, models...), checks the copy, repoints the stored paths and the git worktrees, switches to the new folder and only then deletes the old one. It refuses while a task is starting, running or finishing (note: Claude and pi resume a conversation by folder, so tasks that already started begin a new conversation after the move; Cursor and agy tasks keep theirs), and if the new folder is not empty, not writable, nested with the old one or too small. If anything fails the old folder stays untouched and in use, and the card shows why. The choice is stored in a one-line pointer file in the per-user configuration folder (`~/.config/iworkflow/data-home` on Linux, `~/Library/Application Support/iworkflow/data-home` on macOS, `%APPDATA%\iworkflow\data-home` on Windows), outside the data folder, so updates and reinstalls keep it. `IWF_HOME` (environment or `.env`) wins over the pointer; while it is set the card is read-only. Alternatively set `IWF_HOME` yourself (on Windows the installer asks for it and stores it as a user environment variable) after copying the old `~/.iworkflow` there. On Windows the home directory is taken from `USERPROFILE` when `HOME` is missing.
-
-### Logging
-
-The server writes to stderr and, at the same time, to `$IWF_HOME/logs/iworkflow.log` (default `~/.iworkflow/logs/iworkflow.log`). The file location is fixed; these variables tune it:
-
-| Variable | Default | Effect |
-|---|---|---|
-| `IWF_LOG_LEVEL` | `info` | `debug` also logs every HTTP request and extra detail; any other value keeps `info`. |
-| `IWF_LOG_MAX_MB` | `10` | Size in MB at which the log file is rotated. A value below 1 or not a number falls back to the default. |
-| `IWF_LOG_BACKUPS` | `5` | Rotated files kept, gzip-compressed; older ones are deleted. Same fallback as above. |
-
-The startup line with the access link contains the token, so treat the log as sensitive.
-
-### Voice dictation
-
-The prompt field of the create and edit task forms has a microphone button. Record, listen to the recording, confirm it and the server transcribes it with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) and the Qwen3-ASR 0.6B model; the text is appended to the prompt as a new paragraph. The browser needs a secure origin (HTTPS or `localhost`) to open the microphone, and recordings are limited to 60 seconds.
-
-1. `make model` downloads the pre-converted model (about 840 MB) into `$IWF_HOME/models/` (default `~/.iworkflow/models/`) and verifies it against the sha256 sums pinned in `asr-model.sha256`.
-2. The speech recognizer is the only cgo code in the project, behind the `sherpa` build tag. `make build`, `make dev` and `make dist` enable it (`GO_TAGS=sherpa`); `make build GO_TAGS=` gives a CGO-free binary where dictation answers "not available". `make dist` also copies the sherpa-onnx shared libraries of the current OS next to the binary (`lib/` on Linux and macOS, the same folder on Windows). Only one transcription runs at a time; a second request gets `429` and is retried by the user.
-
-### HTTPS
-
-Browsers expose the microphone (voice dictation) only in a secure context: `https://` or `localhost`. Over plain `http://` on the network the mic button reports that recording is not available. HTTPS is opt-in:
-
-```bash
-make dev-https                 # like make dev, over HTTPS
-make run-https                 # like make run, over HTTPS (after make dist)
-IWF_TLS=auto ./iworkflow       # any other way to start it
-```
-
-With `IWF_TLS=auto` the server creates a self-signed certificate on first use in `$IWF_HOME/tls/`, valid for `localhost`, `127.0.0.1` and the machine's network IP. It is reused until it nears expiry (30 days) or the IP changes, and then recreated at the next start. The browser warns about an untrusted certificate: accept it once per device. To use your own certificate, set `IWF_TLS_CERT` and `IWF_TLS_KEY`.
-
-With TLS on the server opens **two listeners** with the same app: HTTP on the usual port (the desktop app keeps using it) and HTTPS on the HTTP port plus 443 (`9000` → `9443`; override with `IWF_TLS_PORT`, 1024–65535). **Settings → Network access** shows the HTTPS link and QR code first, and plain HTTP (no microphone) as a collapsed option. `--addr` / `IWORKFLOW_ADDR` set the HTTP address only; HTTPS uses the same host.
-
-### Agent runtimes
-
-The runtime selector in the side menu supports `gentle-shell`, `pi`, `claude`, `cursor` and `agy`. The choice is fixed when each task starts.
-
-| Runtime | Binary | Capabilities |
-|---|---|---|
-| `gentle-shell` / `pi` | `IWF_GENTLE_SHELL_BIN` / `IWF_PI_BIN` | all (steer, follow-up, dialogs, resume, model, thinking, subagents) |
-| `claude` | `IWF_CLAUDE_BIN` | dialogs, resume, model and thinking |
-| `cursor` | `IWF_CURSOR_BIN` | dialogs, resume and model (the model list is obtained from the agent itself over ACP). File edits are accepted; everything else asks for confirmation |
-| `agy` | `IWF_AGY_BIN` | dialogs, resume, model (obtained over ACP) and thinking. File edits are accepted; everything else asks for confirmation |
-
-### Executable arguments
-
-On startup, `iworkflow` opens the web UI in the browser (`http://<host>:<port>` of the server; if it listens on `0.0.0.0`, `127.0.0.1` is used).
-
-| Argument | Effect |
-|---|---|
-| `--no-open` | Starts only the server, without opening the browser. |
-| `--addr HOST:PORT` | Listen address (also the `IWORKFLOW_ADDR` variable). Pins the address: the saved network settings are ignored. Default `127.0.0.1:3000` (`:9000` when packaged). |
-| `--site-root DIR` | Folder with the static assets. Default: `site/` next to the executable, else `web/static`. |
-| `-h`, `--help` | Shows the help. |
-
-Examples: `./iworkflow --no-open`, `make run ARGS=--no-open`, `make dev ARGS=--no-open`.
-
-In development (`make dev`) the server listens only on `127.0.0.1`.
-
-### Access from other devices
-
-By default the server listens only on `127.0.0.1` (this computer). To reach it from your phone, turn on **Settings → Network access** and restart the server: it then listens on `0.0.0.0` with the same port, and the card shows the address to open on the phone. The choice is stored in the database. The same card lets you change the **server port** (1024–65535, saved in the database and applied on the next start; a packaged server defaults to 9000). If `--addr` or `IWORKFLOW_ADDR` is set, it always wins and neither setting has an effect. The card shows a **QR code** and a selector with the machine's network interfaces (for example ethernet and Tailscale, each with its IP): pick the one your phone can reach and scan the code. With the token required, iworkflow opens already signed in; without it, the code just holds the plain address.
-
-Whenever the server is reachable from the network (this setting, or a non-loopback `--addr` such as the `0.0.0.0:9000` of `make dist` / `make run`) it demands an **access token** by default:
-
-- The QR code and the link on the card carry the token (`http://<ip>:<port>/?token=…`) and follow the selected interface. Opening it stores the token in a cookie and redirects to a clean URL, so it does not stay in the address bar or the history. Without the cookie, the server shows a login page where you can paste the token.
-- At startup the server logs that link, which is how you get it on a machine without a browser.
-- **Generate a new token** on the card invalidates the old one at once; devices using it must sign in again.
-- The requirement is optional: untick **Require the access token** (applies on the next start) to serve the network without it. Then anyone who can reach the port can run commands as your user, so use it only on a network you fully trust.
-- Loopback-only servers (the default) never ask for the token.
-- The startup log line with the link contains the token: treat the server logs as sensitive.
-- Writes (`POST`, etc.) that a browser labels with an `Origin` different from the `Host` it targeted are rejected with 403, so another website cannot change these settings through your browser. A reverse proxy must therefore forward the original `Host` header.
-
-The token is a shared secret over plain HTTP: on an untrusted network it can be sniffed. Prefer a private network such as Tailscale (see below).
-
-## Production
-
-Prerequisites: Go, GNU make, `templ`, `sqlc` and the Tailwind CSS CLI (the same ones as `make generate`).
-
-The Makefile builds and runs the app in release mode:
-
-```bash
-make dist     # 1. compile in release and package into dist/
-make run      # 2. start what is already packaged
-make prod     # both steps in a row (dist + run)
-```
-
-Typical flow: run `make dist` once (and again after every update), then `make run` whenever you want to start the server. `ARGS` is passed to the binary (e.g. `ARGS=--no-open`, see [Executable arguments](#executable-arguments)). The server listens on `http://0.0.0.0:9000` by default; change it with `SITE_ADDR`:
-
-```bash
-make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
-make dist DIST_DIR=/opt/iworkflow     # package somewhere else
-```
-
-`make dist` regenerates templ, sqlc and CSS, builds a stripped `iworkflow` binary and copies
-the static `site/` folder into `dist/`. Both are required.
-
-`make run` starts the binary with `--addr` and `--site-root` from the current directory, so the `.env` in that directory
-is applied too. Make variables:
-
-| Variable | Default |
-|---|---|
-| `DIST_DIR` | `dist/` at the repo root |
-| `SITE_ADDR` | `0.0.0.0:9000` (all interfaces) |
-| `ARGS` | none (flags for the binary) |
-
-> **Security:** the app launches agents that run commands as your user. Its only
-> protection is the access token (see [Access from other devices](#access-from-other-devices)),
-> which is demanded whenever the bind is not loopback unless you switch it off, and it travels
-> over plain HTTP. Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
-> reverse proxy with TLS. To limit it to the local machine:
-> `make run SITE_ADDR=127.0.0.1:3000`.
-
-To deploy on another machine, just copy `dist/` and launch it with
-`./iworkflow --addr 0.0.0.0:9000`
-from inside that folder.
-
-## Desktop app (Electron)
-
-For people who do not want to deal with a terminal, `electron/` wraps the same server in a desktop window and `make electron-build` builds an installer for the platform it runs on (Linux: AppImage, macOS: `.dmg`, Windows: NSIS `.exe`). There is no separate "mobile server" to build: the installer already contains the same `iworkflow` binary, so a phone connects to the server running inside the app (see [Using it from your phone](#using-it-from-your-phone)).
-
-### Build the installer
-
-Prerequisites (once): the ones of [Production](#production), `git` and Node.js 22+ with npm. Cross-building is not supported: build each installer on its own platform.
-
-```bash
-make electron-build
-```
-
-It runs, in order:
-
-1. `make dist`: release build, leaving the binary and `site/` in `dist/`.
-2. Copies both into `electron/resources/server/` (outside the asar archive, so the binary stays executable).
-3. `npm ci` and `electron-builder` for the current platform.
-4. Writes the installer to `dist/electron/`: `iworkflow-<version>-linux-x86_64.AppImage`, `iworkflow-<version>-mac-arm64.dmg` (or `mac-x64`) or `iworkflow-<version>-win-x64.exe`.
-
-Other forms:
-
-```bash
-make electron-build SKIP_SERVER_BUILD=1   # reuse the server already in dist/
-make electron-build DIST_DIR=/some/dir    # use another server package / output location
-make electron-dev                         # open the window on dist/ without building an installer
-```
-
-On macOS the `.dmg` is built for the architecture of the Mac that builds it (Apple Silicon or Intel); it needs the Xcode Command Line Tools. On Windows run it from **Git Bash** (with GNU make installed).
-
-### Run it
-
-```bash
-chmod +x dist/electron/iworkflow-*.AppImage
-./dist/electron/iworkflow-*.AppImage          # add --appimage-extract-and-run if FUSE is missing
-```
-
-On macOS open the `.dmg` and drag **iworkflow** to Applications. On Windows run the installer and start **iworkflow** from the Start menu. The installer has a page to choose the data folder: if it is not the default `%USERPROFILE%\.iworkflow`, it is stored as the `IWF_HOME` user environment variable (the app also reads it from the registry, so it applies from the first launch). Silent installs and updates leave an existing `IWF_HOME` untouched.
-
-### Using it from your phone
-
-The server inside the app is the regular one, so phone access works exactly as in [Access from other devices](#access-from-other-devices):
-
-1. In the app open **Settings → Network access** and turn it on.
-2. **Quit the app completely** (tray icon → **Quit and stop server**, or **File → Quit**) and start it again. Closing only the window is not enough: the server keeps running and reads this setting only at startup. It now listens on `0.0.0.0:9000`.
-3. Scan the **QR code** on the same card with the phone (same local network, or the same [Tailscale](#developing-from-your-phone-with-tailscale) tailnet). It opens already signed in with the access token.
-
-You can also pin the address before launching, e.g. `IWORKFLOW_ADDR=0.0.0.0:9000 ./iworkflow-*.AppImage`; then the saved setting is ignored.
-
-### Behaviour
-
-- The app starts the bundled server (`--no-open`) and shows it in a window. Nothing about the server changes: same data folder (`IWF_HOME`) and database, same `IWORKFLOW_ADDR`, same access token. The window signs itself in when a token is required.
-- The server listens on `127.0.0.1:9000` by default; change the port in **Settings → Network access**. The app reads the address the server announces at startup, so it follows the saved port. If the port is busy the app shows an error; free it or choose another one.
-- **Closing the window only hides it**, so a phone connected over the local network or Tailscale keeps working. Use the tray icon (**Quit and stop server**) or **File → Quit** to stop the server. On macOS the icon lives in the menu bar and clicking the Dock icon shows the window again (**iworkflow → Quit** or Cmd+Q stops the server). On a Linux desktop without tray support, closing the window quits the app.
-- External links open in the system browser; the window itself only shows the local server.
-- `git` (and the agent CLIs you use) must be installed and on the `PATH`; the installer does not bundle them. With network access on, Windows and macOS ask once to allow the app through the firewall. On macOS the app adds `/opt/homebrew/bin` and `/usr/local/bin` to its `PATH`, since apps opened from Finder do not inherit your shell's.
-- The installers are not code-signed, so Windows SmartScreen warns on first run. On macOS the app is only ad-hoc signed and not notarized: Gatekeeper blocks the first launch, so right-click the app → **Open** (or run `xattr -dr com.apple.quarantine /Applications/iworkflow.app`).
-
-### Updates
-
-The app checks the latest GitHub release 15 seconds after start and every 6 hours, and from the tray menu (**Check for updates**). Nothing is installed without asking:
-
-- **Windows (NSIS) and Linux (AppImage)**: it offers the new version, downloads it (only the changed blocks when possible), verifies the sha512 listed in `latest*.yml` and, after you accept, stops the server, replaces the app and starts it again (`electron-updater`). A Linux build that is not an AppImage only notifies.
-- **macOS**: it only notifies and opens the release page, because macOS refuses to self-install an app without a valid code signature and the app is only signed ad hoc. Download the new `.dmg` and replace the app.
-- `IWF_UPDATE_CHECK=off` disables the check. A private repository needs `GH_TOKEN` in the environment; a public one needs nothing. Development runs (`electron .`) never check.
-
-### Release workflow
-
-`.github/workflows/release.yml` builds the server archives and, on the same Linux, macOS (Apple Silicon and Intel) and Windows runners, the desktop installers: it runs the launcher tests (`npm test` in `electron/`), then `make electron-build` over the server it just compiled, and uploads `iworkflow-desktop-<platform>`. Pushing a `v*` tag publishes everything in a GitHub release; it can also be started by hand (*Run workflow*). The installer version comes from `electron/package.json`: change it with `make bump-version VERSION=x.y.z`. The workflow also uploads `latest-linux.yml` / `latest.yml` (and the `.blockmap` files) next to the installers: they are what `electron-updater` reads, so a release without them cannot update Windows or Linux installs. macOS has none.
-
-## Developing from your phone with Tailscale
-
-[Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow is protected only by a shared token over plain HTTP and launches agents that run commands as your user.
-
-1. Install Tailscale on the computer that runs iworkflow and on the phone (App Store / Google Play), and sign in to the **same account** on both.
-2. Start the server listening on the Tailscale interface (or all interfaces, which is the default of `make dist` / `make run`):
-
-   ```bash
-   make run                                        # binds 0.0.0.0:9000
-   # or only reachable from this machine and the tailnet via Tailscale Serve (see below)
-   make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
-   ```
-
-3. Find the computer's tailnet name or IP:
-
-   ```bash
-   tailscale ip -4        # e.g. 100.101.102.103
-   tailscale status       # shows the MagicDNS name, e.g. mypc.tailnet-name.ts.net
-   ```
-
-4. On the phone, open `http://<tailnet-ip>:9000` or `http://mypc.tailnet-name.ts.net:9000`.
-
-**Recommended: HTTPS with Tailscale Serve.** Keep the bind on `127.0.0.1` and let Tailscale expose it only inside your tailnet, with a valid certificate:
-
-```bash
-tailscale serve --bg 3000
-# https://mypc.tailnet-name.ts.net  (only reachable by your tailnet devices)
-```
-
-Terminal WebSockets are accepted when the `Origin` host matches the `Host` header, which holds when you use the same address in the browser.
-
-Tips:
-
-- Do **not** use Tailscale Funnel: it would publish the app to the whole internet.
-- Restrict who can reach the machine with Tailscale ACLs if the tailnet is shared.
-- The computer must stay awake and the server running; use `tmux`/a systemd user service for long sessions.
-
-## Development
-
-Architecture and code guide in [ARCHITECTURE.md](ARCHITECTURE.md); project rules in [AGENTS.md](AGENTS.md). Checks:
-
-```bash
-make test                                      # go test -p 2 -race ./...
-make vet                                       # go vet ./...
-make lint                                      # golangci-lint run
-make e2e                                       # full browser Playwright e2e suite (or FILTER=<name>)
-make dist                                      # release package (dist/)
-make electron-build                            # package desktop app (dist/electron)
-make bump-version VERSION=x.y.z                # set the app version
-make electron-dev                              # run Electron window in development
-```
+| [Getting started](docs/getting-started.md) | Requirements, first workspace, first task, review and merge |
+| [Workspace, board and lifecycle](docs/workspace.md) | Tabbed workspace, task graph, task states, [usage limits](docs/workspace.md#usage-limits), [task hooks](docs/workspace.md#task-hooks) |
+| [Integrations](docs/integrations.md) | GitLab and GitHub, Jira, Gentle AI profiles and models, Engram memory |
+| [Configuration](docs/configuration.md) | Environment variables, data folder, logging, voice dictation, HTTPS, agent runtimes, network access |
+| [Production](docs/production.md) | Release build, running and deploying the server |
+| [Desktop app](docs/desktop.md) | Electron installer, updates and release workflow |
+| [Mobile and Tailscale](docs/mobile.md) | Using it from your phone, safely |
+| [Development](docs/development.md) | Make targets, tests and recording the GIFs |
+| [Architecture](ARCHITECTURE.md) | Code map: modules, runtimes, persistence, frontend |
+| [Project rules](AGENTS.md) | Coding and process rules for contributors and agents |
 
 ## License
 

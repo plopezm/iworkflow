@@ -20,6 +20,11 @@
 #   PLAYWRIGHT_BROWSERS_PATH=/path/to/browsers           (defaults to ~/.cache/ms-playwright)
 #   SMOKE_CHROMIUM_PATH=/path/to/chrome                  (optional)
 #   IWF_E2E_RUN_DIR=/path/to/run-dir                     (optional; default /tmp/iwf-e2e-go-runs/<stamp>-<pid>)
+#   IWF_E2E_PI_BIN=/path/to/agent                        (optional; the pi binary the server runs; default
+#                                                        tests/fixtures/smoke_pi.sh. scripts/docs/record_gifs.sh sets it
+#                                                        to the demo agent, scripts/docs/demo_agent.sh)
+#   IWF_E2E_GENTLE_SHELL_BIN=/path/to/shell              (optional; the gentle-shell binary the server runs; default
+#                                                        tests/fixtures/smoke_gentle_shell.sh; same use as above)
 #   SMOKE_SCREENSHOT_DIR                                 (set by the runner to $RUN_DIR/screenshots)
 set -euo pipefail
 
@@ -168,9 +173,9 @@ USAGE_MOCK_PORT="$(free_port)"
     IWF_CLAUDE_USAGE_URL="http://127.0.0.1:$USAGE_MOCK_PORT/api/oauth/usage" \
     IWF_CODEX_SESSIONS_DIR="$WORK/home/.codex/sessions" \
     IWF_GENTLE_PI_CONFIG_HOME="$WORK/home/.config/gentle-pi" \
-    IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \
+    IWF_GENTLE_SHELL_BIN="${IWF_E2E_GENTLE_SHELL_BIN:-$ROOT/tests/fixtures/smoke_gentle_shell.sh}" \
     IWF_LOG_LEVEL=debug \
-    IWF_PI_BIN="$ROOT/tests/fixtures/smoke_pi.sh" \
+    IWF_PI_BIN="${IWF_E2E_PI_BIN:-$ROOT/tests/fixtures/smoke_pi.sh}" \
     IWF_CURSOR_BIN="$ROOT/tests/fixtures/smoke_cursor.sh" \
     IWF_CLAUDE_BIN="$ROOT/tests/fixtures/smoke_claude.sh" \
     "$WORK/iworkflow" --addr "127.0.0.1:$PORT" --site-root "$ROOT/web/static" > "$WORK/server.log" 2>&1

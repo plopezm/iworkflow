@@ -1,1 +1,0 @@
-ALTER TABLE tasks ADD COLUMN pending_dialogs TEXT NOT NULL DEFAULT '[]';
