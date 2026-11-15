@@ -3,6 +3,8 @@
 // Each behaviour is driven by a data attribute documented in internal/core/components.
 // Replaces the signal-based state of src/core/components/*.rs.
 
+import { registerMorphHook } from './morph_hooks.js';
+
 export const THEME_STORAGE_KEY = 'pi-theme';
 export const PALETTE_STORAGE_KEY = 'pi-palette';
 export const PALETTES = ['default', 'ocean', 'forest', 'sunset', 'rose'];
@@ -574,12 +576,4 @@ export function keepClientState(name, node) {
   return undefined;
 }
 
-// chainMorphHook adds hook to the idiomorph attribute callback without replacing the ones already installed.
-export function chainMorphHook(callbacks, hook) {
-  const previous = callbacks.beforeAttributeUpdated;
-  callbacks.beforeAttributeUpdated = (...args) => (hook(...args) === false ? false : previous?.(...args));
-}
-
-if (typeof globalThis.Idiomorph !== 'undefined') {
-  chainMorphHook(globalThis.Idiomorph.defaults.callbacks, keepClientState);
-}
+registerMorphHook(keepClientState);

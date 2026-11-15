@@ -92,6 +92,7 @@ func TestChangesPanelCarriesTheContractIdsAndTheCommitForm(t *testing.T) {
 	assert.NotContains(t, body, `git-section-staged`)
 	assert.Contains(t, body, `hx-trigger="every 5s [this.offsetParent !== null]"`)
 	assert.Contains(t, body, `hx-swap="morph:innerHTML"`, "the poll morphs the list so a focused field and an open menu survive")
+	assert.Contains(t, body, `hx-sync="this:replace"`, "a slow poll never overwrites the answer of a stage or unstage")
 }
 
 func TestStagedSectionMarksTheCommitFormVisible(t *testing.T) {

@@ -90,6 +90,7 @@ func TestSubagentsPanelRefreshesWhileItStaysOpenAndKeepsTheScope(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `hx-trigger="sse:activity[event.detail.data==&#39;`+id+`&#39;] from:body delay:300ms, sse:reset from:body delay:300ms"`)
 	assert.Contains(t, rec.Body.String(), `hx-get="/tasks/`+id+`/subagents?body=1&amp;scope=abc123&amp;selected=s1"`, "each row opens its detail")
 	assert.Contains(t, rec.Body.String(), `hx-swap="morph:outerHTML"`, "a refresh morphs the panel so the reader's scroll and selection survive")
+	assert.Contains(t, rec.Body.String(), `hx-sync="this:replace"`, "a slow refresh never overwrites a newer one")
 }
 
 func TestSubagentsPanelShowsTheSelectedSubagentWithItsPromptAndThread(t *testing.T) {
