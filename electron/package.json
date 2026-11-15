@@ -12,8 +12,8 @@
     "dist": "electron-builder --publish never"
   },
   "devDependencies": {
-    "electron": "^44.9.0",
-    "electron-builder": "^25.1.0"
+    "electron": "^45.3.2",
+    "electron-builder": "^26.18.0"
   },
   "dependencies": {
     "electron-updater": "^6.8.9"
