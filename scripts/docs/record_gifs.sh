@@ -49,7 +49,16 @@ for webm in "$RUN_OUT"/*.webm; do
   # Failed scenes keep a partial recording that is not a documentation GIF.
   case "$name" in *.failed) continue ;; esac
   gif="$MEDIA/$name.gif"
-  ffmpeg -v error -y -i "$webm" -an -filter_complex "$GIF_FILTER" -loop 0 "$gif"
+  # Encode to a temporary file and move it over the target only on success, so a failed encode
+  # never leaves a truncated GIF in place of the previous good one.
+  tmp="$(mktemp "$MEDIA/.$name.XXXXXX")"
+  if ! ffmpeg -v error -y -i "$webm" -an -filter_complex "$GIF_FILTER" -loop 0 -f gif "$tmp"; then
+    rm -f "$tmp"
+    echo "▶ failed to encode $name; $gif was left untouched" >&2
+    status=1
+    continue
+  fi
+  mv "$tmp" "$gif"
   echo "▶ $gif ($(du -h "$gif" | cut -f1))"
   converted=$((converted + 1))
 done
