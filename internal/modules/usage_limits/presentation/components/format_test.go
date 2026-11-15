@@ -19,6 +19,8 @@ func TestResetTextUsesMinutesHoursAndDays(t *testing.T) {
 		{name: "last hour under two days", in: 47*time.Hour + 59*time.Minute, want: "47h59"},
 		{name: "days from forty-eight hours", in: 48 * time.Hour, want: "2d"},
 		{name: "days", in: 3 * 24 * time.Hour, want: "3d"},
+		{name: "days round to the nearest one", in: 2*24*time.Hour + 23*time.Hour, want: "3d"},
+		{name: "days round down below half a day", in: 2*24*time.Hour + 11*time.Hour, want: "2d"},
 		{name: "zero", in: 0, want: "0m"},
 		{name: "negative is zero", in: -time.Minute, want: "0m"},
 	}

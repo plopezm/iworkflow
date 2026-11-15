@@ -3,6 +3,7 @@ package components
 import (
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 )
 
 // resetText is the compact time left until a reset: minutes under an hour ("45m"), hours and two-digit
-// minutes under 48 hours ("2h10"), then whole days ("3d"). A passed reset reads as "0m".
+// minutes under 48 hours ("2h10"), then days rounded to the nearest one ("3d"). A passed reset reads as "0m".
 func resetText(in time.Duration) string {
 	if in < 0 {
 		in = 0
@@ -23,7 +24,7 @@ func resetText(in time.Duration) string {
 		minutes := int(in.Minutes()) % 60
 		return fmt.Sprintf("%dh%02d", hours, minutes)
 	default:
-		return fmt.Sprintf("%dd", int(in.Hours()/24))
+		return fmt.Sprintf("%dd", int(math.Round(in.Hours()/24)))
 	}
 }
 

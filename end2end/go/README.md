@@ -73,6 +73,21 @@ which is what they would see with the default address.
   fake. The fake records every request, and the suite checks that only GET reached it. Run it alone with
   `end2end/go/run_go.sh engram`. Its tests run in order: the last one stops the fake.
 
+## Usage bar (usage_limits)
+
+`end2end/go/usage_limits.e2e.cjs` covers the usage bar in the sidebar footer. Run it alone with
+`end2end/go/run_go.sh usage_limits`.
+
+- `end2end/usage_mock.cjs`: fake Claude usage API on `USAGE_MOCK_PORT` (`GET /api/oauth/usage`, `/_health`). It
+  answers 401 unless the request carries `Authorization: Bearer <token>` and `anthropic-beta: oauth-2025-04-20`.
+  It returns Claude 13 % (5 h, resets in about 2 h 10 min) and 25 % (week, resets in 3 days).
+- The runner writes a fake `$WORK/home/.claude/.credentials.json` (mode 600) and a Codex rollout under
+  `$WORK/home/.codex/sessions/2026/11/15/rollout-e2e.jsonl` with 75 % (5 h) and 95 % (week). The server reads them
+  through `IWF_CLAUDE_CREDENTIALS`, `IWF_CLAUDE_USAGE_URL` (pointing at the mock) and `IWF_CODEX_SESSIONS_DIR`.
+- `SMOKE_SCREENSHOT_DIR` is set by the runner to `<run dir>/screenshots` (default `/tmp/iwf-e2e-screenshots` when
+  the suite runs without the runner). The suite saves `usage-bar.png` and `usage-sidebar-full.png` there and prints
+  their absolute paths.
+
 ## Node unit steps
 
 `IWF_E2E_UNIT=1` runs two Node steps before the server starts:

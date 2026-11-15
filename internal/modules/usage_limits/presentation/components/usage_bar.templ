@@ -49,7 +49,7 @@ templ usageProviderCard(provider state.ProviderState) {
 // usageWindowRow is one window: its label, a progress track, the percentage and the time to the reset.
 templ usageWindowRow(window state.WindowState) {
 	<div class="mt-1 flex items-center gap-1.5" data-usage-window={ window.Name } data-level={ window.Level }>
-		<span class="w-6 shrink-0 text-muted">{ windowLabel(ctx, window.Name) }</span>
+		<span class="w-10 shrink-0 text-muted">{ windowLabel(ctx, window.Name) }</span>
 		<div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border/50">
 			@usageFill(window)
 		</div>
