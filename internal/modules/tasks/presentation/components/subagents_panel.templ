@@ -28,7 +28,7 @@ templ SubagentsBody(view state.SubagentsView) {
 		hx-trigger={ state.BodyActivityTrigger(view.TaskID) }
 		hx-sync="this:replace"
 		hx-target="this"
-		hx-swap="outerHTML"
+		hx-swap="morph:outerHTML"
 	>
 		if len(view.Subagents) == 0 {
 			<p class="muted">{ msgSubagentsEmpty.T(ctx) }</p>

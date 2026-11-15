@@ -52,7 +52,9 @@ export function keepDetailsOpen(name, node) {
 }
 
 if (typeof globalThis.Idiomorph !== 'undefined') {
-  globalThis.Idiomorph.defaults.callbacks.beforeAttributeUpdated = keepDetailsOpen;
+  const previous = globalThis.Idiomorph.defaults.callbacks.beforeAttributeUpdated;
+  globalThis.Idiomorph.defaults.callbacks.beforeAttributeUpdated = (...args) =>
+    keepDetailsOpen(...args) === false ? false : previous?.(...args);
 }
 
 // pin follows the bottom of every transcript under root.
