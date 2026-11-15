@@ -2226,8 +2226,7 @@ article.card:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .btn-primary:hover:not(:disabled),
-  .launcher-grid .menu-item:hover {
+  .btn-primary:hover:not(:disabled) {
     transform: none;
   }
 }
