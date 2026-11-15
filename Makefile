@@ -36,7 +36,7 @@ SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(co
 # it); sqlc and goose take the latest release. Tailwind is a standalone binary: it is downloaded from the pinned release
 # (TAILWIND_VERSION) and checked against that release's sha256sums.txt before it lands in GOPATH/bin.
 TEMPL_VERSION ?= $(shell go list -m -f '{{.Version}}' github.com/a-h/templ 2>/dev/null)
-TAILWIND_VERSION ?= v4.3.3
+TAILWIND_VERSION ?= v4.3.5
 TOOLS_BIN := $(shell go env GOPATH)/bin
 TAILWIND_OS := $(or $(filter-out darwin,$(shell go env GOOS)),macos)
 TAILWIND_ARCH := $(if $(filter amd64,$(shell go env GOARCH)),x64,$(shell go env GOARCH))

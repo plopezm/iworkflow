@@ -13,9 +13,9 @@ permissions:
 
 env:
   # Pinned to the versions that produced the committed generated code (go.mod / sqlc headers).
-  TEMPL_VERSION: v0.3.1100
+  TEMPL_VERSION: v0.3.1118
   SQLC_VERSION: v1.31.1
-  TAILWIND_VERSION: v4.3.3
+  TAILWIND_VERSION: v4.3.5
   # The default `sherpa` build tag (audio transcription) links sherpa-onnx through cgo, so a C toolchain is
   # required; the hosted runners ship one (gcc, clang, mingw).
   CGO_ENABLED: "1"
@@ -34,7 +34,7 @@ jobs:
           - name: linux-x86_64
             os: ubuntu-22.04 # oldest hosted runner: keeps the AppImage (Electron) glibc requirement low
             tailwind: tailwindcss-linux-x64
-            tailwind_sha256: dc61b3ac6b8c9ca874c0cc4c57b2409791a64c5540404ca5f5367360babc313a
+            tailwind_sha256: e47695cee3f0d90623a91f3939b08bdee610eb5ad99340adff9d4145b284d6cc
             bin: iworkflow
             archive: tar.gz
             installer: AppImage
@@ -46,18 +46,18 @@ jobs:
             installer: exe
             update_meta: server-dist/electron/latest.yml
             tailwind: tailwindcss-windows-x64.exe
-            tailwind_sha256: e0e260ce048014e9268f6237ff18f8ccf02cef521cbd0ae04e82c2cdf7aa3955
+            tailwind_sha256: 2803583268c53f4713e89943e211081fddb186c0a4a7d07b5c342c6ae853ec95
           - name: macos-arm64
             os: macos-latest
             tailwind: tailwindcss-macos-arm64
-            tailwind_sha256: cdf646702987a743464dff4d9c60fd4480d1c1e73dd819a9a67f1078815dce9d
+            tailwind_sha256: f3f4f5d1727e2b693b8f1c9a1492b5dd87008c86ea286bee1589cb458e6235fc
             bin: iworkflow
             archive: tar.gz
             installer: dmg
           - name: macos-x86_64
             os: macos-15-intel
             tailwind: tailwindcss-macos-x64
-            tailwind_sha256: 7922e0953f2110c05976e3bf58f14e643d90427575e766b7d433f5f80cbee7e1
+            tailwind_sha256: a63702686a3ed048b3135d84a73be49ea9d47f880c9b20e54b3ef60934ad8cdf
             bin: iworkflow
             archive: tar.gz
             installer: dmg
