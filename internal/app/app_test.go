@@ -327,16 +327,14 @@ func TestTheOtherFileEditorRoutesOfTheDiffAnswerFragmentsNotTheShell(t *testing.
 	}
 }
 
-func TestShellRendersTheCommandPaletteInTheRequestLanguage(t *testing.T) {
+func TestShellHasNoCommandPaletteAndKeepsTheSidebarHelpers(t *testing.T) {
 	rec := get(t, newRouter(t), "/")
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
-	require.Contains(t, body, `id="command-palette"`)
-	require.Contains(t, body, `role="listbox"`)
-	require.Contains(t, body, `placeholder="Ir a…"`)
-	require.Contains(t, body, `/static/js/command_palette.js`)
-	require.Contains(t, body, `data-palette-open`)
+	require.NotContains(t, body, `id="command-palette"`)
+	require.NotContains(t, body, `data-palette-open`)
+	require.NotContains(t, body, `/static/js/command_palette.js`)
 	require.Contains(t, body, `/static/js/sidebar_active.js`)
 }
 

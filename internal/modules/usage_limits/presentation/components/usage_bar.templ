@@ -19,43 +19,45 @@ templ UsageBar(bar state.BarState) {
 		hx-swap="outerHTML"
 	>
 		if !bar.Hidden {
-			<div class="flex flex-col gap-1">
+			<div class="flex flex-col divide-y divide-border/50 rounded-lg border border-border bg-surface-2/60 px-1.5 py-1 font-mono text-[10px] leading-4">
 				for _, provider := range bar.Providers {
-					@usageProviderCard(provider)
+					@usageProvider(provider)
 				}
 				for _, name := range bar.Unavailable {
-					<p class="px-0.5 text-[10px] font-mono text-muted" data-usage-unavailable>{ unavailableText(ctx, name) }</p>
+					<p class="py-0.5 text-muted" data-usage-unavailable>{ unavailableText(ctx, name) }</p>
 				}
 			</div>
 		}
 	</div>
 }
 
-// usageProviderCard is the compact card of one provider.
-templ usageProviderCard(provider state.ProviderState) {
-	<div class="rounded-lg border border-border bg-surface-2/60 p-1.5 text-[10px] font-mono" data-usage-provider={ provider.ID }>
-		<div class="flex items-center justify-between gap-1.5">
+// usageProvider is one provider: its name on the left and one line per window on the right.
+templ usageProvider(provider state.ProviderState) {
+	<div class="flex items-start gap-1.5 py-0.5 first:pt-0 last:pb-0" data-usage-provider={ provider.ID }>
+		<div class="flex w-11 shrink-0 flex-col">
 			<span class="font-semibold text-fg">{ provider.Name }</span>
 			if provider.Stale {
 				<span class="text-muted" data-usage-stale>{ msgStale.T(ctx) }</span>
 			}
 		</div>
-		for _, window := range provider.Windows {
-			@usageWindowRow(window)
-		}
+		<div class="flex min-w-0 flex-1 flex-col">
+			for _, window := range provider.Windows {
+				@usageWindowRow(window)
+			}
+		</div>
 	</div>
 }
 
 // usageWindowRow is one window: its label, a progress track, the percentage and the time to the reset.
 templ usageWindowRow(window state.WindowState) {
-	<div class="mt-1 flex items-center gap-1.5" data-usage-window={ window.Name } data-level={ window.Level }>
+	<div class="flex items-center gap-1.5" data-usage-window={ window.Name } data-level={ window.Level }>
 		<span class="w-10 shrink-0 text-muted">{ windowLabel(ctx, window.Name) }</span>
-		<div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border/50">
+		<div class="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-border/50">
 			@usageFill(window)
 		</div>
 		<span class="w-8 shrink-0 text-right tabular-nums">{ percentText(window.Pct) }</span>
 		if window.HasReset {
-			<span class="shrink-0 whitespace-nowrap text-muted">↻ { resetText(window.ResetIn) }</span>
+			<span class="w-12 shrink-0 whitespace-nowrap text-right text-muted">↻ { resetText(window.ResetIn) }</span>
 		}
 	</div>
 }

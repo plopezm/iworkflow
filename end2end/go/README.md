@@ -67,7 +67,7 @@ The smokes in `end2end/*_smoke.cjs` run one by one with `IWF_E2E_SCRIPTS`. The r
 `IWF_E2E_ENGRAM_URL`. The `engram` suite starts the fake on that port; every other suite sees Engram as not available,
 which is what they would see with the default address.
 
-- `redesign.e2e.cjs`: Ctrl+K palette, PWA head (manifest and icons), sidebar header and current page, board of a
+- `redesign.e2e.cjs`: PWA head (manifest and icons), sidebar header and current page, board of a
   workspace with two seeded tasks, status badges. Run it alone with `end2end/go/run_go.sh redesign`.
 - `engram.e2e.cjs`: the Engram chip of the Workspaces screen and the collapsed Memory panel of a task, against the
   fake. The fake records every request, and the suite checks that only GET reached it. Run it alone with

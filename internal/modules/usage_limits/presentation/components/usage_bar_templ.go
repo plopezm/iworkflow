@@ -150,25 +150,25 @@ func UsageBar(bar state.BarState) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if !bar.Hidden {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"flex flex-col gap-1\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"flex flex-col divide-y divide-border/50 rounded-lg border border-border bg-surface-2/60 px-1.5 py-1 font-mono text-[10px] leading-4\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			for _, provider := range bar.Providers {
-				templ_7745c5c3_Err = usageProviderCard(provider).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = usageProvider(provider).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
 			for _, name := range bar.Unavailable {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<p class=\"px-0.5 text-[10px] font-mono text-muted\" data-usage-unavailable>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<p class=\"py-0.5 text-muted\" data-usage-unavailable>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(unavailableText(ctx, name))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 27, Col: 107}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 27, Col: 85}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -192,8 +192,8 @@ func UsageBar(bar state.BarState) templ.Component {
 	})
 }
 
-// usageProviderCard is the compact card of one provider.
-func usageProviderCard(provider state.ProviderState) templ.Component {
+// usageProvider is one provider: its name on the left and one line per window on the right.
+func usageProvider(provider state.ProviderState) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -210,20 +210,20 @@ func usageProviderCard(provider state.ProviderState) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"rounded-lg border border-border bg-surface-2/60 p-1.5 text-[10px] font-mono\" data-usage-provider=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div class=\"flex items-start gap-1.5 py-0.5 first:pt-0 last:pb-0\" data-usage-provider=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(provider.ID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 36, Col: 123}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 36, Col: 100}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"><div class=\"flex items-center justify-between gap-1.5\"><span class=\"font-semibold text-fg\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\"><div class=\"flex w-11 shrink-0 flex-col\"><span class=\"font-semibold text-fg\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -259,7 +259,7 @@ func usageProviderCard(provider state.ProviderState) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div><div class=\"flex min-w-0 flex-1 flex-col\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -269,7 +269,7 @@ func usageProviderCard(provider state.ProviderState) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -295,14 +295,14 @@ func usageWindowRow(window state.WindowState) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"mt-1 flex items-center gap-1.5\" data-usage-window=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "<div class=\"flex items-center gap-1.5\" data-usage-window=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.NewAttributeExpression(window.Name).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 51, Col: 76}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 53, Col: 71}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -315,7 +315,7 @@ func usageWindowRow(window state.WindowState) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templruntime.NewAttributeExpression(window.Level).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 51, Col: 104}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 53, Col: 99}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {
@@ -328,13 +328,13 @@ func usageWindowRow(window state.WindowState) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(windowLabel(ctx, window.Name))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 52, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 54, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</span><div class=\"h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border/50\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</span><div class=\"h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-border/50\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -349,7 +349,7 @@ func usageWindowRow(window state.WindowState) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(percentText(window.Pct))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 56, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 58, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -360,14 +360,14 @@ func usageWindowRow(window state.WindowState) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if window.HasReset {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<span class=\"shrink-0 whitespace-nowrap text-muted\">↻ ")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "<span class=\"w-12 shrink-0 whitespace-nowrap text-right text-muted\">↻ ")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(resetText(window.ResetIn))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 58, Col: 86}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 60, Col: 102}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -414,7 +414,7 @@ func usageFill(window state.WindowState) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(fillStyle(window.Pct))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 68, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 70, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -432,7 +432,7 @@ func usageFill(window state.WindowState) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(fillStyle(window.Pct))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 70, Col: 72}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 72, Col: 72}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -450,7 +450,7 @@ func usageFill(window state.WindowState) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(fillStyle(window.Pct))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 72, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/usage_limits/presentation/components/usage_bar.templ`, Line: 74, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {

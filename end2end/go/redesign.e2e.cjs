@@ -1,5 +1,5 @@
 // end2end/go/redesign.e2e.cjs
-// Go-mode e2e of the redesign (odd/tasks/engram-integration.md, T4, S7): the Ctrl+K command palette, the PWA head
+// Go-mode e2e of the redesign (odd/tasks/engram-integration.md, T4, S7): the PWA head
 // (manifest and icons), the sidebar header and current-page marker, the board of a workspace with seeded tasks,
 // and the status badges. Every check goes through the public UI: roles, visible text, attributes and computed
 // styles. Nothing reads internal storage. The suite runs in Spanish (the harness language cookie).
@@ -10,13 +10,9 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { openWorkspaceTerminal, screenHas } = require('../terminal.e2e.cjs').helpers;
 
 const tag = Date.now().toString();
 const TMP = process.env.SMOKE_TMP_DIR || process.env.WORK_TMP_DIR || '/tmp';
-const PALETTE = '#command-palette';
-const PALETTE_INPUT = '[data-palette-input]';
-const PALETTE_OPTION = '[data-palette-list] [role="option"]';
 
 // Creates a git repo with one commit and returns its real path (the server stores the path it was given).
 function uniqueGitRepo(prefix) {
@@ -59,166 +55,13 @@ async function createTask(ctx, ws, { title, priority }) {
   await page.locator(form).waitFor({ state: 'detached', timeout: 10000 });
 }
 
-// Palette state read from the dialog itself.
-const paletteOpen = (page) => page.evaluate((sel) => document.querySelector(sel)?.open === true, PALETTE);
-
-async function waitPaletteOpen(page, open) {
-  await page.waitForFunction(
-    ([sel, want]) => (document.querySelector(sel)?.open === true) === want,
-    [PALETTE, open],
-    { timeout: 5000 },
-  );
-}
-
-async function openPalette(ctx) {
-  await ctx.goto('/');
-  await ctx.page.locator('body').click({ position: { x: 5, y: 5 } });
-  await ctx.page.keyboard.press('Control+k');
-  await waitPaletteOpen(ctx.page, true);
-}
-
-async function paletteLabels(page) {
-  return page.locator(PALETTE_OPTION).allInnerTexts();
-}
-
-// The visible text of the sidebar navigation links, without their aria-hidden icons (the palette drops them too).
-async function navLabels(page) {
-  return page.$$eval('[data-app-shell] nav a.sidebar-nav', (links) => links.map((link) => {
-    const copy = link.cloneNode(true);
-    copy.querySelectorAll('[aria-hidden="true"]').forEach((icon) => icon.remove());
-    return copy.textContent.replace(/\s+/g, ' ').trim();
-  }));
-}
-
-// Types the query into the palette input; the list is filtered on every input event.
-async function typeQuery(page, query) {
-  await page.locator(PALETTE_INPUT).fill(query);
-}
-
 // The Settings page heading is the proof that the Settings tab is open in the dock.
 const settingsHeading = (page) => page.locator('#dock').getByRole('heading', { name: 'Configuración', level: 1 });
 
 module.exports = {
   name: 'redesign',
   tests: [
-    // ---- (1) command palette ----
-    {
-      name: 'paleta: Ctrl+K abre el diálogo y pone el foco en su campo de búsqueda',
-      fn: async (ctx) => {
-        await openPalette(ctx);
-        const focused = await ctx.page.evaluate((sel) => document.activeElement === document.querySelector(sel), PALETTE_INPUT);
-        ctx.assert(focused, 'el campo de búsqueda no tiene el foco al abrir la paleta');
-        await ctx.page.keyboard.press('Escape');
-        await waitPaletteOpen(ctx.page, false);
-      },
-    },
-    {
-      name: 'paleta: escribir "conf" deja Configuración como primera coincidencia',
-      fn: async (ctx) => {
-        await openPalette(ctx);
-        await typeQuery(ctx.page, 'conf');
-        const labels = await paletteLabels(ctx.page);
-        ctx.assert(labels.length > 0, '"conf" no devolvió ninguna entrada');
-        ctx.assert(labels[0] === 'Configuración', `la primera coincidencia es "${labels[0]}", no "Configuración"`);
-        ctx.assert(
-          labels.slice(1).every((label) => label.toLowerCase().includes('conf')),
-          `hay entradas que no contienen "conf": ${labels.join(' | ')}`,
-        );
-        await ctx.page.keyboard.press('Escape');
-        await waitPaletteOpen(ctx.page, false);
-      },
-    },
-    {
-      name: 'paleta: Enter sobre "Configuración" abre la pestaña de ajustes y cierra la paleta',
-      fn: async (ctx) => {
-        await openPalette(ctx);
-        await typeQuery(ctx.page, 'conf');
-        await ctx.page.keyboard.press('Enter');
-        await waitPaletteOpen(ctx.page, false);
-        await ctx.page.locator('#dock').getByRole('tab', { name: 'Configuración' }).first().waitFor({ timeout: 10000 });
-        await settingsHeading(ctx.page).waitFor({ timeout: 10000 });
-      },
-    },
-    {
-      name: 'paleta: Esc cierra la paleta abierta',
-      fn: async (ctx) => {
-        await openPalette(ctx);
-        await ctx.page.keyboard.press('Escape');
-        await waitPaletteOpen(ctx.page, false);
-      },
-    },
-    {
-      name: 'paleta: Ctrl+K con la paleta abierta la cierra (alterna)',
-      fn: async (ctx) => {
-        await openPalette(ctx);
-        await ctx.page.keyboard.press('Control+k');
-        await waitPaletteOpen(ctx.page, false);
-        await ctx.page.keyboard.press('Control+k');
-        await waitPaletteOpen(ctx.page, true);
-        await ctx.page.keyboard.press('Escape');
-        await waitPaletteOpen(ctx.page, false);
-      },
-    },
-    {
-      name: 'paleta: el botón de búsqueda de la barra lateral también la abre',
-      fn: async (ctx) => {
-        await ctx.goto('/');
-        await ctx.page.locator('[data-palette-open]').first().click();
-        await waitPaletteOpen(ctx.page, true);
-        await ctx.page.keyboard.press('Escape');
-        await waitPaletteOpen(ctx.page, false);
-      },
-    },
-    {
-      name: 'paleta: sin texto lista todas las entradas de la navegación lateral',
-      fn: async (ctx) => {
-        await openPalette(ctx);
-        const labels = await paletteLabels(ctx.page);
-        const nav = await navLabels(ctx.page);
-        ctx.assert(nav.length > 0, 'la navegación lateral no tiene enlaces');
-        for (const label of nav) {
-          ctx.assert(labels.includes(label), `la paleta no lista "${label}" (listado: ${labels.join(' | ')})`);
-        }
-        await ctx.page.keyboard.press('Escape');
-        await waitPaletteOpen(ctx.page, false);
-      },
-    },
-    {
-      name: 'paleta: una búsqueda sin coincidencias muestra "Sin resultados"',
-      fn: async (ctx) => {
-        await openPalette(ctx);
-        await typeQuery(ctx.page, `zzz-sin-coincidencia-${tag}`);
-        ctx.assert((await paletteLabels(ctx.page)).length === 0, 'la búsqueda sin coincidencias dejó entradas');
-        const empty = ctx.page.locator('[data-palette-empty]');
-        await empty.waitFor({ state: 'visible', timeout: 5000 });
-        ctx.assert((await empty.innerText()).trim() === 'Sin resultados', 'el mensaje vacío no es "Sin resultados"');
-        await ctx.page.keyboard.press('Escape');
-        await waitPaletteOpen(ctx.page, false);
-      },
-    },
-    {
-      name: 'paleta: Ctrl+K dentro de una terminal no abre la paleta',
-      fn: async (ctx) => {
-        await openWorkspaceTerminal(ctx, `redesign-term-${tag}`);
-        const xterm = ctx.page.locator('.xterm').first();
-        await xterm.click();
-        // The keystroke must really reach the terminal: its helper textarea has the focus.
-        await ctx.page.waitForFunction(
-          () => document.activeElement?.classList.contains('xterm-helper-textarea') === true,
-          null,
-          { timeout: 5000 },
-        );
-        await ctx.page.keyboard.press('Control+k');
-        // Condition, not a pause: a marker typed after Ctrl+K must reach the xterm screen. If Ctrl+K had opened
-        // the palette, its input would hold the focus and the marker would never appear in the terminal.
-        const marker = `ctrlk-${tag}`;
-        await ctx.page.keyboard.type(marker);
-        await screenHas(ctx.page, marker, 1, 10000);
-        ctx.assert((await paletteOpen(ctx.page)) === false, 'Ctrl+K dentro de la terminal abrió la paleta');
-      },
-    },
-
-    // ---- (2) PWA head ----
+    // ---- (1) PWA head ----
     {
       name: 'pwa: el documento enlaza el manifiesto y declara el color de tema',
       fn: async (ctx) => {
@@ -255,7 +98,7 @@ module.exports = {
       },
     },
 
-    // ---- (3) sidebar header and current page ----
+    // ---- (2) sidebar header and current page ----
     {
       name: 'barra lateral: la versión va junto a la marca, encima de la navegación',
       fn: async (ctx) => {
@@ -266,10 +109,8 @@ module.exports = {
         ctx.assert(brandRow.includes('iworkflow'), 'la versión no está junto a la marca');
         const versionBox = await version.boundingBox();
         const firstNav = await ctx.page.getByRole('navigation', { name: 'Navegación' }).getByRole('link').first().boundingBox();
-        const search = await ctx.page.locator('[data-palette-open]').first().boundingBox();
-        ctx.assert(versionBox && firstNav && search, 'no se pudo medir la cabecera de la barra lateral');
+        ctx.assert(versionBox && firstNav, 'no se pudo medir la cabecera de la barra lateral');
         ctx.assert(versionBox.y < firstNav.y, 'la versión no está encima del primer enlace de la navegación');
-        ctx.assert(versionBox.y < search.y, 'la versión no está encima del botón de búsqueda');
       },
     },
     {
@@ -288,7 +129,7 @@ module.exports = {
       },
     },
 
-    // ---- (4) board redesign with seeded data ----
+    // ---- (3) board redesign with seeded data ----
     {
       name: 'tablero: dos tareas en backlog muestran cabecera con contador, prioridad alta y sin insignia de etapa en la tarjeta',
       fn: async (ctx) => {

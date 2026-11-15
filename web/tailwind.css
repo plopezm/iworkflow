@@ -2042,38 +2042,6 @@ form.htmx-request > .submit-progress {
   }
 }
 
-/* ── Command palette (Ctrl/Cmd+K) ───────────────── */
-.palette {
-  @apply m-0 w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-border bg-surface p-0 text-fg shadow-2xl;
-  position: fixed;
-  top: 12vh;
-  left: 50%;
-  transform: translateX(-50%);
-}
-.palette::backdrop {
-  background: color-mix(in srgb, var(--c-bg) 55%, transparent);
-  backdrop-filter: blur(4px);
-}
-.palette-input {
-  @apply w-full border-0 border-b border-border bg-transparent px-4 py-3 text-sm text-fg outline-none placeholder:text-muted;
-}
-.palette-list {
-  @apply m-0 max-h-72 list-none overflow-y-auto p-1.5;
-}
-.palette-item {
-  @apply cursor-pointer truncate rounded-md px-3 py-2 text-sm;
-}
-.palette-item:hover,
-.palette-item[aria-selected="true"] {
-  @apply bg-accent/15 text-fg;
-}
-.palette-empty {
-  @apply px-4 py-3 text-sm;
-}
-.palette-hint {
-  @apply m-0 border-t border-border px-4 py-2 text-[11px] text-muted;
-}
-
 /* ═══ Redesign: depth, accent and presence ════════ */
 /* Outside the components layer on purpose: these rules win over the flat base styles above. */
 
@@ -2093,17 +2061,6 @@ aside[aria-label] {
   background: linear-gradient(135deg, var(--c-accent), var(--c-pink));
   box-shadow: 0 0 14px color-mix(in srgb, var(--c-accent) 55%, transparent);
   animation: none;
-}
-
-/* Search field that opens the palette. */
-.palette-trigger {
-  @apply flex w-full cursor-pointer items-center gap-2 rounded-lg border border-border bg-bg/60 px-2.5 py-1.5 text-xs text-muted transition-all duration-150 hover:border-accent/60 hover:text-fg;
-}
-.palette-trigger:hover {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--c-accent) 14%, transparent);
-}
-.palette-kbd {
-  @apply rounded-md border border-border bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted;
 }
 
 /* Navigation rows: icon chips, accent pill for the page you are on. */
