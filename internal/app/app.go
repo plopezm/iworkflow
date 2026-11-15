@@ -51,6 +51,7 @@ import (
 	terminaldi "iworkflow/internal/modules/terminal/infrastructure/di"
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
 	transcriptiondi "iworkflow/internal/modules/transcription/infrastructure/di"
+	usagelimitsdi "iworkflow/internal/modules/usage_limits/infrastructure/di"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
 	workspacespages "iworkflow/internal/modules/workspaces/presentation/pages"
 )
@@ -238,6 +239,12 @@ func New(deps Deps) (*App, error) {
 		Logger:   deps.Logger,
 	})
 
+	usageLimits := usagelimitsdi.NewModule(usagelimitsdi.Deps{
+		ClaudeCredentialsPath: deps.Config.ClaudeCredentialsPath,
+		ClaudeUsageURL:        deps.Config.ClaudeUsageURL,
+		CodexSessionsDir:      deps.Config.CodexSessionsDir,
+	})
+
 	dataHome := datahomedi.NewModule(datahomedi.Deps{
 		Mover:       datahomesystem.NewHomeMoverAdapter(runtime.GOOS, os.Getenv, time.Now, deps.Logger.Info),
 		ActiveTasks: &dataHomeActiveTasks{list: tasks.List.Execute},
@@ -274,7 +281,7 @@ func New(deps Deps) (*App, error) {
 		tasks:         tasks,
 		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription},
+		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription, usageLimits},
 		dock:          dock.NewHandlers(registry, emptyGroup()),
 	}, nil
 }

@@ -1,0 +1,74 @@
+package components
+
+import "iworkflow/internal/modules/usage_limits/presentation/state"
+
+// UsageBarPlaceholder is the element that loads the usage bar with htmx on page load. The shell renders it
+// in the sidebar footer, just above the agent settings bar.
+templ UsageBarPlaceholder() {
+	<div id={ BarID } hx-get={ BarPath } hx-trigger="load" hx-swap="outerHTML"></div>
+}
+
+// UsageBar is the usage bar. Its root keeps polling every 60 seconds even when hidden, so a provider that
+// becomes configured later shows up without a reload.
+templ UsageBar(bar state.BarState) {
+	<div
+		id={ BarID }
+		class={ templ.KV("hidden", bar.Hidden) }
+		hx-get={ BarPath }
+		hx-trigger="every 60s"
+		hx-swap="outerHTML"
+	>
+		if !bar.Hidden {
+			<div class="flex flex-col gap-1">
+				for _, provider := range bar.Providers {
+					@usageProviderCard(provider)
+				}
+				for _, name := range bar.Unavailable {
+					<p class="px-0.5 text-[10px] font-mono text-muted" data-usage-unavailable>{ unavailableText(ctx, name) }</p>
+				}
+			</div>
+		}
+	</div>
+}
+
+// usageProviderCard is the compact card of one provider.
+templ usageProviderCard(provider state.ProviderState) {
+	<div class="rounded-lg border border-border bg-surface-2/60 p-1.5 text-[10px] font-mono" data-usage-provider={ provider.ID }>
+		<div class="flex items-center justify-between gap-1.5">
+			<span class="font-semibold text-fg">{ provider.Name }</span>
+			if provider.Stale {
+				<span class="text-muted" data-usage-stale>{ msgStale.T(ctx) }</span>
+			}
+		</div>
+		for _, window := range provider.Windows {
+			@usageWindowRow(window)
+		}
+	</div>
+}
+
+// usageWindowRow is one window: its label, a progress track, the percentage and the time to the reset.
+templ usageWindowRow(window state.WindowState) {
+	<div class="mt-1 flex items-center gap-1.5" data-usage-window={ window.Name } data-level={ window.Level }>
+		<span class="w-6 shrink-0 text-muted">{ windowLabel(ctx, window.Name) }</span>
+		<div class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-border/50">
+			@usageFill(window)
+		</div>
+		<span class="w-8 shrink-0 text-right tabular-nums">{ percentText(window.Pct) }</span>
+		if window.HasReset {
+			<span class="shrink-0 whitespace-nowrap text-muted">↻ { resetText(window.ResetIn) }</span>
+		}
+	</div>
+}
+
+// usageFill is the filled part of a track. Its color follows the level; the classes are literal here so
+// Tailwind generates them.
+templ usageFill(window state.WindowState) {
+	switch window.Level {
+	case "critical":
+		<div class="h-full rounded-full bg-error" style={ fillStyle(window.Pct) }></div>
+	case "warn":
+		<div class="h-full rounded-full bg-warn" style={ fillStyle(window.Pct) }></div>
+	default:
+		<div class="h-full rounded-full bg-ok" style={ fillStyle(window.Pct) }></div>
+	}
+}

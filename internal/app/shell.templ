@@ -8,6 +8,7 @@ import (
 	"iworkflow/internal/core/web"
 	agentsettingscomponents "iworkflow/internal/modules/agent_settings/presentation/components"
 	prefspages "iworkflow/internal/modules/preferences/presentation/pages"
+	usagelimitscomponents "iworkflow/internal/modules/usage_limits/presentation/components"
 )
 
 // shellPage is the full document of a page visit: the sidebar, the dock that hosts the tabs, the
@@ -90,6 +91,7 @@ templ sidebar(boardSidebar templ.Component, version string) {
 		@boardSidebar
 	</div>
 	<div class="stack shrink-0 border-t border-border p-2.5">
+		@usagelimitscomponents.UsageBarPlaceholder()
 		@agentsettingscomponents.AgentSettingsBarPlaceholder()
 	</div>
 }
