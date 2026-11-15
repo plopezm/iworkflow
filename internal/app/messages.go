@@ -5,6 +5,7 @@ import "iworkflow/internal/core/i18n"
 // Texts of the shell and of the placeholders the composition root owns. The module texts live in
 // their own presentation packages.
 var (
+	msgImagePreview       = i18n.Msg{En: "Image", Es: "Imagen", Zh: "图片", De: "Bild", Fr: "Image"}
 	msgBrand              = i18n.Msg{En: "iworkflow", Es: "iworkflow", Zh: "iworkflow", De: "iworkflow", Fr: "iworkflow"}
 	msgMenu               = i18n.Msg{En: "Menu", Es: "Menú", Zh: "菜单", De: "Menü", Fr: "Menu"}
 	msgNavigation         = i18n.Msg{En: "Navigation", Es: "Navegación", Zh: "导航", De: "Navigation", Fr: "Navigation"}

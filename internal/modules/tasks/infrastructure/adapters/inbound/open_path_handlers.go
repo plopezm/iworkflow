@@ -16,6 +16,9 @@ import (
 // OpenPathRoute opens a path of the disk that the agent wrote in the chat. POST, form field "path".
 const OpenPathRoute = "/tasks/{id}/open-path"
 
+// PreviewImageRoute serves an image of the disk that the agent wrote in the chat. GET, query parameter "path".
+const PreviewImageRoute = "/tasks/{id}/preview-image"
+
 // maxOpenPathBytes bounds the body of the request: a path is short.
 const maxOpenPathBytes int64 = 8 << 10
 
@@ -42,6 +45,13 @@ var (
 		De: "Dieser Pfad existiert nicht.",
 		Fr: "Ce chemin n’existe pas.",
 	}
+	msgOpenPathTooLarge = i18n.Msg{
+		En: "This image is too large to be previewed.",
+		Es: "Esta imagen es demasiado grande para previsualizarla.",
+		Zh: "此图片太大，无法预览。",
+		De: "Dieses Bild ist zu groß für die Vorschau.",
+		Fr: "Cette image est trop volumineuse pour être affichée.",
+	}
 	msgOpenPathFailed = i18n.Msg{
 		En: "The path could not be opened.",
 		Es: "No se pudo abrir la ruta.",
@@ -56,9 +66,15 @@ type PathOpenerUseCase interface {
 	Execute(ctx context.Context, id models.TaskID, raw string) error
 }
 
+// ImagePreviewUseCase reads an image of the chat of a task. *application.PreviewTaskImage satisfies it.
+type ImagePreviewUseCase interface {
+	Execute(ctx context.Context, id models.TaskID, raw string) (models.PreviewImage, error)
+}
+
 // OpenPathHandlers serves the links to the disk of the chat.
 type OpenPathHandlers struct {
-	uc PathOpenerUseCase
+	uc      PathOpenerUseCase
+	preview ImagePreviewUseCase
 }
 
 // NewOpenPathHandlers builds the handlers over the use case.
@@ -66,9 +82,41 @@ func NewOpenPathHandlers(uc PathOpenerUseCase) *OpenPathHandlers {
 	return &OpenPathHandlers{uc: uc}
 }
 
-// Mount registers the endpoint.
+// WithPreview adds the image preview endpoint, served by the use case.
+func (h *OpenPathHandlers) WithPreview(uc ImagePreviewUseCase) *OpenPathHandlers {
+	h.preview = uc
+	return h
+}
+
+// Mount registers the endpoints.
 func (h *OpenPathHandlers) Mount(r chi.Router) {
 	r.Post(OpenPathRoute, h.open)
+	if h.preview != nil {
+		r.Get(PreviewImageRoute, h.previewImage)
+	}
+}
+
+// previewImage answers the bytes of an image of the chat. The content type comes from the extension, never from the
+// content, and the browser is told not to sniff it.
+func (h *OpenPathHandlers) previewImage(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, err := models.ParseTaskID(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, msgInvalidTask.T(ctx), http.StatusBadRequest)
+		return
+	}
+	image, err := h.preview.Execute(ctx, id, r.URL.Query().Get("path"))
+	if err != nil {
+		status, message := openPathFailure(ctx, err)
+		http.Error(w, message, status)
+		return
+	}
+	w.Header().Set("Content-Type", image.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "private, no-cache")
+	if _, err := w.Write(image.Data); err != nil {
+		slog.Error("could not write a previewed image", "error", err)
+	}
 }
 
 // open answers 204 when the path was handed to the system, and a status with a plain text reason otherwise.
@@ -101,6 +149,8 @@ func openPathFailure(ctx context.Context, err error) (int, string) {
 		return http.StatusUnprocessableEntity, msgOpenPathInvalid.T(ctx)
 	case errors.Is(err, werrors.ErrOpenPathBlocked):
 		return http.StatusForbidden, msgOpenPathBlocked.T(ctx)
+	case errors.Is(err, werrors.ErrOpenPathTooLarge):
+		return http.StatusRequestEntityTooLarge, msgOpenPathTooLarge.T(ctx)
 	case errors.Is(err, werrors.ErrOpenPathMissing):
 		return http.StatusNotFound, msgOpenPathMissing.T(ctx)
 	}
