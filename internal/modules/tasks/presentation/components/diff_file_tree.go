@@ -20,3 +20,6 @@ func indentStyle(depth int) string {
 	padding := treeBasePaddingRem + treeIndentRem*float64(depth)
 	return "padding-left: " + strconv.FormatFloat(padding, 'f', -1, 64) + "rem"
 }
+
+// msgResizeTree names the handle that changes the width of the changed-files tree.
+var msgResizeTree = i18n.Msg{En: "Resize file tree", Es: "Cambiar el ancho del árbol de ficheros", Zh: "调整文件树宽度", De: "Breite des Dateibaums ändern", Fr: "Redimensionner l'arborescence des fichiers"}
