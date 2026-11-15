@@ -38,9 +38,10 @@ templ DiffView(view state.DiffView) {
 			}
 			<div class="diff-layout">
 				if view.Layout.TreeOpen && len(view.Files) > 0 {
-					<aside class="diff-sidebar">
+					<aside class="diff-sidebar" data-diff-sidebar>
 						@DiffFileTree(view.Tree, view.Scope)
 					</aside>
+					<div class="diff-resizer" role="separator" aria-orientation="vertical" aria-label={ msgResizeTree.T(ctx) } tabindex="0" data-diff-resize-handle></div>
 				}
 				<div class="diff-cards">
 					if len(view.Files) == 0 {
