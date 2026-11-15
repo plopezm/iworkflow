@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,6 +27,8 @@ const (
 	rateLimitsKey       = `"rate_limits":{`
 	// fiveHourMaxMinutes separates the short window from the weekly one when the file says its length.
 	fiveHourMaxMinutes float64 = 720
+	// maxRolloutsTried bounds how many of the newest rollouts are searched for rate limits.
+	maxRolloutsTried = 10
 )
 
 // Config is what the facade needs.
@@ -72,11 +75,11 @@ type eventDTO struct {
 // Fetch returns the rate limits of the newest rollout. No sessions directory, no rollout or no rate limits in it
 // (an API-key account has none) means the provider is not configured.
 func (p *Provider) Fetch(ctx context.Context) (models.ProviderUsage, error) {
-	file, err := p.newestRollout(ctx)
+	files, err := p.rolloutsNewestFirst(ctx)
 	if err != nil {
 		return models.ProviderUsage{}, err
 	}
-	line, err := lastRateLimitsLine(file)
+	line, err := firstRateLimitsLine(files)
 	if err != nil {
 		return models.ProviderUsage{}, err
 	}
@@ -102,13 +105,17 @@ func (p *Provider) Fetch(ctx context.Context) (models.ProviderUsage, error) {
 	return usage, nil
 }
 
-// newestRollout finds the most recently modified rollout file.
-func (p *Provider) newestRollout(ctx context.Context) (string, error) {
+// rolloutsNewestFirst lists the rollout files, most recently modified first. A directory without rollouts means the
+// provider is not configured.
+func (p *Provider) rolloutsNewestFirst(ctx context.Context) ([]string, error) {
 	if _, err := os.Stat(p.sessionsDir); errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("no Codex sessions: %w", usageerrors.ErrNotConfigured)
+		return nil, fmt.Errorf("no Codex sessions: %w", usageerrors.ErrNotConfigured)
 	}
-	var newest string
-	var newestTime time.Time
+	type rollout struct {
+		path    string
+		modTime time.Time
+	}
+	var found []rollout
 	err := filepath.WalkDir(p.sessionsDir, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -124,18 +131,34 @@ func (p *Provider) newestRollout(ctx context.Context) (string, error) {
 		if err != nil {
 			return fmt.Errorf("stat a rollout: %w", err)
 		}
-		if info.ModTime().After(newestTime) {
-			newest, newestTime = path, info.ModTime()
-		}
+		found = append(found, rollout{path: path, modTime: info.ModTime()})
 		return nil
 	})
 	if err != nil {
-		return "", fmt.Errorf("list the Codex sessions: %w", usageerrors.ErrUnavailable)
+		return nil, fmt.Errorf("list the Codex sessions: %w", usageerrors.ErrUnavailable)
 	}
-	if newest == "" {
-		return "", fmt.Errorf("no Codex rollout: %w", usageerrors.ErrNotConfigured)
+	if len(found) == 0 {
+		return nil, fmt.Errorf("no Codex rollout: %w", usageerrors.ErrNotConfigured)
 	}
-	return newest, nil
+	sort.Slice(found, func(i, j int) bool { return found[i].modTime.After(found[j].modTime) })
+	paths := make([]string, 0, min(len(found), maxRolloutsTried))
+	for _, entry := range found[:min(len(found), maxRolloutsTried)] {
+		paths = append(paths, entry.path)
+	}
+	return paths, nil
+}
+
+// firstRateLimitsLine returns the rate limits line of the newest rollout that has one: a fresh session may not have
+// any yet while the one before it does.
+func firstRateLimitsLine(files []string) ([]byte, error) {
+	for _, file := range files {
+		line, err := lastRateLimitsLine(file)
+		if errors.Is(err, usageerrors.ErrNotConfigured) {
+			continue
+		}
+		return line, err
+	}
+	return nil, fmt.Errorf("no rollout has rate limits: %w", usageerrors.ErrNotConfigured)
 }
 
 // lastRateLimitsLine returns the last line of the file tail that carries rate limits.

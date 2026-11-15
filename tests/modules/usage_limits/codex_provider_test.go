@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -109,4 +110,30 @@ func TestCodexFetchStopsOnACancelledContext(t *testing.T) {
 	_, err := newCodex(dir).Fetch(ctx)
 
 	require.ErrorIs(t, err, usageerrors.ErrUnavailable)
+}
+
+func TestCodexFetchFallsBackToAnOlderRolloutWhenTheNewestHasNoRateLimitsYet(t *testing.T) {
+	dir := t.TempDir()
+	writeRollout(t, dir, "rollout-older.jsonl", testNow.Add(-time.Hour),
+		tokenCount("2026-11-15T08:00:00Z", `{"primary":{"used_percent":33,"window_minutes":300},"secondary":null}`))
+	writeRollout(t, dir, "rollout-fresh.jsonl", testNow, `{"type":"session_meta","payload":{}}`)
+
+	usage, err := newCodex(dir).Fetch(context.Background())
+
+	require.NoError(t, err)
+	assert.InDelta(t, 33, usage.Windows()[0].UsedPct(), 0.001)
+}
+
+func TestCodexFetchSearchesOnlyTheTailOfAHugeRollout(t *testing.T) {
+	dir := t.TempDir()
+	filler := `{"type":"event_msg","payload":{"type":"agent_message","text":"` + strings.Repeat("x", 1<<20) + `"}}`
+	writeRollout(t, dir, "rollout-huge.jsonl", testNow,
+		tokenCount("2026-11-15T01:00:00Z", `{"primary":{"used_percent":1,"window_minutes":300}}`),
+		filler, filler, filler, filler, filler,
+		tokenCount("2026-11-15T09:00:00Z", `{"primary":{"used_percent":88,"window_minutes":300}}`))
+
+	usage, err := newCodex(dir).Fetch(context.Background())
+
+	require.NoError(t, err)
+	assert.InDelta(t, 88, usage.Windows()[0].UsedPct(), 0.001)
 }

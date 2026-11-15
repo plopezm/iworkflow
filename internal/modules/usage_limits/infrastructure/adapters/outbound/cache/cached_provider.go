@@ -51,7 +51,7 @@ func (p *Provider) Fetch(ctx context.Context) (models.ProviderUsage, error) {
 		return p.outcome()
 	}
 	usage, err := p.inner.Fetch(ctx)
-	if ctx.Err() != nil {
+	if err != nil && ctx.Err() != nil {
 		return models.ProviderUsage{}, err //nolint:wrapcheck // the decorated adapter already wraps it
 	}
 	p.checkedAt = now

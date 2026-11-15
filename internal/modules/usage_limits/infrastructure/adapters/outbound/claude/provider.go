@@ -55,10 +55,14 @@ func NewProvider(cfg Config) *Provider {
 	}
 	client := cfg.Client
 	if client == nil {
-		client = &http.Client{Timeout: requestTimeout}
+		client = &http.Client{Timeout: requestTimeout, CheckRedirect: refuseRedirect}
 	}
 	return &Provider{credentialsPath: cfg.CredentialsPath, endpoint: endpoint, client: client, clock: cfg.Clock}
 }
+
+// refuseRedirect stops the default client from following redirects: the usage endpoint never redirects, and a
+// redirect must not carry the token to another place.
+func refuseRedirect(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
 // ID is the provider this facade reads.
 func (*Provider) ID() models.ProviderID { return models.ProviderClaude }

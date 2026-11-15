@@ -130,3 +130,27 @@ func TestCacheExposesTheProviderID(t *testing.T) {
 
 	assert.Equal(t, models.ProviderClaude, provider.ID())
 }
+
+// cancellingProvider answers a good reading but cancels the context while it does.
+type cancellingProvider struct {
+	scriptedProvider
+	cancel context.CancelFunc
+}
+
+func (c *cancellingProvider) Fetch(ctx context.Context) (models.ProviderUsage, error) {
+	usage, err := c.scriptedProvider.Fetch(ctx)
+	c.cancel()
+	return usage, err
+}
+
+func TestCacheKeepsAGoodReadingEvenIfTheContextIsCancelledAfterIt(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	inner := &cancellingProvider{scriptedProvider: scriptedProvider{results: []result{{usage: reading(t, 42)}}}, cancel: cancel}
+	provider := cache.NewProvider(inner, &movingClock{now: testNow}, time.Minute)
+
+	usage, err := provider.Fetch(ctx)
+
+	require.NoError(t, err)
+	require.Len(t, usage.Windows(), 1)
+	assert.InDelta(t, 42, usage.Windows()[0].UsedPct(), 0.001)
+}

@@ -134,3 +134,26 @@ func TestClaudeFetchIsUnavailableWhenTheServerIsDown(t *testing.T) {
 	require.ErrorIs(t, err, usageerrors.ErrUnavailable)
 	assert.NotContains(t, err.Error(), secretToken)
 }
+
+func TestClaudeFetchNeverFollowsARedirectWithTheToken(t *testing.T) {
+	var leaked bool
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked = r.Header.Get("Authorization") != ""
+		_, _ = w.Write([]byte(usageBody))
+	}))
+	defer other.Close()
+	redirecting := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL, http.StatusFound)
+	}))
+	defer redirecting.Close()
+	provider := claude.NewProvider(claude.Config{
+		CredentialsPath: validCredentials(t),
+		Endpoint:        redirecting.URL,
+		Clock:           stoppedClock{now: testNow},
+	})
+
+	_, err := provider.Fetch(context.Background())
+
+	require.ErrorIs(t, err, usageerrors.ErrUnavailable)
+	assert.False(t, leaked, "the token must not reach the redirect target")
+}
