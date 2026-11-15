@@ -273,3 +273,37 @@ test('applyPalette with the default or an unknown value removes data-palette', a
   assert.equal(dom.store.get(PALETTE_STORAGE_KEY), 'default');
   assert.equal(dom.buttons[0].state.pressed, 'true');
 });
+
+test('keepClientState vetoes the attributes of menus and sidebar sections that the client owns', async () => {
+  const { keepClientState } = await import('./ui.js');
+  const { chainMorphHook } = await import('./morph_hooks.js');
+  const node = (selector) => ({ matches: (sel) => sel.split(', ').includes(selector) });
+  assert.equal(keepClientState('style', node('[data-menu-panel]')), false);
+  assert.equal(keepClientState('aria-expanded', node('[data-menu-trigger]')), false);
+  assert.equal(keepClientState('style', node('[data-section-body]')), false);
+  assert.equal(keepClientState('aria-expanded', node('[data-section-toggle]')), false);
+  assert.equal(keepClientState('class', node('[data-menu-panel]')), undefined);
+  assert.equal(keepClientState('style', node('[data-other]')), undefined);
+
+  const calls = [];
+  const callbacks = { beforeAttributeUpdated: () => (calls.push('previous'), false) };
+  chainMorphHook(callbacks, () => undefined);
+  assert.equal(callbacks.beforeAttributeUpdated('x', {}), false, 'an installed hook keeps working');
+  assert.deepEqual(calls, ['previous']);
+});
+
+test('registerMorphHook chains into idiomorph, or waits for the document when idiomorph is not there yet', async () => {
+  const { registerMorphHook } = await import('./morph_hooks.js');
+  const callbacks = {};
+  const hook = (name) => (name === 'x' ? false : undefined);
+  assert.equal(registerMorphHook(hook, { Idiomorph: { defaults: { callbacks } } }), true);
+  assert.equal(callbacks.beforeAttributeUpdated('x', {}), false);
+
+  const listeners = [];
+  const late = { document: { addEventListener: (event, fn) => listeners.push([event, fn]) } };
+  assert.equal(registerMorphHook(hook, late), false);
+  assert.equal(listeners[0][0], 'DOMContentLoaded', 'a missing idiomorph is retried once the document has loaded');
+  late.Idiomorph = { defaults: { callbacks: {} } };
+  listeners[0][1]();
+  assert.equal(late.Idiomorph.defaults.callbacks.beforeAttributeUpdated('x', {}), false);
+});

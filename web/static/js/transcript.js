@@ -2,6 +2,7 @@
 // scroller that holds it follows the bottom while the user stays there. When entering the window/tab, it jumps
 // to the bottom by default.
 import { followBottom, resetToBottom } from './follow_bottom.js';
+import { registerMorphHook } from './morph_hooks.js';
 
 // Tracks whether each scroller is currently visible so we only reset to bottom when entering the window.
 const visibleScrollers = new WeakSet();
@@ -51,9 +52,7 @@ export function keepDetailsOpen(name, node) {
   return undefined;
 }
 
-if (typeof globalThis.Idiomorph !== 'undefined') {
-  globalThis.Idiomorph.defaults.callbacks.beforeAttributeUpdated = keepDetailsOpen;
-}
+registerMorphHook(keepDetailsOpen);
 
 // pin follows the bottom of every transcript under root.
 export function pin(root) {

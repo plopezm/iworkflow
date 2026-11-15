@@ -30,7 +30,8 @@ templ GitChangesPanel(p GitChangesPanelProps) {
 			class="min-h-0 flex-1 overflow-y-auto py-1"
 			hx-get={ state.ChangesURL(wireOf(p.View)) }
 			hx-trigger={ pollTrigger() }
-			hx-swap="innerHTML"
+			hx-sync="this:replace"
+			hx-swap="morph:innerHTML"
 		>
 			@GitChangesBody(p.View)
 		</div>

@@ -29,7 +29,7 @@ func TestPlaceholderLoadsTheBarOnPageLoad(t *testing.T) {
 	assert.Contains(t, body, `id="usage-bar"`)
 	assert.Contains(t, body, `hx-get="/usage-limits/bar"`)
 	assert.Contains(t, body, `hx-trigger="load, every 15s"`, "a failed first load retries until the bar replaces the placeholder")
-	assert.Contains(t, body, `hx-swap="outerHTML"`)
+	assert.Contains(t, body, `hx-swap="outerHTML"`, "the first answer replaces the placeholder, so the bar gets its own trigger")
 }
 
 func TestBarRendersOneCardPerProviderWithTheWindowRows(t *testing.T) {
@@ -114,6 +114,8 @@ func TestEmptyBarIsHiddenAndKeepsPolling(t *testing.T) {
 	assert.Contains(t, body, `id="usage-bar"`)
 	assert.Contains(t, body, `class="hidden"`)
 	assert.Contains(t, body, `hx-trigger="every 60s"`)
+	assert.Contains(t, body, `hx-swap="morph:outerHTML"`, "the poll morphs the bar in place")
+	assert.Contains(t, body, `hx-sync="this:replace"`, "a slow answer never overtakes a newer one")
 	assert.Contains(t, body, `hx-get="/usage-limits/bar"`)
 	assert.False(t, strings.Contains(body, "data-usage-provider"))
 }

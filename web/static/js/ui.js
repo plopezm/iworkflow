@@ -3,6 +3,8 @@
 // Each behaviour is driven by a data attribute documented in internal/core/components.
 // Replaces the signal-based state of src/core/components/*.rs.
 
+import { registerMorphHook } from './morph_hooks.js';
+
 export const THEME_STORAGE_KEY = 'pi-theme';
 export const PALETTE_STORAGE_KEY = 'pi-palette';
 export const PALETTES = ['default', 'ocean', 'forest', 'sunset', 'rose'];
@@ -557,3 +559,21 @@ if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 }
+
+// Client-owned state: the open or closed state of a dropdown menu and of a sidebar section lives in these attributes,
+// set by the click handlers above; the server always renders them closed or open by default.
+const CLIENT_OWNED = [
+  ['style', '[data-menu-panel], [data-section-body]'],
+  ['aria-expanded', '[data-menu-trigger], [data-section-toggle]'],
+];
+
+// keepClientState is the idiomorph hook that stops a refresh from resetting those attributes: without it every
+// refresh of the sidebar closes the menu the user just opened and reopens the sections they collapsed.
+export function keepClientState(name, node) {
+  for (const [attribute, selector] of CLIENT_OWNED) {
+    if (name === attribute && node?.matches?.(selector)) return false;
+  }
+  return undefined;
+}
+
+registerMorphHook(keepClientState);

@@ -3,7 +3,8 @@ package components
 import "iworkflow/internal/modules/usage_limits/presentation/state"
 
 // UsageBarPlaceholder is the element that loads the usage bar with htmx on page load. The shell renders it
-// in the sidebar footer, just above the agent settings bar.
+// in the sidebar footer, just above the agent settings bar. The first answer replaces the placeholder (outerHTML, not
+// a morph): the bar is a new element with its own 60 second poll, and htmx processes its triggers only when it is new.
 templ UsageBarPlaceholder() {
 	<div id={ BarID } hx-get={ BarPath } hx-trigger="load, every 15s" hx-swap="outerHTML"></div>
 }
@@ -16,7 +17,8 @@ templ UsageBar(bar state.BarState) {
 		class={ templ.KV("hidden", bar.Hidden) }
 		hx-get={ BarPath }
 		hx-trigger="every 60s"
-		hx-swap="outerHTML"
+		hx-sync="this:replace"
+		hx-swap="morph:outerHTML"
 	>
 		if !bar.Hidden {
 			<div class="flex flex-col divide-y divide-border/50 rounded-lg border border-border bg-surface-2/60 px-1.5 py-1 font-mono text-[10px] leading-4">

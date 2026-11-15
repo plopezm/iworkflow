@@ -123,5 +123,21 @@ module.exports = {
         ctx.assert(kept, 'la recarga debe actualizar los nodos en su sitio (morph), no reemplazarlos');
       },
     },
+    {
+      name: 'sidebar_menu_open: la recarga no cierra el menú "…" abierto',
+      fn: async (ctx) => {
+        await openShell(ctx);
+        await ctx.page.click(`${SIDEBAR} [data-menu-trigger]`);
+        await fireChanged(ctx.page, 1, 0);
+        await untilRequests(ctx.page, 1, 5000);
+        await untilQuiet(ctx.page, 500, 10000);
+        const open = await ctx.page.evaluate((selector) => {
+          const menu = document.querySelector(`${selector} [data-menu]`);
+          return menu.querySelector('[data-menu-panel]').style.display !== 'none'
+            && menu.querySelector('[data-menu-trigger]').getAttribute('aria-expanded') === 'true';
+        }, SIDEBAR);
+        ctx.assert(open, 'la recarga no debe cerrar el menú que el usuario abrió');
+      },
+    },
   ],
 };
