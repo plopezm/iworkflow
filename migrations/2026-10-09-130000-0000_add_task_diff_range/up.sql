@@ -1,2 +1,0 @@
-ALTER TABLE tasks ADD COLUMN base_sha TEXT;
-ALTER TABLE tasks ADD COLUMN head_sha TEXT;

@@ -47,7 +47,7 @@ end2end/                suites Playwright; end2end/go/run_go.sh las ejecuta cont
 scripts/                utilidades de empaquetado (stage_server.sh, copy_sherpa_libs.sh) y el grabador de los GIFs de la documentación (ver docs/media/README.md)
 ```
 
-La carpeta `migrations/` de la raíz es un resto de la versión en Rust (formato Diesel) y el servidor Go no la usa; las migraciones vigentes están en `internal/core/db/migrations/`.
+Las migraciones están en `internal/core/db/migrations/` (embebidas en el binario).
 
 ## 3. Reglas de arquitectura
 

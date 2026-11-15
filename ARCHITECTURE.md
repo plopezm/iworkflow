@@ -47,7 +47,7 @@ end2end/                Playwright suites; end2end/go/run_go.sh runs them agains
 scripts/                packaging helpers (stage_server.sh, copy_sherpa_libs.sh) and the documentation GIF recorder (see docs/media/README.md)
 ```
 
-The `migrations/` folder at the root is a leftover of the Rust version (Diesel layout) and is not used by the Go server; the live migrations are in `internal/core/db/migrations/`.
+The migrations live in `internal/core/db/migrations/` (embedded in the binary).
 
 ## 3. Architecture rules
 
