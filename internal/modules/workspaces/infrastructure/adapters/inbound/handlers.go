@@ -63,11 +63,12 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 		writeFragments(w, r, components.WorkspaceRegister(form))
 	case outcome.NeedsInitialization != nil:
 		form.Prompt = &state.InitializationPrompt{
-			Path:         outcome.NeedsInitialization.Path,
-			Reason:       string(outcome.NeedsInitialization.Reason),
-			Name:         input.Name,
-			BaseBranch:   deref(input.BaseBranch),
-			AgentsFileID: deref(input.AgentsFileID),
+			Path:           outcome.NeedsInitialization.Path,
+			Reason:         string(outcome.NeedsInitialization.Reason),
+			Name:           input.Name,
+			BaseBranch:     deref(input.BaseBranch),
+			AgentsFileID:   deref(input.AgentsFileID),
+			DefaultRuntime: deref(input.DefaultRuntime),
 		}
 		writeFragments(w, r, components.WorkspaceRegister(form))
 	default:
@@ -182,12 +183,24 @@ func (h *Handlers) table(ctx context.Context, deleteErr error) state.TableView {
 // AGENTS.md files. A failure to list them leaves the options empty, as the Rust version did.
 func (h *Handlers) registerForm(ctx context.Context, input dto.RegisterWorkspaceDTO) state.RegisterForm {
 	return state.RegisterForm{
-		Name:         input.Name,
-		Path:         input.Path,
-		BaseBranch:   deref(input.BaseBranch),
-		AgentsFileID: deref(input.AgentsFileID),
-		Options:      h.agentsOptions(ctx),
+		Name:           input.Name,
+		Path:           input.Path,
+		BaseBranch:     deref(input.BaseBranch),
+		AgentsFileID:   deref(input.AgentsFileID),
+		Options:        h.agentsOptions(ctx),
+		DefaultRuntime: deref(input.DefaultRuntime),
+		Runtimes:       h.runtimeOptions(ctx),
 	}
+}
+
+// runtimeOptions lists the agents that can be chosen as the default of a workspace.
+func (h *Handlers) runtimeOptions(ctx context.Context) []state.AgentsOption {
+	ids := h.uc.ListAgentRuntimes.Execute(ctx)
+	options := make([]state.AgentsOption, 0, len(ids))
+	for _, id := range ids {
+		options = append(options, state.AgentsOption{Value: id, Label: id})
+	}
+	return options
 }
 
 func (h *Handlers) agentsOptions(ctx context.Context) []state.AgentsOption {

@@ -64,3 +64,40 @@ func TestUpdateFormReadsNameBranchAndAgentsFileWithoutPath(t *testing.T) {
 	assert.Equal(t, " develop ", update.BaseBranch)
 	assert.Empty(t, update.AgentsFileID)
 }
+
+func TestRegisterFormReadsDefaultRuntime(t *testing.T) {
+	dto := RegisterWorkspaceFromForm(url.Values{"default_runtime": {"codex"}})
+
+	require.NotNil(t, dto.DefaultRuntime)
+	assert.Equal(t, "codex", *dto.DefaultRuntime)
+	assert.Equal(t, "codex", dto.ToNewWorkspace().DefaultRuntime)
+}
+
+func TestRegisterFormPresentEmptyDefaultRuntimeStaysNonNilEmpty(t *testing.T) {
+	dto := RegisterWorkspaceFromForm(url.Values{"default_runtime": {""}})
+
+	require.NotNil(t, dto.DefaultRuntime)
+	assert.Equal(t, "", *dto.DefaultRuntime)
+	assert.Empty(t, dto.ToNewWorkspace().DefaultRuntime)
+}
+
+func TestRegisterFormAbsentDefaultRuntimeMapsToEmpty(t *testing.T) {
+	assert.Empty(t, RegisterWorkspaceFromForm(url.Values{}).ToNewWorkspace().DefaultRuntime)
+}
+
+func TestUpdateFormReadsDefaultRuntime(t *testing.T) {
+	update := UpdateWorkspaceFromForm(url.Values{"default_runtime": {"codex"}}).ToWorkspaceUpdate()
+
+	assert.Equal(t, "codex", update.DefaultRuntime)
+}
+
+func TestUpdateFormPresentEmptyDefaultRuntimeClearsIt(t *testing.T) {
+	dto := UpdateWorkspaceFromForm(url.Values{"default_runtime": {""}})
+
+	require.NotNil(t, dto.DefaultRuntime)
+	assert.Empty(t, dto.ToWorkspaceUpdate().DefaultRuntime)
+}
+
+func TestUpdateFormAbsentDefaultRuntimeMapsToEmpty(t *testing.T) {
+	assert.Empty(t, UpdateWorkspaceFromForm(url.Values{}).ToWorkspaceUpdate().DefaultRuntime)
+}

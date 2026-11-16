@@ -26,6 +26,7 @@ type registerFixture struct {
 	repository  *fakeRepository
 	git         *fakeGit
 	agentsFiles *fakeAgentsFiles
+	runtimes    *fakeRuntimes
 	useCase     *application.RegisterWorkspace
 }
 
@@ -35,11 +36,13 @@ func newRegisterFixture(t *testing.T) registerFixture {
 		repository:  newFakeRepository(),
 		git:         newFakeGit(),
 		agentsFiles: &fakeAgentsFiles{},
+		runtimes:    &fakeRuntimes{installed: []string{"gentle-shell", "claude"}},
 	}
 	fixture.useCase = application.NewRegisterWorkspace(
 		fixture.repository,
 		fixture.git,
 		fixture.agentsFiles,
+		fixture.runtimes,
 		application.Clock(fixedClock),
 		application.IDGenerator(newFixedID),
 	)
@@ -78,6 +81,7 @@ func TestRegisterWorkspaceAssignsIdentifierFromGenerator(t *testing.T) {
 		fixture.repository,
 		fixture.git,
 		fixture.agentsFiles,
+		fixture.runtimes,
 		application.Clock(fixedClock),
 		application.IDGenerator(func() (models.WorkspaceID, error) { return expected, nil }),
 	)
@@ -95,6 +99,7 @@ func TestRegisterWorkspaceFailsWhenIdentifierGenerationFails(t *testing.T) {
 		fixture.repository,
 		fixture.git,
 		fixture.agentsFiles,
+		fixture.runtimes,
 		application.Clock(fixedClock),
 		application.IDGenerator(func() (models.WorkspaceID, error) { return models.WorkspaceID{}, errors.New("rng down") }),
 	)
@@ -340,4 +345,41 @@ func TestRegisterWorkspaceRejectsInvalidInputBeforeAnyGitCall(t *testing.T) {
 			assert.Empty(t, fixture.repository.saved)
 		})
 	}
+}
+
+func TestRegisterWorkspaceStoresAnExistingDefaultAgent(t *testing.T) {
+	fixture := newRegisterFixture(t)
+	gitWithRepo(fixture.git, "main", true)
+	input := registerInput("")
+	input.DefaultRuntime = " claude "
+
+	workspace, err := fixture.useCase.Execute(context.Background(), input)
+
+	require.NoError(t, err)
+	require.NotNil(t, workspace.DefaultRuntime)
+	assert.Equal(t, "claude", *workspace.DefaultRuntime)
+	assert.Equal(t, []models.Workspace{workspace}, fixture.repository.saved)
+}
+
+func TestRegisterWorkspaceWithoutDefaultAgentUsesTheSystemOne(t *testing.T) {
+	fixture := newRegisterFixture(t)
+	gitWithRepo(fixture.git, "main", true)
+
+	workspace, err := fixture.useCase.Execute(context.Background(), registerInput(""))
+
+	require.NoError(t, err)
+	assert.Nil(t, workspace.DefaultRuntime)
+}
+
+func TestRegisterWorkspaceRejectsAnAgentThatDoesNotExistWithoutSaving(t *testing.T) {
+	fixture := newRegisterFixture(t)
+	gitWithRepo(fixture.git, "main", true)
+	input := registerInput("")
+	input.DefaultRuntime = "cursor"
+
+	_, err := fixture.useCase.Execute(context.Background(), input)
+
+	require.ErrorIs(t, err, werrors.InvalidRuntime("cursor"))
+	assert.Empty(t, fixture.repository.saved)
+	assert.Empty(t, fixture.agentsFiles.installs)
 }

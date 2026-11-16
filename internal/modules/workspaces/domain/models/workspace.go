@@ -60,6 +60,8 @@ type Workspace struct {
 	// BaseBranch is the branch worktrees are created from and tasks are integrated into.
 	BaseBranch string
 	CreatedAt  time.Time
+	// DefaultRuntime is the agent new tasks of the workspace launch with. Nil means the system agent.
+	DefaultRuntime *string
 }
 
 // NewWorkspace is the input to register a workspace. Empty optional fields mean "absent".
@@ -73,6 +75,8 @@ type NewWorkspace struct {
 	Initialize bool
 	// AgentsFileID is the stored AGENTS.md installed at the project root on registration.
 	AgentsFileID string
+	// DefaultRuntime is the agent new tasks launch with. Empty means the system agent.
+	DefaultRuntime string
 }
 
 // Validated normalizes the input and checks the invariants that do not depend on infrastructure.
@@ -85,11 +89,12 @@ func (n NewWorkspace) Validated() (NewWorkspace, error) {
 		return NewWorkspace{}, werrors.PathNotAbsolute(n.Path)
 	}
 	return NewWorkspace{
-		Name:         name,
-		Path:         n.Path,
-		BaseBranch:   strings.TrimSpace(n.BaseBranch),
-		Initialize:   n.Initialize,
-		AgentsFileID: strings.TrimSpace(n.AgentsFileID),
+		Name:           name,
+		Path:           n.Path,
+		BaseBranch:     strings.TrimSpace(n.BaseBranch),
+		Initialize:     n.Initialize,
+		AgentsFileID:   strings.TrimSpace(n.AgentsFileID),
+		DefaultRuntime: strings.TrimSpace(n.DefaultRuntime),
 	}, nil
 }
 
@@ -100,6 +105,8 @@ type WorkspaceUpdate struct {
 	BaseBranch string
 	// AgentsFileID is the stored AGENTS.md that replaces the project one. Empty keeps it.
 	AgentsFileID string
+	// DefaultRuntime is the agent new tasks launch with. Empty means the system agent.
+	DefaultRuntime string
 }
 
 // Validated normalizes the input and checks the invariants that do not depend on infrastructure.
@@ -109,9 +116,10 @@ func (u WorkspaceUpdate) Validated() (WorkspaceUpdate, error) {
 		return WorkspaceUpdate{}, err
 	}
 	return WorkspaceUpdate{
-		Name:         name,
-		BaseBranch:   strings.TrimSpace(u.BaseBranch),
-		AgentsFileID: strings.TrimSpace(u.AgentsFileID),
+		Name:           name,
+		BaseBranch:     strings.TrimSpace(u.BaseBranch),
+		AgentsFileID:   strings.TrimSpace(u.AgentsFileID),
+		DefaultRuntime: strings.TrimSpace(u.DefaultRuntime),
 	}, nil
 }
 

@@ -68,11 +68,12 @@ type AgentsOption struct {
 // InitializationPrompt asks the user to confirm initializing a folder. Resubmit holds the values of
 // the attempt that needs confirmation, so the confirm button sends the same registration again.
 type InitializationPrompt struct {
-	Path         string
-	Reason       string
-	Name         string
-	BaseBranch   string
-	AgentsFileID string
+	Path           string
+	Reason         string
+	Name           string
+	BaseBranch     string
+	AgentsFileID   string
+	DefaultRuntime string
 }
 
 // ResubmitJSON encodes the values the confirm button sends, as the hx-vals attribute.
@@ -83,6 +84,9 @@ func (p InitializationPrompt) ResubmitJSON() string {
 		"base_branch":    p.BaseBranch,
 		"agents_file_id": p.AgentsFileID,
 		"initialize":     "true",
+	}
+	if p.DefaultRuntime != "" {
+		values["default_runtime"] = p.DefaultRuntime
 	}
 	encoded, err := json.Marshal(values)
 	if err != nil {
@@ -98,7 +102,11 @@ type RegisterForm struct {
 	BaseBranch   string
 	AgentsFileID string
 	Options      []AgentsOption
-	Error        string
+	// DefaultRuntime is the chosen default agent; empty is the system agent.
+	DefaultRuntime string
+	// Runtimes are the agents that can be chosen as the default.
+	Runtimes []AgentsOption
+	Error    string
 	// Prompt is set when the server asks for confirmation before initializing a folder.
 	Prompt *InitializationPrompt
 }
@@ -133,6 +141,11 @@ type EditPage struct {
 	BaseBranch   string
 	AgentsFileID string
 	Options      []AgentsOption
+	// DefaultRuntime is the saved default agent; empty is the system agent, which is also what a saved
+	// agent that no longer exists shows.
+	DefaultRuntime string
+	// Runtimes are the agents that can be chosen as the default.
+	Runtimes []AgentsOption
 	// OptionsError is shown when the AGENTS.md files cannot be listed; the form stays usable.
 	OptionsError string
 	Error        string

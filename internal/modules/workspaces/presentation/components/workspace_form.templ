@@ -22,6 +22,9 @@ templ WorkspaceRegister(form state.RegisterForm) {
 			if len(form.Options) > 0 {
 				@shared.SelectField(shared.SelectFieldProps{Label: msgInitialAgents.T(ctx), Name: "agents_file_id", Value: form.AgentsFileID, Placeholder: msgNoAgents.T(ctx), Options: formOptions(form.Options)})
 			}
+			if len(form.Runtimes) > 0 {
+				@shared.SelectField(shared.SelectFieldProps{Label: msgDefaultAgent.T(ctx), Name: "default_runtime", Value: form.DefaultRuntime, Placeholder: msgSystemAgent.T(ctx), Options: formOptions(form.Runtimes)})
+			}
 			<div class="row">
 				<button type="submit" class="btn-primary">{ msgRegister.T(ctx) }</button>
 			</div>

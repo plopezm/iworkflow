@@ -7,6 +7,7 @@ package gen
 
 import (
 	"context"
+	"database/sql"
 )
 
 const countActiveTasksByWorkspace = `-- name: CountActiveTasksByWorkspace :one
@@ -51,7 +52,7 @@ func (q *Queries) DeleteWorkspace(ctx context.Context, id string) (int64, error)
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
-SELECT id, name, path, base_branch, created_at
+SELECT id, name, path, base_branch, created_at, default_runtime
 FROM workspaces
 WHERE id = ?1
 `
@@ -65,12 +66,13 @@ func (q *Queries) GetWorkspaceByID(ctx context.Context, id string) (Workspace, e
 		&i.Path,
 		&i.BaseBranch,
 		&i.CreatedAt,
+		&i.DefaultRuntime,
 	)
 	return i, err
 }
 
 const getWorkspaceByPath = `-- name: GetWorkspaceByPath :one
-SELECT id, name, path, base_branch, created_at
+SELECT id, name, path, base_branch, created_at, default_runtime
 FROM workspaces
 WHERE path = ?1
 `
@@ -84,21 +86,23 @@ func (q *Queries) GetWorkspaceByPath(ctx context.Context, path string) (Workspac
 		&i.Path,
 		&i.BaseBranch,
 		&i.CreatedAt,
+		&i.DefaultRuntime,
 	)
 	return i, err
 }
 
 const insertWorkspace = `-- name: InsertWorkspace :exec
-INSERT INTO workspaces (id, name, path, base_branch, created_at)
-VALUES (?1, ?2, ?3, ?4, ?5)
+INSERT INTO workspaces (id, name, path, base_branch, created_at, default_runtime)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6)
 `
 
 type InsertWorkspaceParams struct {
-	ID         string
-	Name       string
-	Path       string
-	BaseBranch string
-	CreatedAt  string
+	ID             string
+	Name           string
+	Path           string
+	BaseBranch     string
+	CreatedAt      string
+	DefaultRuntime sql.NullString
 }
 
 func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) error {
@@ -108,12 +112,13 @@ func (q *Queries) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams
 		arg.Path,
 		arg.BaseBranch,
 		arg.CreatedAt,
+		arg.DefaultRuntime,
 	)
 	return err
 }
 
 const listWorkspaces = `-- name: ListWorkspaces :many
-SELECT id, name, path, base_branch, created_at
+SELECT id, name, path, base_branch, created_at, default_runtime
 FROM workspaces
 ORDER BY created_at ASC
 `
@@ -133,6 +138,7 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 			&i.Path,
 			&i.BaseBranch,
 			&i.CreatedAt,
+			&i.DefaultRuntime,
 		); err != nil {
 			return nil, err
 		}
@@ -149,18 +155,24 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 
 const updateWorkspaceNameAndBranch = `-- name: UpdateWorkspaceNameAndBranch :execrows
 UPDATE workspaces
-SET name = ?1, base_branch = ?2
-WHERE id = ?3
+SET name = ?1, base_branch = ?2, default_runtime = ?3
+WHERE id = ?4
 `
 
 type UpdateWorkspaceNameAndBranchParams struct {
-	Name       string
-	BaseBranch string
-	ID         string
+	Name           string
+	BaseBranch     string
+	DefaultRuntime sql.NullString
+	ID             string
 }
 
 func (q *Queries) UpdateWorkspaceNameAndBranch(ctx context.Context, arg UpdateWorkspaceNameAndBranchParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateWorkspaceNameAndBranch, arg.Name, arg.BaseBranch, arg.ID)
+	result, err := q.db.ExecContext(ctx, updateWorkspaceNameAndBranch,
+		arg.Name,
+		arg.BaseBranch,
+		arg.DefaultRuntime,
+		arg.ID,
+	)
 	if err != nil {
 		return 0, err
 	}

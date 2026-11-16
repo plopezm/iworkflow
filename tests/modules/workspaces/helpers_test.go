@@ -2,6 +2,7 @@ package workspaces_test
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"os"
 	"os/exec"
@@ -13,6 +14,15 @@ import (
 
 	"iworkflow/internal/modules/workspaces/domain/models"
 )
+
+// fakeAgentRuntimes is an AgentRuntimes port whose installed agents the test controls.
+type fakeAgentRuntimes struct {
+	installed []string
+}
+
+func (f *fakeAgentRuntimes) Installed(_ context.Context) []string {
+	return f.installed
+}
 
 // insertTaskReferencing inserts a minimal task row that points at the workspace. It is used only to
 // exercise the foreign key that protects a workspace from deletion while tasks still reference it.

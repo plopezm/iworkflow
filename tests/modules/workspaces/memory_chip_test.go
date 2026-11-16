@@ -44,16 +44,18 @@ func (f memoryPortFake) Summaries(_ context.Context, workspaces []models.Workspa
 func newMemoryFixture(t *testing.T, memory outbound.MemorySummaryPort) *httpFixture {
 	t.Helper()
 	home := t.TempDir()
+	runtimes := &fakeAgentRuntimes{installed: append([]string(nil), fixtureInstalledRuntimes...)}
 	module := di.NewModule(di.Deps{
-		DB:          dbtest.New(t),
-		HomeDir:     home,
-		Tasks:       noTasks{},
-		AgentsFiles: noAgentsFiles{},
-		Memory:      memory,
+		DB:            dbtest.New(t),
+		HomeDir:       home,
+		Tasks:         noTasks{},
+		AgentsFiles:   noAgentsFiles{},
+		AgentRuntimes: runtimes,
+		Memory:        memory,
 	})
 	mux := chi.NewRouter()
 	module.Routes(mux)
-	return &httpFixture{t: t, module: module, router: withSpanish(mux), home: home}
+	return &httpFixture{t: t, module: module, router: withSpanish(mux), home: home, runtimes: runtimes}
 }
 
 func TestWorkspaceRowsShowTheEngramChipOfEachState(t *testing.T) {

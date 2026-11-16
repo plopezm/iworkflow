@@ -44,11 +44,12 @@ func NewWorkspaceRepository(db *sql.DB) *WorkspaceRepository {
 // Save inserts a workspace. A duplicate path is reported as AlreadyRegistered.
 func (r *WorkspaceRepository) Save(ctx context.Context, workspace models.Workspace) error {
 	err := r.queries.InsertWorkspace(ctx, gen.InsertWorkspaceParams{
-		ID:         workspace.ID.String(),
-		Name:       workspace.Name,
-		Path:       workspace.Path,
-		BaseBranch: workspace.BaseBranch,
-		CreatedAt:  formatTimestamp(workspace.CreatedAt),
+		ID:             workspace.ID.String(),
+		Name:           workspace.Name,
+		Path:           workspace.Path,
+		BaseBranch:     workspace.BaseBranch,
+		CreatedAt:      formatTimestamp(workspace.CreatedAt),
+		DefaultRuntime: runtimeColumn(workspace.DefaultRuntime),
 	})
 	if err != nil {
 		return mapError(err, &workspace)
@@ -76,9 +77,10 @@ func (r *WorkspaceRepository) List(ctx context.Context) ([]models.Workspace, err
 // Update changes the name and base branch. It returns NotFound when no row has the identifier.
 func (r *WorkspaceRepository) Update(ctx context.Context, workspace models.Workspace) error {
 	updated, err := r.queries.UpdateWorkspaceNameAndBranch(ctx, gen.UpdateWorkspaceNameAndBranchParams{
-		ID:         workspace.ID.String(),
-		Name:       workspace.Name,
-		BaseBranch: workspace.BaseBranch,
+		ID:             workspace.ID.String(),
+		Name:           workspace.Name,
+		BaseBranch:     workspace.BaseBranch,
+		DefaultRuntime: runtimeColumn(workspace.DefaultRuntime),
 	})
 	if err != nil {
 		return mapError(err, &workspace)

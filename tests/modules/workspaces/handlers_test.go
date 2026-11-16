@@ -26,24 +26,30 @@ import (
 // httpFixture is a workspaces module mounted on a chi router, with the UI in Spanish (the language the
 // e2e scripts run in). The home folder is a temporary folder the browser may list and create into.
 type httpFixture struct {
-	t      *testing.T
-	module *di.Module
-	router http.Handler
-	home   string
+	t        *testing.T
+	module   *di.Module
+	router   http.Handler
+	home     string
+	runtimes *fakeAgentRuntimes
 }
+
+// fixtureInstalledRuntimes are the agents the fixture reports as installed unless a test changes them.
+var fixtureInstalledRuntimes = []string{"claude", "codex"}
 
 func newHTTPFixture(t *testing.T) *httpFixture {
 	t.Helper()
 	home := t.TempDir()
+	runtimes := &fakeAgentRuntimes{installed: append([]string(nil), fixtureInstalledRuntimes...)}
 	module := di.NewModule(di.Deps{
-		DB:          dbtest.New(t),
-		HomeDir:     home,
-		Tasks:       noTasks{},
-		AgentsFiles: noAgentsFiles{},
+		DB:            dbtest.New(t),
+		HomeDir:       home,
+		Tasks:         noTasks{},
+		AgentsFiles:   noAgentsFiles{},
+		AgentRuntimes: runtimes,
 	})
 	mux := chi.NewRouter()
 	module.Routes(mux)
-	return &httpFixture{t: t, module: module, router: withSpanish(mux), home: home}
+	return &httpFixture{t: t, module: module, router: withSpanish(mux), home: home, runtimes: runtimes}
 }
 
 // withSpanish stores the Spanish locale in each request context, as the locale middleware does.

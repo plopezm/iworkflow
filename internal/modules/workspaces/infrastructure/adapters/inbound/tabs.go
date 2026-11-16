@@ -47,10 +47,26 @@ func (h *Handlers) EditTab(ctx context.Context, params dock.Params) templ.Compon
 		Path:       workspace.Path,
 		BaseBranch: workspace.BaseBranch,
 	}
+	page.Runtimes = h.runtimeOptions(ctx)
+	page.DefaultRuntime = savedRuntime(workspace.DefaultRuntime, page.Runtimes)
 	options, listErr := h.uc.ListAgentsFiles.Execute(ctx)
 	if listErr != nil {
 		page.OptionsError = components.AgentsLoadFailedText(ctx, listErr)
 	}
 	page.Options = agentsOptions(options)
 	return pages.WorkspaceEditPage(page)
+}
+
+// savedRuntime is the default agent the edit form selects: the saved one while it still exists, and
+// otherwise empty, the system agent every launch falls back to.
+func savedRuntime(saved *string, runtimes []state.AgentsOption) string {
+	if saved == nil {
+		return ""
+	}
+	for _, option := range runtimes {
+		if option.Value == *saved {
+			return *saved
+		}
+	}
+	return ""
 }

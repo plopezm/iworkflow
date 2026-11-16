@@ -51,3 +51,21 @@ func TestResubmitJSONCarriesTheAttemptAndForcesInitialize(t *testing.T) {
 		"initialize":     "true",
 	}, values)
 }
+
+func TestResubmitJSONCarriesTheChosenDefaultRuntime(t *testing.T) {
+	prompt := InitializationPrompt{Path: "/repos/demo", Reason: ReasonMissingFolder, Name: "Demo", DefaultRuntime: "codex"}
+
+	var values map[string]string
+	require.NoError(t, json.Unmarshal([]byte(prompt.ResubmitJSON()), &values))
+
+	assert.Equal(t, "codex", values["default_runtime"])
+}
+
+func TestResubmitJSONOmitsDefaultRuntimeWhenEmpty(t *testing.T) {
+	prompt := InitializationPrompt{Path: "/repos/demo", Reason: ReasonMissingFolder, Name: "Demo"}
+
+	var values map[string]string
+	require.NoError(t, json.Unmarshal([]byte(prompt.ResubmitJSON()), &values))
+
+	assert.NotContains(t, values, "default_runtime")
+}

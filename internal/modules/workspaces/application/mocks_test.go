@@ -63,6 +63,7 @@ func (r *fakeRepository) Update(_ context.Context, workspace models.Workspace) e
 		if item.ID == workspace.ID {
 			r.items[index].Name = workspace.Name
 			r.items[index].BaseBranch = workspace.BaseBranch
+			r.items[index].DefaultRuntime = workspace.DefaultRuntime
 			return nil
 		}
 	}
@@ -227,6 +228,13 @@ func (a *fakeAgentsFiles) Install(_ context.Context, agentsFileID string, root s
 	a.installs = append(a.installs, installCall{id: agentsFileID, root: root, overwrite: overwrite})
 	return a.installErr
 }
+
+// fakeRuntimes is an AgentRuntimes port with a fixed list of existing agents.
+type fakeRuntimes struct {
+	installed []string
+}
+
+func (r *fakeRuntimes) Installed(_ context.Context) []string { return r.installed }
 
 // fakeWorkspaceTasks records the workspaces whose tasks were deleted.
 type fakeWorkspaceTasks struct {

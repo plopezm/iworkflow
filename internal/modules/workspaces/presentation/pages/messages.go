@@ -21,6 +21,8 @@ var (
 	msgBaseBranchLabel    = i18n.Msg{En: "Base branch", Es: "Rama base", Zh: "基础分支", De: "Basis-Branch", Fr: "Branche de base"}
 	msgReplaceAgentsLabel = i18n.Msg{En: "Replace AGENTS.md (optional)", Es: "Sustituir AGENTS.md (opcional)", Zh: "替换 AGENTS.md（可选）", De: "AGENTS.md ersetzen (optional)", Fr: "Remplacer AGENTS.md (facultatif)"}
 	msgKeepCurrentLabel   = i18n.Msg{En: "Keep the current one", Es: "Mantener el actual", Zh: "保留当前文件", De: "Aktuelle beibehalten", Fr: "Conserver l'actuel"}
+	msgDefaultAgentLabel  = i18n.Msg{En: "Default agent", Es: "Agente por defecto", Zh: "默认智能体", De: "Standard-Agent", Fr: "Agent par défaut"}
+	msgSystemAgentLabel   = i18n.Msg{En: "System agent", Es: "Agente del sistema", Zh: "系统智能体", De: "System-Agent", Fr: "Agent du système"}
 	msgCancelLabel        = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
 	msgSaveChangesLabel   = i18n.Msg{En: "Save changes", Es: "Guardar cambios", Zh: "保存更改", De: "Änderungen speichern", Fr: "Enregistrer les modifications"}
 )

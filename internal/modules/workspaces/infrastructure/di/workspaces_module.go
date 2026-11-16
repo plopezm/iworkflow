@@ -32,6 +32,8 @@ type Deps struct {
 	Tasks outbound.WorkspaceTasks
 	// AgentsFiles gives access to the stored AGENTS.md files; it is provided by the agents_files module.
 	AgentsFiles outbound.AgentsFiles
+	// AgentRuntimes lists the agents a workspace can take as its default; it is provided by the agent_settings module.
+	AgentRuntimes outbound.AgentRuntimes
 	// Memory reads what the memory provider remembers about the workspaces. Nil means no provider is wired,
 	// and the rows show no memory chip.
 	Memory outbound.MemorySummaryPort
@@ -49,6 +51,8 @@ type Module struct {
 	BrowseDirectories *application.BrowseDirectories
 	CreateDirectory   *application.CreateDirectory
 	ListAgentsFiles   *application.ListAgentsFileOptions
+	// ListAgentRuntimes lists the agents a workspace can take as its default.
+	ListAgentRuntimes *application.ListAgentRuntimes
 	// ListWithMemory lists the workspaces with the memory summary of each row.
 	ListWithMemory *application.ListWorkspacesWithMemory
 	handlers       *inbound.Handlers
@@ -62,26 +66,28 @@ func NewModule(deps Deps) *Module {
 	clock := application.Clock(func() time.Time { return time.Now().UTC() })
 	list := application.NewListWorkspaces(repository)
 	module := &Module{
-		Register:          application.NewRegisterWorkspace(repository, gitRepository, deps.AgentsFiles, clock, application.IDGenerator(models.NewWorkspaceID)),
+		Register:          application.NewRegisterWorkspace(repository, gitRepository, deps.AgentsFiles, deps.AgentRuntimes, clock, application.IDGenerator(models.NewWorkspaceID)),
 		List:              list,
 		ListWithMemory:    application.NewListWorkspacesWithMemory(list, deps.Memory, deps.Logger),
 		Get:               application.NewGetWorkspace(repository),
-		Update:            application.NewUpdateWorkspace(repository, gitRepository, deps.AgentsFiles),
+		Update:            application.NewUpdateWorkspace(repository, gitRepository, deps.AgentsFiles, deps.AgentRuntimes),
 		Delete:            application.NewDeleteWorkspace(repository, deps.Tasks),
 		BrowseDirectories: application.NewBrowseDirectories(browser, deps.HomeDir),
 		CreateDirectory:   application.NewCreateDirectory(browser),
 		ListAgentsFiles:   application.NewListAgentsFileOptions(deps.AgentsFiles),
+		ListAgentRuntimes: application.NewListAgentRuntimes(deps.AgentRuntimes),
 	}
 	module.handlers = inbound.NewHandlers(inbound.UseCases{
-		Register:        module.Register,
-		List:            module.List,
-		Get:             module.Get,
-		Update:          module.Update,
-		Delete:          module.Delete,
-		BrowseDirectory: module.BrowseDirectories,
-		CreateDirectory: module.CreateDirectory,
-		ListAgentsFiles: module.ListAgentsFiles,
-		ListWithMemory:  module.ListWithMemory,
+		Register:          module.Register,
+		List:              module.List,
+		Get:               module.Get,
+		Update:            module.Update,
+		Delete:            module.Delete,
+		BrowseDirectory:   module.BrowseDirectories,
+		CreateDirectory:   module.CreateDirectory,
+		ListAgentsFiles:   module.ListAgentsFiles,
+		ListAgentRuntimes: module.ListAgentRuntimes,
+		ListWithMemory:    module.ListWithMemory,
 	})
 	return module
 }

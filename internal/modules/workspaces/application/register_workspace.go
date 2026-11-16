@@ -22,6 +22,7 @@ type RegisterWorkspace struct {
 	repository  outbound.WorkspaceRepository
 	git         outbound.GitRepository
 	agentsFiles outbound.AgentsFiles
+	runtimes    outbound.AgentRuntimes
 	clock       Clock
 	newID       IDGenerator
 }
@@ -31,6 +32,7 @@ func NewRegisterWorkspace(
 	repository outbound.WorkspaceRepository,
 	git outbound.GitRepository,
 	agentsFiles outbound.AgentsFiles,
+	runtimes outbound.AgentRuntimes,
 	clock Clock,
 	newID IDGenerator,
 ) *RegisterWorkspace {
@@ -38,6 +40,7 @@ func NewRegisterWorkspace(
 		repository:  repository,
 		git:         git,
 		agentsFiles: agentsFiles,
+		runtimes:    runtimes,
 		clock:       clock,
 		newID:       newID,
 	}
@@ -46,6 +49,11 @@ func NewRegisterWorkspace(
 // Execute registers the workspace and returns it, or fails without saving anything.
 func (u *RegisterWorkspace) Execute(ctx context.Context, input models.NewWorkspace) (models.Workspace, error) {
 	validated, err := input.Validated()
+	if err != nil {
+		return models.Workspace{}, err
+	}
+
+	defaultRuntime, err := resolveDefaultRuntime(ctx, u.runtimes, validated.DefaultRuntime)
 	if err != nil {
 		return models.Workspace{}, err
 	}
@@ -98,11 +106,12 @@ func (u *RegisterWorkspace) Execute(ctx context.Context, input models.NewWorkspa
 		return models.Workspace{}, fmt.Errorf("generate workspace id: %w", err)
 	}
 	workspace := models.Workspace{
-		ID:         id,
-		Name:       validated.Name,
-		Path:       info.Root,
-		BaseBranch: baseBranch,
-		CreatedAt:  u.clock().UTC(),
+		ID:             id,
+		Name:           validated.Name,
+		Path:           info.Root,
+		BaseBranch:     baseBranch,
+		CreatedAt:      u.clock().UTC(),
+		DefaultRuntime: defaultRuntime,
 	}
 	if err := u.repository.Save(ctx, workspace); err != nil {
 		return models.Workspace{}, err
