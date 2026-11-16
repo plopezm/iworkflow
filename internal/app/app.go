@@ -34,7 +34,9 @@ import (
 	datahomeoutbound "iworkflow/internal/modules/data_home/domain/ports/outbound"
 	datahomesystem "iworkflow/internal/modules/data_home/infrastructure/adapters/outbound/system"
 	datahomedi "iworkflow/internal/modules/data_home/infrastructure/di"
+	engramdi "iworkflow/internal/modules/engram/infrastructure/di"
 	jiradi "iworkflow/internal/modules/jira/infrastructure/di"
+	memoriesdi "iworkflow/internal/modules/memories/infrastructure/di"
 	openwithdi "iworkflow/internal/modules/open_with/infrastructure/di"
 	prefsinbound "iworkflow/internal/modules/preferences/infrastructure/adapters/inbound"
 	prefssystem "iworkflow/internal/modules/preferences/infrastructure/adapters/outbound/system"
@@ -86,6 +88,7 @@ type App struct {
 	workspaces    *workspacesdi.Module
 	transcription *transcriptiondi.Module
 	terminal      *terminaldi.Module
+	engram        *engramdi.Module
 	tasks         *tasksdi.Module
 	taskHooks     *taskhooksdi.Module
 	loops         *taskLoops
@@ -108,7 +111,11 @@ func New(deps Deps) (*App, error) {
 		Logger:     deps.Logger,
 	})
 	// Engram is optional: without a valid IWF_ENGRAM_URL both ports stay nil, and the screens show no Engram part.
-	memoryPort, taskMemory := composeEngram(deps.EngramURL, deps.Logger)
+	engram, memoryPort, taskMemory, memoryProvider := composeEngram(deps.DB, deps.EngramURL, deps.Logger)
+	// The client points at the effective address before the first request. This reads one setting and makes no network call.
+	if _, err := engram.Apply.Apply(context.Background()); err != nil {
+		deps.Logger.Warn("cannot apply the engram address", "error", err)
+	}
 	workspaceTasks := &workspaceTasksBridge{}
 	workspaces := workspacesdi.NewModule(workspacesdi.Deps{
 		DB:          deps.DB,
@@ -251,14 +258,22 @@ func New(deps Deps) (*App, error) {
 		Restarter:   prefssystem.NewServerRestarter(deps.Restart),
 	})
 
+	// The memories tabs read workspaces and the memory provider only through ports bound here.
+	memories := memoriesdi.NewModule(memoriesdi.Deps{
+		Workspaces: &memoriesWorkspaceLookup{get: workspaces.Get},
+		Tasks:      &memoriesTaskLookup{get: tasks.Get},
+		Provider:   memoryProvider,
+	})
+
 	routes := make([]dock.Route, 0, 24)
 	// The board owns the home address, so it precedes the not-migrated catch-alls below.
 	routes = append(routes, tasks.Tabs()...)
 	routes = append(routes, agentsFiles.Tabs()...)
 	routes = append(routes, workspaces.Tabs()...)
+	routes = append(routes, memories.Tabs()...)
 	routes = append(routes, taskHooks.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
-	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome))...)
+	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome, engram))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
 	routes = append(routes, terminal.Tabs()...)
 	routes = append(routes, jiraModule.Tabs()...)
@@ -278,10 +293,11 @@ func New(deps Deps) (*App, error) {
 		workspaces:    workspaces,
 		transcription: transcription,
 		terminal:      terminal,
+		engram:        engram,
 		tasks:         tasks,
 		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription, usageLimits},
+		modules:       []web.Module{engram, prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription, usageLimits},
 		dock:          dock.NewHandlers(registry, emptyGroup()),
 	}, nil
 }
@@ -357,7 +373,7 @@ func (a *App) page(w http.ResponseWriter, r *http.Request) {
 }
 
 // settingsSections are the sections of the settings screen, in display order.
-func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module, home *datahomedi.Module) []agentsettingspages.SettingsSection {
+func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module, home *datahomedi.Module, engram *engramdi.Module) []agentsettingspages.SettingsSection {
 	return []agentsettingspages.SettingsSection{
 		{
 			ID:    "language",
@@ -387,6 +403,11 @@ func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, c
 			Content: func(context.Context) templ.Component {
 				return prefspages.TerminalSection()
 			},
+		},
+		{
+			ID:      "engram",
+			Label:   msgSettingsEngram.T,
+			Content: engram.SettingsContent(),
 		},
 		{
 			ID:      "jira",

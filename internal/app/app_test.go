@@ -384,9 +384,10 @@ func insertWorkspaceAndTask(t *testing.T, db *sql.DB) {
 	require.NoError(t, err)
 }
 
-// An unset, empty or invalid IWF_ENGRAM_URL starts the app with the feature off: no chip on Workspaces and no Memory
-// panel on the task. Only an invalid value logs a warning, and only one.
-func TestEngramFeatureIsOffWithoutAValidURL(t *testing.T) {
+// An unset, empty or invalid IWF_ENGRAM_URL starts the app on the saved address (or Engram's default): only an invalid
+// value logs a warning, and only one. The test saves an unreachable address, so it stays hermetic: Workspaces says
+// Engram is not available and the task has no Memory panel.
+func TestEngramIsUnavailableWhenNothingAnswersAtTheConfiguredAddress(t *testing.T) {
 	cases := map[string]struct {
 		url      string
 		warnings int
@@ -400,6 +401,8 @@ func TestEngramFeatureIsOffWithoutAValidURL(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			db := dbtest.New(t)
 			insertWorkspaceAndTask(t, db)
+			_, err := db.Exec(`INSERT INTO app_preferences (key, value) VALUES ('engram_url', 'http://127.0.0.1:1')`)
+			require.NoError(t, err)
 			handler, logs := composeWithEngram(t, db, tc.url)
 
 			assert.Equal(t, tc.warnings, strings.Count(logs.String(), "level=WARN"), "one warning for an invalid value, none otherwise")
@@ -407,8 +410,7 @@ func TestEngramFeatureIsOffWithoutAValidURL(t *testing.T) {
 			workspaces := get(t, handler, "/dock/pane?path=/workspaces")
 			require.Equal(t, http.StatusOK, workspaces.Code)
 			assert.Contains(t, workspaces.Body.String(), "demo", "the workspace is still listed")
-			assert.NotContains(t, workspaces.Body.String(), "Engram", "no chip on Workspaces")
-			assert.NotContains(t, workspaces.Body.String(), "memory-chip")
+			assert.Contains(t, workspaces.Body.String(), "Engram no disponible")
 
 			detail := get(t, handler, "/dock/pane?path=/tasks/"+engramTaskID)
 			require.Equal(t, http.StatusOK, detail.Code)

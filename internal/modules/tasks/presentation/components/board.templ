@@ -84,6 +84,12 @@ templ BoardToolbar(view state.BoardView) {
 			<span aria-hidden="true">✓</span>
 			<span class="hidden lg:inline">{ msgShowCompleted.T(ctx) }</span>
 		</label>
+		if view.Choice.ID != "" {
+			@link.Tab(link.Props{Href: state.MemoriesPath(view.Choice.ID), Class: "btn-secondary", Title: msgMemories.T(ctx), Role: "button"}) {
+				<span aria-hidden="true">◈</span>
+				<span class="hidden sm:inline">{ msgMemories.T(ctx) }</span>
+			}
+		}
 		@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}) {
 			<span class="text-lg leading-none">+</span>
 			<span class="hidden sm:inline">{ msgNewTask.T(ctx) }</span>

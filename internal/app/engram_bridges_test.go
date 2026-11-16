@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	engramapp "iworkflow/internal/modules/engram/application"
+	engramerrors "iworkflow/internal/modules/engram/domain/errors"
 	engrammodels "iworkflow/internal/modules/engram/domain/models"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
@@ -49,6 +50,10 @@ func (s *countingMemoryStore) Projects(context.Context) ([]engrammodels.MemoryPr
 func (s *countingMemoryStore) Recent(_ context.Context, project string, _ int) ([]engrammodels.Memory, error) {
 	s.recentCalls++
 	return s.recent[project], nil
+}
+
+func (s *countingMemoryStore) Observation(context.Context, int) (engrammodels.MemoryDetail, error) {
+	return engrammodels.MemoryDetail{}, engramerrors.ErrNotFound
 }
 
 // bridgeWorkspace is a workspace of the bridge tests, with its own ID.
@@ -246,9 +251,9 @@ func composeWarnings(t *testing.T, logs *bytes.Buffer) []map[string]any {
 	return records
 }
 
-// A URL that is not valid, or that carries credentials, disables the feature with one warning. The warning and the
-// feature state never echo the configured value.
-func TestComposeEngramDisablesTheFeatureWithOneWarningThatNeverEchoesTheURL(t *testing.T) {
+// A URL that is not valid, or that carries credentials, is ignored with one warning. The warning never echoes the
+// configured value, and Engram stays wired on its default address.
+func TestComposeEngramIgnoresAnInvalidURLWithOneWarningThatNeverEchoesIt(t *testing.T) {
 	const secret = "s3cr3t-token"
 	for name, raw := range map[string]string{
 		"credentials":    "http://user:" + secret + "@127.0.0.1:7437",
@@ -260,15 +265,27 @@ func TestComposeEngramDisablesTheFeatureWithOneWarningThatNeverEchoesTheURL(t *t
 			var logs bytes.Buffer
 			logger := slog.New(slog.NewJSONHandler(&logs, nil))
 
-			memory, tasks := composeEngram(raw, logger)
+			module, memory, tasks, provider := composeEngram(nil, raw, logger)
 
-			assert.Nil(t, memory)
-			assert.Nil(t, tasks)
+			assert.NotNil(t, module)
+			assert.NotNil(t, memory)
+			assert.NotNil(t, tasks)
+			assert.NotNil(t, provider)
 			records := composeWarnings(t, &logs)
 			require.Len(t, records, 1, "exactly one warning")
 			assert.Equal(t, "WARN", records[0]["level"])
 			assert.NotContains(t, logs.String(), secret)
 			assert.NotContains(t, logs.String(), "@")
 		})
+	}
+}
+
+// An unset or a valid URL logs nothing: Engram is wired either way.
+func TestComposeEngramLogsNothingForAnUnsetOrValidURL(t *testing.T) {
+	for _, raw := range []string{"", "  ", "http://127.0.0.1:7437"} {
+		var logs bytes.Buffer
+		module, _, _, _ := composeEngram(nil, raw, slog.New(slog.NewJSONHandler(&logs, nil)))
+		assert.NotNil(t, module)
+		assert.Empty(t, logs.String(), raw)
 	}
 }

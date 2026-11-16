@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 
+	engramerrors "iworkflow/internal/modules/engram/domain/errors"
 	"iworkflow/internal/modules/engram/domain/models"
 )
 
@@ -14,6 +15,8 @@ type fakeMemoryStore struct {
 	recent        map[string][]models.Memory
 	recentErr     error
 	recentCalls   []recentCall
+	details       map[int]models.MemoryDetail
+	detailErr     error
 }
 
 type recentCall struct {
@@ -35,4 +38,15 @@ func (f *fakeMemoryStore) Recent(_ context.Context, project string, limit int) (
 		return nil, f.recentErr
 	}
 	return f.recent[project], nil
+}
+
+func (f *fakeMemoryStore) Observation(_ context.Context, id int) (models.MemoryDetail, error) {
+	if f.detailErr != nil {
+		return models.MemoryDetail{}, f.detailErr
+	}
+	detail, ok := f.details[id]
+	if !ok {
+		return models.MemoryDetail{}, engramerrors.ErrNotFound
+	}
+	return detail, nil
 }

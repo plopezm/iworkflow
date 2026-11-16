@@ -120,10 +120,11 @@ func (a *App) Start(ctx context.Context) error {
 func (a *App) startLoops(ctx context.Context) {
 	loopCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	a.loops.cancel = cancel
-	a.loops.wg.Add(3)
+	a.loops.wg.Add(4)
 	go a.runGraphLoop(loopCtx)
 	go a.runResumeLoop(loopCtx)
 	go a.runPruneLoop(loopCtx)
+	go a.runEngramStart(loopCtx)
 }
 
 // runGraphLoop evaluates the dependency graph until ctx ends. The error is only returned for an invalid interval.
@@ -220,4 +221,20 @@ func stepResult(name string, err error) error {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	return nil
+}
+
+// runEngramStart makes sure Engram runs: it starts it only when nothing answers at the configured address and the
+// address allows it. The goroutine is owned by the loops, so Shutdown cancels the wait and joins it. The Engram process
+// itself is detached on purpose and outlives iworkflow.
+func (a *App) runEngramStart(ctx context.Context) {
+	defer a.loops.wg.Done()
+	settings, outcome, err := a.engram.Apply.Execute(ctx)
+	switch {
+	case ctx.Err() != nil:
+		return
+	case err != nil:
+		a.logger.Warn("engram is not available", "error", err)
+	case outcome == "started":
+		a.logger.Info("engram started", "address", settings.URL)
+	}
 }

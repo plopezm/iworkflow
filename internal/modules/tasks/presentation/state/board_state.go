@@ -235,6 +235,11 @@ func NewTaskPath(workspaceID string) string {
 	return "/board/" + workspaceID + "/new"
 }
 
+// MemoriesPath is the address of the read-only memories page of a workspace (served by the memories module).
+func MemoriesPath(workspaceID string) string {
+	return "/workspaces/" + workspaceID + "/memories"
+}
+
 // NewLinkedTaskPath is the address of the create tab of a task linked to an anchor task: kind is "next" or "parallel".
 func NewLinkedTaskPath(workspaceID string, kind string, anchorID string) string {
 	return NewTaskPath(workspaceID) + "/" + kind + "/" + anchorID
