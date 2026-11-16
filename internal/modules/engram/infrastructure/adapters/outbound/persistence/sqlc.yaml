@@ -1,0 +1,9 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "../../../../../../core/db/migrations"
+    queries: "queries"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "sqlcgen"
