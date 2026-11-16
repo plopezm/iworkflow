@@ -1,0 +1,53 @@
+package application
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	engramerrors "iworkflow/internal/modules/engram/domain/errors"
+	"iworkflow/internal/modules/engram/domain/models"
+	"iworkflow/internal/modules/engram/domain/ports/outbound"
+)
+
+const (
+	startPollInterval = 500 * time.Millisecond
+	startPollAttempts = 10
+)
+
+func trimSpace(value string) string { return strings.TrimSpace(value) }
+
+// EnsureRunning starts Engram only when nothing answers at the configured address.
+type EnsureRunning struct {
+	process outbound.ServerProcess
+	sleep   func(ctx context.Context, d time.Duration) error
+}
+
+// NewEnsureRunning builds the use case. sleep waits between health checks and must return early with the context error.
+func NewEnsureRunning(process outbound.ServerProcess, sleep func(ctx context.Context, d time.Duration) error) *EnsureRunning {
+	return &EnsureRunning{process: process, sleep: sleep}
+}
+
+// Execute checks the server and starts it only when it is off and the address allows it. It never starts a second
+// server: an answering one is left alone. After starting, it waits a bounded time for the server to answer.
+func (u *EnsureRunning) Execute(ctx context.Context, settings models.ServerSettings) (models.StartOutcome, error) {
+	if u.process.Healthy(ctx, settings.URL) {
+		return models.OutcomeRunning, nil
+	}
+	if !settings.AutoStart() {
+		return models.OutcomeSkipped, nil
+	}
+	if err := u.process.Start(ctx, settings.Port()); err != nil {
+		return "", fmt.Errorf("start engram on port %s: %w", settings.Port(), err)
+	}
+	for range startPollAttempts {
+		if err := u.sleep(ctx, startPollInterval); err != nil {
+			return "", fmt.Errorf("wait for engram: %w", err)
+		}
+		if u.process.Healthy(ctx, settings.URL) {
+			return models.OutcomeStarted, nil
+		}
+	}
+	return "", fmt.Errorf("engram on port %s: %w", settings.Port(), engramerrors.ErrStartFailed)
+}
