@@ -83,6 +83,9 @@ UPDATE tasks
 SET resume_at = sqlc.narg(resume_at), resume_attempts = sqlc.arg(resume_attempts)
 WHERE id = sqlc.arg(id);
 
+-- name: SetTaskAgentRuntimeIfUnset :exec
+UPDATE tasks SET agent_runtime = sqlc.arg(agent_runtime) WHERE id = sqlc.arg(id) AND agent_runtime IS NULL;
+
 -- name: SetTaskDiffRange :exec
 UPDATE tasks SET base_sha = sqlc.arg(base_sha), head_sha = sqlc.arg(head_sha) WHERE id = sqlc.arg(id);
 

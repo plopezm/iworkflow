@@ -32,6 +32,8 @@ type RegisterWorkspaceDTO struct {
 	Initialize bool `json:"initialize,omitempty"`
 	// AgentsFileID is the stored AGENTS.md installed in the project on registration.
 	AgentsFileID *string `json:"agents_file_id,omitempty"`
+	// DefaultRuntime is the default agent of the workspace; empty or absent means the system agent.
+	DefaultRuntime *string `json:"default_runtime,omitempty"`
 }
 
 // UpdateWorkspaceDTO is the editable data of a workspace. The path cannot change.
@@ -41,6 +43,9 @@ type UpdateWorkspaceDTO struct {
 	BaseBranch *string `json:"base_branch,omitempty"`
 	// AgentsFileID is the stored AGENTS.md that replaces the project one.
 	AgentsFileID *string `json:"agents_file_id,omitempty"`
+	// DefaultRuntime is the default agent of the workspace. Absent keeps the saved one; present and empty
+	// clears it to the system agent.
+	DefaultRuntime *string `json:"default_runtime,omitempty"`
 }
 
 // AgentsFileOptionDTO is a stored AGENTS.md offered when a new project is registered.
@@ -75,20 +80,22 @@ type RegisterWorkspaceOutcomeDTO struct {
 // ToNewWorkspace maps the input to the domain. The path is trimmed, as the Rust DTO did.
 func (d RegisterWorkspaceDTO) ToNewWorkspace() models.NewWorkspace {
 	return models.NewWorkspace{
-		Name:         d.Name,
-		Path:         strings.TrimSpace(d.Path),
-		BaseBranch:   derefString(d.BaseBranch),
-		Initialize:   d.Initialize,
-		AgentsFileID: derefString(d.AgentsFileID),
+		Name:           d.Name,
+		Path:           strings.TrimSpace(d.Path),
+		BaseBranch:     derefString(d.BaseBranch),
+		Initialize:     d.Initialize,
+		AgentsFileID:   derefString(d.AgentsFileID),
+		DefaultRuntime: derefString(d.DefaultRuntime),
 	}
 }
 
 // ToWorkspaceUpdate maps the editable data to the domain.
 func (d UpdateWorkspaceDTO) ToWorkspaceUpdate() models.WorkspaceUpdate {
 	return models.WorkspaceUpdate{
-		Name:         d.Name,
-		BaseBranch:   derefString(d.BaseBranch),
-		AgentsFileID: derefString(d.AgentsFileID),
+		Name:           d.Name,
+		BaseBranch:     derefString(d.BaseBranch),
+		AgentsFileID:   derefString(d.AgentsFileID),
+		DefaultRuntime: d.DefaultRuntime,
 	}
 }
 

@@ -18,6 +18,9 @@ templ WorkspaceEditPage(page state.EditPage) {
 					<code class="truncate font-mono text-xs text-muted">{ page.Path }</code>
 				</div>
 				@shared.TextField(shared.FieldProps{Label: msgBaseBranchLabel.T(ctx), Name: "base_branch", Value: page.BaseBranch, Placeholder: "main"})
+				if len(page.Runtimes) > 0 {
+					@shared.SelectField(shared.SelectFieldProps{Label: msgDefaultAgentLabel.T(ctx), Name: "default_runtime", Value: page.DefaultRuntime, Placeholder: msgSystemAgentLabel.T(ctx), Options: editFormOptions(page.Runtimes)})
+				}
 				if page.OptionsError != "" {
 					@shared.ErrorText(page.OptionsError)
 				}

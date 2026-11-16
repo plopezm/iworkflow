@@ -1,24 +1,24 @@
 -- name: InsertWorkspace :exec
-INSERT INTO workspaces (id, name, path, base_branch, created_at)
-VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(path), sqlc.arg(base_branch), sqlc.arg(created_at));
+INSERT INTO workspaces (id, name, path, base_branch, created_at, default_runtime)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(path), sqlc.arg(base_branch), sqlc.arg(created_at), sqlc.narg(default_runtime));
 
 -- name: ListWorkspaces :many
-SELECT id, name, path, base_branch, created_at
+SELECT id, name, path, base_branch, created_at, default_runtime
 FROM workspaces
 ORDER BY created_at ASC;
 
 -- name: UpdateWorkspaceNameAndBranch :execrows
 UPDATE workspaces
-SET name = sqlc.arg(name), base_branch = sqlc.arg(base_branch)
+SET name = sqlc.arg(name), base_branch = sqlc.arg(base_branch), default_runtime = sqlc.narg(default_runtime)
 WHERE id = sqlc.arg(id);
 
 -- name: GetWorkspaceByID :one
-SELECT id, name, path, base_branch, created_at
+SELECT id, name, path, base_branch, created_at, default_runtime
 FROM workspaces
 WHERE id = sqlc.arg(id);
 
 -- name: GetWorkspaceByPath :one
-SELECT id, name, path, base_branch, created_at
+SELECT id, name, path, base_branch, created_at, default_runtime
 FROM workspaces
 WHERE path = sqlc.arg(path);
 

@@ -191,6 +191,8 @@ func workspaceTargets(get *workspacesapp.GetWorkspace) terminalresolver.Workspac
 type taskWorkspaceLookup struct {
 	get  *workspacesapp.GetWorkspace
 	list *workspacesapp.ListWorkspaces
+	// listRuntimes tells which agents exist. Without it no default agent is offered to the tasks.
+	listRuntimes *agentsettingsapp.ListRuntimes
 }
 
 var _ tasksoutbound.WorkspaceLookup = (*taskWorkspaceLookup)(nil)
@@ -206,10 +208,25 @@ func (l *taskWorkspaceLookup) Find(ctx context.Context, workspaceID string) (*ta
 		return nil, err
 	}
 	ref := taskWorkspaceRef(*workspace)
+	ref.DefaultRuntime = l.existingRuntime(ctx, workspace.DefaultRuntime)
 	return &ref, nil
 }
 
-// List returns every workspace.
+// existingRuntime keeps the default agent of a workspace only while that agent still exists. Otherwise it is
+// nil, which makes every launch fall back to the system agent.
+func (l *taskWorkspaceLookup) existingRuntime(ctx context.Context, runtime *string) *string {
+	if runtime == nil || l.listRuntimes == nil {
+		return nil
+	}
+	for _, installed := range l.listRuntimes.Execute(ctx) {
+		if string(installed) == *runtime {
+			return runtime
+		}
+	}
+	return nil
+}
+
+// List returns every workspace. The default agent is only resolved by Find, which the launches use.
 func (l *taskWorkspaceLookup) List(ctx context.Context) ([]tasksmodels.WorkspaceRef, error) {
 	workspaces, err := l.list.Execute(ctx)
 	if err != nil {
@@ -230,6 +247,27 @@ func taskWorkspaceRef(workspace workspacesmodels.Workspace) tasksmodels.Workspac
 		Path:       workspace.Path,
 		BaseBranch: workspace.BaseBranch,
 	}
+}
+
+// workspaceRuntimes gives the workspaces module the agents a workspace can take as its default. The agent
+// settings module is built after the workspaces one, so the list is bound once it exists (see New).
+type workspaceRuntimes struct {
+	list *agentsettingsapp.ListRuntimes
+}
+
+var _ workspacesoutbound.AgentRuntimes = (*workspaceRuntimes)(nil)
+
+// Installed returns the identifiers of the agents that exist. Before the list is bound there are none.
+func (b *workspaceRuntimes) Installed(ctx context.Context) []string {
+	if b.list == nil {
+		return []string{}
+	}
+	runtimes := b.list.Execute(ctx)
+	ids := make([]string, 0, len(runtimes))
+	for _, runtime := range runtimes {
+		ids = append(ids, string(runtime))
+	}
+	return ids
 }
 
 // workspaceTasksBridge gives the workspaces module the cascade that deletes the tasks of a workspace. The tasks

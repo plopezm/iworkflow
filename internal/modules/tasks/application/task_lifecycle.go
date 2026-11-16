@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
@@ -66,6 +67,43 @@ func (l *TaskLifecycle) Workspace(ctx context.Context, workspaceID string) (mode
 		return models.WorkspaceRef{}, werrors.WorkspaceNotFound(workspaceID)
 	}
 	return *found, nil
+}
+
+// EffectiveAgent returns the agent options a launch of the task uses: the options of the task, with the
+// default agent of its workspace as the runtime when the task sets none. A workspace that cannot be read, or
+// one without a valid default, leaves the options untouched, so the launch falls back to the system agent.
+func (l *TaskLifecycle) EffectiveAgent(ctx context.Context, task models.Task) models.TaskAgentOptions {
+	agent := task.Agent
+	if agent.Runtime != nil {
+		return agent
+	}
+	workspace, err := l.Workspace(ctx, task.WorkspaceID)
+	if err != nil {
+		slog.Warn("could not read the workspace to resolve its default agent; the system agent is used", "task_id", task.ID.String(), "workspace_id", task.WorkspaceID, "error", err)
+		return agent
+	}
+	if workspace.DefaultRuntime == nil {
+		return agent
+	}
+	runtime, err := models.ParseRuntimeID(*workspace.DefaultRuntime)
+	if err != nil {
+		slog.Warn("the default agent of the workspace is not valid; the system agent is used", "task_id", task.ID.String(), "workspace_id", task.WorkspaceID, "runtime", *workspace.DefaultRuntime, "error", err)
+		return agent
+	}
+	agent.Runtime = &runtime
+	return agent
+}
+
+// PinAgent stores the runtime the workspace default chose in a task that has none of its own, once the agent was
+// started with it, so a later change of the default does not switch the agent of a session that already ran. A
+// failed launch pins nothing. A failed store is only logged.
+func (l *TaskLifecycle) PinAgent(ctx context.Context, task models.Task, agent models.TaskAgentOptions) {
+	if task.Agent.Runtime != nil || agent.Runtime == nil {
+		return
+	}
+	if err := l.repository.PinAgentRuntime(ctx, task.ID, agent.Runtime.String()); err != nil {
+		slog.Warn("could not store the launch agent in the task", "task_id", task.ID.String(), "runtime", agent.Runtime.String(), "error", err)
+	}
 }
 
 // Transition applies a status and records it as an event. Leaving the live statuses drops the dialogs

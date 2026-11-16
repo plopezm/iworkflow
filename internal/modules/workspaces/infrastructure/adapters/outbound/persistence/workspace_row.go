@@ -2,6 +2,7 @@
 package persistence
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -48,11 +49,25 @@ func rowToDomain(row gen.Workspace) (models.Workspace, error) {
 	if err != nil {
 		return models.Workspace{}, werrors.Repository(fmt.Sprintf("fecha de creación inválida %s: %v", row.CreatedAt, err))
 	}
+	var defaultRuntime *string
+	if row.DefaultRuntime.Valid && row.DefaultRuntime.String != "" {
+		value := row.DefaultRuntime.String
+		defaultRuntime = &value
+	}
 	return models.Workspace{
-		ID:         models.WorkspaceIDFromUUID(id),
-		Name:       row.Name,
-		Path:       row.Path,
-		BaseBranch: row.BaseBranch,
-		CreatedAt:  createdAt,
+		ID:             models.WorkspaceIDFromUUID(id),
+		Name:           row.Name,
+		Path:           row.Path,
+		BaseBranch:     row.BaseBranch,
+		CreatedAt:      createdAt,
+		DefaultRuntime: defaultRuntime,
 	}, nil
+}
+
+// runtimeColumn maps the optional default runtime to its nullable column.
+func runtimeColumn(runtime *string) sql.NullString {
+	if runtime == nil || *runtime == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *runtime, Valid: true}
 }

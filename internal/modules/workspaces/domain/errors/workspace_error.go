@@ -40,6 +40,7 @@ const (
 	kindGit
 	kindIO
 	kindRepository
+	kindInvalidRuntime
 )
 
 // InitializationReason says why a workspace needs explicit confirmation before it is initialized.
@@ -111,6 +112,8 @@ func (e Error) Error() string {
 		return "error de E/S: " + e.detail
 	case kindRepository:
 		return "error de persistencia: " + e.detail
+	case kindInvalidRuntime:
+		return "el agente por defecto no existe: " + e.detail
 	default:
 		return "error desconocido: " + e.detail
 	}
@@ -201,3 +204,6 @@ func IO(detail string) Error { return Error{kind: kindIO, detail: detail} }
 
 // Repository means the persistence layer failed.
 func Repository(detail string) Error { return Error{kind: kindRepository, detail: detail} }
+
+// InvalidRuntime means the chosen default agent is not one of the existing agents.
+func InvalidRuntime(runtime string) Error { return Error{kind: kindInvalidRuntime, detail: runtime} }

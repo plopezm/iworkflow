@@ -13,3 +13,8 @@ sql:
           # version wrote. The adapter formats and parses them itself, so the driver never converts.
           - column: "workspaces.created_at"
             go_type: "string"
+          # Added by ALTER TABLE, which sqlc does not type: it is nullable text.
+          - column: "workspaces.default_runtime"
+            go_type:
+              import: "database/sql"
+              type: "NullString"

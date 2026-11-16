@@ -14,6 +14,8 @@ type UseCases struct {
 	BrowseDirectory *application.BrowseDirectories
 	CreateDirectory *application.CreateDirectory
 	ListAgentsFiles *application.ListAgentsFileOptions
+	// ListAgentRuntimes lists the agents a workspace can take as its default.
+	ListAgentRuntimes *application.ListAgentRuntimes
 	// ListWithMemory lists the workspaces of the table with their memory summary.
 	ListWithMemory *application.ListWorkspacesWithMemory
 }

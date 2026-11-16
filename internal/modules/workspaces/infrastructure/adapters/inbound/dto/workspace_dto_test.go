@@ -155,3 +155,28 @@ func TestDirectoryListingWithoutParentMapsToNull(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"path":"/","parent":null,"entries":[]}`, string(encoded))
 }
+
+func TestRegisterDTODecodesDefaultRuntimeFromJSON(t *testing.T) {
+	var withRuntime RegisterWorkspaceDTO
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo","path":"/repos/demo","default_runtime":"codex"}`), &withRuntime))
+	var withoutRuntime RegisterWorkspaceDTO
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo","path":"/repos/demo"}`), &withoutRuntime))
+
+	assert.Equal(t, "codex", withRuntime.ToNewWorkspace().DefaultRuntime)
+	assert.Empty(t, withoutRuntime.ToNewWorkspace().DefaultRuntime, "absent means the system agent")
+}
+
+func TestUpdateDTODecodesDefaultRuntimeFromJSON(t *testing.T) {
+	var set UpdateWorkspaceDTO
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo","default_runtime":"claude"}`), &set))
+	var cleared UpdateWorkspaceDTO
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo","default_runtime":""}`), &cleared))
+	var omitted UpdateWorkspaceDTO
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo"}`), &omitted))
+
+	require.NotNil(t, set.ToWorkspaceUpdate().DefaultRuntime)
+	assert.Equal(t, "claude", *set.ToWorkspaceUpdate().DefaultRuntime)
+	require.NotNil(t, cleared.ToWorkspaceUpdate().DefaultRuntime)
+	assert.Equal(t, "", *cleared.ToWorkspaceUpdate().DefaultRuntime, "a present empty value clears the default agent")
+	assert.Nil(t, omitted.ToWorkspaceUpdate().DefaultRuntime, "an omitted default agent keeps the saved one")
+}

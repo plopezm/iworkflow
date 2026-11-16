@@ -286,6 +286,7 @@ func (r *RelatedProjectsRestarter) restart(ctx context.Context, id models.TaskID
 		slog.Warn("the task has no live agent; the related projects notice is dropped", "task_id", id.String(), "status", task.Status.String())
 		return restartAbandoned
 	}
+	task.Agent = r.lifecycle.EffectiveAgent(ctx, task)
 	options, err := prepareResume(ctx, r.worktrees, r.runtime, r.launchSettings, r.related, task)
 	if err != nil {
 		slog.Warn("the agent cannot resume with the related projects; it is left as it is", "task_id", id.String(), "error", err)

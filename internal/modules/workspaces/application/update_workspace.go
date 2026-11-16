@@ -18,6 +18,7 @@ type UpdateWorkspace struct {
 	repository  outbound.WorkspaceRepository
 	git         outbound.GitRepository
 	agentsFiles outbound.AgentsFiles
+	runtimes    outbound.AgentRuntimes
 }
 
 // NewUpdateWorkspace builds the use case.
@@ -25,8 +26,9 @@ func NewUpdateWorkspace(
 	repository outbound.WorkspaceRepository,
 	git outbound.GitRepository,
 	agentsFiles outbound.AgentsFiles,
+	runtimes outbound.AgentRuntimes,
 ) *UpdateWorkspace {
-	return &UpdateWorkspace{repository: repository, git: git, agentsFiles: agentsFiles}
+	return &UpdateWorkspace{repository: repository, git: git, agentsFiles: agentsFiles, runtimes: runtimes}
 }
 
 // Execute applies the update and returns the updated workspace.
@@ -41,6 +43,17 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 	}
 	if current == nil {
 		return models.Workspace{}, werrors.NotFound(id.String())
+	}
+
+	// An absent default agent keeps the saved one without checking it against the installed agents, so
+	// editing a workspace never drops it; a present one is validated like a registration.
+	defaultRuntime := current.DefaultRuntime
+	if validated.DefaultRuntime != nil {
+		resolved, resolveErr := resolveDefaultRuntime(ctx, u.runtimes, *validated.DefaultRuntime)
+		if resolveErr != nil {
+			return models.Workspace{}, resolveErr
+		}
+		defaultRuntime = resolved
 	}
 
 	baseBranch := current.BaseBranch
@@ -59,6 +72,7 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 	updated := *current
 	updated.Name = validated.Name
 	updated.BaseBranch = baseBranch
+	updated.DefaultRuntime = defaultRuntime
 	if err := u.repository.Update(ctx, updated); err != nil {
 		return models.Workspace{}, err
 	}

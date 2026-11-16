@@ -19,7 +19,7 @@ func updateFixture(t *testing.T) (models.Workspace, *fakeRepository, *fakeGit, *
 	repository := newFakeRepository(existing)
 	git := newFakeGit()
 	agentsFiles := &fakeAgentsFiles{}
-	useCase := application.NewUpdateWorkspace(repository, git, agentsFiles)
+	useCase := application.NewUpdateWorkspace(repository, git, agentsFiles, &fakeRuntimes{installed: []string{"gentle-shell", "pi"}})
 	return existing, repository, git, agentsFiles, useCase
 }
 
@@ -159,4 +159,51 @@ func TestUpdateWorkspacePropagatesRepositoryUpdateErrorsWithoutInstalling(t *tes
 
 	assert.EqualError(t, err, "error de persistencia: boom")
 	assert.Empty(t, agentsFiles.installs)
+}
+
+func TestUpdateWorkspaceSetsAndClearsTheDefaultAgent(t *testing.T) {
+	existing, _, _, _, useCase := updateFixture(t)
+
+	set, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Demo", DefaultRuntime: stringPtr("pi")})
+
+	require.NoError(t, err)
+	require.NotNil(t, set.DefaultRuntime)
+	assert.Equal(t, "pi", *set.DefaultRuntime)
+
+	// The stored workspace now has the agent; an empty value goes back to the system agent.
+	cleared, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Demo", DefaultRuntime: stringPtr("")})
+
+	require.NoError(t, err)
+	assert.Nil(t, cleared.DefaultRuntime)
+}
+
+func TestUpdateWorkspaceRejectsAnAgentThatDoesNotExistWithoutSaving(t *testing.T) {
+	existing, repository, _, _, useCase := updateFixture(t)
+
+	_, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Demo", DefaultRuntime: stringPtr("agy")})
+
+	require.ErrorIs(t, err, werrors.InvalidRuntime("agy"))
+	assert.Empty(t, repository.updated)
+}
+
+// stringPtr returns a pointer to value, the way an optional field is sent when it is present.
+func stringPtr(value string) *string {
+	return &value
+}
+
+func TestUpdateWorkspaceOmittedDefaultAgentKeepsTheSavedOne(t *testing.T) {
+	existing := workspaceAt(t, "Demo", repoRoot, "main")
+	existing.DefaultRuntime = stringPtr("pi")
+	repository := newFakeRepository(existing)
+	// No agent is installed: an absent default agent is not validated, so the saved one is kept.
+	useCase := application.NewUpdateWorkspace(repository, newFakeGit(), &fakeAgentsFiles{}, &fakeRuntimes{})
+
+	updated, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Nuevo"})
+
+	require.NoError(t, err)
+	require.NotNil(t, updated.DefaultRuntime)
+	assert.Equal(t, "pi", *updated.DefaultRuntime)
+	require.Len(t, repository.updated, 1)
+	require.NotNil(t, repository.updated[0].DefaultRuntime)
+	assert.Equal(t, "pi", *repository.updated[0].DefaultRuntime)
 }

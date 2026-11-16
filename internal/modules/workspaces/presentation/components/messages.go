@@ -32,6 +32,8 @@ var (
 	msgBaseBranch             = i18n.Msg{En: "Base branch (empty = current branch)", Es: "Rama base (vacío = rama actual)", Zh: "基础分支（留空 = 当前分支）", De: "Basis-Branch (leer = aktueller Branch)", Fr: "Branche de base (vide = branche actuelle)"}
 	msgInitialAgents          = i18n.Msg{En: "Initial AGENTS.md (optional)", Es: "AGENTS.md inicial (opcional)", Zh: "初始 AGENTS.md（可选）", De: "Initiale AGENTS.md (optional)", Fr: "AGENTS.md initial (facultatif)"}
 	msgNoAgents               = i18n.Msg{En: "No AGENTS.md", Es: "Sin AGENTS.md", Zh: "无 AGENTS.md", De: "Keine AGENTS.md", Fr: "Sans AGENTS.md"}
+	msgDefaultAgent           = i18n.Msg{En: "Default agent", Es: "Agente por defecto", Zh: "默认智能体", De: "Standard-Agent", Fr: "Agent par défaut"}
+	msgSystemAgent            = i18n.Msg{En: "System agent", Es: "Agente del sistema", Zh: "系统智能体", De: "System-Agent", Fr: "Agent du système"}
 	msgRegister               = i18n.Msg{En: "Register", Es: "Registrar", Zh: "注册", De: "Registrieren", Fr: "Enregistrer"}
 
 	msgMissingFolder       = i18n.Msg{En: "The folder {path} does not exist. Create it and initialize a git repository?", Es: "La carpeta {path} no existe. ¿Crearla e inicializar un repositorio git?", Zh: "文件夹 {path} 不存在。是否创建并初始化 git 仓库？", De: "Der Ordner {path} existiert nicht. Erstellen und ein Git-Repository initialisieren?", Fr: "Le dossier {path} n'existe pas. Le créer et initialiser un dépôt git ?"}

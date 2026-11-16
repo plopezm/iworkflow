@@ -7,6 +7,9 @@ type WorkspaceRef struct {
 	Name       string
 	Path       string
 	BaseBranch string
+	// DefaultRuntime is the agent new launches of the workspace use when the task sets none. Nil means the
+	// system agent. The provider only sets it while the agent still exists.
+	DefaultRuntime *string
 }
 
 // BranchOption is a branch offered when a task chooses its base.
