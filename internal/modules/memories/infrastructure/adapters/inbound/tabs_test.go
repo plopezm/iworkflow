@@ -108,7 +108,7 @@ func TestListTabMapsErrorsWithoutLeakingDetail(t *testing.T) {
 	assert.NotContains(t, body, "secret")
 }
 
-func TestDetailTabShowsContentAsEscapedText(t *testing.T) {
+func TestDetailTabRendersMarkdownAndEscapesHTML(t *testing.T) {
 	var got int
 	entry := models.Entry{State: models.StateAvailable, Memory: models.Memory{ID: 9, Type: "decision", Title: "Why"}, Content: "<script>x</script>\nline"}
 	handlers := NewHandlers(stubList{}, stubRead{workspace: testWorkspace, entry: entry, gotID: &got}, nil)
@@ -118,6 +118,7 @@ func TestDetailTabShowsContentAsEscapedText(t *testing.T) {
 	assert.Equal(t, 9, got)
 	assert.Contains(t, body, "&lt;script&gt;x&lt;/script&gt;")
 	assert.NotContains(t, body, "<script>")
+	assert.NotContains(t, body, "<pre", "the content is rendered, not dumped in a pre block")
 	assert.Contains(t, body, `href="/workspaces/w1/memories"`)
 }
 
@@ -177,4 +178,32 @@ func TestTaskTabStatesAndErrors(t *testing.T) {
 
 	missing := stubTasks{err: memerrors.ErrTaskNotFound}
 	assert.Contains(t, render(t, NewHandlers(nil, nil, missing).TaskTab(context.Background(), dock.Params{"taskId": "x"})), "task not found")
+}
+
+func TestDetailTabRendersMarkdownFormattingAndNeutralizesUnsafeLinks(t *testing.T) {
+	content := "**What**: fixed it\n\n- one\n- two\n\n[bad](javascript:alert(1)) and [ok](https://example.com)"
+	entry := models.Entry{State: models.StateAvailable, Memory: models.Memory{ID: 1, Title: "T"}, Content: content}
+	handlers := NewHandlers(stubList{}, stubRead{workspace: testWorkspace, entry: entry}, nil)
+
+	body := render(t, handlers.DetailTab(context.Background(), dock.Params{"id": "w1", "memoryId": "1"}))
+
+	assert.Contains(t, body, "<strong>What</strong>")
+	assert.Contains(t, body, "<li>one</li>")
+	assert.NotContains(t, body, "javascript:")
+	assert.Contains(t, body, `href="https://example.com"`)
+	assert.NotContains(t, body, "**What**", "the Markdown markers are gone")
+}
+
+func TestListTabMakesTheWholeCardTheLink(t *testing.T) {
+	feed := models.Feed{State: models.StateAvailable, Memories: []models.Memory{{ID: 7, Type: "bugfix", Title: "Fix", UpdatedAt: time.Date(2026, 1, 2, 3, 4, 0, 0, time.UTC)}}}
+	handlers := NewHandlers(stubList{workspace: testWorkspace, feed: feed}, stubRead{}, nil)
+
+	body := render(t, handlers.ListTab(context.Background(), dock.Params{"id": "w1"}))
+
+	row := body[strings.Index(body, "data-memory-row"):]
+	row = row[:strings.Index(row, "</li>")]
+	assert.Contains(t, row, `href="/workspaces/w1/memories/7"`)
+	assert.Contains(t, row, "bugfix", "type and date are inside the link, so tapping them opens the memory too")
+	assert.Less(t, strings.Index(row, "<a "), strings.Index(row, "bugfix"))
+	assert.Greater(t, strings.Index(row, "</a>"), strings.Index(row, "bugfix"))
 }

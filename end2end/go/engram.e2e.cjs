@@ -374,6 +374,39 @@ module.exports = {
       },
     },
     {
+      name: 'memorias: pulsar en cualquier parte de la tarjeta abre la memoria y su Markdown se ve renderizado, sin ejecutar HTML',
+      fn: async (ctx) => {
+        const f = await readyFixture(ctx);
+        const title = `Con formato ${tag}`;
+        const now = new Date().toISOString().replace('T', ' ').slice(0, 19);
+        fake.extra = [{
+          id: 301, sync_id: 's-301', session_id: 'x', type: 'decision', title,
+          content: `**Negrita-${tag}**\n\n- punto uno\n- punto dos\n\n[mala](javascript:window.__pwn=1) <script>window.__pwn=1</script>`,
+          project: PROJECT, scope: 'project', topic_key: 'fmt/x', revision_count: 1, duplicate_count: 0, last_seen_at: now,
+        }];
+        try {
+          await withFake(async () => {
+            const id = await workspaceId(ctx, f.matchName);
+            await ctx.goto(`/workspaces/${id}/memories`);
+            const card = ctx.page.locator('[data-memories-list]:visible [data-memory-row]', { hasText: title });
+            await card.waitFor({ timeout: 10000 });
+            // Tap the type and date line, not the title: the whole card is the link.
+            await card.locator('span.text-xs').click();
+            const content = ctx.page.locator('[data-memory-detail]:visible [data-memory-content]');
+            await content.waitFor({ timeout: 10000 });
+            await content.locator('strong', { hasText: `Negrita-${tag}` }).waitFor({ timeout: 5000 });
+            ctx.assert((await content.locator('li').count()) === 2, 'la lista de Markdown no se renderiza');
+            ctx.assert((await content.locator('script').count()) === 0, 'se inyecto un <script>');
+            ctx.assert((await content.locator('a[href^="javascript:"]').count()) === 0, 'se dejo un enlace javascript:');
+            ctx.assert((await ctx.page.evaluate(() => window.__pwn)) === undefined, 'se ejecuto HTML del contenido');
+            await shot(ctx, 'memories-9-markdown.png');
+          });
+        } finally {
+          fake.extra = [];
+        }
+      },
+    },
+    {
       name: 'memorias: un workspace sin proyecto no puede leer una memoria ajena',
       fn: async (ctx) => {
         const f = await readyFixture(ctx);

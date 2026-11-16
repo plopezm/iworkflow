@@ -24,24 +24,13 @@ templ MemoriesPage(page state.ListPage) {
 				case state.Empty:
 					<p class="muted" role="status">{ msgEmpty.T(ctx) }</p>
 				default:
-					<ul class="stack gap-2">
-						for _, row := range page.Rows {
-							<li class="card row items-center justify-between gap-3" data-memory-row>
-								<div class="stack min-w-0 gap-0.5">
-									@link.Tab(link.Props{Href: row.Href, Class: "truncate font-medium text-fg hover:underline"}) {
-										{ row.Title }
-									}
-									<span class="text-xs text-muted">{ row.Type } · { row.Date }</span>
-								</div>
-							</li>
-						}
-					</ul>
+					@memoryRows(page.Rows)
 			}
 		</div>
 	</div>
 }
 
-// MemoryPage shows one memory with its content as plain text, so the content is never interpreted as markup.
+// MemoryPage shows one memory with its content rendered as Markdown. Raw HTML in it is shown escaped and unsafe links are neutralized.
 templ MemoryPage(page state.DetailPage) {
 	<div class="flex h-full min-h-0 flex-col" data-memory-detail>
 		<div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2.5">
@@ -58,23 +47,21 @@ templ MemoryPage(page state.DetailPage) {
 				<p class="muted" role="status">{ msgUnavailable.T(ctx) }</p>
 			} else {
 				<p class="text-xs text-muted">{ page.WorkspaceName } · { page.Type } · { page.Date }</p>
-				<pre class="whitespace-pre-wrap break-words font-mono text-sm text-fg" data-memory-content>{ page.Content }</pre>
+				<div class="markdown break-words text-sm text-fg" data-memory-content>@templ.Raw(markdownHTML(page.Content))</div>
 			}
 		</div>
 	</div>
 }
 
-// memoryRows lists memories as rows that link to the reader.
+// memoryRows lists memories as cards. The whole card is the link to the reader, so any tap on it opens the memory.
 templ memoryRows(rows []state.Row) {
 	<ul class="stack gap-2">
 		for _, row := range rows {
-			<li class="card row items-center justify-between gap-3" data-memory-row>
-				<div class="stack min-w-0 gap-0.5">
-					@link.Tab(link.Props{Href: row.Href, Class: "truncate font-medium text-fg hover:underline"}) {
-						{ row.Title }
-					}
+			<li data-memory-row>
+				@link.Tab(link.Props{Href: row.Href, Class: "card stack gap-0.5 hover:border-accent"}) {
+					<span class="truncate font-medium text-fg">{ row.Title }</span>
 					<span class="text-xs text-muted">{ row.Type } · { row.Date }</span>
-				</div>
+				}
 			</li>
 		}
 	</ul>
