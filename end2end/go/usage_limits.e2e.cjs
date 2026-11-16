@@ -97,7 +97,7 @@ module.exports = {
         ctx.assert((await percentOf(week)) === '25%', `semana: se esperaba 25%, se lee "${await percentOf(week)}"`);
         ctx.assert((await fiveH.getAttribute('data-level')) === 'normal', `5h: nivel ${await fiveH.getAttribute('data-level')}`);
         ctx.assert((await week.getAttribute('data-level')) === 'normal', `semana: nivel ${await week.getAttribute('data-level')}`);
-        ctx.assert((await week.locator('span').first().textContent()).trim() === 'semana', 'la fila semanal no está rotulada "semana"');
+        ctx.assert((await week.locator('span').first().textContent()).trim() === '7d', 'la fila semanal no está rotulada "7d"');
 
         // The reset of the 5 h window is two hours and about ten minutes away; the week window is three days away.
         const fiveHReset = (await fiveH.locator('span').filter({ hasText: '↻' }).first().textContent()).trim();

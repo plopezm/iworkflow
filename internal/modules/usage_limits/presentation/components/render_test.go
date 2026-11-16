@@ -52,7 +52,7 @@ func TestBarRendersOneCardPerProviderWithTheWindowRows(t *testing.T) {
 	assert.Contains(t, body, "75%")
 	assert.Contains(t, body, "↻ 2h10")
 	assert.Contains(t, body, `data-usage-window="week"`)
-	assert.Contains(t, body, "week")
+	assert.Contains(t, body, "7d")
 	assert.Contains(t, body, "13%")
 	assert.Contains(t, body, "↻ 3d")
 	assert.Contains(t, body, "width: 75%")
