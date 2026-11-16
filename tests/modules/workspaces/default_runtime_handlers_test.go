@@ -194,6 +194,26 @@ func TestUpdateSetsAndClearsTheDefaultRuntime(t *testing.T) {
 	assert.Nil(t, workspaceNamed(t, fixture, "Demo").DefaultRuntime, "an empty value clears the default agent")
 }
 
+// TestUpdateWithoutDefaultRuntimeFieldKeepsTheSavedOne posts the edit form without the select, as it
+// is rendered when no agent is installed. The saved agent must survive the save.
+func TestUpdateWithoutDefaultRuntimeFieldKeepsTheSavedOne(t *testing.T) {
+	fixture := newHTTPFixture(t)
+	fixture.post("/workspaces/register", url.Values{
+		"name": {"Demo"}, "path": {newGitRepo(t)}, "base_branch": {"main"}, "default_runtime": {"codex"},
+	})
+	id := fixture.registeredID()
+
+	response := fixture.post("/workspaces/"+id+"/update", url.Values{
+		"name": {"Renombrado"}, "base_branch": {"main"},
+	})
+
+	require.Equal(t, http.StatusOK, response.Code)
+	assert.Contains(t, response.Body.String(), `data-dock-redirect="/workspaces"`)
+	saved := workspaceNamed(t, fixture, "Renombrado")
+	require.NotNil(t, saved.DefaultRuntime, "an absent default agent must not clear the saved one")
+	assert.Equal(t, "codex", *saved.DefaultRuntime)
+}
+
 func TestUpdateWithUnknownDefaultRuntimeShowsErrorAndKeepsTheSavedOne(t *testing.T) {
 	fixture := newHTTPFixture(t)
 	fixture.post("/workspaces/register", url.Values{

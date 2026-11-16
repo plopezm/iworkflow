@@ -171,7 +171,12 @@ func TestUpdateDTODecodesDefaultRuntimeFromJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo","default_runtime":"claude"}`), &set))
 	var cleared UpdateWorkspaceDTO
 	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo","default_runtime":""}`), &cleared))
+	var omitted UpdateWorkspaceDTO
+	require.NoError(t, json.Unmarshal([]byte(`{"name":"Demo"}`), &omitted))
 
-	assert.Equal(t, "claude", set.ToWorkspaceUpdate().DefaultRuntime)
-	assert.Empty(t, cleared.ToWorkspaceUpdate().DefaultRuntime, "an empty value clears the default agent")
+	require.NotNil(t, set.ToWorkspaceUpdate().DefaultRuntime)
+	assert.Equal(t, "claude", *set.ToWorkspaceUpdate().DefaultRuntime)
+	require.NotNil(t, cleared.ToWorkspaceUpdate().DefaultRuntime)
+	assert.Equal(t, "", *cleared.ToWorkspaceUpdate().DefaultRuntime, "a present empty value clears the default agent")
+	assert.Nil(t, omitted.ToWorkspaceUpdate().DefaultRuntime, "an omitted default agent keeps the saved one")
 }

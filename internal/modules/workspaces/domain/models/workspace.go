@@ -105,8 +105,9 @@ type WorkspaceUpdate struct {
 	BaseBranch string
 	// AgentsFileID is the stored AGENTS.md that replaces the project one. Empty keeps it.
 	AgentsFileID string
-	// DefaultRuntime is the agent new tasks launch with. Empty means the system agent.
-	DefaultRuntime string
+	// DefaultRuntime is the agent new tasks launch with. Nil keeps the saved one (the field was absent);
+	// a non-nil empty value means the system agent.
+	DefaultRuntime *string
 }
 
 // Validated normalizes the input and checks the invariants that do not depend on infrastructure.
@@ -115,11 +116,16 @@ func (u WorkspaceUpdate) Validated() (WorkspaceUpdate, error) {
 	if err := validateName(name); err != nil {
 		return WorkspaceUpdate{}, err
 	}
+	var defaultRuntime *string
+	if u.DefaultRuntime != nil {
+		trimmed := strings.TrimSpace(*u.DefaultRuntime)
+		defaultRuntime = &trimmed
+	}
 	return WorkspaceUpdate{
 		Name:           name,
 		BaseBranch:     strings.TrimSpace(u.BaseBranch),
 		AgentsFileID:   strings.TrimSpace(u.AgentsFileID),
-		DefaultRuntime: strings.TrimSpace(u.DefaultRuntime),
+		DefaultRuntime: defaultRuntime,
 	}, nil
 }
 

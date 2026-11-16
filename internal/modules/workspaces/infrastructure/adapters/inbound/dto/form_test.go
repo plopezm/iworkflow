@@ -88,16 +88,20 @@ func TestRegisterFormAbsentDefaultRuntimeMapsToEmpty(t *testing.T) {
 func TestUpdateFormReadsDefaultRuntime(t *testing.T) {
 	update := UpdateWorkspaceFromForm(url.Values{"default_runtime": {"codex"}}).ToWorkspaceUpdate()
 
-	assert.Equal(t, "codex", update.DefaultRuntime)
+	require.NotNil(t, update.DefaultRuntime)
+	assert.Equal(t, "codex", *update.DefaultRuntime)
 }
 
 func TestUpdateFormPresentEmptyDefaultRuntimeClearsIt(t *testing.T) {
-	dto := UpdateWorkspaceFromForm(url.Values{"default_runtime": {""}})
+	update := UpdateWorkspaceFromForm(url.Values{"default_runtime": {""}}).ToWorkspaceUpdate()
 
-	require.NotNil(t, dto.DefaultRuntime)
-	assert.Empty(t, dto.ToWorkspaceUpdate().DefaultRuntime)
+	require.NotNil(t, update.DefaultRuntime)
+	assert.Equal(t, "", *update.DefaultRuntime, "a present empty value clears the default agent")
 }
 
-func TestUpdateFormAbsentDefaultRuntimeMapsToEmpty(t *testing.T) {
-	assert.Empty(t, UpdateWorkspaceFromForm(url.Values{}).ToWorkspaceUpdate().DefaultRuntime)
+func TestUpdateFormAbsentDefaultRuntimeIsNotGiven(t *testing.T) {
+	// The edit form has no default_runtime field when no agent is installed; the saved agent must stay.
+	update := UpdateWorkspaceFromForm(url.Values{"name": {"Demo"}}).ToWorkspaceUpdate()
+
+	assert.Nil(t, update.DefaultRuntime, "an absent default agent is nil, which keeps the saved one")
 }

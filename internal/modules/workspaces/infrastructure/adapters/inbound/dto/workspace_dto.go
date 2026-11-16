@@ -43,7 +43,8 @@ type UpdateWorkspaceDTO struct {
 	BaseBranch *string `json:"base_branch,omitempty"`
 	// AgentsFileID is the stored AGENTS.md that replaces the project one.
 	AgentsFileID *string `json:"agents_file_id,omitempty"`
-	// DefaultRuntime is the default agent of the workspace; empty or absent means the system agent.
+	// DefaultRuntime is the default agent of the workspace. Absent keeps the saved one; present and empty
+	// clears it to the system agent.
 	DefaultRuntime *string `json:"default_runtime,omitempty"`
 }
 
@@ -94,7 +95,7 @@ func (d UpdateWorkspaceDTO) ToWorkspaceUpdate() models.WorkspaceUpdate {
 		Name:           d.Name,
 		BaseBranch:     derefString(d.BaseBranch),
 		AgentsFileID:   derefString(d.AgentsFileID),
-		DefaultRuntime: derefString(d.DefaultRuntime),
+		DefaultRuntime: d.DefaultRuntime,
 	}
 }
 

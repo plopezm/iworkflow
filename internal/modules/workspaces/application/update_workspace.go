@@ -45,9 +45,15 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 		return models.Workspace{}, werrors.NotFound(id.String())
 	}
 
-	defaultRuntime, err := resolveDefaultRuntime(ctx, u.runtimes, validated.DefaultRuntime)
-	if err != nil {
-		return models.Workspace{}, err
+	// An absent default agent keeps the saved one without checking it against the installed agents, so
+	// editing a workspace never drops it; a present one is validated like a registration.
+	defaultRuntime := current.DefaultRuntime
+	if validated.DefaultRuntime != nil {
+		resolved, resolveErr := resolveDefaultRuntime(ctx, u.runtimes, *validated.DefaultRuntime)
+		if resolveErr != nil {
+			return models.Workspace{}, resolveErr
+		}
+		defaultRuntime = resolved
 	}
 
 	baseBranch := current.BaseBranch
