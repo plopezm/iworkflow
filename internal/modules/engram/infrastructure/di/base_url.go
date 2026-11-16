@@ -2,8 +2,9 @@ package di
 
 import (
 	"errors"
-	"net/url"
 	"strings"
+
+	"iworkflow/internal/modules/engram/domain/models"
 )
 
 // ErrNotConfigured means IWF_ENGRAM_URL is unset or blank: the feature is off and nothing is reported.
@@ -20,12 +21,9 @@ func ResolveBaseURL(raw string) (string, error) {
 	if trimmed == "" {
 		return "", ErrNotConfigured
 	}
-	parsed, err := url.Parse(trimmed)
+	baseURL, err := models.ParseServerURL(trimmed)
 	if err != nil {
 		return "", ErrInvalidBaseURL
 	}
-	if (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Hostname() == "" || parsed.User != nil {
-		return "", ErrInvalidBaseURL
-	}
-	return strings.TrimRight(trimmed, "/"), nil
+	return baseURL, nil
 }

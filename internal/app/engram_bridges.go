@@ -2,37 +2,34 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 
 	engrammodels "iworkflow/internal/modules/engram/domain/models"
 	engramdi "iworkflow/internal/modules/engram/infrastructure/di"
+	memoriesoutbound "iworkflow/internal/modules/memories/domain/ports/outbound"
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
 	workspacesoutbound "iworkflow/internal/modules/workspaces/domain/ports/outbound"
 )
 
-// composeEngram builds the Engram ports from IWF_ENGRAM_URL. The feature is on only when the value is a valid
-// http or https URL with a host. An unset value turns it off silently. An invalid value turns it off and logs one
-// warning, which never echoes the value. Nothing here fails the start: when the feature is off, both ports are nil
-// and no Engram request can happen.
-func composeEngram(raw string, logger *slog.Logger) (workspacesoutbound.MemorySummaryPort, tasksoutbound.TaskMemory) {
-	baseURL, err := engramdi.ResolveBaseURL(raw)
-	if errors.Is(err, engramdi.ErrNotConfigured) {
-		return nil, nil
+// composeEngram builds the Engram module and its ports. Engram is always wired: its address is the saved setting, else
+// IWF_ENGRAM_URL, else Engram's default, and it can change at runtime from Configuración. An invalid IWF_ENGRAM_URL is
+// ignored with one warning that never echoes the value. Nothing here fails the start or touches the network: the
+// client has no address until App.Start applies the settings.
+func composeEngram(db *sql.DB, raw string, logger *slog.Logger) (*engramdi.Module, workspacesoutbound.MemorySummaryPort, tasksoutbound.TaskMemory, memoriesoutbound.MemoryProvider) {
+	envURL := ""
+	if _, err := engramdi.ResolveBaseURL(raw); err == nil {
+		envURL = raw
+	} else if !errors.Is(err, engramdi.ErrNotConfigured) {
+		logger.Warn("IWF_ENGRAM_URL ignored: it is not a valid http or https URL", "error", err)
 	}
-	if err != nil {
-		logger.Warn("engram disabled: IWF_ENGRAM_URL is not a valid http or https URL", "error", err)
-		return nil, nil
-	}
-	module, err := engramdi.NewModule(baseURL)
-	if err != nil {
-		logger.Warn("engram disabled: the client could not be built")
-		return nil, nil
-	}
-	return newEngramMemoryBridge(module.ListWorkspacesMemory), newEngramTaskMemoryBridge(module.RecentMemories)
+	module := engramdi.NewModule(engramdi.Deps{DB: db, EnvURL: envURL, Logger: logger})
+	return module, newEngramMemoryBridge(module.ListWorkspacesMemory), newEngramTaskMemoryBridge(module.RecentMemories),
+		newEngramMemoryProvider(module.ListMemories, module.ReadMemory)
 }
 
 // workspacesMemoryReader is the part of the engram ListWorkspacesMemory use case the memory bridge needs.

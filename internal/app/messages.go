@@ -13,6 +13,7 @@ var (
 	msgNotMigrated        = i18n.Msg{En: "This screen has not been migrated to the Go server yet.", Es: "Esta pantalla todavía no se ha migrado al servidor Go.", Zh: "此页面尚未迁移到 Go 服务器。", De: "Dieser Bereich wurde noch nicht auf den Go-Server migriert.", Fr: "Cet écran n'a pas encore été migré vers le serveur Go."}
 	msgResources          = i18n.Msg{En: "Resources", Es: "Recursos", Zh: "资源", De: "Ressourcen", Fr: "Ressources"}
 	msgSettingsLang       = i18n.Msg{En: "Language", Es: "Idioma", Zh: "语言", De: "Sprache", Fr: "Langue"}
+	msgSettingsEngram     = i18n.Msg{En: "Engram", Es: "Engram", Zh: "Engram", De: "Engram", Fr: "Engram"}
 	msgSettingsTerminal   = i18n.Msg{En: "Terminal", Es: "Terminal", Zh: "终端", De: "Terminal", Fr: "Terminal"}
 	msgSettingsAppearance = i18n.Msg{En: "Appearance", Es: "Apariencia", Zh: "外观", De: "Darstellung", Fr: "Apparence"}
 	msgSettingsNet        = i18n.Msg{En: "Network", Es: "Red", Zh: "网络", De: "Netzwerk", Fr: "Réseau"}

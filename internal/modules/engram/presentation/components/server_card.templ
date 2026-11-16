@@ -1,0 +1,65 @@
+package components
+
+import (
+	corecomponents "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/engram/presentation/state"
+)
+
+// ServerPlaceholder is the card before its data arrives. It loads the card once the page is shown; the card then
+// replaces the placeholder in place (same id).
+templ ServerPlaceholder() {
+	<div id={ cardID } hx-get={ settingsPath } hx-trigger="load" hx-swap="outerHTML">
+		@corecomponents.Card(msgCardTitle.T(ctx)) {
+			@corecomponents.Loading(msgLoading.T(ctx))
+		}
+	</div>
+}
+
+// ServerCard is the Engram server settings card. Every action posts to the module and gets the whole card back.
+templ ServerCard(view state.SettingsView) {
+	<div id={ cardID } data-engram-card>
+		@corecomponents.Card(msgCardTitle.T(ctx)) {
+			<p class="muted text-sm">{ msgCardHelp.T(ctx) }</p>
+			<div class="stack gap-1">
+				<label class="text-sm font-medium text-fg" for="engram-url">{ msgFieldLabel.T(ctx) }</label>
+				<input
+					id="engram-url"
+					class="input"
+					type="text"
+					name="url"
+					value={ view.URL }
+					placeholder={ view.DefaultURL }
+					autocomplete="off"
+					spellcheck="false"
+				/>
+			</div>
+			<div class="row items-center gap-2">
+				<button type="button" class="btn-secondary" hx-include="#engram-url" { actionAttrs(settingsPath)... }>{ msgSave.T(ctx) }</button>
+				if view.IsSaved() {
+					<button type="button" class="btn-secondary" { actionAttrs(settingsResetPath)... }>{ msgReset.T(ctx) }</button>
+				}
+				if view.Reachable {
+					<span class="badge" data-engram-reachable>{ msgReachable.T(ctx) }</span>
+				} else {
+					<span class="badge" data-engram-unreachable>{ msgUnreachable.T(ctx) }</span>
+				}
+			</div>
+			if view.IsFromEnvironment() {
+				<p class="muted text-sm">{ msgFromEnv.T(ctx) }</p>
+			}
+			switch view.Status {
+				case state.StatusRunning:
+					<p class="muted text-sm" role="status">{ msgRunning.T(ctx) }</p>
+				case state.StatusStarted:
+					<p class="muted text-sm" role="status">{ msgStarted.T(ctx) }</p>
+				case state.StatusSkipped:
+					<p class="muted text-sm" role="status">{ msgSkipped.T(ctx) }</p>
+				case state.StatusStartFailed:
+					@corecomponents.ErrorText(msgStartFailed.T(ctx))
+			}
+			if view.Error != "" {
+				@corecomponents.ErrorText(view.Error)
+			}
+		}
+	</div>
+}
