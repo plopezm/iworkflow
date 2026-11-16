@@ -1,0 +1,11 @@
+#!/bin/sh
+# Fake `engram` for the e2e server: only `run -d -p PORT` is faked (it records the launch and starts a tiny daemon);
+# every other invocation is passed to the real engram further down the PATH, so nothing else changes.
+FAKE_DIR=$(cd "$(dirname "$0")" && pwd)
+if [ "$1" = run ] && [ "$2" = -d ] && [ "$3" = -p ]; then
+  echo "run -d -p $4" >> "${IWF_E2E_FAKE_ENGRAM_LOG:-/dev/null}"
+  # The daemon inherits stdout and stderr on purpose: the server's Start must not wait for it.
+  node "$FAKE_DIR/fake_engram_daemon.cjs" "$4" &
+  exit 0
+fi
+PATH="${PATH#"$FAKE_DIR":}" exec engram "$@"

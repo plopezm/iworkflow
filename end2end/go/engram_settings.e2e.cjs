@@ -4,6 +4,8 @@
 // "environment" and iworkflow never starts Engram for it. The tests only save REMOTE addresses (TEST-NET-1,
 // 192.0.2.0/24), which iworkflow is never allowed to start, so no engram process can be spawned by this suite.
 const fs = require('fs');
+const net = require('net');
+const http = require('http');
 const path = require('path');
 
 const SHOT_DIR = process.env.SMOKE_SCREENSHOT_DIR || '/tmp/iwf-e2e-screenshots';
@@ -23,6 +25,30 @@ async function openCard(ctx) {
   const card = ctx.page.locator('[data-engram-card]:visible');
   await card.waitFor({ timeout: 10000 });
   return card;
+}
+
+// A free loopback port, so the saved address is local and the server is allowed to start Engram for it.
+function freePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+function launches() {
+  const file = process.env.IWF_E2E_ENGRAM_LAUNCH_LOG;
+  if (!file) throw new Error('IWF_E2E_ENGRAM_LAUNCH_LOG no esta definida: ejecuta el suite con end2end/go/run_go.sh');
+  return fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter(Boolean) : [];
+}
+
+function stopFakeDaemon(port) {
+  return new Promise((resolve) => {
+    http.get({ host: '127.0.0.1', port, path: '/_stop' }, (res) => { res.resume(); res.on('end', resolve); }).on('error', resolve);
+  });
 }
 
 module.exports = {
@@ -69,6 +95,36 @@ module.exports = {
         await ctx.page.locator('[data-engram-card]:visible #engram-url').waitFor({ timeout: 10000 });
         await ctx.page.waitForFunction((expected) => document.querySelector('[data-engram-card] #engram-url')?.value === expected, env, { timeout: 10000 });
         ctx.assert((await ctx.page.getByRole('button', { name: 'Restaurar por defecto' }).count()) === 0, 'sigue el boton de restaurar');
+      },
+    },
+    {
+      name: 'auto-arranque: una dirección local apagada se inicia una sola vez y si ya responde no se vuelve a iniciar',
+      fn: async (ctx) => {
+        const port = await freePort();
+        const address = `http://127.0.0.1:${port}`;
+        const before = launches().length;
+        try {
+          const card = await openCard(ctx);
+          await card.locator('#engram-url').fill(address);
+          await card.getByRole('button', { name: 'Guardar y aplicar' }).click();
+          await ctx.page.getByText(/estaba apagado y se ha iniciado/).first().waitFor({ timeout: 25000 });
+          await ctx.page.locator('[data-engram-card]:visible [data-engram-reachable]').waitFor({ timeout: 10000 });
+          const afterStart = launches();
+          ctx.assert(afterStart.length === before + 1, `se esperaba 1 arranque y hubo ${afterStart.length - before}`);
+          ctx.assert(afterStart[afterStart.length - 1] === `run -d -p ${port}`, `argumentos inesperados: ${afterStart[afterStart.length - 1]}`);
+          await shot(ctx, 'engram-settings-4-started.png');
+
+          await ctx.page.getByRole('button', { name: 'Guardar y aplicar' }).click();
+          await ctx.page.getByText(/ya estaba en marcha/).first().waitFor({ timeout: 15000 });
+          ctx.assert(launches().length === before + 1, 'se volvio a iniciar un Engram que ya respondia');
+          await shot(ctx, 'engram-settings-5-already-running.png');
+        } finally {
+          await stopFakeDaemon(port);
+          const reopened = await openCard(ctx);
+          const reset = reopened.getByRole('button', { name: 'Restaurar por defecto' });
+          if (await reset.count()) await reset.click();
+          await ctx.page.waitForFunction(() => !document.querySelector('[data-engram-card] button[hx-post$="/reset"]'), null, { timeout: 15000 });
+        }
       },
     },
   ],

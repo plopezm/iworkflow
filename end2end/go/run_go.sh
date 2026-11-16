@@ -164,7 +164,7 @@ USAGE_MOCK_PORT="$(free_port)"
 # server the background process itself, so the trap stops it. stdout and stderr both go to server.log.
 (
   cd "$WORK"
-  exec env -i PATH="$PATH" HOME="$WORK/home" TMPDIR="$WORK/tmp" \
+  exec env -i PATH="$ROOT/end2end/go/fake_engram:$PATH" IWF_E2E_FAKE_ENGRAM_LOG="$WORK/fake-engram-launches.log" HOME="$WORK/home" TMPDIR="$WORK/tmp" \
     GIT_AUTHOR_NAME=smoke GIT_AUTHOR_EMAIL=smoke@localhost \
     GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
     IWF_HOME="$IWF_HOME_DIR" \
@@ -213,6 +213,8 @@ export IWF_E2E_TARGET=go IWF_ASR_MODEL_DIR="$ASR_MODEL_DIR"
 export SMOKE_SCREENSHOT_DIR="$RUN_DIR/screenshots"
 mkdir -p "$SMOKE_SCREENSHOT_DIR"
 export IWF_E2E_ENGRAM_URL="http://127.0.0.1:$ENGRAM_PORT"
+# Launches of the fake `engram run -d` (end2end/go/fake_engram), one line each: the Engram settings suite reads it.
+export IWF_E2E_ENGRAM_LAUNCH_LOG="$WORK/fake-engram-launches.log"
 
 # The test processes see the isolated HOME: workspaces.e2e.cjs browses under the process HOME, which
 # must be the server's home_dir.

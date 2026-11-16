@@ -440,6 +440,17 @@ module.exports = {
       },
     },
     {
+      name: 'tarea sin empezar: el detalle de una tarea en backlog no ofrece "Memorias" (no tiene rama)',
+      fn: async (ctx) => {
+        const f = await readyFixture(ctx);
+        await withFake(async () => {
+          await ctx.goto(`/tasks/${f.taskId}`);
+          await ctx.page.locator('details[data-task-memory]').waitFor({ state: 'attached', timeout: 10000 });
+          ctx.assert((await ctx.page.locator(`a[href="/tasks/${f.taskId}/memories"]`).count()) === 0, 'una tarea en backlog ofrece Memorias');
+        });
+      },
+    },
+    {
       name: 'solo lectura: el servidor de Engram solo recibió peticiones GET',
       // The test makes its own page loads with the fake up and checks the requests those loads produced. Requests
       // from the fixture build or from other tests are not evidence, so the log is cleared first.

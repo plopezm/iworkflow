@@ -37,11 +37,12 @@ async function registerWs(ctx, prefix, { guide }) {
   const name = `${prefix}-${tag}-${registrations}`;
   const dir = uniqueGitRepo(name, { guide });
   await ctx.goto('/workspaces');
+  await ctx.page.getByRole('button', { name: /Nuevo workspace/ }).first().click();
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');
   await ctx.page.getByRole('button', { name: /Registrar|Register/ }).first().click();
-  await ctx.page.getByText(dir).first().waitFor({ timeout: 12000 });
+  await ctx.page.getByText(name).first().waitFor({ timeout: 12000 });
   return { name, dir };
 }
 
