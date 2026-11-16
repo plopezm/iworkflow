@@ -223,9 +223,9 @@ func TestResumeRateLimitedRescheduleFailureIsLoggedNotReturned(t *testing.T) {
 	assert.Equal(t, task, fx.repo.tasks[task.ID])
 }
 
-// Rule from source: resume_rate_limited_tasks.rs::resume runs the resume and then the continuation; a failed
-// continuation counts as a failed resume and reschedules the task. The task is already idle at that point
-// (Rust parity: the reschedule does not check the status).
+// A failed continuation counts as a failed resume: the task goes back to rate_limited with its agent stopped and a
+// new schedule. Leaving it idle (the old Rust behavior) stranded it: the sweep only lists rate-limited tasks, so
+// nothing ever sent the continuation again.
 func TestResumeRateLimitedFailedContinuationReschedulesAfterTheResume(t *testing.T) {
 	t.Parallel()
 	task := parkedTask(models.UsageLimitState{ResumeAt: instantAt(-time.Second)})
@@ -236,7 +236,9 @@ func TestResumeRateLimitedFailedContinuationReschedulesAfterTheResume(t *testing
 
 	require.NoError(t, err)
 	assert.Equal(t, 0, resumed)
-	assert.Equal(t, []models.TaskStatus{models.StatusIdle}, fx.repo.statuses)
+	assert.Equal(t, []models.TaskStatus{models.StatusIdle, models.StatusRateLimited}, fx.repo.statuses)
+	assert.Equal(t, models.StatusRateLimited, fx.repo.tasks[task.ID].Status)
+	assert.Equal(t, []models.TaskID{task.ID}, fx.runtime.stopped)
 	require.Len(t, fx.repo.usageWrites, 1)
 	assert.Equal(t, task.ID, fx.repo.usageWrites[0].id)
 	assert.Equal(t, uint32(1), fx.repo.usageWrites[0].state.Attempts)
@@ -338,4 +340,39 @@ func TestResumeRateLimitedFailedStartKeepsTheTaskStopped(t *testing.T) {
 	assert.Empty(t, fx.repo.statuses)
 	require.Len(t, fx.repo.usageWrites, 1)
 	assert.Equal(t, uint32(1), fx.repo.usageWrites[0].state.Attempts)
+}
+
+// When the task cannot go back to rate_limited after a failed continuation, the agent is left alone (stopping it
+// first would be recorded as an interruption) and the sweep still reschedules and reports the failure by count.
+func TestResumeRateLimitedParkingFailureKeepsTheAgentAndStillReschedules(t *testing.T) {
+	t.Parallel()
+	task := parkedTask(models.UsageLimitState{ResumeAt: instantAt(-time.Second)})
+	fx := newResumeFixture(task)
+	fx.runtime.sendErr = errors.New("send failed")
+	fx.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusRateLimited: errors.New("database is locked")}
+
+	resumed, err := fx.rateLimited().Execute(context.Background(), fixedNow)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, resumed)
+	assert.Empty(t, fx.runtime.stopped)
+	require.Len(t, fx.repo.usageWrites, 1)
+	assert.Equal(t, uint32(1), fx.repo.usageWrites[0].state.Attempts)
+}
+
+// A failing stop after a failed continuation is only logged: the task is parked again and rescheduled anyway.
+func TestResumeRateLimitedStopFailureAfterFailedContinuationStillParksTheTask(t *testing.T) {
+	t.Parallel()
+	task := parkedTask(models.UsageLimitState{ResumeAt: instantAt(-time.Second)})
+	fx := newResumeFixture(task)
+	fx.runtime.sendErr = errors.New("send failed")
+	fx.runtime.stopErr = errors.New("stop failed")
+
+	resumed, err := fx.rateLimited().Execute(context.Background(), fixedNow)
+
+	require.NoError(t, err)
+	assert.Equal(t, 0, resumed)
+	assert.Equal(t, models.StatusRateLimited, fx.repo.tasks[task.ID].Status)
+	assert.Equal(t, []models.TaskID{task.ID}, fx.runtime.stopped)
+	require.Len(t, fx.repo.usageWrites, 1)
 }
