@@ -238,6 +238,14 @@ func (r *TaskRepository) SetUsageLimit(ctx context.Context, id models.TaskID, st
 	return nil
 }
 
+// PinAgentRuntime stores the launch runtime of a task that has none of its own.
+func (r *TaskRepository) PinAgentRuntime(ctx context.Context, id models.TaskID, runtime string) error {
+	if err := r.queries.SetTaskAgentRuntimeIfUnset(ctx, gen.SetTaskAgentRuntimeIfUnsetParams{AgentRuntime: &runtime, ID: id.String()}); err != nil {
+		return dbError(err)
+	}
+	return nil
+}
+
 // RecordDiffRange stores the final commit range.
 func (r *TaskRepository) RecordDiffRange(ctx context.Context, id models.TaskID, diffRange models.DiffRange) error {
 	base := diffRange.BaseSHA

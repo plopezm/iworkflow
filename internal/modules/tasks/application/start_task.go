@@ -201,7 +201,8 @@ func (u *StartTask) abandonClaim(ctx context.Context, id models.TaskID, createEr
 // are read before the agent starts, so a missing file never leaves a running agent without its prompt. The related
 // projects of the task are described at the end of the prompt and allowed as folders of the agent.
 func (u *StartTask) launch(ctx context.Context, task models.Task) error {
-	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, u.lifecycle.EffectiveAgent(ctx, task))
+	agent := u.lifecycle.EffectiveAgent(ctx, task)
+	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, agent)
 	if err != nil {
 		return err
 	}
@@ -216,6 +217,7 @@ func (u *StartTask) launch(ctx context.Context, task models.Task) error {
 	if err = u.runtime.Start(ctx, task.ID, task.WorktreePath, false, options, u.sink); err != nil {
 		return err
 	}
+	u.lifecycle.PinAgent(ctx, task, agent)
 	prompt := models.AppendPromptSection(task.Prompt, related.PromptSection)
 	return u.runtime.Send(ctx, task.ID, models.PromptCommand{Message: prompt, Images: images})
 }

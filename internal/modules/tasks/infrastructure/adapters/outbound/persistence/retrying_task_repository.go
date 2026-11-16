@@ -190,6 +190,10 @@ func (r *RetryingTaskRepository) SetSubagentActivity(ctx context.Context, id mod
 	return retryVoid(r, ctx, "set_subagent_activity", func() error { return r.inner.SetSubagentActivity(ctx, id, activity) })
 }
 
+func (r *RetryingTaskRepository) PinAgentRuntime(ctx context.Context, id models.TaskID, runtime string) error {
+	return retryVoid(r, ctx, "pin_agent_runtime", func() error { return r.inner.PinAgentRuntime(ctx, id, runtime) })
+}
+
 func (r *RetryingTaskRepository) RecordDiffRange(ctx context.Context, id models.TaskID, diffRange models.DiffRange) error {
 	return retryVoid(r, ctx, "record_diff_range", func() error { return r.inner.RecordDiffRange(ctx, id, diffRange) })
 }

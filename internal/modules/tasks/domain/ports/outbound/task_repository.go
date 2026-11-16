@@ -54,6 +54,10 @@ type TaskRepository interface {
 	// SetSubagentActivity sets the subagent counters while the task has a live agent. It does not fail
 	// when the task is gone.
 	SetSubagentActivity(ctx context.Context, id models.TaskID, activity models.SubagentActivity) error
+	// PinAgentRuntime stores the runtime the task was launched with, only while the task has none of its own,
+	// so a later change of the workspace default does not change the agent of a task that already started. It does
+	// not fail when the task is gone.
+	PinAgentRuntime(ctx context.Context, id models.TaskID, runtime string) error
 	// RecordDiffRange stores the final commit range. It does not fail when the task is gone.
 	RecordDiffRange(ctx context.Context, id models.TaskID, diffRange models.DiffRange) error
 	// SetUsageLimit stores the resume schedule after a usage limit. The zero state clears it.

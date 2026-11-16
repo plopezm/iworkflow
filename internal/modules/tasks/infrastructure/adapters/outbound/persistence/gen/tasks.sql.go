@@ -580,6 +580,20 @@ func (q *Queries) RevertTaskStartClaim(ctx context.Context, arg RevertTaskStartC
 	return result.RowsAffected()
 }
 
+const setTaskAgentRuntimeIfUnset = `-- name: SetTaskAgentRuntimeIfUnset :exec
+UPDATE tasks SET agent_runtime = ?1 WHERE id = ?2 AND agent_runtime IS NULL
+`
+
+type SetTaskAgentRuntimeIfUnsetParams struct {
+	AgentRuntime *string
+	ID           string
+}
+
+func (q *Queries) SetTaskAgentRuntimeIfUnset(ctx context.Context, arg SetTaskAgentRuntimeIfUnsetParams) error {
+	_, err := q.db.ExecContext(ctx, setTaskAgentRuntimeIfUnset, arg.AgentRuntime, arg.ID)
+	return err
+}
+
 const setTaskDiffRange = `-- name: SetTaskDiffRange :exec
 UPDATE tasks SET base_sha = ?1, head_sha = ?2 WHERE id = ?3
 `

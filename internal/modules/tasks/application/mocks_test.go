@@ -78,16 +78,19 @@ type fakeRepository struct {
 	insertCalls             int
 	updateDetailsRelatedErr error
 	deleteResult            *bool
-	activeFilter            *string
-	donePage                [2]int64
-	doneWorkspace           *string
-	eventsTask              models.TaskID
-	diffRanges              []models.DiffRange
-	recordRangeErr          error
-	eventsAfter             *int64
-	storedEvents            []models.TaskEvent
-	insertErr               error
-	appendErr               error
+	// pinned lists the runtimes stored by PinAgentRuntime; pinErr makes it fail.
+	pinned         []string
+	pinErr         error
+	activeFilter   *string
+	donePage       [2]int64
+	doneWorkspace  *string
+	eventsTask     models.TaskID
+	diffRanges     []models.DiffRange
+	recordRangeErr error
+	eventsAfter    *int64
+	storedEvents   []models.TaskEvent
+	insertErr      error
+	appendErr      error
 	// claimResult and revertResult, when set, are returned instead of the real conditional check.
 	claimResult  *bool
 	claimErr     error
@@ -714,6 +717,25 @@ func (r *fakeRepository) ListByStatus(_ context.Context, statuses []models.TaskS
 		}
 	}
 	return tasks, nil
+}
+
+// PinAgentRuntime stores the runtime in a task that has none, as the real repository does.
+func (r *fakeRepository) PinAgentRuntime(_ context.Context, id models.TaskID, runtime string) error {
+	if r.pinErr != nil {
+		return r.pinErr
+	}
+	task, ok := r.tasks[id]
+	if !ok || task.Agent.Runtime != nil {
+		return nil
+	}
+	parsed, err := models.ParseRuntimeID(runtime)
+	if err != nil {
+		return err
+	}
+	task.Agent.Runtime = &parsed
+	r.tasks[id] = task
+	r.pinned = append(r.pinned, runtime)
+	return nil
 }
 
 // RecordDiffRange stores the range for the assertions of the merge tests.
