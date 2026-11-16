@@ -58,7 +58,7 @@ func NewModule(deps Deps) *Module {
 
 	get := application.NewGetServerSettings(settingsStore, deps.EnvURL)
 	save := application.NewSaveServerSettings(settingsStore)
-	apply := application.NewApplyServerSettings(get, store, application.NewEnsureRunning(server, sleep))
+	apply := application.NewApplyServerSettings(get, store, application.NewEnsureRunning(server, sleep, time.Now))
 	check := application.NewCheckServer(server)
 
 	return &Module{

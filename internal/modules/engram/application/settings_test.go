@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +82,7 @@ func TestApplyServerSettingsSwitchesThenStartsOnlyWhenOff(t *testing.T) {
 	store := &fakeSettingsStore{saved: "http://127.0.0.1:9100"}
 	switcher := &fakeSwitcher{}
 	process := &fakeProcess{healthyAfter: 2}
-	apply := NewApplyServerSettings(NewGetServerSettings(store, ""), switcher, NewEnsureRunning(process, noSleep))
+	apply := NewApplyServerSettings(NewGetServerSettings(store, ""), switcher, NewEnsureRunning(process, noSleep, time.Now))
 
 	settings, outcome, err := apply.Execute(context.Background())
 
@@ -92,7 +93,7 @@ func TestApplyServerSettingsSwitchesThenStartsOnlyWhenOff(t *testing.T) {
 	assert.Equal(t, []string{"9100"}, process.started)
 
 	running := &fakeProcess{healthyAfter: 1}
-	_, outcome, err = NewApplyServerSettings(NewGetServerSettings(store, ""), switcher, NewEnsureRunning(running, noSleep)).Execute(context.Background())
+	_, outcome, err = NewApplyServerSettings(NewGetServerSettings(store, ""), switcher, NewEnsureRunning(running, noSleep, time.Now)).Execute(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, models.OutcomeRunning, outcome)
 	assert.Empty(t, running.started)
@@ -100,7 +101,7 @@ func TestApplyServerSettingsSwitchesThenStartsOnlyWhenOff(t *testing.T) {
 
 func TestApplyServerSettingsKeepsTheAddressWhenTheStartFails(t *testing.T) {
 	switcher := &fakeSwitcher{}
-	apply := NewApplyServerSettings(NewGetServerSettings(&fakeSettingsStore{}, ""), switcher, NewEnsureRunning(&fakeProcess{startErr: errors.New("exec")}, noSleep))
+	apply := NewApplyServerSettings(NewGetServerSettings(&fakeSettingsStore{}, ""), switcher, NewEnsureRunning(&fakeProcess{startErr: errors.New("exec")}, noSleep, time.Now))
 
 	settings, _, err := apply.Execute(context.Background())
 
@@ -108,6 +109,6 @@ func TestApplyServerSettingsKeepsTheAddressWhenTheStartFails(t *testing.T) {
 	assert.Equal(t, models.DefaultServerURL, switcher.got)
 	assert.Equal(t, models.DefaultServerURL, settings.URL)
 
-	_, err = NewApplyServerSettings(NewGetServerSettings(&fakeSettingsStore{}, ""), &fakeSwitcher{err: errors.New("bad")}, NewEnsureRunning(&fakeProcess{}, noSleep)).Apply(context.Background())
+	_, err = NewApplyServerSettings(NewGetServerSettings(&fakeSettingsStore{}, ""), &fakeSwitcher{err: errors.New("bad")}, NewEnsureRunning(&fakeProcess{}, noSleep, time.Now)).Apply(context.Background())
 	assert.Error(t, err)
 }
