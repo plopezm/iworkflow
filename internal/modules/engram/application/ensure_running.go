@@ -37,9 +37,10 @@ func NewEnsureRunning(process outbound.ServerProcess, sleep func(ctx context.Con
 	return &EnsureRunning{process: process, sleep: sleep, now: now, startedAt: map[string]time.Time{}}
 }
 
-// recentlyStarted reports whether this process started Engram on port within startGrace. When it did not, it records the
-// start now, so the caller that gets false is the one that launches it.
-func (u *EnsureRunning) recentlyStarted(port string) bool {
+// claimStart reports whether another start on port is still inside its grace period. When none is, it claims the start
+// now, so the one caller that gets false launches Engram and a concurrent caller only waits. A launch that fails must be
+// released with releaseStart, so fixing the cause and applying again retries at once.
+func (u *EnsureRunning) claimStart(port string) bool {
 	u.mu.Lock()
 	defer u.mu.Unlock()
 	now := u.now()
@@ -48,6 +49,13 @@ func (u *EnsureRunning) recentlyStarted(port string) bool {
 	}
 	u.startedAt[port] = now
 	return false
+}
+
+// releaseStart drops the claim of a start that failed to launch.
+func (u *EnsureRunning) releaseStart(port string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	delete(u.startedAt, port)
 }
 
 // Execute checks the server and starts it only when it is off and the address allows it. It never starts a second
@@ -59,11 +67,13 @@ func (u *EnsureRunning) Execute(ctx context.Context, settings models.ServerSetti
 	if !settings.AutoStart() {
 		return models.OutcomeSkipped, nil
 	}
-	if u.recentlyStarted(settings.Port()) {
+	if u.claimStart(settings.Port()) {
 		// A start is still in progress: wait for it instead of launching a second Engram.
 		return u.waitUntilHealthy(ctx, settings)
 	}
 	if err := u.process.Start(ctx, settings.Port()); err != nil {
+		// Nothing was launched, so there is nothing to wait for: the next attempt may launch again.
+		u.releaseStart(settings.Port())
 		return "", fmt.Errorf("start engram on port %s: %w", settings.Port(), err)
 	}
 	return u.waitUntilHealthy(ctx, settings)

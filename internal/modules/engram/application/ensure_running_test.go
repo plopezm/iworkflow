@@ -95,3 +95,22 @@ func TestEnsureRunningDoesNotStartASecondTimeWhileTheFirstIsStillInitializing(t 
 	require.ErrorIs(t, err, engramerrors.ErrStartFailed)
 	assert.Equal(t, []string{"7437", "7437"}, process.started)
 }
+
+func TestEnsureRunningRetriesAtOnceWhenTheLaunchItselfFailed(t *testing.T) {
+	local := models.ServerSettings{URL: "http://127.0.0.1:7437", Source: models.SourceDefault}
+	clock := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	process := &fakeProcess{startErr: errors.New("exec: engram not found")}
+	uc := NewEnsureRunning(process, noSleep, func() time.Time { return clock })
+
+	_, err := uc.Execute(context.Background(), local)
+	require.Error(t, err)
+	process.startErr = nil // the user installed engram
+	process.healthyAfter = process.healthyCalls + 2
+	clock = clock.Add(time.Second) // well inside the grace period
+
+	outcome, err := uc.Execute(context.Background(), local)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.OutcomeStarted, outcome)
+	assert.Equal(t, []string{"7437", "7437"}, process.started, "the retry after a failed launch must launch again")
+}
