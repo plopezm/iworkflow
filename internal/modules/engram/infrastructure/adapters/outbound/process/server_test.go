@@ -5,7 +5,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,4 +52,48 @@ func TestStartRunsEngramDetachedWithThePort(t *testing.T) {
 func TestStartRejectsABadPortAndAMissingExecutable(t *testing.T) {
 	assert.Error(t, NewServer("engram").Start(t.Context(), "7437; rm -rf /"))
 	assert.Error(t, NewServer("definitely-not-installed-engram").Start(t.Context(), "7437"))
+}
+
+func TestHealthyRefusesAnAddressThatIsNotAnHTTPURL(t *testing.T) {
+	server := NewServer("engram")
+	for _, bad := range []string{"", "file:///etc/passwd", "ftp://127.0.0.1:7437", "http://user:pw@127.0.0.1:7437", "http://"} {
+		assert.False(t, server.Healthy(t.Context(), bad), bad)
+	}
+}
+
+// A daemon that inherits the launcher's output keeps the pipes open after the launcher exits. Start must still return
+// once the launcher is done, within the wait delay, and report success.
+func TestStartReturnsWhenTheDaemonKeepsTheOutputOpen(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "fake-engram")
+	require.NoError(t, os.WriteFile(executable, []byte("#!/bin/sh\nsleep 5 &\nexit 0\n"), 0o700))
+	server := NewServer(executable)
+	server.waitDelay = 300 * time.Millisecond
+
+	started := time.Now()
+	err := server.Start(t.Context(), "7437")
+
+	require.NoError(t, err)
+	assert.Less(t, time.Since(started), 3*time.Second, "Start waited for the daemon's pipes")
+}
+
+func TestStartFailureCarriesTheLauncherOutputWithoutBreakingCharacters(t *testing.T) {
+	dir := t.TempDir()
+	executable := filepath.Join(dir, "fake-engram")
+	script := "#!/bin/sh\nprintf 'boom \\033[31m'\nawk 'BEGIN{for(i=0;i<300;i++) printf \"é\"}'\nexit 3\n"
+	require.NoError(t, os.WriteFile(executable, []byte(script), 0o700))
+
+	err := NewServer(executable).Start(t.Context(), "7437")
+
+	require.Error(t, err)
+	assert.True(t, utf8.ValidString(err.Error()), "the error is valid UTF-8")
+	assert.NotContains(t, err.Error(), "\x1b", "control characters are dropped")
+	assert.Less(t, utf8.RuneCountInString(err.Error()), len("run "+executable+": exit status 3: ")+maxOutputRunes+1, "the output is bounded in characters")
+}
+
+func TestTruncateCutsOnACharacterBoundary(t *testing.T) {
+	text := strings.Repeat("é", 500) + "\xff"
+	got := truncate(text)
+	assert.True(t, utf8.ValidString(got))
+	assert.Equal(t, maxOutputRunes, utf8.RuneCountInString(got))
 }

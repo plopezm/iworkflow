@@ -13,7 +13,7 @@ import (
 
 const (
 	startPollInterval = 500 * time.Millisecond
-	startPollAttempts = 10
+	startPollAttempts = 20
 )
 
 func trimSpace(value string) string { return strings.TrimSpace(value) }
