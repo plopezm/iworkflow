@@ -97,3 +97,33 @@ func TestTruncateCutsOnACharacterBoundary(t *testing.T) {
 	assert.True(t, utf8.ValidString(got))
 	assert.Equal(t, maxOutputRunes, utf8.RuneCountInString(got))
 }
+
+// The daemon keeps writing to the output it inherited after Start returned. With pipes that would be a broken pipe;
+// with a file it succeeds.
+func TestADaemonCanKeepWritingToItsInheritedOutputAfterStart(t *testing.T) {
+	dir := t.TempDir()
+	status := filepath.Join(dir, "status")
+	script := "#!/bin/sh\n( sleep 1; echo late; echo $? > '" + status + "' ) &\nexit 0\n"
+	executable := filepath.Join(dir, "fake-engram")
+	require.NoError(t, os.WriteFile(executable, []byte(script), 0o700))
+
+	require.NoError(t, NewServer(executable).Start(t.Context(), "7437"))
+
+	require.Eventually(t, func() bool {
+		got, err := os.ReadFile(status)
+		return err == nil && strings.TrimSpace(string(got)) == "0"
+	}, 5*time.Second, 50*time.Millisecond, "the daemon could not write to its inherited output")
+}
+
+func TestStartLeavesNoLauncherLogBehind(t *testing.T) {
+	temp := t.TempDir()
+	t.Setenv("TMPDIR", temp)
+	executable := filepath.Join(t.TempDir(), "fake-engram")
+	require.NoError(t, os.WriteFile(executable, []byte("#!/bin/sh\nexit 0\n"), 0o700))
+
+	require.NoError(t, NewServer(executable).Start(t.Context(), "7437"))
+
+	entries, err := os.ReadDir(temp)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
+}

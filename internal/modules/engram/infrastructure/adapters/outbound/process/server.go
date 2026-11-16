@@ -2,11 +2,10 @@
 package process
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -26,6 +25,8 @@ const (
 	startWaitDelay = 2 * time.Second
 	// maxOutputRunes is how much of the launcher's output an error carries.
 	maxOutputRunes = 200
+	// maxOutputBytes is how much of the launcher log is read for an error message.
+	maxOutputBytes = 4 * maxOutputRunes
 )
 
 // portPattern keeps the port an argument, never a shell fragment.
@@ -84,17 +85,32 @@ func (s *Server) Start(ctx context.Context, port string) error {
 	}
 	runCtx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
+	// The launcher writes to a file, not to pipes: a detached daemon that inherits the descriptors keeps writing to a
+	// file for as long as it runs, instead of getting a broken pipe once Start stops reading.
+	log, err := os.CreateTemp("", "iworkflow-engram-start-*.log")
+	if err != nil {
+		return fmt.Errorf("create the launcher log: %w", err)
+	}
+	defer func() {
+		// The log only served this call; the daemon's open descriptor stays valid after the unlink.
+		_ = os.Remove(log.Name())
+		_ = log.Close()
+	}()
 	command := exec.CommandContext(runCtx, path, "run", "-d", "-p", port) //nolint:gosec // path comes from LookPath of a fixed name and the port is validated digits
 	command.WaitDelay = s.waitDelay
-	var output bytes.Buffer
-	command.Stdout = &output
-	command.Stderr = &output
-	err = command.Run()
-	// The launcher exited fine but the detached daemon kept the output pipes open: Engram is starting, which is the goal.
-	if err != nil && !errors.Is(err, exec.ErrWaitDelay) {
-		return fmt.Errorf("run %s: %w: %s", s.executable, err, truncate(output.String()))
+	command.Stdout = log
+	command.Stderr = log
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("run %s: %w: %s", s.executable, err, truncate(readHead(log)))
 	}
 	return nil
+}
+
+// readHead returns the first bytes the launcher wrote, for an error message. A read failure yields an empty text.
+func readHead(file *os.File) string {
+	buffer := make([]byte, maxOutputBytes)
+	count, _ := file.ReadAt(buffer, 0) //nolint:errcheck // a short or failed read only shortens the message
+	return string(buffer[:count])
 }
 
 // truncate keeps the start of text, cut on a character boundary, with invalid UTF-8 and control characters removed, so
