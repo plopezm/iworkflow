@@ -10,6 +10,7 @@ import (
 // workspace-selection text of the Rust modal is corrupted there; the correct wording is used.
 var (
 	msgBoard           = i18n.Msg{En: "Board", Es: "Tablero", Zh: "看板", De: "Board", Fr: "Tableau"}
+	msgMemories        = i18n.Msg{En: "Memories", Es: "Memorias", Zh: "记忆", De: "Erinnerungen", Fr: "Mémoires"}
 	msgNewTask         = i18n.Msg{En: "New task", Es: "Nueva tarea", Zh: "新建任务", De: "Neue Aufgabe", Fr: "Nouvelle tâche"}
 	msgShowCompleted   = i18n.Msg{En: "Show completed", Es: "Mostrar terminadas", Zh: "显示已完成", De: "Erledigte anzeigen", Fr: "Afficher les terminées"}
 	msgWorkspace       = i18n.Msg{En: "Workspace", Es: "Workspace", Zh: "工作区", De: "Workspace", Fr: "Espace de travail"}

@@ -51,6 +51,9 @@ templ TaskActions(view state.TaskDetailView) {
 						{ msgViewDiff.T(ctx) }
 					}
 				}
+				@link.Tab(link.Props{Href: state.TaskPath(view.Task.ID) + "/memories", Class: "btn-secondary", Role: "button"}) {
+					{ msgMemories.T(ctx) }
+				}
 				if view.Task.Actions.CanMerge {
 					if view.MergeCleanupOnly {
 						@taskAction(view, "merge", msgCleanup.T(ctx), "btn-primary", msgConfirmCleanup.T(ctx), false)

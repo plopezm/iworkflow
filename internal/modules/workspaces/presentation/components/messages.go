@@ -11,6 +11,7 @@ import (
 var (
 	msgNoWorkspaces = i18n.Msg{En: "No workspaces registered yet.", Es: "Aún no hay workspaces registrados.", Zh: "还没有已注册的工作区。", De: "Noch keine Workspaces registriert.", Fr: "Aucun espace de travail enregistré pour le moment."}
 	msgEdit         = i18n.Msg{En: "Edit", Es: "Editar", Zh: "编辑", De: "Bearbeiten", Fr: "Modifier"}
+	msgMemories     = i18n.Msg{En: "Memories", Es: "Memorias", Zh: "记忆", De: "Erinnerungen", Fr: "Mémoires"}
 	msgOpenTerminal = i18n.Msg{En: "Open terminal", Es: "Abrir terminal", Zh: "打开终端", De: "Terminal öffnen", Fr: "Ouvrir un terminal"}
 	msgOpenBoard    = i18n.Msg{En: "Open board", Es: "Abrir tablero", Zh: "打开看板", De: "Board öffnen", Fr: "Ouvrir le tableau"}
 	msgRemove       = i18n.Msg{En: "Remove", Es: "Quitar", Zh: "移除", De: "Entfernen", Fr: "Retirer"}

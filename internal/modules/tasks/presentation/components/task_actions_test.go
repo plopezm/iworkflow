@@ -1,6 +1,7 @@
 package components_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -120,4 +121,28 @@ func TestTaskActionsShowsNoFinishHintOutsideFinishing(t *testing.T) {
 	body := renderIn(t, i18n.Es, components.TaskActions(view))
 
 	assert.NotContains(t, body, "La finalización no se completó")
+}
+
+// The memories of the task branch open in their own dock tab, as a button right of "View diff" in the Review group.
+func TestTaskActionsPutsTheMemoriesButtonRightOfViewDiff(t *testing.T) {
+	t.Parallel()
+
+	body := renderIn(t, i18n.En, components.TaskActions(taskActionsView("t1", true, false)))
+
+	assert.Contains(t, body, `href="/tasks/t1/memories"`)
+	assert.Contains(t, body, `data-dock-path="/tasks/t1/memories"`)
+	assert.Contains(t, body, ">Memories</a>")
+	diff := strings.Index(body, `href="/tasks/t1/diff"`)
+	memories := strings.Index(body, `href="/tasks/t1/memories"`)
+	review := strings.Index(body, "Review")
+	assert.Greater(t, diff, review, "the diff entry is inside the Review group")
+	assert.Greater(t, memories, diff, "the memories button comes right of the diff entry")
+}
+
+func TestTaskActionsOffersNoMemoriesButtonOutsideTheReviewGroup(t *testing.T) {
+	t.Parallel()
+
+	body := renderIn(t, i18n.En, components.TaskActions(taskActionsView("t1", false, false)))
+
+	assert.NotContains(t, body, "/tasks/t1/memories", "a backlog task has no branch, so no review group and no memories entry")
 }
