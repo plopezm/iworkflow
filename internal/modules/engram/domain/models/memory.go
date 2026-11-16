@@ -72,3 +72,17 @@ type MemoryFeed struct {
 	State    MemoryState
 	Memories []Memory
 }
+
+// MemoryDetail is one memory with its full content. It is only built to be read, never to be changed.
+type MemoryDetail struct {
+	Memory
+	Content   string
+	Project   string
+	UpdatedAt time.Time
+}
+
+// MemoryEntry is the answer of reading one memory of a workspace. Detail is set only when State is available.
+type MemoryEntry struct {
+	State  MemoryState
+	Detail MemoryDetail
+}

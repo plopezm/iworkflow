@@ -26,6 +26,7 @@ const (
 	requestTimeout   = 2 * time.Second
 	projectsPath     = "/projects"
 	recentPath       = "/observations/recent"
+	observationPath  = "/observations/"
 	maxResponseBytes = 4 << 20
 	sqliteTimeLayout = "2006-01-02 15:04:05"
 )
@@ -60,6 +61,17 @@ type recentObservation struct {
 	LastSeenAt string `json:"last_seen_at"`
 }
 
+// observationWire is the answer of GET /observations/{id}.
+type observationWire struct {
+	ID         int    `json:"id"`
+	Type       string `json:"type"`
+	Title      string `json:"title"`
+	Content    string `json:"content"`
+	Project    string `json:"project"`
+	LastSeenAt string `json:"last_seen_at"`
+	UpdatedAt  string `json:"updated_at"`
+}
+
 // NewClient builds a client for the Engram API at baseURL with an explicit 2 second timeout.
 func NewClient(baseURL string) (*Client, error) {
 	return newClient(baseURL, requestTimeout)
@@ -83,7 +95,7 @@ func newClient(baseURL string, timeout time.Duration) (*Client, error) {
 // Projects lists the Engram projects with their directories.
 func (c *Client) Projects(ctx context.Context) ([]models.MemoryProject, error) {
 	var body projectsResponse
-	if err := c.get(ctx, projectsPath, nil, &body); err != nil {
+	if err := c.get(ctx, projectsPath, nil, false, &body); err != nil {
 		return nil, err
 	}
 	projects := make([]models.MemoryProject, 0, len(body.Projects))
@@ -99,7 +111,7 @@ func (c *Client) Recent(ctx context.Context, project string, limit int) ([]model
 	query.Set("project", project)
 	query.Set("limit", strconv.Itoa(limit))
 	var body []recentObservation
-	if err := c.get(ctx, recentPath, query, &body); err != nil {
+	if err := c.get(ctx, recentPath, query, false, &body); err != nil {
 		return nil, err
 	}
 	memories := make([]models.Memory, 0, len(body))
@@ -114,10 +126,27 @@ func (c *Client) Recent(ctx context.Context, project string, limit int) ([]model
 	return memories, nil
 }
 
+// Observation reads one observation with its content. A 404 answer is engramerrors.ErrNotFound.
+func (c *Client) Observation(ctx context.Context, id int) (models.MemoryDetail, error) {
+	var body observationWire
+	if err := c.get(ctx, observationPath+strconv.Itoa(id), nil, true, &body); err != nil {
+		return models.MemoryDetail{}, err
+	}
+	// An unreadable timestamp is unknown, not fatal: the content is what the reader came for.
+	lastSeen, _ := parseTimestamp(body.LastSeenAt)
+	updated, _ := parseTimestamp(body.UpdatedAt)
+	return models.MemoryDetail{
+		Memory:    models.NewMemory(body.ID, body.Type, body.Title, lastSeen),
+		Content:   body.Content,
+		Project:   body.Project,
+		UpdatedAt: updated,
+	}, nil
+}
+
 // get issues a GET request and decodes the JSON answer into out. Any answer other than 200 OK, any
 // transport failure and any unreadable payload is reported as engramerrors.ErrUnavailable, except
 // when the caller's context itself was cancelled.
-func (c *Client) get(ctx context.Context, path string, query url.Values, out any) error {
+func (c *Client) get(ctx context.Context, path string, query url.Values, notFoundIsMissing bool, out any) error {
 	endpoint := c.baseURL.JoinPath(path)
 	endpoint.RawQuery = query.Encode()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint.String(), nil)
@@ -132,6 +161,9 @@ func (c *Client) get(ctx context.Context, path string, query url.Values, out any
 		// The body is fully consumed or discarded; a close error carries no information for the caller.
 		_ = response.Body.Close()
 	}()
+	if notFoundIsMissing && response.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("engram %s: %w", path, engramerrors.ErrNotFound)
+	}
 	if response.StatusCode != http.StatusOK {
 		return fmt.Errorf("engram %s answered status %d: %w", path, response.StatusCode, engramerrors.ErrUnavailable)
 	}
