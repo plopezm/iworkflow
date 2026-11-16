@@ -68,6 +68,26 @@ func (l *TaskLifecycle) Workspace(ctx context.Context, workspaceID string) (mode
 	return *found, nil
 }
 
+// EffectiveAgent returns the agent options a launch of the task uses: the options of the task, with the
+// default agent of its workspace as the runtime when the task sets none. A workspace that cannot be read, or
+// one without a valid default, leaves the options untouched, so the launch falls back to the system agent.
+func (l *TaskLifecycle) EffectiveAgent(ctx context.Context, task models.Task) models.TaskAgentOptions {
+	agent := task.Agent
+	if agent.Runtime != nil {
+		return agent
+	}
+	workspace, err := l.Workspace(ctx, task.WorkspaceID)
+	if err != nil || workspace.DefaultRuntime == nil {
+		return agent
+	}
+	runtime, err := models.ParseRuntimeID(*workspace.DefaultRuntime)
+	if err != nil {
+		return agent
+	}
+	agent.Runtime = &runtime
+	return agent
+}
+
 // Transition applies a status and records it as an event. Leaving the live statuses drops the dialogs
 // that were pending.
 func (l *TaskLifecycle) Transition(ctx context.Context, id models.TaskID, status models.TaskStatus, errorText *string) error {

@@ -73,7 +73,7 @@ func (u *NewSession) Execute(ctx context.Context, id models.TaskID) error {
 	if !u.worktrees.Exists(ctx, task.WorktreePath) {
 		return werrors.WorktreeMissing(task.WorktreePath)
 	}
-	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, task.Agent)
+	prepared, err := u.launchSettings.Prepare(ctx, task.WorktreePath, u.lifecycle.EffectiveAgent(ctx, task))
 	if err != nil {
 		return err
 	}

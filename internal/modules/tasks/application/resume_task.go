@@ -64,6 +64,7 @@ func (u *ResumeTask) Execute(ctx context.Context, id models.TaskID) error {
 	if !task.Status.CanResume() {
 		return invalidState("reanudar", task.Status)
 	}
+	task.Agent = u.lifecycle.EffectiveAgent(ctx, task)
 	options, err := prepareResume(ctx, u.worktrees, u.runtime, u.launchSettings, u.related, task)
 	if err != nil {
 		return err

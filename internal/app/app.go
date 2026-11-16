@@ -110,13 +110,15 @@ func New(deps Deps) (*App, error) {
 	// Engram is optional: without a valid IWF_ENGRAM_URL both ports stay nil, and the screens show no Engram part.
 	memoryPort, taskMemory := composeEngram(deps.EngramURL, deps.Logger)
 	workspaceTasks := &workspaceTasksBridge{}
+	workspaceAgents := &workspaceRuntimes{}
 	workspaces := workspacesdi.NewModule(workspacesdi.Deps{
-		DB:          deps.DB,
-		HomeDir:     deps.Config.HomeDir,
-		Tasks:       workspaceTasks,
-		AgentsFiles: &agentsFilesBridge{module: agentsFiles},
-		Memory:      memoryPort,
-		Logger:      deps.Logger,
+		DB:            deps.DB,
+		HomeDir:       deps.Config.HomeDir,
+		Tasks:         workspaceTasks,
+		AgentsFiles:   &agentsFilesBridge{module: agentsFiles},
+		AgentRuntimes: workspaceAgents,
+		Memory:        memoryPort,
+		Logger:        deps.Logger,
 	})
 	projects.list = workspaces.List
 	projects.get = workspaces.Get
@@ -142,6 +144,7 @@ func New(deps Deps) (*App, error) {
 		AgyBin:             deps.Config.AgyBin,
 		GentlePiConfigHome: deps.Config.GentlePiConfigHome,
 	})
+	workspaceAgents.list = settings.ListRuntimes
 
 	// The remote merge is shared: the tasks module merges through it and code_hosting binds its use case to it.
 	remoteMerge := codehostingapp.NewRemoteMerge()
@@ -156,7 +159,7 @@ func New(deps Deps) (*App, error) {
 		HookStrip:      hookStrip,
 		DB:             deps.DB,
 		Notices:        notices,
-		Workspaces:     &taskWorkspaceLookup{get: workspaces.Get, list: workspaces.List},
+		Workspaces:     &taskWorkspaceLookup{get: workspaces.Get, list: workspaces.List, listRuntimes: settings.ListRuntimes},
 		AttachmentsDir: deps.Config.AttachmentsDir,
 		WorktreesDir:   deps.Config.WorktreesDir,
 		Binaries: tasksdi.RuntimeBinaries{
