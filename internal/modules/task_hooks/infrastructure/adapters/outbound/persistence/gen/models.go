@@ -220,9 +220,10 @@ type TaskRelatedProject struct {
 }
 
 type Workspace struct {
-	ID         string
-	Name       string
-	Path       string
-	BaseBranch string
-	CreatedAt  time.Time
+	ID             string
+	Name           string
+	Path           string
+	BaseBranch     string
+	CreatedAt      time.Time
+	DefaultRuntime interface{}
 }
