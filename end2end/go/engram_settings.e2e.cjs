@@ -47,7 +47,7 @@ function launches() {
 
 function stopFakeDaemon(port) {
   return new Promise((resolve) => {
-    http.get({ host: '127.0.0.1', port, path: '/_stop' }, (res) => { res.resume(); res.on('end', resolve); }).on('error', resolve);
+    http.get({ host: '127.0.0.1', port, path: '/_stop', headers: { 'x-e2e-token': process.env.IWF_E2E_FAKE_ENGRAM_TOKEN || '' } }, (res) => { res.resume(); res.on('end', resolve); }).on('error', resolve);
   });
 }
 

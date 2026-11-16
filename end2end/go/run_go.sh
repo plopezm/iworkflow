@@ -152,6 +152,9 @@ REPO_BG_JOBS="$WORK/bg-jobs/project";           make_repo "$REPO_BG_JOBS"
 REPO_TERMINAL="$WORK/terminal/project";         make_repo "$REPO_TERMINAL"
 
 PORT="$(free_port)"
+# Secret of the fake Engram daemon's /_stop, so no other local process can stop it.
+FAKE_ENGRAM_TOKEN="$(head -c 16 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+export IWF_E2E_FAKE_ENGRAM_TOKEN="$FAKE_ENGRAM_TOKEN"
 JIRA_MOCK_PORT="$(free_port)"
 GITLAB_MOCK_PORT="$(free_port)"
 # Fake Engram API: the server reads it through IWF_ENGRAM_URL (env -i drops every other variable). The engram
@@ -164,7 +167,7 @@ USAGE_MOCK_PORT="$(free_port)"
 # server the background process itself, so the trap stops it. stdout and stderr both go to server.log.
 (
   cd "$WORK"
-  exec env -i PATH="$ROOT/end2end/go/fake_engram:$PATH" IWF_E2E_FAKE_ENGRAM_LOG="$WORK/fake-engram-launches.log" HOME="$WORK/home" TMPDIR="$WORK/tmp" \
+  exec env -i PATH="$ROOT/end2end/go/fake_engram:$PATH" IWF_E2E_FAKE_ENGRAM_LOG="$WORK/fake-engram-launches.log" IWF_E2E_FAKE_ENGRAM_TOKEN="$FAKE_ENGRAM_TOKEN" HOME="$WORK/home" TMPDIR="$WORK/tmp" \
     GIT_AUTHOR_NAME=smoke GIT_AUTHOR_EMAIL=smoke@localhost \
     GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
     IWF_HOME="$IWF_HOME_DIR" \
