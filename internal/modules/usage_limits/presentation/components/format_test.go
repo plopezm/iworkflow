@@ -38,5 +38,5 @@ func TestPercentTextAndFillStyle(t *testing.T) {
 
 func TestWindowLabelKeepsTheFiveHourNameAndTranslatesTheWeek(t *testing.T) {
 	assert.Equal(t, "5h", windowLabel(t.Context(), "5h"))
-	assert.Equal(t, "week", windowLabel(t.Context(), "week"))
+	assert.Equal(t, "7d", windowLabel(t.Context(), "week"))
 }
