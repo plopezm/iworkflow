@@ -27,7 +27,7 @@ function uniqueGitRepo(prefix) {
 
 // Registers a workspace from the Workspaces screen and waits until its row is listed.
 async function registerWs(ctx, name, dir) {
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');
@@ -147,6 +147,8 @@ module.exports = {
         await heading.waitFor({ state: 'visible', timeout: 10000 });
         // The pill counts the cards of its own group, whatever else the shared test database holds.
         const group = list.locator('[data-stage-group=backlog]');
+        // Each card arrives with the board refresh after its creation: wait for both before counting.
+        await group.locator('[data-loose-task]').nth(1).waitFor({ state: 'attached', timeout: 10000 });
         const cards = await group.locator('[data-loose-task]').count();
         const counted = Number((await heading.locator('.stage-heading-count').innerText()).trim());
         ctx.assert(cards >= 2, `el grupo de backlog tiene ${cards} tarjetas, se esperaban al menos las 2 creadas`);

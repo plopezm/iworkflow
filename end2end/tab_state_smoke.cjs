@@ -28,7 +28,7 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   // Un solo panel visible a la vez: los demás siguen montados pero ocultos.
   const visible = (loc) => loc.locator('visible=true').first();
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill('tab-state-demo');
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
@@ -36,11 +36,13 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await page.getByText(process.env.SMOKE_REPO).waitFor();
   step('workspace registrado desde la UI');
 
+  // Tras registrar, la pestaña de registro se sustituye por el listado: se abre "Nuevo workspace" de nuevo.
+  await page.getByRole('button', { name: /Nuevo workspace/ }).first().click();
   // Texto sin enviar en el formulario de Workspaces sobrevive a un cambio de pestaña.
   await visible(page.getByLabel('Nombre')).fill('borrador sin guardar');
   await nav('Tablero').click();
   await tab('Tablero').waitFor();
-  await tab('Workspaces').click();
+  await tab('Nuevo workspace').click();
   assert((await visible(page.getByLabel('Nombre')).inputValue()) === 'borrador sin guardar',
     'el formulario de Workspaces se reinició al cambiar de pestaña');
   step('el formulario de Workspaces conserva el texto al cambiar de pestaña');
@@ -78,9 +80,12 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await tab('Tablero').click();
   const runtime = visible(page.getByLabel(/^Agente/));
   // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings') || (r.request().method() === 'POST' && /\/agent-settings\/(runtime|model|profile|thinking)$/.test(new URL(r.url()).pathname)));
-  await runtime.selectOption('pi');
-  await saved;
+  // El agente es global y la BD se comparte entre smokes: si ya está en pi no hay cambio ni petición que esperar.
+  if ((await runtime.inputValue()) !== 'pi') {
+    await runtime.selectOption('pi');
+    // La barra guarda con htmx y puede abortar la petición: se espera a que muestre el valor guardado.
+    await page.waitForFunction((v) => [...document.querySelectorAll('#agent-settings-bar select')].some((el) => el.offsetParent !== null && el.value === v) && !document.querySelector('.htmx-request'), 'pi', { timeout: 10000 });
+  }
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await visible(page.getByLabel(/^Workspace/)).selectOption({ label: 'tab-state-demo (main)' });
   await visible(page.getByLabel('Prompt')).fill('Tarea del smoke de pestañas');
@@ -93,7 +98,7 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   const composer = () => visible(page.getByPlaceholder(/Escribe un mensaje/));
   await composer().fill('mensaje sin enviar');
   for (let i = 0; i < 3; i++) {
-    await tab('Workspaces').click();
+    await tab('Nuevo workspace').click();
     await visible(page.getByLabel('Nombre')).waitFor();
     await page.locator('.dock-tab[aria-selected="false"]', { hasText: 'Tarea del smoke de pestañas' }).first().click();
   }

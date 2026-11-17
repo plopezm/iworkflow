@@ -14,7 +14,7 @@ const WORKSPACE = `stale-${RUNTIME}`;
   const page = await context.newPage();
   const step = (s) => console.log('✔', s);
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill(WORKSPACE);
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
@@ -24,10 +24,14 @@ const WORKSPACE = `stale-${RUNTIME}`;
   await page.goto(BASE + '/');
   await page.waitForLoadState('networkidle');
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  const runtime = page.getByLabel(/^Agente/);
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
-  await runtime.selectOption(RUNTIME);
-  await saved;
+  // Hay dos selectores "Agente" (barra y formulario, este oculto): se usa el visible.
+  const runtime = page.getByLabel(/^Agente/).locator('visible=true').first();
+  // Solo se espera la petición si cambia el valor (la BD se comparte entre smokes).
+  if ((await runtime.inputValue()) !== RUNTIME) {
+    await runtime.selectOption(RUNTIME);
+    // La barra guarda con htmx y puede abortar la petición: se espera a que muestre el valor guardado.
+    await page.waitForFunction((v) => [...document.querySelectorAll('#agent-settings-bar select')].some((el) => el.offsetParent !== null && el.value === v) && !document.querySelector('.htmx-request'), RUNTIME, { timeout: 10000 });
+  }
 
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await page.getByLabel(/^Workspace/).selectOption({ label: `${WORKSPACE} (main)` });

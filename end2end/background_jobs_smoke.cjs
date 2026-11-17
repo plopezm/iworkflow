@@ -13,7 +13,7 @@ const WAIT_MS = 2500;
   const page = await context.newPage();
   const step = (s) => console.log('✔', s);
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill(WORKSPACE);
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
@@ -34,7 +34,8 @@ const WAIT_MS = 2500;
   // Contador de la sección «Requieren atención» de la barra lateral.
   const attention = async () => {
     const text = await page.getByText('Requieren atención').first().locator('..').textContent();
-    return Number((text.match(/(\d+)\s*$/) || [])[1]);
+    // El contador va justo después del título; cuando no hay nada la sección termina en «Nada requiere atención.».
+    return Number((text.match(/atención\s*(\d+)/i) || [])[1]);
   };
   await page.getByText('eco: jobs-wait').waitFor();
   await page.getByText('Esperando', { exact: true }).first().waitFor();
@@ -46,7 +47,7 @@ const WAIT_MS = 2500;
   step('con un job en background la tarea no pide atención');
 
   // Al terminar el job ya no queda nada en marcha: ahora sí necesita atención.
-  await page.waitForFunction(() => /Requieren atención\s*[1-9]/.test(document.querySelector('aside').innerText.replace(/\n/g, ' ')), null, { timeout: 15000 });
+  await page.waitForFunction(() => /requieren atención\s*[1-9]/i.test(document.querySelector('aside').innerText.replace(/\n/g, ' ')), null, { timeout: 15000 });
   step('al terminar el job la tarea pide atención');
   await browser.close();
 })().catch(e => { console.error('✘', e.message); process.exit(1); });

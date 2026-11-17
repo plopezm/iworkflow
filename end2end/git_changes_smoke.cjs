@@ -62,7 +62,7 @@ function findWorktree(root, marker, depth = 4) {
   const git = (wt, ...args) => execFileSync('git', ['-C', wt, ...args], { encoding: 'utf8' }).trim();
   const staged = (wt) => git(wt, 'diff', '--cached', '--name-only').split('\n').filter(Boolean).sort();
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill('git-changes-demo');
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
@@ -74,9 +74,12 @@ function findWorktree(root, marker, depth = 4) {
   await page.waitForLoadState('networkidle');
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
   const runtime = page.getByLabel(/^Agente/);
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
-  await runtime.selectOption('pi');
-  await saved;
+  // El agente es global y la BD se comparte entre smokes: si ya está en pi no hay cambio ni petición que esperar.
+  if ((await runtime.inputValue()) !== 'pi') {
+    await runtime.selectOption('pi');
+    // La barra guarda con htmx y puede abortar la petición: se espera a que muestre el valor guardado.
+    await page.waitForFunction((v) => [...document.querySelectorAll('#agent-settings-bar select')].some((el) => el.offsetParent !== null && el.value === v) && !document.querySelector('.htmx-request'), 'pi', { timeout: 10000 });
+  }
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await page.getByLabel(/^Workspace/).selectOption({ label: 'git-changes-demo (main)' });
   await page.getByLabel('Prompt').fill('Cambios git');
@@ -155,13 +158,15 @@ function findWorktree(root, marker, depth = 4) {
 
   // Commit: solo con algo en stage y con mensaje; registra únicamente lo que está en stage.
   const form = () => panel().locator('[data-testid="git-commit-form"]');
-  assert((await form().count()) === 0, 'sin nada en stage no hay formulario de commit');
+  // El formulario sigue en el DOM y se oculta con CSS mientras no hay nada en stage (git_panel.templ).
+  assert(!(await form().isVisible()), 'sin nada en stage no hay formulario de commit');
   await row('unstaged', 'README.md').locator('[data-testid="git-toggle"]').click();
   await until('staged', ['README.md'], 'README.md con stage para el commit');
   const message = () => form().locator('[data-testid="git-commit-message"]');
   const commitButton = () => form().locator('[data-testid="git-commit"]');
   await message().waitFor();
-  assert(await commitButton().isDisabled(), 'sin mensaje el botón Commit está desactivado');
+  // El botón de Go nunca se desactiva: el mensaje es `required` y el navegador rechaza el commit vacío (como en end2end/go/git_changes.e2e.cjs).
+  assert(await message().evaluate((el) => el.validity.valueMissing), 'sin mensaje el campo es obligatorio');
   await message().fill('docs: actualizar README');
   await message().focus();
   // Un sondeo no debe reconstruir el formulario: se conservan texto y foco.

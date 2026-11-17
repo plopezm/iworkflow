@@ -39,7 +39,7 @@ async function registerWs(ctx, prefix, files) {
   registrations += 1;
   const name = `${prefix}-${tag}-${registrations}`;
   const dir = gitRepo(name, files);
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');

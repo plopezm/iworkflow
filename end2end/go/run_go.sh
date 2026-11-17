@@ -150,6 +150,11 @@ REPO_GIT_CHANGES="$WORK/git-changes/project";   make_repo "$REPO_GIT_CHANGES"
 REPO_TAB_STATE="$WORK/tab-state/project";       make_repo "$REPO_TAB_STATE"
 REPO_BG_JOBS="$WORK/bg-jobs/project";           make_repo "$REPO_BG_JOBS"
 REPO_TERMINAL="$WORK/terminal/project";         make_repo "$REPO_TERMINAL"
+# One repo per standalone smoke that registers a workspace: the server refuses a second workspace on the same root.
+REPO_UI="$WORK/ui/project";                     make_repo "$REPO_UI"
+REPO_STALE_DIALOG="$WORK/stale-dialog/project"; make_repo "$REPO_STALE_DIALOG"
+REPO_TERMINAL_KEYS="$WORK/terminal-keys/project"; make_repo "$REPO_TERMINAL_KEYS"
+REPO_TERMINAL_RECONNECT="$WORK/terminal-reconnect/project"; make_repo "$REPO_TERMINAL_RECONNECT"
 
 PORT="$(free_port)"
 # Secret of the fake Engram daemon's /_stop, so no other local process can stop it.
@@ -210,7 +215,7 @@ export WORK_TMP_DIR="$WORK/tmp" SMOKE_TMP_DIR="$WORK/tmp" PROOF_REPO="$REPO"
 export SMOKE_WORKTREES="$WORKTREES_DIR"
 export JIRA_MOCK_URL="http://127.0.0.1:$JIRA_MOCK_PORT" JIRA_MOCK_PORT
 export GITLAB_MOCK_URL="http://127.0.0.1:$GITLAB_MOCK_PORT" GITLAB_MOCK_PORT
-export REPO_GIT_CHANGES REPO_TAB_STATE REPO_BG_JOBS REPO_TERMINAL
+export REPO_GIT_CHANGES REPO_TAB_STATE REPO_BG_JOBS REPO_TERMINAL REPO_UI REPO_STALE_DIALOG REPO_TERMINAL_KEYS REPO_TERMINAL_RECONNECT
 export IWF_E2E_TARGET=go IWF_ASR_MODEL_DIR="$ASR_MODEL_DIR"
 # Screenshots of the suites that take them (usage_limits): kept with the run logs.
 export SMOKE_SCREENSHOT_DIR="$RUN_DIR/screenshots"
@@ -229,6 +234,10 @@ repo_for_script() {
     *git_changes*)     echo "$REPO_GIT_CHANGES" ;;
     *tab_state*)       echo "$REPO_TAB_STATE" ;;
     *background_jobs*) echo "$REPO_BG_JOBS" ;;
+    *ui_smoke*)        echo "$REPO_UI" ;;
+    *stale_dialog*)    echo "$REPO_STALE_DIALOG" ;;
+    *terminal_keys*)   echo "$REPO_TERMINAL_KEYS" ;;
+    *terminal_reconnect*) echo "$REPO_TERMINAL_RECONNECT" ;;
     *)                 echo "$REPO_TERMINAL" ;;
   esac
 }

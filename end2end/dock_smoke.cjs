@@ -35,13 +35,13 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await nav('Workspaces').click();
   await page.locator('.dock-tab', { hasText: 'Workspaces' }).waitFor();
   await nav('Workspaces').click();
-  await nav('Modelos').click();
+  await nav('Configuración').click();
   // Each click is a round trip to the server: wait for the tab it opens (and the URL that follows it)
   // before counting, otherwise the count is read while the response is still in flight.
-  await page.locator('.dock-tab', { hasText: 'Modelos' }).waitFor();
-  await page.waitForURL(/\/models$/);
+  await page.locator('.dock-tab', { hasText: 'Configuración' }).waitFor();
+  await page.waitForURL(/\/settings$/);
   assert((await tabs().count()) === 3, 'abrir de nuevo una ruta abierta no debe duplicar la pestaña');
-  assert(new URL(page.url()).pathname === '/models', 'la URL refleja la pestaña activa');
+  assert(new URL(page.url()).pathname === '/settings', 'la URL refleja la pestaña activa');
   step('abrir pestañas desde la barra lateral, sin duplicados, URL sincronizada');
 
   await page.getByRole('button', { name: 'Opciones del grupo' }).click();
@@ -113,7 +113,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await aside.waitFor({ state: 'visible' });
   step('la preferencia persiste y se puede volver a mostrar');
 
-  await page.screenshot({ path: process.env.SMOKE_SCREENSHOT || 'dock-review.png' });
+  // Fuera del repositorio: un nombre relativo escribe en el directorio de trabajo (dock-review.png, versionado).
+  await page.screenshot({ path: process.env.SMOKE_SCREENSHOT || require('path').join(require('os').tmpdir(), 'dock-review.png') });
   if (problems.length) { console.error('PROBLEMAS:\n' + problems.join('\n')); process.exit(1); }
   console.log('sin errores de consola');
   await browser.close();

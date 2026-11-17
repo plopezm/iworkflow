@@ -35,7 +35,7 @@ function uniqueGitRepo(prefix) {
 
 async function registerWorkspace(ctx, name) {
   const repo = uniqueGitRepo(`ws-${name}`);
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().waitFor({ timeout: 10000 });
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(repo);

@@ -25,7 +25,7 @@ async function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 // Registers a workspace from the Workspaces screen and waits until it is listed.
 async function registerWs(ctx, name) {
   const dir = uniqueGitRepo(name);
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');

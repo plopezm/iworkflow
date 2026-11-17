@@ -24,7 +24,7 @@ function uniqueGitRepo(prefix) {
 async function liveTask(ctx, name) {
   const dir = uniqueGitRepo(name);
   const prompt = `composer-${name}-${tag}`;
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');

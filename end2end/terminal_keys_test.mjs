@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 globalThis.window = globalThis;
-await import('../public/terminal.js');
+await import('../web/static/terminal.js');
 const { sendKey } = window.iwfTerminal;
 
 function setNavigator(value) {
@@ -130,14 +130,15 @@ test('a tap shorter than the threshold neither scrolls nor blocks the click', ()
   assert.notEqual(move.prevented, true);
 });
 
-test('the alternate buffer receives synthetic line wheel events instead of scrollLines', () => {
+test('the alternate buffer receives synthetic pixel wheel events instead of scrollLines', () => {
   const rig = touchRig({ type: 'alternate' });
   rig.listeners.touchstart(rig.touch(200, 0));
   rig.listeners.touchmove(rig.touch(160, 16));
   assert.deepEqual(rig.scrolled, []);
   assert.equal(rig.wheels.length, 1);
-  assert.equal(rig.wheels[0].deltaY, 2);
-  assert.equal(rig.wheels[0].deltaMode, 1);
+  // 40px drag over 20px lines = 2 lines, sent as pixels (deltaMode 0), as web/static/terminal.js does.
+  assert.equal(rig.wheels[0].deltaY, 40);
+  assert.equal(rig.wheels[0].deltaMode, 0);
 });
 
 test('inertia starts after a quick flick but not after holding still or cancelling', () => {

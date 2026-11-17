@@ -29,7 +29,7 @@ let page;
   // Los smokes comparten BD: se abre el tablero de este workspace, no el primero de la lista.
   const showDemoBoard = () => page.locator('aside').getByRole('link', { name: /ui-demo/ }).first().click();
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill('ui-demo');
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
@@ -43,9 +43,12 @@ let page;
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
   const runtime = page.getByLabel(/^Agente/);
   // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings') || (r.request().method() === 'POST' && /\/agent-settings\/(runtime|model|profile|thinking)$/.test(new URL(r.url()).pathname)));
-  await runtime.selectOption('pi');
-  await saved;
+  // El agente es global y la BD se comparte entre smokes: si ya está en pi no hay cambio ni petición que esperar.
+  if ((await runtime.inputValue()) !== 'pi') {
+    await runtime.selectOption('pi');
+    // La barra guarda con htmx y puede abortar la petición: se espera a que muestre el valor guardado.
+    await page.waitForFunction((v) => [...document.querySelectorAll('#agent-settings-bar select')].some((el) => el.offsetParent !== null && el.value === v) && !document.querySelector('.htmx-request'), 'pi', { timeout: 10000 });
+  }
   await page.reload();
   await page.waitForLoadState('networkidle');
   if ((await runtime.inputValue()) !== 'pi') throw new Error('el agente pi no persistió');

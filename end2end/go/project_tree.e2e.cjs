@@ -53,7 +53,7 @@ function uniqueGitRepo(prefix) {
 // que no se toma el primer enlace: se busca la tarjeta (article.card) que
 // contiene el nombre y se extrae el UUID del enlace de edición de ESA tarjeta.
 async function registerWs(ctx, wsName, dir) {
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').fill(wsName);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByRole('button', { name: /Registrar|Register/ }).first().click();

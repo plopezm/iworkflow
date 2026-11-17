@@ -40,7 +40,7 @@ const INIT_BTN = /Inicializar|Crear e inicializar|Crear commit/i;
 // Si `expectConfirm` es true, confirma la inicialización inline de una carpeta no-git.
 async function registerWs(ctx, { name, gitRepo, nonGitDir, baseBranch = 'main', expectConfirm = false } = {}) {
   await ctx.goto('/workspaces');
-  await ctx.page.getByRole('link', { name: /Nuevo workspace/ }).first().click();
+  await ctx.page.getByRole('button', { name: /Nuevo workspace/ }).first().click();
   await ctx.page.getByLabel('Nombre').fill(name);
   const dir = gitRepo || nonGitDir;
   ctx.assert(dir, 'falta gitRepo o nonGitDir en registerWs');
@@ -55,7 +55,7 @@ async function registerWs(ctx, { name, gitRepo, nonGitDir, baseBranch = 'main', 
     await ctx.page.waitForTimeout(1500);
   }
   // Asegura que el workspace se registró correctamente: la pestaña de registro se sustituye por el listado.
-  await ctx.page.getByText(name).first().waitFor({ timeout: 12000 });
+  await ctx.page.locator('article.card', { hasText: name }).first().waitFor({ timeout: 12000 });
   ctx.assert(
     (await ctx.page.locator('#workspace-register-slot').count()) === 0,
     'tras registrar, la pestaña de registro debe sustituirse por el listado',
@@ -93,14 +93,14 @@ function editNameInput(ctx) {
   return editForm(ctx).getByLabel('Nombre').first();
 }
 
-// Selector de carpetas (modal "Elegir carpeta", panel #modal-panel).
+// Selector de carpetas (modal "Elegir carpeta"). Se busca el panel visible: #modal-panel aparece duplicado en la página.
 function modal(ctx) {
-  return ctx.page.locator('#modal-panel');
+  return ctx.page.locator('[data-modal-panel]:visible');
 }
 
 // Abre el selector partiendo de `dirPath` en el formulario de registro.
 async function openPicker(ctx, dirPath) {
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dirPath);
   await ctx.page.getByRole('button', { name: /Elegir/ }).first().click();
   await modal(ctx).waitFor({ timeout: 10000 });
