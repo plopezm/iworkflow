@@ -154,19 +154,33 @@ Two notes on the measurements:
 
 Product (not fixed here; the tests describe the expected behaviour):
 
-- Background jobs: the Go attention rule ignores them. `StageAt` in `internal/modules/tasks/domain/models/task.go`
-  counts an idle task as "Requiere atención" unless subagents are working, so a task waiting on a background job
-  is counted. `background_jobs_smoke.cjs` asserts the opposite, as the Rust app did.
-- Task Archivos tab: `ui_smoke.cjs` expects the Archivos pane content to survive a tab switch. The check fails
-  after the switch; this has not been investigated in the DOM.
-- Duplicate ids: `internal/core/components/modal.templ` hardcodes `id="modal-panel"` for every `Modal`, and the
-  shell renders one more on every page (the chat image modal). `#modal-panel` therefore matches two elements. The
-  workspace tests now look for the visible `[data-modal-panel]` instead.
+- Background jobs (`background_jobs_smoke.cjs` fails). The domain already counts them: the pi adapter adds the
+  `gentle-jobs` status to the active subagents (`rpc_protocol.go`), and `StageAt` treats active subagents as working.
+  The failure is in the test's timing: the fake agent's job lasts 6 s (`tests/fixtures/fake_agent.py`, outside the
+  e2e surfaces), and the card link the smoke clicks only shows up once the job has ended, because the board list does
+  not refresh after a create. Fixing it needs a longer fixture job (or passing `FAKE_AGENT_JOB_SECONDS` through the agent
+  environment allow-list) and a list refresh on create.
+- Task Archivos tab (`ui_smoke.cjs` fails at "la pestaña Archivos se reconstruye al cambiar"). The check looks for the
+  same DOM node after a tab switch. Tab switches swap the whole task-tab region from the server (`tasks/<id>/tabs/<tab>`,
+  `outerHTML`), so the Archivos pane is rebuilt by design. Keeping the node is a product decision, not a test fix.
+- Git changes commit (`git_changes_smoke.cjs` fails after its steps pass). The browser logs htmx errors
+  (`htmx:afterRequest`, `htmx:sendAbort`) during the commit, and the smoke fails on any console error. The base commit
+  shows the same errors with this smoke, so it is pre-existing in the git panel.
+- `engram.e2e.cjs` "tarea: Memorias" is flaky, also on pristine HEAD (1 failure in 3 runs there, none in 3 runs with the
+  chat image modal id change). The test injects a memory stamped with whole seconds and the server splits branch
+  memories from earlier ones with `models.SplitSince` (`!UpdatedAt.Before(task.StartedAt)`), so the failure points at
+  timing around that split. The exact race has not been traced.
 - Commit button: the Go button is never disabled; the message field is `required` (known difference, see the
-  go-migration notes).
+  go-migration notes). An empty message is rejected by the browser; nothing is committed.
+- Root modules shadowed in Go mode (`workspaces`, `tasks`, `project_tree`, `related_projects`, `code_hosting`) were not
+  run: `run_go.sh` always sets `IWF_E2E_TARGET=go`, so their root copies cannot run against the Go server.
 
 Test side:
 
 - `end2end/follow_bottom_test.mjs` targets the legacy `src/core` copy and needs its expectations updated, or removal,
   once the Rust copy goes away. It is referenced by `run_go.sh` and this README, so it is kept.
-- `move_home_smoke.sh` and `related_projects_real.sh` are not run by the suite and were not run in this change.
+- `end2end/go/move_home_smoke.sh`: passes (HTTP checks and the browser card, exit 0).
+- `end2end/go/related_projects_real.sh`: uses the real `claude` binary and model usage. Run once: 1 of 2 scenarios passed.
+  The second scenario timed out waiting for the task card link after the create (the same card-link gap as above).
+- `end2end/touch_targets_smoke.cjs`: passes against the Go server, including the Jira tap in the shell navigation.
+- `end2end/agent_settings_runtime_test.cjs` (node unit test of the shared runtime helper): 5 of 5 pass, no server.

@@ -2,6 +2,7 @@
 // Recorre: alta de workspace, selección del agente `pi`, tarea en vivo, diálogo, mensaje,
 // finalizar, diff (con la marca del binario `pi`) y merge.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { RUNTIME_SELECT, setAgentRuntime } = require('./agent_settings_runtime.cjs');
 const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
 let page;
 (async () => {
@@ -41,17 +42,11 @@ let page;
   await page.waitForLoadState('networkidle');
   // El dock arranca vacío: el tablero se abre desde la barra lateral.
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  const runtime = page.getByLabel(/^Agente/);
-  // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
-  // El agente es global y la BD se comparte entre smokes: si ya está en pi no hay cambio ni petición que esperar.
-  if ((await runtime.inputValue()) !== 'pi') {
-    await runtime.selectOption('pi');
-    // La barra guarda con htmx y puede abortar la petición: se espera a que muestre el valor guardado.
-    await page.waitForFunction((v) => [...document.querySelectorAll('#agent-settings-bar select')].some((el) => el.offsetParent !== null && el.value === v) && !document.querySelector('.htmx-request'), 'pi', { timeout: 10000 });
-  }
+  // El agente es global y la BD se comparte entre smokes: setAgentRuntime espera el guardado aunque ya sea pi.
+  await setAgentRuntime(page, 'pi');
   await page.reload();
   await page.waitForLoadState('networkidle');
-  if ((await runtime.inputValue()) !== 'pi') throw new Error('el agente pi no persistió');
+  if ((await page.locator(RUNTIME_SELECT + ':visible').inputValue()) !== 'pi') throw new Error('el agente pi no persistió');
   if (!(await page.getByLabel(/^Perfil/).count())) throw new Error('el perfil debería seguir visible con pi');
   step('agente pi seleccionado y persistido (perfil visible)');
 

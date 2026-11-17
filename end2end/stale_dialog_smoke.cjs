@@ -1,6 +1,7 @@
 // Smoke: un diálogo de permiso que el agente (Cursor o Claude) ya no espera porque cerró el turno no
 // debe quedar pendiente en la UI ni dar «no hay un diálogo pendiente con id perm-N».
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { setAgentRuntime } = require('./agent_settings_runtime.cjs');
 const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
 // Agente a probar (`cursor` o `claude`): cada uno usa su propio workspace.
 const RUNTIME = process.env.SMOKE_RUNTIME || 'cursor';
@@ -24,14 +25,8 @@ const WORKSPACE = `stale-${RUNTIME}`;
   await page.goto(BASE + '/');
   await page.waitForLoadState('networkidle');
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  // Hay dos selectores "Agente" (barra y formulario, este oculto): se usa el visible.
-  const runtime = page.getByLabel(/^Agente/).locator('visible=true').first();
-  // Solo se espera la petición si cambia el valor (la BD se comparte entre smokes).
-  if ((await runtime.inputValue()) !== RUNTIME) {
-    await runtime.selectOption(RUNTIME);
-    // La barra guarda con htmx y puede abortar la petición: se espera a que muestre el valor guardado.
-    await page.waitForFunction((v) => [...document.querySelectorAll('#agent-settings-bar select')].some((el) => el.offsetParent !== null && el.value === v) && !document.querySelector('.htmx-request'), RUNTIME, { timeout: 10000 });
-  }
+  // La BD se comparte entre smokes: setAgentRuntime espera el guardado aunque ya sea el agente pedido.
+  await setAgentRuntime(page, RUNTIME);
 
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await page.getByLabel(/^Workspace/).selectOption({ label: `${WORKSPACE} (main)` });

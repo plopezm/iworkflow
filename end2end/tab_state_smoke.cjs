@@ -1,6 +1,7 @@
 // Smoke: cambiar de pestaña del dock no reinicia las pantallas (texto sin guardar en «Editar
 // tarea» y en el formulario de Workspaces). Se ejecuta contra el servidor de end2end/run_smoke.sh.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { setAgentRuntime } = require('./agent_settings_runtime.cjs');
 const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
 let page;
 const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
@@ -78,14 +79,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
 
   // Mensaje al agente (composer) de una tarea en vivo, sin enviar: sobrevive a un cambio de pestaña.
   await tab('Tablero').click();
-  const runtime = visible(page.getByLabel(/^Agente/));
-  // Rust posts to the update_agent_settings server function; the Go bar posts to /agent-settings/<field>.
-  // El agente es global y la BD se comparte entre smokes: si ya está en pi no hay cambio ni petición que esperar.
-  if ((await runtime.inputValue()) !== 'pi') {
-    await runtime.selectOption('pi');
-    // La barra guarda con htmx y puede abortar la petición: se espera a que muestre el valor guardado.
-    await page.waitForFunction((v) => [...document.querySelectorAll('#agent-settings-bar select')].some((el) => el.offsetParent !== null && el.value === v) && !document.querySelector('.htmx-request'), 'pi', { timeout: 10000 });
-  }
+  // El agente es global y la BD se comparte entre smokes: setAgentRuntime espera el guardado aunque ya sea pi.
+  await setAgentRuntime(page, 'pi');
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await visible(page.getByLabel(/^Workspace/)).selectOption({ label: 'tab-state-demo (main)' });
   await visible(page.getByLabel('Prompt')).fill('Tarea del smoke de pestañas');
