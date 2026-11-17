@@ -100,7 +100,7 @@ type App struct {
 // and agents_files modules need each other, so the project lookup is bound after both are built, and the
 // workspaces and tasks modules need each other, so the workspace cascade is bound once tasks exists.
 // New starts nothing: Start runs the tasks startup steps and the background loops.
-func New(deps Deps) (*App, error) {
+func New(ctx context.Context, deps Deps) (*App, error) {
 	guard := prefsinbound.NewAccessGuard(deps.Preferences.Token, deps.Listen.TokenRequired, deps.Logger)
 
 	projects := &projectLookup{}
@@ -113,7 +113,7 @@ func New(deps Deps) (*App, error) {
 	// Engram is optional: without a valid IWF_ENGRAM_URL both ports stay nil, and the screens show no Engram part.
 	engram, memoryPort, taskMemory, memoryProvider := composeEngram(deps.DB, deps.EngramURL, deps.Logger)
 	// The client points at the effective address before the first request. This reads one setting and makes no network call.
-	if _, err := engram.Apply.Apply(context.Background()); err != nil {
+	if _, err := engram.Apply.Apply(ctx); err != nil {
 		deps.Logger.Warn("cannot apply the engram address", "error", err)
 	}
 	workspaceTasks := &workspaceTasksBridge{}

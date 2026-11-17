@@ -24,7 +24,7 @@ import (
 // Start and Shutdown themselves.
 func composeServer(t *testing.T) *app.App {
 	t.Helper()
-	application, err := app.New(app.Deps{
+	application, err := app.New(context.Background(), app.Deps{
 		DB:        dbtest.New(t),
 		Config:    app.NewTestConfig(t),
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),

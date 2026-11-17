@@ -32,7 +32,7 @@ func newRouter(t *testing.T) http.Handler {
 	static := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(static, "app.css"), []byte("body{}"), 0o600))
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	application, err := app.New(app.Deps{
+	application, err := app.New(context.Background(), app.Deps{
 		DB:        dbtest.New(t),
 		Config:    app.NewTestConfig(t),
 		Logger:    logger,
@@ -130,7 +130,7 @@ func TestMigratedTabsRenderThroughTheDockPane(t *testing.T) {
 }
 
 func TestShutdownReleasesTheModules(t *testing.T) {
-	application, err := app.New(app.Deps{
+	application, err := app.New(context.Background(), app.Deps{
 		DB:        dbtest.New(t),
 		Config:    app.NewTestConfig(t),
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -360,7 +360,7 @@ func composeWithEngram(t *testing.T, db *sql.DB, engramURL string) (http.Handler
 	static := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(static, "app.css"), []byte("body{}"), 0o600))
 	var logs bytes.Buffer
-	application, err := app.New(app.Deps{
+	application, err := app.New(context.Background(), app.Deps{
 		DB:        db,
 		Config:    app.NewTestConfig(t),
 		Logger:    slog.New(slog.NewTextHandler(&logs, nil)),

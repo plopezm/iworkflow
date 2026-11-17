@@ -56,7 +56,7 @@ func composeWithTasks(t *testing.T) *App {
 // composeOn composes the whole server over the database, so a test can seed rows before the composition.
 func composeOn(t *testing.T, db *sql.DB) *App {
 	t.Helper()
-	application, err := New(Deps{
+	application, err := New(context.Background(), Deps{
 		DB:        db,
 		Config:    NewTestConfig(t),
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),

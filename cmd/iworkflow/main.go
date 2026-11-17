@@ -228,7 +228,7 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		info.TLSPort = secure.port
 	}
 
-	application, err := app.New(app.Deps{
+	application, err := app.New(ctx, app.Deps{
 		DB:          handle,
 		Config:      cfg,
 		Logger:      logger,
