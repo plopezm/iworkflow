@@ -47,7 +47,7 @@ async function findWorktree(ctx) {
 async function liveTask(ctx) {
   const { page } = ctx;
   const prompt = `cambios-git-${tag}`;
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await page.getByLabel('Nombre').first().fill(WORKSPACE);
   await page.getByLabel(/^Ruta absoluta/).first().fill(REPO);
   await page.getByLabel(/Rama base/).first().fill('main');

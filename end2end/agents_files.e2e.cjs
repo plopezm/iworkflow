@@ -62,7 +62,7 @@ function uniqueAgentsMdFile(prefix, content) {
 
 // Registra un workspace git desde /workspaces (mis selectors que workspaces.e2e.cjs).
 async function registerWorkspace(ctx, { name, gitRepo, baseBranch = 'main' }) {
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).fill(gitRepo);
   await ctx.page.getByLabel(/Rama base/).fill(baseBranch);

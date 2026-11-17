@@ -25,7 +25,7 @@ const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
     window.WebSocket.prototype = Native.prototype;
   });
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill('reconnect-demo');
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);

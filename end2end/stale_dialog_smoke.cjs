@@ -1,6 +1,7 @@
 // Smoke: un diálogo de permiso que el agente (Cursor o Claude) ya no espera porque cerró el turno no
 // debe quedar pendiente en la UI ni dar «no hay un diálogo pendiente con id perm-N».
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { setAgentRuntime } = require('./agent_settings_runtime.cjs');
 const BASE = process.env.SMOKE_BASE_URL || 'http://127.0.0.1:3000';
 // Agente a probar (`cursor` o `claude`): cada uno usa su propio workspace.
 const RUNTIME = process.env.SMOKE_RUNTIME || 'cursor';
@@ -14,7 +15,7 @@ const WORKSPACE = `stale-${RUNTIME}`;
   const page = await context.newPage();
   const step = (s) => console.log('✔', s);
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill(WORKSPACE);
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
@@ -24,10 +25,8 @@ const WORKSPACE = `stale-${RUNTIME}`;
   await page.goto(BASE + '/');
   await page.waitForLoadState('networkidle');
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  const runtime = page.getByLabel(/^Agente/);
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
-  await runtime.selectOption(RUNTIME);
-  await saved;
+  // La BD se comparte entre smokes: setAgentRuntime espera el guardado aunque ya sea el agente pedido.
+  await setAgentRuntime(page, RUNTIME);
 
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await page.getByLabel(/^Workspace/).selectOption({ label: `${WORKSPACE} (main)` });

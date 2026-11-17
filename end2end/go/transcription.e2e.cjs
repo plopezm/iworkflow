@@ -27,7 +27,7 @@ function uniqueGitRepo(prefix) {
 // Registers a workspace so the board can open the create dialog; the dialog lives on the main (non-ctx) browser.
 async function registerWorkspace(page, base, name) {
   const dir = uniqueGitRepo(name);
-  await page.goto(`${base}/workspaces`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${base}/workspaces/new`, { waitUntil: 'domcontentloaded' });
   await page.getByLabel('Nombre').first().fill(name);
   await page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await page.getByLabel(/Rama base/).first().fill('main');

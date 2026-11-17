@@ -25,6 +25,7 @@ mocks, and runs the scripts in Go mode (`IWF_E2E_TARGET=go`).
 | Standalone smoke scripts, one server | `IWF_E2E_SCRIPTS="end2end/dock_smoke.cjs end2end/tab_state_smoke.cjs" end2end/go/run_go.sh` |
 | Node unit steps first (no server needed) | `IWF_E2E_UNIT=1 end2end/go/run_go.sh ...` |
 | Unit steps only, without a server | `node --test web/static/js/` |
+| Terminal keys and touch scroll unit test (29 tests, no server) | `node --test end2end/terminal_keys_test.mjs` |
 | Legacy follow-bottom test under Node | `node --import ./end2end/go/dom_shim.mjs --test end2end/follow_bottom_test.mjs` |
 
 Module filters match the module name or file name. `workspaces` runs `go/workspaces.e2e.cjs` only.
@@ -54,8 +55,9 @@ The smokes in `end2end/*_smoke.cjs` run one by one with `IWF_E2E_SCRIPTS`. The r
 
 - `SMOKE_BASE_URL`, the server URL.
 - `SMOKE_REPO`, a git repo that the script registers as a workspace. It depends on the script:
-  `git_changes` uses its own repo, `tab_state` its own, `background_jobs` its own, and the rest use the
-  terminal repo.
+  `git_changes`, `tab_state` and `background_jobs` each use their own repo, `ui_smoke`, `stale_dialog`,
+  `terminal_keys` and `terminal_reconnect` each have one too (the server refuses a second workspace on the same
+  root), and the rest use the terminal repo.
 - `SMOKE_WORKTREES`, the server's worktrees directory (`worktrees` under the server's `IWF_HOME`). Needed by
   `git_changes_smoke.cjs` to find the agent's worktree.
 - `lang_shim.cjs` preloaded, which sets the language cookie the smokes do not set.
@@ -108,36 +110,35 @@ way. The Go module's equivalent (`web/static/js/follow_bottom_test.mjs`) passes 
 
 ## Status of the scripts (measured on the current tree)
 
-Full suite: `end2end/go/run_go.sh`. Result: 69 passed, 42 failed (111 tests).
+Full suite (`end2end/go/run_go.sh`), per module, first run of the audit (before) and the last full run (after):
 
-| Script | Pass | Fail | Status |
+| Module | Before (pass/fail) | After (pass/fail) | What was wrong |
 |---|---|---|---|
-| `go/workspaces.e2e.cjs` | 8 | 0 | ok |
-| `go/preferences.e2e.cjs` | 7 | 0 | ok |
-| `go/agent_settings.e2e.cjs` | 6 | 0 | ok in this run; was intermittent before (see below) |
-| `agents_files.e2e.cjs` (root, no Go copy) | 8 | 0 | ok |
-| `settings.e2e.cjs` (root, no Go copy) | 13 | 0 | ok |
-| `terminal.e2e.cjs` (root, no Go copy) | 6 | 0 | ok |
-| `go/project_tree.e2e.cjs` | 4 | 5 | 5 fail: the sidebar `Tablero` link is missing (tasks) |
-| `go/code_hosting.e2e.cjs` | 3 | 4 | 4 fail: MR/push flow starts from the board (tasks) |
-| `jira.e2e.cjs` (root, no Go copy) | 0 | 15 | blocked: jira module not migrated (the settings "Jira" section is a placeholder) |
-| `tasks.e2e.cjs` (root, no Go copy) | 0 | 18 | blocked: tasks module not migrated (no board, no task routes) |
+| `workspaces` | 1 / 7 | 8 / 0 | Registration moved to `/workspaces/new`; the `+` button and `#modal-panel` locators |
+| `agents_files` 4/4 → 8/0, `board_live_sidebar` 0/1 → 1/0, `board_refresh` 3/1 → 4/0, `board_tabs` 0/1 → 1/0, `diff_report` 0/1 → 1/0, `git_changes` 0/1 → 1/0, `jira` 12/4 → 16/0, `project_tree` 0/9 → 9/0, `stale_dialog` 0/4 → 4/0, `submit_progress` 0/3 → 3/0, `task_attachments_lightbox` 0/2 → 2/0, `task_composer` 0/5 → 5/0, `task_form_paste` 0/3 → 3/0, `task_hooks` 5/4 → 9/0, `task_hooks_strip` 0/4 → 4/0, `terminal` 1/5 → 6/0, `terminal_shell` 5/1 → 6/0, `transcription` 0/2 → 2/0, `usage_limits` 4/1 → 5/0 | (listed) | (listed) | Same registration route: the helpers opened `/workspaces` and filled a form that now lives at `/workspaces/new` |
+| `redesign` | 7 / 1 | 7 / 1 (8 / 0 when re-run alone) | Backlog count read before the second card arrived (race, fixed by waiting for the card) |
+| `engram`, `related_projects` | 14 / 0, 5 / 0 | unchanged | The `+` click stays on `/workspaces` |
 
-Standalone smokes (`IWF_E2E_SCRIPTS`):
+Last full run: 231 passed, 1 failed (`redesign.tablero`, the race above). That module was then re-run alone and passed 8/8. A clean full re-run after that fix was not done.
 
-| Script | Result | Blocked by |
+Standalone smokes (`IWF_E2E_SCRIPTS`), one server, fresh database, last run:
+
+| Script | Result | Note |
 |---|---|---|
-| `git_changes_smoke.cjs` | fails at the sidebar `Tablero` link | tasks (it needs a running agent task) |
-| `dock_smoke.cjs` | fails at the sidebar `Tablero` link | tasks (the board) |
-| `tab_state_smoke.cjs` | fails at the sidebar `Tablero` link | tasks (the board) |
-| `background_jobs_smoke.cjs` | fails at the sidebar `Tablero` link | tasks (the board) |
-| `stale_dialog_smoke.cjs` | fails at the sidebar `Tablero` link | tasks (the board) |
-| `ui_smoke.cjs` | fails at the sidebar `Tablero` link | tasks (the board) |
-| `terminal_keys_smoke.cjs` | passes | — |
-| `terminal_reconnect_smoke.cjs` | passes | — |
+| `dock_smoke.cjs` | passes | The `Modelos` tab is now `Configuración` (`/settings`) |
+| `tab_state_smoke.cjs` | passes | Registration form reopened with `+` after registering |
+| `stale_dialog_smoke.cjs` | passes | |
+| `terminal_keys_smoke.cjs` | passes | |
+| `terminal_reconnect_smoke.cjs` | passes | |
+| `touch_targets_smoke.cjs` | passes | Needs a running server (`SMOKE_BASE_URL`); it is not run by the runner's default suite |
+| `git_changes_smoke.cjs` | intermittent | Passed in one run; failed in the last run at the first Cambios poll. `go/git_changes.e2e.cjs` passes in both full runs |
+| `ui_smoke.cjs` | fails at "la pestaña Archivos se reconstruye al cambiar" | Earlier steps pass. Not resolved (see open items) |
+| `background_jobs_smoke.cjs` | fails | Product gap (see open items) |
 
-The `Tablero` failures mean the Go shell does not list the board. The Go shell lists only the migrated
-destinations (Workspaces, AGENTS.md, Settings). The board and the tasks screens are in the `tasks` module.
+The Go module is what the full suite uses. The root modules that the Go suite does not replace (`agents_files`, `settings`,
+`terminal`, `jira`) run in it and pass. The root copies of `workspaces`, `tasks`, `project_tree`, `related_projects` and
+`code_hosting` are replaced by their `go/` copies in Go mode, so they only run without `IWF_E2E_TARGET=go`. Their
+registration and route fixes were made, but they were not run.
 
 Two notes on the measurements:
 
@@ -151,7 +152,35 @@ Two notes on the measurements:
 
 ## Open items
 
-- Module-side: the `tasks` and `jira` modules, and the board. They are needed for the 42 failing tests
-  and for the 6 standalone smokes listed above.
-- Test-side: `end2end/follow_bottom_test.mjs` targets the legacy `src/core` copy and needs its
-  expectations updated, or removal, once the Rust copy goes away.
+Product (not fixed here; the tests describe the expected behaviour):
+
+- Background jobs (`background_jobs_smoke.cjs` fails). The domain already counts them: the pi adapter adds the
+  `gentle-jobs` status to the active subagents (`rpc_protocol.go`), and `StageAt` treats active subagents as working.
+  The failure is in the test's timing: the fake agent's job lasts 6 s (`tests/fixtures/fake_agent.py`, outside the
+  e2e surfaces), and the card link the smoke clicks only shows up once the job has ended, because the board list does
+  not refresh after a create. Fixing it needs a longer fixture job (or passing `FAKE_AGENT_JOB_SECONDS` through the agent
+  environment allow-list) and a list refresh on create.
+- Task Archivos tab (`ui_smoke.cjs` fails at "la pestaña Archivos se reconstruye al cambiar"). The check looks for the
+  same DOM node after a tab switch. Tab switches swap the whole task-tab region from the server (`tasks/<id>/tabs/<tab>`,
+  `outerHTML`), so the Archivos pane is rebuilt by design. Keeping the node is a product decision, not a test fix.
+- Git changes commit (`git_changes_smoke.cjs` fails after its steps pass). The browser logs htmx errors
+  (`htmx:afterRequest`, `htmx:sendAbort`) during the commit, and the smoke fails on any console error. The base commit
+  shows the same errors with this smoke, so it is pre-existing in the git panel.
+- `engram.e2e.cjs` "tarea: Memorias" is flaky, also on pristine HEAD (1 failure in 3 runs there, none in 3 runs with the
+  chat image modal id change). The test injects a memory stamped with whole seconds and the server splits branch
+  memories from earlier ones with `models.SplitSince` (`!UpdatedAt.Before(task.StartedAt)`), so the failure points at
+  timing around that split. The exact race has not been traced.
+- Commit button: the Go button is never disabled; the message field is `required` (known difference, see the
+  go-migration notes). An empty message is rejected by the browser; nothing is committed.
+- Root modules shadowed in Go mode (`workspaces`, `tasks`, `project_tree`, `related_projects`, `code_hosting`) were not
+  run: `run_go.sh` always sets `IWF_E2E_TARGET=go`, so their root copies cannot run against the Go server.
+
+Test side:
+
+- `end2end/follow_bottom_test.mjs` targets the legacy `src/core` copy and needs its expectations updated, or removal,
+  once the Rust copy goes away. It is referenced by `run_go.sh` and this README, so it is kept.
+- `end2end/go/move_home_smoke.sh`: passes (HTTP checks and the browser card, exit 0).
+- `end2end/go/related_projects_real.sh`: uses the real `claude` binary and model usage. Run once: 1 of 2 scenarios passed.
+  The second scenario timed out waiting for the task card link after the create (the same card-link gap as above).
+- `end2end/touch_targets_smoke.cjs`: passes against the Go server, including the Jira tap in the shell navigation.
+- `end2end/agent_settings_runtime_test.cjs` (node unit test of the shared runtime helper): 5 of 5 pass, no server.

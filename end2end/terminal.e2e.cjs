@@ -22,7 +22,7 @@ function uniqueGitRepo(prefix) {
 
 async function registerWs(ctx, name) {
   const dir = uniqueGitRepo(name);
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByRole('button', { name: /Registrar|Register/ }).first().click();
@@ -128,10 +128,11 @@ module.exports = {
         const start = Date.now();
         let ok = false;
         while (Date.now() - start < 15000) {
-          const n = await ctx.page.locator('tr', { hasText: sessionId.slice(0, 8) }).count();
-          if (n === 0) { ok = true; break; }
-          const t = await ctx.page.locator('tr', { hasText: sessionId.slice(0, 8) }).first().innerText();
-          if (/Exited|Finalizada|Terminada/.test(t)) { ok = true; break; }
+          // One read of every matching row: the row may vanish between a count and a text read, and a waiting
+          // innerText() on a gone row would stall for the whole test timeout instead of counting as closed.
+          const texts = await ctx.page.locator('tr', { hasText: sessionId.slice(0, 8) }).evaluateAll((rows) => rows.map((row) => row.innerText));
+          if (texts.length === 0) { ok = true; break; }
+          if (/Exited|Finalizada|Terminada/.test(texts[0])) { ok = true; break; }
           await ctx.page.waitForTimeout(400);
         }
         ctx.assert(ok, 'la sesión no se cerró');

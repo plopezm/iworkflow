@@ -76,7 +76,7 @@ async function runningTaskWithImage(ctx, key, imageName) {
   const page = ctx.page;
   const ws = `lb-${key}-${tag}`;
   const dir = uniqueGitRepo(key);
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await page.getByLabel('Nombre').first().fill(ws);
   await page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await page.getByLabel(/Rama base/).first().fill('main');

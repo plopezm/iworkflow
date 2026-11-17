@@ -9,6 +9,17 @@ type ModalProps struct {
 	CloseAttrs templ.Attributes
 	// Compact narrows the panel on wide screens, for short dialogs.
 	Compact bool
+	// ID is the id of the panel. Empty keeps the default id "modal-panel"; a page that renders a second
+	// modal next to a default one (the shell's chat image modal) gives it its own id, so ids stay unique.
+	ID string
+}
+
+// PanelID returns the id the panel renders: ID when set, otherwise the default "modal-panel".
+func (p ModalProps) PanelID() string {
+	if p.ID == "" {
+		return "modal-panel"
+	}
+	return p.ID
 }
 
 // Modal is a generic dialog: a bottom sheet on mobile and a centred dialog on desktop. Escape and
@@ -21,7 +32,7 @@ templ Modal(p ModalProps) {
 		{ p.CloseAttrs... }
 	>
 		<div
-			id="modal-panel"
+			id={ p.PanelID() }
 			class={ "stack max-h-[90dvh] w-full overflow-y-auto rounded-t-3xl border border-border/60 bg-surface/95 p-4 sm:rounded-3xl sm:p-6 animate-scale-in backdrop-blur-xl", templ.KV("sm:max-w-lg", !p.Compact), templ.KV("sm:max-w-sm", p.Compact) }
 			role="dialog"
 			tabindex="-1"

@@ -81,7 +81,7 @@ function taskHrefs(page) {
 // is found by the link that the create adds, not by its prompt.
 async function startedTask(ctx, name, prompt) {
   const dir = uniqueGitRepo(name);
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');

@@ -33,8 +33,8 @@ const assert = (cond, msg) => { if (!cond) throw new Error(msg); };
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Workspaces' }).tap();
   await page.locator('.dock-tab', { hasText: 'Workspaces' }).waitFor();
   await page.locator('button[data-mobile-open]').first().tap();
-  await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Modelos' }).tap();
-  await page.locator('.dock-tab', { hasText: 'Modelos' }).waitFor();
+  await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Jira' }).tap();
+  await page.locator('.dock-tab', { hasText: 'Jira' }).waitFor();
   // Opening a tab closes the sidebar overlay, and its full-screen backdrop must not stay behind.
   await page.locator('#sidebar-panel[data-mobile-open]').waitFor({ state: 'detached' });
   assert(await page.locator('#sidebar-panel [data-overlay-close]').isHidden(), 'the sidebar backdrop stays after opening a tab');

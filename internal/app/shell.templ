@@ -23,7 +23,7 @@ templ shellPage(boardSidebar templ.Component, version string) {
 			})
 		</div>
 		@components.ToastStack()
-		@components.Modal(components.ModalProps{Title: msgImagePreview.T(ctx), Open: false, CloseAttrs: templ.Attributes{"data-chat-image-modal": ""}}) {
+		@components.Modal(components.ModalProps{Title: msgImagePreview.T(ctx), Open: false, ID: "chat-image-modal-panel", CloseAttrs: templ.Attributes{"data-chat-image-modal": ""}}) {
 			<img alt="" class="max-h-[70dvh] w-full rounded-md object-contain" data-chat-image/>
 		}
 		@prefspages.LanguagePromptSection(i18n.StateFrom(ctx).Chosen)

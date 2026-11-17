@@ -12,7 +12,7 @@ let page;
   page.on('pageerror', e => problems.push(`pageerror: ${e.message}`));
   const step = (s) => console.log('✔', s);
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill('term-demo');
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);

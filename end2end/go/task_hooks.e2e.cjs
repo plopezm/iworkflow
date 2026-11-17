@@ -26,7 +26,7 @@ function uniqueGitRepo(prefix) {
 // Registers a workspace from the list, so it can be chosen as the project of an assignment.
 async function registerWorkspace(ctx, name) {
   const repo = uniqueGitRepo(name.replace(/\W+/g, '-'));
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).fill(repo);
   await ctx.page.getByLabel(/Rama base/).fill('main');

@@ -67,12 +67,31 @@ func (u *ResumeRateLimitedTasks) Execute(ctx context.Context, now time.Time) (in
 }
 
 // resumeOne restarts the agent and then sends the continuation. The continuation is only attempted once the
-// restart succeeded.
+// restart succeeded. When the continuation fails the task goes back to rate-limited, so the next sweep retries it
+// instead of leaving an idle agent that nobody will ever prompt.
 func (u *ResumeRateLimitedTasks) resumeOne(ctx context.Context, id models.TaskID) error {
 	if err := u.resume.Execute(ctx, id); err != nil {
 		return err
 	}
-	return u.sendContinuation(ctx, id)
+	continuationErr := u.sendContinuation(ctx, id)
+	if continuationErr == nil {
+		return nil
+	}
+	u.parkAgain(ctx, id, continuationErr)
+	return continuationErr
+}
+
+// parkAgain returns a task whose continuation failed to rate-limited. The status changes first so the exit of the
+// stopped agent is not recorded as an interruption. Failures are logged: the caller reports the original error.
+func (u *ResumeRateLimitedTasks) parkAgain(ctx context.Context, id models.TaskID, cause error) {
+	message := "no se pudo enviar la continuación tras el límite de uso: " + cause.Error()
+	if err := u.lifecycle.Transition(ctx, id, models.StatusRateLimited, &message); err != nil {
+		slog.Warn("could not park the task again after a failed continuation", "task_id", id.String(), "error", err)
+		return
+	}
+	if err := u.runtime.Stop(ctx, id); err != nil {
+		slog.Warn("could not stop the agent after a failed continuation", "task_id", id.String(), "error", err)
+	}
 }
 
 // sendContinuation sends the continuation through SendMessage in follow-up mode, as the Rust version does. The

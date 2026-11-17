@@ -2,6 +2,7 @@
 // servidor lanzado por end2end/run_smoke.sh. Comprueba efectos observables: el índice real de
 // git del worktree (`git diff --cached`) y los ficheros en disco, no el estado interno de la UI.
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { setAgentRuntime } = require('./agent_settings_runtime.cjs');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -62,7 +63,7 @@ function findWorktree(root, marker, depth = 4) {
   const git = (wt, ...args) => execFileSync('git', ['-C', wt, ...args], { encoding: 'utf8' }).trim();
   const staged = (wt) => git(wt, 'diff', '--cached', '--name-only').split('\n').filter(Boolean).sort();
 
-  await page.goto(BASE + '/workspaces');
+  await page.goto(BASE + '/workspaces/new');
   await page.waitForLoadState('networkidle');
   await page.getByLabel('Nombre').fill('git-changes-demo');
   await page.getByLabel(/^Ruta absoluta/).fill(process.env.SMOKE_REPO);
@@ -73,10 +74,8 @@ function findWorktree(root, marker, depth = 4) {
   await page.goto(BASE + '/');
   await page.waitForLoadState('networkidle');
   await page.getByRole('navigation', { name: 'Navegación' }).getByRole('link', { name: 'Tablero' }).click();
-  const runtime = page.getByLabel(/^Agente/);
-  const saved = page.waitForResponse(r => r.url().includes('update_agent_settings'));
-  await runtime.selectOption('pi');
-  await saved;
+  // El agente es global y la BD se comparte entre smokes: setAgentRuntime espera el guardado aunque ya sea pi.
+  await setAgentRuntime(page, 'pi');
   await page.getByRole('button', { name: 'Nueva tarea' }).click();
   await page.getByLabel(/^Workspace/).selectOption({ label: 'git-changes-demo (main)' });
   await page.getByLabel('Prompt').fill('Cambios git');
@@ -155,13 +154,24 @@ function findWorktree(root, marker, depth = 4) {
 
   // Commit: solo con algo en stage y con mensaje; registra únicamente lo que está en stage.
   const form = () => panel().locator('[data-testid="git-commit-form"]');
-  assert((await form().count()) === 0, 'sin nada en stage no hay formulario de commit');
+  // git_panel.templ siempre renderiza el formulario fuera del cuerpo sondeado y lo oculta con CSS mientras no
+  // hay ningún [data-git-staged] (sección «Con stage» de git_rows.templ). Se comprueba ese comportamiento real.
+  assert((await form().count()) === 1, 'el formulario de commit siempre está en el DOM');
+  assert((await panel().locator('[data-git-staged]').count()) === 0, 'sin nada en stage no hay sección «Con stage»');
+  assert(!(await form().isVisible()), 'sin nada en stage el formulario de commit está oculto');
   await row('unstaged', 'README.md').locator('[data-testid="git-toggle"]').click();
   await until('staged', ['README.md'], 'README.md con stage para el commit');
   const message = () => form().locator('[data-testid="git-commit-message"]');
   const commitButton = () => form().locator('[data-testid="git-commit"]');
   await message().waitFor();
-  assert(await commitButton().isDisabled(), 'sin mensaje el botón Commit está desactivado');
+  // El botón de Go nunca se desactiva: el mensaje es `required` y el navegador rechaza el commit vacío (como en end2end/go/git_changes.e2e.cjs).
+  // Con el mensaje vacío se pulsa Commit de verdad: no debe llegar ninguna petición ni crearse un commit.
+  const headBefore = git(worktree, 'rev-list', '--count', 'HEAD');
+  await commitButton().click();
+  await page.waitForTimeout(POLL_WAIT_MS);
+  assert(await message().evaluate((el) => el.validity.valueMissing), 'sin mensaje el campo es obligatorio');
+  assert(git(worktree, 'rev-list', '--count', 'HEAD') === headBefore, 'con el mensaje vacío no se crea ningún commit');
+  await until('staged', ['README.md'], 'README.md sigue en stage tras el commit rechazado');
   await message().fill('docs: actualizar README');
   await message().focus();
   // Un sondeo no debe reconstruir el formulario: se conservan texto y foco.
@@ -177,7 +187,8 @@ function findWorktree(root, marker, depth = 4) {
   assert(Number(git(worktree, 'rev-list', '--count', 'HEAD')) === Number(before) + 1, 'se crea exactamente un commit');
   sameList(git(worktree, 'show', '--name-only', '--format=', 'HEAD').split('\n').filter(Boolean), ['README.md'], 'ficheros del commit');
   await until('untracked', ['CAMBIO.md', 'nuevo.txt'], 'lo que no estaba en stage queda sin tocar');
-  assert((await form().count()) === 0, 'tras el commit desaparece el formulario');
+  // El formulario está fuera del cuerpo que se refresca: tras el commit sigue en el DOM, oculto sin stage.
+  assert(!(await form().isVisible()), 'tras el commit el formulario vuelve a estar oculto');
   step('commit: solo lo que estaba en stage, con su mensaje, y el formulario conserva foco entre sondeos');
 
   // Un worktree limpio muestra el estado vacío.

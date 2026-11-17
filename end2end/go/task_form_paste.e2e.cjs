@@ -24,7 +24,7 @@ async function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 // Registers a workspace, opens the board for it and opens the create dialog.
 async function openDialog(ctx, name) {
   const dir = uniqueGitRepo(name);
-  await ctx.goto('/workspaces');
+  await ctx.goto('/workspaces/new');
   await ctx.page.getByLabel('Nombre').first().fill(name);
   await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
   await ctx.page.getByLabel(/Rama base/).first().fill('main');
