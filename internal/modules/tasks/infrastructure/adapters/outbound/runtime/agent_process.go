@@ -18,7 +18,11 @@ import (
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/inbound"
+	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
+
+// ProcessRuntime locates the OS process of each agent for the finish flow, which must not list it.
+var _ outbound.AgentProcessLocator = (*ProcessRuntime)(nil)
 
 const (
 	defaultStopTimeout = 15 * time.Second
@@ -231,6 +235,20 @@ func (p *ProcessRuntime) IsRunning(taskID models.TaskID) bool {
 	defer p.mu.Unlock()
 	_, running := p.processes[taskID]
 	return running
+}
+
+// AgentPID returns the OS pid of the live agent of the task. The agent leads its own process group, so the pid
+// is the group id. It is false when the task has no registered agent, and also once the leader was reaped: a
+// stop in progress has already removed the entry, so it is not live either. A reaped leader's pid may be reused,
+// so it is never reported.
+func (p *ProcessRuntime) AgentPID(taskID models.TaskID) (int, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	proc, running := p.processes[taskID]
+	if !running || proc.reaped.Load() {
+		return 0, false
+	}
+	return proc.pgid, true
 }
 
 // supervise owns one agent from its exit to its deregistration. It pumps stdin and stdout, performs a
