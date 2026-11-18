@@ -133,12 +133,12 @@ func (u *FinishTask) ExecuteClosing(ctx context.Context, id models.TaskID, selec
 	if err := u.lifecycle.Transition(detached, id, models.StatusFinishing, nil); err != nil {
 		return err
 	}
-	agentStopped, err := u.consolidate(detached, task, selected)
+	agent, err := u.consolidate(detached, task, selected)
 	if err != nil {
-		return u.rollback(detached, id, previous, agentStopped, err)
+		return u.rollback(detached, id, previous, agent, err)
 	}
 	if err := u.lifecycle.Transition(detached, id, models.StatusAwaitingReview, nil); err != nil {
-		return u.rollback(detached, id, previous, agentStopped, err)
+		return u.rollback(detached, id, previous, agent, err)
 	}
 	// The post hooks run once the task awaits review; their failure does not fail the finish.
 	task.Status = models.StatusAwaitingReview
@@ -176,17 +176,30 @@ func (u *FinishTask) hookWorkspacePath(ctx context.Context, task models.Task) (s
 	return workspace.Path, nil
 }
 
+// agentLeft says what the consolidation left of the agent.
+type agentLeft int
+
+const (
+	// agentAlive: a stop failed, so the agent is still alive.
+	agentAlive agentLeft = iota
+	// agentNotRunning: no agent was alive when the finish checked, for example it crashed.
+	agentNotRunning
+	// agentStopped: the finish stopped the live agent.
+	agentStopped
+)
+
 // rollback returns a task that left finishing with a failure to the status it should have. The target is failed when
-// the previous status was finishing (a finish that died halfway), interrupted when the finish stopped a live agent (the
-// agent is gone, so a running or idle status would be false), and the previous status otherwise (a failed stop leaves
-// the agent alive). The failure is the error text, so the task stays visible with the reason. errors.Join keeps
-// errors.Is and errors.As working on the original error when the restore itself fails too.
-func (u *FinishTask) rollback(ctx context.Context, id models.TaskID, previous models.TaskStatus, agentStopped bool, cause error) error {
+// the previous status was finishing (a finish that died halfway). It is interrupted when the finish stopped a live agent,
+// and also when no agent was alive and the previous status claimed one: a running or idle status would be false then.
+// Otherwise it is the previous status (a failed stop leaves the agent alive). The failure is the error text, so the task
+// stays visible with the reason. errors.Join keeps errors.Is and errors.As working on the original error when the
+// restore itself fails too.
+func (u *FinishTask) rollback(ctx context.Context, id models.TaskID, previous models.TaskStatus, agent agentLeft, cause error) error {
 	target := previous
 	switch {
 	case previous == models.StatusFinishing:
 		target = models.StatusFailed
-	case agentStopped:
+	case agent == agentStopped, agent == agentNotRunning && previous.HasLiveAgent():
 		target = models.StatusInterrupted
 	}
 	message := cause.Error()
@@ -196,20 +209,20 @@ func (u *FinishTask) rollback(ctx context.Context, id models.TaskID, previous mo
 	return cause
 }
 
-// consolidate stops the agent when it is still alive and commits every pending change of the worktree. It reports
-// whether it stopped a live agent; a failed stop reports false, because the agent is still alive.
-func (u *FinishTask) consolidate(ctx context.Context, task models.Task, selected []models.WorktreeProcess) (bool, error) {
-	agentStopped := false
+// consolidate stops the agent when it is still alive and commits every pending change of the worktree. It reports what
+// is left of the agent: a failed stop leaves it alive, so the previous status is kept as it was.
+func (u *FinishTask) consolidate(ctx context.Context, task models.Task, selected []models.WorktreeProcess) (agentLeft, error) {
+	agent := agentNotRunning
 	if u.runtime.IsRunning(ctx, task.ID) {
 		if err := u.runtime.Stop(ctx, task.ID); err != nil {
-			return false, err
+			return agentAlive, err
 		}
-		agentStopped = true
+		agent = agentStopped
 	}
 	u.closeWorktreeUsers(ctx, task, selected)
 	message := "pi: " + task.Title
 	_, err := u.worktrees.CommitAll(ctx, task.WorktreePath, message)
-	return agentStopped, err
+	return agent, err
 }
 
 // closeWorktreeUsers closes the processes the user selected (terminals, dev servers, children the agent left

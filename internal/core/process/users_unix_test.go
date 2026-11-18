@@ -244,3 +244,37 @@ func TestCloseRefusesAnEmptyRoot(t *testing.T) {
 
 	assert.ErrorIs(t, err, errInvalidRoot)
 }
+
+// closeWithExpiringContext closes a process that ignores SIGTERM, under a caller context that expires during the grace
+// (the grace itself is long, so only the expiry can end it). It returns the process and the error of Close.
+func closeWithExpiringContext(t *testing.T) (*child, error) {
+	t.Helper()
+	previous := termGrace
+	termGrace = 10 * time.Second
+	t.Cleanup(func() { termGrace = previous })
+	root := t.TempDir()
+	stubborn := start(t, root, "sh", "-c", `trap "" TERM; while :; do sleep 0.1; done`)
+	time.Sleep(200 * time.Millisecond) // let the trap be installed
+	users, err := ListUsers(context.Background(), root)
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	_, err = Close(ctx, root, users)
+
+	return stubborn, err
+}
+
+// Bug: when the caller context expires during the grace, the rescan fails and the survivors were never force-killed.
+func TestCloseForcesASurvivorThatIgnoresTermWhenTheCallerContextExpires(t *testing.T) {
+	stubborn, _ := closeWithExpiringContext(t)
+
+	assert.True(t, stubborn.exited(5*time.Second), "a process that ignores SIGTERM must die even when the caller context expired")
+}
+
+// Bug: a failed recheck was swallowed, so Close reported success while the survivors were alive.
+func TestCloseReportsTheRecheckErrorWhenTheCallerContextExpires(t *testing.T) {
+	_, err := closeWithExpiringContext(t)
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}

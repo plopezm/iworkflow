@@ -70,6 +70,9 @@ func KillUsers(ctx context.Context, root string) (int, error) {
 	return closed, errors.Join(listErr, closeErr)
 }
 
+// forceTimeout bounds the fresh scan that checks the polite-signalled processes before they are force-killed.
+const forceTimeout = 5 * time.Second
+
 // termGrace is how long a process gets to exit on its own after it was asked to; a variable so tests can shorten it.
 var termGrace = 3 * time.Second
 
@@ -95,9 +98,17 @@ func Close(ctx context.Context, root string, selected []User) (int, error) {
 	current, scanErr := usersOf(ctx, roots)
 	touched := map[int]struct{}{}
 	var errs []error
-	signalAll(onlyWanted(current, wanted), false, touched, &errs)
-	if len(touched) > 0 {
-		signalAll(waitForExit(ctx, roots, wanted), true, touched, &errs)
+	polite := signalAll(onlyWanted(current, wanted), false, touched, &errs)
+	if len(polite) > 0 {
+		survivors, waitErr := waitForExit(ctx, roots, wanted)
+		if waitErr != nil {
+			errs = append(errs, waitErr)
+			survivors, waitErr = unconfirmed(ctx, roots, polite, wanted)
+			if waitErr != nil {
+				errs = append(errs, waitErr)
+			}
+		}
+		signalAll(survivors, true, touched, &errs)
 	}
 	if scanErr != nil {
 		errs = append(errs, fmt.Errorf("find the processes using %s: %w", root, scanErr))
@@ -106,32 +117,60 @@ func Close(ctx context.Context, root string, selected []User) (int, error) {
 }
 
 // signalAll signals each process (force or polite), records it in touched and collects the failures other than "gone".
-func signalAll(users []User, force bool, touched map[int]struct{}, errs *[]error) {
+// It returns the processes it found to signal; a gone one is not among them.
+func signalAll(users []User, force bool, touched map[int]struct{}, errs *[]error) []User {
+	var signalled []User
 	for _, user := range users {
 		switch err := signalPID(user.PID, force); {
 		case err == nil:
 			touched[user.PID] = struct{}{}
+			signalled = append(signalled, user)
 		case !errors.Is(err, errGone):
 			*errs = append(*errs, err)
 		}
 	}
+	return signalled
 }
 
 // waitForExit rescans until none of the wanted processes uses the roots or the grace ends, and returns the ones
-// still using them.
-func waitForExit(ctx context.Context, roots []string, wanted map[string]struct{}) []User {
+// still using them. An error means the wanted processes could not be confirmed gone: a rescan failed, or the context
+// ended before the grace did. Then the returned list is not a complete answer and the caller must not trust it.
+func waitForExit(ctx context.Context, roots []string, wanted map[string]struct{}) ([]User, error) {
 	deadline := time.Now().Add(termGrace)
 	for {
-		scanned, _ := usersOf(ctx, roots) // a failed rescan only means fewer survivors are seen; Close reports the first scan
+		scanned, err := usersOf(ctx, roots)
+		if err != nil {
+			return nil, fmt.Errorf("recheck the processes using the roots: %w", err)
+		}
 		remaining := onlyWanted(scanned, wanted)
-		if len(remaining) == 0 || ctx.Err() != nil || !time.Now().Before(deadline) {
-			return remaining
+		if len(remaining) == 0 {
+			return nil, nil
+		}
+		if !time.Now().Before(deadline) {
+			return remaining, nil
+		}
+		if err := ctx.Err(); err != nil {
+			return remaining, fmt.Errorf("recheck the processes using the roots: %w", err)
 		}
 		select {
 		case <-ctx.Done():
 		case <-time.After(pollEvery):
 		}
 	}
+}
+
+// unconfirmed returns the polite-signalled processes that must be force-killed because their exit was not confirmed. A
+// fresh scan, with its own short context, checks that each one still uses the roots with its identity, so a process
+// that already exited is skipped. When that scan fails too, the identities cannot be checked and the processes are
+// returned as they were signalled, with the scan error.
+func unconfirmed(ctx context.Context, roots []string, polite []User, wanted map[string]struct{}) ([]User, error) {
+	fresh, cancel := context.WithTimeout(context.WithoutCancel(ctx), forceTimeout)
+	defer cancel()
+	scanned, err := usersOf(fresh, roots)
+	if err != nil {
+		return polite, fmt.Errorf("check the processes before force-killing them: %w", err)
+	}
+	return onlyWanted(scanned, wanted), nil
 }
 
 // onlyWanted keeps the users whose identity is in wanted.

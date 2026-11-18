@@ -182,6 +182,35 @@ func TestDiscardTaskStopFailureLeavesWorktreeInPlace(t *testing.T) {
 	assert.Empty(t, fixture.repo.statuses)
 }
 
+// cancellingRemoval cancels the request right after the worktree is removed, as a closed tab does at that moment.
+type cancellingRemoval struct {
+	*fakeWorktree
+	cancel context.CancelFunc
+}
+
+func (w cancellingRemoval) Remove(ctx context.Context, repo string, path string, branch string) error {
+	if err := w.fakeWorktree.Remove(ctx, repo, path, branch); err != nil {
+		return err
+	}
+	w.cancel()
+	return nil
+}
+
+// Bug: a request cancelled after the worktree and the branch are gone must still record discarded, otherwise the task
+// stays in its old status with nothing left to discard.
+func TestDiscardTaskCancelledAfterRemovalStillRecordsDiscarded(t *testing.T) {
+	task, fixture := newDiscardFixture(models.StatusAwaitingReview)
+	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fixture.repo})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	useCase := application.NewDiscardTask(lifecycle, cancellingRemoval{fakeWorktree: fixture.worktrees, cancel: cancel}, fixture.runtime)
+
+	require.NoError(t, useCase.Execute(ctx, task.ID))
+
+	assert.Len(t, fixture.worktrees.removed, 1)
+	assert.Equal(t, []models.TaskStatus{models.StatusDiscarded}, fixture.repo.statuses)
+}
+
 // failingWorkspaces is a workspace lookup whose every query fails with err.
 type failingWorkspaces struct {
 	err error

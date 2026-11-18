@@ -58,5 +58,7 @@ func (u *DiscardTask) Execute(ctx context.Context, id models.TaskID) error {
 		}
 		return err
 	}
-	return u.lifecycle.Transition(ctx, id, models.StatusDiscarded, nil)
+	// The worktree and the branch are already gone: the request may be cancelled now, but the task must still be recorded
+	// as discarded, or it would keep its old status with nothing left to discard.
+	return u.lifecycle.Transition(context.WithoutCancel(ctx), id, models.StatusDiscarded, nil)
 }

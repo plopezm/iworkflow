@@ -79,7 +79,7 @@ func TestFinishTaskCommitFailureWithLiveAgentMarksInterrupted(t *testing.T) {
 // Rollback (T5, S3): a finish that fails before it touches a live agent puts the task back to the status it had when
 // the finish started, with the failure as its error text.
 func TestFinishTaskCommitFailureRestoresThePreviousStatus(t *testing.T) {
-	for _, previous := range []models.TaskStatus{models.StatusIdle, models.StatusInterrupted, models.StatusFailed, models.StatusConflict} {
+	for _, previous := range []models.TaskStatus{models.StatusInterrupted, models.StatusFailed, models.StatusConflict} {
 		task, fixture := newFinishFixture(previous)
 		fixture.worktrees.commitErr = werrors.Git("index.lock")
 
@@ -90,6 +90,24 @@ func TestFinishTaskCommitFailureRestoresThePreviousStatus(t *testing.T) {
 		require.Len(t, fixture.repo.errorTexts, 2, "status %s", previous)
 		require.NotNil(t, fixture.repo.errorTexts[1], "status %s", previous)
 		assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1], "status %s", previous)
+	}
+}
+
+// Rollback (T5, S3) without a live agent: the previous status claims a live agent, but no agent is alive (it crashed).
+// Restoring that live status would be false, so the task is interrupted, with the failure as its error text.
+func TestFinishTaskCommitFailureWithoutLiveAgentMarksInterrupted(t *testing.T) {
+	for _, previous := range []models.TaskStatus{models.StatusRunning, models.StatusIdle} {
+		task, fixture := newFinishFixture(previous)
+		fixture.worktrees.commitErr = werrors.Git("index.lock")
+
+		err := fixture.useCase().Execute(context.Background(), task.ID)
+
+		assert.ErrorIs(t, err, werrors.Git("index.lock"), "status %s", previous)
+		assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusInterrupted}, fixture.repo.statuses, "status %s", previous)
+		require.Len(t, fixture.repo.errorTexts, 2, "status %s", previous)
+		require.NotNil(t, fixture.repo.errorTexts[1], "status %s", previous)
+		assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1], "status %s", previous)
+		assert.Empty(t, fixture.runtime.stopped, "status %s", previous)
 	}
 }
 
@@ -218,7 +236,7 @@ func TestFinishTaskKeepsAttachmentsWhenConsolidationFails(t *testing.T) {
 func TestFinishTaskReturnsBothErrorsWhenTheRestoreAlsoFails(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	fixture.worktrees.commitErr = werrors.Git("index.lock")
-	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusIdle: werrors.Repository("db bloqueada")}
+	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusInterrupted: werrors.Repository("db bloqueada")}
 
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
@@ -278,20 +296,20 @@ func TestFinishTaskCancelledRequestWithCommitFailureStillRestoresThePreviousStat
 
 	require.ErrorIs(t, useCase.Execute(ctx, task.ID), werrors.Git("index.lock"))
 
-	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusIdle}, fixture.repo.statuses)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusInterrupted}, fixture.repo.statuses)
 	require.Len(t, fixture.repo.errorTexts, 2)
 	require.NotNil(t, fixture.repo.errorTexts[1])
 }
 
 // Rollback (T5, S3): an AwaitingReview transition that fails after a good commit restores the previous status.
 func TestFinishTaskAwaitingReviewFailureRestoresThePreviousStatus(t *testing.T) {
-	task, fixture := newFinishFixture(models.StatusIdle)
+	task, fixture := newFinishFixture(models.StatusConflict)
 	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusAwaitingReview: werrors.Repository("db bloqueada")}
 
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
 	assert.ErrorIs(t, err, werrors.Repository("db bloqueada"))
-	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusIdle}, fixture.repo.statuses)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusConflict}, fixture.repo.statuses)
 	require.Len(t, fixture.repo.errorTexts, 2)
 	require.NotNil(t, fixture.repo.errorTexts[1])
 	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
