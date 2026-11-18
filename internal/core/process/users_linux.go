@@ -89,6 +89,16 @@ func startTime(stat string) string {
 	return fields[19]
 }
 
+// identityOf returns the start token of pid as usersOf reports it, and false when the process is gone or unreadable.
+func identityOf(_ context.Context, pid int) (string, bool) {
+	stat, err := os.ReadFile(procRoot + "/" + strconv.Itoa(pid) + "/stat")
+	if err != nil {
+		return "", false
+	}
+	started := startTime(string(stat))
+	return started, started != ""
+}
+
 // trimDeleted drops the " (deleted)" marker the kernel appends to the target of an unlinked file.
 func trimDeleted(target string) string {
 	return strings.TrimSuffix(target, " (deleted)")

@@ -120,6 +120,18 @@ func readMemory(handle windows.Handle, address uintptr, into unsafe.Pointer, siz
 	return nil
 }
 
+// identityOf returns the start token of pid as usersOf reports it (the creation time), and false when the process
+// cannot be opened or its time cannot be read.
+func identityOf(_ context.Context, pid int) (string, bool) {
+	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
+	if err != nil {
+		return "", false
+	}
+	defer windows.CloseHandle(handle) //nolint:errcheck // nothing to recover from a failed close
+	started := startedOf(handle)
+	return started, started != ""
+}
+
 // signalPID terminates pid. Windows has no polite signal for a process without a window, so force changes nothing.
 func signalPID(pid int, _ bool) error {
 	handle, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, uint32(pid))

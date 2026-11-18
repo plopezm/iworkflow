@@ -62,6 +62,13 @@ func startedOf(ctx context.Context, pid int) string {
 	return strings.TrimSpace(string(out))
 }
 
+// identityOf returns the start token of pid as usersOf reports it (the ps time), and false when the process is gone or
+// its time cannot be read.
+func identityOf(ctx context.Context, pid int) (string, bool) {
+	started := startedOf(ctx, pid)
+	return started, started != ""
+}
+
 // signalPID sends SIGKILL to pid when force is set, SIGTERM otherwise.
 func signalPID(pid int, force bool) error {
 	signal := syscall.SIGTERM

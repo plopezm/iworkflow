@@ -70,6 +70,12 @@ func KillUsers(ctx context.Context, root string) (int, error) {
 	return closed, errors.Join(listErr, closeErr)
 }
 
+// scanUsers is the scan Close relies on; a variable so tests can make it fail.
+var scanUsers = usersOf
+
+// identityFor returns the start token of a pid as usersOf reports it; a variable so tests can contradict it.
+var identityFor = identityOf
+
 // forceTimeout bounds the fresh scan that checks the polite-signalled processes before they are force-killed.
 const forceTimeout = 5 * time.Second
 
@@ -95,7 +101,7 @@ func Close(ctx context.Context, root string, selected []User) (int, error) {
 	for _, user := range withoutProtected(selected, protected) {
 		wanted[user.key()] = struct{}{}
 	}
-	current, scanErr := usersOf(ctx, roots)
+	current, scanErr := scanUsers(ctx, roots)
 	touched := map[int]struct{}{}
 	var errs []error
 	polite := signalAll(onlyWanted(current, wanted), false, touched, &errs)
@@ -132,25 +138,41 @@ func signalAll(users []User, force bool, touched map[int]struct{}, errs *[]error
 	return signalled
 }
 
+// maxRescanFailures is how many rescans in a row may fail before the wait gives up; one transient failure must not
+// cut the grace short and turn a clean exit into a force-kill.
+const maxRescanFailures = 3
+
 // waitForExit rescans until none of the wanted processes uses the roots or the grace ends, and returns the ones
-// still using them. An error means the wanted processes could not be confirmed gone: a rescan failed, or the context
-// ended before the grace did. Then the returned list is not a complete answer and the caller must not trust it.
+// still using them. A failed rescan is retried until the grace ends; only maxRescanFailures failures in a row, or a
+// context that ended, return an error (the last one). Then the returned list is not a complete answer and the caller
+// must not trust it.
 func waitForExit(ctx context.Context, roots []string, wanted map[string]struct{}) ([]User, error) {
 	deadline := time.Now().Add(termGrace)
+	failures := 0
 	for {
-		scanned, err := usersOf(ctx, roots)
+		scanned, err := scanUsers(ctx, roots)
+		var remaining []User
 		if err != nil {
-			return nil, fmt.Errorf("recheck the processes using the roots: %w", err)
-		}
-		remaining := onlyWanted(scanned, wanted)
-		if len(remaining) == 0 {
-			return nil, nil
+			failures++
+			if failures >= maxRescanFailures {
+				return nil, fmt.Errorf("recheck the processes using the roots: %w", err)
+			}
+		} else {
+			failures = 0
+			remaining = onlyWanted(scanned, wanted)
+			if len(remaining) == 0 {
+				return nil, nil
+			}
 		}
 		if !time.Now().Before(deadline) {
+			if err != nil {
+				// The grace is over but the last rescan failed: nothing is confirmed, so the caller must check again.
+				return nil, fmt.Errorf("recheck the processes using the roots: %w", err)
+			}
 			return remaining, nil
 		}
-		if err := ctx.Err(); err != nil {
-			return remaining, fmt.Errorf("recheck the processes using the roots: %w", err)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return remaining, fmt.Errorf("recheck the processes using the roots: %w", ctxErr)
 		}
 		select {
 		case <-ctx.Done():
@@ -161,16 +183,37 @@ func waitForExit(ctx context.Context, roots []string, wanted map[string]struct{}
 
 // unconfirmed returns the polite-signalled processes that must be force-killed because their exit was not confirmed. A
 // fresh scan, with its own short context, checks that each one still uses the roots with its identity, so a process
-// that already exited is skipped. When that scan fails too, the identities cannot be checked and the processes are
-// returned as they were signalled, with the scan error.
+// that already exited is skipped. When that scan fails too, nothing can be confirmed by scanning, so each process is
+// force-killed only if identityFor still reports its start token, equal to the one recorded at selection (see
+// verifiedOf); the others are left running and reported.
 func unconfirmed(ctx context.Context, roots []string, polite []User, wanted map[string]struct{}) ([]User, error) {
 	fresh, cancel := context.WithTimeout(context.WithoutCancel(ctx), forceTimeout)
 	defer cancel()
-	scanned, err := usersOf(fresh, roots)
+	scanned, err := scanUsers(fresh, roots)
 	if err != nil {
-		return polite, fmt.Errorf("check the processes before force-killing them: %w", err)
+		kept, identityErrs := verifiedOf(fresh, polite)
+		return kept, errors.Join(append([]error{fmt.Errorf("check the processes before force-killing them: %w", err)}, identityErrs...)...)
 	}
 	return onlyWanted(scanned, wanted), nil
+}
+
+// verifiedOf keeps the polite-signalled processes whose identity is still confirmed by identityFor: a non-empty token
+// equal to the Started recorded at selection. A pid that is gone, unreadable, or now belongs to another process is not
+// verified; a process recorded without a start token can never be verified. Each unverified one is reported and left
+// running.
+func verifiedOf(ctx context.Context, polite []User) ([]User, []error) {
+	var kept []User
+	var errs []error
+	for _, user := range polite {
+		if user.Started != "" {
+			if started, ok := identityFor(ctx, user.PID); ok && started != "" && started == user.Started {
+				kept = append(kept, user)
+				continue
+			}
+		}
+		errs = append(errs, fmt.Errorf("could not verify the identity of process %d; left running", user.PID))
+	}
+	return kept, errs
 }
 
 // onlyWanted keeps the users whose identity is in wanted.
