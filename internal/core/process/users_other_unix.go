@@ -18,23 +18,31 @@ func usersOf(ctx context.Context, roots []string) ([]int, error) {
 	var pids []int
 	for _, root := range roots {
 		out, err := exec.CommandContext(ctx, "lsof", "-nP", "-F", "pn", "+D", root).Output()
+		// Exit 1 only says that some file could not be read or nothing matched. Any other failure, a timeout
+		// that killed lsof half way included, means the list is incomplete, so it is reported with what was found.
 		var exit *exec.ExitError
-		if err != nil && !(errors.As(err, &exit) && exit.ExitCode() == 1) && len(out) == 0 {
-			return pids, fmt.Errorf("run lsof: %w", err)
-		}
+		benign := errors.As(err, &exit) && exit.ExitCode() == 1 && ctx.Err() == nil
+		failed := err != nil && !benign
 		for _, pid := range parseLsof(string(out)) {
 			if _, dup := seen[pid]; !dup {
 				seen[pid] = struct{}{}
 				pids = append(pids, pid)
 			}
 		}
+		if failed {
+			return pids, fmt.Errorf("run lsof: %w", err)
+		}
 	}
 	return pids, nil
 }
 
-// killPID sends SIGKILL to pid.
-func killPID(pid int) error {
-	err := syscall.Kill(pid, syscall.SIGKILL)
+// signalPID sends SIGKILL to pid when force is set, SIGTERM otherwise.
+func signalPID(pid int, force bool) error {
+	signal := syscall.SIGTERM
+	if force {
+		signal = syscall.SIGKILL
+	}
+	err := syscall.Kill(pid, signal)
 	switch {
 	case err == nil:
 		return nil

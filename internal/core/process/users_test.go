@@ -37,3 +37,11 @@ func TestParseLsofReturnsEachPidOnceAndIgnoresOtherFields(t *testing.T) {
 func TestProtectedPIDsKeepTheCallerAlive(t *testing.T) {
 	assert.Contains(t, protectedPIDs(), os.Getpid())
 }
+
+func TestWithinFoldComparesCaseOnlyWhenAsked(t *testing.T) {
+	root := filepath.Join(string(filepath.Separator), "Wt", "Task")
+	path := filepath.Join(string(filepath.Separator), "wt", "task", "a.go")
+
+	assert.False(t, withinFold(root, path, false))
+	assert.True(t, withinFold(root, path, true))
+}

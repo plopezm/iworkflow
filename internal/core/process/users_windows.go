@@ -90,8 +90,8 @@ func readMemory(handle windows.Handle, address uintptr, into unsafe.Pointer, siz
 	return nil
 }
 
-// killPID terminates pid.
-func killPID(pid int) error {
+// signalPID terminates pid. Windows has no polite signal for a process without a window, so force changes nothing.
+func signalPID(pid int, _ bool) error {
 	handle, err := windows.OpenProcess(windows.PROCESS_TERMINATE, false, uint32(pid))
 	if err != nil {
 		if errors.Is(err, windows.ERROR_INVALID_PARAMETER) {
@@ -104,4 +104,20 @@ func killPID(pid int) error {
 		return fmt.Errorf("terminate process %d: %w", pid, err)
 	}
 	return nil
+}
+
+// extraSpellings returns the long and the 8.3 short spelling of path, which a process may report instead of it.
+func extraSpellings(path string) []string {
+	var spellings []string
+	for _, convert := range []func(*uint16, *uint16, uint32) (uint32, error){windows.GetLongPathName, windows.GetShortPathName} {
+		from, err := windows.UTF16PtrFromString(path)
+		if err != nil {
+			continue
+		}
+		buffer := make([]uint16, windows.MAX_LONG_PATH)
+		if n, err := convert(from, &buffer[0], uint32(len(buffer))); err == nil && n > 0 && int(n) <= len(buffer) {
+			spellings = append(spellings, windows.UTF16ToString(buffer[:n]))
+		}
+	}
+	return spellings
 }

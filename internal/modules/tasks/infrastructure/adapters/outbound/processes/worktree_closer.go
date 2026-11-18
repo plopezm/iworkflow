@@ -10,7 +10,7 @@ import (
 )
 
 // scanTimeout bounds the search for the processes of one worktree; lsof on a huge tree is the slow case.
-const scanTimeout time.Duration = 30 * time.Second
+const scanTimeout time.Duration = 60 * time.Second
 
 // WorktreeCloser implements outbound.WorktreeProcessCloser on top of core/process.
 type WorktreeCloser struct{}

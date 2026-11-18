@@ -22,9 +22,9 @@ func TestCloseUsersKillsAProcessWorkingInTheWorktree(t *testing.T) {
 	cmd := exec.Command("sleep", "60")
 	cmd.Dir = worktree
 	require.NoError(t, cmd.Start())
-	t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
 	done := make(chan struct{})
 	go func() { _ = cmd.Wait(); close(done) }()
+	t.Cleanup(func() { _ = cmd.Process.Kill(); <-done })
 
 	killed, err := processes.NewWorktreeCloser().CloseUsers(context.Background(), worktree)
 

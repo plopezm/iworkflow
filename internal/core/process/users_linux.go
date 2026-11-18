@@ -62,9 +62,13 @@ func trimDeleted(target string) string {
 	return strings.TrimSuffix(target, " (deleted)")
 }
 
-// killPID sends SIGKILL to pid.
-func killPID(pid int) error {
-	err := syscall.Kill(pid, syscall.SIGKILL)
+// signalPID sends SIGKILL to pid when force is set, SIGTERM otherwise.
+func signalPID(pid int, force bool) error {
+	signal := syscall.SIGTERM
+	if force {
+		signal = syscall.SIGKILL
+	}
+	err := syscall.Kill(pid, signal)
 	switch {
 	case err == nil:
 		return nil
