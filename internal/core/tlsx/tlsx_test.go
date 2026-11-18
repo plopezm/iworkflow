@@ -19,8 +19,16 @@ func env(values map[string]string) func(string) string {
 	return func(key string) string { return values[key] }
 }
 
-func TestConfigIsOffByDefault(t *testing.T) {
-	cfg, err := tlsx.Config(env(nil), t.TempDir(), nil, time.Now())
+func TestConfigIsOnByDefaultWithASelfSignedCertificate(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := tlsx.Config(env(nil), dir, nil, time.Now())
+	require.NoError(t, err)
+	assert.NotNil(t, cfg)
+	assert.FileExists(t, filepath.Join(dir, "cert.pem"))
+}
+
+func TestConfigCanBeSwitchedOffExplicitly(t *testing.T) {
+	cfg, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "off"}), t.TempDir(), nil, time.Now())
 	require.NoError(t, err)
 	assert.Nil(t, cfg)
 }
@@ -80,12 +88,11 @@ func TestResolvePort(t *testing.T) {
 		want uint16
 		bad  bool
 	}{
-		"default offset": {nil, 9000, 9443, false},
-		"override":       {map[string]string{tlsx.PortVar: "8443"}, 9000, 8443, false},
-		"not a number":   {map[string]string{tlsx.PortVar: "x"}, 9000, 0, true},
-		"same as http":   {map[string]string{tlsx.PortVar: "9000"}, 9000, 0, true},
-		"overflow":       {nil, 65300, 0, true},
-		"privileged":     {map[string]string{tlsx.PortVar: "443"}, 9000, 0, true},
+		"default is the listen port":    {nil, 9000, 9000, false},
+		"default keeps any listen port": {nil, 65300, 65300, false},
+		"override":                      {map[string]string{tlsx.PortVar: "8443"}, 9000, 8443, false},
+		"not a number":                  {map[string]string{tlsx.PortVar: "x"}, 9000, 0, true},
+		"privileged":                    {map[string]string{tlsx.PortVar: "443"}, 9000, 0, true},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

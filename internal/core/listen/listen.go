@@ -31,7 +31,7 @@ type Info struct {
 	LockedByEnv bool
 	// TokenRequired means the running server demands the access token (only meaningful while exposed).
 	TokenRequired bool
-	// TLSPort is the port of the HTTPS listener that runs next to the HTTP one; 0 when HTTPS is off.
+	// TLSPort is the port of the HTTPS listener, equal to Addr's port; 0 only when TLS is switched off (IWF_TLS=off).
 	TLSPort uint16
 }
 

@@ -130,22 +130,35 @@ func TestVersionIsStampedAtBuildTime(t *testing.T) {
 	}
 }
 
-func TestSecureListenerIsOffWithoutTLSVariables(t *testing.T) {
-	secure, err := secureListener(context.Background(), func(string) string { return "" }, t.TempDir(), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
+func TestSecureListenerIsOffOnlyWhenSwitchedOff(t *testing.T) {
+	env := func(key string) string {
+		if key == "IWF_TLS" {
+			return "off"
+		}
+		return ""
+	}
+	secure, err := secureListener(context.Background(), env, t.TempDir(), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
 	require.NoError(t, err)
 	assert.Nil(t, secure)
 }
 
-func TestSecureListenerUsesTheHTTPHostAndAShiftedPort(t *testing.T) {
+func TestSecureListenerIsOnByDefaultAndKeepsTheListenAddress(t *testing.T) {
+	secure, err := secureListener(context.Background(), func(string) string { return "" }, t.TempDir(), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
+	require.NoError(t, err)
+	require.NotNil(t, secure)
+	assert.Equal(t, uint16(9000), secure.port)
+	assert.Equal(t, "127.0.0.1:9000", secure.addr.String())
+}
+
+func TestSecureListenerPortCanBeOverridden(t *testing.T) {
 	env := func(key string) string {
-		if key == "IWF_TLS" {
-			return "auto"
+		if key == "IWF_TLS_PORT" {
+			return "8443"
 		}
 		return ""
 	}
 	secure, err := secureListener(context.Background(), env, t.TempDir(), netip.MustParseAddrPort("127.0.0.1:9000"), listenOn)
 	require.NoError(t, err)
 	require.NotNil(t, secure)
-	assert.Equal(t, uint16(9443), secure.port)
-	assert.Equal(t, "127.0.0.1:9443", secure.addr.String())
+	assert.Equal(t, "127.0.0.1:8443", secure.addr.String())
 }

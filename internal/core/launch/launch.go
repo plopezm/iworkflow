@@ -109,9 +109,9 @@ func Parse(args []string) (Command, error) {
 	return Command{Options: options}, nil
 }
 
-// BrowserURL returns the local URL to open for addr. An unspecified address (0.0.0.0, ::) cannot
-// be browsed, so it is replaced by the matching loopback address.
-func BrowserURL(addr netip.AddrPort) string {
+// BrowserURL returns the local URL to open for addr, over HTTPS unless the server runs without TLS. An unspecified
+// address (0.0.0.0, ::) cannot be browsed, so it is replaced by the matching loopback address.
+func BrowserURL(addr netip.AddrPort, secure bool) string {
 	ip := addr.Addr()
 	if ip.IsUnspecified() {
 		if ip.Is4() {
@@ -120,7 +120,11 @@ func BrowserURL(addr netip.AddrPort) string {
 			ip = netip.IPv6Loopback()
 		}
 	}
-	return "http://" + netip.AddrPortFrom(ip, addr.Port()).String()
+	scheme := "http://"
+	if secure {
+		scheme = "https://"
+	}
+	return scheme + netip.AddrPortFrom(ip, addr.Port()).String()
 }
 
 // OpenBrowser opens url with the system launcher and does not wait for the browser to exit.
