@@ -32,6 +32,7 @@ const { startUpdater } = require('./updater');
 
 const READY_TIMEOUT_MS = 60_000;
 const POLL_INTERVAL_MS = 200;
+const HANDSHAKE_TIMEOUT_MS = 2_000;
 const STOP_GRACE_MS = 5_000;
 const LOG_TAIL_LINES = 20;
 const ICON_PATH = path.join(__dirname, '..', 'build', 'icon.png');
@@ -97,11 +98,17 @@ function canOpenSocket(host, port) {
 function canHandshake(host, port) {
   return new Promise((resolve) => {
     const socket = tls.connect({ host, port, rejectUnauthorized: false });
+    // A port that accepts the connection but never completes the handshake must not stall the readiness loop.
+    socket.setTimeout(HANDSHAKE_TIMEOUT_MS, () => {
+      socket.destroy();
+      resolve(false);
+    });
     socket.once('secureConnect', () => {
       socket.destroy();
       resolve(true);
     });
     socket.once('error', () => resolve(false));
+    socket.once('close', () => resolve(false));
   });
 }
 
