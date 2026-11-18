@@ -58,12 +58,12 @@ func (v NetworkAccessView) StatusExposed() bool {
 	return v.Access.Active
 }
 
-// PlainURL is the address hint shown when reachable but no interface was detected. Empty otherwise.
+// PlainURL is the HTTPS address hint shown when reachable but no interface was detected. Empty otherwise.
 func (v NetworkAccessView) PlainURL() string {
 	if !v.Reachable() || len(v.Access.Targets) > 0 {
 		return ""
 	}
-	return "http://" + AddressPlaceholder + ":" + strconv.FormatUint(uint64(v.Access.Port), 10)
+	return "https://" + AddressPlaceholder + ":" + strconv.FormatUint(uint64(v.Access.Port), 10)
 }
 
 // AddressPlaceholder stands in for the address when no interface could be detected.

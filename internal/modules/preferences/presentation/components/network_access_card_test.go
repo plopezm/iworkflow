@@ -111,7 +111,7 @@ func TestPlainAddressHintWhenNoInterfaceWasDetected(t *testing.T) {
 
 	html := render(t, components.NetworkAccessCard(state.NewNetworkAccessView(access)))
 
-	require.Contains(t, html, "http://&lt;IP&gt;:3000")
+	require.Contains(t, html, "https://&lt;IP&gt;:3000")
 }
 
 func TestInterfaceNamesAreEscaped(t *testing.T) {

@@ -25,7 +25,7 @@ func toNetworkAccessDTO(status models.NetworkAccessStatus) dto.NetworkAccessDTO 
 func toAccessTargets(status models.NetworkAccessStatus) []dto.AccessTargetDTO {
 	targets := make([]dto.AccessTargetDTO, 0, len(status.Targets))
 	for _, network := range status.Targets {
-		url := BuildAccessURL(network.Address, status.Port, status.Token)
+		url := accessURL(network.Address, status)
 		target := dto.AccessTargetDTO{
 			Interface: network.Name,
 			Address:   network.Address,
@@ -34,13 +34,16 @@ func toAccessTargets(status models.NetworkAccessStatus) []dto.AccessTargetDTO {
 		if svg, ok := RenderQRSVG(url); ok {
 			target.QRSVG = &svg
 		}
-		if status.TLSPort != 0 {
-			target.SecureURL = BuildSchemeURL("https", network.Address, status.TLSPort, status.Token)
-			if svg, ok := RenderQRSVG(target.SecureURL); ok {
-				target.SecureQRSVG = &svg
-			}
-		}
 		targets = append(targets, target)
 	}
 	return targets
+}
+
+// accessURL is the link of one interface: HTTPS on the TLS port, or plain HTTP only while TLS is switched off
+// (IWF_TLS=off).
+func accessURL(address string, status models.NetworkAccessStatus) string {
+	if status.TLSPort != 0 {
+		return BuildSchemeURL("https", address, status.TLSPort, status.Token)
+	}
+	return BuildAccessURL(address, status.Port, status.Token)
 }
