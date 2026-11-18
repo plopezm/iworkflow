@@ -38,6 +38,8 @@ starting → running ⇄ idle → finishing → awaiting_review → merged
 
 | Situation | What the app does |
 |---|---|
+| Finishing a task | A dialog lists the processes that use the worktree (a terminal, a dev server, a child the agent left behind): their working directory, executable or open files are inside it. The task's own agent is not listed; it is stopped anyway. Checked processes are asked to exit (SIGTERM, then a kill after a few seconds; Windows ends them at once) before the commit, unchecked ones keep running, and *Cancel* changes nothing. On Windows only the executable and the working directory are detected, not open files. |
+| Finish, discard or merge fails | The task goes back to the status it had: `interrupted` when the agent was already stopped (restartable and finishable), the previous status otherwise, with the error shown. A merge that already succeeded cannot be undone, so the task is recorded as `merged` even if the request was cancelled. |
 | Conflict while integrating | `merge --abort`; the task moves to `conflict` and keeps its worktree. Resume the agent to resolve it. |
 | Base branch with uncommitted changes | Rejects the merge without touching anything. |
 | Base branch not checked out | Integrates in a temporary worktree. |
