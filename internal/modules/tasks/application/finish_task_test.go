@@ -240,3 +240,49 @@ func TestFinishTaskCancelledRequestWithCommitFailureStillMarksFailed(t *testing.
 
 	assert.Equal(t, models.StatusFailed, fixture.repo.tasks[task.ID].Status)
 }
+
+// fakeProcessCloser records the worktrees it was asked to free and what had already happened by then.
+type fakeProcessCloser struct {
+	fixture         *finishFixture
+	paths           []string
+	stoppedAtCall   int
+	committedAtCall int
+	err             error
+}
+
+func (f *fakeProcessCloser) CloseUsers(_ context.Context, worktreePath string) (int, error) {
+	f.paths = append(f.paths, worktreePath)
+	f.stoppedAtCall = len(f.fixture.runtime.stopped)
+	f.committedAtCall = len(f.fixture.worktrees.committed)
+	return 1, f.err
+}
+
+func TestFinishTaskClosesTheProcessesUsingTheWorktreeBetweenStopAndCommit(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	fixture.runtime.running = true
+	closer := &fakeProcessCloser{fixture: fixture}
+	useCase := fixture.useCase()
+	useCase.SetProcessCloser(closer)
+
+	err := useCase.Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/worktrees/demo/abc-task"}, closer.paths)
+	assert.Equal(t, 1, closer.stoppedAtCall, "the agent is stopped first")
+	assert.Equal(t, 0, closer.committedAtCall, "the processes are closed before the commit")
+	assert.Len(t, fixture.worktrees.committed, 1)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fixture.repo.statuses)
+}
+
+func TestFinishTaskContinuesWhenClosingTheProcessesFails(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	closer := &fakeProcessCloser{fixture: fixture, err: assert.AnError}
+	useCase := fixture.useCase()
+	useCase.SetProcessCloser(closer)
+
+	err := useCase.Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Len(t, fixture.worktrees.committed, 1)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fixture.repo.statuses)
+}

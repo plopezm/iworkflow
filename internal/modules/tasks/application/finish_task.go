@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
@@ -22,6 +23,8 @@ type FinishTask struct {
 	cleanup   *AttachmentCleanup
 	// hooks are the optional lifecycle hooks around the finish. Nil runs none.
 	hooks outbound.LifecycleHooks
+	// closer closes the processes that still use the worktree files. Nil closes none.
+	closer outbound.WorktreeProcessCloser
 
 	// mu guards inFlight. It is never held while the hooks run or the agent is stopped.
 	mu       sync.Mutex
@@ -42,6 +45,12 @@ func NewFinishTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runtim
 // SetLifecycleHooks sets the hooks run before and after the finish. Nil, the default, runs none.
 func (u *FinishTask) SetLifecycleHooks(hooks outbound.LifecycleHooks) {
 	u.hooks = hooks
+}
+
+// SetProcessCloser sets the port that closes the processes using the worktree files when the task finishes.
+// Nil, the default, closes none.
+func (u *FinishTask) SetProcessCloser(closer outbound.WorktreeProcessCloser) {
+	u.closer = closer
 }
 
 // Execute finishes the task. It fails, changing nothing, when the task is missing, its status does not allow
@@ -149,7 +158,24 @@ func (u *FinishTask) consolidate(ctx context.Context, task models.Task) error {
 			return err
 		}
 	}
+	u.closeWorktreeUsers(ctx, task)
 	message := "pi: " + task.Title
 	_, err := u.worktrees.CommitAll(ctx, task.WorktreePath, message)
 	return err
+}
+
+// closeWorktreeUsers closes the processes that still use the worktree (terminals, dev servers, children the agent
+// left behind), so nothing keeps writing while the commit is made and nothing holds the files afterwards. It is
+// best effort: a failure is logged and never fails the finish.
+func (u *FinishTask) closeWorktreeUsers(ctx context.Context, task models.Task) {
+	if u.closer == nil || task.WorktreePath == "" {
+		return
+	}
+	closed, err := u.closer.CloseUsers(ctx, task.WorktreePath)
+	if err != nil {
+		slog.Warn("could not close every process using the worktree", "task_id", task.ID.String(), "error", err)
+	}
+	if closed > 0 {
+		slog.Info("closed the processes using the worktree", "task_id", task.ID.String(), "count", closed)
+	}
 }

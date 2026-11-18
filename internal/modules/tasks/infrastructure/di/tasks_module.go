@@ -26,6 +26,7 @@ import (
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/opener"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/persistence"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/probe"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/processes"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/agy"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/outbound/runtime/claude"
@@ -281,6 +282,7 @@ func NewModule(deps Deps) (*Module, error) {
 	}, clock)
 	abortTask := application.NewAbortTask(lifecycle, agentRuntime)
 	finishTask := application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup)
+	finishTask.SetProcessCloser(processes.NewWorktreeCloser())
 	resetTask := application.NewResetTask(lifecycle, worktrees, agentRuntime)
 	discardTask := application.NewDiscardTask(lifecycle, worktrees, agentRuntime)
 	mergeTask := application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote)
