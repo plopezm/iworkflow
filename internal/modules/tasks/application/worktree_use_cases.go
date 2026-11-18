@@ -154,12 +154,15 @@ func (u *MergeTask) Execute(ctx context.Context, id models.TaskID) (models.Merge
 		}
 		return outcome, nil
 	}
+	// The merge is done (locally or on the provider) and cannot be undone: the rest runs detached from the request, so a
+	// closed tab cannot leave the task awaiting review with its branch already merged.
+	detached := context.WithoutCancel(ctx)
 	if pinned != nil {
-		if err := u.lifecycle.Repository().RecordDiffRange(ctx, id, *pinned); err != nil {
+		if err := u.lifecycle.Repository().RecordDiffRange(detached, id, *pinned); err != nil {
 			notes = append(notes, fmt.Sprintf("no se pudo guardar el rango del diff: %v", err))
 		}
 	}
-	if err := u.worktrees.Remove(ctx, workspace.Path, task.WorktreePath, task.Branch); err != nil {
+	if err := u.worktrees.Remove(detached, workspace.Path, task.WorktreePath, task.Branch); err != nil {
 		notes = append(notes, fmt.Sprintf("integrada, pero no se pudo limpiar: %v", err))
 	}
 	var errorText *string
@@ -167,12 +170,12 @@ func (u *MergeTask) Execute(ctx context.Context, id models.TaskID) (models.Merge
 		joined := strings.Join(notes, "; ")
 		errorText = &joined
 	}
-	if err := u.lifecycle.Transition(ctx, id, models.StatusMerged, errorText); err != nil {
-		return models.MergeOutcome{}, err
+	if err := u.lifecycle.Transition(detached, id, models.StatusMerged, errorText); err != nil {
+		return models.MergeOutcome{}, fmt.Errorf("integrada, pero no se pudo guardar el estado: %w", err)
 	}
 	// The background loop would cover a missed trigger; a failure here does not undo the merge.
 	if u.successors != nil {
-		if _, err := u.successors.Trigger(ctx); err != nil {
+		if _, err := u.successors.Trigger(detached); err != nil {
 			slog.Warn("could not evaluate the graph after integrating the task", "task_id", id.String(), "error", err)
 		}
 	}

@@ -109,8 +109,8 @@ func TestDiscardTaskAcceptsOnlyTheDiscardableStatuses(t *testing.T) {
 	}
 }
 
-// Rule from source: when the worktree cannot be removed, the status is left as it was; the task is not marked
-// discarded while its worktree still exists.
+// Rule (T5, S3): when the worktree cannot be removed and no live agent was stopped, the status is left as it was; the
+// task is not marked discarded while its worktree still exists.
 func TestDiscardTaskRemovalFailureKeepsStatus(t *testing.T) {
 	task, fixture := newDiscardFixture(models.StatusAwaitingReview)
 	fixture.worktrees.removeErr = werrors.Git("bloqueado")
@@ -120,6 +120,53 @@ func TestDiscardTaskRemovalFailureKeepsStatus(t *testing.T) {
 	assert.ErrorIs(t, err, werrors.Git("bloqueado"))
 	assert.Empty(t, fixture.repo.statuses)
 	assert.Empty(t, fixture.publisher.published)
+}
+
+// Rollback (T5, S3): the agent was stopped before the removal failed, so it is gone; the task is interrupted with the
+// failure as its error text, and the error is still returned.
+func TestDiscardTaskRemovalFailureAfterStoppingTheAgentMarksInterrupted(t *testing.T) {
+	task, fixture := newDiscardFixture(models.StatusRunning, "dlg-1")
+	fixture.runtime.running = true
+	fixture.worktrees.removeErr = werrors.Git("bloqueado")
+
+	err := fixture.useCase().Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Git("bloqueado"))
+	assert.Equal(t, []models.TaskID{task.ID}, fixture.runtime.stopped)
+	assert.Equal(t, []models.TaskStatus{models.StatusInterrupted}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 1)
+	require.NotNil(t, fixture.repo.errorTexts[0])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[0])
+	assert.Equal(t, 1, fixture.repo.dialogClears, "an interrupted task has no live agent to answer its dialogs")
+	require.Len(t, fixture.publisher.published, 1, "the interrupted status is published once")
+	assert.Equal(t, models.StatusKind(models.StatusInterrupted, fixture.repo.errorTexts[0]), fixture.publisher.published[0].Kind)
+}
+
+// Rollback (T5, S3): with no live agent stopped, a removal failure changes no status, whatever the status was.
+func TestDiscardTaskRemovalFailureWithoutLiveAgentKeepsEveryStatus(t *testing.T) {
+	for _, status := range []models.TaskStatus{models.StatusRunning, models.StatusIdle, models.StatusAwaitingReview, models.StatusConflict} {
+		task, fixture := newDiscardFixture(status)
+		fixture.worktrees.removeErr = werrors.Git("bloqueado")
+
+		err := fixture.useCase().Execute(context.Background(), task.ID)
+
+		assert.ErrorIs(t, err, werrors.Git("bloqueado"), "status %s", status)
+		assert.Empty(t, fixture.runtime.stopped, "status %s", status)
+		assert.Empty(t, fixture.repo.statuses, "status %s", status)
+	}
+}
+
+// Rollback (T5, S3): when the interrupted status cannot be saved either, both errors are returned.
+func TestDiscardTaskReturnsBothErrorsWhenTheInterruptAlsoFails(t *testing.T) {
+	task, fixture := newDiscardFixture(models.StatusRunning)
+	fixture.runtime.running = true
+	fixture.worktrees.removeErr = werrors.Git("bloqueado")
+	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusInterrupted: werrors.Repository("db bloqueada")}
+
+	err := fixture.useCase().Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Git("bloqueado"))
+	assert.ErrorIs(t, err, werrors.Repository("db bloqueada"))
 }
 
 // Rule from source: when the live agent cannot be stopped, discard stops before removing the worktree.

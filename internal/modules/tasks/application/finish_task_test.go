@@ -58,16 +58,53 @@ func TestFinishTaskStopsAgentCommitsAndAwaitsReview(t *testing.T) {
 	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fixture.repo.statuses)
 }
 
-// Rust: finish_task::commit_failure_marks_task_failed
-func TestFinishTaskCommitFailureMarksTaskFailed(t *testing.T) {
-	task, fixture := newFinishFixture(models.StatusInterrupted)
+// Rollback (T5, S3): the finish stopped a live agent before the commit failed. The agent is gone, so the task is
+// interrupted, with the failure as its error text. The agent is checked once, before the commit.
+func TestFinishTaskCommitFailureWithLiveAgentMarksInterrupted(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusRunning)
+	fixture.runtime.running = true
+	fixture.worktrees.commitErr = werrors.Git("index.lock")
+
+	err := fixture.useCase().Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Git("index.lock"))
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusInterrupted}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
+	assert.Equal(t, []models.TaskID{task.ID}, fixture.runtime.stopped)
+	assert.Equal(t, 1, fixture.runtime.runningCalls, "the agent is checked once, before the commit")
+}
+
+// Rollback (T5, S3): a finish that fails before it touches a live agent puts the task back to the status it had when
+// the finish started, with the failure as its error text.
+func TestFinishTaskCommitFailureRestoresThePreviousStatus(t *testing.T) {
+	for _, previous := range []models.TaskStatus{models.StatusIdle, models.StatusInterrupted, models.StatusFailed, models.StatusConflict} {
+		task, fixture := newFinishFixture(previous)
+		fixture.worktrees.commitErr = werrors.Git("index.lock")
+
+		err := fixture.useCase().Execute(context.Background(), task.ID)
+
+		assert.ErrorIs(t, err, werrors.Git("index.lock"), "status %s", previous)
+		assert.Equal(t, []models.TaskStatus{models.StatusFinishing, previous}, fixture.repo.statuses, "status %s", previous)
+		require.Len(t, fixture.repo.errorTexts, 2, "status %s", previous)
+		require.NotNil(t, fixture.repo.errorTexts[1], "status %s", previous)
+		assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1], "status %s", previous)
+	}
+}
+
+// Rollback (T5, S3): a finish that died halfway (previous status finishing) ends failed, not finishing.
+func TestFinishTaskFinishingPreviousStatusEndsFailed(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusFinishing)
 	fixture.worktrees.commitErr = werrors.Git("index.lock")
 
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
 	assert.ErrorIs(t, err, werrors.Git("index.lock"))
 	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusFailed}, fixture.repo.statuses)
-	assert.Equal(t, 1, fixture.runtime.runningCalls, "the agent is checked once, before the commit")
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
 }
 
 // Rust: finish_task::rejects_closed_task
@@ -132,9 +169,9 @@ func TestFinishTaskAcceptsOnlyTheFinishableStatuses(t *testing.T) {
 	}
 }
 
-// Rule from source: when the live agent cannot be stopped, the finish stops before the commit and marks the task
-// failed with the stop error.
-func TestFinishTaskStopFailureMarksFailedWithoutCommitting(t *testing.T) {
+// Rollback (T5, S3): when the live agent cannot be stopped, the finish stops before the commit and restores the previous
+// status with the stop error. The agent was not stopped, so the status stays as it was (not interrupted).
+func TestFinishTaskStopFailureRestoresThePreviousStatusWithTheAgentAlive(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusRunning)
 	fixture.runtime.running = true
 	fixture.runtime.stopErr = werrors.Git("no se pudo detener")
@@ -142,12 +179,15 @@ func TestFinishTaskStopFailureMarksFailedWithoutCommitting(t *testing.T) {
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
 	assert.ErrorIs(t, err, werrors.Git("no se pudo detener"))
-	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusFailed}, fixture.repo.statuses)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusRunning}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
 	assert.Empty(t, fixture.worktrees.committed)
 }
 
-// Rule from source: the failed status keeps the consolidation error text, so the review shows why the finish failed.
-func TestFinishTaskCommitFailureStoresTheErrorTextOnFailed(t *testing.T) {
+// Rollback (T5, S3): the restored status keeps the consolidation error text, so the review shows why the finish failed.
+func TestFinishTaskCommitFailureStoresTheErrorTextOnTheRestoredStatus(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	fixture.worktrees.commitErr = werrors.Git("index.lock")
 
@@ -173,12 +213,12 @@ func TestFinishTaskKeepsAttachmentsWhenConsolidationFails(t *testing.T) {
 	assert.Empty(t, fixture.storage.deletedDirs)
 }
 
-// Intentional improvement over Rust: when the task cannot be marked failed either, both errors are returned, so the
-// consolidation error that explains the failure is not masked by the transition error.
-func TestFinishTaskReturnsBothErrorsWhenFailedTransitionAlsoFails(t *testing.T) {
+// Rollback (T5, S3): when the restore itself fails, both errors are returned, so the consolidation error that explains
+// the failure is not masked by the restore error. errors.Join keeps errors.Is working on each of them.
+func TestFinishTaskReturnsBothErrorsWhenTheRestoreAlsoFails(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	fixture.worktrees.commitErr = werrors.Git("index.lock")
-	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusFailed: werrors.Repository("db bloqueada")}
+	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusIdle: werrors.Repository("db bloqueada")}
 
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
@@ -227,8 +267,8 @@ func TestFinishTaskRequestCancelledMidFinishStillCompletes(t *testing.T) {
 	assert.Equal(t, models.StatusAwaitingReview, fixture.repo.tasks[task.ID].Status)
 }
 
-// Bug: a failure after the request was cancelled still marks the task failed instead of leaving it in finishing.
-func TestFinishTaskCancelledRequestWithCommitFailureStillMarksFailed(t *testing.T) {
+// Bug: a failure after the request was cancelled still restores the previous status instead of leaving it in finishing.
+func TestFinishTaskCancelledRequestWithCommitFailureStillRestoresThePreviousStatus(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fixture.repo})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -238,7 +278,23 @@ func TestFinishTaskCancelledRequestWithCommitFailureStillMarksFailed(t *testing.
 
 	require.ErrorIs(t, useCase.Execute(ctx, task.ID), werrors.Git("index.lock"))
 
-	assert.Equal(t, models.StatusFailed, fixture.repo.tasks[task.ID].Status)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusIdle}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+}
+
+// Rollback (T5, S3): an AwaitingReview transition that fails after a good commit restores the previous status.
+func TestFinishTaskAwaitingReviewFailureRestoresThePreviousStatus(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusAwaitingReview: werrors.Repository("db bloqueada")}
+
+	err := fixture.useCase().Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Repository("db bloqueada"))
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusIdle}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
 }
 
 // fakeProcessCloser records what finish asked it, and what had already happened by then.

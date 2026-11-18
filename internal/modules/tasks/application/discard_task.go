@@ -3,6 +3,7 @@ package application
 
 import (
 	"context"
+	"errors"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
@@ -22,7 +23,9 @@ func NewDiscardTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runti
 }
 
 // Execute discards the task. It fails, changing nothing, when the task is missing or its status does not allow
-// discarding. When the worktree cannot be removed, the status is left as it was.
+// discarding. When the worktree cannot be removed, the error is returned: if this discard stopped a live agent the
+// task is interrupted with the error text (the agent is gone, so its live status would be false); otherwise the status
+// is left as it was.
 func (u *DiscardTask) Execute(ctx context.Context, id models.TaskID) error {
 	task, err := u.lifecycle.Load(ctx, id)
 	if err != nil {
@@ -37,12 +40,22 @@ func (u *DiscardTask) Execute(ctx context.Context, id models.TaskID) error {
 	if err != nil {
 		return err
 	}
+	agentStopped := false
 	if u.runtime.IsRunning(ctx, id) {
 		if err := u.runtime.Stop(ctx, id); err != nil {
 			return err
 		}
+		agentStopped = true
 	}
 	if err := u.worktrees.Remove(ctx, workspace.Path, task.WorktreePath, task.Branch); err != nil {
+		if agentStopped {
+			// The request may be cancelled; the agent is already gone, so the interrupted status must be saved anyway.
+			detached := context.WithoutCancel(ctx)
+			message := err.Error()
+			if transitionErr := u.lifecycle.Transition(detached, id, models.StatusInterrupted, &message); transitionErr != nil {
+				return errors.Join(err, transitionErr)
+			}
+		}
 		return err
 	}
 	return u.lifecycle.Transition(ctx, id, models.StatusDiscarded, nil)
