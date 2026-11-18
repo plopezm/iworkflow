@@ -241,46 +241,117 @@ func TestFinishTaskCancelledRequestWithCommitFailureStillMarksFailed(t *testing.
 	assert.Equal(t, models.StatusFailed, fixture.repo.tasks[task.ID].Status)
 }
 
-// fakeProcessCloser records the worktrees it was asked to free and what had already happened by then.
+// fakeProcessCloser records what finish asked it, and what had already happened by then.
 type fakeProcessCloser struct {
-	fixture         *finishFixture
-	paths           []string
-	stoppedAtCall   int
-	committedAtCall int
-	err             error
+	fixture          *finishFixture
+	listed           []models.WorktreeProcess
+	listErr          error
+	listCalls        []string
+	closeCalls       [][]models.WorktreeProcess
+	closedPaths      []string
+	stoppedAtClose   int
+	committedAtClose int
+	closeErr         error
 }
 
-func (f *fakeProcessCloser) CloseUsers(_ context.Context, worktreePath string) (int, error) {
-	f.paths = append(f.paths, worktreePath)
-	f.stoppedAtCall = len(f.fixture.runtime.stopped)
-	f.committedAtCall = len(f.fixture.worktrees.committed)
-	return 1, f.err
+func (f *fakeProcessCloser) ListUsers(_ context.Context, id models.TaskID, worktreePath string) ([]models.WorktreeProcess, error) {
+	f.listCalls = append(f.listCalls, id.String()+"|"+worktreePath)
+	return f.listed, f.listErr
 }
 
-func TestFinishTaskClosesTheProcessesUsingTheWorktreeBetweenStopAndCommit(t *testing.T) {
+func (f *fakeProcessCloser) CloseUsers(_ context.Context, worktreePath string, selected []models.WorktreeProcess) (int, error) {
+	f.closedPaths = append(f.closedPaths, worktreePath)
+	f.closeCalls = append(f.closeCalls, selected)
+	f.stoppedAtClose = len(f.fixture.runtime.stopped)
+	f.committedAtClose = len(f.fixture.worktrees.committed)
+	return len(selected), f.closeErr
+}
+
+var devServer = models.WorktreeProcess{PID: 4321, Name: "node", Path: "/worktrees/demo/abc-task/web", Reason: models.ProcessReasonWorkingDirectory, Started: "t1"}
+
+func newClosingUseCase(fixture *finishFixture, closer *fakeProcessCloser) *application.FinishTask {
+	useCase := fixture.useCase()
+	useCase.SetProcessCloser(closer)
+	return useCase
+}
+
+func TestFinishTaskPreviewListsTheProcessesAndChangesNothing(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	fixture.runtime.running = true
+	closer := &fakeProcessCloser{fixture: fixture, listed: []models.WorktreeProcess{devServer}}
+
+	users, err := newClosingUseCase(fixture, closer).Preview(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, []models.WorktreeProcess{devServer}, users)
+	assert.Equal(t, []string{task.ID.String() + "|/worktrees/demo/abc-task"}, closer.listCalls)
+	assert.Empty(t, fixture.repo.statuses, "previewing never changes the status")
+	assert.Empty(t, fixture.runtime.stopped, "previewing never stops the agent")
+	assert.Empty(t, fixture.worktrees.committed, "previewing never commits")
+	assert.Empty(t, closer.closeCalls)
+}
+
+func TestFinishTaskPreviewWithoutACloserListsNothing(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+
+	users, err := fixture.useCase().Preview(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, users)
+}
+
+func TestFinishTaskPreviewRejectsAStatusThatCannotFinish(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusMerged)
+	closer := &fakeProcessCloser{fixture: fixture, listed: []models.WorktreeProcess{devServer}}
+
+	_, err := newClosingUseCase(fixture, closer).Preview(context.Background(), task.ID)
+
+	assert.Error(t, err)
+	assert.Empty(t, closer.listCalls)
+}
+
+func TestFinishTaskPreviewTreatsAListingFailureAsNoProcesses(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	closer := &fakeProcessCloser{fixture: fixture, listErr: assert.AnError}
+
+	users, err := newClosingUseCase(fixture, closer).Preview(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, users, "a failed scan must not block the finish")
+}
+
+func TestFinishTaskClosesTheSelectedProcessesBetweenStopAndCommit(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	fixture.runtime.running = true
 	closer := &fakeProcessCloser{fixture: fixture}
-	useCase := fixture.useCase()
-	useCase.SetProcessCloser(closer)
 
-	err := useCase.Execute(context.Background(), task.ID)
+	err := newClosingUseCase(fixture, closer).ExecuteClosing(context.Background(), task.ID, []models.WorktreeProcess{devServer})
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/worktrees/demo/abc-task"}, closer.paths)
-	assert.Equal(t, 1, closer.stoppedAtCall, "the agent is stopped first")
-	assert.Equal(t, 0, closer.committedAtCall, "the processes are closed before the commit")
+	assert.Equal(t, [][]models.WorktreeProcess{{devServer}}, closer.closeCalls)
+	assert.Equal(t, []string{"/worktrees/demo/abc-task"}, closer.closedPaths)
+	assert.Equal(t, 1, closer.stoppedAtClose, "the agent is stopped first")
+	assert.Equal(t, 0, closer.committedAtClose, "the processes are closed before the commit")
 	assert.Len(t, fixture.worktrees.committed, 1)
 	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fixture.repo.statuses)
 }
 
+func TestFinishTaskExecuteClosesNothing(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	closer := &fakeProcessCloser{fixture: fixture, listed: []models.WorktreeProcess{devServer}}
+
+	err := newClosingUseCase(fixture, closer).Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, closer.closeCalls, "without a selection no process is touched")
+	assert.Len(t, fixture.worktrees.committed, 1)
+}
+
 func TestFinishTaskContinuesWhenClosingTheProcessesFails(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
-	closer := &fakeProcessCloser{fixture: fixture, err: assert.AnError}
-	useCase := fixture.useCase()
-	useCase.SetProcessCloser(closer)
+	closer := &fakeProcessCloser{fixture: fixture, closeErr: assert.AnError}
 
-	err := useCase.Execute(context.Background(), task.ID)
+	err := newClosingUseCase(fixture, closer).ExecuteClosing(context.Background(), task.ID, []models.WorktreeProcess{devServer})
 
 	require.NoError(t, err)
 	assert.Len(t, fixture.worktrees.committed, 1)
