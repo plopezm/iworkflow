@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strconv"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -14,37 +16,65 @@ import (
 // usersOf lists the processes whose executable or current directory is inside one of the roots. The
 // executable comes from QueryFullProcessImageName; the current directory is read from the process
 // parameters of its PEB. A process that cannot be opened (protected, or another user's) is skipped.
-func usersOf(ctx context.Context, roots []string) ([]int, error) {
+//
+// Open files are NOT reported on Windows: finding which process holds a file open needs the Restart Manager
+// (or a system-wide handle scan), which is not used here. A process that only holds a file of a root open is
+// therefore not listed, and its reason is never ReasonOpenFile.
+//
+// Started is the process creation time (GetProcessTimes), so a reused pid has a different token.
+func usersOf(ctx context.Context, roots []string) ([]User, error) {
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
 		return nil, fmt.Errorf("snapshot the processes: %w", err)
 	}
 	defer windows.CloseHandle(snapshot) //nolint:errcheck // nothing to recover from a failed close
 	entry := windows.ProcessEntry32{Size: uint32(unsafe.Sizeof(windows.ProcessEntry32{}))}
-	var pids []int
+	var users []User
 	for err = windows.Process32First(snapshot, &entry); err == nil; err = windows.Process32Next(snapshot, &entry) {
 		if ctx.Err() != nil {
-			return pids, fmt.Errorf("scan the processes: %w", ctx.Err())
+			return users, fmt.Errorf("scan the processes: %w", ctx.Err())
 		}
-		if usesRoots(entry.ProcessID, roots) {
-			pids = append(pids, int(entry.ProcessID))
+		if user, ok := userOf(entry, roots); ok {
+			users = append(users, user)
 		}
 	}
-	return pids, nil
+	return users, nil
 }
 
-// usesRoots reports whether the executable or the current directory of the process is inside the roots.
-func usesRoots(pid uint32, roots []string) bool {
-	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, pid)
+// userOf describes the process of the snapshot entry when its executable or current directory is inside the
+// roots. The executable is preferred: it is the reason reported when both match.
+func userOf(entry windows.ProcessEntry32, roots []string) (User, bool) {
+	handle, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.PROCESS_VM_READ, false, entry.ProcessID)
 	if err != nil {
-		return false
+		return User{}, false
 	}
 	defer windows.CloseHandle(handle) //nolint:errcheck // nothing to recover from a failed close
-	if exe, exeErr := imagePath(handle); exeErr == nil && withinAny(roots, exe) {
-		return true
+	user := User{PID: int(entry.ProcessID), Name: windows.UTF16ToString(entry.ExeFile[:]), Started: startedOf(handle)}
+	exe, exeErr := imagePath(handle)
+	if exeErr == nil && withinAny(roots, exe) {
+		user.Name = filepath.Base(exe)
+		user.Path, user.Reason = exe, ReasonExecutable
+		return user, true
 	}
 	cwd, err := currentDirectory(handle)
-	return err == nil && withinAny(roots, cwd)
+	if err != nil || !withinAny(roots, cwd) {
+		return User{}, false
+	}
+	if exeErr == nil {
+		user.Name = filepath.Base(exe)
+	}
+	user.Path, user.Reason = cwd, ReasonWorkingDirectory
+	return user, true
+}
+
+// startedOf returns the creation time of the process as a decimal of its nanoseconds since the Unix epoch, read
+// from the FILETIME of GetProcessTimes. It is empty when the time cannot be read.
+func startedOf(handle windows.Handle) string {
+	var creation, exit, kernel, user windows.Filetime
+	if err := windows.GetProcessTimes(handle, &creation, &exit, &kernel, &user); err != nil {
+		return ""
+	}
+	return strconv.FormatInt(creation.Nanoseconds(), 10)
 }
 
 func imagePath(handle windows.Handle) (string, error) {

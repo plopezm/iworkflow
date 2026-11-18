@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,31 +16,88 @@ import (
 // errInvalidRoot rejects an empty root: matching everything would kill the whole machine.
 var errInvalidRoot = errors.New("invalid root: it is empty")
 
+// Reason says how a process uses the files of the root.
+type Reason string
+
+// The ways a process can use the files of a root.
+const (
+	// ReasonWorkingDirectory: its current directory is inside the root.
+	ReasonWorkingDirectory Reason = "cwd"
+	// ReasonExecutable: it runs a program that lives inside the root.
+	ReasonExecutable Reason = "exe"
+	// ReasonOpenFile: it holds a file of the root open.
+	ReasonOpenFile Reason = "file"
+)
+
+// User is a process that uses files under a root. PID and Started together identify it: a pid that was reused by
+// another process has a different Started, so a selection made earlier never reaches a stranger.
+type User struct {
+	PID  int
+	Name string
+	// Path is the file that ties the process to the root.
+	Path   string
+	Reason Reason
+	// Started is an opaque token of the moment the process started; equal tokens mean the same process.
+	Started string
+}
+
+// key identifies the process across scans.
+func (u User) key() string { return strconv.Itoa(u.PID) + "|" + u.Started }
+
+// ListUsers lists the processes that use files under root: its working directory, its executable or (where the
+// platform reports them) its open files are inside root. The caller and its parent are never listed. It kills
+// nothing. An incomplete scan returns what it found together with the error.
+func ListUsers(ctx context.Context, root string) ([]User, error) {
+	if strings.TrimSpace(root) == "" {
+		return nil, errInvalidRoot
+	}
+	users, err := usersOf(ctx, rootsOf(root))
+	users = withoutProtected(users, protectedPIDs())
+	slices.SortFunc(users, func(a User, b User) int { return a.PID - b.PID })
+	if err != nil {
+		return users, fmt.Errorf("find the processes using %s: %w", root, err)
+	}
+	return users, nil
+}
+
+// KillUsers closes every process that ListUsers finds, with the same rules as Close.
+func KillUsers(ctx context.Context, root string) (int, error) {
+	users, listErr := ListUsers(ctx, root)
+	if errors.Is(listErr, errInvalidRoot) {
+		return 0, listErr
+	}
+	closed, closeErr := Close(ctx, root, users)
+	return closed, errors.Join(listErr, closeErr)
+}
+
 // termGrace is how long a process gets to exit on its own after it was asked to; a variable so tests can shorten it.
 var termGrace = 3 * time.Second
 
 // pollEvery is how often the survivors are looked for during the grace.
 const pollEvery time.Duration = 250 * time.Millisecond
 
-// KillUsers terminates every process that uses files under root: its working directory, its executable or
-// (where the platform reports them) its open files are inside root. Each one is first asked to exit (SIGTERM on
-// Unix) and gets termGrace to flush and close; the ones still using the root after that are scanned again, so a
-// reused pid is never hit, and force-killed. Windows has no polite signal: processes are terminated at once.
-// The caller and its parent are never touched. It returns how many distinct processes it signalled. A process
-// that is already gone is skipped; every other failure, including an incomplete scan, is joined in the error
-// next to the count, so the caller decides whether it matters.
-func KillUsers(ctx context.Context, root string) (int, error) {
+// Close terminates the selected processes of root. A selected process is acted on only when a fresh scan still
+// finds it using the root with the same identity (pid and start time): one that already exited, or whose pid was
+// reused, is skipped. Each one is first asked to exit (SIGTERM on Unix) and gets termGrace to flush and close; the
+// ones still there are force-killed. Windows has no polite signal: processes are terminated at once. The caller
+// and its parent are never touched. It returns how many processes it signalled; failures other than "already gone"
+// are joined in the error.
+func Close(ctx context.Context, root string, selected []User) (int, error) {
 	if strings.TrimSpace(root) == "" {
 		return 0, errInvalidRoot
 	}
 	roots := rootsOf(root)
 	protected := protectedPIDs()
-	pids, scanErr := usersOf(ctx, roots)
+	wanted := map[string]struct{}{}
+	for _, user := range withoutProtected(selected, protected) {
+		wanted[user.key()] = struct{}{}
+	}
+	current, scanErr := usersOf(ctx, roots)
 	touched := map[int]struct{}{}
 	var errs []error
-	signalAll(without(pids, protected), false, touched, &errs)
+	signalAll(onlyWanted(current, wanted), false, touched, &errs)
 	if len(touched) > 0 {
-		signalAll(waitForExit(ctx, roots, protected), true, touched, &errs)
+		signalAll(waitForExit(ctx, roots, wanted), true, touched, &errs)
 	}
 	if scanErr != nil {
 		errs = append(errs, fmt.Errorf("find the processes using %s: %w", root, scanErr))
@@ -47,24 +105,25 @@ func KillUsers(ctx context.Context, root string) (int, error) {
 	return len(touched), errors.Join(errs...)
 }
 
-// signalAll signals each pid (force or polite), records it in touched and collects the failures other than "gone".
-func signalAll(pids []int, force bool, touched map[int]struct{}, errs *[]error) {
-	for _, pid := range pids {
-		switch err := signalPID(pid, force); {
+// signalAll signals each process (force or polite), records it in touched and collects the failures other than "gone".
+func signalAll(users []User, force bool, touched map[int]struct{}, errs *[]error) {
+	for _, user := range users {
+		switch err := signalPID(user.PID, force); {
 		case err == nil:
-			touched[pid] = struct{}{}
+			touched[user.PID] = struct{}{}
 		case !errors.Is(err, errGone):
 			*errs = append(*errs, err)
 		}
 	}
 }
 
-// waitForExit rescans until nothing uses the roots or the grace ends, and returns the processes still using them.
-func waitForExit(ctx context.Context, roots []string, protected map[int]struct{}) []int {
+// waitForExit rescans until none of the wanted processes uses the roots or the grace ends, and returns the ones
+// still using them.
+func waitForExit(ctx context.Context, roots []string, wanted map[string]struct{}) []User {
 	deadline := time.Now().Add(termGrace)
 	for {
-		remaining, _ := usersOf(ctx, roots) // a failed rescan only means fewer survivors are seen; KillUsers reports the first scan
-		remaining = without(remaining, protected)
+		scanned, _ := usersOf(ctx, roots) // a failed rescan only means fewer survivors are seen; Close reports the first scan
+		remaining := onlyWanted(scanned, wanted)
 		if len(remaining) == 0 || ctx.Err() != nil || !time.Now().Before(deadline) {
 			return remaining
 		}
@@ -75,12 +134,23 @@ func waitForExit(ctx context.Context, roots []string, protected map[int]struct{}
 	}
 }
 
-// without returns pids minus the protected ones.
-func without(pids []int, protected map[int]struct{}) []int {
-	kept := make([]int, 0, len(pids))
-	for _, pid := range pids {
-		if _, skip := protected[pid]; !skip {
-			kept = append(kept, pid)
+// onlyWanted keeps the users whose identity is in wanted.
+func onlyWanted(users []User, wanted map[string]struct{}) []User {
+	kept := make([]User, 0, len(users))
+	for _, user := range users {
+		if _, ok := wanted[user.key()]; ok {
+			kept = append(kept, user)
+		}
+	}
+	return kept
+}
+
+// withoutProtected returns users minus the protected pids.
+func withoutProtected(users []User, protected map[int]struct{}) []User {
+	kept := make([]User, 0, len(users))
+	for _, user := range users {
+		if _, skip := protected[user.PID]; !skip {
+			kept = append(kept, user)
 		}
 	}
 	return kept
@@ -122,27 +192,74 @@ func protectedPIDs() map[int]struct{} {
 // errGone says the process ended before it could be signalled, which is the state we want.
 var errGone = errors.New("process is gone")
 
-// parseLsof reads the output of `lsof -F pn` and returns each pid that has at least one reported file, once and
-// in order of appearance.
-func parseLsof(out string) []int {
-	var pids []int
-	seen := map[int]struct{}{}
-	current := 0
+// parseLsof reads the output of `lsof -nP -F pcfn` and returns one User per process that has at least one reported
+// file, in order of appearance. Each process is described by the file that ties it best to the root: its working
+// directory first, then its executable, then any other open file (see reasonRank). Name comes from the c field,
+// Path and Reason from that file. Started is left empty: the caller fills it in.
+func parseLsof(out string) []User {
+	var users []User
+	index := map[int]int{} // pid -> position in users
+	pid := 0               // 0 while the current record is malformed or before any p field
+	name := ""
+	fd := ""
 	for line := range strings.SplitSeq(out, "\n") {
-		switch {
-		case strings.HasPrefix(line, "p"):
-			pid, err := strconv.Atoi(line[1:])
-			if err != nil {
-				current = 0
+		if line == "" {
+			continue
+		}
+		value := line[1:]
+		switch line[0] {
+		case 'p':
+			pid, name, fd = 0, "", ""
+			if parsed, err := strconv.Atoi(value); err == nil {
+				pid = parsed
+			}
+		case 'c':
+			name = value
+			if i, known := index[pid]; known {
+				users[i].Name = name
+			}
+		case 'f':
+			fd = value
+		case 'n':
+			if pid == 0 {
 				continue
 			}
-			current = pid
-		case strings.HasPrefix(line, "n") && current != 0:
-			if _, dup := seen[current]; !dup {
-				seen[current] = struct{}{}
-				pids = append(pids, current)
+			reason := reasonOf(fd)
+			i, known := index[pid]
+			if !known {
+				index[pid] = len(users)
+				users = append(users, User{PID: pid, Name: name, Path: value, Reason: reason})
+				continue
+			}
+			if reasonRank(reason) < reasonRank(users[i].Reason) {
+				users[i].Path, users[i].Reason = value, reason
 			}
 		}
 	}
-	return pids
+	return users
+}
+
+// reasonOf maps an lsof file descriptor name to the reason the process uses the file: the working directory and
+// the executable text are named by lsof ("cwd", "txt"); every other descriptor is an open file.
+func reasonOf(fd string) Reason {
+	switch fd {
+	case "cwd":
+		return ReasonWorkingDirectory
+	case "txt":
+		return ReasonExecutable
+	default:
+		return ReasonOpenFile
+	}
+}
+
+// reasonRank orders the reasons from the strongest tie to the root (lowest) to the weakest.
+func reasonRank(reason Reason) int {
+	switch reason {
+	case ReasonWorkingDirectory:
+		return 0
+	case ReasonExecutable:
+		return 1
+	default:
+		return 2
+	}
 }

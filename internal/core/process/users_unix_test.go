@@ -159,3 +159,88 @@ func TestKillUsersRefusesAnEmptyRoot(t *testing.T) {
 
 	assert.ErrorIs(t, err, errInvalidRoot)
 }
+
+func TestListUsersDescribesEachProcessWithoutKillingIt(t *testing.T) {
+	root := t.TempDir()
+	worker := start(t, root, "sleep", "60")
+
+	users, err := ListUsers(context.Background(), root)
+
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	assert.Equal(t, worker.cmd.Process.Pid, users[0].PID)
+	assert.Equal(t, "sleep", users[0].Name)
+	assert.Equal(t, ReasonWorkingDirectory, users[0].Reason)
+	assert.True(t, within(root, users[0].Path), "the path %q is inside the root", users[0].Path)
+	assert.NotEmpty(t, users[0].Started)
+	assert.True(t, worker.alive())
+}
+
+func TestListUsersReportsAnOpenFileAsTheReason(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "open.log")
+	require.NoError(t, os.WriteFile(file, nil, 0o600))
+	start(t, t.TempDir(), "sh", "-c", `exec sleep 60 < "$0"`, file)
+
+	users, err := ListUsers(context.Background(), root)
+
+	require.NoError(t, err)
+	require.NotEmpty(t, users)
+	assert.Equal(t, ReasonOpenFile, users[0].Reason)
+}
+
+func TestListUsersNeverListsTheCaller(t *testing.T) {
+	root := t.TempDir()
+	previous, err := os.Getwd()
+	require.NoError(t, err)
+	require.NoError(t, os.Chdir(root))
+	t.Cleanup(func() { _ = os.Chdir(previous) })
+
+	users, err := ListUsers(context.Background(), root)
+
+	require.NoError(t, err)
+	assert.Empty(t, users)
+}
+
+func TestCloseOnlyClosesTheSelectedProcesses(t *testing.T) {
+	root := t.TempDir()
+	chosen := start(t, root, "sleep", "60")
+	kept := start(t, root, "sleep", "61")
+	users, err := ListUsers(context.Background(), root)
+	require.NoError(t, err)
+	var selected []User
+	for _, user := range users {
+		if user.PID == chosen.cmd.Process.Pid {
+			selected = append(selected, user)
+		}
+	}
+	require.Len(t, selected, 1)
+
+	closed, err := Close(context.Background(), root, selected)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, closed)
+	assert.True(t, chosen.exited(5*time.Second))
+	assert.True(t, kept.alive(), "a process the user did not select stays alive")
+}
+
+func TestCloseSkipsAProcessWhoseIdentityChanged(t *testing.T) {
+	root := t.TempDir()
+	reused := start(t, root, "sleep", "60")
+	users, err := ListUsers(context.Background(), root)
+	require.NoError(t, err)
+	require.Len(t, users, 1)
+	users[0].Started += "-stale"
+
+	closed, err := Close(context.Background(), root, users)
+
+	require.NoError(t, err)
+	assert.Zero(t, closed)
+	assert.True(t, reused.alive(), "a pid whose start time no longer matches is another process")
+}
+
+func TestCloseRefusesAnEmptyRoot(t *testing.T) {
+	_, err := Close(context.Background(), "", []User{{PID: 1}})
+
+	assert.ErrorIs(t, err, errInvalidRoot)
+}
