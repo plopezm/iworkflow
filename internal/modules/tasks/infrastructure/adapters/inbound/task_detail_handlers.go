@@ -69,7 +69,7 @@ type DetailUseCases struct {
 	Abort           *application.AbortTask
 	Resume          *application.ResumeTask
 	NewSession      *application.NewSession
-	Finish          *application.FinishTask
+	Finish          FinishUseCase
 	Reset           *application.ResetTask
 	Discard         *application.DiscardTask
 	Delete          *application.DeleteTask
@@ -130,6 +130,7 @@ func (h *DetailHandlers) Mount(r chi.Router) {
 	r.Post("/tasks/{id}/abort", h.abortTask)
 	r.Post("/tasks/{id}/resume", h.resumeTask)
 	r.Post("/tasks/{id}/new-session", h.newSession)
+	r.Get("/tasks/{id}/finish/preview", h.finishPreview)
 	r.Post("/tasks/{id}/finish", h.finishTask)
 	r.Post("/tasks/{id}/discard", h.discardTask)
 	r.Post("/tasks/{id}/merge", h.mergeTask)
@@ -259,9 +260,23 @@ func (h *DetailHandlers) newSession(w http.ResponseWriter, r *http.Request) {
 	h.answerAction(w, r, h.uc.NewSession.Execute)
 }
 
-// finishTask closes the agent of the task and consolidates its changes for review.
+// finishTask closes the agent of the task and consolidates its changes for review. The processes the finish dialog
+// checked are closed before the commit; with none checked, the finish closes nothing. A malformed selection is refused
+// before anything runs.
 func (h *DetailHandlers) finishTask(w http.ResponseWriter, r *http.Request) {
-	h.answerAction(w, r, h.uc.Finish.Execute)
+	h.answerAction(w, r, func(ctx context.Context, id models.TaskID) error {
+		if err := r.ParseForm(); err != nil {
+			return fmt.Errorf("read the finish form: %w", err)
+		}
+		selected, err := dto.DecodeFinishSelection(r.PostForm["process"])
+		if err != nil {
+			return err //nolint:wrapcheck // the selection error is user-visible and must stay identical
+		}
+		if len(selected) == 0 {
+			return h.uc.Finish.Execute(ctx, id) //nolint:wrapcheck // the domain error is user-visible and must stay identical
+		}
+		return h.uc.Finish.ExecuteClosing(ctx, id, selected) //nolint:wrapcheck // the domain error is user-visible and must stay identical
+	})
 }
 
 // discardTask discards the task: its worktree and its branch go, and the task stays on the page as discarded.

@@ -26,14 +26,46 @@ func TestDetailOfARunningTaskOffersItsAgentAndDangerActionsWithTheirConfirmation
 
 	assert.Contains(t, body, ">Actions<", "the actions tab has its heading")
 	assert.Contains(t, body, `hx-post="/tasks/`+id+`/abort`, "a live agent can be aborted")
-	assert.Contains(t, body, `hx-post="/tasks/`+id+`/finish`, "a running task can be finished")
-	assert.Contains(t, body, `hx-confirm="Finish the task? The agent will be closed and the changes will be consolidated for review."`)
+	assert.Contains(t, body, `hx-get="/tasks/`+id+`/finish/preview`, "a running task asks through the finish dialog")
+	assert.NotContains(t, body, `hx-confirm="Finish the task?`, "the native confirm gives way to the dialog")
 	assert.Contains(t, body, `hx-post="/tasks/`+id+`/reset`, "a running task can be reset")
 	assert.Contains(t, body, `hx-confirm="Reset the task? The agent will be stopped, the worktree, the branch and the history will be deleted, and it will go back to Backlog."`)
 	assert.Contains(t, body, `hx-post="/tasks/`+id+`/discard`, "a running task can be discarded")
 	assert.Contains(t, body, `hx-confirm="Discard the task? The worktree and the unmerged branch will be deleted."`)
 	assert.NotContains(t, body, `hx-post="/tasks/`+id+`/resume`, "resume is for stopped tasks")
 	assert.NotContains(t, body, `hx-post="/tasks/`+id+`/merge`, "a live task is not integrated yet")
+}
+
+func TestFinishPreviewOfARunningTaskAnswersTheDialogOfThisPage(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	running := newTask(t, workspaceID, "finish-preview", models.StatusRunning)
+	insertTask(t, repo, running)
+	_, router := boardRouter(t, repo)
+
+	recorder, body := doRequest(t, inLocale(router, i18n.En), http.MethodGet, "/tasks/"+running.ID.String()+"/finish/preview?scope=abc123", nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, `id="finish-panel-abc123"`, "the dialog belongs to this page instance")
+	assert.Contains(t, body, `hx-post="/tasks/`+running.ID.String()+`/finish?scope=abc123"`, "the dialog finishes this task")
+	assert.NotContains(t, body, `text-error`)
+}
+
+func TestFinishPreviewOfABacklogTaskShowsTheRefusalInPlace(t *testing.T) {
+	t.Parallel()
+	repo := newRepo(t)
+	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
+	backlog := newTask(t, workspaceID, "finish-preview-backlog", models.StatusBacklog)
+	insertTask(t, repo, backlog)
+	_, router := boardRouter(t, repo)
+
+	recorder, body := doRequest(t, router, http.MethodGet, "/tasks/"+backlog.ID.String()+"/finish/preview?scope=abc123", nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, body, `text-error`, "a task that cannot finish says why")
+	assert.NotContains(t, body, `role="dialog"`)
+	assert.Equal(t, string(models.StatusBacklog), statusOf(t, repo, backlog.ID), "the preview changes nothing")
 }
 
 func TestDetailOfAReviewedTaskOffersResumeAndNoAgentStop(t *testing.T) {
