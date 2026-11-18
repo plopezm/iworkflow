@@ -78,7 +78,7 @@ func TestBarIsEmptyAndHiddenWhenNoProviderIsConfigured(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	assert.Contains(t, body, `id="usage-bar"`)
-	assert.Contains(t, body, `hx-trigger="every 60s"`)
+	assert.Contains(t, body, `hx-trigger="every 60s [!document.hidden]"`)
 	assert.Contains(t, body, `class="hidden"`)
 	assert.NotContains(t, body, "data-usage-provider")
 }

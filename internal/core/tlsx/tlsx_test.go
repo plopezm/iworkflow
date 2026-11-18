@@ -1,6 +1,9 @@
 package tlsx_test
 
 import (
+	"crypto/tls"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -51,6 +54,13 @@ func TestConfigAutoCreatesAndReusesACertificate(t *testing.T) {
 	assert.NotEqual(t, first, renewed, "a new address renews the certificate")
 }
 
+func TestConfigNegotiatesHTTP2WithHTTP11Fallback(t *testing.T) {
+	cfg, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "auto"}), t.TempDir(), nil, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	assert.Equal(t, []string{"h2", "http/1.1"}, cfg.NextProtos, "h2 multiplexes the event stream and the requests; WebSockets need the http/1.1 fallback")
+}
+
 func TestConfigLoadsAGivenPair(t *testing.T) {
 	dir := t.TempDir()
 	_, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "auto"}), dir, nil, time.Now())
@@ -88,4 +98,24 @@ func TestResolvePort(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// The server of the application serves a tls.NewListener with http.Server.Serve; this proves the browser gets h2 there.
+func TestServedConnectionsNegotiateHTTP2(t *testing.T) {
+	cfg, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "auto"}), t.TempDir(), nil, time.Now())
+	require.NoError(t, err)
+	raw, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }), ReadHeaderTimeout: time.Second}
+	go func() { _ = server.Serve(tls.NewListener(raw, cfg)) }()
+	t.Cleanup(func() { _ = server.Close() })
+	client := &http.Client{Transport: &http.Transport{ForceAttemptHTTP2: true, TLSClientConfig: &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"h2", "http/1.1"}}}} //nolint:gosec // the test certificate is self-signed
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "https://"+raw.Addr().String(), nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = resp.Body.Close() })
+
+	assert.Equal(t, 2, resp.ProtoMajor)
 }

@@ -65,7 +65,9 @@ func Config(getenv func(string) string, dir string, hosts []string, now time.Tim
 	if err != nil {
 		return nil, fmt.Errorf("load the TLS certificate: %w", err)
 	}
-	return &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12}, nil
+	// h2 multiplexes the event stream and the short requests over one connection, so they no longer compete for the
+	// six HTTP/1.1 connections a browser opens per origin; WebSockets keep using http/1.1.
+	return &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12, NextProtos: []string{"h2", "http/1.1"}}, nil
 }
 
 // ensureSelfSigned creates the certificate and key unless a valid pair covering hosts already exists.
