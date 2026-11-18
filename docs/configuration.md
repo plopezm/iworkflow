@@ -15,9 +15,9 @@ Environment variables (`.env` is supported, see `.env.example`):
 | `IWF_CURSOR_BIN` | `agent` (`cursor` runtime: Cursor CLI in ACP server mode, `agent acp`; requires having signed in with `agent login`) |
 | `IWF_AGY_BIN` | `agy` (`agy` runtime: Antigravity CLI in ACP server mode, `agy acp`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contains `profiles.json` and `models.json`) |
-| `IWF_TLS` | unset (plain HTTP). `auto` serves HTTPS with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)) |
-| `IWF_TLS_PORT` | HTTP port + 443 (HTTPS listener port when TLS is on) |
-| `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key; set both or neither. They win over `IWF_TLS=auto` |
+| `IWF_TLS` | `auto`, the only mode: HTTPS is always on, with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)). `off` serves plain HTTP; tests and CI only, logs a warning |
+| `IWF_TLS_PORT` | unset: the usual listen port. Overrides the listen port (1024–65535); HTTPS is served there, e.g. `9000` → `https://host:9000` |
+| `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key, used instead of the self-signed one; set both or neither |
 | `IWF_ENGRAM_URL` | unset: off. Base URL of the local Engram HTTP API, for example `http://127.0.0.1:7437`. When set to a valid http or https URL, it turns on the Engram memory of each workspace (see [Engram memory](integrations.md#engram-memory)). An invalid value keeps it off and logs one warning at startup |
 | `IWF_CLAUDE_CREDENTIALS` | `~/.claude/.credentials.json`. OAuth credentials of Claude Code, read by the [usage bar](workspace.md#usage-limits) |
 | `IWF_CLAUDE_USAGE_URL` | unset: the real Anthropic usage endpoint. Overrides the Claude subscription usage endpoint |
@@ -49,17 +49,18 @@ The prompt field of the create and edit task forms has a microphone button. Reco
 
 ## HTTPS
 
-Browsers expose the microphone (voice dictation) only in a secure context: `https://` or `localhost`. Over plain `http://` on the network the mic button reports that recording is not available. HTTPS is opt-in:
+The server serves only HTTPS, on its listen port (for example `https://127.0.0.1:9000`). It is always on. Browsers expose the microphone (voice dictation) only in a secure context, so the microphone works from other devices once their browser accepts the certificate.
 
 ```bash
-make dev-https                 # like make dev, over HTTPS
-make run-https                 # like make run, over HTTPS (after make dist)
-IWF_TLS=auto ./iworkflow       # any other way to start it
+make dev                       # https://127.0.0.1:3000
+make run                       # same, from make dist
 ```
 
-With `IWF_TLS=auto` the server creates a self-signed certificate on first use in `$IWF_HOME/tls/`, valid for `localhost`, `127.0.0.1` and the machine's network IP. It is reused until it nears expiry (30 days) or the IP changes, and then recreated at the next start. The browser warns about an untrusted certificate: accept it once per device. To use your own certificate, set `IWF_TLS_CERT` and `IWF_TLS_KEY`.
+Without `IWF_TLS_CERT` and `IWF_TLS_KEY`, the server creates a self-signed certificate on first use in `$IWF_HOME/tls/`, valid for `localhost`, `127.0.0.1` and the machine's network IP. It is reused until it nears expiry (30 days) or the IP changes, and then recreated at the next start. The browser warns about an untrusted certificate the first time: accept it once per device.
 
-With TLS on the server opens **two listeners** with the same app: HTTP on the usual port (the desktop app keeps using it) and HTTPS on the HTTP port plus 443 (`9000` → `9443`; override with `IWF_TLS_PORT`, 1024–65535). **Settings → Network access** shows the HTTPS link and QR code first, and plain HTTP (no microphone) as a collapsed option. `--addr` / `IWORKFLOW_ADDR` set the HTTP address only; HTTPS uses the same host.
+`IWF_TLS=off` serves plain HTTP instead. It is for tests and CI only; the server logs a warning when it starts that way.
+
+`IWF_TLS_PORT` overrides the listen port (1024–65535). There is one listener only: HTTPS is served on that port (`9000` → `https://host:9000`). **Settings → Network access** shows the HTTPS link and QR code. `--addr` / `IWORKFLOW_ADDR` set the listen address.
 
 ## Agent runtimes
 
@@ -74,7 +75,7 @@ The runtime selector in the side menu supports `gentle-shell`, `pi`, `claude`, `
 
 ## Executable arguments
 
-On startup, `iworkflow` opens the web UI in the browser (`http://<host>:<port>` of the server; if it listens on `0.0.0.0`, `127.0.0.1` is used).
+On startup, `iworkflow` opens the web UI in the browser (`https://<host>:<port>` of the server; if it listens on `0.0.0.0`, `127.0.0.1` is used).
 
 | Argument | Effect |
 |---|---|
@@ -93,7 +94,7 @@ By default the server listens only on `127.0.0.1` (this computer). To reach it f
 
 Whenever the server is reachable from the network (this setting, or a non-loopback `--addr` such as the `0.0.0.0:9000` of `make dist` / `make run`) it demands an **access token** by default:
 
-- The QR code and the link on the card carry the token (`http://<ip>:<port>/?token=…`) and follow the selected interface. Opening it stores the token in a cookie and redirects to a clean URL, so it does not stay in the address bar or the history. Without the cookie, the server shows a login page where you can paste the token.
+- The QR code and the link on the card carry the token (`https://<ip>:<port>/?token=…`) and follow the selected interface. Opening it stores the token in a cookie and redirects to a clean URL, so it does not stay in the address bar or the history. Without the cookie, the server shows a login page where you can paste the token.
 - At startup the server logs that link, which is how you get it on a machine without a browser.
 - **Generate a new token** on the card invalidates the old one at once; devices using it must sign in again.
 - The requirement is optional: untick **Require the access token** (applies on the next start) to serve the network without it. Then anyone who can reach the port can run commands as your user, so use it only on a network you fully trust.
@@ -101,4 +102,4 @@ Whenever the server is reachable from the network (this setting, or a non-loopba
 - The startup log line with the link contains the token: treat the server logs as sensitive.
 - Writes (`POST`, etc.) that a browser labels with an `Origin` different from the `Host` it targeted are rejected with 403, so another website cannot change these settings through your browser. A reverse proxy must therefore forward the original `Host` header.
 
-The token is a shared secret over plain HTTP: on an untrusted network it can be sniffed. Prefer a private network such as Tailscale (see below).
+The token is a shared secret. Its connection uses HTTPS with a self-signed certificate that no authority vouches for, so on an untrusted network prefer a private network such as Tailscale (see below) or your own certificate (`IWF_TLS_CERT` / `IWF_TLS_KEY`).

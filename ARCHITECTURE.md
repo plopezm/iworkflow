@@ -84,14 +84,14 @@ flowchart LR
   cfg --> db["db.Open + db.Migrate"]
   db --> prefs["load preferences"]
   prefs --> app["app.New: build modules"]
-  app --> http["HTTP listener (+ HTTPS if IWF_TLS)"]
+  app --> http["HTTPS listener (self-signed or IWF_TLS_CERT/KEY)"]
 ```
 
 1. `main` loads the `.env` of the working folder, opens the log (`$IWF_HOME/logs/iworkflow.log`, rotated by size) and parses the flags (`internal/core/launch`).
 2. `serve` reads the configuration (`internal/core/config`), opens SQLite and applies the embedded migrations.
 3. The saved preferences (network access, port, token) decide the bind address, unless `--addr` / `IWORKFLOW_ADDR` pins it (`internal/core/listen`).
 4. `app.New` (`internal/app/app.go`) builds one `Module` per feature through its `di.NewModule(deps)` and collects their `Routes`. It also owns the cross-module bridges, the shell page and background loops (task graph, resume, prune).
-5. Optional TLS runs a second listener on the HTTP port plus 443 (`internal/core/tlsx`). Shutdown waits for every goroutine; a restart request from the UI exits with code 75 when `IWF_SUPERVISED` is set (`internal/core/restart`).
+5. The HTTPS listener (`internal/core/tlsx`) serves the app on the listen port; only `IWF_TLS=off` (tests and CI) serves plain HTTP instead. Shutdown waits for every goroutine; a restart request from the UI exits with code 75 when `IWF_SUPERVISED` is set (`internal/core/restart`).
 
 There is no global state and no DI framework: dependencies travel through constructors, and the `*sql.DB` never reaches a handler.
 
@@ -194,7 +194,7 @@ The data folder is resolved by `config.DataDir`: `IWF_HOME` first, then the poin
 | `workspaces.db` | SQLite database |
 | `worktrees/`, `attachments/`, `agents-files/`, `cursor-sessions/`, `agy-sessions/` | Task worktrees, task images, `AGENTS.md` library, Cursor and agy session ids |
 | `models/` | Speech model (`make model`) |
-| `tls/` | Self-signed certificate (`IWF_TLS=auto`) |
+| `tls/` | Self-signed certificate, created on first use (not used when `IWF_TLS_CERT`/`IWF_TLS_KEY` are set) |
 | `logs/` | `iworkflow.log`, rotated and gzip-compressed |
 
 Other variables: the usage bar sources (`IWF_CLAUDE_CREDENTIALS`, `IWF_CLAUDE_USAGE_URL`, `IWF_CODEX_SESSIONS_DIR`), `IWF_ENGRAM_URL`, the agent binaries (`IWF_GENTLE_SHELL_BIN`, `IWF_PI_BIN`, `IWF_CLAUDE_BIN`, `IWF_CURSOR_BIN`, `IWF_AGY_BIN`), `IWF_GENTLE_PI_CONFIG_HOME`, TLS (`IWF_TLS`, `IWF_TLS_PORT`, `IWF_TLS_CERT`, `IWF_TLS_KEY`), logging (`IWF_LOG_LEVEL`, `IWF_LOG_MAX_MB`, `IWF_LOG_BACKUPS`), `IWORKFLOW_ADDR` and `IWF_SUPERVISED`. The full table, with defaults, is in [docs/configuration.md](docs/configuration.md). On Windows the installer stores a custom data folder as the `IWF_HOME` user variable.
@@ -221,7 +221,7 @@ Each feature keeps its port mocks in `mocks_test.go`. Run Go tests with `-p 2` a
 
 ```bash
 make generate     # templ + sqlc + tailwind (run after touching .templ, SQL or CSS)
-make dev          # server with the .env of the working folder, http://127.0.0.1:3000
+make dev          # server with the .env of the working folder, https://127.0.0.1:3000
 make test         # go test -p 2 ./... plus the packaging script tests
 make vet lint     # go vet and golangci-lint
 make e2e          # Playwright suites (FILTER=<name> to pick one)

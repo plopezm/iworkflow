@@ -12,7 +12,7 @@ The server runs on your computer and the phone is only a browser, so you need a 
 
 ## Developing from your phone with Tailscale
 
-[Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow is protected only by a shared token over plain HTTP and launches agents that run commands as your user.
+[Tailscale](https://tailscale.com) creates a private network (tailnet) between your devices, so your phone can reach the server running on your computer without opening ports to the internet. This matters because iworkflow is protected only by a shared token over HTTPS with a self-signed certificate and launches agents that run commands as your user.
 
 1. Install Tailscale on the computer that runs iworkflow and on the phone (App Store / Google Play), and sign in to the **same account** on both.
 2. Start the server listening on the Tailscale interface (or all interfaces, which is the default of `make dist` / `make run`):
@@ -30,7 +30,7 @@ The server runs on your computer and the phone is only a browser, so you need a 
    tailscale status       # shows the MagicDNS name, e.g. mypc.tailnet-name.ts.net
    ```
 
-4. On the phone, open `http://<tailnet-ip>:9000` or `http://mypc.tailnet-name.ts.net:9000`.
+4. On the phone, open `https://<tailnet-ip>:9000` or `https://mypc.tailnet-name.ts.net:9000` (accept the self-signed certificate once).
 
 **Recommended: HTTPS with Tailscale Serve.** Keep the bind on `127.0.0.1` and let Tailscale expose it only inside your tailnet, with a valid certificate:
 

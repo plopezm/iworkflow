@@ -12,7 +12,7 @@ El servidor se ejecuta en tu ordenador y el móvil es solo un navegador, así qu
 
 ## Desarrollar desde el móvil con Tailscale
 
-[Tailscale](https://tailscale.com) crea una red privada (tailnet) entre tus dispositivos, de modo que tu móvil puede alcanzar el servidor que se ejecuta en tu ordenador sin abrir puertos a internet. Esto es importante porque iworkflow solo se protege con un token compartido sobre HTTP y lanza agentes que ejecutan comandos con tu usuario.
+[Tailscale](https://tailscale.com) crea una red privada (tailnet) entre tus dispositivos, de modo que tu móvil puede alcanzar el servidor que se ejecuta en tu ordenador sin abrir puertos a internet. Esto es importante porque iworkflow solo se protege con un token compartido sobre HTTPS con un certificado autofirmado y lanza agentes que ejecutan comandos con tu usuario.
 
 1. Instala Tailscale en el ordenador que ejecuta iworkflow y en el móvil (App Store / Google Play), e inicia sesión con la **misma cuenta** en ambos.
 2. Arranca el servidor escuchando en la interfaz de Tailscale (o en todas, que es el valor por defecto de `make dist` / `make run`):
@@ -30,7 +30,7 @@ El servidor se ejecuta en tu ordenador y el móvil es solo un navegador, así qu
    tailscale status       # muestra el nombre MagicDNS, p. ej. mipc.nombre-tailnet.ts.net
    ```
 
-4. En el móvil, abre `http://<ip-tailnet>:9000` o `http://mipc.nombre-tailnet.ts.net:9000`.
+4. En el móvil, abre `https://<ip-tailnet>:9000` o `https://mipc.nombre-tailnet.ts.net:9000` (acepta el certificado autofirmado una vez).
 
 **Recomendado: HTTPS con Tailscale Serve.** Mantén el bind en `127.0.0.1` y deja que Tailscale lo exponga solo dentro de tu tailnet, con un certificado válido:
 

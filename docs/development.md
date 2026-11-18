@@ -6,7 +6,7 @@ Architecture and code guide in [ARCHITECTURE.md](../ARCHITECTURE.md); project ru
 
 ```bash
 make generate                                  # templ + sqlc + tailwind (after touching .templ, SQL or CSS)
-make dev                                       # server with reload on http://127.0.0.1:3000
+make dev                                       # server with reload on https://127.0.0.1:3000
 make test                                      # go test -p 2 ./... plus the packaging script tests
 make vet                                       # go vet ./...
 make lint                                      # golangci-lint run

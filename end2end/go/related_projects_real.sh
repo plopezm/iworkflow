@@ -78,6 +78,7 @@ PORT="$(free_port)"
     GIT_AUTHOR_NAME=smoke GIT_AUTHOR_EMAIL=smoke@localhost \
     GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
     IWF_HOME="$IWF_HOME_DIR" \
+    IWF_TLS=off \
     IWF_GENTLE_PI_CONFIG_HOME="$WORK/home/.config/gentle-pi" \
     IWF_PI_AGENTS_DIR="$WORK/home/.pi/agent/agents" \
     IWF_GENTLE_SHELL_BIN="$ROOT/tests/fixtures/smoke_gentle_shell.sh" \

@@ -6,7 +6,7 @@ La guía de arquitectura y de código está en [ARCHITECTURE.es.md](../../ARCHIT
 
 ```bash
 make generate                                  # templ + sqlc + tailwind (tras tocar .templ, SQL o CSS)
-make dev                                       # servidor con recarga en http://127.0.0.1:3000
+make dev                                       # servidor con recarga en https://127.0.0.1:3000
 make test                                      # go test -p 2 ./... más los tests de los scripts de empaquetado
 make vet                                       # go vet ./...
 make lint                                      # golangci-lint run

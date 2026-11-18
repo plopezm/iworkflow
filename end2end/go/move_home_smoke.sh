@@ -21,6 +21,8 @@ BASE="http://127.0.0.1:$PORT"
 (cd "$ROOT" && go build -o "$WORK/iworkflow" ./cmd/iworkflow)
 export HOME="$WORK/home" XDG_CONFIG_HOME="$WORK/home/.config" APPDATA="$WORK/home/.config" IWORKFLOW_ADDR="127.0.0.1:$PORT"
 unset IWF_HOME
+# The suite talks plain http:// to the server (test-only mode, see docs/configuration.md#https).
+export IWF_TLS=off
 mkdir -p "$HOME"
 OLD="$HOME/.iworkflow"
 NEW="$WORK/elsewhere/iwf"

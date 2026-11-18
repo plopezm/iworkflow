@@ -7,7 +7,7 @@ Requisitos: `git`, Go (la versión de `go.mod`), `templ`, `tailwindcss` y al men
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
 cd iworkflow
-make dev                    # http://127.0.0.1:3000
+make dev                    # https://127.0.0.1:3000 (autofirmado: acepta el aviso del navegador una vez)
 ```
 
 1. **Workspaces** → registra una carpeta con git (necesita al menos un commit).

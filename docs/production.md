@@ -12,7 +12,7 @@ make run      # 2. start what is already packaged
 make prod     # both steps in a row (dist + run)
 ```
 
-Typical flow: run `make dist` once (and again after every update), then `make run` whenever you want to start the server. `ARGS` is passed to the binary (e.g. `ARGS=--no-open`, see [Executable arguments](configuration.md#executable-arguments)). The server listens on `http://0.0.0.0:9000` by default; change it with `SITE_ADDR`:
+Typical flow: run `make dist` once (and again after every update), then `make run` whenever you want to start the server. `ARGS` is passed to the binary (e.g. `ARGS=--no-open`, see [Executable arguments](configuration.md#executable-arguments)). The server listens on `0.0.0.0:9000` by default, over HTTPS; change it with `SITE_ADDR`:
 
 ```bash
 make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
@@ -34,7 +34,7 @@ is applied too. Make variables:
 > **Security:** the app launches agents that run commands as your user. Its only
 > protection is the access token (see [Access from other devices](configuration.md#access-from-other-devices)),
 > which is demanded whenever the bind is not loopback unless you switch it off, and it travels
-> over plain HTTP. Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
+> over HTTPS with a self-signed certificate unless you set `IWF_TLS_CERT` and `IWF_TLS_KEY`. Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
 > reverse proxy with TLS. To limit it to the local machine:
 > `make run SITE_ADDR=127.0.0.1:3000`.
 

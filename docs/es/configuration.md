@@ -15,9 +15,9 @@ Variables de entorno (se admite `.env`, ver `.env.example`):
 | `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
 | `IWF_AGY_BIN` | `agy` (runtime `agy`: Antigravity CLI en modo servidor ACP, `agy acp`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
-| `IWF_TLS` | sin definir (HTTP plano). `auto` sirve HTTPS con un certificado autofirmado que se crea en `tls/` dentro de la carpeta de datos y se reutiliza (ver [HTTPS](#https)) |
-| `IWF_TLS_PORT` | puerto HTTP + 443 (puerto del listener HTTPS cuando TLS está activo) |
-| `IWF_TLS_CERT` / `IWF_TLS_KEY` | Ficheros PEM de tu propio certificado y de su clave; define los dos o ninguno. Tienen prioridad sobre `IWF_TLS=auto` |
+| `IWF_TLS` | `auto`, el único modo: HTTPS está siempre activo, con un certificado autofirmado que se crea en `tls/` dentro de la carpeta de datos y se reutiliza (ver [HTTPS](#https)). `off` sirve HTTP plano; solo para tests y CI, registra un aviso |
+| `IWF_TLS_PORT` | sin definir: el puerto de escucha habitual. Cambia el puerto de escucha (1024–65535); HTTPS se sirve ahí, p. ej. `9000` → `https://host:9000` |
+| `IWF_TLS_CERT` / `IWF_TLS_KEY` | Ficheros PEM de tu propio certificado y de su clave, que se usan en lugar del autofirmado; define los dos o ninguno |
 | `IWF_ENGRAM_URL` | sin definir: desactivado. URL base de la API HTTP local de Engram, por ejemplo `http://127.0.0.1:7437`. Si se define con una URL http o https válida, activa la memoria de Engram de cada workspace (ver [Memoria de Engram](integrations.md#memoria-de-engram)). Un valor no válido la deja desactivada y registra un aviso al arrancar |
 | `IWF_CLAUDE_CREDENTIALS` | `~/.claude/.credentials.json`. Credenciales OAuth de Claude Code, que lee la [barra de uso](workspace.md#límites-de-uso) |
 | `IWF_CLAUDE_USAGE_URL` | sin definir: el endpoint real de uso de Anthropic. Sustituye al endpoint de uso de la suscripción de Claude |
@@ -49,17 +49,18 @@ El campo Prompt de los formularios de crear y editar tarea tiene un botón de mi
 
 ## HTTPS
 
-Los navegadores solo exponen el micrófono (dictado por voz) en un contexto seguro: `https://` o `localhost`. Con `http://` plano en la red, el botón del micrófono avisa de que la grabación no está disponible. HTTPS es opcional:
+El servidor sirve solo HTTPS, en su puerto de escucha (por ejemplo `https://127.0.0.1:9000`). Está siempre activo. Los navegadores solo exponen el micrófono (dictado por voz) en un contexto seguro, así que el micrófono funciona también desde otros dispositivos una vez que su navegador acepta el certificado.
 
 ```bash
-make dev-https                 # como make dev, pero por HTTPS
-make run-https                 # como make run, pero por HTTPS (tras make dist)
-IWF_TLS=auto ./iworkflow       # cualquier otra forma de arrancarlo
+make dev                       # https://127.0.0.1:3000
+make run                       # igual, tras make dist
 ```
 
-Con `IWF_TLS=auto`, el servidor crea un certificado autofirmado la primera vez en `$IWF_HOME/tls/`, válido para `localhost`, `127.0.0.1` y la IP de red de la máquina. Se reutiliza hasta que le queden 30 días o cambie la IP, y entonces se recrea en el siguiente arranque. El navegador avisa de un certificado no fiable: acéptalo una vez por dispositivo. Para usar tu propio certificado, define `IWF_TLS_CERT` e `IWF_TLS_KEY`.
+Sin `IWF_TLS_CERT` ni `IWF_TLS_KEY`, el servidor crea la primera vez un certificado autofirmado en `$IWF_HOME/tls/`, válido para `localhost`, `127.0.0.1` y la IP de red de la máquina. Se reutiliza hasta que le queden 30 días o cambie la IP, y entonces se recrea en el siguiente arranque. El navegador avisa de un certificado no fiable la primera vez: acéptalo una vez por dispositivo.
 
-Con TLS activo, el servidor abre **dos listeners** con la misma aplicación: HTTP en el puerto habitual (la aplicación de escritorio sigue usándolo) y HTTPS en el puerto HTTP más 443 (`9000` → `9443`; cámbialo con `IWF_TLS_PORT`, 1024–65535). **Configuración → Acceso desde la red** muestra primero el enlace y el QR de HTTPS, y el HTTP plano (sin micrófono) como opción plegada. `--addr` / `IWORKFLOW_ADDR` fijan solo la dirección HTTP; HTTPS usa el mismo host.
+`IWF_TLS=off` sirve HTTP plano en su lugar. Es solo para tests y CI; el servidor registra un aviso al arrancar así.
+
+`IWF_TLS_PORT` cambia el puerto de escucha (1024–65535). Hay un único listener: HTTPS se sirve en ese puerto (`9000` → `https://host:9000`). **Configuración → Acceso desde la red** muestra el enlace y el QR de HTTPS. `--addr` / `IWORKFLOW_ADDR` fijan la dirección de escucha.
 
 ## Runtimes de agente
 
@@ -74,7 +75,7 @@ El selector de runtime del menú lateral admite `gentle-shell`, `pi`, `claude`, 
 
 ## Argumentos del ejecutable
 
-Al arrancar, `iworkflow` abre la interfaz web en el navegador (`http://<host>:<puerto>` del servidor; si escucha en `0.0.0.0`, se usa `127.0.0.1`).
+Al arrancar, `iworkflow` abre la interfaz web en el navegador (`https://<host>:<puerto>` del servidor; si escucha en `0.0.0.0`, se usa `127.0.0.1`).
 
 | Argumento | Efecto |
 |---|---|
@@ -93,7 +94,7 @@ Por defecto, el servidor escucha solo en `127.0.0.1` (este equipo). Para alcanza
 
 Siempre que el servidor sea accesible desde la red (por este ajuste, o por un `--addr` que no sea loopback, como el `0.0.0.0:9000` de `make dist` / `make run`), exige por defecto un **token de acceso**:
 
-- El QR y el enlace de la tarjeta llevan el token (`http://<ip>:<puerto>/?token=…`) y siguen a la interfaz seleccionada. Al abrirlo, el token se guarda en una cookie y se redirige a una URL limpia, así que no queda en la barra de direcciones ni en el historial. Sin la cookie, el servidor muestra una página de acceso donde pegar el token.
+- El QR y el enlace de la tarjeta llevan el token (`https://<ip>:<puerto>/?token=…`) y siguen a la interfaz seleccionada. Al abrirlo, el token se guarda en una cookie y se redirige a una URL limpia, así que no queda en la barra de direcciones ni en el historial. Sin la cookie, el servidor muestra una página de acceso donde pegar el token.
 - Al arrancar, el servidor escribe ese enlace en el log, que es la forma de obtenerlo en una máquina sin navegador.
 - **Generar un token nuevo** en la tarjeta invalida el anterior al instante; los dispositivos que lo usaban deben volver a autenticarse.
 - La exigencia es opcional: desmarca **Exigir el token de acceso** (se aplica en el siguiente arranque) para servir a la red sin él. En ese caso, cualquiera que llegue al puerto puede ejecutar comandos con tu usuario, así que úsalo solo en una red de total confianza.
@@ -101,4 +102,4 @@ Siempre que el servidor sea accesible desde la red (por este ajuste, o por un `-
 - La línea de log de arranque con el enlace contiene el token: trata los logs del servidor como información sensible.
 - Las escrituras (`POST`, etc.) que el navegador etiqueta con un `Origin` distinto del `Host` al que van se rechazan con 403, de modo que otra web no puede cambiar estos ajustes a través de tu navegador. Por eso, un reverse proxy debe reenviar el `Host` original.
 
-El token es un secreto compartido sobre HTTP sin cifrar: en una red no fiable puede interceptarse. Es preferible una red privada como Tailscale (ver más abajo).
+El token es un secreto compartido. Su conexión usa HTTPS con un certificado autofirmado que ninguna autoridad avala, así que en una red no fiable es preferible una red privada como Tailscale (ver más abajo) o tu propio certificado (`IWF_TLS_CERT` / `IWF_TLS_KEY`).
