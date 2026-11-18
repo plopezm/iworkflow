@@ -15,6 +15,9 @@ type TaskDetailView struct {
 	Task       dto.TaskDTO
 	Notice     string
 	CanMessage bool
+	// WorkspaceName is the name of the workspace of the task, shown under the title. It is empty when the workspace
+	// could not be read: the header then shows no workspace line.
+	WorkspaceName string
 	// Attachments are the images of the task; AttachmentsError says why they could not be read.
 	Attachments      []dto.TaskAttachmentDTO
 	AttachmentsError string
