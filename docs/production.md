@@ -34,7 +34,8 @@ is applied too. Make variables:
 > **Security:** the app launches agents that run commands as your user. Its only
 > protection is the access token (see [Access from other devices](configuration.md#access-from-other-devices)),
 > which is demanded whenever the bind is not loopback unless you switch it off, and it travels
-> over HTTPS with a self-signed certificate unless you set `IWF_TLS_CERT` and `IWF_TLS_KEY`. Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
+> over HTTPS with a self-signed certificate unless you set `IWF_TLS_CERT` and `IWF_TLS_KEY`.
+> Restrict access with a firewall, a private network (Tailscale/WireGuard) or a
 > reverse proxy with TLS. To limit it to the local machine:
 > `make run SITE_ADDR=127.0.0.1:3000`.
 

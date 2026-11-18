@@ -9,9 +9,10 @@ const TOKEN_LENGTH = 64;
 const TOKEN_PATTERN = new RegExp(`[?&]token=([0-9a-fA-F]{${TOKEN_LENGTH}})(?![0-9a-zA-Z])`);
 // The server serves HTTPS by default; `http` is only seen with IWF_TLS=off (CI/e2e).
 const LISTEN_PATTERN = /(?:escuchando en |msg=listening url=)(https?):\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
-// Hostnames under which the local server certificate is trusted (see isLocalServerCertUrl).
-const LOCAL_CERT_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']);
-const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+// Loopback names of this machine. URL.hostname keeps the brackets of an IPv6 literal ('[::1]'), while the
+// hosts of a listen address do not ('::1'), so the two sets differ only in that spelling.
+const LOCAL_CERT_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']); // hostnames of URLs (certificate errors)
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']); // hosts of listen addresses (probing)
 /** Exit code with which the server asks its supervisor to start it again. */
 const RESTART_EXIT_CODE = 75;
 const MAC_EXTRA_PATHS = ['/opt/homebrew/bin', '/usr/local/bin'];

@@ -15,7 +15,7 @@ Variables de entorno (se admite `.env`, ver `.env.example`):
 | `IWF_CURSOR_BIN` | `agent` (runtime `cursor`: Cursor CLI en modo servidor ACP, `agent acp`; requiere haber iniciado sesión con `agent login`) |
 | `IWF_AGY_BIN` | `agy` (runtime `agy`: Antigravity CLI en modo servidor ACP, `agy acp`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contiene `profiles.json` y `models.json`) |
-| `IWF_TLS` | `auto`, el único modo: HTTPS está siempre activo, con un certificado autofirmado que se crea en `tls/` dentro de la carpeta de datos y se reutiliza (ver [HTTPS](#https)). `off` sirve HTTP plano; solo para tests y CI, registra un aviso |
+| `IWF_TLS` | sin definir o `auto`: HTTPS está siempre activo, con un certificado autofirmado que se crea en `tls/` dentro de la carpeta de datos y se reutiliza (ver [HTTPS](#https)). `off` sirve HTTP plano; solo para tests y CI, registra un aviso. Cualquier otro valor es un error |
 | `IWF_TLS_PORT` | sin definir: el puerto de escucha habitual. Cambia el puerto de escucha (1024–65535); HTTPS se sirve ahí, p. ej. `9000` → `https://host:9000` |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | Ficheros PEM de tu propio certificado y de su clave, que se usan en lugar del autofirmado; define los dos o ninguno |
 | `IWF_ENGRAM_URL` | sin definir: desactivado. URL base de la API HTTP local de Engram, por ejemplo `http://127.0.0.1:7437`. Si se define con una URL http o https válida, activa la memoria de Engram de cada workspace (ver [Memoria de Engram](integrations.md#memoria-de-engram)). Un valor no válido la deja desactivada y registra un aviso al arrancar |

@@ -28,9 +28,12 @@ const (
 	KeyVar  string = "IWF_TLS_KEY"
 	// PortVar overrides the HTTPS port, which is the listen port otherwise.
 	PortVar string = "IWF_TLS_PORT"
-	// AutoVar set to "off" serves plain HTTP; anything else makes the server create and reuse a self-signed
-	// certificate in the data folder, unless the operator provides one.
-	AutoVar string = "IWF_TLS"
+	// ModeVar selects the mode: unset or "auto" serves HTTPS with a self-signed certificate that the server creates
+	// and reuses in the data folder (unless the operator provides one); "off" serves plain HTTP, for tests and CI.
+	// Any other value is rejected, so a typo never keeps TLS on silently.
+	ModeVar string = "IWF_TLS"
+
+	autoValue string = "auto"
 
 	offValue      string        = "off"
 	certFile      string        = "cert.pem"
@@ -42,18 +45,26 @@ const (
 	serialBitSize uint          = 128
 )
 
+// ErrUnknownMode reports an IWF_TLS value that is neither "auto" nor "off".
+var ErrUnknownMode error = errors.New("IWF_TLS must be auto or off")
+
 // ErrIncomplete reports that only one of the certificate and the key was given.
 var ErrIncomplete error = errors.New("set both " + CertVar + " and " + KeyVar)
 
 // Config returns the TLS configuration, or nil when IWF_TLS=off. dir is where the self-signed certificate
 // lives and hosts are the extra names or addresses it must be valid for.
 func Config(getenv func(string) string, dir string, hosts []string, now time.Time) (*tls.Config, error) {
+	mode := strings.ToLower(strings.TrimSpace(getenv(ModeVar)))
+	switch mode {
+	case offValue:
+		return nil, nil
+	case "", autoValue:
+	default:
+		return nil, fmt.Errorf("%s=%q: %w", ModeVar, mode, ErrUnknownMode)
+	}
 	cert, key := strings.TrimSpace(getenv(CertVar)), strings.TrimSpace(getenv(KeyVar))
 	if (cert == "") != (key == "") {
 		return nil, ErrIncomplete
-	}
-	if strings.TrimSpace(getenv(AutoVar)) == offValue {
-		return nil, nil
 	}
 	if cert == "" {
 		cert, key = filepath.Join(dir, certFile), filepath.Join(dir, keyFile)
@@ -145,10 +156,10 @@ func reusable(certPath string, keyPath string, hosts []string, now time.Time) bo
 	return true
 }
 
-// ErrBadPort reports an HTTPS port override that is not a number in 1024-65535.
+// ErrBadPort reports an IWF_TLS_PORT override that is not a number in 1024-65535.
 var ErrBadPort error = errors.New("invalid HTTPS port")
 
-// ResolvePort returns the HTTPS port: IWF_TLS_PORT when set, else listenPort.
+// ResolvePort returns the port the server listens on: IWF_TLS_PORT when set, else listenPort.
 func ResolvePort(getenv func(string) string, listenPort uint16) (uint16, error) {
 	const minPort, maxPort = 1024, 65535
 	raw := strings.TrimSpace(getenv(PortVar))

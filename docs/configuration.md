@@ -15,7 +15,7 @@ Environment variables (`.env` is supported, see `.env.example`):
 | `IWF_CURSOR_BIN` | `agent` (`cursor` runtime: Cursor CLI in ACP server mode, `agent acp`; requires having signed in with `agent login`) |
 | `IWF_AGY_BIN` | `agy` (`agy` runtime: Antigravity CLI in ACP server mode, `agy acp`) |
 | `IWF_GENTLE_PI_CONFIG_HOME` | `~/.pi/gentle-ai` (contains `profiles.json` and `models.json`) |
-| `IWF_TLS` | `auto`, the only mode: HTTPS is always on, with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)). `off` serves plain HTTP; tests and CI only, logs a warning |
+| `IWF_TLS` | unset or `auto`: HTTPS is always on, with a self-signed certificate created in `tls/` in the data folder and reused (see [HTTPS](#https)). `off` serves plain HTTP; tests and CI only, logs a warning. Any other value is an error |
 | `IWF_TLS_PORT` | unset: the usual listen port. Overrides the listen port (1024–65535); HTTPS is served there, e.g. `9000` → `https://host:9000` |
 | `IWF_TLS_CERT` / `IWF_TLS_KEY` | PEM files of your own certificate and key, used instead of the self-signed one; set both or neither |
 | `IWF_ENGRAM_URL` | unset: off. Base URL of the local Engram HTTP API, for example `http://127.0.0.1:7437`. When set to a valid http or https URL, it turns on the Engram memory of each workspace (see [Engram memory](integrations.md#engram-memory)). An invalid value keeps it off and logs one warning at startup |

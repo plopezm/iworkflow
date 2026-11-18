@@ -28,9 +28,24 @@ func TestConfigIsOnByDefaultWithASelfSignedCertificate(t *testing.T) {
 }
 
 func TestConfigCanBeSwitchedOffExplicitly(t *testing.T) {
-	cfg, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "off"}), t.TempDir(), nil, time.Now())
+	cfg, err := tlsx.Config(env(map[string]string{tlsx.ModeVar: "off"}), t.TempDir(), nil, time.Now())
 	require.NoError(t, err)
 	assert.Nil(t, cfg)
+}
+
+func TestConfigOffWinsOverAHalfPairAndIgnoresCase(t *testing.T) {
+	for _, mode := range []string{"off", "OFF", " Off "} {
+		cfg, err := tlsx.Config(env(map[string]string{tlsx.ModeVar: mode, tlsx.CertVar: "c.pem"}), t.TempDir(), nil, time.Now())
+		require.NoError(t, err, mode)
+		assert.Nil(t, cfg, mode)
+	}
+}
+
+func TestConfigRejectsAnUnknownModeInsteadOfKeepingTLSOnSilently(t *testing.T) {
+	for _, mode := range []string{"false", "0", "no", "on"} {
+		_, err := tlsx.Config(env(map[string]string{tlsx.ModeVar: mode}), t.TempDir(), nil, time.Now())
+		assert.ErrorIs(t, err, tlsx.ErrUnknownMode, mode)
+	}
 }
 
 func TestConfigRejectsHalfAPair(t *testing.T) {
@@ -41,7 +56,7 @@ func TestConfigRejectsHalfAPair(t *testing.T) {
 func TestConfigAutoCreatesAndReusesACertificate(t *testing.T) {
 	dir := t.TempDir()
 	now := time.Now()
-	auto := env(map[string]string{tlsx.AutoVar: "auto"})
+	auto := env(map[string]string{tlsx.ModeVar: "auto"})
 
 	cfg, err := tlsx.Config(auto, dir, []string{"192.168.1.20"}, now)
 	require.NoError(t, err)
@@ -63,7 +78,7 @@ func TestConfigAutoCreatesAndReusesACertificate(t *testing.T) {
 }
 
 func TestConfigNegotiatesHTTP2WithHTTP11Fallback(t *testing.T) {
-	cfg, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "auto"}), t.TempDir(), nil, time.Now())
+	cfg, err := tlsx.Config(env(map[string]string{tlsx.ModeVar: "auto"}), t.TempDir(), nil, time.Now())
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 	assert.Equal(t, []string{"h2", "http/1.1"}, cfg.NextProtos, "h2 multiplexes the event stream and the requests; WebSockets need the http/1.1 fallback")
@@ -71,7 +86,7 @@ func TestConfigNegotiatesHTTP2WithHTTP11Fallback(t *testing.T) {
 
 func TestConfigLoadsAGivenPair(t *testing.T) {
 	dir := t.TempDir()
-	_, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "auto"}), dir, nil, time.Now())
+	_, err := tlsx.Config(env(map[string]string{tlsx.ModeVar: "auto"}), dir, nil, time.Now())
 	require.NoError(t, err)
 	cfg, err := tlsx.Config(env(map[string]string{
 		tlsx.CertVar: filepath.Join(dir, "cert.pem"),
@@ -109,7 +124,7 @@ func TestResolvePort(t *testing.T) {
 
 // The server of the application serves a tls.NewListener with http.Server.Serve; this proves the browser gets h2 there.
 func TestServedConnectionsNegotiateHTTP2(t *testing.T) {
-	cfg, err := tlsx.Config(env(map[string]string{tlsx.AutoVar: "auto"}), t.TempDir(), nil, time.Now())
+	cfg, err := tlsx.Config(env(map[string]string{tlsx.ModeVar: "auto"}), t.TempDir(), nil, time.Now())
 	require.NoError(t, err)
 	raw, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)

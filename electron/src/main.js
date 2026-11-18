@@ -327,7 +327,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', showWindow);
   // macOS: clicking the Dock icon while the window is hidden brings it back.
   app.on('activate', showWindow);
-  // Trust only the local server certificate (S4); see trustLocalServerCertificate.
+  // Trust only the local server certificate, never other origins; see trustLocalServerCertificate.
   app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) =>
     trustLocalServerCertificate(event, url, callback),
   );

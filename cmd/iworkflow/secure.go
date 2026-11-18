@@ -23,7 +23,7 @@ type secureServer struct {
 
 // secureListener prepares the HTTPS listener from the environment, or returns nil when IWF_TLS=off. It listens on
 // the host of the listen address, on the port IWF_TLS_PORT or the listen port.
-func secureListener(ctx context.Context, getenv func(string) string, dataDir string, httpAddr netip.AddrPort, bind bindFunc) (*secureServer, error) {
+func secureListener(ctx context.Context, getenv func(string) string, dataDir string, listenAddr netip.AddrPort, bind bindFunc) (*secureServer, error) {
 	hosts := []string{}
 	if ip, ok := listen.LocalNetworkIP(ctx); ok {
 		hosts = append(hosts, ip.String())
@@ -35,11 +35,11 @@ func secureListener(ctx context.Context, getenv func(string) string, dataDir str
 	if config == nil {
 		return nil, nil
 	}
-	port, err := tlsx.ResolvePort(getenv, httpAddr.Port())
+	port, err := tlsx.ResolvePort(getenv, listenAddr.Port())
 	if err != nil {
 		return nil, fmt.Errorf("configure TLS: %w", err)
 	}
-	return &secureServer{addr: netip.AddrPortFrom(httpAddr.Addr(), port), port: port, config: config, bind: bind}, nil
+	return &secureServer{addr: netip.AddrPortFrom(listenAddr.Addr(), port), port: port, config: config, bind: bind}, nil
 }
 
 // listen binds addr and wraps it with TLS. It is a bindFunc.

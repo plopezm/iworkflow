@@ -33,7 +33,8 @@ también se aplica. Variables de make:
 
 > **Seguridad:** la aplicación lanza agentes que ejecutan comandos con tu usuario. Su única
 > protección es el token de acceso (ver [Acceso desde otros dispositivos](configuration.md#acceso-desde-otros-dispositivos)),
-> que se exige siempre que el bind no sea loopback, salvo que lo desactives, y viaja por HTTPS con un certificado autofirmado (salvo que definas `IWF_TLS_CERT` e `IWF_TLS_KEY`). Restringe el acceso con un firewall, una red privada (Tailscale/WireGuard) o un
+> que se exige siempre que el bind no sea loopback, salvo que lo desactives, y viaja por HTTPS con un certificado autofirmado (salvo que definas `IWF_TLS_CERT` e `IWF_TLS_KEY`).
+> Restringe el acceso con un firewall, una red privada (Tailscale/WireGuard) o un
 > reverse proxy con TLS. Para limitarlo a la máquina local:
 > `make run SITE_ADDR=127.0.0.1:3000`.
 
