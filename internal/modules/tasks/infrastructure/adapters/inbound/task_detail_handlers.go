@@ -182,6 +182,7 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 	} else {
 		view.Transcript = transcript
 	}
+	view.WorkspaceName = h.workspaceName(ctx, task)
 	view.RelatedProjects = h.relatedChoices(ctx, task)
 	view.MergeCleanupOnly = h.mergeCleanupOnly(ctx, task)
 	if h.uc.HookStrip != nil {
@@ -201,6 +202,24 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 		view.Attachments = append(view.Attachments, dto.TaskAttachmentFromDomain(task.ID.String(), attachment))
 	}
 	return view
+}
+
+// workspaceName is the name of the workspace of a task, or empty when it cannot be read: the header then omits it.
+func (h *DetailHandlers) workspaceName(ctx context.Context, task models.Task) string {
+	if h.uc.Workspaces == nil {
+		return ""
+	}
+	refs, err := h.uc.Workspaces.List(ctx)
+	if err != nil {
+		web.LogError(ctx, "could not list the workspaces for the task header", err, "task_id", task.ID.String())
+		return ""
+	}
+	for _, ref := range refs {
+		if ref.ID == task.WorkspaceID {
+			return ref.Name
+		}
+	}
+	return ""
 }
 
 // loadTranscript reads the history of a task and folds it into the transcript the page shows.

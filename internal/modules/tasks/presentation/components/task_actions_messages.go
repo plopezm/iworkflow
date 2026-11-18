@@ -28,6 +28,7 @@ var (
 	msgMerged            = i18n.Msg{En: "Merged into the base branch.", Es: "Integrada en la rama base.", Zh: "已合并到基础分支。", De: "In den Basis-Branch integriert.", Fr: "Intégrée dans la branche de base."}
 	msgMergeConflicts    = i18n.Msg{En: "Conflicts in {files}. Resume the agent to resolve them or do it by hand in the worktree.", Es: "Conflictos en {files}. Reanuda el agente para resolverlos o hazlo a mano en el worktree.", Zh: "{files} 中存在冲突。请恢复智能体来解决，或在 worktree 中手动解决。", De: "Konflikte in {files}. Setze den Agent fort, um sie zu lösen, oder löse sie manuell im Worktree.", Fr: "Conflits dans {files}. Relancez l'agent pour les résoudre ou faites-le à la main dans le worktree."}
 	msgInitialPrompt     = i18n.Msg{En: "Initial prompt", Es: "Prompt inicial", Zh: "初始提示词", De: "Ursprünglicher Prompt", Fr: "Prompt initial"}
+	msgTaskBranch        = i18n.Msg{En: "Branch", Es: "Rama", Zh: "分支", De: "Branch", Fr: "Branche"}
 	msgStartingBranch    = i18n.Msg{En: "Starting branch", Es: "Rama de partida", Zh: "起始分支", De: "Ausgangs-Branch", Fr: "Branche de départ"}
 	msgAttachments       = i18n.Msg{En: "Attachments", Es: "Adjuntos", Zh: "附件", De: "Anhänge", Fr: "Pièces jointes"}
 	msgTaskImages        = i18n.Msg{En: "Images attached to the task", Es: "Imágenes adjuntas de la tarea", Zh: "任务的附加图片", De: "Der Aufgabe angehängte Bilder", Fr: "Images jointes à la tâche"}

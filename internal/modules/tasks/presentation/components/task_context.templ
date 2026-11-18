@@ -13,6 +13,12 @@ templ TaskContext(view state.TaskDetailView) {
 		<span class="eyebrow">{ msgStartingBranch.T(ctx) }</span>
 		<code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">{ view.Task.BaseBranch }</code>
 	</div>
+	if view.Task.Branch != "" {
+		<div class="stack gap-1">
+			<span class="eyebrow">{ msgTaskBranch.T(ctx) }</span>
+			<code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted" data-task-branch>{ view.Task.Branch }</code>
+		</div>
+	}
 	<div class="stack gap-1">
 		<span class="eyebrow">Worktree</span>
 		<code class="block break-all rounded-md bg-surface-2/60 px-2 py-1 font-mono text-[11px] text-muted">{ view.Task.WorktreePath }</code>
