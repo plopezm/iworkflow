@@ -15,6 +15,8 @@ const {
   extractListenAddr,
   windowUrl,
   isTrustedUrl,
+  isLocalHost,
+  isLocalServerCertUrl,
   isMoveProgress,
   isStartTimedOut,
 } = require('../src/launcher');
@@ -97,29 +99,84 @@ test('ignores lines without a valid token', () => {
 });
 
 test('window url targets loopback for unspecified hosts and carries the token once', () => {
-  assert.equal(windowUrl({ host: '0.0.0.0', port: 3000 }, null), 'http://127.0.0.1:3000/');
-  assert.equal(windowUrl({ host: '::', port: 3000 }, null), 'http://127.0.0.1:3000/');
-  assert.equal(windowUrl({ host: '127.0.0.1', port: 3000 }, 'f'.repeat(64)), `http://127.0.0.1:3000/?token=${'f'.repeat(64)}`);
+  assert.equal(windowUrl({ scheme: 'https', host: '0.0.0.0', port: 3000 }, null), 'https://127.0.0.1:3000/');
+  assert.equal(windowUrl({ scheme: 'https', host: '::', port: 3000 }, null), 'https://127.0.0.1:3000/');
+  assert.equal(
+    windowUrl({ scheme: 'https', host: '127.0.0.1', port: 3000 }, 'f'.repeat(64)),
+    `https://127.0.0.1:3000/?token=${'f'.repeat(64)}`,
+  );
+});
+
+test('window url keeps http only when the server announced http (IWF_TLS=off)', () => {
+  assert.equal(windowUrl({ scheme: 'http', host: '127.0.0.1', port: 3000 }, null), 'http://127.0.0.1:3000/');
+});
+
+test('a missing scheme defaults to https, the server default', () => {
+  assert.equal(windowUrl({ host: '127.0.0.1', port: 3000 }, null), 'https://127.0.0.1:3000/');
 });
 
 test('only the local server origin is trusted inside the window', () => {
-  const addr = { host: '0.0.0.0', port: 3000 };
-  assert.equal(isTrustedUrl('http://127.0.0.1:3000/tasks', addr), true);
-  assert.equal(isTrustedUrl('http://127.0.0.1:3001/', addr), false);
+  const addr = { scheme: 'https', host: '0.0.0.0', port: 3000 };
+  assert.equal(isTrustedUrl('https://127.0.0.1:3000/tasks', addr), true);
+  assert.equal(isTrustedUrl('https://127.0.0.1:3001/', addr), false);
+  assert.equal(isTrustedUrl('http://127.0.0.1:3000/', addr), false);
   assert.equal(isTrustedUrl('https://example.com/', addr), false);
   assert.equal(isTrustedUrl('not a url', addr), false);
 });
 
-test('reads the address the server announces in its startup log', () => {
-  assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en http://127.0.0.1:9100'), { host: '127.0.0.1', port: 9100 });
-  assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en http://0.0.0.0:9000'), { host: '0.0.0.0', port: 9000 });
-  assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en http://[::1]:9000'), { host: '::1', port: 9000 });
-  assert.deepEqual(extractListenAddr('time=2026-10-28T20:00:00.000+01:00 level=INFO msg=listening url=http://127.0.0.1:9100'), { host: '127.0.0.1', port: 9100 });
+test('a non-local origin is never trusted, even when it looks like the server', () => {
+  const addr = { scheme: 'https', host: '127.0.0.1', port: 3000 };
+  assert.equal(isTrustedUrl('https://example.com:3000/', addr), false);
+  assert.equal(isTrustedUrl('https://127.0.0.1.example.com:3000/', addr), false);
+  assert.equal(isTrustedUrl('https://192.168.1.5:3000/', addr), false);
+  assert.equal(isTrustedUrl('https://user@evil.example:3000/', addr), false);
+});
+
+test('the local certificate is trusted only for loopback https on the exact server port', () => {
+  const addr = { scheme: 'https', host: '0.0.0.0', port: 9000 };
+  assert.equal(isLocalServerCertUrl('https://127.0.0.1:9000/', addr), true);
+  assert.equal(isLocalServerCertUrl('https://localhost:9000/tasks', addr), true);
+  assert.equal(isLocalServerCertUrl('https://[::1]:9000/', addr), true);
+  assert.equal(isLocalServerCertUrl('https://127.0.0.1:9001/', addr), false);
+  assert.equal(isLocalServerCertUrl('https://127.0.0.1/', addr), false);
+  assert.equal(isLocalServerCertUrl('http://127.0.0.1:9000/', addr), false);
+  assert.equal(isLocalServerCertUrl('https://example.com:9000/', addr), false);
+  assert.equal(isLocalServerCertUrl('https://192.168.1.5:9000/', addr), false);
+  assert.equal(isLocalServerCertUrl('https://127.0.0.1.example.com:9000/', addr), false);
+  assert.equal(isLocalServerCertUrl('not a url', addr), false);
+  assert.equal(isLocalServerCertUrl('https://127.0.0.1:9000/', null), false);
+});
+
+test('only loopback hosts are probed with a relaxed TLS handshake', () => {
+  assert.equal(isLocalHost('127.0.0.1'), true);
+  assert.equal(isLocalHost('localhost'), true);
+  assert.equal(isLocalHost('::1'), true);
+  assert.equal(isLocalHost('192.168.1.5'), false);
+  assert.equal(isLocalHost('example.com'), false);
+});
+
+test('reads the address and scheme the server announces in its startup log', () => {
+  assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en https://127.0.0.1:9100'), { scheme: 'https', host: '127.0.0.1', port: 9100 });
+  assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en https://0.0.0.0:9000'), { scheme: 'https', host: '0.0.0.0', port: 9000 });
+  assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en https://[::1]:9000'), { scheme: 'https', host: '::1', port: 9000 });
+  assert.deepEqual(
+    extractListenAddr('time=2026-10-28T20:00:00.000+01:00 level=INFO msg=listening url=https://127.0.0.1:9100'),
+    { scheme: 'https', host: '127.0.0.1', port: 9100 },
+  );
+});
+
+test('still parses the plain http announcement used with IWF_TLS=off', () => {
+  assert.deepEqual(extractListenAddr('INFO iworkflow: escuchando en http://127.0.0.1:9100'), { scheme: 'http', host: '127.0.0.1', port: 9100 });
+  assert.deepEqual(
+    extractListenAddr('time=2026-10-28T20:00:00.000+01:00 level=INFO msg=listening url=http://127.0.0.1:9100'),
+    { scheme: 'http', host: '127.0.0.1', port: 9100 },
+  );
 });
 
 test('ignores log lines that are not the listen announcement', () => {
   assert.equal(extractListenAddr('INFO iworkflow: acceso desde la red; enlace: http://192.168.1.5:9000/?token=abc'), null);
-  assert.equal(extractListenAddr('escuchando en http://127.0.0.1:99999'), null);
+  assert.equal(extractListenAddr('escuchando en https://127.0.0.1:99999'), null);
+  assert.equal(extractListenAddr('escuchando en ftp://127.0.0.1:9000'), null);
   assert.equal(extractListenAddr('hello'), null);
 });
 

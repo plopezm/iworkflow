@@ -10,12 +10,16 @@ const net = require('node:net');
 const os = require('node:os');
 const path = require('node:path');
 const readline = require('node:readline');
+const tls = require('node:tls');
 const {
   buildServerEnv,
   extractAccessToken,
   extractListenAddr,
+  isLocalHost,
+  isLocalServerCertUrl,
   isRestartExit,
   isTrustedUrl,
+  localHost,
   parseRegIwfHome,
   parseSiteAddr,
   serverArgs,
@@ -67,16 +71,49 @@ function isPortFree(addr) {
   });
 }
 
+/** Readiness probe: the port answers. */
 function canConnect(addr) {
+  const host = localHost(addr);
+  return addr.scheme !== 'http' && isLocalHost(host)
+    ? canHandshake(host, addr.port)
+    : canOpenSocket(host, addr.port);
+}
+
+function canOpenSocket(host, port) {
   return new Promise((resolve) => {
-    const host = ['0.0.0.0', '::', ''].includes(addr.host) ? '127.0.0.1' : addr.host;
-    const socket = net.connect({ port: addr.port, host });
+    const socket = net.connect({ port, host });
     socket.once('connect', () => {
       socket.destroy();
       resolve(true);
     });
     socket.once('error', () => resolve(false));
   });
+}
+
+/**
+ * TLS handshake with the local server's self-signed certificate. Verification is relaxed for this one
+ * probe socket only, and only for a loopback host; it is never relaxed for any other origin.
+ */
+function canHandshake(host, port) {
+  return new Promise((resolve) => {
+    const socket = tls.connect({ host, port, rejectUnauthorized: false });
+    socket.once('secureConnect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once('error', () => resolve(false));
+  });
+}
+
+/**
+ * Trusts the self-signed certificate of the local server only: a certificate error is accepted for
+ * loopback HTTPS on the exact port the server runs on. Every other error keeps Electron's default
+ * rejection, so verification is never disabled globally.
+ */
+function trustLocalServerCertificate(event, url, callback) {
+  if (!isLocalServerCertUrl(url, serverAddr)) return;
+  event.preventDefault();
+  callback(true);
 }
 
 // Last progress line of a data folder move: the server is busy copying, not stuck.
@@ -236,16 +273,13 @@ function createTray(updater) {
 
 /** The address is pinned by the environment, or announced by the server once it is bound. */
 async function startAndFindAddr() {
-  if (process.env.IWORKFLOW_ADDR) {
-    const addr = parseSiteAddr(process.env);
-    if (!(await isPortFree(addr))) {
-      throw new Error(
-        `Port ${addr.port} is already in use (another iworkflow instance?). ` +
-          'Close it, or set IWORKFLOW_ADDR to another address.',
-      );
-    }
-    startServer(() => {});
-    return addr;
+  // A pinned address fixes host and port; the scheme still comes from the server's announcement.
+  const pinned = process.env.IWORKFLOW_ADDR ? parseSiteAddr(process.env) : null;
+  if (pinned && !(await isPortFree(pinned))) {
+    throw new Error(
+      `Port ${pinned.port} is already in use (another iworkflow instance?). ` +
+        'Close it, or set IWORKFLOW_ADDR to another address.',
+    );
   }
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
@@ -256,7 +290,7 @@ async function startAndFindAddr() {
     }, POLL_INTERVAL_MS);
     startServer((announced) => {
       clearInterval(timer);
-      resolve(announced);
+      resolve(pinned ? { ...pinned, scheme: announced.scheme } : announced);
     });
   });
 }
@@ -286,6 +320,10 @@ if (!app.requestSingleInstanceLock()) {
   app.on('second-instance', showWindow);
   // macOS: clicking the Dock icon while the window is hidden brings it back.
   app.on('activate', showWindow);
+  // Trust only the local server certificate (S4); see trustLocalServerCertificate.
+  app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) =>
+    trustLocalServerCertificate(event, url, callback),
+  );
   // A plain SIGTERM/SIGINT skips `before-quit`; route it there so the server never outlives us.
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => app.quit());
   // Last resort if the process exits some other way.
