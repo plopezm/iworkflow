@@ -183,3 +183,49 @@ func TestCloseNeverForceKillsAProcessWithoutAStartToken(t *testing.T) {
 	assert.ErrorContains(t, err, fmt.Sprintf("could not verify the identity of process %d; left running", pid))
 	assert.True(t, stubborn.alive(), "a process without a start token cannot be verified and must not be killed")
 }
+
+// installExpiringFreshScan replaces scanUsers for one test: the first scan (which lists the users) runs for real; a
+// scan with a deadline (the fresh check of Close) waits for that deadline and fails; any other scan fails at once, so
+// every rescan of the grace fails. The seam is restored in cleanup.
+func installExpiringFreshScan(t *testing.T) {
+	t.Helper()
+	previous := scanUsers
+	calls := 0
+	scanUsers = func(ctx context.Context, roots []string) ([]User, error) {
+		calls++
+		if calls == 1 {
+			return previous(ctx, roots)
+		}
+		if _, bounded := ctx.Deadline(); bounded {
+			<-ctx.Done()
+			return nil, fmt.Errorf("injected fresh scan: %w", ctx.Err())
+		}
+		return nil, errors.New("injected rescan failure")
+	}
+	t.Cleanup(func() { scanUsers = previous })
+}
+
+// The fresh scan consumes its whole deadline and fails. The identity check must still get a live context of its own:
+// a TERM-ignoring survivor whose start token still matches is force-killed, not left running.
+func TestCloseForceKillsASurvivorWhenTheFreshScanExpiresBeforeTheIdentityCheck(t *testing.T) {
+	previous := forceTimeout
+	forceTimeout = 300 * time.Millisecond
+	t.Cleanup(func() { forceTimeout = previous })
+	root := t.TempDir()
+	stubborn := stubbornShell(t, root)
+	users := listedPID(t, root, stubborn.cmd.Process.Pid)
+	installExpiringFreshScan(t)
+	installIdentity(t, func(ctx context.Context, pid int) (string, bool) {
+		if ctx.Err() != nil || pid != stubborn.cmd.Process.Pid {
+			return "", false
+		}
+		return users[0].Started, true
+	})
+
+	closed, err := Close(context.Background(), root, users)
+
+	require.Error(t, err, "the failed fresh scan is still reported")
+	assert.ErrorContains(t, err, "check the processes before force-killing them")
+	assert.Equal(t, 1, closed)
+	assert.Equal(t, syscall.SIGKILL, endedBy(t, stubborn), "the identity matched, so the survivor is force-killed")
+}

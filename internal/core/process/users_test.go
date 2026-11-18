@@ -1,9 +1,12 @@
 package process
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,4 +92,58 @@ func TestWithinFoldComparesCaseOnlyWhenAsked(t *testing.T) {
 
 	assert.False(t, withinFold(root, path, false))
 	assert.True(t, withinFold(root, path, true))
+}
+
+// installRescanSeam replaces scanUsers for one test with fn and restores it in cleanup.
+func installRescanSeam(t *testing.T, fn func(context.Context, []string) ([]User, error)) {
+	t.Helper()
+	previous := scanUsers
+	scanUsers = fn
+	t.Cleanup(func() { scanUsers = previous })
+}
+
+// The grace ends while the last rescan failed (one failure, below maxRescanFailures): waitForExit must return the
+// error and no list, so the caller checks again instead of trusting the survivors it last saw.
+func TestWaitForExitReturnsAnErrorAndNoListWhenTheGraceEndsAfterAFailedRescan(t *testing.T) {
+	previous := termGrace
+	termGrace = 100 * time.Millisecond
+	t.Cleanup(func() { termGrace = previous })
+	wanted := map[string]struct{}{"1|a": {}}
+	calls := 0
+	installRescanSeam(t, func(context.Context, []string) ([]User, error) {
+		calls++
+		if calls == 1 {
+			return []User{{PID: 1, Started: "a"}}, nil
+		}
+		return nil, errors.New("injected rescan failure")
+	})
+
+	users, err := waitForExit(context.Background(), []string{"/root"}, wanted)
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "injected rescan failure")
+	assert.Nil(t, users, "an incomplete wait must not return a list")
+	assert.Equal(t, 2, calls, "the grace ends on the rescan after the first survivor was seen")
+}
+
+// The context ends while a failed rescan is pending: waitForExit must return promptly with the context error and no
+// list, instead of sleeping out the grace.
+func TestWaitForExitReturnsPromptlyWithTheContextErrorWhenItEndsAfterAFailedRescan(t *testing.T) {
+	previous := termGrace
+	termGrace = 10 * time.Second
+	t.Cleanup(func() { termGrace = previous })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	installRescanSeam(t, func(context.Context, []string) ([]User, error) {
+		cancel()
+		return nil, errors.New("injected rescan failure")
+	})
+	started := time.Now()
+
+	users, err := waitForExit(ctx, []string{"/root"}, map[string]struct{}{"1|a": {}})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, users)
+	assert.Less(t, time.Since(started), time.Second, "a context that ended must end the wait at once")
 }

@@ -76,8 +76,13 @@ var scanUsers = usersOf
 // identityFor returns the start token of a pid as usersOf reports it; a variable so tests can contradict it.
 var identityFor = identityOf
 
-// forceTimeout bounds the fresh scan that checks the polite-signalled processes before they are force-killed.
-const forceTimeout = 5 * time.Second
+// forceTimeout bounds the fresh scan that checks the polite-signalled processes before they are force-killed; a variable
+// so tests can shorten it.
+var forceTimeout = 5 * time.Second
+
+// identityTimeout bounds the identity checks that run when the fresh scan failed; they get their own context so an
+// expired fresh scan cannot make them fail.
+const identityTimeout = 3 * time.Second
 
 // termGrace is how long a process gets to exit on its own after it was asked to; a variable so tests can shorten it.
 var termGrace = 3 * time.Second
@@ -185,13 +190,16 @@ func waitForExit(ctx context.Context, roots []string, wanted map[string]struct{}
 // fresh scan, with its own short context, checks that each one still uses the roots with its identity, so a process
 // that already exited is skipped. When that scan fails too, nothing can be confirmed by scanning, so each process is
 // force-killed only if identityFor still reports its start token, equal to the one recorded at selection (see
-// verifiedOf); the others are left running and reported.
+// verifiedOf); the others are left running and reported. The identity checks run on their own context, not on the
+// expired fresh one.
 func unconfirmed(ctx context.Context, roots []string, polite []User, wanted map[string]struct{}) ([]User, error) {
 	fresh, cancel := context.WithTimeout(context.WithoutCancel(ctx), forceTimeout)
 	defer cancel()
 	scanned, err := scanUsers(fresh, roots)
 	if err != nil {
-		kept, identityErrs := verifiedOf(fresh, polite)
+		identity, cancelIdentity := context.WithTimeout(context.WithoutCancel(ctx), identityTimeout)
+		defer cancelIdentity()
+		kept, identityErrs := verifiedOf(identity, polite)
 		return kept, errors.Join(append([]error{fmt.Errorf("check the processes before force-killing them: %w", err)}, identityErrs...)...)
 	}
 	return onlyWanted(scanned, wanted), nil
