@@ -1,6 +1,6 @@
 // end2end/go/task_header_workspace.e2e.cjs
-// Go-mode e2e of the workspace line in the header of a task: a task shows the name of its workspace under its title, started
-// (running) or still in the backlog; its branch shows in the Actions panel of a started one. The suite runs in Spanish and leaves a screenshot of the header.
+// Go-mode e2e of the workspace line in the header of a task: a started (running) task shows the name of its workspace under
+// its title and its branch in the Actions panel. A backlog task has no detail page in the UI (its card opens the editor). The suite runs in Spanish and leaves a screenshot of the header.
 
 const fs = require('fs');
 const path = require('path');
@@ -47,8 +47,7 @@ async function openTask(ctx, kind, start) {
   const link = page.locator('[id^="board-list-"]:visible [data-stage]', { hasText: prompt }).locator('a[href*="/tasks/"]').first();
   await link.waitFor({ state: 'attached', timeout: 15000 });
   await sleep(1500);
-  // A backlog card links to the edit page; its detail is the same address without "/edit".
-  await ctx.goto((await link.getAttribute('href')).replace(/\/edit$/, ''));
+  await ctx.goto(await link.getAttribute('href'));
   await page.waitForURL(/\/tasks\/[0-9a-f-]{36}/, { timeout: 15000, waitUntil: 'commit' });
   return wsName;
 }
@@ -70,15 +69,6 @@ module.exports = {
         ctx.assert((await branch.innerText()).startsWith('pi/'), 'el panel de acciones debe mostrar la rama de la tarea');
         ctx.assert(await line.locator('xpath=..').getByText(/desde main/).count() === 0, 'la cabecera ya no debe mostrar la línea de la rama');
         await ctx.screenshot(path.join(process.env.SMOKE_SCREENSHOT_DIR || TMP, 'task_header_workspace.png'));
-      },
-    },
-    {
-      name: 'cabecera: una tarea en backlog también muestra su workspace',
-      fn: async (ctx) => {
-        const wsName = await openTask(ctx, 'backlog', false);
-        const line = ctx.page.locator('[data-task-workspace]:visible').first();
-        await line.waitFor({ timeout: 10000 });
-        ctx.assert((await line.innerText()).includes(wsName), 'la cabecera de una tarea en backlog debe mostrar el workspace');
       },
     },
   ],
