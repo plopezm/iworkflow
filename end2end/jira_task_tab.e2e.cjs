@@ -159,8 +159,32 @@ module.exports = {
         const sent = (await mockWorklogs()).filter((w) => w.issueKey === ISSUE);
         ctx.assert(sent.length === 1, `el mock debía recibir 1 worklog y recibió ${sent.length}`);
         ctx.assert(sent[0].timeSpentSeconds === 900, `timeSpentSeconds ${sent[0].timeSpentSeconds} !== 900`);
-        ctx.assert(await panel(ctx).getByRole('button', { name: 'Registrar en Jira', exact: true }).isDisabled(),
-          'el botón debe quedar deshabilitado tras registrar');
+        ctx.assert(await panel(ctx).getByRole('button', { name: 'Registrar en Jira', exact: true }).isEnabled(),
+          'el botón debe seguir habilitado tras registrar: se puede registrar más tiempo a mano');
+      },
+    },
+    {
+      name: 'log_worklog_repeat: tras registrar con nada pendiente se puede registrar otro tiempo, uno a uno',
+      fn: async (ctx) => {
+        await connectAndSync(ctx, { fresh: true });
+        await finishedTask(ctx, 'tab-repeat');
+        await linkIssue(ctx, ISSUE);
+        const register = panel(ctx).getByRole('button', { name: 'Registrar en Jira', exact: true });
+        // Primer registro por encima de lo pendiente: ya no queda tiempo por registrar.
+        await panel(ctx).getByLabel('Tiempo', { exact: true }).fill('8h');
+        await register.click();
+        await panel(ctx).getByText('Registrado: 8h', { exact: true }).first().waitFor({ timeout: 15000 });
+        await panel(ctx).getByText('No queda tiempo por registrar.').first().waitFor({ timeout: 15000 });
+        // Segundo y tercero, también a mano y con el botón siempre disponible.
+        await panel(ctx).getByLabel('Tiempo', { exact: true }).fill('15m');
+        await register.click();
+        await panel(ctx).getByText('Registrado: 8h 15m', { exact: true }).first().waitFor({ timeout: 15000 });
+        await panel(ctx).getByLabel('Tiempo', { exact: true }).fill('10m');
+        await register.click();
+        await panel(ctx).getByText('Registrado: 8h 25m', { exact: true }).first().waitFor({ timeout: 15000 });
+        const sent = (await mockWorklogs()).filter((w) => w.issueKey === ISSUE).map((w) => w.timeSpentSeconds);
+        ctx.assert(JSON.stringify(sent) === JSON.stringify([28800, 900, 600]), `worklogs enviados ${JSON.stringify(sent)} !== [28800,900,600]`);
+        ctx.assert(await register.isEnabled(), 'el botón debe seguir habilitado');
       },
     },
     {

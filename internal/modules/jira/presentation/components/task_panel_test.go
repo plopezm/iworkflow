@@ -148,7 +148,7 @@ func TestJiraTaskPanelRunningTaskShowsNoBanner(t *testing.T) {
 	assert.NotContains(t, html, "Task terminada")
 }
 
-func TestJiraTaskPanelShowsWhatWasLoggedAndDisablesTheButton(t *testing.T) {
+func TestJiraTaskPanelShowsWhatWasLoggedAndKeepsTheButtonEnabled(t *testing.T) {
 	t.Parallel()
 	view := state.TaskPanelView{
 		TaskID:  "t1",
@@ -164,7 +164,7 @@ func TestJiraTaskPanelShowsWhatWasLoggedAndDisablesTheButton(t *testing.T) {
 
 	assert.Contains(t, html, "Registrado: 1h 30m")
 	assert.Contains(t, html, "No queda tiempo por registrar.")
-	assert.Contains(t, html, `class="btn-primary" disabled>`)
+	assert.NotContains(t, html, `class="btn-primary" disabled`, "more time can always be logged by hand")
 	assert.Contains(t, html, "Registros anteriores")
 	assert.Contains(t, html, "2026-11-11 12:00 · 1h 30m")
 }
