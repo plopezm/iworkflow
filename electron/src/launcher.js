@@ -12,6 +12,8 @@ const LISTEN_PATTERN = /(?:escuchando en |msg=listening url=)(https?):\/\/(?:\[(
 // Loopback names of this machine. URL.hostname keeps the brackets of an IPv6 literal ('[::1]'), while the
 // hosts of a listen address do not ('::1'), so the two sets differ only in that spelling.
 const LOCAL_CERT_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']); // hostnames of URLs (certificate errors)
+// https: pages and the wss: WebSocket of the terminal share the server certificate.
+const SECURE_PROTOCOLS = new Set(['https:', 'wss:']);
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']); // hosts of listen addresses (probing)
 /** Exit code with which the server asks its supervisor to start it again. */
 const RESTART_EXIT_CODE = 75;
@@ -134,7 +136,7 @@ function isLocalServerCertUrl(url, addr) {
   try {
     const parsed = new URL(url);
     return (
-      parsed.protocol === 'https:' &&
+      SECURE_PROTOCOLS.has(parsed.protocol) &&
       LOCAL_CERT_HOSTS.has(parsed.hostname) &&
       Number(parsed.port || 443) === addr.port
     );

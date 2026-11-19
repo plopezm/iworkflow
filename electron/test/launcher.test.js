@@ -147,6 +147,15 @@ test('the local certificate is trusted only for loopback https on the exact serv
   assert.equal(isLocalServerCertUrl('https://127.0.0.1:9000/', null), false);
 });
 
+test('the local certificate is also trusted for the secure WebSocket of the terminal', () => {
+  const addr = { scheme: 'https', host: '0.0.0.0', port: 9000 };
+  assert.equal(isLocalServerCertUrl('wss://127.0.0.1:9000/terminal/ws', addr), true);
+  assert.equal(isLocalServerCertUrl('wss://localhost:9000/terminal/ws', addr), true);
+  assert.equal(isLocalServerCertUrl('wss://127.0.0.1:9001/terminal/ws', addr), false);
+  assert.equal(isLocalServerCertUrl('wss://example.com:9000/terminal/ws', addr), false);
+  assert.equal(isLocalServerCertUrl('ws://127.0.0.1:9000/terminal/ws', addr), false);
+});
+
 test('only loopback hosts are probed with a relaxed TLS handshake', () => {
   assert.equal(isLocalHost('127.0.0.1'), true);
   assert.equal(isLocalHost('localhost'), true);

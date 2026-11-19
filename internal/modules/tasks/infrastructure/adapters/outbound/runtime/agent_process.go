@@ -33,7 +33,7 @@ const (
 	survivorsTrackInterval = 250 * time.Millisecond
 	// survivorsTrackTimeout bounds one process listing.
 	survivorsTrackTimeout = 2 * time.Second
-	// survivorsKillTrackTimeout bounds the snapshot taken right before a forced kill.
+	// survivorsKillTrackTimeout bounds the snapshot taken right before a forced kill and the last one at the end.
 	survivorsKillTrackTimeout = 500 * time.Millisecond
 	errAlreadyRunning         = "el agente ya está en ejecución"
 )
@@ -279,9 +279,11 @@ func (p *ProcessRuntime) supervise(ctx context.Context, proc *agentProcess, pipe
 	// MCP servers often detach from the group (setsid), so they are remembered while the agent lives and
 	// killed after it ends. A separate goroutine records them: a slow process listing must never delay a stop.
 	survivors := process.NewSurvivors()
+	trackCtx, stopTracking := context.WithCancel(ctx)
+	defer stopTracking()
 	trackStop := make(chan struct{})
 	trackerDone := make(chan struct{})
-	go trackSurvivors(ctx, survivors, proc.pgid, trackStop, trackerDone)
+	go trackSurvivors(trackCtx, survivors, proc.pgid, trackStop, trackerDone)
 	// The loop ends when stdout reaches EOF: the agent and everything holding its stdout are gone.
 loop:
 	for {
@@ -311,10 +313,12 @@ loop:
 		forceTimer.Stop()
 	}
 	// Tracking ends before the leader is waited for, so a recycled pid can never become a root. One last
-	// bounded snapshot catches what started since the previous tick.
+	// bounded snapshot catches what started since the previous tick. Cancelling the tracker aborts a listing in
+	// flight, so joining it adds no latency; the final snapshot has the short bound of a forced kill.
 	close(trackStop)
+	stopTracking()
 	<-trackerDone
-	trackSurvivorsOnce(ctx, survivors, proc.pgid)
+	trackSurvivorsWithin(ctx, survivors, proc.pgid, survivorsKillTrackTimeout)
 
 	// Waiting starts only now, so the leader is still unreaped, and so its pid and pgid are reserved, while
 	// the kills above were sent.
