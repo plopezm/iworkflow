@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"iworkflow/internal/core/env"
+	"iworkflow/internal/core/process"
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/inbound"
@@ -27,7 +28,14 @@ var _ outbound.AgentProcessLocator = (*ProcessRuntime)(nil)
 const (
 	defaultStopTimeout = 15 * time.Second
 	defaultExitTimeout = 5 * time.Second
-	errAlreadyRunning  = "el agente ya está en ejecución"
+	// survivorsTrackInterval is how often the descendants of a live agent are recorded. A server that
+	// detaches and whose agent exits within one interval is never seen; the interval bounds that window.
+	survivorsTrackInterval = 250 * time.Millisecond
+	// survivorsTrackTimeout bounds one process listing.
+	survivorsTrackTimeout = 2 * time.Second
+	// survivorsKillTrackTimeout bounds the snapshot taken right before a forced kill.
+	survivorsKillTrackTimeout = 500 * time.Millisecond
+	errAlreadyRunning         = "el agente ya está en ejecución"
 )
 
 // agentProcess is the registry entry of one live agent. The supervisor and the stop path share it.
@@ -268,6 +276,12 @@ func (p *ProcessRuntime) supervise(ctx context.Context, proc *agentProcess, pipe
 	killRequested := proc.killRequest
 	var forceClose <-chan time.Time
 	var forceTimer *time.Timer
+	// MCP servers often detach from the group (setsid), so they are remembered while the agent lives and
+	// killed after it ends. A separate goroutine records them: a slow process listing must never delay a stop.
+	survivors := process.NewSurvivors()
+	trackStop := make(chan struct{})
+	trackerDone := make(chan struct{})
+	go trackSurvivors(ctx, survivors, proc.pgid, trackStop, trackerDone)
 	// The loop ends when stdout reaches EOF: the agent and everything holding its stdout are gone.
 loop:
 	for {
@@ -278,6 +292,9 @@ loop:
 			writerFinished = nil
 		case <-killRequested:
 			killRequested = nil
+			// The kill re-parents the agent's children, hiding them from the tree. A last snapshot, bounded
+			// so a slow listing cannot hold the stop back, records what started since the previous tick.
+			trackSurvivorsWithin(ctx, survivors, proc.pgid, survivorsKillTrackTimeout)
 			if err := killAgent(ctx, proc); err != nil {
 				slog.Warn("no se pudo matar el agente", "task_id", proc.taskID, "error", err)
 			}
@@ -293,6 +310,11 @@ loop:
 	if forceTimer != nil {
 		forceTimer.Stop()
 	}
+	// Tracking ends before the leader is waited for, so a recycled pid can never become a root. One last
+	// bounded snapshot catches what started since the previous tick.
+	close(trackStop)
+	<-trackerDone
+	trackSurvivorsOnce(ctx, survivors, proc.pgid)
 
 	// Waiting starts only now, so the leader is still unreaped, and so its pid and pgid are reserved, while
 	// the kills above were sent.
@@ -314,6 +336,9 @@ loop:
 	code := exitCode(waitErr, proc.cmd.ProcessState)
 	// The agent is gone, but the MCP servers it started may still run in its group.
 	sweepGroup(proc.pgid)
+	if killed := survivors.Kill(); killed > 0 {
+		slog.Info("se cerraron procesos del agente fuera de su grupo", "task_id", proc.taskID, "count", killed)
+	}
 
 	drainTimer := time.NewTimer(p.exitTimeout)
 	select {
@@ -338,6 +363,35 @@ loop:
 	}
 	p.mu.Unlock()
 	close(proc.done)
+}
+
+// trackSurvivors records the descendants of root right away and then every survivorsTrackInterval, until
+// stop is closed. It closes done on return.
+func trackSurvivors(ctx context.Context, survivors *process.Survivors, root int, stop <-chan struct{}, done chan<- struct{}) {
+	defer close(done)
+	trackSurvivorsOnce(ctx, survivors, root)
+	ticker := time.NewTicker(survivorsTrackInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			trackSurvivorsOnce(ctx, survivors, root)
+		}
+	}
+}
+
+// trackSurvivorsOnce takes one snapshot bounded by survivorsTrackTimeout.
+func trackSurvivorsOnce(ctx context.Context, survivors *process.Survivors, root int) {
+	trackSurvivorsWithin(ctx, survivors, root, survivorsTrackTimeout)
+}
+
+// trackSurvivorsWithin takes one snapshot bounded by timeout.
+func trackSurvivorsWithin(ctx context.Context, survivors *process.Survivors, root int, timeout time.Duration) {
+	boundedCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	survivors.Track(boundedCtx, root)
 }
 
 // exitCode returns the exit code of the leader, or nil when it was killed by a signal or could not be
