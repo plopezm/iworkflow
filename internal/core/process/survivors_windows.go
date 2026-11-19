@@ -17,22 +17,25 @@ import (
 // closing the job kills them all, even when the parent already exited. If this process dies, the OS closes
 // the handle and kills them too.
 type Survivors struct {
-	mu   sync.Mutex
-	job  windows.Handle
-	done bool
+	mu  sync.Mutex
+	job windows.Handle
+	// settled is set by the first Track attempt, successful or not, and by Kill: a failure is final, so a
+	// persistent one is neither retried nor logged every tick.
+	settled bool
 }
 
 // NewSurvivors returns an empty set; the job is created by the first Track.
 func NewSurvivors() *Survivors { return &Survivors{} }
 
-// Track puts root in the job on the first call. Later calls do nothing: descendants join on their own.
+// Track puts root in the job on the first call and never retries. Descendants join on their own.
 // Processes started before the assignment are not inside; the window is the time between Start and Track.
 func (s *Survivors) Track(_ context.Context, root int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.job != 0 || s.done || root <= 0 {
+	if s.settled || root <= 0 {
 		return
 	}
+	s.settled = true
 	job, err := newKillOnCloseJob()
 	if err != nil {
 		slog.Warn("no se pudo crear el job del agente", "error", err)
@@ -51,7 +54,7 @@ func (s *Survivors) Track(_ context.Context, root int) {
 func (s *Survivors) Kill() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.done = true
+	s.settled = true
 	if s.job == 0 {
 		return 0
 	}

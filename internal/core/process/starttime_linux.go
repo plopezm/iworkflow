@@ -15,7 +15,12 @@ func processStartStamp(pid int) string {
 	if err != nil {
 		return ""
 	}
-	stat := string(raw)
+	return parseStartStamp(string(raw))
+}
+
+// parseStartStamp extracts field 22 from a /proc/<pid>/stat line, or "" when the line is malformed. comm
+// may hold spaces and parentheses, so the line is split after the last ')'.
+func parseStartStamp(stat string) string {
 	closing := strings.LastIndexByte(stat, ')')
 	if closing < 0 {
 		return ""
