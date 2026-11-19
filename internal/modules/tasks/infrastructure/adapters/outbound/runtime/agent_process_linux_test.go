@@ -484,7 +484,7 @@ func TestKillAgentAfterItExitedIsANoOp(t *testing.T) {
 
 // Rule from source: a grandchild that leaves the process group (setsid) is outside the kill reach. The
 // forced stop must still return: stdout is closed after exitTimeout so a held pipe cannot block the stop.
-// The escaped process itself is not reached; the test kills it at cleanup and documents that limit.
+// The escaped process is a descendant tracked while the agent lived, so it is killed once the agent is gone.
 func TestStopReturnsEvenWhenAGrandchildEscapesTheGroupAndHoldsStdout(t *testing.T) {
 	if _, err := exec.LookPath("setsid"); err != nil {
 		t.Skip("setsid is not installed")
@@ -509,7 +509,8 @@ func TestStopReturnsEvenWhenAGrandchildEscapesTheGroupAndHoldsStdout(t *testing.
 	assert.Less(t, time.Since(started), 5*time.Second, "stop must not wait for a process outside the group")
 	assert.False(t, runtime.IsRunning(taskID))
 	assert.Equal(t, []*int32{nil}, sink.exitCodes())
-	assert.True(t, processAlive(escaped), "known limit: a process that left the group is not reached by the kill")
+	assert.Eventually(t, func() bool { return !processAlive(escaped) }, waitTimeout, pollInterval,
+		"a process that left the group must be killed with the agent")
 }
 
 func int32Ptr(value int32) *int32 {
@@ -587,4 +588,23 @@ func (c *scriptedCodec) Encode(command models.AgentCommand, requestID string) (s
 		return "", false, nil
 	}
 	return c.encodeFn(command, requestID)
+}
+
+// Rule from the request: an agent that ends on its own must not leave the MCP servers it started, even
+// when they detached from its process group.
+func TestDetachedChildIsKilledWhenTheAgentExitsOnItsOwn(t *testing.T) {
+	if _, err := exec.LookPath("setsid"); err != nil {
+		t.Skip("setsid is not installed")
+	}
+	runtime := newTestRuntime(t, "sh", testStopTimeout)
+	pidFile := filepath.Join(t.TempDir(), "detached.pid")
+	script := "setsid sleep 300 </dev/null >/dev/null 2>&1 & echo $! > " + shellPath(pidFile) + "; sleep 2.5"
+	_, sink := startAgent(t, runtime, LaunchSpec{AgentArgs: []string{"-c", script}}, &scriptedCodec{})
+	detached := readPIDFile(t, pidFile)
+	t.Cleanup(func() { _ = syscall.Kill(detached, syscall.SIGKILL) })
+
+	require.Eventually(t, func() bool { return len(sink.exitCodes()) == 1 }, 3*waitTimeout, pollInterval)
+
+	assert.Eventually(t, func() bool { return !processAlive(detached) }, waitTimeout, pollInterval,
+		"the detached child outlived the agent")
 }

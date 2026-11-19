@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"iworkflow/internal/core/env"
+	"iworkflow/internal/core/process"
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/inbound"
@@ -27,7 +28,9 @@ var _ outbound.AgentProcessLocator = (*ProcessRuntime)(nil)
 const (
 	defaultStopTimeout = 15 * time.Second
 	defaultExitTimeout = 5 * time.Second
-	errAlreadyRunning  = "el agente ya está en ejecución"
+	// survivorsTrackInterval is how often the descendants of a live agent are recorded.
+	survivorsTrackInterval = time.Second
+	errAlreadyRunning      = "el agente ya está en ejecución"
 )
 
 // agentProcess is the registry entry of one live agent. The supervisor and the stop path share it.
@@ -268,6 +271,12 @@ func (p *ProcessRuntime) supervise(ctx context.Context, proc *agentProcess, pipe
 	killRequested := proc.killRequest
 	var forceClose <-chan time.Time
 	var forceTimer *time.Timer
+	// MCP servers often detach from the group (setsid), so they are remembered while the agent lives and
+	// killed after it ends.
+	survivors := process.NewSurvivors()
+	survivors.Track(ctx, proc.pgid)
+	trackTicker := time.NewTicker(survivorsTrackInterval)
+	defer trackTicker.Stop()
 	// The loop ends when stdout reaches EOF: the agent and everything holding its stdout are gone.
 loop:
 	for {
@@ -276,8 +285,11 @@ loop:
 			break loop
 		case <-writerFinished:
 			writerFinished = nil
+		case <-trackTicker.C:
+			survivors.Track(ctx, proc.pgid)
 		case <-killRequested:
 			killRequested = nil
+			survivors.Track(ctx, proc.pgid)
 			if err := killAgent(ctx, proc); err != nil {
 				slog.Warn("no se pudo matar el agente", "task_id", proc.taskID, "error", err)
 			}
@@ -314,6 +326,9 @@ loop:
 	code := exitCode(waitErr, proc.cmd.ProcessState)
 	// The agent is gone, but the MCP servers it started may still run in its group.
 	sweepGroup(proc.pgid)
+	if killed := survivors.Kill(); killed > 0 {
+		slog.Info("se cerraron procesos del agente fuera de su grupo", "task_id", proc.taskID, "count", killed)
+	}
 
 	drainTimer := time.NewTimer(p.exitTimeout)
 	select {
