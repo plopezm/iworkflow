@@ -316,6 +316,48 @@ func TestMergeTaskSuccessorTriggerErrorDoesNotFailTheMerge(t *testing.T) {
 	assert.Equal(t, models.StatusMerged, repo.tasks[task.ID].Status)
 }
 
+// cancellingMerger cancels the request while the local merge runs, as a closed tab does.
+type cancellingMerger struct {
+	*fakeWorktree
+	cancel context.CancelFunc
+}
+
+func (w cancellingMerger) Merge(ctx context.Context, repo string, base string, branch string, message string) (models.MergeOutcome, error) {
+	w.cancel()
+	return w.fakeWorktree.Merge(ctx, repo, base, branch, message)
+}
+
+// Rule (T5, S3): once the local merge succeeded it cannot be undone, so a cancelled request still records the task as
+// merged; otherwise the task would stay awaiting review with its branch already merged.
+func TestMergeTaskCancelledAfterTheLocalMergeStillRecordsMerged(t *testing.T) {
+	task, repo, worktrees := mergeFixture(models.StatusAwaitingReview)
+	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: repo})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	_, err := application.NewMergeTask(lifecycle, cancellingMerger{fakeWorktree: worktrees, cancel: cancel}, nil, nil).Execute(ctx, task.ID)
+
+	require.NoError(t, err)
+	assert.Len(t, worktrees.merged, 1)
+	assert.Len(t, worktrees.removed, 1, "the cleanup runs after the merge")
+	assert.Equal(t, models.StatusMerged, repo.tasks[task.ID].Status)
+}
+
+// Rule (T5, S3): when the merge is done but the Merged status cannot be saved, the error says so and the task stays
+// awaiting review.
+func TestMergeTaskMergedTransitionFailureSaysTheMergeWasDone(t *testing.T) {
+	task, repo, worktrees := mergeFixture(models.StatusAwaitingReview)
+	repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusMerged: werrors.Repository("db bloqueada")}
+	lifecycle, _ := newLifecycle(repo)
+
+	_, err := application.NewMergeTask(lifecycle, worktrees, nil, nil).Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Repository("db bloqueada"))
+	assert.Contains(t, err.Error(), "integrada, pero no se pudo guardar el estado")
+	assert.Len(t, worktrees.merged, 1, "the merge itself was done")
+	assert.Equal(t, models.StatusAwaitingReview, repo.tasks[task.ID].Status)
+}
+
 // Rust: merge_task::open_remote_request_is_merged_remotely_instead_of_locally
 func TestMergeTaskOpenRemoteRequestIsMergedRemotelyInsteadOfLocally(t *testing.T) {
 	task, repo, worktrees := mergeFixture(models.StatusAwaitingReview)

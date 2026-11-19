@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	werrors "iworkflow/internal/modules/tasks/domain/errors"
@@ -14,7 +15,7 @@ import (
 
 // FinishTask closes the agent, consolidates the pending changes into a commit and leaves the task ready for
 // manual review. The worktree and the branch are kept for the review. The attachments of the task are cleaned up
-// afterwards, best effort. When the consolidation fails, the task ends in failed with the error text.
+// afterwards, best effort. When the consolidation fails, the task is rolled back (see rollback) with the error text.
 type FinishTask struct {
 	lifecycle *TaskLifecycle
 	worktrees outbound.Worktree
@@ -22,6 +23,8 @@ type FinishTask struct {
 	cleanup   *AttachmentCleanup
 	// hooks are the optional lifecycle hooks around the finish. Nil runs none.
 	hooks outbound.LifecycleHooks
+	// closer lists and closes the processes that use the worktree files. Nil lists and closes none.
+	closer outbound.WorktreeProcessCloser
 
 	// mu guards inFlight. It is never held while the hooks run or the agent is stopped.
 	mu       sync.Mutex
@@ -44,15 +47,49 @@ func (u *FinishTask) SetLifecycleHooks(hooks outbound.LifecycleHooks) {
 	u.hooks = hooks
 }
 
+// SetProcessCloser sets the port that lists and closes the processes using the worktree files.
+// Nil, the default, closes none.
+func (u *FinishTask) SetProcessCloser(closer outbound.WorktreeProcessCloser) {
+	u.closer = closer
+}
+
 // Execute finishes the task. It fails, changing nothing, when the task is missing, its status does not allow
 // finishing, or a pre hook blocks it (the error wraps errors.ErrHookBlocked). A consolidation failure is returned
-// after the task is marked failed. The finish is the task_finish action of v1: it has no merge, which is the
+// after the task is rolled back. The finish is the task_finish action of v1: it has no merge, which is the
 // separate MergeTask use case.
 //
 // Two finishes of one task never overlap: the second one is refused while the first is in flight, so the pre hooks
 // run once. The claim is only in memory, which is enough for the single server process. A finish that ends in a
 // blocked pre hook changes nothing, so it releases the claim with the status as it was.
 func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
+	return u.ExecuteClosing(ctx, id, nil)
+}
+
+// Preview lists the processes that use the files of the worktree, so the user can decide which ones to close
+// before the finish. It changes nothing: the status, the agent and the worktree stay as they are. A task that
+// cannot finish is refused with the same error as Execute. A scan that fails is logged and answers no processes,
+// because it must never block the finish.
+func (u *FinishTask) Preview(ctx context.Context, id models.TaskID) ([]models.WorktreeProcess, error) {
+	task, err := u.lifecycle.Load(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if !task.Status.CanFinish() {
+		return nil, invalidState("finalizar", task.Status)
+	}
+	if u.closer == nil || task.WorktreePath == "" {
+		return nil, nil
+	}
+	users, err := u.closer.ListUsers(ctx, id, task.WorktreePath)
+	if err != nil {
+		slog.Warn("could not list the processes using the worktree", "task_id", id.String(), "error", err)
+	}
+	return users, nil
+}
+
+// ExecuteClosing is Execute that also closes the selected processes, once the agent is stopped and before the
+// commit. The selection comes from Preview; the closer re-checks each process before it acts.
+func (u *FinishTask) ExecuteClosing(ctx context.Context, id models.TaskID, selected []models.WorktreeProcess) error {
 	if !u.begin(id) {
 		task, err := u.lifecycle.Load(ctx, id)
 		if err != nil {
@@ -69,6 +106,8 @@ func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
 	if !task.Status.CanFinish() {
 		return invalidState("finalizar", task.Status)
 	}
+	// The status the task had when the finish started: a failed finish goes back to it (see rollback).
+	previous := task.Status
 	workspacePath, err := u.hookWorkspacePath(ctx, task)
 	if err != nil {
 		return err
@@ -94,17 +133,12 @@ func (u *FinishTask) Execute(ctx context.Context, id models.TaskID) error {
 	if err := u.lifecycle.Transition(detached, id, models.StatusFinishing, nil); err != nil {
 		return err
 	}
-	if err := u.consolidate(detached, task); err != nil {
-		message := err.Error()
-		// Intentional improvement over Rust: when marking the task failed fails too, both errors are returned, so the
-		// consolidation error is not masked. errors.Join keeps errors.Is and errors.As working on each of them.
-		if transitionErr := u.lifecycle.Transition(detached, id, models.StatusFailed, &message); transitionErr != nil {
-			return errors.Join(err, transitionErr)
-		}
-		return err
+	agent, err := u.consolidate(detached, task, selected)
+	if err != nil {
+		return u.rollback(detached, id, previous, agent, err)
 	}
 	if err := u.lifecycle.Transition(detached, id, models.StatusAwaitingReview, nil); err != nil {
-		return err
+		return u.rollback(detached, id, previous, agent, err)
 	}
 	// The post hooks run once the task awaits review; their failure does not fail the finish.
 	task.Status = models.StatusAwaitingReview
@@ -142,14 +176,67 @@ func (u *FinishTask) hookWorkspacePath(ctx context.Context, task models.Task) (s
 	return workspace.Path, nil
 }
 
-// consolidate stops the agent when it is still alive and commits every pending change of the worktree.
-func (u *FinishTask) consolidate(ctx context.Context, task models.Task) error {
+// agentLeft says what the consolidation left of the agent.
+type agentLeft int
+
+const (
+	// agentAlive: a stop failed, so the agent is still alive.
+	agentAlive agentLeft = iota
+	// agentNotRunning: no agent was alive when the finish checked, for example it crashed.
+	agentNotRunning
+	// agentStopped: the finish stopped the live agent.
+	agentStopped
+)
+
+// rollback returns a task that left finishing with a failure to the status it should have. The target is failed when
+// the previous status was finishing (a finish that died halfway). It is interrupted when the finish stopped a live agent,
+// and also when no agent was alive and the previous status claimed one: a running or idle status would be false then.
+// Otherwise it is the previous status (a failed stop leaves the agent alive). The failure is the error text, so the task
+// stays visible with the reason. errors.Join keeps errors.Is and errors.As working on the original error when the
+// restore itself fails too.
+func (u *FinishTask) rollback(ctx context.Context, id models.TaskID, previous models.TaskStatus, agent agentLeft, cause error) error {
+	target := previous
+	switch {
+	case previous == models.StatusFinishing:
+		target = models.StatusFailed
+	case agent == agentStopped, agent == agentNotRunning && previous.HasLiveAgent():
+		target = models.StatusInterrupted
+	}
+	message := cause.Error()
+	if err := u.lifecycle.Transition(ctx, id, target, &message); err != nil {
+		return errors.Join(cause, err)
+	}
+	return cause
+}
+
+// consolidate stops the agent when it is still alive and commits every pending change of the worktree. It reports what
+// is left of the agent: a failed stop leaves it alive, so the previous status is kept as it was.
+func (u *FinishTask) consolidate(ctx context.Context, task models.Task, selected []models.WorktreeProcess) (agentLeft, error) {
+	agent := agentNotRunning
 	if u.runtime.IsRunning(ctx, task.ID) {
 		if err := u.runtime.Stop(ctx, task.ID); err != nil {
-			return err
+			return agentAlive, err
 		}
+		agent = agentStopped
 	}
+	u.closeWorktreeUsers(ctx, task, selected)
 	message := "pi: " + task.Title
 	_, err := u.worktrees.CommitAll(ctx, task.WorktreePath, message)
-	return err
+	return agent, err
+}
+
+// closeWorktreeUsers closes the processes the user selected (terminals, dev servers, children the agent left
+// behind), so nothing keeps writing while the commit is made and nothing holds the files afterwards. It is best
+// effort: a failure is logged and never fails the finish.
+func (u *FinishTask) closeWorktreeUsers(ctx context.Context, task models.Task, selected []models.WorktreeProcess) {
+	if u.closer == nil || task.WorktreePath == "" || len(selected) == 0 {
+		return
+	}
+	closed, err := u.closer.CloseUsers(ctx, task.WorktreePath, selected)
+	if err != nil {
+		slog.Warn("could not close every selected process", "task_id", task.ID.String(), "error", err)
+	}
+	if closed > 0 {
+		slog.Info("closed the processes using the worktree", "task_id", task.ID.String(), "count", closed)
+	}
 }

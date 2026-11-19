@@ -106,6 +106,8 @@ async function finishedTask(ctx, key, opts = {}) {
     await page.getByRole('button', { name: 'Sí' }).first().click();
   }
   await page.getByRole('button', { name: 'Finalizar' }).click();
+  // The button opens the dialog of the processes; its own Finalizar confirms the finish.
+  await page.locator('[data-task-finish] button[type="submit"]').click();
   await page.getByText('Pendiente de revisión').first().waitFor({ timeout: 25000 });
   return t;
 }
@@ -132,6 +134,20 @@ module.exports = {
       },
     },
     {
+      name: 'finish_task: el diálogo de finalizar se cierra con "Cancelar" sin finalizar la tarea',
+      fn: async (ctx) => {
+        await liveTask(ctx, 'cancelfin');
+        const page = ctx.page;
+        await openActions(ctx);
+        await page.getByRole('button', { name: 'Finalizar' }).click();
+        await page.locator('[data-task-finish]').waitFor({ state: 'visible', timeout: 10000 });
+        await page.locator('[data-task-finish]').getByRole('button', { name: 'Cancelar' }).click();
+        await page.locator('[data-task-finish]').waitFor({ state: 'hidden', timeout: 10000 });
+        const finished = await page.getByText('Pendiente de revisión').first().isVisible().catch(() => false);
+        ctx.assert(!finished, 'Cancelar finalizó la tarea');
+      },
+    },
+    {
       name: 'finish_task: una tarea atascada en "Finalizando" muestra la ayuda y "Finalizar" la reintenta',
       fn: async (ctx) => {
         const t = await liveTask(ctx, 'stuckfin');
@@ -143,6 +159,7 @@ module.exports = {
         // What the user sees: the way out is explained and the finish is offered again.
         await page.getByText(/La finalización no se completó/).first().waitFor({ timeout: 10000 });
         await page.getByRole('button', { name: 'Finalizar' }).click();
+        await page.locator('[data-task-finish] button[type="submit"]').click();
         await page.getByText('Pendiente de revisión').first().waitFor({ timeout: 25000 });
         await page.getByText(/La finalización no se completó/).first().waitFor({ state: 'detached', timeout: 10000 });
         await page.locator('h1 + div .badge', { hasText: 'Finalizando' }).first().waitFor({ state: 'detached', timeout: 10000 });
@@ -156,8 +173,10 @@ module.exports = {
         await openActions(ctx);
         // The click posts the finish and the page leaves right after the request went out, which cancels it on the
         // server. The finish must still complete: the task is never left in "Finalizando" nor needs a second try.
-        const sent = page.waitForRequest((r) => r.url().includes(`/tasks/${t.id}/finish`), { timeout: 10000 });
+        // The POST, not the GET of the dialog: both addresses start with the same path.
+        const sent = page.waitForRequest((r) => r.method() === 'POST' && r.url().includes(`/tasks/${t.id}/finish`), { timeout: 10000 });
         await page.getByRole('button', { name: 'Finalizar' }).click();
+        await page.locator('[data-task-finish] button[type="submit"]').click();
         await sent;
         await ctx.goto('/');
         await sleep(4000);

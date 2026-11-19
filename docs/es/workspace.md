@@ -38,6 +38,8 @@ starting → running ⇄ idle → finishing → awaiting_review → merged
 
 | Situación | Qué hace la app |
 |---|---|
+| Finalizar una tarea | Un diálogo lista los procesos que usan el worktree (una terminal, un servidor de desarrollo, un hijo que dejó el agente): su directorio de trabajo, ejecutable o archivos abiertos están dentro. El agente de la propia tarea no aparece; se detiene igualmente. A los procesos marcados se les pide salir (SIGTERM y, pasados unos segundos, se matan; Windows los termina al instante) antes del commit, los desmarcados siguen en marcha y *Cancelar* no cambia nada. En Windows solo se detectan el ejecutable y el directorio de trabajo, no los archivos abiertos. |
+| Falla finalizar, descartar o integrar | La tarea vuelve al estado que tenía: `interrupted` si el agente ya se había detenido (se puede reanudar y finalizar), o el estado anterior en otro caso, mostrando el error. Un merge que ya se hizo no se puede deshacer, así que la tarea queda `merged` aunque se cancele la petición. |
 | Conflicto al integrar | `merge --abort`; la tarea pasa a `conflict` y conserva el worktree. Reanuda el agente para resolverlo. |
 | Rama base con cambios sin commitear | Rechaza el merge sin tocar nada. |
 | Rama base sin checkout | Integra en un worktree temporal. |

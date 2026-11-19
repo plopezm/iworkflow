@@ -99,6 +99,8 @@ async function finishedTask(ctx, key, opts = {}) {
     await page.getByRole('button', { name: 'Sí' }).first().click();
   }
   await page.getByRole('button', { name: 'Finalizar' }).click();
+  // The button opens the dialog of the processes; its own Finalizar confirms the finish.
+  await page.locator('[data-task-finish] button[type="submit"]').click();
   await page.getByText('Pendiente de revisión').first().waitFor({ timeout: 25000 });
   return t;
 }

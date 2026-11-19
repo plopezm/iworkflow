@@ -119,6 +119,11 @@ func (a *RpcRuntimeAdapter) StopAll(ctx context.Context) {
 	a.process.StopAll(ctx)
 }
 
+// AgentPID returns the OS pid of the pi agent of the task, when its process is alive.
+func (a *RpcRuntimeAdapter) AgentPID(taskID models.TaskID) (int, bool) {
+	return a.process.AgentPID(taskID)
+}
+
 // IsRunning reports whether the pi process of the task is alive.
 func (a *RpcRuntimeAdapter) IsRunning(_ context.Context, taskID models.TaskID) bool {
 	return a.process.IsRunning(taskID)

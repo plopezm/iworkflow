@@ -182,6 +182,23 @@ func (r *AgentRuntimeRouter) IsRunning(ctx context.Context, taskID models.TaskID
 	return ok && adapter.IsRunning(ctx, taskID)
 }
 
+var _ outbound.AgentProcessLocator = (*AgentRuntimeRouter)(nil)
+
+// AgentPID returns the OS pid of the task's agent. The router does not know which adapter holds a process, and an
+// adapter that has none for the task answers false, so every adapter that can tell is asked.
+func (r *AgentRuntimeRouter) AgentPID(taskID models.TaskID) (int, bool) {
+	for _, adapter := range r.runtimes {
+		locator, ok := adapter.(outbound.AgentProcessLocator)
+		if !ok {
+			continue
+		}
+		if pid, found := locator.AgentPID(taskID); found {
+			return pid, true
+		}
+	}
+	return 0, false
+}
+
 // Subagents returns the subagent state of the task's adapter, or nothing for an unknown task.
 func (r *AgentRuntimeRouter) Subagents(ctx context.Context, taskID models.TaskID) []models.SubagentTask {
 	adapter, ok := r.chosenAdapter(taskID)

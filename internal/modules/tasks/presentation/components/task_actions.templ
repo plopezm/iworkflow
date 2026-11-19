@@ -17,7 +17,14 @@ templ TaskActions(view state.TaskDetailView) {
 		}
 		<div class="row gap-2">
 			if view.Task.Actions.CanFinish {
-				@taskAction(view, "finish", msgFinishAndReview.T(ctx), "btn-primary", msgConfirmFinish.T(ctx), false)
+				<button
+					type="button"
+					class="btn-primary"
+					hx-get={ state.FinishPreviewPath(view.Task.ID, view.Scope) }
+					hx-target={ "#" + state.FinishSlotID(view.Scope) }
+					hx-swap="innerHTML"
+					hx-disabled-elt="this"
+				>{ msgFinishAndReview.T(ctx) }</button>
 			}
 			if view.Task.Actions.CanResume {
 				@taskAction(view, "resume", msgResumeAgent.T(ctx), "btn-secondary", "", false)
@@ -42,6 +49,7 @@ templ TaskActions(view state.TaskDetailView) {
 			</button>
 		</div>
 		<div id={ state.Scoped("task-subagents", view.Scope) }></div>
+		<div id={ state.FinishSlotID(view.Scope) }></div>
 		@TaskRelatedProjects(view)
 		if view.Task.Actions.CanMerge || view.Task.Actions.CanViewDiff {
 			<span class="eyebrow">{ msgSectionReview.T(ctx) }</span>

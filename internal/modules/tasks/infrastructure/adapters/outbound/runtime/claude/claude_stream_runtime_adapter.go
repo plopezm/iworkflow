@@ -138,6 +138,11 @@ func (a *StreamRuntimeAdapter) StopAll(ctx context.Context) {
 	a.process.StopAll(ctx)
 }
 
+// AgentPID returns the OS pid of the claude agent of the task, when its process is alive.
+func (a *StreamRuntimeAdapter) AgentPID(taskID models.TaskID) (int, bool) {
+	return a.process.AgentPID(taskID)
+}
+
 // IsRunning reports whether the claude process of the task is alive.
 func (a *StreamRuntimeAdapter) IsRunning(_ context.Context, taskID models.TaskID) bool {
 	return a.process.IsRunning(taskID)

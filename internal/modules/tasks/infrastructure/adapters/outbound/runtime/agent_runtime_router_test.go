@@ -461,3 +461,29 @@ func (f *fakeAgentRuntime) runtimeCapabilitiesCount() int {
 	defer f.mu.Unlock()
 	return f.runtimeCapabilityCalls
 }
+
+// pidAdapter is an agent runtime that also tells the OS pid of the agents it runs.
+type pidAdapter struct {
+	fakeAgentRuntime
+	pids map[models.TaskID]int
+}
+
+func (a *pidAdapter) AgentPID(taskID models.TaskID) (int, bool) {
+	pid, ok := a.pids[taskID]
+	return pid, ok
+}
+
+func TestRouterAgentPIDAsksTheAdaptersThatKnowTheTask(t *testing.T) {
+	task := newTaskID(t)
+	other := newTaskID(t)
+	router := newRouter(t,
+		&fakeAgentRuntime{}, // an adapter without pids is skipped
+		&pidAdapter{pids: map[models.TaskID]int{task: 4242}})
+
+	pid, found := router.AgentPID(task)
+	_, unknown := router.AgentPID(other)
+
+	assert.True(t, found)
+	assert.Equal(t, 4242, pid)
+	assert.False(t, unknown)
+}

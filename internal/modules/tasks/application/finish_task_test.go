@@ -58,16 +58,71 @@ func TestFinishTaskStopsAgentCommitsAndAwaitsReview(t *testing.T) {
 	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fixture.repo.statuses)
 }
 
-// Rust: finish_task::commit_failure_marks_task_failed
-func TestFinishTaskCommitFailureMarksTaskFailed(t *testing.T) {
-	task, fixture := newFinishFixture(models.StatusInterrupted)
+// Rollback (T5, S3): the finish stopped a live agent before the commit failed. The agent is gone, so the task is
+// interrupted, with the failure as its error text. The agent is checked once, before the commit.
+func TestFinishTaskCommitFailureWithLiveAgentMarksInterrupted(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusRunning)
+	fixture.runtime.running = true
+	fixture.worktrees.commitErr = werrors.Git("index.lock")
+
+	err := fixture.useCase().Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Git("index.lock"))
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusInterrupted}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
+	assert.Equal(t, []models.TaskID{task.ID}, fixture.runtime.stopped)
+	assert.Equal(t, 1, fixture.runtime.runningCalls, "the agent is checked once, before the commit")
+}
+
+// Rollback (T5, S3): a finish that fails before it touches a live agent puts the task back to the status it had when
+// the finish started, with the failure as its error text.
+func TestFinishTaskCommitFailureRestoresThePreviousStatus(t *testing.T) {
+	for _, previous := range []models.TaskStatus{models.StatusInterrupted, models.StatusFailed, models.StatusConflict} {
+		task, fixture := newFinishFixture(previous)
+		fixture.worktrees.commitErr = werrors.Git("index.lock")
+
+		err := fixture.useCase().Execute(context.Background(), task.ID)
+
+		assert.ErrorIs(t, err, werrors.Git("index.lock"), "status %s", previous)
+		assert.Equal(t, []models.TaskStatus{models.StatusFinishing, previous}, fixture.repo.statuses, "status %s", previous)
+		require.Len(t, fixture.repo.errorTexts, 2, "status %s", previous)
+		require.NotNil(t, fixture.repo.errorTexts[1], "status %s", previous)
+		assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1], "status %s", previous)
+	}
+}
+
+// Rollback (T5, S3) without a live agent: the previous status claims a live agent, but no agent is alive (it crashed).
+// Restoring that live status would be false, so the task is interrupted, with the failure as its error text.
+func TestFinishTaskCommitFailureWithoutLiveAgentMarksInterrupted(t *testing.T) {
+	for _, previous := range []models.TaskStatus{models.StatusRunning, models.StatusIdle} {
+		task, fixture := newFinishFixture(previous)
+		fixture.worktrees.commitErr = werrors.Git("index.lock")
+
+		err := fixture.useCase().Execute(context.Background(), task.ID)
+
+		assert.ErrorIs(t, err, werrors.Git("index.lock"), "status %s", previous)
+		assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusInterrupted}, fixture.repo.statuses, "status %s", previous)
+		require.Len(t, fixture.repo.errorTexts, 2, "status %s", previous)
+		require.NotNil(t, fixture.repo.errorTexts[1], "status %s", previous)
+		assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1], "status %s", previous)
+		assert.Empty(t, fixture.runtime.stopped, "status %s", previous)
+	}
+}
+
+// Rollback (T5, S3): a finish that died halfway (previous status finishing) ends failed, not finishing.
+func TestFinishTaskFinishingPreviousStatusEndsFailed(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusFinishing)
 	fixture.worktrees.commitErr = werrors.Git("index.lock")
 
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
 	assert.ErrorIs(t, err, werrors.Git("index.lock"))
 	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusFailed}, fixture.repo.statuses)
-	assert.Equal(t, 1, fixture.runtime.runningCalls, "the agent is checked once, before the commit")
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
 }
 
 // Rust: finish_task::rejects_closed_task
@@ -132,9 +187,9 @@ func TestFinishTaskAcceptsOnlyTheFinishableStatuses(t *testing.T) {
 	}
 }
 
-// Rule from source: when the live agent cannot be stopped, the finish stops before the commit and marks the task
-// failed with the stop error.
-func TestFinishTaskStopFailureMarksFailedWithoutCommitting(t *testing.T) {
+// Rollback (T5, S3): when the live agent cannot be stopped, the finish stops before the commit and restores the previous
+// status with the stop error. The agent was not stopped, so the status stays as it was (not interrupted).
+func TestFinishTaskStopFailureRestoresThePreviousStatusWithTheAgentAlive(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusRunning)
 	fixture.runtime.running = true
 	fixture.runtime.stopErr = werrors.Git("no se pudo detener")
@@ -142,12 +197,15 @@ func TestFinishTaskStopFailureMarksFailedWithoutCommitting(t *testing.T) {
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
 	assert.ErrorIs(t, err, werrors.Git("no se pudo detener"))
-	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusFailed}, fixture.repo.statuses)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusRunning}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
 	assert.Empty(t, fixture.worktrees.committed)
 }
 
-// Rule from source: the failed status keeps the consolidation error text, so the review shows why the finish failed.
-func TestFinishTaskCommitFailureStoresTheErrorTextOnFailed(t *testing.T) {
+// Rollback (T5, S3): the restored status keeps the consolidation error text, so the review shows why the finish failed.
+func TestFinishTaskCommitFailureStoresTheErrorTextOnTheRestoredStatus(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	fixture.worktrees.commitErr = werrors.Git("index.lock")
 
@@ -173,12 +231,12 @@ func TestFinishTaskKeepsAttachmentsWhenConsolidationFails(t *testing.T) {
 	assert.Empty(t, fixture.storage.deletedDirs)
 }
 
-// Intentional improvement over Rust: when the task cannot be marked failed either, both errors are returned, so the
-// consolidation error that explains the failure is not masked by the transition error.
-func TestFinishTaskReturnsBothErrorsWhenFailedTransitionAlsoFails(t *testing.T) {
+// Rollback (T5, S3): when the restore itself fails, both errors are returned, so the consolidation error that explains
+// the failure is not masked by the restore error. errors.Join keeps errors.Is working on each of them.
+func TestFinishTaskReturnsBothErrorsWhenTheRestoreAlsoFails(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	fixture.worktrees.commitErr = werrors.Git("index.lock")
-	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusFailed: werrors.Repository("db bloqueada")}
+	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusInterrupted: werrors.Repository("db bloqueada")}
 
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
@@ -227,8 +285,8 @@ func TestFinishTaskRequestCancelledMidFinishStillCompletes(t *testing.T) {
 	assert.Equal(t, models.StatusAwaitingReview, fixture.repo.tasks[task.ID].Status)
 }
 
-// Bug: a failure after the request was cancelled still marks the task failed instead of leaving it in finishing.
-func TestFinishTaskCancelledRequestWithCommitFailureStillMarksFailed(t *testing.T) {
+// Bug: a failure after the request was cancelled still restores the previous status instead of leaving it in finishing.
+func TestFinishTaskCancelledRequestWithCommitFailureStillRestoresThePreviousStatus(t *testing.T) {
 	task, fixture := newFinishFixture(models.StatusIdle)
 	lifecycle, _ := newLifecycle(cancelAwareRepository{fakeRepository: fixture.repo})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -238,5 +296,138 @@ func TestFinishTaskCancelledRequestWithCommitFailureStillMarksFailed(t *testing.
 
 	require.ErrorIs(t, useCase.Execute(ctx, task.ID), werrors.Git("index.lock"))
 
-	assert.Equal(t, models.StatusFailed, fixture.repo.tasks[task.ID].Status)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusInterrupted}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+}
+
+// Rollback (T5, S3): an AwaitingReview transition that fails after a good commit restores the previous status.
+func TestFinishTaskAwaitingReviewFailureRestoresThePreviousStatus(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusConflict)
+	fixture.repo.updateStatusErrs = map[models.TaskStatus]error{models.StatusAwaitingReview: werrors.Repository("db bloqueada")}
+
+	err := fixture.useCase().Execute(context.Background(), task.ID)
+
+	assert.ErrorIs(t, err, werrors.Repository("db bloqueada"))
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusConflict}, fixture.repo.statuses)
+	require.Len(t, fixture.repo.errorTexts, 2)
+	require.NotNil(t, fixture.repo.errorTexts[1])
+	assert.Equal(t, err.Error(), *fixture.repo.errorTexts[1])
+}
+
+// fakeProcessCloser records what finish asked it, and what had already happened by then.
+type fakeProcessCloser struct {
+	fixture          *finishFixture
+	listed           []models.WorktreeProcess
+	listErr          error
+	listCalls        []string
+	closeCalls       [][]models.WorktreeProcess
+	closedPaths      []string
+	stoppedAtClose   int
+	committedAtClose int
+	closeErr         error
+}
+
+func (f *fakeProcessCloser) ListUsers(_ context.Context, id models.TaskID, worktreePath string) ([]models.WorktreeProcess, error) {
+	f.listCalls = append(f.listCalls, id.String()+"|"+worktreePath)
+	return f.listed, f.listErr
+}
+
+func (f *fakeProcessCloser) CloseUsers(_ context.Context, worktreePath string, selected []models.WorktreeProcess) (int, error) {
+	f.closedPaths = append(f.closedPaths, worktreePath)
+	f.closeCalls = append(f.closeCalls, selected)
+	f.stoppedAtClose = len(f.fixture.runtime.stopped)
+	f.committedAtClose = len(f.fixture.worktrees.committed)
+	return len(selected), f.closeErr
+}
+
+var devServer = models.WorktreeProcess{PID: 4321, Name: "node", Path: "/worktrees/demo/abc-task/web", Reason: models.ProcessReasonWorkingDirectory, Started: "t1"}
+
+func newClosingUseCase(fixture *finishFixture, closer *fakeProcessCloser) *application.FinishTask {
+	useCase := fixture.useCase()
+	useCase.SetProcessCloser(closer)
+	return useCase
+}
+
+func TestFinishTaskPreviewListsTheProcessesAndChangesNothing(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	fixture.runtime.running = true
+	closer := &fakeProcessCloser{fixture: fixture, listed: []models.WorktreeProcess{devServer}}
+
+	users, err := newClosingUseCase(fixture, closer).Preview(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, []models.WorktreeProcess{devServer}, users)
+	assert.Equal(t, []string{task.ID.String() + "|/worktrees/demo/abc-task"}, closer.listCalls)
+	assert.Empty(t, fixture.repo.statuses, "previewing never changes the status")
+	assert.Empty(t, fixture.runtime.stopped, "previewing never stops the agent")
+	assert.Empty(t, fixture.worktrees.committed, "previewing never commits")
+	assert.Empty(t, closer.closeCalls)
+}
+
+func TestFinishTaskPreviewWithoutACloserListsNothing(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+
+	users, err := fixture.useCase().Preview(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, users)
+}
+
+func TestFinishTaskPreviewRejectsAStatusThatCannotFinish(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusMerged)
+	closer := &fakeProcessCloser{fixture: fixture, listed: []models.WorktreeProcess{devServer}}
+
+	_, err := newClosingUseCase(fixture, closer).Preview(context.Background(), task.ID)
+
+	assert.Error(t, err)
+	assert.Empty(t, closer.listCalls)
+}
+
+func TestFinishTaskPreviewTreatsAListingFailureAsNoProcesses(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	closer := &fakeProcessCloser{fixture: fixture, listErr: assert.AnError}
+
+	users, err := newClosingUseCase(fixture, closer).Preview(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, users, "a failed scan must not block the finish")
+}
+
+func TestFinishTaskClosesTheSelectedProcessesBetweenStopAndCommit(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	fixture.runtime.running = true
+	closer := &fakeProcessCloser{fixture: fixture}
+
+	err := newClosingUseCase(fixture, closer).ExecuteClosing(context.Background(), task.ID, []models.WorktreeProcess{devServer})
+
+	require.NoError(t, err)
+	assert.Equal(t, [][]models.WorktreeProcess{{devServer}}, closer.closeCalls)
+	assert.Equal(t, []string{"/worktrees/demo/abc-task"}, closer.closedPaths)
+	assert.Equal(t, 1, closer.stoppedAtClose, "the agent is stopped first")
+	assert.Equal(t, 0, closer.committedAtClose, "the processes are closed before the commit")
+	assert.Len(t, fixture.worktrees.committed, 1)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fixture.repo.statuses)
+}
+
+func TestFinishTaskExecuteClosesNothing(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	closer := &fakeProcessCloser{fixture: fixture, listed: []models.WorktreeProcess{devServer}}
+
+	err := newClosingUseCase(fixture, closer).Execute(context.Background(), task.ID)
+
+	require.NoError(t, err)
+	assert.Empty(t, closer.closeCalls, "without a selection no process is touched")
+	assert.Len(t, fixture.worktrees.committed, 1)
+}
+
+func TestFinishTaskContinuesWhenClosingTheProcessesFails(t *testing.T) {
+	task, fixture := newFinishFixture(models.StatusIdle)
+	closer := &fakeProcessCloser{fixture: fixture, closeErr: assert.AnError}
+
+	err := newClosingUseCase(fixture, closer).ExecuteClosing(context.Background(), task.ID, []models.WorktreeProcess{devServer})
+
+	require.NoError(t, err)
+	assert.Len(t, fixture.worktrees.committed, 1)
+	assert.Equal(t, []models.TaskStatus{models.StatusFinishing, models.StatusAwaitingReview}, fixture.repo.statuses)
 }
