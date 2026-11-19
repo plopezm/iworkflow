@@ -59,3 +59,24 @@ func TestSurvivorsDoesNotKillAProcessWhoseStartStampChanged(t *testing.T) {
 	assert.Equal(t, 0, survivors.Kill())
 	assert.True(t, aliveFor(other.Process.Pid, 300*time.Millisecond), "an unrelated process was killed")
 }
+
+// The set does not grow with the churn of the agent: an entry whose process is gone is dropped on the next
+// Track, while a live one is kept.
+func TestSurvivorsDropsTheEntriesOfProcessesThatExited(t *testing.T) {
+	gone := exec.Command("true")
+	require.NoError(t, gone.Run())
+	live := exec.Command("sleep", "60")
+	require.NoError(t, live.Start())
+	t.Cleanup(func() { _ = live.Process.Kill(); _ = live.Wait() })
+
+	survivors := NewSurvivors()
+	survivors.known[gone.Process.Pid] = "stale"
+	survivors.known[live.Process.Pid] = processStartStamp(live.Process.Pid)
+
+	survivors.Track(context.Background(), live.Process.Pid)
+
+	survivors.mu.Lock()
+	defer survivors.mu.Unlock()
+	assert.NotContains(t, survivors.known, gone.Process.Pid)
+	assert.Contains(t, survivors.known, live.Process.Pid)
+}

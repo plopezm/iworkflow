@@ -49,8 +49,8 @@ func (s *Survivors) Track(_ context.Context, root int) {
 	s.job = job
 }
 
-// Kill closes the job, which terminates every process still inside. It returns 1 when a job was closed
-// (the number of processes is not reported) and 0 when there was none.
+// Kill closes the job, which terminates every process still inside. It returns the number of processes
+// that were still alive in the job, and 0 when there was none or the count is unavailable.
 func (s *Survivors) Kill() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -60,11 +60,36 @@ func (s *Survivors) Kill() int {
 	}
 	job := s.job
 	s.job = 0
+	// The count is read before closing: afterwards the job no longer exists.
+	active := activeProcesses(job)
 	if err := windows.CloseHandle(job); err != nil {
 		slog.Warn("no se pudo cerrar el job del agente", "error", err)
 		return 0
 	}
-	return 1
+	return active
+}
+
+// jobBasicAccounting mirrors JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, which x/sys does not define.
+type jobBasicAccounting struct {
+	TotalUserTime             int64
+	TotalKernelTime           int64
+	ThisPeriodTotalUserTime   int64
+	ThisPeriodTotalKernelTime int64
+	TotalPageFaultCount       uint32
+	TotalProcesses            uint32
+	ActiveProcesses           uint32
+	TotalTerminatedProcesses  uint32
+}
+
+// activeProcesses returns how many processes are still alive in the job, or 0 when the query fails.
+func activeProcesses(job windows.Handle) int {
+	info := jobBasicAccounting{}
+	if err := windows.QueryInformationJobObject(job, windows.JobObjectBasicAccountingInformation,
+		uintptr(unsafe.Pointer(&info)), uint32(unsafe.Sizeof(info)), nil); err != nil { //nolint:gosec // size of a fixed struct
+		slog.Warn("no se pudo contar los procesos del job del agente", "error", err)
+		return 0
+	}
+	return int(info.ActiveProcesses)
 }
 
 func newKillOnCloseJob() (windows.Handle, error) {
