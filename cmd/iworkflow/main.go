@@ -213,19 +213,24 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	}
 	locked := addrPinned
 	addr := listen.ResolveListenAddr(siteOptions.SiteAddr, locked, prefs.NetworkAccess, prefs.SavedPort)
-	info := listen.Info{
-		Addr:          addr,
-		LockedByEnv:   locked,
-		TokenRequired: !addr.Addr().IsLoopback() && prefs.RequireToken,
-	}
-	// HTTPS is opt-in and runs next to the plain HTTP listener: browsers only expose the microphone of the voice
-	// dictation in a secure context, while the desktop app keeps using HTTP.
+	// The server is HTTPS only: HTTP/2 needs TLS and the microphone of the voice dictation needs a secure context.
+	// Only IWF_TLS=off, meant for tests and CI, serves plain HTTP.
 	secure, err := secureListener(ctx, os.Getenv, cfg.DataDir, addr, listenOn)
 	if err != nil {
 		return err
 	}
+	bind := bindFunc(listenOn)
+	var tlsPort uint16
 	if secure != nil {
-		info.TLSPort = secure.port
+		addr, bind, tlsPort = secure.addr, secure.listen, secure.port
+	} else {
+		logger.Warn("TLS is switched off (IWF_TLS=off): the server speaks plain HTTP, which is only meant for tests")
+	}
+	info := listen.Info{
+		Addr:          addr,
+		LockedByEnv:   locked,
+		TokenRequired: !addr.Addr().IsLoopback() && prefs.RequireToken,
+		TLSPort:       tlsPort,
 	}
 
 	application, err := app.New(ctx, app.Deps{
@@ -245,27 +250,19 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 	// The modules release what they hold once serving has ended. The release is registered only after the bind has
 	// succeeded: a failed bind has started nothing, and a failed start releases inside bindThenStart.
 	release := func() { shutdownApplication(ctx, logger, application) }
-	listeners := []net.Listener{}
-	listener, err := bindThenStart(ctx, addr.String(), listenOn, application.Start, release)
+	listener, err := bindThenStart(ctx, addr.String(), bind, application.Start, release)
 	if err != nil {
 		return err
 	}
 	defer release()
-	listeners = append(listeners, listener)
-	if secure != nil {
-		tlsListener, tlsErr := secure.open(ctx)
-		if tlsErr != nil {
-			_ = listener.Close()
-			return tlsErr
-		}
-		listeners = append(listeners, tlsListener)
-		logger.Info("listening", "url", "https://"+secure.addr.String())
-		logger.Info("serving HTTPS next to HTTP", "https_port", secure.port)
-	}
 	logAccess(ctx, logger, info, prefs)
-	logger.Info("listening", "url", "http://"+addr.String())
+	scheme := "http"
+	if secure != nil {
+		scheme = "https"
+	}
+	logger.Info("listening", "url", scheme+"://"+addr.String())
 	if options.OpenBrowser {
-		url := launch.BrowserURL(addr)
+		url := launch.BrowserURL(addr, secure != nil)
 		if err := launch.OpenBrowser(ctx, url); err != nil {
 			logger.Warn("open the URL manually in the browser", "url", url, "error", err)
 		}
@@ -275,7 +272,7 @@ func serve(ctx context.Context, logger *slog.Logger, options launch.Options, res
 		Handler:           application.Router(),
 		ReadHeaderTimeout: readHeaderLimit,
 	}
-	return serveUntilStopped(ctx, logger, server, listeners, restartHandle)
+	return serveUntilStopped(ctx, logger, server, []net.Listener{listener}, restartHandle)
 }
 
 // bindFunc opens the listener of the server, startFunc starts the application.
@@ -349,12 +346,13 @@ func logAccess(ctx context.Context, logger *slog.Logger, info listen.Info, prefs
 	if ip, ok := listen.LocalNetworkIP(ctx); ok {
 		host = ip.String()
 	}
-	logger.Info("access token", "token", prefs.Token.Value(), "link", app.AccessLink(host, info.Addr.Port(), prefs.Token))
+	link := app.AccessLink(host, info.Addr.Port(), prefs.Token)
 	if info.TLSPort != 0 {
-		logger.Info("access link over HTTPS", "link", app.SecureAccessLink(host, info.TLSPort, prefs.Token))
+		link = app.SecureAccessLink(host, info.TLSPort, prefs.Token)
 	}
+	logger.Info("access token", "token", prefs.Token.Value(), "link", link)
 	if info.TokenRequired {
-		logger.Info("network access is protected by a token", "link", app.AccessLink(host, info.Addr.Port(), prefs.Token))
+		logger.Info("network access is protected by a token", "link", link)
 		return
 	}
 	if !info.Addr.Addr().IsLoopback() {

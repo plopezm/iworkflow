@@ -49,7 +49,7 @@ func TestRestartIsPendingWhenOnlyThePortDiffers(t *testing.T) {
 
 func TestPlainURLHintOnlyWhenReachableWithoutInterfaces(t *testing.T) {
 	reachable := state.NewNetworkAccessView(access(true, false, false))
-	require.Equal(t, "http://<IP>:3000", reachable.PlainURL())
+	require.Equal(t, "https://<IP>:3000", reachable.PlainURL())
 
 	private := state.NewNetworkAccessView(access(false, false, false))
 	require.Empty(t, private.PlainURL())
@@ -94,5 +94,5 @@ func TestErrorAndRestartingAreAddedWithoutChangingTheData(t *testing.T) {
 func TestPortTextIsDecimal(t *testing.T) {
 	view := state.NewNetworkAccessView(dto.NewNetworkAccessDTO(true, true, false, 65535))
 
-	require.Equal(t, "http://<IP>:65535", state.NewNetworkAccessView(view.Access.WithTargets(nil)).PlainURL())
+	require.Equal(t, "https://<IP>:65535", state.NewNetworkAccessView(view.Access.WithTargets(nil)).PlainURL())
 }

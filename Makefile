@@ -94,10 +94,9 @@ build: generate
 dev: generate
 	go run $(GO_BUILD_TAGS) $(VERSION_LDFLAGS) ./cmd/iworkflow $(ARGS)
 
-# Same as dev over HTTPS, which browsers need to expose the microphone of the voice dictation to other devices. The server
-# creates a self-signed certificate in $IWF_HOME/tls on first use and reuses it; browsers ask to accept it once.
-dev-https: generate
-	IWF_TLS=auto go run $(GO_BUILD_TAGS) $(VERSION_LDFLAGS) ./cmd/iworkflow $(ARGS)
+# The server always serves HTTPS on its port (self-signed certificate in $IWF_HOME/tls, created on first use). Browsers ask
+# to accept it once. dev-https is kept as an alias of dev for existing scripts.
+dev-https: dev
 
 # Release package: stripped binary plus the static site, in $(DIST_DIR).
 dist: generate
@@ -112,14 +111,11 @@ dist: generate
 # Start what `make dist` packaged. Pass flags with ARGS="--no-open"; listen address with SITE_ADDR.
 run:
 	@test -x $(DIST_DIR)/$(BIN_FILE) && test -d $(DIST_DIR)/site || { echo "No complete build in $(DIST_DIR); run 'make dist' first." >&2; exit 1; }
-	@echo "Serving on http://$(SITE_ADDR)"
+	@echo "Serving on https://$(SITE_ADDR)"
 	$(DIST_DIR)/$(BIN_FILE) --addr $(SITE_ADDR) --site-root $(abspath $(DIST_DIR))/site $(ARGS)
 
-# Same as run over HTTPS (see dev-https).
-run-https:
-	@test -x $(DIST_DIR)/$(BIN_FILE) && test -d $(DIST_DIR)/site || { echo "No complete build in $(DIST_DIR); run 'make dist' first." >&2; exit 1; }
-	@echo "Serving on http://$(SITE_ADDR) and HTTPS on the port +443"
-	IWF_TLS=auto $(DIST_DIR)/$(BIN_FILE) --addr $(SITE_ADDR) --site-root $(abspath $(DIST_DIR))/site $(ARGS)
+# Alias of run: the server always serves HTTPS (see dev-https).
+run-https: run
 
 prod: dist run
 
@@ -153,12 +149,8 @@ electron-dev: build
 	cp -r web/static/* $(DIST_DIR)/site/
 	cd electron && npm ci && IWF_SERVER_DIR="$(abspath $(DIST_DIR))" npx electron .
 
-# Same as electron-dev with HTTPS also served, so other devices can reach the microphone. The window keeps using HTTP.
-electron-dev-https: build
-	mkdir -p $(DIST_DIR)/site
-	cp bin/$(BIN_FILE) $(DIST_DIR)/$(BIN_FILE)
-	cp -r web/static/* $(DIST_DIR)/site/
-	cd electron && npm ci && IWF_TLS=auto IWF_SERVER_DIR="$(abspath $(DIST_DIR))" npx electron .
+# Alias of electron-dev: the server always serves HTTPS, so the window and other devices use the same origin (see dev-https).
+electron-dev-https: electron-dev
 
 electron-test:
 	npm --prefix electron test

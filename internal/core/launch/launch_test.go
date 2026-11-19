@@ -71,15 +71,19 @@ func TestBrowserURLMapsUnspecifiedAddressesToLoopback(t *testing.T) {
 		addr string
 		want string
 	}{
-		{"ipv4 unspecified", "0.0.0.0:9000", "http://127.0.0.1:9000"},
-		{"ipv6 unspecified", "[::]:9000", "http://[::1]:9000"},
-		{"specific address is kept", "127.0.0.1:3000", "http://127.0.0.1:3000"},
+		{"ipv4 unspecified", "0.0.0.0:9000", "https://127.0.0.1:9000"},
+		{"ipv6 unspecified", "[::]:9000", "https://[::1]:9000"},
+		{"specific address is kept", "127.0.0.1:3000", "https://127.0.0.1:3000"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, BrowserURL(mustAddrPort(t, tt.addr)))
+			assert.Equal(t, tt.want, BrowserURL(mustAddrPort(t, tt.addr), true))
 		})
 	}
+}
+
+func TestBrowserURLUsesPlainHTTPOnlyWhenTLSIsOff(t *testing.T) {
+	assert.Equal(t, "http://127.0.0.1:3000", BrowserURL(mustAddrPort(t, "127.0.0.1:3000"), false))
 }
 
 func TestOpenerCommandPerPlatform(t *testing.T) {

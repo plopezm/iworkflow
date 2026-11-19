@@ -1,5 +1,6 @@
-// Package tlsx builds the optional TLS configuration of the server. Browsers only expose the microphone in a secure
-// context, so a server reached over the network needs HTTPS for the voice dictation of the prompt.
+// Package tlsx builds the TLS configuration of the server. The server is HTTPS only: HTTP/2 needs TLS, and browsers
+// only expose the microphone of the voice dictation in a secure context. Only an explicit IWF_TLS=off, meant for
+// tests and CI, serves plain HTTP.
 package tlsx
 
 import (
@@ -25,14 +26,16 @@ const (
 	// CertVar and KeyVar name the PEM files of a certificate the operator provides.
 	CertVar string = "IWF_TLS_CERT"
 	KeyVar  string = "IWF_TLS_KEY"
-	// PortVar overrides the HTTPS port, which is the HTTP port plus DefaultPortOffset otherwise.
+	// PortVar overrides the HTTPS port, which is the listen port otherwise.
 	PortVar string = "IWF_TLS_PORT"
-	// DefaultPortOffset is added to the HTTP port to get the HTTPS one: 9000 gives 9443.
-	DefaultPortOffset uint16 = 443
-	// AutoVar set to "auto" makes the server create and reuse a self-signed certificate in the data folder.
-	AutoVar string = "IWF_TLS"
+	// ModeVar selects the mode: unset or "auto" serves HTTPS with a self-signed certificate that the server creates
+	// and reuses in the data folder (unless the operator provides one); "off" serves plain HTTP, for tests and CI.
+	// Any other value is rejected, so a typo never keeps TLS on silently.
+	ModeVar string = "IWF_TLS"
 
-	autoValue     string        = "auto"
+	autoValue string = "auto"
+
+	offValue      string        = "off"
 	certFile      string        = "cert.pem"
 	keyFile       string        = "key.pem"
 	validity      time.Duration = 825 * 24 * time.Hour
@@ -42,20 +45,28 @@ const (
 	serialBitSize uint          = 128
 )
 
+// ErrUnknownMode reports an IWF_TLS value that is neither "auto" nor "off".
+var ErrUnknownMode error = errors.New("IWF_TLS must be auto or off")
+
 // ErrIncomplete reports that only one of the certificate and the key was given.
 var ErrIncomplete error = errors.New("set both " + CertVar + " and " + KeyVar)
 
-// Config returns the TLS configuration, or nil when HTTPS is not enabled. dir is where the self-signed certificate
+// Config returns the TLS configuration, or nil when IWF_TLS=off. dir is where the self-signed certificate
 // lives and hosts are the extra names or addresses it must be valid for.
 func Config(getenv func(string) string, dir string, hosts []string, now time.Time) (*tls.Config, error) {
+	mode := strings.ToLower(strings.TrimSpace(getenv(ModeVar)))
+	switch mode {
+	case offValue:
+		return nil, nil
+	case "", autoValue:
+	default:
+		return nil, fmt.Errorf("%s=%q: %w", ModeVar, mode, ErrUnknownMode)
+	}
 	cert, key := strings.TrimSpace(getenv(CertVar)), strings.TrimSpace(getenv(KeyVar))
 	if (cert == "") != (key == "") {
 		return nil, ErrIncomplete
 	}
 	if cert == "" {
-		if strings.TrimSpace(getenv(AutoVar)) != autoValue {
-			return nil, nil
-		}
 		cert, key = filepath.Join(dir, certFile), filepath.Join(dir, keyFile)
 		if err := ensureSelfSigned(cert, key, hosts, now); err != nil {
 			return nil, err
@@ -65,7 +76,9 @@ func Config(getenv func(string) string, dir string, hosts []string, now time.Tim
 	if err != nil {
 		return nil, fmt.Errorf("load the TLS certificate: %w", err)
 	}
-	return &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12}, nil
+	// h2 multiplexes the event stream and the short requests over one connection, so they no longer compete for the
+	// six HTTP/1.1 connections a browser opens per origin; WebSockets keep using http/1.1.
+	return &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12, NextProtos: []string{"h2", "http/1.1"}}, nil
 }
 
 // ensureSelfSigned creates the certificate and key unless a valid pair covering hosts already exists.
@@ -143,22 +156,21 @@ func reusable(certPath string, keyPath string, hosts []string, now time.Time) bo
 	return true
 }
 
-// ErrBadPort reports an HTTPS port that is not a number in 1024-65535 or that equals the HTTP port.
+// ErrBadPort reports an IWF_TLS_PORT override that is not a number in 1024-65535.
 var ErrBadPort error = errors.New("invalid HTTPS port")
 
-// ResolvePort returns the HTTPS port: IWF_TLS_PORT when set, else httpPort plus DefaultPortOffset.
-func ResolvePort(getenv func(string) string, httpPort uint16) (uint16, error) {
+// ResolvePort returns the port the server listens on: IWF_TLS_PORT when set, else listenPort.
+func ResolvePort(getenv func(string) string, listenPort uint16) (uint16, error) {
 	const minPort, maxPort = 1024, 65535
 	raw := strings.TrimSpace(getenv(PortVar))
-	value := int(httpPort) + int(DefaultPortOffset)
-	if raw != "" {
-		parsed, err := strconv.Atoi(raw)
-		if err != nil {
-			return 0, fmt.Errorf("%s=%q: %w", PortVar, raw, ErrBadPort)
-		}
-		value = parsed
+	if raw == "" {
+		return listenPort, nil
 	}
-	if value < minPort || value > maxPort || value == int(httpPort) {
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s=%q: %w", PortVar, raw, ErrBadPort)
+	}
+	if value < minPort || value > maxPort {
 		return 0, fmt.Errorf("port %d: %w", value, ErrBadPort)
 	}
 	return uint16(value), nil

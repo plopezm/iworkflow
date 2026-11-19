@@ -12,7 +12,7 @@ make run      # 2. arranca lo que ya está empaquetado
 make prod     # ambos pasos seguidos (dist + run)
 ```
 
-Flujo habitual: ejecuta `make dist` una vez (y de nuevo tras cada actualización) y `make run` cada vez que quieras arrancar el servidor. `ARGS` se pasa al binario (p. ej. `ARGS=--no-open`; ver [Argumentos del ejecutable](configuration.md#argumentos-del-ejecutable)). Por defecto, el servidor escucha en `http://0.0.0.0:9000`; cámbialo con `SITE_ADDR`:
+Flujo habitual: ejecuta `make dist` una vez (y de nuevo tras cada actualización) y `make run` cada vez que quieras arrancar el servidor. `ARGS` se pasa al binario (p. ej. `ARGS=--no-open`; ver [Argumentos del ejecutable](configuration.md#argumentos-del-ejecutable)). Por defecto, el servidor escucha en `0.0.0.0:9000`, por HTTPS; cámbialo con `SITE_ADDR`:
 
 ```bash
 make run SITE_ADDR=127.0.0.1:3000 ARGS=--no-open
@@ -33,8 +33,8 @@ también se aplica. Variables de make:
 
 > **Seguridad:** la aplicación lanza agentes que ejecutan comandos con tu usuario. Su única
 > protección es el token de acceso (ver [Acceso desde otros dispositivos](configuration.md#acceso-desde-otros-dispositivos)),
-> que se exige siempre que el bind no sea loopback, salvo que lo desactives, y viaja por HTTP sin
-> cifrar. Restringe el acceso con un firewall, una red privada (Tailscale/WireGuard) o un
+> que se exige siempre que el bind no sea loopback, salvo que lo desactives, y viaja por HTTPS con un certificado autofirmado (salvo que definas `IWF_TLS_CERT` e `IWF_TLS_KEY`).
+> Restringe el acceso con un firewall, una red privada (Tailscale/WireGuard) o un
 > reverse proxy con TLS. Para limitarlo a la máquina local:
 > `make run SITE_ADDR=127.0.0.1:3000`.
 

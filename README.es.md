@@ -32,7 +32,7 @@ iworkflow no impone ningún flujo de trabajo: cada agente usa la configuración 
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
 cd iworkflow
-make dev                    # http://127.0.0.1:3000
+make dev                    # https://127.0.0.1:3000 (autofirmado: acepta el aviso del navegador una vez)
 ```
 
 Necesitas `git`, Go, `templ`, `tailwindcss` y al menos un CLI de agente instalado y con sesión iniciada. Después registra un workspace, escribe un prompt, sigue al agente en vivo, revisa el diff e intégralo. El recorrido completo está en [Arranque rápido](docs/es/getting-started.md).

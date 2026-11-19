@@ -7,7 +7,12 @@ const DEFAULT_SITE_ADDR = '127.0.0.1:9000';
 const LOOPBACK_HOST = '127.0.0.1';
 const TOKEN_LENGTH = 64;
 const TOKEN_PATTERN = new RegExp(`[?&]token=([0-9a-fA-F]{${TOKEN_LENGTH}})(?![0-9a-zA-Z])`);
-const LISTEN_PATTERN = /(?:escuchando en |msg=listening url=)http:\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
+// The server serves HTTPS by default; `http` is only seen with IWF_TLS=off (CI/e2e).
+const LISTEN_PATTERN = /(?:escuchando en |msg=listening url=)(https?):\/\/(?:\[([^\]]*)\]|([^:/\s]+)):(\d+)/;
+// Loopback names of this machine. URL.hostname keeps the brackets of an IPv6 literal ('[::1]'), while the
+// hosts of a listen address do not ('::1'), so the two sets differ only in that spelling.
+const LOCAL_CERT_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]']); // hostnames of URLs (certificate errors)
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']); // hosts of listen addresses (probing)
 /** Exit code with which the server asks its supervisor to start it again. */
 const RESTART_EXIT_CODE = 75;
 const MAC_EXTRA_PATHS = ['/opt/homebrew/bin', '/usr/local/bin'];
@@ -65,14 +70,16 @@ function withMacPaths(current) {
 }
 
 /**
- * Address the server announced in its startup log, if the line is that announcement. The saved
- * port lives in the database, so this is the only reliable source when the environment is unset.
+ * Address and scheme the server announced in its startup log, if the line is that announcement.
+ * The saved port lives in the database, so this is the only reliable source when the environment is unset.
  */
 function extractListenAddr(line) {
   const match = LISTEN_PATTERN.exec(line);
   if (!match) return null;
-  const port = Number(match[3]);
-  return port >= 1 && port <= 65535 ? { host: match[1] ?? match[2], port } : null;
+  const port = Number(match[4]);
+  return port >= 1 && port <= 65535
+    ? { scheme: match[1], host: match[2] ?? match[3], port }
+    : null;
 }
 
 /** Access token printed in the startup link, if the server demands one. */
@@ -103,9 +110,37 @@ function localHost(addr) {
   return UNSPECIFIED_HOSTS.has(addr.host) ? LOOPBACK_HOST : addr.host;
 }
 
+/** Scheme the server listens with. Anything but an explicit `http` is HTTPS, the server default. */
+function schemeOf(addr) {
+  return addr.scheme === 'http' ? 'http' : 'https';
+}
+
 function originOf(addr) {
   const host = localHost(addr);
-  return `http://${host.includes(':') ? `[${host}]` : host}:${addr.port}`;
+  return `${schemeOf(addr)}://${host.includes(':') ? `[${host}]` : host}:${addr.port}`;
+}
+
+/** Whether the host is the loopback address of this machine (the only hosts the shell probes or trusts). */
+function isLocalHost(host) {
+  return LOOPBACK_HOSTS.has(host);
+}
+
+/**
+ * Whether a certificate error for `url` concerns the local server itself: HTTPS to a loopback name on
+ * the exact port the server runs on. Any other origin keeps the default certificate verification.
+ */
+function isLocalServerCertUrl(url, addr) {
+  if (!addr) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      LOCAL_CERT_HOSTS.has(parsed.hostname) &&
+      Number(parsed.port || 443) === addr.port
+    );
+  } catch {
+    return false;
+  }
 }
 
 /** URL the window loads; the one-shot `?token=` link makes the server set its session cookie. */
@@ -135,6 +170,9 @@ module.exports = {
   extractListenAddr,
   windowUrl,
   isTrustedUrl,
+  isLocalHost,
+  isLocalServerCertUrl,
+  localHost,
   isMoveProgress,
   isStartTimedOut,
 };

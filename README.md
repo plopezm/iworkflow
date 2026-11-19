@@ -32,7 +32,7 @@ iworkflow imposes no workflow: each agent uses the configuration and plugins you
 ```bash
 git clone https://github.com/plopezm/iworkflow.git
 cd iworkflow
-make dev                    # http://127.0.0.1:3000
+make dev                    # https://127.0.0.1:3000 (self-signed: accept the browser warning once)
 ```
 
 You need `git`, Go, `templ`, `tailwindcss` and at least one agent CLI installed and logged in. Then register a workspace, write a prompt, follow the agent live, review the diff and merge. The full walkthrough is in [Getting started](docs/getting-started.md).

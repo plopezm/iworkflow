@@ -176,6 +176,7 @@ USAGE_MOCK_PORT="$(free_port)"
     GIT_AUTHOR_NAME=smoke GIT_AUTHOR_EMAIL=smoke@localhost \
     GIT_COMMITTER_NAME=smoke GIT_COMMITTER_EMAIL=smoke@localhost \
     IWF_HOME="$IWF_HOME_DIR" \
+    IWF_TLS=off \
     IWF_ENGRAM_URL="http://127.0.0.1:$ENGRAM_PORT" \
     IWF_CLAUDE_CREDENTIALS="$WORK/home/.claude/.credentials.json" \
     IWF_CLAUDE_USAGE_URL="http://127.0.0.1:$USAGE_MOCK_PORT/api/oauth/usage" \

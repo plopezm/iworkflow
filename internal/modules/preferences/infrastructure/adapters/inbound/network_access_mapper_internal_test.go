@@ -9,51 +9,41 @@ import (
 	"iworkflow/internal/modules/preferences/domain/models"
 )
 
-func TestMappingKeepsTargetsOnlyWhileAccessIsOnOrActive(t *testing.T) {
-	interfaces := []models.NetworkInterface{{Name: "eth0", Address: "192.168.1.5"}}
+func TestAccessTargetsLinkOverHTTPSWhenTLSIsOn(t *testing.T) {
+	status := models.NetworkAccessStatus{Port: 9000, TLSPort: 9000, Targets: []models.NetworkInterface{{Name: "eth0", Address: "192.168.1.5"}}}
 
-	private := toNetworkAccessDTO(models.NetworkAccessStatus{Port: 3000, Targets: interfaces})
-	enabled := toNetworkAccessDTO(models.NetworkAccessStatus{Enabled: true, Port: 3000, Targets: interfaces})
+	targets := toAccessTargets(status)
 
-	require.Empty(t, private.Targets)
-	require.Len(t, enabled.Targets, 1)
-	require.Equal(t, "http://192.168.1.5:3000", enabled.Targets[0].AccessURL)
+	require.Len(t, targets, 1)
+	require.Equal(t, "https://192.168.1.5:9000", targets[0].AccessURL)
+	require.Empty(t, targets[0].SecureURL, "there is no separate secure link: the only link is HTTPS")
 }
 
-func TestMappingEmbedsTheTokenInEveryLinkAndExposesIt(t *testing.T) {
+func TestAccessTargetsLinkOverHTTPOnlyWhenTLSIsOff(t *testing.T) {
+	status := models.NetworkAccessStatus{Port: 3000, Targets: []models.NetworkInterface{{Name: "eth0", Address: "192.168.1.5"}}}
+
+	targets := toAccessTargets(status)
+
+	require.Equal(t, "http://192.168.1.5:3000", targets[0].AccessURL)
+}
+
+func TestAccessTargetsCarryTheTokenInTheHTTPSLink(t *testing.T) {
 	token, err := models.ParseAccessToken(strings.Repeat("ab", 32))
 	require.NoError(t, err)
+	status := models.NetworkAccessStatus{Port: 9000, TLSPort: 9000, Token: &token, Targets: []models.NetworkInterface{{Name: "eth0", Address: "192.168.1.5"}}}
 
-	built := toNetworkAccessDTO(models.NetworkAccessStatus{
-		Enabled:      true,
-		Port:         3000,
-		Targets:      []models.NetworkInterface{{Name: "eth0", Address: "10.0.0.2"}},
-		RequireToken: true,
-		Token:        &token,
-	})
+	targets := toAccessTargets(status)
 
-	require.NotNil(t, built.Token)
-	require.Equal(t, token.Value(), *built.Token)
-	require.Equal(t, "http://10.0.0.2:3000/?token="+token.Value(), built.Targets[0].AccessURL)
-	require.NotNil(t, built.Targets[0].QRSVG)
+	require.Equal(t, "https://192.168.1.5:9000/?token="+token.Value(), targets[0].AccessURL)
+	require.NotNil(t, targets[0].QRSVG, "the QR code encodes the same link")
 }
 
-func TestMappingWithoutTokenLeavesNoSecretAndPlainLinks(t *testing.T) {
-	built := toNetworkAccessDTO(models.NetworkAccessStatus{
-		Enabled: true,
-		Port:    3000,
-		Targets: []models.NetworkInterface{{Name: "eth0", Address: "10.0.0.2"}},
-	})
+func TestAccessTargetsHaveNoTokenWhenNoneIsInPlay(t *testing.T) {
+	status := models.NetworkAccessStatus{Port: 9000, TLSPort: 9000, Targets: []models.NetworkInterface{{Name: "eth0", Address: "192.168.1.5"}}}
 
-	require.Nil(t, built.Token)
-	require.Equal(t, "http://10.0.0.2:3000", built.Targets[0].AccessURL)
+	require.NotContains(t, toAccessTargets(status)[0].AccessURL, "token")
 }
 
-func TestMappingCarriesTheSavedAndRunningPorts(t *testing.T) {
-	built := toNetworkAccessDTO(models.NetworkAccessStatus{Port: 3000, ConfiguredPort: 9100, RequireToken: false, TokenActive: true})
-
-	require.Equal(t, uint16(3000), built.Port)
-	require.Equal(t, uint16(9100), built.ConfiguredPort)
-	require.False(t, built.RequireToken)
-	require.True(t, built.TokenActive)
+func TestAccessTargetsAreEmptyWithoutInterfaces(t *testing.T) {
+	require.Empty(t, toAccessTargets(models.NetworkAccessStatus{Port: 9000, TLSPort: 9000}))
 }

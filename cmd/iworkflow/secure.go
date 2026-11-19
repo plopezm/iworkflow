@@ -13,7 +13,7 @@ import (
 	"iworkflow/internal/core/tlsx"
 )
 
-// secureServer is the HTTPS listener that runs next to the HTTP one.
+// secureServer is the HTTPS listener of the server; it replaces the plain HTTP one.
 type secureServer struct {
 	addr   netip.AddrPort
 	port   uint16
@@ -21,9 +21,9 @@ type secureServer struct {
 	bind   func(ctx context.Context, addr string) (net.Listener, error)
 }
 
-// secureListener prepares the HTTPS listener from the environment, or returns nil when HTTPS is off. It listens on
-// the host of the HTTP address, on the port IWF_TLS_PORT or the HTTP port plus 443.
-func secureListener(ctx context.Context, getenv func(string) string, dataDir string, httpAddr netip.AddrPort, bind bindFunc) (*secureServer, error) {
+// secureListener prepares the HTTPS listener from the environment, or returns nil when IWF_TLS=off. It listens on
+// the host of the listen address, on the port IWF_TLS_PORT or the listen port.
+func secureListener(ctx context.Context, getenv func(string) string, dataDir string, listenAddr netip.AddrPort, bind bindFunc) (*secureServer, error) {
 	hosts := []string{}
 	if ip, ok := listen.LocalNetworkIP(ctx); ok {
 		hosts = append(hosts, ip.String())
@@ -35,18 +35,18 @@ func secureListener(ctx context.Context, getenv func(string) string, dataDir str
 	if config == nil {
 		return nil, nil
 	}
-	port, err := tlsx.ResolvePort(getenv, httpAddr.Port())
+	port, err := tlsx.ResolvePort(getenv, listenAddr.Port())
 	if err != nil {
 		return nil, fmt.Errorf("configure TLS: %w", err)
 	}
-	return &secureServer{addr: netip.AddrPortFrom(httpAddr.Addr(), port), port: port, config: config, bind: bind}, nil
+	return &secureServer{addr: netip.AddrPortFrom(listenAddr.Addr(), port), port: port, config: config, bind: bind}, nil
 }
 
-// open binds the HTTPS address and wraps it with TLS.
-func (s *secureServer) open(ctx context.Context) (net.Listener, error) {
-	listener, err := s.bind(ctx, s.addr.String())
+// listen binds addr and wraps it with TLS. It is a bindFunc.
+func (s *secureServer) listen(ctx context.Context, addr string) (net.Listener, error) {
+	listener, err := s.bind(ctx, addr)
 	if err != nil {
-		return nil, fmt.Errorf("bind %s: %w", s.addr, err)
+		return nil, fmt.Errorf("bind %s: %w", addr, err)
 	}
 	return tls.NewListener(listener, s.config), nil
 }
