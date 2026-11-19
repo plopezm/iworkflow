@@ -146,7 +146,7 @@ templ taskWorklogSection(view state.TaskPanelView) {
 				} else {
 					<span></span>
 				}
-				<button type="submit" class="btn-primary" disabled?={ !view.Pending }>{ msgRegister.T(ctx) }</button>
+				<button type="submit" class="btn-primary">{ msgRegister.T(ctx) }</button>
 			</div>
 		</form>
 		if len(view.Worklogs) > 0 {

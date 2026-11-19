@@ -182,7 +182,7 @@ func TestTaskPanelWorklogRegistersTheTimeAndTheLocalRecord(t *testing.T) {
 
 	assert.Contains(t, body, "Registrado: 1h 30m")
 	assert.Contains(t, body, "No queda tiempo por registrar.", "80 min proposed, 90 min logged: nothing is left")
-	assert.Contains(t, body, `class="btn-primary" disabled>`, "the register button is disabled when nothing is left")
+	assert.NotContains(t, body, `class="btn-primary" disabled`, "more time can still be logged by hand when nothing is left")
 }
 
 func TestTaskPanelWorklogWithInvalidTimeShowsTheErrorAndChangesNothing(t *testing.T) {
