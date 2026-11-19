@@ -62,6 +62,7 @@
     graphqls: "graphql",
     sql: "sql",
     swift: "swift",
+    dart: "dart",
     lua: "lua",
     php: "php",
     r: "r",
