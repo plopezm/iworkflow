@@ -75,30 +75,17 @@ func (u *MergeTaskMergeRequest) inspect(ctx context.Context, taskID string) (ins
 	if found == nil || (!found.IsMerged() && !found.IsOpen()) {
 		return inspectedRequest{resolved: resolved}, nil
 	}
-	// Only a request that carries the whole local branch lets the task skip the integration: commits made
-	// after the request head would be lost. When the branch moved, or the provider did not say which commit
-	// the request holds, an open request is pushed and merged and a merged one is integrated locally.
+	// A request that exists, open or merged, never lets the task push or merge: only a request that carries the whole
+	// local branch is at the tip, and any other case, including a branch or a request head that cannot be read, is
+	// reported as differing so the task only cleans up and warns.
 	head, err := u.remote.BranchHead(ctx, resolved.Source.RepoPath, branch)
 	if err != nil {
 		slog.Warn("could not read the task branch", "task_id", taskID, "branch", branch, "error", err)
-		if found.IsMerged() {
-			// Unreadable branch: the local integration reports the real problem, if there is one.
-			return inspectedRequest{resolved: resolved}, nil //nolint:nilerr // Fall back to the local integration.
-		}
-		return inspectedRequest{resolved: resolved, open: found}, nil //nolint:nilerr // The push reports the real problem, if there is one.
 	}
-	if found.HeadSHA != "" && found.HeadSHA == head {
+	if err == nil && found.HeadSHA != "" && found.HeadSHA == head {
 		return inspectedRequest{resolved: resolved, atTip: true, open: openOnly(found)}, nil
 	}
-	// Without the commit the provider holds there is no proof of a mismatch: the previous flow stays.
-	differs := found.HeadSHA != ""
-	if found.IsMerged() && !differs {
-		return inspectedRequest{resolved: resolved}, nil
-	}
-	if differs {
-		return inspectedRequest{resolved: resolved, open: openOnly(found), differs: true}, nil
-	}
-	return inspectedRequest{resolved: resolved, open: found}, nil
+	return inspectedRequest{resolved: resolved, open: openOnly(found), differs: true}, nil
 }
 
 // openOnly returns the request when it is open and nil when it is merged.

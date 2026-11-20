@@ -77,7 +77,7 @@ func TestPreviewReportsBranchDiffersForAnOpenRequestWithPendingCommits(t *testin
 	require.Equal(t, inbound.RemoteMergeBranchDiffers, outcome)
 }
 
-func TestBoundRemoteMergeKeepsMergingAnOpenRequestWhenTheBranchCannotBeRead(t *testing.T) {
+func TestBoundRemoteMergeOnlyCleansUpAnOpenRequestWhenTheBranchCannotBeRead(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
@@ -86,7 +86,9 @@ func TestBoundRemoteMergeKeepsMergingAnOpenRequestWhenTheBranchCannotBeRead(t *t
 	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
 
 	require.NoError(t, err)
-	require.Equal(t, inbound.RemoteMergeMerged, outcome)
+	require.Equal(t, inbound.RemoteMergeAlreadyMerged, outcome)
+	require.Empty(t, f.client.merged)
+	require.Empty(t, f.remote.publishes)
 }
 
 func TestBoundRemoteMergeReportsNoOpenRequestWithoutAnOpenRequest(t *testing.T) {
@@ -126,7 +128,7 @@ func TestBoundRemoteMergeIntegratesLocallyWhenTheBranchAdvancedAfterTheMerge(t *
 	require.Empty(t, f.remote.publishes)
 }
 
-func TestBoundRemoteMergeIntegratesLocallyWhenTheProviderSendsNoHeadCommit(t *testing.T) {
+func TestBoundRemoteMergeOnlyCleansUpAMergedRequestWhenTheProviderSendsNoHeadCommit(t *testing.T) {
 	f := newFixture(t)
 	merged := mergeRequest(7, "merged")
 	merged.HeadSHA = ""
@@ -135,10 +137,10 @@ func TestBoundRemoteMergeIntegratesLocallyWhenTheProviderSendsNoHeadCommit(t *te
 	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
 
 	require.NoError(t, err)
-	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome)
+	require.Equal(t, inbound.RemoteMergeAlreadyMerged, outcome)
 }
 
-func TestBoundRemoteMergeIntegratesLocallyWhenTheLocalBranchCannotBeRead(t *testing.T) {
+func TestBoundRemoteMergeOnlyCleansUpAMergedRequestWhenTheLocalBranchCannotBeRead(t *testing.T) {
 	f := newFixture(t)
 	merged := mergeRequest(7, "merged")
 	f.client.findResult = &merged
@@ -147,7 +149,7 @@ func TestBoundRemoteMergeIntegratesLocallyWhenTheLocalBranchCannotBeRead(t *test
 	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
 
 	require.NoError(t, err)
-	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome)
+	require.Equal(t, inbound.RemoteMergeAlreadyMerged, outcome)
 }
 
 func TestBoundRemoteMergeKeepsLocalIntegrationForAClosedRequest(t *testing.T) {
@@ -171,17 +173,17 @@ func TestBoundRemoteMergeTreatsTasksWithoutRemoteProviderAsLocal(t *testing.T) {
 	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome)
 }
 
-func TestBoundRemoteMergePropagatesOtherFailures(t *testing.T) {
+func TestExecuteIfOpenPropagatesPublishFailures(t *testing.T) {
 	f := newFixture(t)
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
-	f.remote.headErr = codeerrors.Git("sin rama")
+	f.remote.head = unpushedHead
 	f.remote.publishErr = codeerrors.BranchPublishFailed("pi/feature", "rejected")
 
-	outcome, err := boundRemoteMerge(f).MergeOpenRequest(context.Background(), taskID)
+	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).ExecuteIfOpen(context.Background(), taskID)
 
 	require.Equal(t, codeerrors.BranchPublishFailed("pi/feature", "rejected"), err)
-	require.NotEqual(t, inbound.RemoteMergeMerged, outcome)
+	require.Nil(t, status)
 }
 
 func TestRemoteMergeKeepsTheFirstBinding(t *testing.T) {
@@ -198,4 +200,58 @@ func TestRemoteMergeKeepsTheFirstBinding(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, inbound.RemoteMergeNoOpenRequest, outcome)
 	require.Empty(t, second.client.merged)
+}
+
+func TestPreviewReportsBranchDiffersWhenTheProviderSendsNoHeadCommit(t *testing.T) {
+	for _, state := range []string{"opened", "merged"} {
+		f := newFixture(t)
+		request := mergeRequest(7, state)
+		request.HeadSHA = ""
+		f.client.findResult = &request
+
+		outcome, err := boundRemoteMerge(f).PreviewMergeOpenRequest(context.Background(), taskID)
+
+		require.NoError(t, err, state)
+		require.Equal(t, inbound.RemoteMergeBranchDiffers, outcome, state)
+	}
+}
+
+func TestPreviewReportsBranchDiffersWhenTheBranchCannotBeRead(t *testing.T) {
+	for _, state := range []string{"opened", "merged"} {
+		f := newFixture(t)
+		request := mergeRequest(7, state)
+		f.client.findResult = &request
+		f.remote.headErr = codeerrors.Git("sin rama")
+
+		outcome, err := boundRemoteMerge(f).PreviewMergeOpenRequest(context.Background(), taskID)
+
+		require.NoError(t, err, state)
+		require.Equal(t, inbound.RemoteMergeBranchDiffers, outcome, state)
+	}
+}
+
+func TestPreviewReportsBranchDiffersForAMergedRequestWithAnotherHead(t *testing.T) {
+	f := newFixture(t)
+	merged := mergeRequest(7, "merged")
+	f.client.findResult = &merged
+	f.remote.head = unpushedHead
+
+	outcome, err := boundRemoteMerge(f).PreviewMergeOpenRequest(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.Equal(t, inbound.RemoteMergeBranchDiffers, outcome)
+}
+
+func TestExecuteIfOpenStillPushesAndMergesWhenTheHeadDiffers(t *testing.T) {
+	f := newFixture(t)
+	open := mergeRequest(7, "opened")
+	f.client.findResult = &open
+	f.remote.head = unpushedHead
+
+	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).ExecuteIfOpen(context.Background(), taskID)
+
+	require.NoError(t, err)
+	require.NotNil(t, status)
+	require.Equal(t, []uint64{7}, f.client.merged)
+	require.Len(t, f.remote.publishes, 1)
 }
