@@ -30,6 +30,9 @@ type TaskDetailView struct {
 	// MergeCleanupOnly is true when merging the task only removes its worktree, because its merge request was already
 	// merged on the provider: the merge action is then labelled as a clean up.
 	MergeCleanupOnly bool
+	// MergeBranchDiffers is true when the branch has commits its merge request does not carry: the clean up warns that
+	// they are lost.
+	MergeBranchDiffers bool
 	// HookStrip is the status strip of the hooks of the task. It is nil when there is nothing to show: no hook of the
 	// workspace, or no hooks wired.
 	HookStrip *HookStrip

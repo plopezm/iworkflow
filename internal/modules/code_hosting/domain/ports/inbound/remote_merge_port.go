@@ -16,6 +16,9 @@ const (
 	// merged or still open: nothing is merged or pushed, an open request stays open, and the task must not
 	// be integrated locally, because that would conflict with the merge on the provider.
 	RemoteMergeAlreadyMerged
+	// RemoteMergeBranchDiffers is only reported by the preview: a request exists, open or merged, but the task
+	// branch has commits it does not carry. The merge cleans up without pushing them, so they are lost.
+	RemoteMergeBranchDiffers
 )
 
 // RemoteMergePort integrates a task through its remote merge request. The tasks module consumes it

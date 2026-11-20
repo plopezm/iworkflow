@@ -56,6 +56,9 @@ type inspectedRequest struct {
 	// atTip reports that the latest request, open or merged, carries the current tip of the branch: every
 	// commit of the task is already on the provider, so the task flow has nothing left to push or merge.
 	atTip bool
+	// differs reports that a request, open or merged, exists but does not carry the current tip of the branch: the
+	// branch has commits the provider does not know.
+	differs bool
 }
 
 // inspect reads, without pushing or merging, the latest merge request of the branch of the task.
@@ -87,8 +90,13 @@ func (u *MergeTaskMergeRequest) inspect(ctx context.Context, taskID string) (ins
 	if found.HeadSHA != "" && found.HeadSHA == head {
 		return inspectedRequest{resolved: resolved, atTip: true, open: openOnly(found)}, nil
 	}
-	if found.IsMerged() {
+	// Without the commit the provider holds there is no proof of a mismatch: the previous flow stays.
+	differs := found.HeadSHA != ""
+	if found.IsMerged() && !differs {
 		return inspectedRequest{resolved: resolved}, nil
+	}
+	if differs {
+		return inspectedRequest{resolved: resolved, open: openOnly(found), differs: true}, nil
 	}
 	return inspectedRequest{resolved: resolved, open: found}, nil
 }
@@ -101,25 +109,25 @@ func openOnly(request *models.MergeRequest) *models.MergeRequest {
 	return nil
 }
 
-// Preview reports, without pushing or merging, whether the latest merge request of the branch is open and
-// and whether it already carries the current tip of the branch, merged or not.
-func (u *MergeTaskMergeRequest) Preview(ctx context.Context, taskID string) (open bool, atTip bool, err error) {
+// Preview reports, without pushing or merging, whether the latest merge request of the branch is open, whether it
+// carries the current tip of the branch, and whether it exists but the branch has commits it does not carry.
+func (u *MergeTaskMergeRequest) Preview(ctx context.Context, taskID string) (open bool, atTip bool, differs bool, err error) {
 	inspected, err := u.inspect(ctx, taskID)
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
-	return inspected.open != nil, inspected.atTip, nil
+	return inspected.open != nil, inspected.atTip, inspected.differs, nil
 }
 
 // ExecuteIfOpenOrDetectMerged is ExecuteIfOpen that also reports, without pushing or merging, whether the
-// latest merge request of the branch, open or merged, already carries the current tip of the branch. An open
-// request in that state is left open: only the local worktree needs cleaning.
+// latest merge request of the branch, open or merged, exists: whether it carries the current tip or not, nothing is pushed
+// or merged, an open request is left open and only the local worktree needs cleaning.
 func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context, taskID string) (*models.MergeRequestStatus, bool, error) {
 	inspected, err := u.inspect(ctx, taskID)
 	if err != nil {
 		return nil, false, err
 	}
-	if inspected.atTip {
+	if inspected.atTip || inspected.differs {
 		return nil, true, nil
 	}
 	status, err := u.mergeInspected(ctx, inspected)
