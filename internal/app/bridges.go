@@ -581,6 +581,8 @@ func mapRemoteMergeOutcome(outcome codehostinginbound.RemoteMergeOutcome, err er
 		return tasksoutbound.RemoteNoOpenRequest, nil
 	case codehostinginbound.RemoteMergeAlreadyMerged:
 		return tasksoutbound.RemoteAlreadyMerged, nil
+	case codehostinginbound.RemoteMergeBranchDiffers:
+		return tasksoutbound.RemoteBranchDiffers, nil
 	default:
 		return 0, fmt.Errorf("unknown remote merge outcome %d", outcome)
 	}

@@ -39,7 +39,7 @@ type TaskMerger interface {
 
 // MergePreviewer tells whether merging a task only cleans up its worktree. *application.PreviewMerge satisfies it.
 type MergePreviewer interface {
-	Execute(ctx context.Context, id models.TaskID) (bool, error)
+	Execute(ctx context.Context, id models.TaskID) (application.MergePreviewResult, error)
 }
 
 // RelatedProjectsSetter replaces the related projects of a task. *application.SetTaskRelatedProjects satisfies it.
@@ -185,7 +185,9 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 	}
 	view.WorkspaceName = h.workspaceName(ctx, task)
 	view.RelatedProjects = h.relatedChoices(ctx, task)
-	view.MergeCleanupOnly = h.mergeCleanupOnly(ctx, task)
+	preview := h.mergePreview(ctx, task)
+	view.MergeCleanupOnly = preview.CleanupOnly
+	view.MergeBranchDiffers = preview.BranchDiffers
 	if h.uc.HookStrip != nil {
 		strip := h.hookStrip(ctx, scope, task)
 		if strip.Visible() {
@@ -427,16 +429,17 @@ func (h *DetailHandlers) setRelatedProjects(w http.ResponseWriter, r *http.Reque
 	h.renderPage(w, r, scope, id, errorText(runErr))
 }
 
-// mergeCleanupOnly reports whether the merge action of the task only removes its worktree, because its merge request
-// was already merged on the provider. A failed read keeps the merge label: the action itself reports the real problem.
-func (h *DetailHandlers) mergeCleanupOnly(ctx context.Context, task models.Task) bool {
+// mergePreview tells what the merge action of the task will do: only remove its worktree because its merge request
+// exists, and whether commits of the branch are then left out. A failed read keeps the merge label: the action itself
+// reports the real problem.
+func (h *DetailHandlers) mergePreview(ctx context.Context, task models.Task) application.MergePreviewResult {
 	if h.uc.MergePreview == nil || !task.Status.CanMerge() {
-		return false
+		return application.MergePreviewResult{}
 	}
-	cleanupOnly, err := h.uc.MergePreview.Execute(ctx, task.ID)
+	preview, err := h.uc.MergePreview.Execute(ctx, task.ID)
 	if err != nil {
 		slog.Warn("could not preview the merge of the task", "task_id", task.ID.String(), "error", err)
-		return false
+		return application.MergePreviewResult{}
 	}
-	return cleanupOnly
+	return preview
 }

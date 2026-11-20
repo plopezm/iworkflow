@@ -19,23 +19,34 @@ func NewPreviewMerge(lifecycle *TaskLifecycle, remote outbound.RemoteMerge) *Pre
 	return &PreviewMerge{lifecycle: lifecycle, remote: remote}
 }
 
-// Execute reports whether merging the task only cleans up: its merge request, merged or still open, already carries
-// the whole branch, so no merge runs and only the worktree is removed. A task that cannot be merged, or whose provider cannot be read,
-// reports false: the action then keeps its merge label.
-func (u *PreviewMerge) Execute(ctx context.Context, id models.TaskID) (bool, error) {
+// MergePreviewResult is what the merge action of a task will do.
+type MergePreviewResult struct {
+	// CleanupOnly is true when a merge request exists on the provider: no merge runs and only the worktree is removed.
+	CleanupOnly bool
+	// BranchDiffers is true when, besides, the task branch has commits the merge request does not carry: they are lost.
+	BranchDiffers bool
+}
+
+// Execute reports whether merging the task only cleans up because a merge request, merged or still open, exists, and
+// whether the branch holds commits that request does not carry. A task that cannot be merged, or whose provider cannot
+// be read, reports neither: the action then keeps its merge label.
+func (u *PreviewMerge) Execute(ctx context.Context, id models.TaskID) (MergePreviewResult, error) {
 	if u.remote == nil {
-		return false, nil
+		return MergePreviewResult{}, nil
 	}
 	task, err := u.lifecycle.Load(ctx, id)
 	if err != nil {
-		return false, err
+		return MergePreviewResult{}, err
 	}
 	if !task.Status.CanMerge() {
-		return false, nil
+		return MergePreviewResult{}, nil
 	}
 	outcome, err := u.remote.PreviewMergeOpenRequest(ctx, id.String())
 	if err != nil {
-		return false, fmt.Errorf("preview the merge of the task: %w", err)
+		return MergePreviewResult{}, fmt.Errorf("preview the merge of the task: %w", err)
 	}
-	return outcome == outbound.RemoteAlreadyMerged, nil
+	return MergePreviewResult{
+		CleanupOnly:   outcome == outbound.RemoteAlreadyMerged || outcome == outbound.RemoteBranchDiffers,
+		BranchDiffers: outcome == outbound.RemoteBranchDiffers,
+	}, nil
 }

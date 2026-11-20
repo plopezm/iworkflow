@@ -18,10 +18,11 @@ func TestPreviewMergeSaysWhetherTheMergeOnlyCleansUp(t *testing.T) {
 		name    string
 		status  models.TaskStatus
 		remote  *fakeRemote
-		want    bool
+		want    application.MergePreviewResult
 		wantErr bool
 	}{
-		{name: "already merged on the provider", status: models.StatusAwaitingReview, remote: &fakeRemote{outcome: outbound.RemoteAlreadyMerged}, want: true},
+		{name: "already merged on the provider", status: models.StatusAwaitingReview, remote: &fakeRemote{outcome: outbound.RemoteAlreadyMerged}, want: application.MergePreviewResult{CleanupOnly: true}},
+		{name: "request that lacks commits of the branch", status: models.StatusAwaitingReview, remote: &fakeRemote{outcome: outbound.RemoteBranchDiffers}, want: application.MergePreviewResult{CleanupOnly: true, BranchDiffers: true}},
 		{name: "open request is merged remotely", status: models.StatusAwaitingReview, remote: &fakeRemote{outcome: outbound.RemoteMerged}},
 		{name: "no request merges locally", status: models.StatusAwaitingReview, remote: &fakeRemote{outcome: outbound.RemoteNoOpenRequest}},
 		{name: "task that cannot merge", status: models.StatusBacklog, remote: &fakeRemote{outcome: outbound.RemoteAlreadyMerged}},
@@ -52,5 +53,5 @@ func TestPreviewMergeWithoutProviderKeepsTheMergeLabel(t *testing.T) {
 	got, err := application.NewPreviewMerge(lifecycle, nil).Execute(context.Background(), task.ID)
 
 	require.NoError(t, err)
-	assert.False(t, got)
+	assert.Equal(t, application.MergePreviewResult{}, got)
 }

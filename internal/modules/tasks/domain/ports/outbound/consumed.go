@@ -38,6 +38,9 @@ const (
 	// RemoteAlreadyMerged means the merge request already carries the whole task branch, merged or still open: the
 	// local merge is skipped (it would conflict with the remote one) and only the worktree is cleaned up.
 	RemoteAlreadyMerged
+	// RemoteBranchDiffers is only reported by the preview: a merge request exists but the task branch has commits it
+	// does not carry. The merge only cleans up and those commits are lost.
+	RemoteBranchDiffers
 )
 
 // RemoteMerge integrates a task through the repository provider (GitHub or GitLab) instead of locally.

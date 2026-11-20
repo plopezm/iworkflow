@@ -56,6 +56,9 @@ type inspectedRequest struct {
 	// atTip reports that the latest request, open or merged, carries the current tip of the branch: every
 	// commit of the task is already on the provider, so the task flow has nothing left to push or merge.
 	atTip bool
+	// differs reports that a request, open or merged, exists but does not carry the current tip of the branch: the
+	// branch has commits the provider does not know.
+	differs bool
 }
 
 // inspect reads, without pushing or merging, the latest merge request of the branch of the task.
@@ -72,25 +75,17 @@ func (u *MergeTaskMergeRequest) inspect(ctx context.Context, taskID string) (ins
 	if found == nil || (!found.IsMerged() && !found.IsOpen()) {
 		return inspectedRequest{resolved: resolved}, nil
 	}
-	// Only a request that carries the whole local branch lets the task skip the integration: commits made
-	// after the request head would be lost. When the branch moved, or the provider did not say which commit
-	// the request holds, an open request is pushed and merged and a merged one is integrated locally.
+	// A request that exists, open or merged, never lets the task push or merge: only a request that carries the whole
+	// local branch is at the tip, and any other case, including a branch or a request head that cannot be read, is
+	// reported as differing so the task only cleans up and warns.
 	head, err := u.remote.BranchHead(ctx, resolved.Source.RepoPath, branch)
 	if err != nil {
 		slog.Warn("could not read the task branch", "task_id", taskID, "branch", branch, "error", err)
-		if found.IsMerged() {
-			// Unreadable branch: the local integration reports the real problem, if there is one.
-			return inspectedRequest{resolved: resolved}, nil //nolint:nilerr // Fall back to the local integration.
-		}
-		return inspectedRequest{resolved: resolved, open: found}, nil //nolint:nilerr // The push reports the real problem, if there is one.
 	}
-	if found.HeadSHA != "" && found.HeadSHA == head {
+	if err == nil && found.HeadSHA != "" && found.HeadSHA == head {
 		return inspectedRequest{resolved: resolved, atTip: true, open: openOnly(found)}, nil
 	}
-	if found.IsMerged() {
-		return inspectedRequest{resolved: resolved}, nil
-	}
-	return inspectedRequest{resolved: resolved, open: found}, nil
+	return inspectedRequest{resolved: resolved, open: openOnly(found), differs: true}, nil
 }
 
 // openOnly returns the request when it is open and nil when it is merged.
@@ -101,25 +96,25 @@ func openOnly(request *models.MergeRequest) *models.MergeRequest {
 	return nil
 }
 
-// Preview reports, without pushing or merging, whether the latest merge request of the branch is open and
-// and whether it already carries the current tip of the branch, merged or not.
-func (u *MergeTaskMergeRequest) Preview(ctx context.Context, taskID string) (open bool, atTip bool, err error) {
+// Preview reports, without pushing or merging, whether the latest merge request of the branch is open, whether it
+// carries the current tip of the branch, and whether it exists but the branch has commits it does not carry.
+func (u *MergeTaskMergeRequest) Preview(ctx context.Context, taskID string) (open bool, atTip bool, differs bool, err error) {
 	inspected, err := u.inspect(ctx, taskID)
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
-	return inspected.open != nil, inspected.atTip, nil
+	return inspected.open != nil, inspected.atTip, inspected.differs, nil
 }
 
 // ExecuteIfOpenOrDetectMerged is ExecuteIfOpen that also reports, without pushing or merging, whether the
-// latest merge request of the branch, open or merged, already carries the current tip of the branch. An open
-// request in that state is left open: only the local worktree needs cleaning.
+// latest merge request of the branch, open or merged, exists: whether it carries the current tip or not, nothing is pushed
+// or merged, an open request is left open and only the local worktree needs cleaning.
 func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context, taskID string) (*models.MergeRequestStatus, bool, error) {
 	inspected, err := u.inspect(ctx, taskID)
 	if err != nil {
 		return nil, false, err
 	}
-	if inspected.atTip {
+	if inspected.atTip || inspected.differs {
 		return nil, true, nil
 	}
 	status, err := u.mergeInspected(ctx, inspected)

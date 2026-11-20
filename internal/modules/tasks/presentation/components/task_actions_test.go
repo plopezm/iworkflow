@@ -71,6 +71,26 @@ func TestTaskActionsLabelsTheMergeActionAsCleanUpWhenItOnlyCleansUp(t *testing.T
 	assert.NotContains(t, body, "Merge the branch into the base")
 }
 
+// When the branch holds commits the merge request does not carry, the clean up warns about it in every language.
+func TestTaskActionsWarnsWhenTheBranchDiffersFromTheMergeRequest(t *testing.T) {
+	t.Parallel()
+	view := taskActionsView("t1", false, true)
+	view.MergeCleanupOnly = true
+	view.MergeBranchDiffers = true
+	warnings := map[i18n.Locale]string{
+		i18n.En: "does not match the one uploaded",
+		i18n.Es: "no coincide con el subido",
+		i18n.Zh: "不一致",
+		i18n.De: "stimmt nicht mit dem im Merge-Request",
+		i18n.Fr: "ne correspond pas à celui envoyé",
+	}
+	for lang, want := range warnings {
+		body := renderIn(t, lang, components.TaskActions(view))
+
+		assert.Contains(t, body, want, lang.Code())
+	}
+}
+
 func TestTaskActionsKeepsTheMergeLabelWhenItMerges(t *testing.T) {
 	t.Parallel()
 

@@ -60,7 +60,7 @@ func (r *RemoteMerge) PreviewMergeOpenRequest(ctx context.Context, taskID string
 	if merge == nil {
 		return inbound.RemoteMergeNoOpenRequest, nil
 	}
-	open, atTip, err := merge.Preview(ctx, taskID)
+	open, atTip, differs, err := merge.Preview(ctx, taskID)
 	if err != nil {
 		if errors.IsRemoteMergeNotApplicable(err) {
 			return inbound.RemoteMergeNoOpenRequest, nil
@@ -68,6 +68,8 @@ func (r *RemoteMerge) PreviewMergeOpenRequest(ctx context.Context, taskID string
 		return 0, err
 	}
 	switch {
+	case differs:
+		return inbound.RemoteMergeBranchDiffers, nil
 	case atTip:
 		return inbound.RemoteMergeAlreadyMerged, nil
 	case open:
