@@ -47,7 +47,7 @@ func TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody,
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"flex h-full min-h-0\"><div class=\"flex min-w-0 flex-1 flex-col\"><div class=\"flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 md:px-4 md:py-2.5\"><div class=\"min-w-0 flex-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" class=\"flex h-full min-h-0\"><div class=\"flex min-w-0 flex-1 flex-col\"><div class=\"flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1 md:px-4 md:py-2.5\"><div class=\"min-w-0 flex-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

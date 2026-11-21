@@ -69,6 +69,14 @@ module.exports = {
         ctx.assert((await branch.innerText()).startsWith('pi/'), 'el panel de acciones debe mostrar la rama de la tarea');
         ctx.assert(await line.locator('xpath=..').getByText(/desde main/).count() === 0, 'la cabecera ya no debe mostrar la línea de la rama');
         await ctx.screenshot(path.join(process.env.SMOKE_SCREENSHOT_DIR || TMP, 'task_header_workspace.png'));
+        // Mobile: the status, "en vivo" and workspace share one line under the title.
+        await page.setViewportSize({ width: 390, height: 844 });
+        const mobileLine = page.locator('[data-task-workspace]:visible').first();
+        await mobileLine.waitFor({ timeout: 10000 });
+        const title = await page.locator('h1.page-title:visible').first().boundingBox();
+        const ws = await mobileLine.boundingBox();
+        ctx.assert(ws.y > title.y && ws.y + ws.height - title.y < 70, 'en móvil la cabecera debe ocupar dos líneas');
+        await ctx.screenshot(path.join(process.env.SMOKE_SCREENSHOT_DIR || TMP, 'task_header_workspace_mobile.png'));
       },
     },
   ],

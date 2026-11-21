@@ -11,7 +11,7 @@ import (
 templ TaskDetailPage(view state.TaskDetailView, tabs state.TaskTabs, actionsBody, filesBody, changesBody, codeHostBody, jiraBody templ.Component) {
 	<div id={ state.Scoped("task-detail", view.Scope) } class="flex h-full min-h-0">
 		<div class="flex min-w-0 flex-1 flex-col">
-			<div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1.5 md:px-4 md:py-2.5">
+			<div class="flex shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-1 md:px-4 md:py-2.5">
 				<div class="min-w-0 flex-1">
 					@components.TaskHeader(view)
 				</div>
