@@ -190,6 +190,38 @@ module.exports = {
       },
     },
     {
+      name: 'project_tree: el botón Archivos de la tarjeta abre el explorador del workspace',
+      fn: async (ctx) => {
+        const repo = uniqueGitRepo('files');
+        const name = `files-ws-${tag}`;
+        await registerWs(ctx, { name, gitRepo: repo, baseBranch: 'main' });
+        const shots = process.env.SMOKE_SCREENSHOT_DIR;
+        const shot = async (file) => {
+          if (!shots) return;
+          fs.mkdirSync(shots, { recursive: true });
+          await ctx.screenshot(path.join(shots, file));
+        };
+        const card = ctx.page.locator('article.card', { hasText: name }).first();
+        const filesLink = card.getByRole('link', { name: 'Archivos' });
+        ctx.assert((await filesLink.count()) === 1, 'la tarjeta debe tener un único botón Archivos');
+        // El botón queda entre Editar y Memorias.
+        const labels = await card.locator('a').allInnerTexts();
+        const order = labels.map((l) => l.trim());
+        ctx.assert(
+          order.indexOf('Editar') < order.indexOf('Archivos') && order.indexOf('Archivos') < order.indexOf('Memorias'),
+          `orden de botones inesperado: ${order.join(', ')}`,
+        );
+        await ctx.page.setViewportSize({ width: 390, height: 844 });
+        await ctx.page.waitForTimeout(600); // deja terminar animate-slide-up
+        await shot('workspaces-card-files-mobile.png');
+        await filesLink.click();
+        await ctx.page.getByText('README.md').first().waitFor({ timeout: 12000 });
+        await shot('workspaces-files-explorer-mobile.png');
+        await ctx.page.setViewportSize({ width: 1440, height: 860 });
+        await shot('workspaces-files-explorer-desktop.png');
+      },
+    },
+    {
       name: 'delete_workspace: quitar un workspace lo elimina de la lista',
       fn: async (ctx) => {
         const repo = uniqueGitRepo('del');

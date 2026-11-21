@@ -181,3 +181,12 @@ func TestTableRowLinksTheMemoriesPage(t *testing.T) {
 	assert.Contains(t, body, `href="/workspaces/w1/memories"`)
 	assert.Contains(t, body, "Memorias")
 }
+
+func TestTableRowLinksTheFileExplorer(t *testing.T) {
+	body := render(t, WorkspaceTable(state.TableView{Rows: []state.WorkspaceRow{{
+		ID: "w1", Name: "a", Path: "/repos/a", FilesHref: "/workspaces/w1",
+	}}}))
+
+	assert.Contains(t, body, `href="/workspaces/w1"`)
+	assert.Contains(t, body, "Archivos")
+}

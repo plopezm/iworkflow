@@ -229,6 +229,7 @@ func workspaceRow(workspace dto.WorkspaceDTO, memory state.MemoryChip) state.Wor
 		BaseBranch:   workspace.BaseBranch,
 		BoardHref:    "/board/" + workspace.ID,
 		EditHref:     "/workspaces/" + workspace.ID + "/edit",
+		FilesHref:    "/workspaces/" + workspace.ID,
 		MemoriesHref: "/workspaces/" + workspace.ID + "/memories",
 		TerminalHref: "/workspaces/" + workspace.ID + "/terminal",
 		Memory:       memory,

@@ -53,6 +53,8 @@ type WorkspaceRow struct {
 	BoardHref string
 	// EditHref opens the edit tab of the workspace.
 	EditHref string
+	// FilesHref opens the file explorer of the workspace (served by the project_tree module).
+	FilesHref string
 	// MemoriesHref opens the read-only memories page of the workspace (served by the memories module).
 	MemoriesHref string
 	// TerminalHref opens the terminal tab of the workspace (served by the terminal module).
