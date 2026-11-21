@@ -31,6 +31,9 @@ templ WorkspaceTable(table state.TableView) {
 								@link.Tab(link.Props{Href: row.EditHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
 									{ msgEdit.T(ctx) }
 								}
+								@link.Tab(link.Props{Href: row.FilesHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
+									{ msgFiles.T(ctx) }
+								}
 								@link.Tab(link.Props{Href: row.MemoriesHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
 									{ msgMemories.T(ctx) }
 								}
