@@ -1,0 +1,41 @@
+package components
+
+import ui "iworkflow/internal/core/components"
+
+// LogsCard is the card with the most recent lines of the application log. It reloads itself and
+// morphs only its content, so a selection or scroll position inside the log survives a refresh.
+templ LogsCard(p LogsCardProps) {
+	<div
+		id={ LogsID }
+		hx-get={ LogsPath }
+		hx-trigger={ refreshInterval }
+		hx-sync="this:replace"
+		hx-swap="morph:innerHTML"
+		hx-disinherit="hx-swap"
+	>
+		@LogsBody(p)
+	</div>
+}
+
+// LogsBody is the content of the card: what the periodic reload swaps in.
+templ LogsBody(p LogsCardProps) {
+	@ui.Card(p.Title) {
+		if p.Error != "" {
+			@ui.ErrorText(p.Error)
+		} else {
+			<p class="muted text-sm">{ p.Help }</p>
+			if len(p.Lines) == 0 {
+				<p class="muted text-sm">{ p.Empty }</p>
+			} else {
+				<pre id="logs-lines" class="font-mono text-xs max-h-96 overflow-auto whitespace-pre-wrap break-all" tabindex="0">
+					for i, line := range p.Lines {
+						<span id={ lineID(i) } class="block">{ line }</span>
+					}
+				</pre>
+				if p.TruncatedNote != "" {
+					<p class="muted text-sm">{ p.TruncatedNote }</p>
+				}
+			}
+		}
+	}
+}
