@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -16,8 +17,15 @@ import (
 	"iworkflow/internal/modules/logs/domain/ports/outbound"
 )
 
-// maxReadBytes bounds how much of the current file one read looks at.
-const maxReadBytes int64 = 1 << 20
+// Bounds of one read. The current file is read through a byte window (maxReadBytes) because it can be
+// seeked; a gzip backup cannot, so it is streamed in full and only the last lines are kept. A single
+// line longer than maxLineBytes makes the backup unreadable (the current file has no such limit: it is
+// split from the window as text).
+const (
+	maxReadBytes     int64 = 1 << 20
+	maxLineBytes     int   = 1 << 20
+	scannerInitBytes int   = 64 << 10
+)
 
 // FileLogReader reads the log file and, when the current file is short, its newest gzip backup.
 type FileLogReader struct {
@@ -41,13 +49,19 @@ func (r *FileLogReader) Tail(ctx context.Context, maxLines int) (models.LogTail,
 		return models.LogTail{}, err
 	}
 	truncated := partial
-	if len(lines) < maxLines {
+	// The backup completes a short file. When the window already cut the file, the lines before it are
+	// lost for good, so joining the backup would leave a silent gap: it is not read.
+	if len(lines) < maxLines && !partial {
 		older, olderErr := tailOfGzip(r.path+".1.gz", maxLines-len(lines))
 		if olderErr != nil {
-			return models.LogTail{}, olderErr
+			// The backup is a best-effort supplement (it can be half written by a rotation or corrupt):
+			// the current file was read, so show it and say older lines are missing.
+			slog.Debug("log backup not readable", "path", r.path+".1.gz", "error", olderErr)
+			truncated = true
+		} else {
+			lines = append(older.lines, lines...)
+			truncated = older.truncated
 		}
-		lines = append(older.lines, lines...)
-		truncated = truncated || older.truncated
 	}
 	return models.LogTail{Lines: lines, Truncated: truncated}, nil
 }
@@ -73,17 +87,26 @@ func tailOfFile(path string, maxLines int) ([]string, bool, error) {
 		return nil, false, fmt.Errorf("stat log: %w", err)
 	}
 	offset := max(info.Size()-maxReadBytes, 0)
-	if _, err := file.Seek(offset, io.SeekStart); err != nil {
+	// From the byte before the window: when it is a line break the first line of the window is whole.
+	start := max(offset-1, 0)
+	if _, err := file.Seek(start, io.SeekStart); err != nil {
 		return nil, false, fmt.Errorf("seek log: %w", err)
 	}
 	data, err := io.ReadAll(file)
 	if err != nil {
 		return nil, false, fmt.Errorf("read log: %w", err)
 	}
-	lines := splitLines(string(data))
-	if offset > 0 && len(lines) > 0 {
-		lines = lines[1:] // the first line may start before the window
+	text := string(data)
+	if offset > 0 {
+		if text[:1] == "\n" {
+			text = text[1:]
+		} else if _, rest, found := strings.Cut(text, "\n"); found {
+			text = rest // the first line starts before the window
+		} else {
+			text = ""
+		}
 	}
+	lines := splitLines(text)
 	truncated := offset > 0
 	if len(lines) > maxLines {
 		lines = lines[len(lines)-maxLines:]
@@ -109,7 +132,7 @@ func tailOfGzip(path string, maxLines int) (tailResult, error) {
 	ring := make([]string, 0, maxLines)
 	total := 0
 	scanner := bufio.NewScanner(zr)
-	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
+	scanner.Buffer(make([]byte, 0, scannerInitBytes), maxLineBytes)
 	for scanner.Scan() {
 		total++
 		if len(ring) == maxLines {

@@ -5,6 +5,12 @@
 const fs = require('fs');
 const path = require('path');
 
+// Mirrors of the product values: application.MaxLines (lines shown), the max-h-96 class of the log block
+// (384 px, plus slack) and the card refresh interval (every 5 s, see props.go). Update them together.
+const MAX_LINES = 500;
+const MAX_BLOCK_PX = 400;
+const MIN_LINES_TO_OVERFLOW = 30;
+const REFRESH_WAIT_MS = 12000;
 const SHOTS = process.env.SMOKE_SCREENSHOT_DIR || '/tmp/iwf-e2e-screenshots';
 
 async function openResources(ctx) {
@@ -36,13 +42,13 @@ module.exports = {
         await lines.first().waitFor({ timeout: 15000 });
         const count = await lines.count();
         ctx.assert(count > 0, 'el log del servidor tiene al menos una línea');
-        ctx.assert(count <= 500, `no se muestran más de 500 líneas (hay ${count})`);
+        ctx.assert(count <= MAX_LINES, `no se muestran más de ${MAX_LINES} líneas (hay ${count})`);
         const text = (await lines.first().textContent()).trim();
         ctx.assert(text.length > 0, 'la primera línea no está vacía');
         const box = await ctx.page.locator('#logs-lines').evaluate((el) => ({ overflowY: getComputedStyle(el).overflowY, client: el.clientHeight, scroll: el.scrollHeight }));
         ctx.assert(box.overflowY === 'auto' || box.overflowY === 'scroll', `el log tiene scroll vertical (${JSON.stringify(box)})`);
-        ctx.assert(box.client <= 400, `el log tiene altura acotada (${JSON.stringify(box)})`);
-        if (count > 30) ctx.assert(box.scroll > box.client, `con ${count} líneas el contenido desborda y se puede desplazar (${JSON.stringify(box)})`);
+        ctx.assert(box.client <= MAX_BLOCK_PX, `el log tiene altura acotada (${JSON.stringify(box)})`);
+        if (count > MIN_LINES_TO_OVERFLOW) ctx.assert(box.scroll > box.client, `con ${count} líneas el contenido desborda y se puede desplazar (${JSON.stringify(box)})`);
         fs.mkdirSync(SHOTS, { recursive: true });
         const shot = path.join(SHOTS, 'logs-card.png');
         await ctx.page.locator('#logs-card').scrollIntoViewIfNeeded();
@@ -57,7 +63,7 @@ module.exports = {
         const before = await ctx.page.evaluate(() => document.querySelector('#logs-card').dataset.probe || '');
         ctx.assert(before === '', 'sin marca previa');
         await ctx.page.evaluate(() => { document.querySelector('#logs-card').dataset.probe = 'kept'; });
-        await ctx.page.waitForResponse((r) => r.url().endsWith('/logs/card') && r.ok(), { timeout: 12000 });
+        await ctx.page.waitForResponse((r) => r.url().endsWith('/logs/card') && r.ok(), { timeout: REFRESH_WAIT_MS });
         const kept = await ctx.page.evaluate(() => document.querySelector('#logs-card').dataset.probe);
         ctx.assert(kept === 'kept', 'el contenedor de la tarjeta permanece en la página (solo se morfea su contenido)');
       },
