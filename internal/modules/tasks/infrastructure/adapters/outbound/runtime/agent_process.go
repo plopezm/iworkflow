@@ -359,6 +359,7 @@ loop:
 	proc.commands.close()
 	<-writerDone
 
+	logProcessExit(proc, code, waitErr)
 	proc.sink.Handle(ctx, proc.taskID, models.ProcessExited{Code: code})
 
 	p.mu.Lock()
@@ -396,6 +397,23 @@ func trackSurvivorsWithin(ctx context.Context, survivors *process.Survivors, roo
 	boundedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	survivors.Track(boundedCtx, root)
+}
+
+// logProcessExit records why the agent ended: its exit code, or the signal that killed it when there is none.
+func logProcessExit(proc *agentProcess, code *int32, waitErr error) {
+	attrs := []any{"task_id", proc.taskID}
+	if code != nil {
+		attrs = append(attrs, "code", *code)
+	} else {
+		attrs = append(attrs, "code", "none")
+	}
+	if proc.cmd.ProcessState != nil {
+		attrs = append(attrs, "status", proc.cmd.ProcessState.String())
+	}
+	if waitErr != nil {
+		attrs = append(attrs, "wait_error", waitErr.Error())
+	}
+	slog.Info("el agente terminó", attrs...)
 }
 
 // exitCode returns the exit code of the leader, or nil when it was killed by a signal or could not be
