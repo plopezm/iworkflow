@@ -16,7 +16,11 @@ templ TaskHeader(view state.TaskDetailView) {
 		}
 		if view.WorkspaceName != "" {
 			<span class="shrink-0 text-[11px] text-muted" aria-hidden="true">·</span>
-			<p class="min-w-0 truncate text-[11px] text-muted" data-task-workspace>{ msgWorkspacePrefix.T(ctx) }<span class="font-medium text-fg">{ view.WorkspaceName }</span></p>
+			<p class="min-w-0 truncate text-[11px] text-muted" data-task-workspace>{ msgWorkspacePrefix.T(ctx) }if shared.WorkspaceColorClass(view.WorkspaceColor) != "" {
+				@shared.WorkspaceName(view.WorkspaceName, view.WorkspaceColor)
+			} else {
+				<span class="font-medium text-fg">{ view.WorkspaceName }</span>
+			}</p>
 		}
 	</div>
 	if view.Task.Error != nil {

@@ -183,7 +183,7 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 	} else {
 		view.Transcript = transcript
 	}
-	view.WorkspaceName = h.workspaceName(ctx, task)
+	view.WorkspaceName, view.WorkspaceColor = h.workspaceName(ctx, task)
 	view.RelatedProjects = h.relatedChoices(ctx, task)
 	preview := h.mergePreview(ctx, task)
 	view.MergeCleanupOnly = preview.CleanupOnly
@@ -207,22 +207,22 @@ func (h *DetailHandlers) page(ctx context.Context, scope string, task models.Tas
 	return view
 }
 
-// workspaceName is the name of the workspace of a task, or empty when it cannot be read: the header then omits it.
-func (h *DetailHandlers) workspaceName(ctx context.Context, task models.Task) string {
+// workspaceName is the name and palette key of the workspace of a task, or empty when it cannot be read: the header then omits it.
+func (h *DetailHandlers) workspaceName(ctx context.Context, task models.Task) (string, string) {
 	if h.uc.Workspaces == nil {
-		return ""
+		return "", ""
 	}
 	refs, err := h.uc.Workspaces.List(ctx)
 	if err != nil {
 		web.LogError(ctx, "could not list the workspaces for the task header", err, "task_id", task.ID.String())
-		return ""
+		return "", ""
 	}
 	for _, ref := range refs {
 		if ref.ID == task.WorkspaceID {
-			return ref.Name
+			return ref.Name, ref.Color
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // loadTranscript reads the history of a task and folds it into the transcript the page shows.
@@ -403,7 +403,7 @@ func (h *DetailHandlers) relatedChoices(ctx context.Context, task models.Task) [
 	}
 	options := make([]dto.WorkspaceOptionDTO, 0, len(refs))
 	for _, ref := range refs {
-		options = append(options, dto.WorkspaceOptionDTO{ID: ref.ID, Name: ref.Name, Path: ref.Path, BaseBranch: ref.BaseBranch})
+		options = append(options, dto.WorkspaceOptionDTO{ID: ref.ID, Name: ref.Name, Path: ref.Path, BaseBranch: ref.BaseBranch, Color: ref.Color})
 	}
 	return state.RelatedProjectChoices(options, task.WorkspaceID, workspaceIDs(related))
 }

@@ -205,7 +205,7 @@ templ DashboardTaskCard(item state.DashboardTaskItem, scope string) {
 				}
 				@link.Tab(link.Props{
 					Href:  state.BoardPath(task.WorkspaceID),
-					Class: "badge badge-muted hover:text-fg hover:border-fg/30 text-[11px] font-medium truncate max-w-[140px]",
+					Class: workspaceBadgeClass(item.WorkspaceColor),
 					Title: item.WorkspaceName,
 				}) {
 					{ item.WorkspaceName }
@@ -288,7 +288,7 @@ templ DashboardProjectCard(project state.DashboardProject) {
 	<article class="card stack gap-2" data-dashboard-project={ project.ID }>
 		<div class="row items-center gap-2">
 			@link.Tab(link.Props{Href: state.BoardPath(project.ID), Class: "min-w-0 flex-1 truncate text-sm font-semibold hover:underline", Title: project.Path}) {
-				{ project.Name }
+				@shared.WorkspaceName(project.Name, project.Color)
 			}
 			@link.Tab(link.Props{Href: state.NewTaskPath(project.ID), Class: "btn-ghost min-h-8 px-2 py-1 text-xs", Title: msgNewTask.T(ctx), Role: "button"}) {
 				<span aria-hidden="true">+</span>

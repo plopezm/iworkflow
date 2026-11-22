@@ -420,7 +420,7 @@ func (h *BoardHandlers) workspaceOptions(ctx context.Context) ([]dto.WorkspaceOp
 	}
 	options := make([]dto.WorkspaceOptionDTO, 0, len(refs))
 	for _, ref := range refs {
-		options = append(options, dto.WorkspaceOptionDTO{ID: ref.ID, Name: ref.Name, Path: ref.Path, BaseBranch: ref.BaseBranch})
+		options = append(options, dto.WorkspaceOptionDTO{ID: ref.ID, Name: ref.Name, Path: ref.Path, BaseBranch: ref.BaseBranch, Color: ref.Color})
 	}
 	return options, nil
 }
