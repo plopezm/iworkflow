@@ -41,7 +41,7 @@ func NewAdapter(shell string, source ShellSource) *Adapter {
 }
 
 // Spawn starts a login shell in a new PTY and registers the session.
-func (a *Adapter) Spawn(ctx context.Context, workspaceID uuid.UUID, workspaceName string, cwd string, size models.TerminalSize) (models.TerminalSession, error) {
+func (a *Adapter) Spawn(ctx context.Context, workspaceID uuid.UUID, workspaceName string, workspaceColor string, cwd string, size models.TerminalSize) (models.TerminalSession, error) {
 	a.mu.Lock()
 	closed := a.closed
 	a.mu.Unlock()
@@ -63,11 +63,12 @@ func (a *Adapter) Spawn(ctx context.Context, workspaceID uuid.UUID, workspaceNam
 	}
 	output := newSharedOutput()
 	meta := models.TerminalSession{
-		ID:            models.NewTerminalSessionID(),
-		WorkspaceID:   workspaceID,
-		WorkspaceName: workspaceName,
-		CreatedAt:     time.Now().UTC(),
-		Status:        models.TerminalStatusRunning,
+		ID:             models.NewTerminalSessionID(),
+		WorkspaceID:    workspaceID,
+		WorkspaceName:  workspaceName,
+		WorkspaceColor: workspaceColor,
+		CreatedAt:      time.Now().UTC(),
+		Status:         models.TerminalStatusRunning,
 	}
 	current := newSession(meta, master, output)
 	go func() {

@@ -26,6 +26,7 @@ func (u *OpenTaskTerminal) Execute(ctx context.Context, taskID uuid.UUID, size m
 	if err != nil {
 		return models.TerminalSession{}, err //nolint:wrapcheck // port errors are domain errors; passed unchanged
 	}
-	session, err := u.pty.Spawn(ctx, target.WorkspaceID, target.Name, target.Path, size)
+	// Task sessions carry no color: the task title is not a workspace, so it is never marked.
+	session, err := u.pty.Spawn(ctx, target.WorkspaceID, target.Name, "", target.Path, size)
 	return session, err //nolint:wrapcheck // port errors are domain errors; passed unchanged
 }

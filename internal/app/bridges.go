@@ -182,7 +182,7 @@ func workspaceTargets(get *workspacesapp.GetWorkspace) terminalresolver.Workspac
 		if err != nil || workspace == nil {
 			return nil, err
 		}
-		return &terminalmodels.WorkspaceTarget{Name: workspace.Name, Path: workspace.Path}, nil
+		return &terminalmodels.WorkspaceTarget{Name: workspace.Name, Color: derefColor(workspace.Color), Path: workspace.Path}, nil
 	}
 }
 

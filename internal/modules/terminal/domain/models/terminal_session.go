@@ -22,8 +22,10 @@ type TerminalSession struct {
 	ID TerminalSessionID
 	// WorkspaceID is uuid.Nil for the home terminal, which belongs to no workspace.
 	WorkspaceID uuid.UUID
-	// WorkspaceName is captured when the session opens and is never updated afterwards.
-	WorkspaceName string
-	CreatedAt     time.Time
-	Status        TerminalStatus
+	// WorkspaceName and WorkspaceColor are captured when the session opens and are never updated afterwards.
+	// The color is a palette key; empty means no color.
+	WorkspaceName  string
+	WorkspaceColor string
+	CreatedAt      time.Time
+	Status         TerminalStatus
 }
