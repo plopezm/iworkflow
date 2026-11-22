@@ -21,6 +21,8 @@ type Workspace struct {
 	ID   string
 	Name string
 	Path string
+	// Color is the palette key that marks the workspace; empty means none.
+	Color string
 }
 
 // Memory is one memory in a list, without its content.
