@@ -14,7 +14,6 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -96,7 +95,7 @@ func openLogOutput(getenv func(string) string) (io.Writer, func(), error) {
 	if err != nil {
 		return os.Stderr, noop, nil // no data folder known: stderr only
 	}
-	path := filepath.Join(dataDir, "logs", "iworkflow.log")
+	path := logfile.DefaultPath(dataDir)
 	maxMB := positiveInt(getenv(logMaxMBVar), defaultLogMaxMB)
 	backups := positiveInt(getenv(logBackupsVar), defaultBackups)
 	file, err := logfile.Open(path, int64(maxMB)<<20, backups)

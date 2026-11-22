@@ -17,6 +17,11 @@ const (
 	gzipExt  string      = ".gz"
 )
 
+// DefaultPath is the log file inside the data folder: <dataDir>/logs/iworkflow.log.
+func DefaultPath(dataDir string) string {
+	return filepath.Join(dataDir, "logs", "iworkflow.log")
+}
+
 // Writer is an io.WriteCloser safe for concurrent use. When a write would take the file past
 // maxBytes, the file is compressed to <path>.1.gz, older backups shift up (<path>.2.gz, ...) and
 // those beyond maxBackups are deleted.

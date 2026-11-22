@@ -21,6 +21,7 @@ import (
 	"iworkflow/internal/core/dock"
 	"iworkflow/internal/core/i18n"
 	"iworkflow/internal/core/listen"
+	"iworkflow/internal/core/logfile"
 	"iworkflow/internal/core/notify"
 	"iworkflow/internal/core/restart"
 	"iworkflow/internal/core/web"
@@ -36,6 +37,8 @@ import (
 	datahomedi "iworkflow/internal/modules/data_home/infrastructure/di"
 	engramdi "iworkflow/internal/modules/engram/infrastructure/di"
 	jiradi "iworkflow/internal/modules/jira/infrastructure/di"
+	logssystem "iworkflow/internal/modules/logs/infrastructure/adapters/outbound/system"
+	logsdi "iworkflow/internal/modules/logs/infrastructure/di"
 	memoriesdi "iworkflow/internal/modules/memories/infrastructure/di"
 	openwithdi "iworkflow/internal/modules/open_with/infrastructure/di"
 	prefsinbound "iworkflow/internal/modules/preferences/infrastructure/adapters/inbound"
@@ -261,6 +264,8 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		Restarter:   prefssystem.NewServerRestarter(deps.Restart),
 	})
 
+	logs := logsdi.NewModule(logsdi.Deps{Reader: logssystem.NewFileLogReader(logfile.DefaultPath(deps.Config.DataDir))})
+
 	// The memories tabs read workspaces and the memory provider only through ports bound here.
 	memories := memoriesdi.NewModule(memoriesdi.Deps{
 		Workspaces: &memoriesWorkspaceLookup{get: workspaces.Get},
@@ -276,7 +281,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	routes = append(routes, memories.Tabs()...)
 	routes = append(routes, taskHooks.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
-	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome, engram))...)
+	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome, logs, engram))...)
 	// The terminal tabs must precede the not-migrated catch-alls: the first matching pattern wins.
 	routes = append(routes, terminal.Tabs()...)
 	routes = append(routes, jiraModule.Tabs()...)
@@ -300,7 +305,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		tasks:         tasks,
 		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{engram, prefs, dataHome, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription, usageLimits},
+		modules:       []web.Module{engram, prefs, dataHome, logs, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription, usageLimits},
 		dock:          dock.NewHandlers(registry, emptyGroup()),
 	}, nil
 }
@@ -376,7 +381,7 @@ func (a *App) page(w http.ResponseWriter, r *http.Request) {
 }
 
 // settingsSections are the sections of the settings screen, in display order.
-func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module, home *datahomedi.Module, engram *engramdi.Module) []agentsettingspages.SettingsSection {
+func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, codeHosting *codehostingdi.Module, jira *jiradi.Module, home *datahomedi.Module, logs *logsdi.Module, engram *engramdi.Module) []agentsettingspages.SettingsSection {
 	return []agentsettingspages.SettingsSection{
 		{
 			ID:    "language",
@@ -392,7 +397,7 @@ func settingsSections(settings *agentsettingsdi.Module, tasks *tasksdi.Module, c
 				return prefspages.AppearanceSection()
 			},
 		},
-		withHomeCard(withPruneCard(settings.ResourcesSection(msgResources.T), tasks), home),
+		withLogsCard(withHomeCard(withPruneCard(settings.ResourcesSection(msgResources.T), tasks), home), logs),
 		{
 			ID:    "network",
 			Label: msgSettingsNet.T,
@@ -507,6 +512,20 @@ func withHomeCard(section agentsettingspages.SettingsSection, home *datahomedi.M
 				return err //nolint:wrapcheck // The render error passes through to the caller of the component.
 			}
 			return content(ctx).Render(renderCtx, w)
+		})
+	}
+	return section
+}
+
+// withLogsCard adds the log card below the content of the resources section.
+func withLogsCard(section agentsettingspages.SettingsSection, logs *logsdi.Module) agentsettingspages.SettingsSection {
+	content := section.Content
+	section.Content = func(ctx context.Context) templ.Component {
+		return templ.ComponentFunc(func(renderCtx context.Context, w io.Writer) error {
+			if err := content(ctx).Render(renderCtx, w); err != nil {
+				return err //nolint:wrapcheck // The render error passes through to the caller of the component.
+			}
+			return logs.Card(renderCtx).Render(renderCtx, w)
 		})
 	}
 	return section
