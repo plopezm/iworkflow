@@ -17,6 +17,25 @@ import (
 // maxNameLength is the longest accepted workspace name, in characters.
 const maxNameLength = 80
 
+// Colors are the palette keys a workspace can be marked with. The presentation maps each key to a color
+// that fits the chosen theme; an empty color means the workspace has none.
+var colors = [...]string{"red", "orange", "amber", "green", "teal", "cyan", "blue", "violet", "pink", "gray"}
+
+// Colors returns the accepted palette keys, in display order.
+func Colors() []string { return append([]string(nil), colors[:]...) }
+
+func validateColor(color string) error {
+	if color == "" {
+		return nil
+	}
+	for _, key := range colors {
+		if key == color {
+			return nil
+		}
+	}
+	return werrors.InvalidColor(color)
+}
+
 // WorkspaceID identifies a workspace. It is a UUID in canonical (lowercase, hyphenated) form.
 type WorkspaceID struct {
 	value uuid.UUID
@@ -62,6 +81,8 @@ type Workspace struct {
 	CreatedAt  time.Time
 	// DefaultRuntime is the agent new tasks of the workspace launch with. Nil means the system agent.
 	DefaultRuntime *string
+	// Color is the palette key that marks the workspace; nil means none.
+	Color *string
 }
 
 // NewWorkspace is the input to register a workspace. Empty optional fields mean "absent".
@@ -77,12 +98,18 @@ type NewWorkspace struct {
 	AgentsFileID string
 	// DefaultRuntime is the agent new tasks launch with. Empty means the system agent.
 	DefaultRuntime string
+	// Color is a palette key; empty means no color.
+	Color string
 }
 
 // Validated normalizes the input and checks the invariants that do not depend on infrastructure.
 func (n NewWorkspace) Validated() (NewWorkspace, error) {
 	name := strings.TrimSpace(n.Name)
 	if err := validateName(name); err != nil {
+		return NewWorkspace{}, err
+	}
+	color := strings.TrimSpace(n.Color)
+	if err := validateColor(color); err != nil {
 		return NewWorkspace{}, err
 	}
 	if !filepath.IsAbs(n.Path) {
@@ -95,6 +122,7 @@ func (n NewWorkspace) Validated() (NewWorkspace, error) {
 		Initialize:     n.Initialize,
 		AgentsFileID:   strings.TrimSpace(n.AgentsFileID),
 		DefaultRuntime: strings.TrimSpace(n.DefaultRuntime),
+		Color:          color,
 	}, nil
 }
 
@@ -108,6 +136,9 @@ type WorkspaceUpdate struct {
 	// DefaultRuntime is the agent new tasks launch with. Nil keeps the saved one (the field was absent);
 	// a non-nil empty value means the system agent.
 	DefaultRuntime *string
+	// Color is the palette key. Nil keeps the saved one (the field was absent); a non-nil empty value
+	// removes it.
+	Color *string
 }
 
 // Validated normalizes the input and checks the invariants that do not depend on infrastructure.
@@ -121,7 +152,16 @@ func (u WorkspaceUpdate) Validated() (WorkspaceUpdate, error) {
 		trimmed := strings.TrimSpace(*u.DefaultRuntime)
 		defaultRuntime = &trimmed
 	}
+	var color *string
+	if u.Color != nil {
+		trimmed := strings.TrimSpace(*u.Color)
+		if err := validateColor(trimmed); err != nil {
+			return WorkspaceUpdate{}, err
+		}
+		color = &trimmed
+	}
 	return WorkspaceUpdate{
+		Color:          color,
 		Name:           name,
 		BaseBranch:     strings.TrimSpace(u.BaseBranch),
 		AgentsFileID:   strings.TrimSpace(u.AgentsFileID),

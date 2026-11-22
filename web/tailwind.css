@@ -2328,3 +2328,88 @@ article.card:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Workspace colors: each key sets --ws, the one place a project color is written. The same hue works in light and
+   dark; the chip derives its text, tint and border from it with color-mix, so it follows the chosen theme. */
+.ws-red { --ws: #e5484d; }
+.ws-orange { --ws: #f76b15; }
+.ws-amber { --ws: #e0a100; }
+.ws-green { --ws: #30a46c; }
+.ws-teal { --ws: #12a594; }
+.ws-cyan { --ws: #0fa3c4; }
+.ws-blue { --ws: #3e63dd; }
+.ws-violet { --ws: #8e4ec6; }
+.ws-pink { --ws: #d6409f; }
+.ws-gray { --ws: #8b8d98; }
+
+.ws-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 9999px;
+  background: var(--ws, var(--c-accent));
+}
+
+.ws-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  border: 1px solid color-mix(in srgb, var(--ws) 35%, transparent);
+  background: color-mix(in srgb, var(--ws) 16%, transparent);
+  padding: 0 0.5rem;
+  color: color-mix(in srgb, var(--ws) 70%, var(--c-fg));
+  font-weight: 500;
+}
+
+.ws-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ws-swatch {
+  position: relative;
+  display: inline-flex;
+  width: 1.75rem;
+  height: 1.75rem;
+  cursor: pointer;
+}
+
+.ws-swatch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.ws-swatch span {
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--ws);
+}
+
+.ws-swatch-none span {
+  border: 2px dashed var(--c-border);
+  background: transparent;
+}
+
+.ws-swatch input:checked + span {
+  box-shadow: 0 0 0 2px var(--c-bg), 0 0 0 4px var(--ws, var(--c-fg));
+}
+
+.ws-swatch input:focus-visible + span {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+}
+
+/* Dashboard task badge of a colored workspace: the muted badge takes the tint of its project. */
+.badge.ws-badge {
+  border-color: color-mix(in srgb, var(--ws) 35%, transparent);
+  background: color-mix(in srgb, var(--ws) 16%, transparent);
+  color: color-mix(in srgb, var(--ws) 70%, var(--c-fg));
+}

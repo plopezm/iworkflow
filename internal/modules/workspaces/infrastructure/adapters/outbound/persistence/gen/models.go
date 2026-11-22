@@ -226,4 +226,5 @@ type Workspace struct {
 	BaseBranch     string
 	CreatedAt      string
 	DefaultRuntime sql.NullString
+	Color          sql.NullString
 }

@@ -105,3 +105,16 @@ func TestUpdateFormAbsentDefaultRuntimeIsNotGiven(t *testing.T) {
 
 	assert.Nil(t, update.DefaultRuntime, "an absent default agent is nil, which keeps the saved one")
 }
+
+func TestFormsReadTheColorAndTheEditFormKeepsItWhenAbsent(t *testing.T) {
+	register := RegisterWorkspaceFromForm(url.Values{"name": {"a"}, "color": {"teal"}})
+	require.NotNil(t, register.Color)
+	assert.Equal(t, "teal", *register.Color)
+
+	absent := UpdateWorkspaceFromForm(url.Values{"name": {"a"}})
+	assert.Nil(t, absent.Color, "an absent field keeps the saved color")
+
+	cleared := UpdateWorkspaceFromForm(url.Values{"name": {"a"}, "color": {""}})
+	require.NotNil(t, cleared.Color)
+	assert.Empty(t, *cleared.Color, "a present empty field removes the color")
+}

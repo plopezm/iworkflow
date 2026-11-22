@@ -1,0 +1,33 @@
+package components
+
+// WorkspaceName shows a workspace name marked with its color: a tinted pill with a dot. A workspace
+// without a (known) color renders the plain name, so uncolored projects look as before.
+templ WorkspaceName(name, color string) {
+	if WorkspaceColorClass(color) == "" {
+		<span class="min-w-0 truncate">{ name }</span>
+	} else {
+		<span class={ WorkspaceNameClass(color) } data-workspace-color={ color }>
+			<span class="ws-dot" aria-hidden="true"></span>
+			<span class="min-w-0 truncate">{ name }</span>
+		</span>
+	}
+}
+
+// ColorPicker is the palette of a workspace: one radio per color plus "no color", submitted under Name.
+templ ColorPicker(p ColorPickerProps) {
+	<fieldset class="stack gap-1.5" data-testid="workspace-color-picker">
+		<legend class="text-sm font-medium text-fg">{ p.Label }</legend>
+		<div class="ws-picker" role="radiogroup" aria-label={ p.Label }>
+			<label class="ws-swatch ws-swatch-none" title={ p.NoneLabel }>
+				<input type="radio" name={ p.Name } value="" checked?={ WorkspaceColorClass(p.Value) == "" } aria-label={ p.NoneLabel }/>
+				<span></span>
+			</label>
+			for _, key := range WorkspaceColorKeys() {
+				<label class={ "ws-swatch ws-" + key } title={ key }>
+					<input type="radio" name={ p.Name } value={ key } checked?={ p.Value == key } aria-label={ key }/>
+					<span></span>
+				</label>
+			}
+		</div>
+	</fieldset>
+}

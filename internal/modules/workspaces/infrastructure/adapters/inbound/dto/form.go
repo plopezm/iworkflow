@@ -12,6 +12,7 @@ func RegisterWorkspaceFromForm(values url.Values) RegisterWorkspaceDTO {
 		Initialize:     values.Get("initialize") == "true",
 		AgentsFileID:   formOptional(values, "agents_file_id"),
 		DefaultRuntime: formOptional(values, "default_runtime"),
+		Color:          formOptional(values, "color"),
 	}
 }
 
@@ -23,6 +24,9 @@ func UpdateWorkspaceFromForm(values url.Values) UpdateWorkspaceDTO {
 		Name:         values.Get("name"),
 		BaseBranch:   formOptional(values, "base_branch"),
 		AgentsFileID: formOptional(values, "agents_file_id"),
+	}
+	if values.Has("color") {
+		dto.Color = formOptional(values, "color")
 	}
 	if values.Has("default_runtime") {
 		dto.DefaultRuntime = formOptional(values, "default_runtime")

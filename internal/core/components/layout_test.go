@@ -3,9 +3,11 @@ package components_test
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/a-h/templ"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/core/components"
@@ -40,4 +42,29 @@ func TestErrorTextEscapesTheMessage(t *testing.T) {
 
 	require.Contains(t, html, "&lt;b&gt;x&lt;/b&gt;")
 	require.NotContains(t, html, "<b>")
+}
+
+func TestWorkspaceNameTintsAColoredWorkspaceAndLeavesTheOthersPlain(t *testing.T) {
+	colored := render(t, components.WorkspaceName("Demo", "blue"))
+	assert.Contains(t, colored, "ws-chip ws-blue")
+	assert.Contains(t, colored, "Demo")
+
+	for _, color := range []string{"", "chartreuse"} {
+		plain := render(t, components.WorkspaceName("Demo", color))
+		assert.NotContains(t, plain, "ws-chip")
+		assert.Contains(t, plain, "Demo")
+	}
+}
+
+func TestColorPickerOffersEveryColorAndChecksOnlyTheSelectedOne(t *testing.T) {
+	html := render(t, components.ColorPicker(components.ColorPickerProps{Label: "Color", NoneLabel: "No color", Name: "color", Value: "teal"}))
+
+	for _, key := range components.WorkspaceColorKeys() {
+		assert.Contains(t, html, `value="`+key+`"`)
+	}
+	assert.Equal(t, 1, strings.Count(html, "checked"), "exactly one option is checked")
+	assert.Contains(t, html, `value="teal" checked`)
+
+	none := render(t, components.ColorPicker(components.ColorPickerProps{Label: "Color", NoneLabel: "No color", Name: "color"}))
+	assert.Contains(t, none, `value="" checked`)
 }

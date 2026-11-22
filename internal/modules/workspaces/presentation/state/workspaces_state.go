@@ -49,6 +49,8 @@ type WorkspaceRow struct {
 	Name       string
 	Path       string
 	BaseBranch string
+	// Color is the palette key of the workspace; empty means none.
+	Color string
 	// BoardHref opens the task board of the workspace.
 	BoardHref string
 	// EditHref opens the edit tab of the workspace.
@@ -78,6 +80,7 @@ type InitializationPrompt struct {
 	BaseBranch     string
 	AgentsFileID   string
 	DefaultRuntime string
+	Color          string
 }
 
 // ResubmitJSON encodes the values the confirm button sends, as the hx-vals attribute.
@@ -91,6 +94,9 @@ func (p InitializationPrompt) ResubmitJSON() string {
 	}
 	if p.DefaultRuntime != "" {
 		values["default_runtime"] = p.DefaultRuntime
+	}
+	if p.Color != "" {
+		values["color"] = p.Color
 	}
 	encoded, err := json.Marshal(values)
 	if err != nil {
@@ -110,7 +116,9 @@ type RegisterForm struct {
 	DefaultRuntime string
 	// Runtimes are the agents that can be chosen as the default.
 	Runtimes []AgentsOption
-	Error    string
+	// Color is the chosen palette key; empty means none.
+	Color string
+	Error string
 	// Prompt is set when the server asks for confirmation before initializing a folder.
 	Prompt *InitializationPrompt
 }
@@ -150,6 +158,8 @@ type EditPage struct {
 	DefaultRuntime string
 	// Runtimes are the agents that can be chosen as the default.
 	Runtimes []AgentsOption
+	// Color is the saved palette key; empty means none.
+	Color string
 	// OptionsError is shown when the AGENTS.md files cannot be listed; the form stays usable.
 	OptionsError string
 	Error        string

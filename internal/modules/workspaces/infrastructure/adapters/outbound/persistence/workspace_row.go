@@ -54,7 +54,13 @@ func rowToDomain(row gen.Workspace) (models.Workspace, error) {
 		value := row.DefaultRuntime.String
 		defaultRuntime = &value
 	}
+	var color *string
+	if row.Color.Valid && row.Color.String != "" {
+		value := row.Color.String
+		color = &value
+	}
 	return models.Workspace{
+		Color:          color,
 		ID:             models.WorkspaceIDFromUUID(id),
 		Name:           row.Name,
 		Path:           row.Path,
@@ -71,3 +77,6 @@ func runtimeColumn(runtime *string) sql.NullString {
 	}
 	return sql.NullString{String: *runtime, Valid: true}
 }
+
+// colorColumn maps the optional color to its nullable column.
+func colorColumn(color *string) sql.NullString { return runtimeColumn(color) }
