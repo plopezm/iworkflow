@@ -70,13 +70,10 @@ func rowToDomain(row gen.Workspace) (models.Workspace, error) {
 	}, nil
 }
 
-// runtimeColumn maps the optional default runtime to its nullable column.
-func runtimeColumn(runtime *string) sql.NullString {
-	if runtime == nil || *runtime == "" {
+// optionalTextColumn maps an optional text (default runtime, color) to its nullable column.
+func optionalTextColumn(text *string) sql.NullString {
+	if text == nil || *text == "" {
 		return sql.NullString{}
 	}
-	return sql.NullString{String: *runtime, Valid: true}
+	return sql.NullString{String: *text, Valid: true}
 }
-
-// colorColumn maps the optional color to its nullable column.
-func colorColumn(color *string) sql.NullString { return runtimeColumn(color) }

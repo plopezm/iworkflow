@@ -49,8 +49,8 @@ func (r *WorkspaceRepository) Save(ctx context.Context, workspace models.Workspa
 		Path:           workspace.Path,
 		BaseBranch:     workspace.BaseBranch,
 		CreatedAt:      formatTimestamp(workspace.CreatedAt),
-		DefaultRuntime: runtimeColumn(workspace.DefaultRuntime),
-		Color:          colorColumn(workspace.Color),
+		DefaultRuntime: optionalTextColumn(workspace.DefaultRuntime),
+		Color:          optionalTextColumn(workspace.Color),
 	})
 	if err != nil {
 		return mapError(err, &workspace)
@@ -81,8 +81,8 @@ func (r *WorkspaceRepository) Update(ctx context.Context, workspace models.Works
 		ID:             workspace.ID.String(),
 		Name:           workspace.Name,
 		BaseBranch:     workspace.BaseBranch,
-		DefaultRuntime: runtimeColumn(workspace.DefaultRuntime),
-		Color:          colorColumn(workspace.Color),
+		DefaultRuntime: optionalTextColumn(workspace.DefaultRuntime),
+		Color:          optionalTextColumn(workspace.Color),
 	})
 	if err != nil {
 		return mapError(err, &workspace)
