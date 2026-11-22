@@ -13,6 +13,16 @@ templ WorkspaceName(name, color string) {
 	}
 }
 
+// WorkspaceLabel is a workspace name inside running text (a heading, a caption, a table cell): the tinted pill when
+// the color is a known palette key, the bare name otherwise. It is the one place that decides it for such callers.
+templ WorkspaceLabel(name, color string) {
+	if WorkspaceColorClass(color) != "" {
+		@WorkspaceName(name, color)
+	} else {
+		{ name }
+	}
+}
+
 // ColorPicker is the palette of a workspace: one radio per color plus "no color", submitted under Name.
 templ ColorPicker(p ColorPickerProps) {
 	<fieldset class="stack gap-1.5" data-testid="workspace-color-picker">

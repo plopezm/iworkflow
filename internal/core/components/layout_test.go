@@ -56,6 +56,13 @@ func TestWorkspaceNameTintsAColoredWorkspaceAndLeavesTheOthersPlain(t *testing.T
 	}
 }
 
+func TestWorkspaceLabelIsThePillForAKnownColorAndTheBareNameOtherwise(t *testing.T) {
+	assert.Contains(t, render(t, components.WorkspaceLabel("Demo", "blue")), "ws-chip ws-blue")
+	for _, color := range []string{"", "chartreuse"} {
+		assert.Equal(t, "Demo", render(t, components.WorkspaceLabel("Demo", color)))
+	}
+}
+
 func TestColorPickerOffersEveryColorAndChecksOnlyTheSelectedOne(t *testing.T) {
 	html := render(t, components.ColorPicker(components.ColorPickerProps{Label: "Color", NoneLabel: "No color", Name: "color", Value: "teal"}))
 

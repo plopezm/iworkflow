@@ -30,7 +30,7 @@ func TestOpenHomeTerminalSpawnsInHomeWithoutWorkspace(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, expected, session)
-	require.Equal(t, []spawnCall{{workspaceID: uuid.Nil, workspaceName: "Home", cwd: "/home/u", size: testSize}}, pty.spawnCalls)
+	require.Equal(t, []spawnCall{{workspaceID: uuid.Nil, workspaceName: "Home", workspaceColor: "", cwd: "/home/u", size: testSize}}, pty.spawnCalls)
 }
 
 func TestOpenHomeTerminalPropagatesThePtyError(t *testing.T) {

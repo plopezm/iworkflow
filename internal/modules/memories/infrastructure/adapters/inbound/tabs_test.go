@@ -91,6 +91,14 @@ func TestListTabMarksTheWorkspaceNameWithItsColor(t *testing.T) {
 	assert.Contains(t, plain, "Memorias · proj")
 }
 
+// A color that is not in the palette (the column has no CHECK) degrades to the plain name.
+func TestListTabKeepsThePlainNameForAnUnknownColor(t *testing.T) {
+	unknown := models.Workspace{ID: "w1", Name: "proj", Path: "/p", Color: "chartreuse"}
+	body := render(t, NewHandlers(stubList{workspace: unknown, feed: models.Feed{State: models.StateEmpty}}, stubRead{}, nil).ListTab(context.Background(), dock.Params{"id": "w1"}))
+	assert.NotContains(t, body, "ws-chip")
+	assert.Contains(t, body, "Memorias · proj")
+}
+
 func TestDetailTabMarksTheWorkspaceNameWithItsColor(t *testing.T) {
 	entry := models.Entry{State: models.StateAvailable, Memory: models.Memory{ID: 9, Type: "decision", Title: "Why"}, Content: "x"}
 	colored := models.Workspace{ID: "w1", Name: "proj", Path: "/p", Color: "teal"}
