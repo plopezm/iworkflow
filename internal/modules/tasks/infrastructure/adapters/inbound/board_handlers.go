@@ -214,9 +214,11 @@ func (h *BoardHandlers) listView(r *http.Request) state.BoardView {
 }
 
 // sidebar serves the content of the board part of the sidebar, which stays in the page and swaps only this content
-// (see components.BoardSidebar).
+// (see components.BoardSidebar). The query q narrows the workspaces to the matching ones; the attention list is never
+// narrowed.
 func (h *BoardHandlers) sidebar(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, http.StatusOK, components.SidebarBody(h.sidebarRows(r.Context())))
+	rows := state.FilterSidebar(h.sidebarRows(r.Context()), r.URL.Query().Get("q"))
+	web.Render(w, r, http.StatusOK, components.SidebarBody(rows))
 }
 
 // createTab is the create tab, with the workspace of its address selected. A link in the address (kind and anchor)

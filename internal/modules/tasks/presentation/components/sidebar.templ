@@ -17,6 +17,7 @@ templ BoardSidebar(rows state.SidebarRows) {
 		id="board-sidebar"
 		class="contents"
 		hx-get="/board/sidebar"
+		hx-include="[name='q']"
 		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body"
 		hx-sync="this:replace"
 		hx-target="this"
@@ -31,6 +32,7 @@ templ BoardSidebar(rows state.SidebarRows) {
 // the server's (Collapsed), so a refresh keeps it.
 templ SidebarBody(rows state.SidebarRows) {
 	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgWorkspaces.T(ctx), Count: len(rows.Workspaces), Actions: groupCreateButton()}) {
+		@sidebarSearch(rows.Query)
 		if rows.LoadError != "" {
 			@shared.ErrorText(rows.LoadError)
 		}
@@ -48,7 +50,9 @@ templ SidebarBody(rows state.SidebarRows) {
 		for _, workspace := range rows.UngroupedRows() {
 			@workspaceRow(workspace, rows.Groups)
 		}
-		if len(rows.Workspaces) == 0 {
+		if len(rows.Workspaces) == 0 && rows.Query != "" {
+			<p class="muted">{ msgNoWorkspacesMatch.T(ctx) }</p>
+		} else if len(rows.Workspaces) == 0 {
 			<div class="stack gap-1.5">
 				<p class="muted">{ msgNoWorkspacesYet.T(ctx) }</p>
 				@link.Tab(link.Props{Href: "/workspaces", Class: "btn-ghost min-h-9 px-3 py-1.5 text-xs"}) {
@@ -67,6 +71,26 @@ templ SidebarBody(rows state.SidebarRows) {
 			<p class="muted">{ msgNothingNeedsAttention.T(ctx) }</p>
 		}
 	}
+}
+
+// sidebarSearch is the text filter of the workspaces. It asks the server for the sidebar narrowed to the text, and the
+// root of the sidebar (BoardSidebar) sends the same text with every other refresh, so the filter survives them.
+templ sidebarSearch(query string) {
+	<input
+		id="board-sidebar-filter"
+		type="search"
+		name="q"
+		value={ query }
+		class="input min-w-0 flex-1 text-xs"
+		placeholder={ msgSearchWorkspaces.T(ctx) }
+		aria-label={ msgSearchWorkspaces.T(ctx) }
+		autocomplete="off"
+		hx-get="/board/sidebar"
+		hx-trigger="input changed delay:200ms, search"
+		hx-target="#board-sidebar"
+		hx-swap="morph:innerHTML"
+		hx-sync="#board-sidebar:replace"
+	/>
 }
 
 // groupCreateButton is the "+" of the workspaces section: it asks for a name and creates the group. The name reaches

@@ -2,6 +2,8 @@ package state
 
 import (
 	"sort"
+	"strings"
+	"unicode"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
@@ -50,6 +52,8 @@ type SidebarRows struct {
 	NeedsAttentionIn map[string]bool
 	// LoadError is the message of a failed read of the sidebar data; empty when the data is fresh.
 	LoadError string
+	// Query is the trimmed text the rows were narrowed by (see FilterSidebar); empty when no filter applies.
+	Query string
 }
 
 // UngroupedRows are the workspaces the flat part of the sidebar lists. Once a layout is applied these are the
@@ -151,4 +155,98 @@ func needsAttention(workspaces []SidebarWorkspace, attention map[string]bool) bo
 		}
 	}
 	return false
+}
+
+// FilterSidebar narrows the workspace rows to the ones matching query (función pura). A row matches when its name
+// or its subtitle contains the query, ignoring case and accents. The query is trimmed, and an empty one returns rows
+// unchanged. Groups without a match are dropped; the groups that remain are shown expanded, while the stored
+// Collapsed flag of the input is left as it is. The attention list is never filtered.
+func FilterSidebar(rows SidebarRows, query string) SidebarRows {
+	trimmed := strings.TrimSpace(query)
+	needle := foldText(trimmed)
+	if needle == "" {
+		return rows
+	}
+	matches := func(workspace SidebarWorkspace) bool {
+		return strings.Contains(foldText(workspace.Name), needle) || strings.Contains(foldText(workspace.Subtitle), needle)
+	}
+	out := rows
+	out.Query = trimmed
+	out.Workspaces = keepMatching(rows.Workspaces, matches)
+	out.Pinned = keepMatching(rows.Pinned, matches)
+	out.Ungrouped = keepMatching(rows.Ungrouped, matches)
+	if rows.Groups != nil {
+		out.Groups = make([]SidebarGroup, 0, len(rows.Groups))
+		for _, group := range rows.Groups {
+			kept := keepMatching(group.Workspaces, matches)
+			if len(kept) == 0 {
+				continue
+			}
+			group.Workspaces = kept
+			group.Collapsed = false
+			out.Groups = append(out.Groups, group)
+		}
+	}
+	return out
+}
+
+// keepMatching returns the rows that match, in their order. A nil list stays nil, so an arranged sidebar and a flat
+// one keep telling themselves apart (see UngroupedRows).
+func keepMatching(workspaces []SidebarWorkspace, matches func(SidebarWorkspace) bool) []SidebarWorkspace {
+	if workspaces == nil {
+		return nil
+	}
+	kept := make([]SidebarWorkspace, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		if matches(workspace) {
+			kept = append(kept, workspace)
+		}
+	}
+	return kept
+}
+
+// accentBases maps each accented letter of the Latin alphabet to the plain letter it carries.
+var accentBases = buildAccentBases(map[rune]string{
+	'a': "àáâãäåāăą",
+	'c': "çćĉċč",
+	'd': "ďđ",
+	'e': "èéêëēĕėęě",
+	'g': "ĝğġģ",
+	'h': "ĥħ",
+	'i': "ìíîïĩīĭįı",
+	'j': "ĵ",
+	'k': "ķ",
+	'l': "ĺļľŀł",
+	'n': "ñńņňŉ",
+	'o': "òóôõöøōŏő",
+	'r': "ŕŗř",
+	's': "śŝşš",
+	't': "ţťŧ",
+	'u': "ùúûüũūŭůűų",
+	'w': "ŵ",
+	'y': "ýÿŷ",
+	'z': "źżž",
+})
+
+func buildAccentBases(groups map[rune]string) map[rune]rune {
+	bases := make(map[rune]rune)
+	for plain, accented := range groups {
+		for _, accent := range accented {
+			bases[accent] = plain
+		}
+	}
+	return bases
+}
+
+// foldText lowercases text and drops the accents of its Latin letters, so that a query matches a name whatever its
+// case or its accents.
+func foldText(text string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(text) {
+		if plain, ok := accentBases[r]; ok {
+			r = plain
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
 }
