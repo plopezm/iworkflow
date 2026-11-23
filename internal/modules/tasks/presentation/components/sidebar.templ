@@ -45,7 +45,7 @@ templ SidebarBody(rows state.SidebarRows) {
 			</div>
 		}
 		for _, group := range rows.Groups {
-			@groupBlock(group, rows.Groups)
+			@groupBlock(group, rows.Groups, rows.Query != "")
 		}
 		for _, workspace := range rows.UngroupedRows() {
 			@workspaceRow(workspace, rows.Groups)
@@ -110,17 +110,15 @@ templ groupCreateButton() {
 
 // groupBlock is a collapsible group: its name, color and count in the header, its rows only while it is open. A
 // collapsed group that holds a workspace which needs the user shows the attention marker.
-templ groupBlock(group state.SidebarGroup, groups []state.SidebarGroup) {
+templ groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering bool) {
 	<div class="stack gap-0.5" data-group-id={ group.ID } data-group-collapsed={ strconv.FormatBool(group.Collapsed) } data-group-count={ strconv.Itoa(len(group.Workspaces)) }>
 		<div class="flex items-center gap-1 px-2.5 py-1.5">
 			<button
 				type="button"
-				class="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left text-[13px] font-medium text-fg"
+				class={ groupToggleClass(filtering) }
 				aria-expanded={ strconv.FormatBool(!group.Collapsed) }
-				title={ groupToggleTitle(ctx, group.Collapsed) }
-				hx-post={ "/workspace-groups/" + group.ID + "/collapse" }
-				hx-vals={ groupCollapseVals(!group.Collapsed) }
-				hx-swap="none"
+				title={ groupToggleTitle(ctx, group.Collapsed, filtering) }
+				{ groupToggleAttrs(group, filtering)... }
 			>
 				<span aria-hidden="true" class="text-muted">{ groupChevron(group.Collapsed) }</span>
 				@shared.WorkspaceName(group.Name, group.Color)

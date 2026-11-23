@@ -99,5 +99,42 @@ func TestSidebarWithoutAQueryRendersTheSameRowsAsAnUnfilteredSidebar(t *testing.
 	assert.Contains(t, plain, `data-group-collapsed="true"`, "the stored state of a group is rendered as it is")
 }
 
+// groupToggleTag is the opening tag of the toggle button of the group with the given id.
+func groupToggleTag(t *testing.T, html string, id string) string {
+	t.Helper()
+	start := strings.Index(html, `data-group-id="`+id+`"`)
+	require.GreaterOrEqual(t, start, 0, "the group %s must be rendered", id)
+	rest := html[start:]
+	button := rest[strings.Index(rest, "<button"):]
+	return button[:strings.Index(button, ">")+1]
+}
+
+// While a filter is active the matching groups are shown expanded whatever their stored state, so their toggle must
+// not change that state: it renders disabled and posts nothing.
+func TestSidebarGroupToggleIsDisabledWhileFiltering(t *testing.T) {
+	t.Parallel()
+	rows := state.FilterSidebar(groupedRows(), "api")
+
+	html := renderComponent(t, i18n.En, components.SidebarBody(rows))
+
+	toggle := groupToggleTag(t, html, "g1")
+	assert.Contains(t, toggle, " disabled", "the toggle must be disabled while the filter forces the group open")
+	assert.Contains(t, toggle, `aria-disabled="true"`)
+	assert.NotContains(t, toggle, `hx-post=`, "a disabled toggle must not change the stored state")
+	assert.NotContains(t, html, `hx-post="/workspace-groups/g1/collapse"`)
+}
+
+// Without a filter the toggle of a group keeps posting its collapse change.
+func TestSidebarGroupToggleIsEnabledWithoutAFilter(t *testing.T) {
+	t.Parallel()
+
+	html := renderComponent(t, i18n.En, components.SidebarBody(groupedRows()))
+
+	toggle := groupToggleTag(t, html, "g1")
+	assert.NotContains(t, toggle, "disabled")
+	assert.NotContains(t, toggle, `aria-disabled`)
+	assert.Contains(t, toggle, `hx-post="/workspace-groups/g1/collapse"`)
+}
+
 // html_unescape decodes the entities templ writes into an attribute value.
 func html_unescape(value string) string { return html.UnescapeString(value) }

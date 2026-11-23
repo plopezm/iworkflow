@@ -59,6 +59,7 @@ var (
 	msgGroupActions      = i18n.Msg{En: "Group actions", Es: "Acciones del grupo", Zh: "分组操作", De: "Gruppenaktionen", Fr: "Actions du groupe"}
 	msgExpandGroup       = i18n.Msg{En: "Expand group", Es: "Desplegar grupo", Zh: "展开分组", De: "Gruppe aufklappen", Fr: "Déplier le groupe"}
 	msgCollapseGroup     = i18n.Msg{En: "Collapse group", Es: "Plegar grupo", Zh: "折叠分组", De: "Gruppe zuklappen", Fr: "Replier le groupe"}
+	msgGroupShownOpen    = i18n.Msg{En: "Shown open while filtering", Es: "Abierto mientras hay filtro", Zh: "筛选时保持展开", De: "Während der Filterung geöffnet", Fr: "Ouvert pendant le filtrage"}
 	msgPinWorkspace      = i18n.Msg{En: "Pin", Es: "Fijar", Zh: "固定", De: "Anheften", Fr: "Épingler"}
 	msgUnpinWorkspace    = i18n.Msg{En: "Unpin", Es: "Desfijar", Zh: "取消固定", De: "Lösen", Fr: "Détacher"}
 	msgMoveToGroup       = i18n.Msg{En: "Move to {group}", Es: "Mover a {group}", Zh: "移到 {group}", De: "Nach {group} verschieben", Fr: "Déplacer vers {group}"}
