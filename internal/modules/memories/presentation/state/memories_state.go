@@ -34,20 +34,24 @@ type Row struct {
 // ListPage is the memories page of a workspace.
 type ListPage struct {
 	WorkspaceName string
-	BoardHref     string
-	Availability  Availability
-	Rows          []Row
+	// WorkspaceColor is the palette key of the workspace; empty means none.
+	WorkspaceColor string
+	BoardHref      string
+	Availability   Availability
+	Rows           []Row
 }
 
 // DetailPage is one memory with its content.
 type DetailPage struct {
 	WorkspaceName string
-	ListHref      string
-	Availability  Availability
-	Type          string
-	Title         string
-	Date          string
-	Content       string
+	// WorkspaceColor is the palette key of the workspace; empty means none.
+	WorkspaceColor string
+	ListHref       string
+	Availability   Availability
+	Type           string
+	Title          string
+	Date           string
+	Content        string
 }
 
 // TaskPage is the memories page of a task: the memories written since its branch started and the earlier ones.

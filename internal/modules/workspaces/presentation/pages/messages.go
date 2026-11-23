@@ -23,6 +23,8 @@ var (
 	msgKeepCurrentLabel   = i18n.Msg{En: "Keep the current one", Es: "Mantener el actual", Zh: "保留当前文件", De: "Aktuelle beibehalten", Fr: "Conserver l'actuel"}
 	msgDefaultAgentLabel  = i18n.Msg{En: "Default agent", Es: "Agente por defecto", Zh: "默认智能体", De: "Standard-Agent", Fr: "Agent par défaut"}
 	msgSystemAgentLabel   = i18n.Msg{En: "System agent", Es: "Agente del sistema", Zh: "系统智能体", De: "System-Agent", Fr: "Agent du système"}
+	msgColorLabel         = i18n.Msg{En: "Color", Es: "Color", Zh: "颜色", De: "Farbe", Fr: "Couleur"}
+	msgNoColorLabel       = i18n.Msg{En: "No color", Es: "Sin color", Zh: "无颜色", De: "Keine Farbe", Fr: "Aucune couleur"}
 	msgCancelLabel        = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
 	msgSaveChangesLabel   = i18n.Msg{En: "Save changes", Es: "Guardar cambios", Zh: "保存更改", De: "Änderungen speichern", Fr: "Enregistrer les modifications"}
 )

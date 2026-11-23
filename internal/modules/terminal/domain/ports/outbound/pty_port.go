@@ -12,9 +12,9 @@ import (
 
 // PtyPort manages the pseudo-terminal sessions.
 type PtyPort interface {
-	// Spawn starts a persistent session in cwd. The registry keeps workspaceID and workspaceName
-	// as metadata and assigns the id, the creation time and the status.
-	Spawn(ctx context.Context, workspaceID uuid.UUID, workspaceName string, cwd string, size models.TerminalSize) (models.TerminalSession, error)
+	// Spawn starts a persistent session in cwd. The registry keeps workspaceID, workspaceName and
+	// workspaceColor (empty for none) as metadata and assigns the id, the creation time and the status.
+	Spawn(ctx context.Context, workspaceID uuid.UUID, workspaceName string, workspaceColor string, cwd string, size models.TerminalSize) (models.TerminalSession, error)
 	// List returns every session in the registry, including exited ones.
 	List(ctx context.Context) ([]models.TerminalSession, error)
 	// Attach returns the scrollback and the live output. It may be called several times per session.

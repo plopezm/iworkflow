@@ -11,6 +11,8 @@ type WorkspaceOptionDTO struct {
 	Name       string `json:"name"`
 	Path       string `json:"path"`
 	BaseBranch string `json:"base_branch"`
+	// Color is the palette key that marks the workspace; empty means none.
+	Color string `json:"color,omitempty"`
 }
 
 // CreateTaskFromForm reads the create form of the board. The checkbox sends "on" when checked. The optional

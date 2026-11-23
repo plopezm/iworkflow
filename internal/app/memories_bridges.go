@@ -112,7 +112,7 @@ func (l *memoriesWorkspaceLookup) Get(ctx context.Context, id string) (memoriesm
 	if workspace == nil {
 		return memoriesmodels.Workspace{}, fmt.Errorf("workspace %q: %w", id, memorieserrors.ErrWorkspaceNotFound)
 	}
-	return memoriesmodels.Workspace{ID: workspace.ID.String(), Name: workspace.Name, Path: workspace.Path}, nil
+	return memoriesmodels.Workspace{ID: workspace.ID.String(), Name: workspace.Name, Path: workspace.Path, Color: derefColor(workspace.Color)}, nil
 }
 
 // memoriesTaskLookup gives the memories module the task whose branch memories are read, through the tasks use cases. A

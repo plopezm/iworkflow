@@ -96,3 +96,48 @@ func TestModuleCreatesDirectoryOnlyInsideHome(t *testing.T) {
 	_, err = module.CreateDirectory.Execute(context.Background(), filepath.Dir(home), "escape")
 	require.ErrorIs(t, err, werrors.PathOutsideAllowedRoot(""))
 }
+
+func TestModulePersistsTheWorkspaceColorAndKeepsItWhenTheUpdateOmitsIt(t *testing.T) {
+	ctx := context.Background()
+	module := di.NewModule(di.Deps{DB: dbtest.New(t), HomeDir: t.TempDir(), Tasks: noTasks{}, AgentsFiles: noAgentsFiles{}})
+
+	registered, err := module.Register.Execute(ctx, models.NewWorkspace{Name: "Demo", Path: newGitRepo(t), Color: "blue"})
+	require.NoError(t, err)
+	fetched, err := module.Get.Execute(ctx, registered.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.Color)
+	assert.Equal(t, "blue", *fetched.Color)
+
+	// Absent keeps the saved color.
+	kept, err := module.Update.Execute(ctx, registered.ID, models.WorkspaceUpdate{Name: "Demo"})
+	require.NoError(t, err)
+	require.NotNil(t, kept.Color)
+	assert.Equal(t, "blue", *kept.Color)
+
+	// Present changes it; present and empty removes it.
+	green := "green"
+	_, err = module.Update.Execute(ctx, registered.ID, models.WorkspaceUpdate{Name: "Demo", Color: &green})
+	require.NoError(t, err)
+	fetched, err = module.Get.Execute(ctx, registered.ID)
+	require.NoError(t, err)
+	assert.Equal(t, &green, fetched.Color)
+
+	none := ""
+	_, err = module.Update.Execute(ctx, registered.ID, models.WorkspaceUpdate{Name: "Demo", Color: &none})
+	require.NoError(t, err)
+	fetched, err = module.Get.Execute(ctx, registered.ID)
+	require.NoError(t, err)
+	assert.Nil(t, fetched.Color)
+}
+
+func TestModuleRejectsAnUnknownColorWithoutSavingAnything(t *testing.T) {
+	ctx := context.Background()
+	module := di.NewModule(di.Deps{DB: dbtest.New(t), HomeDir: t.TempDir(), Tasks: noTasks{}, AgentsFiles: noAgentsFiles{}})
+
+	_, err := module.Register.Execute(ctx, models.NewWorkspace{Name: "Demo", Path: newGitRepo(t), Color: "chartreuse"})
+
+	require.ErrorIs(t, err, werrors.InvalidColor(""))
+	listed, listErr := module.List.Execute(ctx)
+	require.NoError(t, listErr)
+	assert.Empty(t, listed)
+}

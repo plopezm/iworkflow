@@ -41,6 +41,7 @@ const (
 	kindIO
 	kindRepository
 	kindInvalidRuntime
+	kindInvalidColor
 )
 
 // InitializationReason says why a workspace needs explicit confirmation before it is initialized.
@@ -110,6 +111,8 @@ func (e Error) Error() string {
 		return "error de git: " + e.detail
 	case kindIO:
 		return "error de E/S: " + e.detail
+	case kindInvalidColor:
+		return "color de workspace inválido: " + e.detail
 	case kindRepository:
 		return "error de persistencia: " + e.detail
 	case kindInvalidRuntime:
@@ -130,6 +133,9 @@ func (e Error) Is(target error) bool {
 	}
 	return other.reason == 0 || other.reason == e.reason
 }
+
+// InvalidColor means the text is not a key of the workspace palette.
+func InvalidColor(value string) Error { return Error{kind: kindInvalidColor, detail: value} }
 
 // InvalidName means the name is blank or longer than 80 characters.
 func InvalidName() Error { return Error{kind: kindInvalidName} }

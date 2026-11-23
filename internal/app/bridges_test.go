@@ -28,6 +28,7 @@ import (
 	tasksmodels "iworkflow/internal/modules/tasks/domain/models"
 	tasksoutbound "iworkflow/internal/modules/tasks/domain/ports/outbound"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
+	workspacespersistence "iworkflow/internal/modules/workspaces/infrastructure/adapters/outbound/persistence"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
 )
 
@@ -534,4 +535,29 @@ func TestTaskJiraPanelIsNotOfferedBeforeTheJiraModuleIsBound(t *testing.T) {
 
 	assert.False(t, visible)
 	assert.Nil(t, body)
+}
+
+// The terminal bridge carries the workspace color as the snapshot the session keeps, and only for workspaces.
+func TestWorkspaceTargetsMapTheWorkspaceColor(t *testing.T) {
+	ctx := context.Background()
+	db := dbtest.New(t)
+	workspaces := workspacesOn(t, db)
+	id, err := workspacesmodels.NewWorkspaceID()
+	require.NoError(t, err)
+	blue := "blue"
+	require.NoError(t, workspacespersistence.NewWorkspaceRepository(db).Save(ctx, workspacesmodels.Workspace{
+		ID:         id,
+		Name:       "Proyecto",
+		Path:       "/repos/proyecto",
+		BaseBranch: "main",
+		CreatedAt:  time.Date(2026, 11, 22, 10, 0, 0, 0, time.UTC),
+		Color:      &blue,
+	}))
+
+	target, err := workspaceTargets(workspaces.Get)(ctx, id.UUID())
+
+	require.NoError(t, err)
+	require.NotNil(t, target)
+	require.Equal(t, "blue", target.Color)
+	require.Equal(t, "Proyecto", target.Name)
 }

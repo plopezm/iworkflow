@@ -226,4 +226,5 @@ type Workspace struct {
 	BaseBranch     string
 	CreatedAt      time.Time
 	DefaultRuntime interface{}
+	Color          interface{}
 }

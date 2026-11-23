@@ -31,7 +31,18 @@ func TestWorkspaceNameOfTheTaskHeader(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			h := NewDetailHandlers(DetailUseCases{Workspaces: tc.workspaces}, time.Now)
-			assert.Equal(t, tc.want, h.workspaceName(context.Background(), task))
+			name, _ := h.workspaceName(context.Background(), task)
+			assert.Equal(t, tc.want, name)
 		})
 	}
+}
+
+func TestWorkspaceColorOfTheTaskHeader(t *testing.T) {
+	task := models.Task{WorkspaceID: "ws-1"}
+	h := NewDetailHandlers(DetailUseCases{Workspaces: workspacesFake{all: []models.WorkspaceRef{{ID: "ws-1", Name: "demo", Color: "blue"}}}}, time.Now)
+
+	name, color := h.workspaceName(context.Background(), task)
+
+	assert.Equal(t, "demo", name)
+	assert.Equal(t, "blue", color)
 }

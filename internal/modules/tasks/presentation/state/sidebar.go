@@ -11,6 +11,8 @@ type SidebarWorkspace struct {
 	ID       string
 	Name     string
 	Subtitle string
+	// Color is the palette key of the workspace; empty means none.
+	Color string
 }
 
 // SidebarTask is a task row of the sidebar's "needs attention" list, linked to its detail.
@@ -36,7 +38,7 @@ func BuildSidebar(workspaces []dto.WorkspaceOptionDTO, active []dto.TaskDTO) Sid
 	rows := SidebarRows{Workspaces: make([]SidebarWorkspace, 0, len(workspaces)), Attention: make([]SidebarTask, 0)}
 	for _, workspace := range workspaces {
 		names[workspace.ID] = workspace.Name
-		rows.Workspaces = append(rows.Workspaces, SidebarWorkspace{ID: workspace.ID, Name: workspace.Name, Subtitle: workspace.BaseBranch})
+		rows.Workspaces = append(rows.Workspaces, SidebarWorkspace{ID: workspace.ID, Name: workspace.Name, Subtitle: workspace.BaseBranch, Color: workspace.Color})
 	}
 	attention := make([]dto.TaskDTO, 0)
 	for _, task := range active {

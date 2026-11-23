@@ -81,10 +81,12 @@ type SessionRow struct {
 	ID            string
 	ShortID       string
 	WorkspaceName string
-	StartedAt     string
-	StatusLabel   string
-	StatusClass   string
-	Href          string
+	// WorkspaceColor is a palette key; empty means no color.
+	WorkspaceColor string
+	StartedAt      string
+	StatusLabel    string
+	StatusClass    string
+	Href           string
 }
 
 // ListView is the sessions table. ActionError is the error of the last action on the list and LoadError
@@ -100,13 +102,14 @@ func NewListView(ctx context.Context, sessions []dto.TerminalSessionDTO, actionE
 	rows := make([]SessionRow, 0, len(sessions))
 	for _, session := range sessions {
 		rows = append(rows, SessionRow{
-			ID:            session.ID,
-			ShortID:       ShortID(session.ID),
-			WorkspaceName: session.WorkspaceName,
-			StartedAt:     StartedAtLabel(session.CreatedAt),
-			StatusLabel:   StatusLabel(ctx, session.Status),
-			StatusClass:   StatusClass(session.Status),
-			Href:          SessionPath(session.ID),
+			ID:             session.ID,
+			ShortID:        ShortID(session.ID),
+			WorkspaceName:  session.WorkspaceName,
+			WorkspaceColor: session.WorkspaceColor,
+			StartedAt:      StartedAtLabel(session.CreatedAt),
+			StatusLabel:    StatusLabel(ctx, session.Status),
+			StatusClass:    StatusClass(session.Status),
+			Href:           SessionPath(session.ID),
 		})
 	}
 	return ListView{ActionError: actionError, LoadError: loadError, Rows: rows}

@@ -46,7 +46,7 @@ func newAdapter(t *testing.T) *pty.Adapter {
 // spawnSh starts a session in dir and returns its id.
 func spawnSh(t *testing.T, adapter *pty.Adapter, dir string, name string) models.TerminalSessionID {
 	t.Helper()
-	session, err := adapter.Spawn(context.Background(), uuid.New(), name, dir, testSize)
+	session, err := adapter.Spawn(context.Background(), uuid.New(), name, "", dir, testSize)
 	require.NoError(t, err)
 	return session.ID
 }
@@ -236,7 +236,7 @@ func TestListReturnsSessionsWithMetadata(t *testing.T) {
 	adapter := newAdapter(t)
 	dir := t.TempDir()
 	workspaceID := uuid.New()
-	alpha, err := adapter.Spawn(context.Background(), workspaceID, "alpha", dir, testSize)
+	alpha, err := adapter.Spawn(context.Background(), workspaceID, "alpha", "", dir, testSize)
 	require.NoError(t, err)
 	betaID := spawnSh(t, adapter, dir, "beta")
 
@@ -398,14 +398,14 @@ func TestShutdownKillsEverySessionAndRefusesNewOnes(t *testing.T) {
 	require.Empty(t, sessions)
 	_, err = adapter.Attach(context.Background(), second)
 	require.ErrorIs(t, err, terminalerrors.ErrSessionNotFound)
-	_, err = adapter.Spawn(context.Background(), uuid.New(), "late", dir, testSize)
+	_, err = adapter.Spawn(context.Background(), uuid.New(), "late", "", dir, testSize)
 	require.ErrorIs(t, err, terminalerrors.ErrPty)
 }
 
 func TestSpawnUsesTheShellChosenInTheSettings(t *testing.T) {
 	adapter := pty.NewAdapter("", func(context.Context) string { return "sh" })
 	t.Cleanup(func() { _ = adapter.Shutdown(context.Background()) })
-	session, err := adapter.Spawn(context.Background(), uuid.New(), "ws", t.TempDir(), models.TerminalSize{Rows: 24, Cols: 80})
+	session, err := adapter.Spawn(context.Background(), uuid.New(), "ws", "", t.TempDir(), models.TerminalSize{Rows: 24, Cols: 80})
 	require.NoError(t, err)
 	require.Equal(t, models.TerminalStatusRunning, session.Status)
 }
@@ -413,6 +413,15 @@ func TestSpawnUsesTheShellChosenInTheSettings(t *testing.T) {
 func TestSpawnReportsAChosenShellThatDoesNotExist(t *testing.T) {
 	adapter := pty.NewAdapter("", func(context.Context) string { return "/no/such/shell" })
 	t.Cleanup(func() { _ = adapter.Shutdown(context.Background()) })
-	_, err := adapter.Spawn(context.Background(), uuid.New(), "ws", t.TempDir(), models.TerminalSize{Rows: 24, Cols: 80})
+	_, err := adapter.Spawn(context.Background(), uuid.New(), "ws", "", t.TempDir(), models.TerminalSize{Rows: 24, Cols: 80})
 	require.Error(t, err)
+}
+
+func TestSpawnKeepsTheWorkspaceColorSnapshotOnTheSession(t *testing.T) {
+	adapter := pty.NewAdapter("", func(context.Context) string { return "sh" })
+	t.Cleanup(func() { _ = adapter.Shutdown(context.Background()) })
+	session, err := adapter.Spawn(context.Background(), uuid.New(), "ws", "blue", t.TempDir(), models.TerminalSize{Rows: 24, Cols: 80})
+	require.NoError(t, err)
+
+	require.Equal(t, "blue", session.WorkspaceColor)
 }

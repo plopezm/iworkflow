@@ -33,7 +33,7 @@ templ SidebarBody(rows state.SidebarRows) {
 		}
 		for _, workspace := range rows.Workspaces {
 			<div class="contents" data-workspace-row={ workspace.ID }>
-				@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle}, workspaceMenu(workspace.ID))
+				@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle, Color: workspace.Color}, workspaceMenu(workspace.ID))
 			</div>
 		}
 		if len(rows.Workspaces) == 0 {

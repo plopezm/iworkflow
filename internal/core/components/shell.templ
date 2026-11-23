@@ -139,6 +139,8 @@ type SidebarItemProps struct {
 	Subtitle  string
 	Selected  bool
 	Highlight bool
+	// Color is the palette key of the workspace the row stands for; empty keeps the plain title.
+	Color string
 }
 
 // SidebarItem is a row of the sidebar: a link that opens its tab, and an optional `…` menu (children).
@@ -149,7 +151,13 @@ templ SidebarItem(p SidebarItemProps, menu templ.Component) {
 				if p.Highlight {
 					<span class="attention-dot h-2 w-2 shrink-0 rounded-full bg-error" title={ msgNeedsAttn.T(ctx) }></span>
 				}
-				<span class="truncate text-[13px] font-medium text-fg">{ p.Title }</span>
+				if WorkspaceColorClass(p.Color) != "" {
+					<span class="min-w-0 text-[13px] font-medium">
+						@WorkspaceName(p.Title, p.Color)
+					</span>
+				} else {
+					<span class="truncate text-[13px] font-medium text-fg">{ p.Title }</span>
+				}
 			</div>
 			if p.Subtitle != "" {
 				<div class="truncate text-[11px] text-muted">{ p.Subtitle }</div>

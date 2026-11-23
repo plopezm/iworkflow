@@ -35,6 +35,18 @@ func TestOpenTerminalSpawnsWithTheWorkspaceSnapshot(t *testing.T) {
 	require.Equal(t, []spawnCall{{workspaceID: workspaceID, workspaceName: "demo", cwd: "/tmp/ws", size: testSize}}, pty.spawnCalls)
 }
 
+func TestOpenTerminalSpawnsWithTheWorkspaceColorSnapshot(t *testing.T) {
+	workspaceID := uuid.New()
+	pty := &fakePty{}
+	paths := &fakeWorkspacePaths{target: models.WorkspaceTarget{Name: "demo", Color: "blue", Path: "/tmp/ws"}}
+	useCase := application.NewOpenTerminal(pty, paths)
+
+	_, err := useCase.Execute(context.Background(), workspaceID, testSize)
+
+	require.NoError(t, err)
+	require.Equal(t, []spawnCall{{workspaceID: workspaceID, workspaceName: "demo", workspaceColor: "blue", cwd: "/tmp/ws", size: testSize}}, pty.spawnCalls)
+}
+
 func TestOpenTerminalFailsWhenTheWorkspaceIsNotFound(t *testing.T) {
 	pty := &fakePty{}
 	paths := &fakeWorkspacePaths{err: terminalerrors.ErrWorkspaceNotFound}

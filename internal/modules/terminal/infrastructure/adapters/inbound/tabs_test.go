@@ -73,7 +73,7 @@ func TestTabsRegisterEveryTerminalPathInTheRegistry(t *testing.T) {
 func TestSessionTabNamesTheWorkspaceWhenTheSessionIsListed(t *testing.T) {
 	pty := &fakePty{}
 	workspaceID := uuid.New()
-	session, err := pty.Spawn(context.Background(), workspaceID, "api", "/repos/api", models.TerminalSize{Cols: 80, Rows: 24})
+	session, err := pty.Spawn(context.Background(), workspaceID, "api", "", "/repos/api", models.TerminalSize{Cols: 80, Rows: 24})
 	require.NoError(t, err)
 	route := routeNamed(t, tabsFor(pty), "terminal_session")
 

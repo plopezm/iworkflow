@@ -69,3 +69,11 @@ func TestResubmitJSONOmitsDefaultRuntimeWhenEmpty(t *testing.T) {
 
 	assert.NotContains(t, values, "default_runtime")
 }
+
+func TestResubmitJSONCarriesTheChosenColorOnlyWhenThereIsOne(t *testing.T) {
+	with := InitializationPrompt{Name: "a", Path: "/p", Color: "teal"}.ResubmitJSON()
+	assert.Contains(t, with, `"color":"teal"`)
+
+	without := InitializationPrompt{Name: "a", Path: "/p"}.ResubmitJSON()
+	assert.NotContains(t, without, "color")
+}

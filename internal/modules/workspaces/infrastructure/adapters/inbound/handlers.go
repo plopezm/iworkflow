@@ -69,6 +69,7 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 			BaseBranch:     deref(input.BaseBranch),
 			AgentsFileID:   deref(input.AgentsFileID),
 			DefaultRuntime: deref(input.DefaultRuntime),
+			Color:          deref(input.Color),
 		}
 		writeFragments(w, r, components.WorkspaceRegister(form))
 	default:
@@ -189,6 +190,7 @@ func (h *Handlers) registerForm(ctx context.Context, input dto.RegisterWorkspace
 		AgentsFileID:   deref(input.AgentsFileID),
 		Options:        h.agentsOptions(ctx),
 		DefaultRuntime: deref(input.DefaultRuntime),
+		Color:          deref(input.Color),
 		Runtimes:       h.runtimeOptions(ctx),
 	}
 }
@@ -227,6 +229,7 @@ func workspaceRow(workspace dto.WorkspaceDTO, memory state.MemoryChip) state.Wor
 		Name:         workspace.Name,
 		Path:         workspace.Path,
 		BaseBranch:   workspace.BaseBranch,
+		Color:        workspace.Color,
 		BoardHref:    "/board/" + workspace.ID,
 		EditHref:     "/workspaces/" + workspace.ID + "/edit",
 		FilesHref:    "/workspaces/" + workspace.ID,

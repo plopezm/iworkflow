@@ -18,3 +18,7 @@ sql:
             go_type:
               import: "database/sql"
               type: "NullString"
+          - column: "workspaces.color"
+            go_type:
+              import: "database/sql"
+              type: "NullString"

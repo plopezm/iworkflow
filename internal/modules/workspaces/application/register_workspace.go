@@ -112,11 +112,20 @@ func (u *RegisterWorkspace) Execute(ctx context.Context, input models.NewWorkspa
 		BaseBranch:     baseBranch,
 		CreatedAt:      u.clock().UTC(),
 		DefaultRuntime: defaultRuntime,
+		Color:          optionalColor(validated.Color),
 	}
 	if err := u.repository.Save(ctx, workspace); err != nil {
 		return models.Workspace{}, err
 	}
 	return workspace, nil
+}
+
+// optionalColor maps the validated color to the entity's optional form: empty is none.
+func optionalColor(color string) *string {
+	if color == "" {
+		return nil
+	}
+	return &color
 }
 
 // resolveBaseBranch checks an explicit branch, or falls back to the current one of the repository.

@@ -30,6 +30,8 @@ var (
 	msgAbsolutePath           = i18n.Msg{En: "Absolute path (created if it does not exist)", Es: "Ruta absoluta (se crea si no existe)", Zh: "绝对路径（不存在时会创建）", De: "Absoluter Pfad (wird erstellt, falls nicht vorhanden)", Fr: "Chemin absolu (créé s'il n'existe pas)"}
 	msgProjectPathPlaceholder = i18n.Msg{En: "/home/user/projects/my-project", Es: "/home/usuario/proyectos/mi-proyecto", Zh: "/home/用户/项目/我的项目", De: "/home/benutzer/projekte/mein-projekt", Fr: "/home/utilisateur/projets/mon-projet"}
 	msgChoose                 = i18n.Msg{En: "Choose…", Es: "Elegir…", Zh: "选择…", De: "Auswählen…", Fr: "Choisir…"}
+	msgColor                  = i18n.Msg{En: "Color", Es: "Color", Zh: "颜色", De: "Farbe", Fr: "Couleur"}
+	msgNoColor                = i18n.Msg{En: "No color", Es: "Sin color", Zh: "无颜色", De: "Keine Farbe", Fr: "Aucune couleur"}
 	msgBaseBranch             = i18n.Msg{En: "Base branch (empty = current branch)", Es: "Rama base (vacío = rama actual)", Zh: "基础分支（留空 = 当前分支）", De: "Basis-Branch (leer = aktueller Branch)", Fr: "Branche de base (vide = branche actuelle)"}
 	msgInitialAgents          = i18n.Msg{En: "Initial AGENTS.md (optional)", Es: "AGENTS.md inicial (opcional)", Zh: "初始 AGENTS.md（可选）", De: "Initiale AGENTS.md (optional)", Fr: "AGENTS.md initial (facultatif)"}
 	msgNoAgents               = i18n.Msg{En: "No AGENTS.md", Es: "Sin AGENTS.md", Zh: "无 AGENTS.md", De: "Keine AGENTS.md", Fr: "Sans AGENTS.md"}
