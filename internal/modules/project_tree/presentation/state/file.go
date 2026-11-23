@@ -19,6 +19,8 @@ type FileView struct {
 	Marks []coreui.LineMark
 	// Error is the message of a failed save. The draft stays in the editor.
 	Error string
+	// ImageURL is set when the file is an image: the page shows it instead of the editor.
+	ImageURL string
 	// LoadError replaces the editor when the file could not be read.
 	LoadError string
 }
