@@ -63,7 +63,8 @@ var (
 
 // Texts of the Markdown Code | Rendered switch.
 var (
-	msgMarkdownView     = i18n.Msg{En: "Markdown view", Es: "Vista de Markdown", Zh: "Markdown 视图", De: "Markdown-Ansicht", Fr: "Affichage Markdown"}
-	msgMarkdownCode     = i18n.Msg{En: "Code", Es: "Código", Zh: "代码", De: "Code", Fr: "Code"}
-	msgMarkdownRendered = i18n.Msg{En: "Rendered", Es: "Renderizado", Zh: "渲染", De: "Gerendert", Fr: "Rendu"}
+	msgMarkdownView          = i18n.Msg{En: "Markdown view", Es: "Vista de Markdown", Zh: "Markdown 视图", De: "Markdown-Ansicht", Fr: "Affichage Markdown"}
+	msgMarkdownCode          = i18n.Msg{En: "Code", Es: "Código", Zh: "代码", De: "Code", Fr: "Code"}
+	msgMarkdownPreviewFailed = i18n.Msg{En: "The rendered view could not be loaded. Switch to Code and back to retry.", Es: "No se pudo cargar la vista renderizada. Cambia a Código y vuelve para reintentar.", Zh: "无法加载渲染视图。切换到代码后再切换回来即可重试。", De: "Die gerenderte Ansicht konnte nicht geladen werden. Wechsle zu Code und zurück, um es erneut zu versuchen.", Fr: "Impossible de charger l’affichage rendu. Passez à Code puis revenez pour réessayer."}
+	msgMarkdownRendered      = i18n.Msg{En: "Rendered", Es: "Renderizado", Zh: "渲染", De: "Gerendert", Fr: "Rendu"}
 )

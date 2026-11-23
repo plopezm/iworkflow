@@ -9,7 +9,7 @@ import (
 // Typing posts the draft to the state endpoint, which answers with out-of-band updates of the toolbar
 // and of the line marks in the gutter.
 templ FileEditor(v state.FileView) {
-	<form id={ v.Key() } class="flex min-h-0 flex-1 flex-col" hx-post={ state.PathFile } hx-target={ "#" + v.Key() } hx-swap="outerHTML" { markdownAttrs(v.Path)... }>
+	<form id={ v.Key() } class="flex min-h-0 flex-1 flex-col" hx-post={ state.PathFile } hx-target={ "#" + v.Key() } hx-swap="outerHTML" { coreui.MarkdownFormAttrs(v.Path)... }>
 		<input type="hidden" name="scope" value={ v.ScopeWire() }/>
 		<input type="hidden" name="path" value={ v.Path }/>
 		@FileToolbar(v, false)

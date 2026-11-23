@@ -1,10 +1,12 @@
 // Code | Rendered switch of the file editors of Markdown files.
 //
-// Markup contract (internal/core/components/markdown_switch.templ):
+// Markup contract, owned by internal/core/components/markdown_switch.templ (MarkdownFormAttrs, MarkdownSwitch and
+// MarkdownPreview); the editors only spread MarkdownFormAttrs on their form and mark what to hide:
 //   form[data-md-form]       the editor form; the value is the preview endpoint. It holds a textarea named "content"
 //   [data-md-mode-set]       a switch button; the value is "code" or "rendered"
-//   [data-md-preview]        where the rendered view goes
-//   [data-md-hide]           hidden while the rendered view is shown
+//   [data-md-preview]        where the rendered view goes; data-md-error is the text shown when it cannot load
+//   [data-md-hide]           hidden while the rendered view is shown (the editor itself)
+// The CSS that hides them is the form[data-md-mode] rules of web/tailwind.css.
 // The chosen mode is kept in the form (data-md-mode) and remembered for the editors that open later.
 
 const STORAGE_KEY = 'iwf-md-mode';
@@ -45,9 +47,15 @@ export async function refreshPreview(form) {
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const html = await response.text();
-    if (ticket === form.mdTicket) preview.innerHTML = html;
+    if (ticket !== form.mdTicket) return;
+    preview.classList.remove('md-preview-error');
+    preview.innerHTML = html;
   } catch (error) {
     console.error(error);
+    if (ticket !== form.mdTicket) return;
+    // The editor is hidden: say what failed instead of leaving a blank or stale view. Choosing Rendered again retries.
+    preview.classList.add('md-preview-error');
+    preview.textContent = preview.dataset.mdError || '';
   }
 }
 

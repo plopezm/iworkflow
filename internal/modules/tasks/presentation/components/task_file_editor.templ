@@ -11,7 +11,7 @@ import (
 // branch, and the status line tells whether the text differs from the content that was loaded.
 templ TaskFileEditor(view state.FileEditor) {
 	<div id={ view.SlotID() } class="diff-editor">
-		<form class="stack p-3" hx-post={ view.SavePath() } hx-target={ "#" + view.SlotID() } hx-swap="innerHTML" { markdownAttrs(view.Path)... }>
+		<form class="stack p-3" hx-post={ view.SavePath() } hx-target={ "#" + view.SlotID() } hx-swap="innerHTML" { coreui.MarkdownFormAttrs(view.Path)... }>
 			<input type="hidden" name="scope" value={ view.Scope }/>
 			<input type="hidden" name="path" value={ view.Path }/>
 			<input type="hidden" name="base" value={ view.Digest }/>

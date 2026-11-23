@@ -17,6 +17,17 @@ const MarkdownPreviewPath string = "/markdown/preview"
 // IsMarkdownPath reports whether the file at path is Markdown, so its editor offers the Code | Rendered switch.
 func IsMarkdownPath(path string) bool { return markdown.IsPath(path) }
 
+// MarkdownFormAttrs marks the editor form of the file at path as the owner of the Code | Rendered switch. It is the
+// one place that emits data-md-form, the attribute web/static/js/md_view.js looks for; other files get none. Spread it
+// into the <form> that holds the textarea named "content", the MarkdownSwitch, the MarkdownPreview and the
+// [data-md-hide] elements.
+func MarkdownFormAttrs(path string) templ.Attributes {
+	if !IsMarkdownPath(path) {
+		return nil
+	}
+	return templ.Attributes{"data-md-form": MarkdownPreviewPath}
+}
+
 // MarkdownSwitch is the Code | Rendered switch of the editor of a Markdown file. It goes inside the form that holds the
 // textarea named "content"; web/static/js/md_view.js reads data-md-mode-set, hides the [data-md-hide] elements of the
 // form while the rendered view is shown and fills the MarkdownPreview with the current text.
@@ -44,7 +55,7 @@ func MarkdownSwitch() templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgMarkdownView.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/markdown_switch.templ`, Line: 15, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/markdown_switch.templ`, Line: 26, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
@@ -57,7 +68,7 @@ func MarkdownSwitch() templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(msgMarkdownCode.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/markdown_switch.templ`, Line: 16, Col: 114}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/markdown_switch.templ`, Line: 27, Col: 114}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -70,7 +81,7 @@ func MarkdownSwitch() templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msgMarkdownRendered.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/markdown_switch.templ`, Line: 17, Col: 123}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/markdown_switch.templ`, Line: 28, Col: 123}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -102,7 +113,20 @@ func MarkdownPreview() templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div class=\"md-preview markdown\" data-md-preview></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "<div class=\"md-preview markdown\" data-md-preview data-md-error=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgMarkdownPreviewFailed.T(ctx)).Resolve(ctx)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/core/components/markdown_switch.templ`, Line: 34, Col: 97}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" aria-live=\"polite\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

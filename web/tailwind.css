@@ -737,6 +737,9 @@ select optgroup,
 .markdown.md-preview h3 {
   @apply text-lg;
 }
+.md-preview-error {
+  @apply text-sm text-error;
+}
 .markdown.md-preview blockquote {
   @apply border-l-4 border-border pl-3 text-muted;
 }

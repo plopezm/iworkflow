@@ -23,3 +23,14 @@ func TestMarkdownPreviewRendersTheContentAsSafeHTML(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "<h1")
 	assert.NotContains(t, rec.Body.String(), "<script>")
 }
+
+func TestMarkdownPreviewRejectsATextOverItsLimit(t *testing.T) {
+	form := url.Values{"content": {strings.Repeat("a", int(MarkdownPreviewMaxBytes)+1)}}
+	request := httptest.NewRequest(http.MethodPost, "/markdown/preview", strings.NewReader(form.Encode()))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rec := httptest.NewRecorder()
+
+	MarkdownPreview(rec, request)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+}

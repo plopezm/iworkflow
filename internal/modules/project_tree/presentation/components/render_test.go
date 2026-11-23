@@ -228,3 +228,11 @@ func TestOtherFileEditorsHaveNoMarkdownSwitch(t *testing.T) {
 	assert.NotContains(t, body, `data-md-mode-set`)
 	assert.NotContains(t, body, `data-md-preview`)
 }
+
+func TestMarkdownPreviewCarriesItsFailureMessage(t *testing.T) {
+	view := state.FileView{Scope: workspace(), Path: "README.md", Draft: "x", Loaded: "x"}
+
+	body := render(t, FileEditor(view))
+
+	assert.Contains(t, body, `data-md-error="No se pudo cargar la vista renderizada.`)
+}
