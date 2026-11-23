@@ -228,3 +228,21 @@ type Workspace struct {
 	DefaultRuntime sql.NullString
 	Color          sql.NullString
 }
+
+type WorkspaceGroup struct {
+	ID        string
+	Name      string
+	Color     interface{}
+	Collapsed int64
+	Position  int64
+}
+
+type WorkspaceGroupMember struct {
+	WorkspaceID string
+	GroupID     string
+}
+
+type WorkspacePin struct {
+	WorkspaceID string
+	Position    int64
+}
