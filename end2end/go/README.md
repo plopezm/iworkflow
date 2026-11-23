@@ -90,6 +90,14 @@ which is what they would see with the default address.
   the suite runs without the runner). The suite saves `usage-bar.png` and `usage-sidebar-full.png` there and prints
   their absolute paths.
 
+## Workspace colors (workspace_colors)
+
+`end2end/go/workspace_colors.e2e.cjs` covers the optional palette color of a workspace: the radio picker of the
+registration and edit forms, the `.ws-chip` pill in the workspaces list, the board sidebar, the dashboard task badge, and
+the tint of the pill in light, dark and the `ocean` palette. It registers its own repo (`REPO_WORKSPACE_COLORS`, created by
+`run_go.sh`). Run it alone with `end2end/go/run_go.sh workspace_colors` (or `make e2e FILTER=workspace_colors`). It saves
+`workspace-colors-*.png` into `SMOKE_SCREENSHOT_DIR` (the run directory) and prints their absolute paths.
+
 ## Node unit steps
 
 `IWF_E2E_UNIT=1` runs two Node steps before the server starts:
