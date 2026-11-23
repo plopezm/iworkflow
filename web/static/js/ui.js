@@ -564,7 +564,8 @@ if (typeof document !== 'undefined') {
 // set by the click handlers above; the server always renders them closed or open by default.
 const CLIENT_OWNED = [
   ['style', '[data-menu-panel], [data-section-body]'],
-  ['aria-expanded', '[data-menu-trigger], [data-section-toggle]'],
+  ['aria-expanded', '[data-menu-trigger], [data-section-toggle], [data-search-toggle]'],
+  ['hidden', '[data-search-panel]'],
 ];
 
 // keepClientState is the idiomorph hook that stops a refresh from resetting those attributes: without it every

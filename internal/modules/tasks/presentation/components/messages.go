@@ -65,6 +65,7 @@ var (
 	msgMoveToGroup       = i18n.Msg{En: "Move to {group}", Es: "Mover a {group}", Zh: "移到 {group}", De: "Nach {group} verschieben", Fr: "Déplacer vers {group}"}
 	msgRemoveFromGroup   = i18n.Msg{En: "Remove from group", Es: "Quitar del grupo", Zh: "移出分组", De: "Aus Gruppe entfernen", Fr: "Retirer du groupe"}
 	msgSearchWorkspaces  = i18n.Msg{En: "Search workspaces", Es: "Buscar workspaces", Zh: "搜索工作区", De: "Workspaces durchsuchen", Fr: "Rechercher un espace de travail"}
+	msgToggleSearch      = i18n.Msg{En: "Show workspace search", Es: "Mostrar búsqueda de workspaces", Zh: "显示工作区搜索", De: "Workspace-Suche anzeigen", Fr: "Afficher la recherche d'espaces de travail"}
 	msgNoWorkspacesMatch = i18n.Msg{En: "No workspaces match.", Es: "Ningún workspace coincide.", Zh: "没有匹配的工作区。", De: "Keine Workspaces gefunden.", Fr: "Aucun espace de travail ne correspond."}
 )
 

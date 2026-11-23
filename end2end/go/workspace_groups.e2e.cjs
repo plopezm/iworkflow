@@ -1,7 +1,7 @@
 // end2end/go/workspace_groups.e2e.cjs
 // Workspace groups of the Home sidebar, end to end in the browser (odd/tasks/workspace-groups.md, T6, S1-S9).
 // One ordered flow over three workspaces: create a group from the "+" prompt, move workspaces in and out of it from
-// their "…" menus, collapse it and reload, see the count and the attention marker, pin a workspace, filter by name
+// their "…" menus, collapse it and reload, see the count and the attention marker, pin a workspace, filter by name (the search opens from its icon)
 // (focus and text survive a sidebar refresh, matches inside a collapsed group appear, no match shows the empty line),
 // recolor, rename and delete the group, and check that the open menus survive a refresh.
 // Every check reads an observable effect: a DOM attribute of the sidebar, the text shown, or the state the server
@@ -113,6 +113,7 @@ const workspaceRow = (page, id) => page.locator(`#board-sidebar [data-workspace-
 const groupEl = (page, id) => page.locator(`#board-sidebar [data-group-id="${id}"]`);
 const groupToggle = (page, id) => groupEl(page, id).locator('button[aria-expanded]:not([data-menu-trigger])').first();
 const filterInput = (page) => page.locator('#board-sidebar #board-sidebar-filter');
+const searchToggle = (page) => page.locator('#board-sidebar #board-sidebar-search-toggle');
 
 // Re-renders the sidebar the way the periodic refreshes do (SSE and board:refresh both land on this event).
 const refreshSidebar = (page) =>
@@ -261,13 +262,20 @@ module.exports = {
         {
           const panel = await openMenu(workspaceRow(page, gamma.id));
           ctx.assert((await panel.getByRole('button', { name: 'Desfijar', exact: true }).count()) === 1, 'el menú de un fijado ofrece "Desfijar"');
-          await filterInput(page).click(); // closes the menu
+          await page.keyboard.press('Escape'); // closes the menu
         }
         await ctx.goto('/');
         snap = await until(() => readSidebar(page), (s) => s.pinned?.some((r) => r.id === gamma.id));
         ctx.assert(snap.pinned?.some((r) => r.id === gamma.id), 'tras recargar el workspace sigue fijado');
 
         // ---- 6. S7: filtro por nombre ----
+        // The search is closed until its icon is pressed: the icon shows the input and moves the focus into it.
+        ctx.assert((await searchToggle(page).getAttribute('aria-expanded')) === 'false', 'la búsqueda empieza cerrada');
+        ctx.assert(!(await filterInput(page).isVisible()), 'el campo de búsqueda está oculto al inicio');
+        await shot('workspace-groups-search-closed.png');
+        await searchToggle(page).click();
+        await filterInput(page).waitFor({ state: 'visible', timeout: 5000 });
+        ctx.assert((await page.evaluate(() => document.activeElement?.id)) === 'board-sidebar-filter', 'al abrir la búsqueda, el foco va al campo');
         await filterInput(page).fill(alpha.name);
         snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.collapsed === false);
         const filtered = groupById(snap, group.id);
@@ -286,6 +294,7 @@ module.exports = {
         await refreshSidebar(page);
         await sleep(SIDEBAR_REFRESH_SETTLE_MS);
         const afterRefresh = await readSidebar(page);
+        ctx.assert(await filterInput(page).isVisible(), 'tras el refresco la búsqueda sigue abierta');
         const focus = await page.evaluate(() => ({ id: document.activeElement?.id, value: document.querySelector('#board-sidebar-filter')?.value }));
         ctx.assert(focus.id === 'board-sidebar-filter', `tras el refresco el foco sigue en el filtro: ${focus.id}`);
         ctx.assert(focus.value === alpha.name.slice(0, 6), `tras el refresco el texto escrito se conserva: ${focus.value}`);
@@ -310,6 +319,15 @@ module.exports = {
         ctx.assert(cleared.collapsed === true, 'quitar el filtro no cambia el estado guardado: el grupo sigue plegado');
         ctx.assert(cleared.locked === false, 'sin filtro, el botón de plegar vuelve a estar habilitado');
         ctx.assert(cleared.rows.length === 0 && cleared.count === '2', 'sin filtro, el grupo plegado muestra su contador y no sus filas');
+
+        // The icon closes the empty search, and a refresh keeps it closed.
+        ctx.assert(await filterInput(page).isVisible(), 'quitar el texto deja la búsqueda abierta');
+        await searchToggle(page).click();
+        ctx.assert(!(await filterInput(page).isVisible()), 'el icono cierra la búsqueda vacía');
+        await refreshSidebar(page);
+        await sleep(SIDEBAR_REFRESH_SETTLE_MS);
+        ctx.assert(!(await filterInput(page).isVisible()), 'tras un refresco la búsqueda cerrada sigue cerrada');
+        ctx.assert((await searchToggle(page).getAttribute('aria-expanded')) === 'false', 'el icono sigue indicando búsqueda cerrada tras el refresco');
 
         // ---- 7. S6: color del grupo ----
         {
@@ -346,7 +364,7 @@ module.exports = {
           ctx.assert(await panel.isVisible(), 'el menú abierto de un fijado sigue abierto tras el refresco');
           const expanded = await page.locator(`#board-sidebar [data-workspace-row="${gamma.id}"] [data-menu-trigger]`).first().getAttribute('aria-expanded');
           ctx.assert(expanded === 'true', `aria-expanded del disparador tras el refresco: ${expanded}`);
-          await filterInput(page).click();
+          await searchToggle(page).click(); // a click outside the menu
           ctx.assert(!(await panel.isVisible()), 'un clic fuera cierra el menú');
         }
         // Expanding the group works and persists (S4 in the other direction).

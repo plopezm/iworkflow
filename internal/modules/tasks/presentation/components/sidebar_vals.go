@@ -34,6 +34,12 @@ func groupColorVals(color string) string {
 	return jsonVals(map[string]string{"color": color})
 }
 
+// searchShownOpen reports whether the workspace search is open on render: a query narrows the rows. A query of spaces
+// only does not narrow them, so it leaves the search closed like no query at all.
+func searchShownOpen(rows state.SidebarRows) bool {
+	return rows.Filtering()
+}
+
 // groupChevron is the mark of a group toggle: closed or open.
 func groupChevron(collapsed bool) string {
 	if collapsed {

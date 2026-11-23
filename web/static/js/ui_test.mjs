@@ -292,6 +292,14 @@ test('keepClientState vetoes the attributes of menus and sidebar sections that t
   assert.deepEqual(calls, ['previous']);
 });
 
+test('keepClientState keeps the open or closed state of the workspace search across a refresh', async () => {
+  const { keepClientState } = await import('./ui.js');
+  const node = (selector) => ({ matches: (sel) => sel.split(', ').includes(selector) });
+  assert.equal(keepClientState('hidden', node('[data-search-panel]')), false, 'a refresh keeps the wrapper closed or open');
+  assert.equal(keepClientState('aria-expanded', node('[data-search-toggle]')), false, 'a refresh keeps the icon state');
+  assert.equal(keepClientState('class', node('[data-search-panel]')), undefined);
+});
+
 test('registerMorphHook chains into idiomorph, or waits for the document when idiomorph is not there yet', async () => {
   const { registerMorphHook } = await import('./morph_hooks.js');
   const callbacks = {};
