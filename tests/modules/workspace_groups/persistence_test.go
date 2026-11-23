@@ -137,3 +137,34 @@ func TestPinsKeepTheirOrderIgnoreDuplicatesAndFollowTheWorkspace(t *testing.T) {
 }
 
 func groupInput(name string) application.GroupInput { return application.GroupInput{Name: name} }
+
+func TestDeletingAGroupedWorkspaceDropsItsMembershipButKeepsTheGroup(t *testing.T) {
+	ctx := context.Background()
+	repo, db := newRepo(t)
+	insertWorkspace(t, db, "w1")
+	require.NoError(t, repo.SaveGroup(ctx, group(t, "g1", "One", "", false)))
+	require.NoError(t, repo.Assign(ctx, "w1", "g1"))
+
+	_, err := db.Exec(`DELETE FROM workspaces WHERE id = 'w1'`)
+	require.NoError(t, err)
+
+	members, err := repo.Memberships(ctx)
+	require.NoError(t, err)
+	require.Empty(t, members)
+	groups, err := repo.ListGroups(ctx)
+	require.NoError(t, err)
+	require.Len(t, groups, 1)
+}
+
+func TestAStoredGroupThatBreaksAnInvariantIsReportedAsAStorageFailure(t *testing.T) {
+	ctx := context.Background()
+	repo, db := newRepo(t)
+	_, err := db.Exec(`INSERT INTO workspace_groups (id, name, color, collapsed, position) VALUES ('bad', 'x', 'chartreuse', 0, 1)`)
+	require.NoError(t, err)
+
+	_, err = repo.ListGroups(ctx)
+
+	require.ErrorIs(t, err, gerrors.ErrRepository)
+	require.ErrorIs(t, err, gerrors.ErrInvalidGroup)
+	require.ErrorContains(t, err, "bad")
+}

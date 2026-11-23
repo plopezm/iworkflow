@@ -6,7 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+
+	"modernc.org/sqlite"
 
 	gerrors "iworkflow/internal/modules/workspace_groups/domain/errors"
 	"iworkflow/internal/modules/workspace_groups/domain/models"
@@ -17,14 +18,18 @@ import (
 // GroupRepository stores groups, memberships and pins in the workspace_groups, workspace_group_members and
 // workspace_pins tables.
 type GroupRepository struct {
+	db      *sql.DB
 	queries *gen.Queries
 }
+
+// sqliteConstraintForeignKey is the extended result code SQLite reports for a broken foreign key.
+const sqliteConstraintForeignKey = 787
 
 var _ outbound.GroupRepository = (*GroupRepository)(nil)
 
 // NewGroupRepository builds the repository on an open database.
 func NewGroupRepository(db *sql.DB) *GroupRepository {
-	return &GroupRepository{queries: gen.New(db)}
+	return &GroupRepository{db: db, queries: gen.New(db)}
 }
 
 // ListGroups returns the groups in display order.
@@ -37,7 +42,7 @@ func (r *GroupRepository) ListGroups(ctx context.Context) ([]models.Group, error
 	for _, row := range rows {
 		group, err := models.NewGroup(row.ID, row.Name, row.Color.String, row.Collapsed != 0)
 		if err != nil {
-			return nil, fmt.Errorf("stored group %s: %w", row.ID, err)
+			return nil, fmt.Errorf("%w: stored group %s: %w", gerrors.ErrRepository, row.ID, err)
 		}
 		groups = append(groups, group)
 	}
@@ -88,24 +93,35 @@ func (r *GroupRepository) Memberships(ctx context.Context) (map[string]string, e
 	return members, nil
 }
 
-// Assign puts the workspace in the group. The foreign keys tell a missing group from a missing workspace.
+// Assign puts the workspace in the group. The foreign keys tell a missing group from a missing workspace;
+// the upsert and that check run in one transaction, so a concurrent delete cannot change the verdict.
 func (r *GroupRepository) Assign(ctx context.Context, workspaceID string, groupID string) error {
-	err := r.queries.UpsertMembership(ctx, gen.UpsertMembershipParams{WorkspaceID: workspaceID, GroupID: groupID})
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return repositoryError(err)
+	}
+	defer func() { _ = tx.Rollback() }() //nolint:errcheck // Rollback after Commit reports ErrTxDone, which is expected.
+	queries := r.queries.WithTx(tx)
+	err = queries.UpsertMembership(ctx, gen.UpsertMembershipParams{WorkspaceID: workspaceID, GroupID: groupID})
 	if err == nil {
+		if err := tx.Commit(); err != nil {
+			return repositoryError(err)
+		}
 		return nil
 	}
-	if isForeignKey(err) {
-		groups, listErr := r.queries.ListGroups(ctx)
-		if listErr == nil {
-			for _, group := range groups {
-				if group.ID == groupID {
-					return gerrors.ErrWorkspaceNotFound
-				}
-			}
-			return gerrors.ErrGroupNotFound
+	if !isForeignKey(err) {
+		return repositoryError(err)
+	}
+	groups, listErr := queries.ListGroups(ctx)
+	if listErr != nil {
+		return repositoryError(listErr)
+	}
+	for _, group := range groups {
+		if group.ID == groupID {
+			return gerrors.ErrWorkspaceNotFound
 		}
 	}
-	return repositoryError(err)
+	return gerrors.ErrGroupNotFound
 }
 
 // Unassign removes the workspace from its group.
@@ -166,7 +182,8 @@ func boolInt(value bool) int64 {
 }
 
 func isForeignKey(err error) bool {
-	return err != nil && !errors.Is(err, sql.ErrNoRows) && strings.Contains(err.Error(), "FOREIGN KEY")
+	var driverErr *sqlite.Error
+	return errors.As(err, &driverErr) && driverErr.Code() == sqliteConstraintForeignKey
 }
 
 func repositoryError(err error) error {
