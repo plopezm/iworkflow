@@ -42,3 +42,13 @@ func markdownAttrs(path string) templ.Attributes {
 	}
 	return templ.Attributes{"data-md-form": shared.MarkdownPreviewPath}
 }
+
+// workspaceBadgeClass is the class list of the workspace badge of a dashboard task: the muted badge, tinted
+// with the workspace color when it has one.
+func workspaceBadgeClass(color string) string {
+	class := "badge badge-muted hover:text-fg hover:border-fg/30 text-[11px] font-medium truncate max-w-[140px]"
+	if colorClass := shared.WorkspaceColorClass(color); colorClass != "" {
+		return class + " ws-badge " + colorClass
+	}
+	return class
+}

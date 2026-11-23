@@ -182,7 +182,7 @@ func workspaceTargets(get *workspacesapp.GetWorkspace) terminalresolver.Workspac
 		if err != nil || workspace == nil {
 			return nil, err
 		}
-		return &terminalmodels.WorkspaceTarget{Name: workspace.Name, Path: workspace.Path}, nil
+		return &terminalmodels.WorkspaceTarget{Name: workspace.Name, Color: derefColor(workspace.Color), Path: workspace.Path}, nil
 	}
 }
 
@@ -246,7 +246,16 @@ func taskWorkspaceRef(workspace workspacesmodels.Workspace) tasksmodels.Workspac
 		Name:       workspace.Name,
 		Path:       workspace.Path,
 		BaseBranch: workspace.BaseBranch,
+		Color:      derefColor(workspace.Color),
 	}
+}
+
+// derefColor reads an optional palette key; none is the empty string.
+func derefColor(color *string) string {
+	if color == nil {
+		return ""
+	}
+	return *color
 }
 
 // workspaceRuntimes gives the workspaces module the agents a workspace can take as its default. The agent

@@ -14,7 +14,9 @@ const DashboardPath = "/board/dashboard"
 type DashboardTaskItem struct {
 	Task          dto.TaskDTO
 	WorkspaceName string
-	InGraph       bool
+	// WorkspaceColor is the palette key of the workspace; empty means none.
+	WorkspaceColor string
+	InGraph        bool
 }
 
 // DashboardProject is one project (workspace) of the dashboard with its running and pending tasks.
@@ -22,6 +24,8 @@ type DashboardProject struct {
 	ID   string
 	Name string
 	Path string
+	// Color is the palette key of the project; empty means none.
+	Color string
 	// Running are the tasks an agent is working on, including the ones that wait for the user.
 	Running []dto.TaskDTO
 	// Pending are the tasks that wait in the backlog.
@@ -64,13 +68,16 @@ func BuildDashboard(workspaces []dto.WorkspaceOptionDTO, tasks []dto.TaskDTO) Da
 	}
 	index := make(map[string]int, len(workspaces))
 	workspaceNames := make(map[string]string, len(workspaces))
+	workspaceColors := make(map[string]string, len(workspaces))
 	for _, workspace := range workspaces {
 		index[workspace.ID] = len(view.Projects)
 		workspaceNames[workspace.ID] = workspace.Name
+		workspaceColors[workspace.ID] = workspace.Color
 		view.Projects = append(view.Projects, DashboardProject{
 			ID:      workspace.ID,
 			Name:    workspace.Name,
 			Path:    workspace.Path,
+			Color:   workspace.Color,
 			Running: []dto.TaskDTO{},
 			Pending: []dto.TaskDTO{},
 		})
@@ -82,8 +89,9 @@ func BuildDashboard(workspaces []dto.WorkspaceOptionDTO, tasks []dto.TaskDTO) Da
 		}
 		project := &view.Projects[position]
 		item := DashboardTaskItem{
-			Task:          task,
-			WorkspaceName: workspaceNames[task.WorkspaceID],
+			Task:           task,
+			WorkspaceName:  workspaceNames[task.WorkspaceID],
+			WorkspaceColor: workspaceColors[task.WorkspaceID],
 		}
 		switch task.Stage {
 		case StageWorking, StageAttention:

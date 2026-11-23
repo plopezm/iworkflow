@@ -20,22 +20,24 @@ const (
 
 // TerminalSessionDTO is the JSON form of a terminal session.
 type TerminalSessionDTO struct {
-	ID            string            `json:"id"`
-	WorkspaceID   string            `json:"workspace_id"`
-	WorkspaceName string            `json:"workspace_name"`
-	CreatedAt     string            `json:"created_at"`
-	Status        TerminalStatusDTO `json:"status"`
+	ID             string            `json:"id"`
+	WorkspaceID    string            `json:"workspace_id"`
+	WorkspaceName  string            `json:"workspace_name"`
+	WorkspaceColor string            `json:"workspace_color"`
+	CreatedAt      string            `json:"created_at"`
+	Status         TerminalStatusDTO `json:"status"`
 }
 
 // FromTerminalSession maps a domain session to its DTO. created_at uses the RFC 3339 form that chrono
 // produces: UTC offset "+00:00", and fractional seconds only when they are not zero.
 func FromTerminalSession(session models.TerminalSession) TerminalSessionDTO {
 	return TerminalSessionDTO{
-		ID:            session.ID.String(),
-		WorkspaceID:   session.WorkspaceID.String(),
-		WorkspaceName: session.WorkspaceName,
-		CreatedAt:     formatChronoRFC3339(session.CreatedAt),
-		Status:        statusToDTO(session.Status),
+		ID:             session.ID.String(),
+		WorkspaceID:    session.WorkspaceID.String(),
+		WorkspaceName:  session.WorkspaceName,
+		WorkspaceColor: session.WorkspaceColor,
+		CreatedAt:      formatChronoRFC3339(session.CreatedAt),
+		Status:         statusToDTO(session.Status),
 	}
 }
 

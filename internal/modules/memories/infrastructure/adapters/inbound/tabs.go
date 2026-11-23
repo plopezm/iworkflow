@@ -51,9 +51,10 @@ func (h *Handlers) ListTab(ctx context.Context, params dock.Params) templ.Compon
 		return shared.ErrorText(errorText(err))
 	}
 	page := state.ListPage{
-		WorkspaceName: workspace.Name,
-		BoardHref:     "/board/" + workspace.ID,
-		Availability:  availability(feed.State, len(feed.Memories)),
+		WorkspaceName:  workspace.Name,
+		WorkspaceColor: workspace.Color,
+		BoardHref:      "/board/" + workspace.ID,
+		Availability:   availability(feed.State, len(feed.Memories)),
 	}
 	for _, memory := range feed.Memories {
 		page.Rows = append(page.Rows, state.Row{
@@ -81,13 +82,14 @@ func (h *Handlers) DetailTab(ctx context.Context, params dock.Params) templ.Comp
 		return shared.ErrorText(errorText(memerrors.ErrMemoryNotFound))
 	}
 	return pages.MemoryPage(state.DetailPage{
-		WorkspaceName: workspace.Name,
-		ListHref:      state.ListPathFor(workspace.ID),
-		Availability:  availability(entry.State, 1),
-		Type:          entry.Memory.Type,
-		Title:         entry.Memory.Title,
-		Date:          formatDate(entry.Memory),
-		Content:       entry.Content,
+		WorkspaceName:  workspace.Name,
+		WorkspaceColor: workspace.Color,
+		ListHref:       state.ListPathFor(workspace.ID),
+		Availability:   availability(entry.State, 1),
+		Type:           entry.Memory.Type,
+		Title:          entry.Memory.Title,
+		Date:           formatDate(entry.Memory),
+		Content:        entry.Content,
 	})
 }
 

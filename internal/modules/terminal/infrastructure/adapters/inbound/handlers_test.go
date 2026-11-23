@@ -32,7 +32,7 @@ type spawnArgs struct {
 	cwd         string
 }
 
-func (f *fakePty) Spawn(_ context.Context, workspaceID uuid.UUID, name string, cwd string, _ models.TerminalSize) (models.TerminalSession, error) {
+func (f *fakePty) Spawn(_ context.Context, workspaceID uuid.UUID, name string, _ string, cwd string, _ models.TerminalSize) (models.TerminalSession, error) {
 	f.spawned = append(f.spawned, spawnArgs{workspaceID: workspaceID, name: name, cwd: cwd})
 	if f.spawnErr != nil {
 		return models.TerminalSession{}, f.spawnErr

@@ -20,6 +20,8 @@ type WorkspaceDTO struct {
 	BaseBranch string `json:"base_branch"`
 	// CreatedAt is RFC 3339 in UTC.
 	CreatedAt string `json:"created_at"`
+	// Color is the palette key that marks the workspace; empty means none.
+	Color string `json:"color,omitempty"`
 }
 
 // RegisterWorkspaceDTO is the input to register a workspace.
@@ -34,6 +36,8 @@ type RegisterWorkspaceDTO struct {
 	AgentsFileID *string `json:"agents_file_id,omitempty"`
 	// DefaultRuntime is the default agent of the workspace; empty or absent means the system agent.
 	DefaultRuntime *string `json:"default_runtime,omitempty"`
+	// Color is the palette key of the workspace; empty or absent means none.
+	Color *string `json:"color,omitempty"`
 }
 
 // UpdateWorkspaceDTO is the editable data of a workspace. The path cannot change.
@@ -46,6 +50,8 @@ type UpdateWorkspaceDTO struct {
 	// DefaultRuntime is the default agent of the workspace. Absent keeps the saved one; present and empty
 	// clears it to the system agent.
 	DefaultRuntime *string `json:"default_runtime,omitempty"`
+	// Color is the palette key. Absent keeps the saved one; present and empty removes it.
+	Color *string `json:"color,omitempty"`
 }
 
 // AgentsFileOptionDTO is a stored AGENTS.md offered when a new project is registered.
@@ -86,6 +92,7 @@ func (d RegisterWorkspaceDTO) ToNewWorkspace() models.NewWorkspace {
 		Initialize:     d.Initialize,
 		AgentsFileID:   derefString(d.AgentsFileID),
 		DefaultRuntime: derefString(d.DefaultRuntime),
+		Color:          derefString(d.Color),
 	}
 }
 
@@ -96,6 +103,7 @@ func (d UpdateWorkspaceDTO) ToWorkspaceUpdate() models.WorkspaceUpdate {
 		BaseBranch:     derefString(d.BaseBranch),
 		AgentsFileID:   derefString(d.AgentsFileID),
 		DefaultRuntime: d.DefaultRuntime,
+		Color:          d.Color,
 	}
 }
 
@@ -107,6 +115,7 @@ func FromWorkspace(workspace models.Workspace) WorkspaceDTO {
 		Path:       workspace.Path,
 		BaseBranch: workspace.BaseBranch,
 		CreatedAt:  workspace.CreatedAt.UTC().Format(createdAtLayout),
+		Color:      derefString(workspace.Color),
 	}
 }
 

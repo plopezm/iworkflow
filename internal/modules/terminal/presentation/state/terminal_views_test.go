@@ -48,22 +48,24 @@ func TestSessionPathBuildsTheAddress(t *testing.T) {
 
 func TestNewListViewMapsSessionsToRows(t *testing.T) {
 	sessions := []dto.TerminalSessionDTO{{
-		ID:            "0123456789abcdef",
-		WorkspaceName: "api",
-		CreatedAt:     "2026-01-02T03:04:05+00:00",
-		Status:        dto.TerminalStatusExitedDTO,
+		ID:             "0123456789abcdef",
+		WorkspaceName:  "api",
+		WorkspaceColor: "blue",
+		CreatedAt:      "2026-01-02T03:04:05+00:00",
+		Status:         dto.TerminalStatusExitedDTO,
 	}}
 
 	view := NewListView(spanish(), sessions, "", "")
 
 	require.Equal(t, []SessionRow{{
-		ID:            "0123456789abcdef",
-		ShortID:       "01234567",
-		WorkspaceName: "api",
-		StartedAt:     "02/01/2026 03:04 UTC",
-		StatusLabel:   "Exited",
-		StatusClass:   "badge badge-muted",
-		Href:          "/terminals/0123456789abcdef",
+		ID:             "0123456789abcdef",
+		ShortID:        "01234567",
+		WorkspaceName:  "api",
+		WorkspaceColor: "blue",
+		StartedAt:      "02/01/2026 03:04 UTC",
+		StatusLabel:    "Exited",
+		StatusClass:    "badge badge-muted",
+		Href:           "/terminals/0123456789abcdef",
 	}}, view.Rows)
 	require.Empty(t, view.ActionError)
 	require.Empty(t, view.LoadError)

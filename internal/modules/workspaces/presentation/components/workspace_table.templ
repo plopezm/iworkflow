@@ -21,8 +21,10 @@ templ WorkspaceTable(table state.TableView) {
 					<article class="card stack gap-1.5 animate-slide-up">
 						<div class="row justify-between">
 							<span class="font-medium text-fg">
-								<span class="mr-1.5 inline-block h-2 w-2 rounded-full bg-accent"></span>
-								{ row.Name }
+								if shared.WorkspaceColorClass(row.Color) == "" {
+									<span class="mr-1.5 inline-block h-2 w-2 rounded-full bg-accent"></span>
+								}
+								@shared.WorkspaceName(row.Name, row.Color)
 							</span>
 							<div class="row gap-1.5">
 								@link.Tab(link.Props{Href: row.BoardHref, Class: "btn-primary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {

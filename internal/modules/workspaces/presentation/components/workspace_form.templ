@@ -18,6 +18,7 @@ templ WorkspaceRegister(form state.RegisterForm) {
 					<button type="button" class="btn-ghost" hx-get="/workspaces/directories" hx-include="#workspace-path" hx-target="#workspace-picker" hx-swap="outerHTML">{ msgChoose.T(ctx) }</button>
 				</div>
 			</div>
+			@shared.ColorPicker(shared.ColorPickerProps{Label: msgColor.T(ctx), NoneLabel: msgNoColor.T(ctx), Name: "color", Value: form.Color})
 			@shared.TextField(shared.FieldProps{Label: msgBaseBranch.T(ctx), Name: "base_branch", Value: form.BaseBranch, Placeholder: "main"})
 			if len(form.Options) > 0 {
 				@shared.SelectField(shared.SelectFieldProps{Label: msgInitialAgents.T(ctx), Name: "agents_file_id", Value: form.AgentsFileID, Placeholder: msgNoAgents.T(ctx), Options: formOptions(form.Options)})

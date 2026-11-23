@@ -1,6 +1,7 @@
 package pages
 
 import (
+	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/modules/memories/presentation/state"
 )
@@ -9,7 +10,7 @@ import (
 templ MemoriesPage(page state.ListPage) {
 	<div class="flex h-full min-h-0 flex-col" data-memories-list>
 		<div class="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2.5">
-			<h1 class="page-title">{ msgMemoriesTitle.T(ctx) } · { page.WorkspaceName }</h1>
+			<h1 class="page-title">{ msgMemoriesTitle.T(ctx) } · @shared.WorkspaceLabel(page.WorkspaceName, page.WorkspaceColor)</h1>
 			<div class="row gap-2">
 				<span class="badge">{ msgReadOnly.T(ctx) }</span>
 				@link.Tab(link.Props{Href: page.BoardHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
@@ -46,7 +47,7 @@ templ MemoryPage(page state.DetailPage) {
 			if page.Availability == state.Unavailable {
 				<p class="muted" role="status">{ msgUnavailable.T(ctx) }</p>
 			} else {
-				<p class="text-xs text-muted">{ page.WorkspaceName } · { page.Type } · { page.Date }</p>
+				<p class="text-xs text-muted">@shared.WorkspaceLabel(page.WorkspaceName, page.WorkspaceColor) · { page.Type } · { page.Date }</p>
 				<div class="markdown break-words text-sm text-fg" data-memory-content>@templ.Raw(markdownHTML(page.Content))</div>
 			}
 		</div>

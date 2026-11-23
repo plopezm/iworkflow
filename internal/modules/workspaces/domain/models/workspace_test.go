@@ -81,3 +81,20 @@ func TestParseWorkspaceIDRoundTripsGeneratedID(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, generated, parsed)
 }
+
+func TestColorIsOptionalAndMustBeAPaletteKey(t *testing.T) {
+	ok, err := models.NewWorkspace{Name: "a", Path: "/tmp/a", Color: " blue "}.Validated()
+	require.NoError(t, err)
+	assert.Equal(t, "blue", ok.Color)
+
+	none, err := models.NewWorkspace{Name: "a", Path: "/tmp/a"}.Validated()
+	require.NoError(t, err)
+	assert.Empty(t, none.Color)
+
+	_, err = models.NewWorkspace{Name: "a", Path: "/tmp/a", Color: "chartreuse"}.Validated()
+	require.ErrorIs(t, err, werrors.InvalidColor(""))
+
+	bad := "#ff0000"
+	_, err = models.WorkspaceUpdate{Name: "a", Color: &bad}.Validated()
+	require.ErrorIs(t, err, werrors.InvalidColor(""))
+}

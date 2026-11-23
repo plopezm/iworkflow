@@ -18,6 +18,8 @@ type TaskDetailView struct {
 	// WorkspaceName is the name of the workspace of the task, shown under the title. It is empty when the workspace
 	// could not be read: the header then shows no workspace line.
 	WorkspaceName string
+	// WorkspaceColor is the palette key of the workspace of the task; empty means none.
+	WorkspaceColor string
 	// Attachments are the images of the task; AttachmentsError says why they could not be read.
 	Attachments      []dto.TaskAttachmentDTO
 	AttachmentsError string

@@ -73,6 +73,9 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 	updated.Name = validated.Name
 	updated.BaseBranch = baseBranch
 	updated.DefaultRuntime = defaultRuntime
+	if validated.Color != nil {
+		updated.Color = optionalColor(*validated.Color)
+	}
 	if err := u.repository.Update(ctx, updated); err != nil {
 		return models.Workspace{}, err
 	}

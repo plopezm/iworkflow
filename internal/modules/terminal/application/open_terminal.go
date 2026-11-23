@@ -21,12 +21,12 @@ func NewOpenTerminal(pty outbound.PtyPort, paths outbound.WorkspacePathPort) *Op
 	return &OpenTerminal{pty: pty, paths: paths}
 }
 
-// Execute resolves the workspace and spawns the session with the workspace name as snapshot.
+// Execute resolves the workspace and spawns the session with the workspace name and color as snapshots.
 func (u *OpenTerminal) Execute(ctx context.Context, workspaceID uuid.UUID, size models.TerminalSize) (models.TerminalSession, error) {
 	target, err := u.paths.Resolve(ctx, workspaceID)
 	if err != nil {
 		return models.TerminalSession{}, err //nolint:wrapcheck // port errors are domain errors; passed unchanged
 	}
-	session, err := u.pty.Spawn(ctx, workspaceID, target.Name, target.Path, size)
+	session, err := u.pty.Spawn(ctx, workspaceID, target.Name, target.Color, target.Path, size)
 	return session, err //nolint:wrapcheck // port errors are domain errors; passed unchanged
 }

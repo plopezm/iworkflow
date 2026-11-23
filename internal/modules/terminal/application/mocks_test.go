@@ -11,10 +11,11 @@ import (
 
 // spawnCall records one Spawn invocation.
 type spawnCall struct {
-	workspaceID   uuid.UUID
-	workspaceName string
-	cwd           string
-	size          models.TerminalSize
+	workspaceID    uuid.UUID
+	workspaceName  string
+	workspaceColor string
+	cwd            string
+	size           models.TerminalSize
 }
 
 // fakePty is an in-memory PtyPort that records the calls and returns configured results.
@@ -38,9 +39,9 @@ type fakePty struct {
 	calls       int
 }
 
-func (f *fakePty) Spawn(_ context.Context, workspaceID uuid.UUID, workspaceName string, cwd string, size models.TerminalSize) (models.TerminalSession, error) {
+func (f *fakePty) Spawn(_ context.Context, workspaceID uuid.UUID, workspaceName string, workspaceColor string, cwd string, size models.TerminalSize) (models.TerminalSession, error) {
 	f.calls++
-	f.spawnCalls = append(f.spawnCalls, spawnCall{workspaceID: workspaceID, workspaceName: workspaceName, cwd: cwd, size: size})
+	f.spawnCalls = append(f.spawnCalls, spawnCall{workspaceID: workspaceID, workspaceName: workspaceName, workspaceColor: workspaceColor, cwd: cwd, size: size})
 	return f.spawned, f.spawnErr
 }
 

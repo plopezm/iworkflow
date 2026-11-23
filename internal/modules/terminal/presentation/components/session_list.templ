@@ -32,7 +32,9 @@ templ SessionsList(view state.ListView) {
 					<tbody>
 						for _, row := range view.Rows {
 							<tr>
-								<td class="font-medium text-fg">{ row.WorkspaceName }</td>
+								<td class="font-medium text-fg">
+									@shared.WorkspaceLabel(row.WorkspaceName, row.WorkspaceColor)
+								</td>
 								<td>
 									<code class="font-mono text-xs text-muted">{ row.ShortID }</code>
 								</td>

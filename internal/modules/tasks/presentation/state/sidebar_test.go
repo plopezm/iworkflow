@@ -36,3 +36,9 @@ func TestBuildSidebarAttentionHoldsOnlyTasksThatNeedTheUser(t *testing.T) {
 		{ID: "old", Title: "old", Subtitle: "alpha"},
 	}, rows.Attention, "the most recent update comes first and a task without title shows its prompt")
 }
+
+func TestBuildSidebarCarriesTheWorkspaceColor(t *testing.T) {
+	rows := state.BuildSidebar([]dto.WorkspaceOptionDTO{{ID: "w1", Name: "alpha", BaseBranch: "main", Color: "blue"}}, nil)
+
+	assert.Equal(t, "blue", rows.Workspaces[0].Color)
+}

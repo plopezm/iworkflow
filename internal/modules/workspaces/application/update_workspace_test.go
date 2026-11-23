@@ -207,3 +207,26 @@ func TestUpdateWorkspaceOmittedDefaultAgentKeepsTheSavedOne(t *testing.T) {
 	require.NotNil(t, repository.updated[0].DefaultRuntime)
 	assert.Equal(t, "pi", *repository.updated[0].DefaultRuntime)
 }
+
+func TestUpdateWorkspaceRejectsAnUnknownColorWithoutTouchingAnything(t *testing.T) {
+	existing, repository, _, _, useCase := updateFixture(t)
+	bad := "chartreuse"
+
+	_, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Demo", Color: &bad})
+
+	require.ErrorIs(t, err, werrors.InvalidColor(""))
+	assert.Empty(t, repository.updated)
+}
+
+func TestUpdateWorkspaceSetsAndClearsTheColor(t *testing.T) {
+	existing, _, _, _, useCase := updateFixture(t)
+	blue, none := "blue", ""
+
+	set, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Demo", Color: &blue})
+	require.NoError(t, err)
+	assert.Equal(t, &blue, set.Color)
+
+	cleared, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Demo", Color: &none})
+	require.NoError(t, err)
+	assert.Nil(t, cleared.Color)
+}

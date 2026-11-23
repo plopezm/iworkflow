@@ -47,6 +47,9 @@ func (h *Handlers) EditTab(ctx context.Context, params dock.Params) templ.Compon
 		Path:       workspace.Path,
 		BaseBranch: workspace.BaseBranch,
 	}
+	if workspace.Color != nil {
+		page.Color = *workspace.Color
+	}
 	page.Runtimes = h.runtimeOptions(ctx)
 	page.DefaultRuntime = savedRuntime(workspace.DefaultRuntime, page.Runtimes)
 	options, listErr := h.uc.ListAgentsFiles.Execute(ctx)
