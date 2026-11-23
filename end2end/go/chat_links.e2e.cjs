@@ -4,6 +4,7 @@
 // Screenshots: set E2E_SHOTS_DIR (default /tmp/iwf-chat-links-shots).
 const fs = require('fs');
 const path = require('path');
+const { gradientPng } = require('./png_fixture.cjs');
 const { taskDetail } = require('./tasks_actions.e2e.cjs').helpers;
 
 const tag = Date.now().toString();
@@ -128,6 +129,46 @@ module.exports = {
         fs.mkdirSync(SHOTS, { recursive: true });
         await popup.screenshot({ path: path.join(SHOTS, '3-chat-links-url-opened-in-new-tab.png') });
         await popup.close();
+      },
+    },
+    {
+      name: 'chat links: an image link opens the lightbox and the image can be enlarged',
+      fn: async (ctx) => {
+        runs += 1;
+        const image = path.join(process.env.SMOKE_TMP_DIR || process.env.WORK_TMP_DIR || '/tmp', `chat-zoom-${tag}.png`);
+        fs.writeFileSync(image, gradientPng(1600, 1000));
+        await taskDetail(ctx, `chatlinks${runs}`, `imagen-${tag}: ${image}`, { start: true, match: `imagen-${tag}` });
+        const link = ctx.page.locator(`.msg-assistant .markdown a[data-file-path="${image}"]`);
+        await link.first().waitFor({ timeout: 30000 });
+        await link.first().click();
+        const img = ctx.page.locator('[data-chat-image]');
+        await ctx.page.waitForFunction(
+          () => {
+            const el = document.querySelector('[data-chat-image]');
+            return el && el.complete && el.naturalWidth === 1600;
+          },
+          null,
+          { timeout: 12000 },
+        );
+        const fitted = await img.evaluate((el) => el.getBoundingClientRect().width);
+        ctx.assert(fitted < 1600, `la imagen debe caber en el diálogo antes de ampliar (ancho ${fitted})`);
+        await shot(ctx, '4-chat-image-lightbox');
+        await img.click();
+        const zoomed = await img.evaluate((el) => ({
+          width: el.getBoundingClientRect().width,
+          flagged: el.hasAttribute('data-zoomed'),
+          scrolls: el.parentElement.scrollWidth > el.parentElement.clientWidth,
+        }));
+        ctx.assert(zoomed.flagged && Math.round(zoomed.width) === 1600, `ampliar debe mostrar el tamaño real (got ${JSON.stringify(zoomed)})`);
+        ctx.assert(zoomed.scrolls, 'la imagen ampliada debe poder desplazarse dentro del diálogo');
+        await shot(ctx, '5-chat-image-zoomed');
+        await img.click();
+        ctx.assert((await img.evaluate((el) => el.hasAttribute('data-zoomed'))) === false, 'otro clic debe ajustar la imagen');
+        // Abrir otra imagen parte siempre de la vista ajustada.
+        await img.click();
+        await ctx.page.keyboard.press('Escape');
+        await link.first().click();
+        ctx.assert((await img.evaluate((el) => el.hasAttribute('data-zoomed'))) === false, 'la imagen se reabre ajustada');
       },
     },
   ],

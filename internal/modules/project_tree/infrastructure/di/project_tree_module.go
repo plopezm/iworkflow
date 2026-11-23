@@ -30,6 +30,7 @@ type Deps struct {
 type Module struct {
 	ListDirectory *application.ListProjectDirectory
 	ReadFile      *application.ReadProjectFile
+	ReadImage     *application.ReadProjectImage
 	WriteFile     *application.WriteProjectFile
 	GitChanges    *application.ListProjectGitChanges
 	FileBase      *application.ReadProjectFileBase
@@ -52,6 +53,7 @@ func NewModule(deps Deps) *Module {
 	module := &Module{
 		ListDirectory: application.NewListProjectDirectory(roots, reader),
 		ReadFile:      application.NewReadProjectFile(roots, files),
+		ReadImage:     application.NewReadProjectImage(roots, files),
 		WriteFile:     application.NewWriteProjectFile(roots, files),
 		GitChanges:    application.NewListProjectGitChanges(roots, status),
 		FileBase:      application.NewReadProjectFileBase(roots, status),
@@ -64,6 +66,7 @@ func NewModule(deps Deps) *Module {
 	module.handlers = inbound.NewHandlers(inbound.UseCases{
 		ListDirectory: module.ListDirectory,
 		ReadFile:      module.ReadFile,
+		ReadImage:     module.ReadImage,
 		WriteFile:     module.WriteFile,
 		GitChanges:    module.GitChanges,
 		FileBase:      module.FileBase,

@@ -334,3 +334,32 @@ func TestDiscardRevertsThePostedPathsAndNeverActsWithoutPaths(t *testing.T) {
 	assert.Contains(t, done.Body.String(), `data-testid="git-empty"`)
 	assert.Empty(t, gitOut(t, root, "status", "--porcelain"))
 }
+
+func TestImageTabShowsThePictureAndTheRawRouteServesItsBytes(t *testing.T) {
+	dir := t.TempDir()
+	// Not valid UTF-8: the text viewer would refuse it.
+	pngBytes := []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe, 0x00}
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "shot.png"), pngBytes, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("x"), 0o600))
+	id := uuid.New()
+	module, router := httpModule(t, id, dir)
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.Es, Chosen: true})
+
+	var page bytes.Buffer
+	require.NoError(t, module.RenderFile(ctx, id.String(), "shot.png").Render(ctx, &page))
+	assert.Contains(t, page.String(), "<img")
+	assert.Contains(t, page.String(), "/project-tree/file/raw?")
+	assert.NotContains(t, page.String(), "UTF-8")
+
+	query := wsParam(id)
+	query.Set("path", "shot.png")
+	recorder := send(router, http.MethodGet, "/project-tree/file/raw?"+query.Encode(), nil)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "image/png", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, pngBytes, recorder.Body.Bytes())
+
+	query.Set("path", "notes.txt")
+	assert.Equal(t, http.StatusBadRequest, send(router, http.MethodGet, "/project-tree/file/raw?"+query.Encode(), nil).Code)
+	query.Set("path", "../shot.png")
+	assert.Equal(t, http.StatusBadRequest, send(router, http.MethodGet, "/project-tree/file/raw?"+query.Encode(), nil).Code)
+}

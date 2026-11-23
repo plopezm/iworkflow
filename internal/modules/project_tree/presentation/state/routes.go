@@ -18,6 +18,7 @@ const (
 	PathDirectory  = "/project-tree/directory"
 	PathFile       = "/project-tree/file"
 	PathFileBody   = "/project-tree/file/body"
+	PathFileRaw    = "/project-tree/file/raw"
 	PathFileState  = "/project-tree/file/state"
 	PathGitChanges = "/project-tree/git/changes"
 	PathGitStage   = "/project-tree/git/stage"
@@ -56,6 +57,11 @@ func DirectoryURL(scope string, folder string) string {
 // FileBodyURL returns the editor of a file as it is on disk (reload and discard).
 func FileBodyURL(scope string, path string) string {
 	return withQuery(PathFileBody, scopeValues(scope, path))
+}
+
+// FileRawURL returns the bytes of an image file, for an <img> element.
+func FileRawURL(scope string, path string) string {
+	return withQuery(PathFileRaw, scopeValues(scope, path))
 }
 
 // ChangesURL is the endpoint of the changes panel body.

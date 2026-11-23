@@ -63,6 +63,9 @@ func (h *Handlers) RenderFile(ctx context.Context, rawScope string, path string)
 	if err != nil {
 		return coreui.ErrorText(err.Error())
 	}
+	if _, isImage := models.ImageContentType(path); isImage {
+		return pages.ProjectFilePage(state.FileView{Scope: scope, Path: path, ImageURL: state.FileRawURL(scope.Wire(), path)})
+	}
 	view, err := h.fileView(ctx, scope, path, nil)
 	if err != nil {
 		return pages.ProjectFilePage(state.FileView{Scope: scope, Path: path, LoadError: err.Error()})

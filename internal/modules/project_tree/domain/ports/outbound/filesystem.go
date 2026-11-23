@@ -19,3 +19,9 @@ type FileStorePort interface {
 	// Write overwrites the existing text file at relative.
 	Write(ctx context.Context, root string, relative string, content string) error
 }
+
+// ImageReaderPort reads image files. Every method is confined to the root it receives.
+type ImageReaderPort interface {
+	// ReadImage returns the bytes of the image at relative.
+	ReadImage(ctx context.Context, root string, relative string) (models.ProjectImage, error)
+}

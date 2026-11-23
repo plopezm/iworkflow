@@ -16,11 +16,17 @@ import (
 // maxFileBytes is the largest file the viewer and the editor load, in bytes.
 const maxFileBytes int64 = 2 * 1024 * 1024
 
+// maxImageBytes is the largest image the viewer serves, in bytes.
+const maxImageBytes int64 = 20 * 1024 * 1024
+
 // FileStore reads and overwrites existing text files of the local filesystem, confined to the
 // project root.
 type FileStore struct{}
 
-var _ outbound.FileStorePort = (*FileStore)(nil)
+var (
+	_ outbound.FileStorePort   = (*FileStore)(nil)
+	_ outbound.ImageReaderPort = (*FileStore)(nil)
+)
 
 // NewFileStore builds the adapter.
 func NewFileStore() *FileStore {
@@ -29,7 +35,7 @@ func NewFileStore() *FileStore {
 
 // Read returns the UTF-8 content of the regular file at relative.
 func (s *FileStore) Read(_ context.Context, root string, relative string) (models.ProjectFile, error) {
-	target, err := resolveFile(root, relative)
+	target, err := resolveFile(root, relative, maxFileBytes)
 	if err != nil {
 		return models.ProjectFile{}, err
 	}
@@ -43,12 +49,29 @@ func (s *FileStore) Read(_ context.Context, root string, relative string) (model
 	return models.ProjectFile{Name: path.Base(relative), Path: relative, Content: string(content)}, nil
 }
 
+// ReadImage returns the bytes of the image at relative and its content type.
+func (s *FileStore) ReadImage(_ context.Context, root string, relative string) (models.ProjectImage, error) {
+	contentType, ok := models.ImageContentType(relative)
+	if !ok {
+		return models.ProjectImage{}, treeerrors.NotAFile(relative)
+	}
+	target, err := resolveFile(root, relative, maxImageBytes)
+	if err != nil {
+		return models.ProjectImage{}, err
+	}
+	content, err := os.ReadFile(target)
+	if err != nil {
+		return models.ProjectImage{}, ioError(err)
+	}
+	return models.ProjectImage{ContentType: contentType, Content: content}, nil
+}
+
 // Write overwrites an existing regular file atomically. It never creates files: a missing path is an error.
 func (s *FileStore) Write(_ context.Context, root string, relative string, content string) error {
 	if int64(len(content)) > maxFileBytes {
 		return treeerrors.FileTooLarge(relative)
 	}
-	target, err := resolveFile(root, relative)
+	target, err := resolveFile(root, relative, maxFileBytes)
 	if err != nil {
 		return err
 	}
@@ -80,7 +103,7 @@ func (s *FileStore) Write(_ context.Context, root string, relative string, conte
 
 // resolveFile returns the canonical path of an existing regular file inside root that is not
 // larger than maxFileBytes.
-func resolveFile(root string, relative string) (string, error) {
+func resolveFile(root string, relative string, limit int64) (string, error) {
 	if relative == "" {
 		return "", treeerrors.NotAFile("")
 	}
@@ -105,7 +128,7 @@ func resolveFile(root string, relative string) (string, error) {
 	if !info.Mode().IsRegular() {
 		return "", treeerrors.NotAFile(relative)
 	}
-	if info.Size() > maxFileBytes {
+	if info.Size() > limit {
 		return "", treeerrors.FileTooLarge(relative)
 	}
 	return target, nil
