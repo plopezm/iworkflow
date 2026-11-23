@@ -57,6 +57,7 @@ import (
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
 	transcriptiondi "iworkflow/internal/modules/transcription/infrastructure/di"
 	usagelimitsdi "iworkflow/internal/modules/usage_limits/infrastructure/di"
+	workspacegroupsdi "iworkflow/internal/modules/workspace_groups/infrastructure/di"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
 	workspacespages "iworkflow/internal/modules/workspaces/presentation/pages"
 )
@@ -165,6 +166,8 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	// The hooks module needs the agent runtime of the tasks module, so the strip is created first and bound once the
 	// hooks module exists.
 	hookStrip := NewTaskHooksStrip()
+	// The workspace groups of the sidebar: the module is built before tasks, whose sidebar arranges the workspaces with it.
+	workspaceGroups := workspacegroupsdi.NewModule(deps.DB)
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
 		HookStrip:      hookStrip,
 		DB:             deps.DB,
@@ -194,6 +197,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		Panels:              panels,
 		JiraPanel:           jiraPanel,
 		TaskMemory:          taskMemory,
+		SidebarArranger:     &sidebarArranger{layouts: workspaceGroups.Arrange},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose tasks: %w", err)
@@ -305,7 +309,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		tasks:         tasks,
 		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{engram, prefs, dataHome, logs, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, jiraModule, openWith, transcription, usageLimits},
+		modules:       []web.Module{engram, prefs, dataHome, logs, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, workspaceGroups, jiraModule, openWith, transcription, usageLimits},
 		dock:          dock.NewHandlers(registry, emptyGroup()),
 	}, nil
 }

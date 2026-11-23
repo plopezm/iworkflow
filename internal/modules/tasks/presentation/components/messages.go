@@ -47,6 +47,24 @@ var (
 	msgOpenTask              = i18n.Msg{En: "Open task", Es: "Abrir tarea", Zh: "打开任务", De: "Aufgabe öffnen", Fr: "Ouvrir la tâche"}
 )
 
+// Texts of the workspace groups in the sidebar: the group blocks, the pinned block and the menu entries that move a
+// workspace between them. They have no Rust counterpart.
+var (
+	msgPinnedSection   = i18n.Msg{En: "Pinned", Es: "Fijados", Zh: "已固定", De: "Angeheftet", Fr: "Épinglés"}
+	msgNewGroup        = i18n.Msg{En: "New group", Es: "Nuevo grupo", Zh: "新建分组", De: "Neue Gruppe", Fr: "Nouveau groupe"}
+	msgGroupNamePrompt = i18n.Msg{En: "Group name", Es: "Nombre del grupo", Zh: "分组名称", De: "Gruppenname", Fr: "Nom du groupe"}
+	msgRenameGroup     = i18n.Msg{En: "Rename group", Es: "Renombrar grupo", Zh: "重命名分组", De: "Gruppe umbenennen", Fr: "Renommer le groupe"}
+	msgDeleteGroup     = i18n.Msg{En: "Delete group", Es: "Eliminar grupo", Zh: "删除分组", De: "Gruppe löschen", Fr: "Supprimer le groupe"}
+	msgNoColor         = i18n.Msg{En: "No color", Es: "Sin color", Zh: "无颜色", De: "Keine Farbe", Fr: "Aucune couleur"}
+	msgGroupActions    = i18n.Msg{En: "Group actions", Es: "Acciones del grupo", Zh: "分组操作", De: "Gruppenaktionen", Fr: "Actions du groupe"}
+	msgExpandGroup     = i18n.Msg{En: "Expand group", Es: "Desplegar grupo", Zh: "展开分组", De: "Gruppe aufklappen", Fr: "Déplier le groupe"}
+	msgCollapseGroup   = i18n.Msg{En: "Collapse group", Es: "Plegar grupo", Zh: "折叠分组", De: "Gruppe zuklappen", Fr: "Replier le groupe"}
+	msgPinWorkspace    = i18n.Msg{En: "Pin", Es: "Fijar", Zh: "固定", De: "Anheften", Fr: "Épingler"}
+	msgUnpinWorkspace  = i18n.Msg{En: "Unpin", Es: "Desfijar", Zh: "取消固定", De: "Lösen", Fr: "Détacher"}
+	msgMoveToGroup     = i18n.Msg{En: "Move to {group}", Es: "Mover a {group}", Zh: "移到 {group}", De: "Nach {group} verschieben", Fr: "Déplacer vers {group}"}
+	msgRemoveFromGroup = i18n.Msg{En: "Remove from group", Es: "Quitar del grupo", Zh: "移出分组", De: "Aus Gruppe entfernen", Fr: "Retirer du groupe"}
+)
+
 // Priority labels, as the Rust priority DTO names them.
 var (
 	msgPriorityLow    = i18n.Msg{En: "Low", Es: "Baja", Zh: "低", De: "Niedrig", Fr: "Basse"}

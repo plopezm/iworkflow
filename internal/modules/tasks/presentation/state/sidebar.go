@@ -3,6 +3,7 @@ package state
 import (
 	"sort"
 
+	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 )
 
@@ -13,6 +14,21 @@ type SidebarWorkspace struct {
 	Subtitle string
 	// Color is the palette key of the workspace; empty means none.
 	Color string
+	// Pinned reports whether the row sits in the pinned block.
+	Pinned bool
+	// GroupID is the group the row sits in; empty when it is pinned or ungrouped.
+	GroupID string
+}
+
+// SidebarGroup is a collapsible block of the sidebar with the workspaces it holds.
+type SidebarGroup struct {
+	ID        string
+	Name      string
+	Color     string
+	Collapsed bool
+	// NeedsAttention reports whether a task of one of the group's workspaces needs the user.
+	NeedsAttention bool
+	Workspaces     []SidebarWorkspace
 }
 
 // SidebarTask is a task row of the sidebar's "needs attention" list, linked to its detail.
@@ -22,12 +38,28 @@ type SidebarTask struct {
 	Subtitle string
 }
 
-// SidebarRows are the two lists of the sidebar: the workspaces and the tasks that need the user.
+// SidebarRows are the lists of the sidebar. Workspaces is every workspace in the given order. Pinned, Groups and
+// Ungrouped are the same workspaces arranged by the layout (see ApplyLayout).
 type SidebarRows struct {
 	Workspaces []SidebarWorkspace
+	Pinned     []SidebarWorkspace
+	Groups     []SidebarGroup
+	Ungrouped  []SidebarWorkspace
 	Attention  []SidebarTask
+	// NeedsAttentionIn holds the ids of the workspaces that have a task which needs the user.
+	NeedsAttentionIn map[string]bool
 	// LoadError is the message of a failed read of the sidebar data; empty when the data is fresh.
 	LoadError string
+}
+
+// UngroupedRows are the workspaces the flat part of the sidebar lists. Once a layout is applied these are the
+// ungrouped ones. Rows that were never arranged (no pinned block, no groups, no ungrouped list) list every workspace,
+// which is the flat sidebar.
+func (r SidebarRows) UngroupedRows() []SidebarWorkspace {
+	if r.Pinned == nil && r.Groups == nil && r.Ungrouped == nil {
+		return r.Workspaces
+	}
+	return r.Ungrouped
 }
 
 // BuildSidebar derives the sidebar lists (function pura). Workspaces keep the order they are given in. The
@@ -35,11 +67,12 @@ type SidebarRows struct {
 // their workspace as subtitle.
 func BuildSidebar(workspaces []dto.WorkspaceOptionDTO, active []dto.TaskDTO) SidebarRows {
 	names := make(map[string]string, len(workspaces))
-	rows := SidebarRows{Workspaces: make([]SidebarWorkspace, 0, len(workspaces)), Attention: make([]SidebarTask, 0)}
+	rows := SidebarRows{Workspaces: make([]SidebarWorkspace, 0, len(workspaces)), Attention: make([]SidebarTask, 0), NeedsAttentionIn: map[string]bool{}}
 	for _, workspace := range workspaces {
 		names[workspace.ID] = workspace.Name
 		rows.Workspaces = append(rows.Workspaces, SidebarWorkspace{ID: workspace.ID, Name: workspace.Name, Subtitle: workspace.BaseBranch, Color: workspace.Color})
 	}
+	rows.Ungrouped = append([]SidebarWorkspace(nil), rows.Workspaces...)
 	attention := make([]dto.TaskDTO, 0)
 	for _, task := range active {
 		if task.NeedsAttention {
@@ -51,6 +84,71 @@ func BuildSidebar(workspaces []dto.WorkspaceOptionDTO, active []dto.TaskDTO) Sid
 	})
 	for _, task := range attention {
 		rows.Attention = append(rows.Attention, SidebarTask{ID: task.ID, Title: TaskTitle(task), Subtitle: names[task.WorkspaceID]})
+		rows.NeedsAttentionIn[task.WorkspaceID] = true
 	}
 	return rows
+}
+
+// ApplyLayout repartitions the workspaces of rows by the layout (función pura). Each workspace appears once: a
+// pinned one only in the pinned block, then in the first group that lists it, then as ungrouped. Groups keep the
+// layout order and empty groups stay. A workspace the layout does not mention is appended to the ungrouped ones,
+// and ids the rows do not know are ignored. A group needs attention when a task of one of its own workspaces does.
+func ApplyLayout(rows SidebarRows, layout models.SidebarLayout) SidebarRows {
+	byID := make(map[string]SidebarWorkspace, len(rows.Workspaces))
+	for _, workspace := range rows.Workspaces {
+		byID[workspace.ID] = workspace
+	}
+	placed := make(map[string]bool, len(rows.Workspaces))
+	out := SidebarRows{Workspaces: rows.Workspaces, Attention: rows.Attention, NeedsAttentionIn: rows.NeedsAttentionIn, LoadError: rows.LoadError}
+	for _, id := range layout.Pinned {
+		workspace, known := byID[id]
+		if !known || placed[id] {
+			continue
+		}
+		placed[id] = true
+		workspace.Pinned = true
+		out.Pinned = append(out.Pinned, workspace)
+	}
+	out.Groups = make([]SidebarGroup, 0, len(layout.Groups))
+	for _, group := range layout.Groups {
+		view := SidebarGroup{ID: group.ID, Name: group.Name, Color: group.Color, Collapsed: group.Collapsed, Workspaces: []SidebarWorkspace{}}
+		for _, id := range group.Workspaces {
+			workspace, known := byID[id]
+			if !known || placed[id] {
+				continue
+			}
+			placed[id] = true
+			workspace.GroupID = group.ID
+			view.Workspaces = append(view.Workspaces, workspace)
+		}
+		out.Groups = append(out.Groups, view)
+	}
+	for _, id := range layout.Ungrouped {
+		workspace, known := byID[id]
+		if !known || placed[id] {
+			continue
+		}
+		placed[id] = true
+		out.Ungrouped = append(out.Ungrouped, workspace)
+	}
+	for _, workspace := range rows.Workspaces {
+		if !placed[workspace.ID] {
+			placed[workspace.ID] = true
+			out.Ungrouped = append(out.Ungrouped, workspace)
+		}
+	}
+	for i := range out.Groups {
+		out.Groups[i].NeedsAttention = needsAttention(out.Groups[i].Workspaces, rows.NeedsAttentionIn)
+	}
+	return out
+}
+
+// needsAttention reports whether one of the workspaces has a task that needs the user.
+func needsAttention(workspaces []SidebarWorkspace, attention map[string]bool) bool {
+	for _, workspace := range workspaces {
+		if attention[workspace.ID] {
+			return true
+		}
+	}
+	return false
 }
