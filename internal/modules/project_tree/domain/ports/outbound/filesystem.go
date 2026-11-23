@@ -22,6 +22,9 @@ type FileStorePort interface {
 
 // ImageReaderPort reads image files. Every method is confined to the root it receives.
 type ImageReaderPort interface {
+	// CheckImage reports why the image at relative cannot be shown (missing, not a file, too large, outside the
+	// root, not an image), without reading its bytes.
+	CheckImage(ctx context.Context, root string, relative string) error
 	// ReadImage returns the bytes of the image at relative.
 	ReadImage(ctx context.Context, root string, relative string) (models.ProjectImage, error)
 }

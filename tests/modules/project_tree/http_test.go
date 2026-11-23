@@ -363,3 +363,40 @@ func TestImageTabShowsThePictureAndTheRawRouteServesItsBytes(t *testing.T) {
 	query.Set("path", "../shot.png")
 	assert.Equal(t, http.StatusBadRequest, send(router, http.MethodGet, "/project-tree/file/raw?"+query.Encode(), nil).Code)
 }
+
+func TestImageTabShowsTheErrorOfAnImageThatCannotBeShown(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "big.png"), make([]byte, 21*1024*1024), 0o600))
+	id := uuid.New()
+	module, _ := httpModule(t, id, dir)
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.Es, Chosen: true})
+
+	for _, name := range []string{"missing.png", "big.png"} {
+		var page bytes.Buffer
+		require.NoError(t, module.RenderFile(ctx, id.String(), name).Render(ctx, &page))
+		assert.NotContains(t, page.String(), "<img", name)
+		assert.Contains(t, page.String(), name, "the message names the file")
+	}
+}
+
+func TestRawRouteContainsSVGsAndCoversItsEdgeCases(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "Logo.SVG"), []byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "big.png"), make([]byte, 21*1024*1024), 0o600))
+	id := uuid.New()
+	_, router := httpModule(t, id, dir)
+	raw := func(name string) *httptest.ResponseRecorder {
+		query := wsParam(id)
+		query.Set("path", name)
+		return send(router, http.MethodGet, "/project-tree/file/raw?"+query.Encode(), nil)
+	}
+
+	svg := raw("Logo.SVG")
+	require.Equal(t, http.StatusOK, svg.Code, "the extension is matched case-insensitively")
+	assert.Equal(t, "image/svg+xml", svg.Header().Get("Content-Type"))
+	assert.Equal(t, "nosniff", svg.Header().Get("X-Content-Type-Options"))
+	assert.Equal(t, "sandbox", svg.Header().Get("Content-Security-Policy"))
+
+	assert.Equal(t, http.StatusNotFound, raw("missing.png").Code)
+	assert.Equal(t, http.StatusBadRequest, raw("big.png").Code, "an image over the limit is refused")
+}

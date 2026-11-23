@@ -27,3 +27,12 @@ func (u *ReadProjectImage) Execute(ctx context.Context, scope models.ProjectScop
 	}
 	return u.images.ReadImage(ctx, root.Path, relative)
 }
+
+// Check resolves the project root and reports why the image at relative cannot be shown, without reading it.
+func (u *ReadProjectImage) Check(ctx context.Context, scope models.ProjectScope, relative string) error {
+	root, err := u.roots.Resolve(ctx, scope)
+	if err != nil {
+		return err
+	}
+	return u.images.CheckImage(ctx, root.Path, relative)
+}

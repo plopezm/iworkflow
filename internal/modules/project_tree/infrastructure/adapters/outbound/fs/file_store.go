@@ -49,6 +49,15 @@ func (s *FileStore) Read(_ context.Context, root string, relative string) (model
 	return models.ProjectFile{Name: path.Base(relative), Path: relative, Content: string(content)}, nil
 }
 
+// CheckImage validates the image at relative as ReadImage does, without reading it.
+func (s *FileStore) CheckImage(_ context.Context, root string, relative string) error {
+	if _, ok := models.ImageContentType(relative); !ok {
+		return treeerrors.NotAFile(relative)
+	}
+	_, err := resolveFile(root, relative, maxImageBytes)
+	return err
+}
+
 // ReadImage returns the bytes of the image at relative and its content type.
 func (s *FileStore) ReadImage(_ context.Context, root string, relative string) (models.ProjectImage, error) {
 	contentType, ok := models.ImageContentType(relative)
