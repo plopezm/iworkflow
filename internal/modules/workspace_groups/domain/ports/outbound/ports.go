@@ -32,3 +32,8 @@ type GroupRepository interface {
 	// Unpin removes the pin; an unpinned workspace is not an error.
 	Unpin(ctx context.Context, workspaceID string) error
 }
+
+// IDGenerator creates the identifiers of new groups, so tests can fix them.
+type IDGenerator interface {
+	NewID() string
+}
