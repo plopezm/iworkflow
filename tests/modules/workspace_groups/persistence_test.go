@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"iworkflow/internal/core/db/dbtest"
+	"iworkflow/internal/modules/workspace_groups/application"
 	gerrors "iworkflow/internal/modules/workspace_groups/domain/errors"
 	"iworkflow/internal/modules/workspace_groups/domain/models"
 	"iworkflow/internal/modules/workspace_groups/infrastructure/adapters/outbound/persistence"
@@ -134,3 +135,5 @@ func TestPinsKeepTheirOrderIgnoreDuplicatesAndFollowTheWorkspace(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, pinned, "deleting a workspace drops its pin")
 }
+
+func groupInput(name string) application.GroupInput { return application.GroupInput{Name: name} }

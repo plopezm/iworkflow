@@ -31,7 +31,7 @@ func NewCreateGroup(repo outbound.GroupRepository, ids outbound.IDGenerator) *Cr
 func (u *CreateGroup) Execute(ctx context.Context, input GroupInput) (models.Group, error) {
 	group, err := models.NewGroup(u.ids.NewID(), input.Name, input.Color, false)
 	if err != nil {
-		return models.Group{}, err
+		return models.Group{}, fmt.Errorf("create group: %w", err)
 	}
 	if err := u.repo.SaveGroup(ctx, group); err != nil {
 		return models.Group{}, fmt.Errorf("create group: %w", err)
@@ -57,7 +57,7 @@ func (u *UpdateGroup) Execute(ctx context.Context, id string, input GroupInput) 
 		}
 		updated, err := models.NewGroup(id, input.Name, input.Color, current.Collapsed())
 		if err != nil {
-			return models.Group{}, err
+			return models.Group{}, fmt.Errorf("update group: %w", err)
 		}
 		if err := u.repo.UpdateGroup(ctx, updated); err != nil {
 			return models.Group{}, fmt.Errorf("update group: %w", err)
