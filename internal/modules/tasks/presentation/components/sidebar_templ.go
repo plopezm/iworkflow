@@ -38,7 +38,7 @@ func BoardSidebar(rows state.SidebarRows) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"board-sidebar\" class=\"contents\" hx-get=\"/board/sidebar\" hx-include=\"[name='q']\" hx-trigger=\"sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"morph:innerHTML\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"board-sidebar\" class=\"contents\" hx-get=\"/board/sidebar\" hx-include=\"[name='q']\" hx-disinherit=\"hx-include\" hx-trigger=\"sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body\" hx-sync=\"this:replace\" hx-target=\"this\" hx-swap=\"morph:innerHTML\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -86,7 +86,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = sidebarSearch(rows.Query).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = sidebarSearch(rows.RawQuery).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -108,7 +108,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msgPinnedSection.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 41, Col: 89}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 42, Col: 89}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -130,7 +130,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				}
 			}
 			for _, group := range rows.Groups {
-				templ_7745c5c3_Err = groupBlock(group, rows.Groups, rows.Query != "").Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = groupBlock(group, rows.Groups, rows.Filtering()).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -145,7 +145,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			if len(rows.Workspaces) == 0 && rows.Query != "" {
+			if len(rows.Workspaces) == 0 && rows.Filtering() {
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<p class=\"muted\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -153,7 +153,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoWorkspacesMatch.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 54, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 55, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -171,7 +171,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoWorkspacesYet.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 57, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 58, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -196,7 +196,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 					var templ_7745c5c3_Var8 string
 					templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(msgRegisterWorkspace.T(ctx))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 59, Col: 34}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 60, Col: 34}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 					if templ_7745c5c3_Err != nil {
@@ -239,7 +239,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templruntime.NewAttributeExpression(task.ID).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 66, Col: 54}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 67, Col: 54}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 				if templ_7745c5c3_Err != nil {
@@ -252,7 +252,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(task.Title).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 66, Col: 90}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 67, Col: 90}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 				if templ_7745c5c3_Err != nil {
@@ -265,7 +265,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templruntime.NewAttributeExpression(stageLabel(state.StageAttention).T(ctx)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 66, Col: 154}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 67, Col: 154}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 				if templ_7745c5c3_Err != nil {
@@ -296,7 +296,7 @@ func SidebarBody(rows state.SidebarRows) templ.Component {
 				var templ_7745c5c3_Var13 string
 				templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(msgNothingNeedsAttention.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 71, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 72, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 				if templ_7745c5c3_Err != nil {
@@ -343,7 +343,7 @@ func sidebarSearch(query string) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.NewAttributeExpression(query).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 83, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 84, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -356,7 +356,7 @@ func sidebarSearch(query string) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgSearchWorkspaces.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 85, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 86, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {
@@ -369,7 +369,7 @@ func sidebarSearch(query string) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgSearchWorkspaces.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 86, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 87, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 		if templ_7745c5c3_Err != nil {
@@ -409,7 +409,7 @@ func groupCreateButton() templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgNewGroup.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 102, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 103, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 		if templ_7745c5c3_Err != nil {
@@ -422,7 +422,7 @@ func groupCreateButton() templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgNewGroup.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 103, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 104, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var20)
 		if templ_7745c5c3_Err != nil {
@@ -435,7 +435,7 @@ func groupCreateButton() templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgGroupNamePrompt.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 105, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 106, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 		if templ_7745c5c3_Err != nil {
@@ -475,7 +475,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templruntime.NewAttributeExpression(group.ID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 114, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 115, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 		if templ_7745c5c3_Err != nil {
@@ -488,7 +488,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.FormatBool(group.Collapsed)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 114, Col: 113}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 115, Col: 113}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 		if templ_7745c5c3_Err != nil {
@@ -501,7 +501,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.Itoa(len(group.Workspaces))).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 114, Col: 170}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 115, Col: 170}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var25)
 		if templ_7745c5c3_Err != nil {
@@ -527,7 +527,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.CSSClasses(templ_7745c5c3_Var26).String()).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 1, Col: 0}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 1, Col: 0}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 			if templ_7745c5c3_Err != nil {
@@ -540,7 +540,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.FormatBool(!group.Collapsed)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 119, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 120, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var28)
 			if templ_7745c5c3_Err != nil {
@@ -553,7 +553,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templruntime.NewAttributeExpression(groupToggleTitle(ctx, group.Collapsed, filtering)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 120, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 121, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var29)
 			if templ_7745c5c3_Err != nil {
@@ -584,7 +584,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(groupChevron(group.Collapsed))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 123, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 124, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -606,7 +606,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgStageAttention.T(ctx)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 126, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 127, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 			if templ_7745c5c3_Err != nil {
@@ -624,7 +624,7 @@ func groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(strconv.Itoa(len(group.Workspaces)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 129, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 130, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -709,7 +709,7 @@ func workspaceRow(workspace state.SidebarWorkspace, groups []state.SidebarGroup)
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templruntime.NewAttributeExpression(workspace.ID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 146, Col: 56}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 147, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 		if templ_7745c5c3_Err != nil {
@@ -756,7 +756,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspace-groups/" + group.ID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 153, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 154, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
 		if templ_7745c5c3_Err != nil {
@@ -769,7 +769,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgRenameGroup.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 153, Col: 118}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 154, Col: 118}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 		if templ_7745c5c3_Err != nil {
@@ -782,7 +782,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templruntime.NewAttributeExpression(groupColorVals(group.Color)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 153, Col: 183}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 154, Col: 183}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 		if templ_7745c5c3_Err != nil {
@@ -795,7 +795,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(msgRenameGroup.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 154, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 155, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 		if templ_7745c5c3_Err != nil {
@@ -808,7 +808,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var41 string
 		templ_7745c5c3_Var41, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspace-groups/" + group.ID).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 156, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 157, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 		if templ_7745c5c3_Err != nil {
@@ -821,7 +821,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var42 string
 		templ_7745c5c3_Var42, templ_7745c5c3_Err = templruntime.NewAttributeExpression(groupEditVals(group.Name, "")).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 156, Col: 124}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 157, Col: 124}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var42)
 		if templ_7745c5c3_Err != nil {
@@ -834,7 +834,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(msgNoColor.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 157, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 158, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 		if templ_7745c5c3_Err != nil {
@@ -852,7 +852,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspace-groups/" + group.ID).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 160, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 161, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var44)
 			if templ_7745c5c3_Err != nil {
@@ -865,7 +865,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templruntime.NewAttributeExpression(groupEditVals(group.Name, key)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 160, Col: 126}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 161, Col: 126}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 			if templ_7745c5c3_Err != nil {
@@ -878,7 +878,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 			var templ_7745c5c3_Var46 string
 			templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(key)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 161, Col: 8}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 162, Col: 8}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 			if templ_7745c5c3_Err != nil {
@@ -896,7 +896,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspace-groups/" + group.ID + "/delete").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 164, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 165, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var47)
 		if templ_7745c5c3_Err != nil {
@@ -909,7 +909,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(msgDeleteGroup.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 165, Col: 25}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 166, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -957,7 +957,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var51 string
 			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(msgViewFiles.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 173, Col: 23}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 174, Col: 23}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
@@ -984,7 +984,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var53 string
 			templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(msgOpenTerminal.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 176, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 177, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 			if templ_7745c5c3_Err != nil {
@@ -1011,7 +1011,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var55 string
 			templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(msgManageWorkspaces.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 179, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 180, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 			if templ_7745c5c3_Err != nil {
@@ -1030,7 +1030,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 		var templ_7745c5c3_Var56 string
 		templ_7745c5c3_Var56, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspace-groups/workspaces/" + workspace.ID + "/pin").Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 181, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 182, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 		if templ_7745c5c3_Err != nil {
@@ -1043,7 +1043,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 		var templ_7745c5c3_Var57 string
 		templ_7745c5c3_Var57, templ_7745c5c3_Err = templruntime.NewAttributeExpression(workspacePinVals(!workspace.Pinned)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 181, Col: 154}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 182, Col: 154}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var57)
 		if templ_7745c5c3_Err != nil {
@@ -1057,7 +1057,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var58 string
 			templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(msgUnpinWorkspace.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 183, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 184, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 			if templ_7745c5c3_Err != nil {
@@ -1067,7 +1067,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var59 string
 			templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(msgPinWorkspace.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 185, Col: 27}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 186, Col: 27}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 			if templ_7745c5c3_Err != nil {
@@ -1087,7 +1087,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 				var templ_7745c5c3_Var60 string
 				templ_7745c5c3_Var60, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspace-groups/workspaces/" + workspace.ID + "/group").Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 190, Col: 110}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 191, Col: 110}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var60)
 				if templ_7745c5c3_Err != nil {
@@ -1100,7 +1100,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templruntime.NewAttributeExpression(workspaceGroupVals(group.ID)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 190, Col: 151}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 191, Col: 151}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var61)
 				if templ_7745c5c3_Err != nil {
@@ -1113,7 +1113,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 				var templ_7745c5c3_Var62 string
 				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(msgMoveToGroup.Fmt(ctx, map[string]string{"group": group.Name}))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 191, Col: 69}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 192, Col: 69}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 				if templ_7745c5c3_Err != nil {
@@ -1133,7 +1133,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var63 string
 			templ_7745c5c3_Var63, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspace-groups/workspaces/" + workspace.ID + "/group").Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 196, Col: 109}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 197, Col: 109}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var63)
 			if templ_7745c5c3_Err != nil {
@@ -1146,7 +1146,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var64 string
 			templ_7745c5c3_Var64, templ_7745c5c3_Err = templruntime.NewAttributeExpression(workspaceGroupVals("")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 196, Col: 144}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 197, Col: 144}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var64)
 			if templ_7745c5c3_Err != nil {
@@ -1159,7 +1159,7 @@ func workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 			var templ_7745c5c3_Var65 string
 			templ_7745c5c3_Var65, templ_7745c5c3_Err = templ.JoinStringErrs(msgRemoveFromGroup.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 197, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 198, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var65))
 			if templ_7745c5c3_Err != nil {
@@ -1207,7 +1207,7 @@ func taskMenu(taskID string) templ.Component {
 			var templ_7745c5c3_Var68 string
 			templ_7745c5c3_Var68, templ_7745c5c3_Err = templ.JoinStringErrs(msgOpenTask.T(ctx))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `sidebar.templ`, Line: 205, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/tasks/presentation/components/sidebar.templ`, Line: 206, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 			if templ_7745c5c3_Err != nil {

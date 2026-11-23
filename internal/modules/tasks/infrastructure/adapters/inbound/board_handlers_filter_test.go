@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 	"time"
 
@@ -16,6 +17,9 @@ import (
 	"iworkflow/internal/modules/tasks/domain/models"
 	httpinbound "iworkflow/internal/modules/tasks/infrastructure/adapters/inbound"
 )
+
+// filterValuePattern is the typed text of the search input.
+var filterValuePattern = regexp.MustCompile(`(id="board-sidebar-filter"[^>]*?) value="[^"]*"`)
 
 // sidebarFilterResponse answers GET target on the mounted board handlers, the way the sidebar's htmx request does.
 func sidebarFilterResponse(t *testing.T, target string) string {
@@ -61,5 +65,7 @@ func TestBoardSidebarWithoutAQueryIsUnfiltered(t *testing.T) {
 	assert.Contains(t, plain, `data-workspace-row="w1"`)
 	assert.Contains(t, plain, `data-workspace-row="w2"`)
 	assert.NotContains(t, plain, "No workspaces match.")
-	assert.Equal(t, plain, blank, "a blank query renders exactly what no query renders")
+	assert.Equal(t, filterValuePattern.ReplaceAllString(plain, "$1"), filterValuePattern.ReplaceAllString(blank, "$1"),
+		"a blank query renders the same rows as no query")
+	assert.Contains(t, blank, ` value="  "`, "the input echoes the blank query as typed")
 }

@@ -3,6 +3,7 @@ package application_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -95,13 +96,101 @@ func TestSetPinnedPinsAndUnpins(t *testing.T) {
 	require.ErrorIs(t, pin.Execute(ctx, "ghost", true), gerrors.ErrWorkspaceNotFound)
 }
 
-func TestSetGroupCollapsedReportsAMissingGroupAndStorageFailures(t *testing.T) {
+func TestSetGroupCollapsedReportsAMissingGroup(t *testing.T) {
 	repo := newFakeRepo()
 	require.ErrorIs(t, application.NewSetGroupCollapsed(repo).Execute(context.Background(), "ghost", true), gerrors.ErrGroupNotFound)
+}
 
-	repo.failWith = errors.New("disk")
-	_, err := application.NewCreateGroup(repo, &sequenceIDs{}).Execute(context.Background(), application.GroupInput{Name: "x"})
-	require.ErrorContains(t, err, "disk")
+// repoState is what the fake repository stores. A failed write must leave it exactly as it was.
+type repoState struct {
+	groups  []models.Group
+	members map[string]string
+	pins    []string
+}
+
+func stateOf(repo *fakeRepo) repoState {
+	members := make(map[string]string, len(repo.members))
+	for workspace, group := range repo.members {
+		members[workspace] = group
+	}
+	return repoState{groups: append([]models.Group(nil), repo.groups...), members: members, pins: append([]string(nil), repo.pins...)}
+}
+
+// TestStorageFailuresReportTheCauseAndLeaveTheStateUnchanged runs every write of the use cases against a failing
+// repository: the error must wrap the storage cause and nothing may be stored.
+func TestStorageFailuresReportTheCauseAndLeaveTheStateUnchanged(t *testing.T) {
+	ctx := context.Background()
+	failure := errors.New("disk full")
+	seedGroup := func(t *testing.T, repo *fakeRepo) {
+		repo.groups = []models.Group{group(t, "g1", "Old", true)}
+	}
+	seedMember := func(t *testing.T, repo *fakeRepo) {
+		seedGroup(t, repo)
+		repo.members = map[string]string{"w1": "g1"}
+	}
+	seedPin := func(_ *testing.T, repo *fakeRepo) { repo.pins = []string{"w1"} }
+	noSeed := func(*testing.T, *fakeRepo) {}
+	tests := []struct {
+		name  string
+		seed  func(t *testing.T, repo *fakeRepo)
+		write func(repo *fakeRepo) error
+	}{
+		{name: "create group", seed: noSeed, write: func(repo *fakeRepo) error {
+			_, err := application.NewCreateGroup(repo, &sequenceIDs{}).Execute(ctx, application.GroupInput{Name: "x"})
+			return err
+		}},
+		{name: "update group", seed: seedGroup, write: func(repo *fakeRepo) error {
+			_, err := application.NewUpdateGroup(repo).Execute(ctx, "g1", application.GroupInput{Name: "New", Color: "red"})
+			return err
+		}},
+		{name: "delete group", seed: seedMember, write: func(repo *fakeRepo) error {
+			return application.NewDeleteGroup(repo).Execute(ctx, "g1")
+		}},
+		{name: "collapse group", seed: seedGroup, write: func(repo *fakeRepo) error {
+			return application.NewSetGroupCollapsed(repo).Execute(ctx, "g1", false)
+		}},
+		{name: "move workspace into a group", seed: seedGroup, write: func(repo *fakeRepo) error {
+			return application.NewMoveWorkspace(repo).Execute(ctx, "w1", "g1")
+		}},
+		{name: "ungroup workspace", seed: seedMember, write: func(repo *fakeRepo) error {
+			return application.NewMoveWorkspace(repo).Execute(ctx, "w1", "")
+		}},
+		{name: "pin workspace", seed: noSeed, write: func(repo *fakeRepo) error {
+			return application.NewSetPinned(repo).Execute(ctx, "w1", true)
+		}},
+		{name: "unpin workspace", seed: seedPin, write: func(repo *fakeRepo) error {
+			return application.NewSetPinned(repo).Execute(ctx, "w1", false)
+		}},
+		{name: "arrange workspaces", seed: seedMember, write: func(repo *fakeRepo) error {
+			_, err := application.NewArrangeWorkspaces(repo).Execute(ctx, []string{"w1"})
+			return err
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeRepo("w1")
+			tt.seed(t, repo)
+			before := stateOf(repo)
+			repo.failWith = failure
+
+			require.ErrorIs(t, tt.write(repo), failure)
+			assert.Equal(t, before, stateOf(repo))
+		})
+	}
+}
+
+// TestCreateGroupKeepsEveryIDUniqueBeyondNineGroups guards the generated ids: the tenth group is g10, not a rune.
+func TestCreateGroupKeepsEveryIDUniqueBeyondNineGroups(t *testing.T) {
+	repo := newFakeRepo()
+	create := application.NewCreateGroup(repo, &sequenceIDs{})
+	for range 10 {
+		_, err := create.Execute(context.Background(), application.GroupInput{Name: "x"})
+		require.NoError(t, err)
+	}
+
+	ids := repo.groupIDs()
+	assert.Len(t, ids, 10)
+	assert.Contains(t, ids, "g"+strconv.Itoa(10))
 }
 
 func group(t *testing.T, id string, name string, collapsed bool) models.Group {
@@ -126,6 +215,19 @@ func TestArrangeSplitsPinnedGroupedAndUngroupedKeepingTheGivenOrder(t *testing.T
 	assert.Equal(t, []string{"d"}, layout.Groups[1].Workspaces)
 	assert.True(t, layout.Groups[1].Group.Collapsed())
 	assert.Equal(t, []string{"b"}, layout.Ungrouped)
+}
+
+// TestArrangePinnedFollowsThePinOrderOfTheRepositoryAndDropsDuplicates: the pinned block lists the pins in the order the
+// repository returns them, not in the order of the given ids, and a pin repeated by the repository shows once.
+func TestArrangePinnedFollowsThePinOrderOfTheRepositoryAndDropsDuplicates(t *testing.T) {
+	repo := newFakeRepo("a", "b", "c", "d")
+	repo.pins = []string{"d", "b", "d"}
+
+	layout, err := application.NewArrangeWorkspaces(repo).Execute(context.Background(), []string{"a", "b", "c", "d"})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"d", "b"}, layout.Pinned, "pins keep the repository order, each once")
+	assert.Equal(t, []string{"a", "c"}, layout.Ungrouped)
 }
 
 func TestArrangeKeepsEmptyGroupsAndTreatsAnUnknownGroupAsUngrouped(t *testing.T) {

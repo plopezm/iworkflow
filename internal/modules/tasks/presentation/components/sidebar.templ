@@ -18,6 +18,7 @@ templ BoardSidebar(rows state.SidebarRows) {
 		class="contents"
 		hx-get="/board/sidebar"
 		hx-include="[name='q']"
+		hx-disinherit="hx-include"
 		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body"
 		hx-sync="this:replace"
 		hx-target="this"
@@ -32,7 +33,7 @@ templ BoardSidebar(rows state.SidebarRows) {
 // the server's (Collapsed), so a refresh keeps it.
 templ SidebarBody(rows state.SidebarRows) {
 	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgWorkspaces.T(ctx), Count: len(rows.Workspaces), Actions: groupCreateButton()}) {
-		@sidebarSearch(rows.Query)
+		@sidebarSearch(rows.RawQuery)
 		if rows.LoadError != "" {
 			@shared.ErrorText(rows.LoadError)
 		}
@@ -45,12 +46,12 @@ templ SidebarBody(rows state.SidebarRows) {
 			</div>
 		}
 		for _, group := range rows.Groups {
-			@groupBlock(group, rows.Groups, rows.Query != "")
+			@groupBlock(group, rows.Groups, rows.Filtering())
 		}
 		for _, workspace := range rows.UngroupedRows() {
 			@workspaceRow(workspace, rows.Groups)
 		}
-		if len(rows.Workspaces) == 0 && rows.Query != "" {
+		if len(rows.Workspaces) == 0 && rows.Filtering() {
 			<p class="muted">{ msgNoWorkspacesMatch.T(ctx) }</p>
 		} else if len(rows.Workspaces) == 0 {
 			<div class="stack gap-1.5">

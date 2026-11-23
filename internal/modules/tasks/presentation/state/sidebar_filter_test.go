@@ -19,6 +19,7 @@ func filterFixture() state.SidebarRows {
 	w4 := state.SidebarWorkspace{ID: "w4", Name: "Résumé", Subtitle: "main"}
 	w5 := state.SidebarWorkspace{ID: "w5", Name: "web", Subtitle: "main"}
 	return state.SidebarRows{
+		Arranged:   true,
 		Workspaces: []state.SidebarWorkspace{pinned, w1, w2, w3, w4, w5},
 		Pinned:     []state.SidebarWorkspace{pinned},
 		Groups: []state.SidebarGroup{
@@ -121,4 +122,24 @@ func TestFilterSidebarRecordsTheQueryItNarrowedBy(t *testing.T) {
 
 	assert.Equal(t, "Café", got.Query)
 	assert.Equal(t, "", state.FilterSidebar(filterFixture(), "").Query)
+}
+
+// RawQuery is the text as typed, for the search input; Query is the trimmed text the rows were matched with.
+func TestFilterSidebarKeepsTheRawQueryForTheInput(t *testing.T) {
+	t.Parallel()
+
+	got := state.FilterSidebar(filterFixture(), "café ")
+
+	assert.Equal(t, "café ", got.RawQuery)
+	assert.Equal(t, "café", got.Query)
+	assert.Equal(t, "   ", state.FilterSidebar(filterFixture(), "   ").RawQuery, "a blank query is echoed as typed")
+}
+
+// Filtering reports whether a query narrows the rows: a blank one does not.
+func TestFilteringIsOnlyForAQueryWithText(t *testing.T) {
+	t.Parallel()
+
+	assert.False(t, state.FilterSidebar(filterFixture(), "").Filtering())
+	assert.False(t, state.FilterSidebar(filterFixture(), " 	 ").Filtering())
+	assert.True(t, state.FilterSidebar(filterFixture(), " api ").Filtering())
 }

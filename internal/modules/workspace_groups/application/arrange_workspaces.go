@@ -16,9 +16,10 @@ func NewArrangeWorkspaces(repo outbound.GroupRepository) *ArrangeWorkspaces {
 	return &ArrangeWorkspaces{repo: repo}
 }
 
-// Execute arranges the given workspace ids, which keep their order inside each block. A pinned workspace
-// appears only among the pinned ones; a pin of a workspace that is not in the list is ignored; a workspace
-// whose group no longer exists counts as ungrouped; empty groups are kept so they can be filled.
+// Execute arranges the given workspace ids. The pinned block follows the pin order the repository returns (not the
+// order of the ids), each workspace once; a pin of a workspace that is not in the list is ignored. The groups and the
+// ungrouped list keep the order of the ids. A pinned workspace appears only among the pinned ones; a workspace whose
+// group no longer exists counts as ungrouped; empty groups are kept so they can be filled.
 func (u *ArrangeWorkspaces) Execute(ctx context.Context, workspaceIDs []string) (models.Layout, error) {
 	groups, err := u.repo.ListGroups(ctx)
 	if err != nil {
@@ -39,7 +40,7 @@ func (u *ArrangeWorkspaces) Execute(ctx context.Context, workspaceIDs []string) 
 	layout := models.Layout{Pinned: []string{}, Groups: make([]models.GroupMembers, 0, len(groups)), Ungrouped: []string{}}
 	pinned := make(map[string]bool, len(pins))
 	for _, id := range pins {
-		if present[id] {
+		if present[id] && !pinned[id] {
 			pinned[id] = true
 			layout.Pinned = append(layout.Pinned, id)
 		}

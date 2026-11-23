@@ -3,12 +3,14 @@ package application_test
 import (
 	"context"
 	"sort"
+	"strconv"
 
 	gerrors "iworkflow/internal/modules/workspace_groups/domain/errors"
 	"iworkflow/internal/modules/workspace_groups/domain/models"
 )
 
-// fakeRepo is an in-memory GroupRepository. workspaces holds the ids that "exist".
+// fakeRepo is an in-memory GroupRepository. workspaces holds the ids that "exist". When failWith is set every call
+// fails with it before it reads or writes anything, so a failed call never changes the stored state.
 type fakeRepo struct {
 	groups     []models.Group
 	members    map[string]string
@@ -35,24 +37,36 @@ func (f *fakeRepo) index(id string) int {
 }
 
 func (f *fakeRepo) ListGroups(context.Context) ([]models.Group, error) {
-	return append([]models.Group(nil), f.groups...), f.failWith
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	return append([]models.Group(nil), f.groups...), nil
 }
 
 func (f *fakeRepo) SaveGroup(_ context.Context, group models.Group) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	f.groups = append(f.groups, group)
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) UpdateGroup(_ context.Context, group models.Group) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	i := f.index(group.ID())
 	if i < 0 {
 		return gerrors.ErrGroupNotFound
 	}
 	f.groups[i] = group
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) DeleteGroup(_ context.Context, id string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	i := f.index(id)
 	if i < 0 {
 		return gerrors.ErrGroupNotFound
@@ -63,28 +77,37 @@ func (f *fakeRepo) DeleteGroup(_ context.Context, id string) error {
 			delete(f.members, workspace)
 		}
 	}
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) SetCollapsed(_ context.Context, id string, collapsed bool) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	i := f.index(id)
 	if i < 0 {
 		return gerrors.ErrGroupNotFound
 	}
 	group := f.groups[i]
 	f.groups[i], _ = models.NewGroup(group.ID(), group.Name(), group.Color(), collapsed)
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) Memberships(context.Context) (map[string]string, error) {
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
 	copied := map[string]string{}
 	for k, v := range f.members {
 		copied[k] = v
 	}
-	return copied, f.failWith
+	return copied, nil
 }
 
 func (f *fakeRepo) Assign(_ context.Context, workspaceID string, groupID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	if !f.workspaces[workspaceID] {
 		return gerrors.ErrWorkspaceNotFound
 	}
@@ -92,19 +115,28 @@ func (f *fakeRepo) Assign(_ context.Context, workspaceID string, groupID string)
 		return gerrors.ErrGroupNotFound
 	}
 	f.members[workspaceID] = groupID
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) Unassign(_ context.Context, workspaceID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	delete(f.members, workspaceID)
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) Pinned(context.Context) ([]string, error) {
-	return append([]string(nil), f.pins...), f.failWith
+	if f.failWith != nil {
+		return nil, f.failWith
+	}
+	return append([]string(nil), f.pins...), nil
 }
 
 func (f *fakeRepo) Pin(_ context.Context, workspaceID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	if !f.workspaces[workspaceID] {
 		return gerrors.ErrWorkspaceNotFound
 	}
@@ -114,10 +146,13 @@ func (f *fakeRepo) Pin(_ context.Context, workspaceID string) error {
 		}
 	}
 	f.pins = append(f.pins, workspaceID)
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) Unpin(_ context.Context, workspaceID string) error {
+	if f.failWith != nil {
+		return f.failWith
+	}
 	kept := f.pins[:0]
 	for _, id := range f.pins {
 		if id != workspaceID {
@@ -125,7 +160,7 @@ func (f *fakeRepo) Unpin(_ context.Context, workspaceID string) error {
 		}
 	}
 	f.pins = kept
-	return f.failWith
+	return nil
 }
 
 func (f *fakeRepo) groupIDs() []string {
@@ -142,5 +177,5 @@ type sequenceIDs struct{ next int }
 
 func (s *sequenceIDs) NewID() string {
 	s.next++
-	return "g" + string(rune('0'+s.next))
+	return "g" + strconv.Itoa(s.next)
 }

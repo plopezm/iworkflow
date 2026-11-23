@@ -40,12 +40,20 @@ func DecodeGroup(r *http.Request) (GroupForm, error) {
 	return GroupForm{Name: name, Color: r.PostForm.Get(FieldColor)}, nil
 }
 
-// DecodeFlag reads a boolean form field: only "true" is true.
+// DecodeFlag reads a boolean form field, which must be exactly "true" or "false". A missing or any other value is
+// invalid input: the state it would change is not guessed.
 func DecodeFlag(r *http.Request, field string) (bool, error) {
 	if err := parse(r); err != nil {
 		return false, err
 	}
-	return r.PostForm.Get(field) == "true", nil
+	switch value := r.PostForm.Get(field); value {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("%w: %s must be true or false, got %q", gerrors.ErrInvalidGroup, field, value)
+	}
 }
 
 // DecodeField reads one trimmed form field.

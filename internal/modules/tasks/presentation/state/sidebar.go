@@ -3,7 +3,6 @@ package state
 import (
 	"sort"
 	"strings"
-	"unicode"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
@@ -52,21 +51,30 @@ type SidebarRows struct {
 	NeedsAttentionIn map[string]bool
 	// LoadError is the message of a failed read of the sidebar data; empty when the data is fresh.
 	LoadError string
+	// Arranged reports whether a layout was applied (see ApplyLayout). Only an arranged sidebar lists its ungrouped
+	// rows apart from the workspaces.
+	Arranged bool
 	// Query is the trimmed text the rows were narrowed by (see FilterSidebar); empty when no filter applies.
 	Query string
+	// RawQuery is the text as the user typed it, for the search input; it is never trimmed.
+	RawQuery string
 }
 
 // UngroupedRows are the workspaces the flat part of the sidebar lists. Once a layout is applied these are the
-// ungrouped ones. Rows that were never arranged (no pinned block, no groups, no ungrouped list) list every workspace,
-// which is the flat sidebar.
+// ungrouped ones. Rows that were never arranged list every workspace, which is the flat sidebar.
 func (r SidebarRows) UngroupedRows() []SidebarWorkspace {
-	if r.Pinned == nil && r.Groups == nil && r.Ungrouped == nil {
+	if !r.Arranged {
 		return r.Workspaces
 	}
 	return r.Ungrouped
 }
 
-// BuildSidebar derives the sidebar lists (function pura). Workspaces keep the order they are given in. The
+// Filtering reports whether a query narrows the rows: a query of spaces only does not.
+func (r SidebarRows) Filtering() bool {
+	return strings.TrimSpace(r.Query) != ""
+}
+
+// BuildSidebar derives the sidebar lists (pure function). Workspaces keep the order they are given in. The
 // attention list holds the active tasks that need the user, the most recent update first, with the name of
 // their workspace as subtitle.
 func BuildSidebar(workspaces []dto.WorkspaceOptionDTO, active []dto.TaskDTO) SidebarRows {
@@ -93,7 +101,7 @@ func BuildSidebar(workspaces []dto.WorkspaceOptionDTO, active []dto.TaskDTO) Sid
 	return rows
 }
 
-// ApplyLayout repartitions the workspaces of rows by the layout (función pura). Each workspace appears once: a
+// ApplyLayout repartitions the workspaces of rows by the layout (pure function). Each workspace appears once: a
 // pinned one only in the pinned block, then in the first group that lists it, then as ungrouped. Groups keep the
 // layout order and empty groups stay. A workspace the layout does not mention is appended to the ungrouped ones,
 // and ids the rows do not know are ignored. A group needs attention when a task of one of its own workspaces does.
@@ -103,7 +111,7 @@ func ApplyLayout(rows SidebarRows, layout models.SidebarLayout) SidebarRows {
 		byID[workspace.ID] = workspace
 	}
 	placed := make(map[string]bool, len(rows.Workspaces))
-	out := SidebarRows{Workspaces: rows.Workspaces, Attention: rows.Attention, NeedsAttentionIn: rows.NeedsAttentionIn, LoadError: rows.LoadError}
+	out := SidebarRows{Workspaces: rows.Workspaces, Attention: rows.Attention, NeedsAttentionIn: rows.NeedsAttentionIn, LoadError: rows.LoadError, Arranged: true}
 	for _, id := range layout.Pinned {
 		workspace, known := byID[id]
 		if !known || placed[id] {
@@ -157,20 +165,22 @@ func needsAttention(workspaces []SidebarWorkspace, attention map[string]bool) bo
 	return false
 }
 
-// FilterSidebar narrows the workspace rows to the ones matching query (función pura). A row matches when its name
-// or its subtitle contains the query, ignoring case and accents. The query is trimmed, and an empty one returns rows
-// unchanged. Groups without a match are dropped; the groups that remain are shown expanded, while the stored
-// Collapsed flag of the input is left as it is. The attention list is never filtered.
+// FilterSidebar narrows the workspace rows to the ones matching query (pure function). A row matches when its name
+// or its subtitle contains the query, ignoring case and accents. The query is trimmed for the match; a blank one
+// returns the rows unchanged. The text as typed is kept in RawQuery whatever it is. Groups without a match are
+// dropped; the groups that remain are shown expanded, while the stored Collapsed flag of the input is left as it is.
+// The attention list is never filtered.
 func FilterSidebar(rows SidebarRows, query string) SidebarRows {
 	trimmed := strings.TrimSpace(query)
+	out := rows
+	out.RawQuery = query
 	needle := foldText(trimmed)
 	if needle == "" {
-		return rows
+		return out
 	}
 	matches := func(workspace SidebarWorkspace) bool {
 		return strings.Contains(foldText(workspace.Name), needle) || strings.Contains(foldText(workspace.Subtitle), needle)
 	}
-	out := rows
 	out.Query = trimmed
 	out.Workspaces = keepMatching(rows.Workspaces, matches)
 	out.Pinned = keepMatching(rows.Pinned, matches)
@@ -190,8 +200,8 @@ func FilterSidebar(rows SidebarRows, query string) SidebarRows {
 	return out
 }
 
-// keepMatching returns the rows that match, in their order. A nil list stays nil, so an arranged sidebar and a flat
-// one keep telling themselves apart (see UngroupedRows).
+// keepMatching returns the rows that match, in their order. A nil list stays nil, so a sidebar that was never arranged
+// keeps its nil pinned and group lists (see FilterSidebar).
 func keepMatching(workspaces []SidebarWorkspace, matches func(SidebarWorkspace) bool) []SidebarWorkspace {
 	if workspaces == nil {
 		return nil
@@ -239,14 +249,14 @@ func buildAccentBases(groups map[rune]string) map[rune]rune {
 }
 
 // foldText lowercases text and drops the accents of its Latin letters, so that a query matches a name whatever its
-// case or its accents.
+// case or its accents. The accent table maps to lowercase letters only, so the lowercasing happens once, up front.
 func foldText(text string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(text) {
 		if plain, ok := accentBases[r]; ok {
 			r = plain
 		}
-		b.WriteRune(unicode.ToLower(r))
+		b.WriteRune(r)
 	}
 	return b.String()
 }

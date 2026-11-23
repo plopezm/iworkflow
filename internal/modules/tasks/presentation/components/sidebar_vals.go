@@ -65,12 +65,16 @@ func groupToggleAttrs(group state.SidebarGroup, filtering bool) templ.Attributes
 	}
 }
 
-// groupToggleClass is the class of a group toggle: a pointer only when it acts.
+// groupToggleBaseClass is the look of a group toggle, shared by both of its states.
+const groupToggleBaseClass = "flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px] font-medium text-fg"
+
+// groupToggleClass is the class of a group toggle: the shared look plus the cursor, a pointer only when it acts.
 func groupToggleClass(filtering bool) string {
+	cursor := "cursor-pointer"
 	if filtering {
-		return "flex min-w-0 flex-1 cursor-default items-center gap-1.5 text-left text-[13px] font-medium text-fg"
+		cursor = "cursor-default"
 	}
-	return "flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 text-left text-[13px] font-medium text-fg"
+	return groupToggleBaseClass + " " + cursor
 }
 
 // groupToggleTitle is the tooltip of a group toggle: the action it performs, or why it does nothing while filtering.

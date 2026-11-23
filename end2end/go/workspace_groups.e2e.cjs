@@ -19,6 +19,12 @@ const SHOTS = process.env.SMOKE_SCREENSHOT_DIR || '/tmp/iwf-e2e-screenshots';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// How long to wait after a sidebar refresh that changes nothing visible (a periodic refresh, not a click). The refresh is
+// a GET for the sidebar that htmx morphs into the page when it lands, and an unchanged sidebar leaves no DOM marker of
+// that moment, so the test waits for the round trip. The filter input's own debounce (hx-trigger "delay:200ms") is
+// shorter and is not what this covers.
+const SIDEBAR_REFRESH_SETTLE_MS = 700;
+
 // A git repo with one commit on main, under the run's scratch dir (one repo per workspace: the server refuses two
 // workspaces on the same root).
 function gitRepo(prefix) {
@@ -278,7 +284,7 @@ module.exports = {
         await filterInput(page).fill(alpha.name.slice(0, 6));
         await until(() => readSidebar(page), (s) => s.groups.some((g) => g.id === group.id && g.rows.length === 1));
         await refreshSidebar(page);
-        await sleep(700);
+        await sleep(SIDEBAR_REFRESH_SETTLE_MS);
         const afterRefresh = await readSidebar(page);
         const focus = await page.evaluate(() => ({ id: document.activeElement?.id, value: document.querySelector('#board-sidebar-filter')?.value }));
         ctx.assert(focus.id === 'board-sidebar-filter', `tras el refresco el foco sigue en el filtro: ${focus.id}`);
@@ -336,7 +342,7 @@ module.exports = {
         {
           const panel = await openMenu(workspaceRow(page, gamma.id));
           await refreshSidebar(page);
-          await sleep(700);
+          await sleep(SIDEBAR_REFRESH_SETTLE_MS);
           ctx.assert(await panel.isVisible(), 'el menú abierto de un fijado sigue abierto tras el refresco');
           const expanded = await page.locator(`#board-sidebar [data-workspace-row="${gamma.id}"] [data-menu-trigger]`).first().getAttribute('aria-expanded');
           ctx.assert(expanded === 'true', `aria-expanded del disparador tras el refresco: ${expanded}`);

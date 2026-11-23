@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"iworkflow/internal/core/i18n"
+	"iworkflow/internal/modules/tasks/domain/models"
+	"iworkflow/internal/modules/tasks/infrastructure/adapters/inbound/dto"
 	"iworkflow/internal/modules/tasks/presentation/components"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
@@ -15,9 +17,11 @@ import (
 // sidebarVals is an hx-vals attribute value as templ writes it: the JSON with its quotes escaped.
 func sidebarVals(json string) string { return html.EscapeString(json) }
 
+// groupedRows is an arranged sidebar: a pinned workspace, a collapsed group, one ungrouped workspace.
 func groupedRows() state.SidebarRows {
 	return state.SidebarRows{
-		Pinned: []state.SidebarWorkspace{{ID: "p1", Name: "pinned", Pinned: true}},
+		Arranged: true,
+		Pinned:   []state.SidebarWorkspace{{ID: "p1", Name: "pinned", Pinned: true}},
 		Groups: []state.SidebarGroup{{
 			ID:             "g1",
 			Name:           "Backend",
@@ -111,6 +115,7 @@ func TestGroupMenusPostToTheGroupEndpoints(t *testing.T) {
 func TestWorkspaceMovesOfferEveryGroupButItsOwn(t *testing.T) {
 	t.Parallel()
 	rows := state.SidebarRows{
+		Arranged: true,
 		Groups: []state.SidebarGroup{
 			{ID: "g1", Name: "Backend", Workspaces: []state.SidebarWorkspace{{ID: "w1", Name: "api", GroupID: "g1"}}},
 			{ID: "g2", Name: "Frontend"},
@@ -132,4 +137,15 @@ func TestBoardSidebarRootKeepsTheMorphSwap(t *testing.T) {
 	opening := html[strings.Index(html, `id="board-sidebar"`):]
 	opening = opening[:strings.Index(opening, ">")]
 	assert.Contains(t, opening, `hx-swap="morph:innerHTML"`)
+}
+
+// An arranged layout with every workspace pinned renders them in the pinned block and no ungrouped row after it.
+func TestArrangedLayoutWithEverythingPinnedRendersNoUngroupedRows(t *testing.T) {
+	t.Parallel()
+	rows := state.ApplyLayout(state.BuildSidebar([]dto.WorkspaceOptionDTO{{ID: "w1", Name: "alpha"}, {ID: "w2", Name: "beta"}}, nil), models.SidebarLayout{Pinned: []string{"w1", "w2"}})
+
+	html := renderComponent(t, i18n.En, components.SidebarBody(rows))
+
+	assert.Equal(t, 2, strings.Count(html, `data-workspace-row=`), "each workspace is rendered once, in the pinned block")
+	assert.Less(t, strings.Index(html, `data-pinned-section`), strings.Index(html, `data-workspace-row="w2"`))
 }

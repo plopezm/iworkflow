@@ -123,3 +123,101 @@ func TestMissingTargetsAre404WithoutARefresh(t *testing.T) {
 		require.Empty(t, response.Header().Get("HX-Trigger"), tc.path)
 	}
 }
+
+// postBody posts a raw form body, for the requests that are not well-formed.
+func postBody(router http.Handler, path string, body string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
+
+// The flags are exactly "true" or "false": a missing or garbled one is a 400 that stores nothing and asks for no refresh.
+func TestFlagsAreExactlyTrueOrFalseAndAnythingElseIsA400(t *testing.T) {
+	router, module := newRouter(t)
+	ctx := context.Background()
+	group, err := module.Create.Execute(ctx, groupInput("G"))
+	require.NoError(t, err)
+	id := group.ID()
+	require.Equal(t, http.StatusNoContent, post(router, "/workspace-groups/"+id+"/collapse", url.Values{"collapsed": {"true"}}, nil).Code)
+	require.Equal(t, http.StatusNoContent, post(router, "/workspace-groups/workspaces/w1/pin", url.Values{"pinned": {"true"}}, nil).Code)
+
+	for _, garbled := range []url.Values{{}, {"collapsed": {""}}, {"collapsed": {"1"}}, {"collapsed": {"True"}}, {"collapsed": {"yes"}}} {
+		response := post(router, "/workspace-groups/"+id+"/collapse", garbled, nil)
+		require.Equal(t, http.StatusBadRequest, response.Code, garbled.Encode())
+		require.Empty(t, response.Header().Get("HX-Trigger"), garbled.Encode())
+	}
+	for _, garbled := range []url.Values{{}, {"pinned": {""}}, {"pinned": {"1"}}, {"pinned": {"True"}}, {"pinned": {"no"}}} {
+		response := post(router, "/workspace-groups/workspaces/w1/pin", garbled, nil)
+		require.Equal(t, http.StatusBadRequest, response.Code, garbled.Encode())
+		require.Empty(t, response.Header().Get("HX-Trigger"), garbled.Encode())
+	}
+
+	layout, err := module.Arrange.Execute(ctx, []string{"w1"})
+	require.NoError(t, err)
+	require.True(t, layout.Groups[0].Group.Collapsed(), "a garbled flag keeps the stored collapsed state")
+	require.Equal(t, []string{"w1"}, layout.Pinned, "a garbled flag keeps the stored pin")
+}
+
+// A body that cannot be parsed is invalid input, never a server failure, and stores nothing.
+func TestMalformedFormBodyIsA400AndStoresNothing(t *testing.T) {
+	router, module := newRouter(t)
+	ctx := context.Background()
+	group, err := module.Create.Execute(ctx, groupInput("G"))
+	require.NoError(t, err)
+	id := group.ID()
+
+	for _, tc := range []struct {
+		path string
+		body string
+	}{
+		{"/workspace-groups", "name=%zz"},
+		{"/workspace-groups/" + id, "name=%zz&color=red"},
+		{"/workspace-groups/" + id + "/collapse", "collapsed=%zz"},
+		{"/workspace-groups/workspaces/w1/group", "group=%zz"},
+		{"/workspace-groups/workspaces/w1/pin", "pinned=%zz"},
+	} {
+		response := postBody(router, tc.path, tc.body)
+		require.Equal(t, http.StatusBadRequest, response.Code, tc.path)
+		require.Empty(t, response.Header().Get("HX-Trigger"), tc.path)
+	}
+
+	layout, err := module.Arrange.Execute(ctx, []string{"w1"})
+	require.NoError(t, err)
+	require.Len(t, layout.Groups, 1)
+	require.Equal(t, "G", layout.Groups[0].Group.Name())
+	require.Empty(t, layout.Groups[0].Workspaces)
+	require.Empty(t, layout.Pinned)
+	require.Equal(t, []string{"w1"}, layout.Ungrouped)
+}
+
+// Deleting a group that still holds a workspace frees the workspace: it is listed as ungrouped.
+func TestDeletingAGroupWithAWorkspaceKeepsTheWorkspaceUngrouped(t *testing.T) {
+	router, module := newRouter(t)
+	ctx := context.Background()
+	group, err := module.Create.Execute(ctx, groupInput("Backend"))
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNoContent, post(router, "/workspace-groups/workspaces/w1/group", url.Values{"group": {group.ID()}}, nil).Code)
+
+	response := post(router, "/workspace-groups/"+group.ID()+"/delete", url.Values{}, nil)
+
+	require.Equal(t, http.StatusNoContent, response.Code)
+	require.Equal(t, "board:refresh", response.Header().Get("HX-Trigger"))
+	layout, err := module.Arrange.Execute(ctx, []string{"w1"})
+	require.NoError(t, err)
+	require.Empty(t, layout.Groups)
+	require.Equal(t, []string{"w1"}, layout.Ungrouped)
+}
+
+// A workspace that does not exist cannot be moved into a group that does.
+func TestMovingAMissingWorkspaceIntoAnExistingGroupIs404(t *testing.T) {
+	router, module := newRouter(t)
+	group, err := module.Create.Execute(context.Background(), groupInput("Backend"))
+	require.NoError(t, err)
+
+	response := post(router, "/workspace-groups/workspaces/ghost/group", url.Values{"group": {group.ID()}}, nil)
+
+	require.Equal(t, http.StatusNotFound, response.Code)
+	require.Empty(t, response.Header().Get("HX-Trigger"))
+}

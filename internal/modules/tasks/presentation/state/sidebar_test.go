@@ -69,7 +69,7 @@ func TestUngroupedRowsListEveryWorkspaceUnlessALayoutIsApplied(t *testing.T) {
 	workspaces := []state.SidebarWorkspace{{ID: "w1", Name: "alpha"}, {ID: "w2", Name: "beta"}}
 
 	assert.Equal(t, workspaces, state.SidebarRows{Workspaces: workspaces}.UngroupedRows(), "a row set that was never arranged is the flat list")
-	arranged := state.SidebarRows{Workspaces: workspaces, Groups: []state.SidebarGroup{}, Ungrouped: []state.SidebarWorkspace{workspaces[1]}}
+	arranged := state.SidebarRows{Arranged: true, Workspaces: workspaces, Groups: []state.SidebarGroup{}, Ungrouped: []state.SidebarWorkspace{workspaces[1]}}
 	assert.Equal(t, []state.SidebarWorkspace{workspaces[1]}, arranged.UngroupedRows())
 }
 
@@ -164,4 +164,15 @@ func TestApplyLayoutRepartitionsTheSidebarRows(t *testing.T) {
 			assert.Equal(t, rows.Workspaces, got.Workspaces, "the flat list is never changed")
 		})
 	}
+}
+
+// An arranged sidebar whose workspaces are all pinned has no ungrouped row, while a sidebar never arranged lists them all.
+func TestArrangedLayoutWithEverythingPinnedHasNoUngroupedRows(t *testing.T) {
+	rows := state.BuildSidebar([]dto.WorkspaceOptionDTO{{ID: "w1", Name: "alpha"}, {ID: "w2", Name: "beta"}}, nil)
+
+	arranged := state.ApplyLayout(rows, models.SidebarLayout{Pinned: []string{"w1", "w2"}})
+
+	assert.Empty(t, arranged.UngroupedRows(), "every workspace is pinned, so none is listed as ungrouped")
+	assert.Len(t, arranged.Pinned, 2)
+	assert.Len(t, rows.UngroupedRows(), 2, "the rows that were never arranged list every workspace")
 }
