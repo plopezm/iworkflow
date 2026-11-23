@@ -709,6 +709,41 @@ select optgroup,
 .markdown {
   @apply text-sm leading-relaxed break-words;
 }
+/* Code | Rendered switch of the Markdown editors (web/static/js/md_view.js). */
+.md-switch {
+  @apply inline-flex overflow-hidden rounded-md border border-border text-xs;
+}
+.md-switch-btn {
+  @apply cursor-pointer px-2.5 py-1 text-muted transition-colors hover:bg-surface-2 hover:text-fg;
+}
+.md-switch-btn[aria-pressed="true"] {
+  @apply bg-surface-2 font-semibold text-fg;
+}
+.md-preview {
+  @apply min-h-0 flex-1 overflow-auto p-4;
+}
+.markdown.md-preview h1,
+.markdown.md-preview h2,
+.markdown.md-preview h3,
+.markdown.md-preview h4 {
+  @apply font-semibold leading-tight;
+}
+.markdown.md-preview h1 {
+  @apply border-b border-border pb-1 text-2xl;
+}
+.markdown.md-preview h2 {
+  @apply border-b border-border pb-1 text-xl;
+}
+.markdown.md-preview h3 {
+  @apply text-lg;
+}
+.markdown.md-preview blockquote {
+  @apply border-l-4 border-border pl-3 text-muted;
+}
+form[data-md-mode="code"] [data-md-preview],
+form[data-md-mode="rendered"] [data-md-hide] {
+  display: none;
+}
 .markdown > * + * {
   @apply mt-2;
 }

@@ -93,3 +93,12 @@ func rowLabel(ctx context.Context, t toggle, path string) string {
 // toolbarID, editorID and gutterID identify the parts of one file editor.
 func toolbarID(v state.FileView) string { return state.ID("pt-toolbar", v.ScopeWire(), v.Path) }
 func gutterID(v state.FileView) string  { return state.ID("pt-gutter", v.ScopeWire(), v.Path) }
+
+// markdownAttrs marks the form of a Markdown file for web/static/js/md_view.js, which drives the Code | Rendered switch.
+// Other files get none.
+func markdownAttrs(path string) templ.Attributes {
+	if !coreui.IsMarkdownPath(path) {
+		return nil
+	}
+	return templ.Attributes{"data-md-form": coreui.MarkdownPreviewPath}
+}

@@ -117,3 +117,22 @@ func TestFileSlotIsPreservedAcrossADiffReload(t *testing.T) {
 
 	assert.Contains(t, html, `id="`+state.FileSlotID(editScope, "src/a.rs")+`" hx-preserve="true"`)
 }
+
+func TestMarkdownFileOfTheDiffOffersTheCodeRenderedSwitch(t *testing.T) {
+	editor := state.FileEditor{Scope: editScope, TaskID: editTaskID, Path: "docs/a.md", Content: "# a\n", Digest: "abc"}
+
+	html := renderIn(t, i18n.En, components.TaskFileEditor(editor))
+
+	assert.Contains(t, html, `data-md-form="/markdown/preview"`)
+	assert.Contains(t, html, "Rendered")
+	assert.Contains(t, html, "data-md-hide")
+}
+
+func TestOtherFilesOfTheDiffHaveNoMarkdownSwitch(t *testing.T) {
+	editor := state.FileEditor{Scope: editScope, TaskID: editTaskID, Path: "a.rs", Content: "x", Digest: "abc"}
+
+	html := renderIn(t, i18n.En, components.TaskFileEditor(editor))
+
+	assert.NotContains(t, html, "data-md-form")
+	assert.NotContains(t, html, "data-md-preview")
+}

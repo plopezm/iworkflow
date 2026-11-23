@@ -3,6 +3,8 @@ package components
 import (
 	"context"
 
+	"github.com/a-h/templ"
+
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
@@ -30,4 +32,13 @@ func BoardTitle(ctx context.Context, workspaceName string) string {
 		return msgBoard.T(ctx)
 	}
 	return msgBoard.T(ctx) + " · " + workspaceName
+}
+
+// markdownAttrs marks the form of a Markdown file for web/static/js/md_view.js, which drives the Code | Rendered switch.
+// Other files get none.
+func markdownAttrs(path string) templ.Attributes {
+	if !shared.IsMarkdownPath(path) {
+		return nil
+	}
+	return templ.Attributes{"data-md-form": shared.MarkdownPreviewPath}
 }
