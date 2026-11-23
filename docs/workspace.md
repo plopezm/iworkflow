@@ -12,7 +12,17 @@ The interface is an IDE-like workspace: every screen (board, task, diff, termina
 
 ## Workspace board
 
-Each workspace has its own **board**: a canvas of task nodes joined by arrows (`/board/<workspace>`; `/` opens the first workspace by name). Clicking a workspace in the sidebar opens its board, and the workspace chips at the top of the board switch between workspaces. The sidebar item menu keeps **View files** (the project tree), **Open terminal** and **Manage workspaces**.
+Each workspace has its own **board**: a canvas of task nodes joined by arrows (`/board/<workspace>`; `/` opens the first workspace by name). Clicking a workspace in the sidebar opens its board, and the workspace chips at the top of the board switch between workspaces. The sidebar item menu keeps **View files** (the project tree), **Open terminal** and **Manage workspaces**, and adds **Pin** / **Unpin**, **Move to <group>** and **Remove from group** (see below).
+
+## Sidebar: groups, pinned workspaces and filter
+
+The Workspaces section of the Home sidebar can get long, so it can be organized:
+
+- **Groups:** the **+** next to *Workspaces* creates a group (you type its name). A group is a collapsible block with its name, color and workspace count; one level only, no nested groups. Its **▾/▸** header toggles it open or closed, and the state is kept by the server, so it survives reloads. Its **…** menu renames it, sets its color (or none) or deletes it. Deleting a group keeps its workspaces: they go back to the ungrouped list.
+- **Moving workspaces:** the **…** menu of a workspace has **Move to <group>** for each other group and **Remove from group** when it is in one. Ungrouped workspaces are listed below the groups.
+- **Attention:** a collapsed group shows a dot when one of its workspaces has a task that needs you.
+- **Pinned:** **Pin** in a workspace's **…** menu lists it in a *Pinned* block above the groups. A pinned workspace appears only there, not inside its group.
+- **Filter:** a search icon to the right of the Workspaces title, next to the + that creates a group, opens the search box; it is closed by default. The box narrows the list by name or branch. The icon closes it while it is empty (Escape does too), and a search with text stays open until the text is cleared. Groups with no match are hidden, and the groups that match open to show them, without changing their saved open/closed state (their toggle is disabled while the filter is active). When nothing matches, the sidebar says so.
 
 - **Dependency graph:** drag from a node's right port onto another task to make it wait for the first one. Select an arrow to delete it. Self-references, duplicates, cycles, arrows across workspaces and arrows into a task that is no longer in *To do* are rejected with a message.
 - **Merge trigger:** a task with predecessors starts on its own, on its configured base branch, once **all** of them are `merged`. A *To do* task without predecessors is started manually with **Start**. Arrows are drawn muted while the predecessor is pending, with a flowing dashed line while it works, and solid green once it is merged. (Edge conditions are not implemented yet; the model leaves room for them.)

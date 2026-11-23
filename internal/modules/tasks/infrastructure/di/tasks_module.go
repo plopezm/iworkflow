@@ -103,6 +103,9 @@ type Deps struct {
 	// TaskMemory reads the recent memories of the Engram project of a task's workspace for the Memory panel of the detail
 	// page. Optional: nil shows no panel. The composition root implements it with the engram module.
 	TaskMemory outbound.TaskMemory
+	// SidebarArranger groups the workspaces of the sidebar (pinned, groups, ungrouped). Optional: nil keeps the flat
+	// list. The composition root implements it with the workspace_groups module.
+	SidebarArranger outbound.SidebarArranger
 }
 
 // Module exposes the use cases, the agent event sink the runtimes report to, the live event bus and
@@ -279,6 +282,7 @@ func NewModule(deps Deps) (*Module, error) {
 		SetPosition:         setPosition,
 		DetachFromGraph:     detachFromGraph,
 		AgentCatalog:        deps.AgentCatalog,
+		SidebarArranger:     deps.SidebarArranger,
 	}, clock)
 	abortTask := application.NewAbortTask(lifecycle, agentRuntime)
 	finishTask := application.NewFinishTask(lifecycle, worktrees, agentRuntime, cleanup)

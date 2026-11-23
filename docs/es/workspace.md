@@ -12,7 +12,17 @@ La interfaz es un espacio de trabajo estilo IDE: cada pantalla (tablero, tarea, 
 
 ## Tablero por workspace
 
-Cada workspace tiene su propio **tablero**: un lienzo de nodos de tarea unidos por flechas (`/board/<workspace>`; `/` abre el primer workspace por nombre). Al pulsar un workspace en la barra lateral se abre su tablero, y los chips de workspace de la parte superior del tablero permiten cambiar de uno a otro. El menú del elemento de la barra lateral conserva **Ver ficheros** (el árbol del proyecto), **Abrir terminal** y **Gestionar workspaces**.
+Cada workspace tiene su propio **tablero**: un lienzo de nodos de tarea unidos por flechas (`/board/<workspace>`; `/` abre el primer workspace por nombre). Al pulsar un workspace en la barra lateral se abre su tablero, y los chips de workspace de la parte superior del tablero permiten cambiar de uno a otro. El menú del elemento de la barra lateral conserva **Ver ficheros** (el árbol del proyecto), **Abrir terminal** y **Gestionar workspaces**, y añade **Fijar** / **Desfijar**, **Mover a <grupo>** y **Quitar del grupo** (ver abajo).
+
+## Barra lateral: grupos, fijados y filtro
+
+La sección Workspaces de la barra lateral de inicio puede crecer mucho, así que se puede organizar:
+
+- **Grupos:** el **+** junto a *Workspaces* crea un grupo (escribes su nombre). Un grupo es un bloque plegable con su nombre, color y número de workspaces; un solo nivel, sin grupos anidados. Su cabecera **▾/▸** lo pliega o despliega, y el estado lo guarda el servidor, así que sobrevive a las recargas. Su menú **…** lo renombra, le pone color (o ninguno) o lo elimina. Al eliminar un grupo sus workspaces no se pierden: vuelven a la lista de sin grupo.
+- **Mover workspaces:** el menú **…** de un workspace tiene **Mover a <grupo>** para cada otro grupo y **Quitar del grupo** cuando está en uno. Los workspaces sin grupo aparecen debajo de los grupos.
+- **Atención:** un grupo plegado muestra un punto cuando alguno de sus workspaces tiene una tarea que te necesita.
+- **Fijados:** **Fijar** en el menú **…** de un workspace lo lista en un bloque *Fijados* encima de los grupos. Un workspace fijado aparece solo ahí, no dentro de su grupo.
+- **Filtro:** un icono de lupa a la derecha del título Workspaces, junto al + que crea un grupo, abre el cuadro de búsqueda; está cerrado por defecto. El cuadro filtra la lista por nombre o rama. El icono lo cierra mientras está vacío (Escape también), y una búsqueda con texto se queda abierta hasta que se borre el texto. Los grupos sin coincidencias se ocultan, y los que coinciden se despliegan para mostrarlas, sin cambiar su estado guardado de plegado (su botón de plegar está deshabilitado mientras el filtro está activo). Cuando nada coincide, la barra lateral lo indica.
 
 - **Grafo de dependencias:** arrastra desde el puerto derecho de un nodo hasta otra tarea para que esta espere a la primera. Selecciona una flecha para borrarla. Las autorreferencias, los duplicados, los ciclos, las flechas entre workspaces y las flechas hacia una tarea que ya no está en *Por hacer* se rechazan con un mensaje.
 - **Disparador al integrar:** una tarea con predecesoras arranca sola, sobre su rama base configurada, cuando **todas** están `merged`. Una tarea en *Por hacer* sin predecesoras se inicia a mano con **Iniciar**. Las flechas se dibujan atenuadas mientras la predecesora está pendiente, con una línea discontinua en movimiento mientras trabaja y en verde continuo cuando está integrada. (Las condiciones de arista todavía no están implementadas; el modelo deja sitio para ellas.)

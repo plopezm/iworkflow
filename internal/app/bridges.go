@@ -43,6 +43,8 @@ import (
 	workspaceserrors "iworkflow/internal/modules/workspaces/domain/errors"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
 	workspacesoutbound "iworkflow/internal/modules/workspaces/domain/ports/outbound"
+
+	wgmodels "iworkflow/internal/modules/workspace_groups/domain/models"
 )
 
 // projectLookup presents the workspaces as the projects an AGENTS.md can be installed in. The
@@ -885,4 +887,41 @@ func (b *jiraTaskInfo) Info(ctx context.Context, taskID string) (jiraoutbound.Ta
 // are already merged.
 func jiraTaskFinished(status tasksmodels.TaskStatus) bool {
 	return status == tasksmodels.StatusAwaitingReview || status == tasksmodels.StatusMerged
+}
+
+// layoutSource arranges the workspaces of the sidebar into pinned, grouped and ungrouped. The workspace_groups
+// use case satisfies it; the bridge depends on the interface so it can be tested without a database.
+type layoutSource interface {
+	Execute(ctx context.Context, workspaceIDs []string) (wgmodels.Layout, error)
+}
+
+// sidebarArranger presents the workspace_groups module as the sidebar arranger of the tasks module. The
+// tasks module never imports the groups module: the layout is mapped to the tasks layout types here.
+type sidebarArranger struct {
+	layouts layoutSource
+}
+
+var _ tasksoutbound.SidebarArranger = (*sidebarArranger)(nil)
+
+// Arrange returns the layout of the given workspace ids, in the tasks layout types.
+func (a *sidebarArranger) Arrange(ctx context.Context, workspaceIDs []string) (tasksmodels.SidebarLayout, error) {
+	layout, err := a.layouts.Execute(ctx, workspaceIDs)
+	if err != nil {
+		return tasksmodels.SidebarLayout{}, fmt.Errorf("arrange the sidebar workspaces: %w", err)
+	}
+	out := tasksmodels.SidebarLayout{
+		Pinned:    layout.Pinned,
+		Groups:    make([]tasksmodels.LayoutGroup, 0, len(layout.Groups)),
+		Ungrouped: layout.Ungrouped,
+	}
+	for _, members := range layout.Groups {
+		out.Groups = append(out.Groups, tasksmodels.LayoutGroup{
+			ID:         members.Group.ID(),
+			Name:       members.Group.Name(),
+			Color:      members.Group.Color(),
+			Collapsed:  members.Group.Collapsed(),
+			Workspaces: members.Workspaces,
+		})
+	}
+	return out, nil
 }

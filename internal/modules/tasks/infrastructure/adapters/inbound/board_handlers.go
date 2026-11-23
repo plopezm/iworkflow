@@ -58,6 +58,8 @@ type BoardUseCases struct {
 	SetPosition         *application.SetTaskPosition
 	DetachFromGraph     *application.DetachTaskFromGraph
 	AgentCatalog        outbound.AgentCatalogPort
+	// SidebarArranger groups the workspaces of the sidebar. Optional: nil keeps the flat list.
+	SidebarArranger outbound.SidebarArranger
 }
 
 // BoardHandlers serves the board tabs and their htmx requests. Every htmx response is a 200: htmx 2 does
@@ -212,9 +214,11 @@ func (h *BoardHandlers) listView(r *http.Request) state.BoardView {
 }
 
 // sidebar serves the content of the board part of the sidebar, which stays in the page and swaps only this content
-// (see components.BoardSidebar).
+// (see components.BoardSidebar). The query q narrows the workspaces to the matching ones; the attention list is never
+// narrowed.
 func (h *BoardHandlers) sidebar(w http.ResponseWriter, r *http.Request) {
-	web.Render(w, r, http.StatusOK, components.SidebarBody(h.sidebarRows(r.Context())))
+	rows := state.FilterSidebar(h.sidebarRows(r.Context()), r.URL.Query().Get("q"))
+	web.Render(w, r, http.StatusOK, components.SidebarBody(rows))
 }
 
 // createTab is the create tab, with the workspace of its address selected. A link in the address (kind and anchor)
@@ -467,7 +471,20 @@ func (h *BoardHandlers) sidebarRows(ctx context.Context) state.SidebarRows {
 	}
 	rows := state.BuildSidebar(workspaces, tasksToDTO(active, h.now()))
 	rows.LoadError = firstErrorText(workspaceErr, taskErr)
-	return rows
+	if h.uc.SidebarArranger == nil {
+		return rows
+	}
+	ids := make([]string, 0, len(rows.Workspaces))
+	for _, workspace := range rows.Workspaces {
+		ids = append(ids, workspace.ID)
+	}
+	layout, layoutErr := h.uc.SidebarArranger.Arrange(ctx, ids)
+	if layoutErr != nil {
+		// The flat list is still a complete sidebar, so a failed layout read only loses the groups.
+		web.LogError(ctx, "could not arrange the workspaces of the sidebar", layoutErr)
+		return rows
+	}
+	return state.ApplyLayout(rows, layout)
 }
 
 // firstErrorText is the message of the first error that is set, or empty when none is.

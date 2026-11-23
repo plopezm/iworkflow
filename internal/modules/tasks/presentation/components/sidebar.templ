@@ -1,13 +1,15 @@
 package components
 
 import (
+	"strconv"
+
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/dock/link"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
-// BoardSidebar is the board part of the sidebar: the workspaces, each linked to its board with the
-// workspace tools in its menu, and the tasks that need the user.
+// BoardSidebar is the board part of the sidebar: the workspaces, each linked to its board with the workspace tools in
+// its menu, and the tasks that need the user.
 // The fragment refreshes itself when the task stream reports a change, when a board refresh is announced and
 // after any request to the workspaces screen, so a workspace registered there shows up without a reload.
 templ BoardSidebar(rows state.SidebarRows) {
@@ -15,6 +17,8 @@ templ BoardSidebar(rows state.SidebarRows) {
 		id="board-sidebar"
 		class="contents"
 		hx-get="/board/sidebar"
+		hx-include="[name='q']"
+		hx-disinherit="hx-include"
 		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body"
 		hx-sync="this:replace"
 		hx-target="this"
@@ -25,18 +29,31 @@ templ BoardSidebar(rows state.SidebarRows) {
 }
 
 // SidebarBody is the content of the board part of the sidebar. It is what /board/sidebar answers; the element that
-// listens to the task stream stays in the page and swaps only this content.
+// listens to the task stream stays in the page and swaps only this content. The open or closed state of a group is
+// the server's (Collapsed), so a refresh keeps it.
 templ SidebarBody(rows state.SidebarRows) {
-	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgWorkspaces.T(ctx), Count: len(rows.Workspaces)}) {
+	@shared.SidebarSection(shared.SidebarSectionProps{Title: msgWorkspaces.T(ctx), Count: len(rows.Workspaces), Actions: sidebarActions(rows)}) {
+		@sidebarSearch(rows.RawQuery, searchShownOpen(rows))
 		if rows.LoadError != "" {
 			@shared.ErrorText(rows.LoadError)
 		}
-		for _, workspace := range rows.Workspaces {
-			<div class="contents" data-workspace-row={ workspace.ID }>
-				@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle, Color: workspace.Color}, workspaceMenu(workspace.ID))
+		if len(rows.Pinned) > 0 {
+			<div class="stack gap-0.5" data-pinned-section>
+				<div class="px-2.5 pt-1 text-[11px] font-medium text-muted">{ msgPinnedSection.T(ctx) }</div>
+				for _, workspace := range rows.Pinned {
+					@workspaceRow(workspace, rows.Groups)
+				}
 			</div>
 		}
-		if len(rows.Workspaces) == 0 {
+		for _, group := range rows.Groups {
+			@groupBlock(group, rows.Groups, rows.Filtering())
+		}
+		for _, workspace := range rows.UngroupedRows() {
+			@workspaceRow(workspace, rows.Groups)
+		}
+		if len(rows.Workspaces) == 0 && rows.Filtering() {
+			<p class="muted">{ msgNoWorkspacesMatch.T(ctx) }</p>
+		} else if len(rows.Workspaces) == 0 {
 			<div class="stack gap-1.5">
 				<p class="muted">{ msgNoWorkspacesYet.T(ctx) }</p>
 				@link.Tab(link.Props{Href: "/workspaces", Class: "btn-ghost min-h-9 px-3 py-1.5 text-xs"}) {
@@ -57,16 +74,159 @@ templ SidebarBody(rows state.SidebarRows) {
 	}
 }
 
-// workspaceMenu is the "…" menu of a workspace row: its files, its terminal and the workspaces screen.
-templ workspaceMenu(workspaceID string) {
-	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID, Class: "menu-item"}) {
+// sidebarActions are the header actions of the workspaces section: the search icon, then the "+" that creates a group.
+templ sidebarActions(rows state.SidebarRows) {
+	@searchToggleButton(searchShownOpen(rows))
+	@groupCreateButton()
+}
+
+// searchToggleButton is the magnifier that shows or hides the search of the workspaces. It names the wrapper it
+// controls and reports whether that wrapper is open. The click is handled by web/static/js/sidebar_search.js.
+templ searchToggleButton(open bool) {
+	<button
+		id="board-sidebar-search-toggle"
+		type="button"
+		class="sidebar-row-menu flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"
+		title={ msgToggleSearch.T(ctx) }
+		aria-label={ msgToggleSearch.T(ctx) }
+		aria-controls="board-sidebar-search"
+		aria-expanded={ strconv.FormatBool(open) }
+		data-search-toggle
+	>
+		<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+			<circle cx="11" cy="11" r="7"></circle>
+			<path d="m20 20-3.5-3.5"></path>
+		</svg>
+	</button>
+}
+
+// sidebarSearch is the text filter of the workspaces, closed until the search icon is pressed or a query is active.
+// It asks the server for the sidebar narrowed to the text, and the root of the sidebar (BoardSidebar) sends the same
+// text with every other refresh, so the filter survives them. The wrapper's open state is client state (ui.js keeps it
+// through a morph), except that a query always renders it open.
+templ sidebarSearch(query string, open bool) {
+	<div id="board-sidebar-search" data-search-panel hidden?={ !open } class="pb-1">
+	<input
+		id="board-sidebar-filter"
+		type="search"
+		name="q"
+		value={ query }
+		class="input min-w-0 flex-1 text-xs"
+		placeholder={ msgSearchWorkspaces.T(ctx) }
+		aria-label={ msgSearchWorkspaces.T(ctx) }
+		autocomplete="off"
+		hx-get="/board/sidebar"
+		hx-trigger="input changed delay:200ms, search"
+		hx-target="#board-sidebar"
+		hx-swap="morph:innerHTML"
+		hx-sync="#board-sidebar:replace"
+	/>
+	</div>
+}
+
+// groupCreateButton is the "+" of the workspaces section: it asks for a name and creates the group. The name reaches
+// the server through web/static/js/group_prompt.js.
+templ groupCreateButton() {
+	<button
+		type="button"
+		class="sidebar-row-menu flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"
+		title={ msgNewGroup.T(ctx) }
+		aria-label={ msgNewGroup.T(ctx) }
+		hx-post="/workspace-groups"
+		hx-prompt={ msgGroupNamePrompt.T(ctx) }
+		data-prompt-field="name"
+		hx-swap="none"
+	>+</button>
+}
+
+// groupBlock is a collapsible group: its name, color and count in the header, its rows only while it is open. A
+// collapsed group that holds a workspace which needs the user shows the attention marker.
+templ groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering bool) {
+	<div class="stack gap-0.5" data-group-id={ group.ID } data-group-collapsed={ strconv.FormatBool(group.Collapsed) } data-group-count={ strconv.Itoa(len(group.Workspaces)) }>
+		<div class="flex items-center gap-1 px-2.5 py-1.5">
+			<button
+				type="button"
+				class={ groupToggleClass(filtering) }
+				aria-expanded={ strconv.FormatBool(!group.Collapsed) }
+				title={ groupToggleTitle(ctx, group.Collapsed, filtering) }
+				{ groupToggleAttrs(group, filtering)... }
+			>
+				<span aria-hidden="true" class="text-muted">{ groupChevron(group.Collapsed) }</span>
+				@shared.WorkspaceName(group.Name, group.Color)
+				if group.Collapsed && group.NeedsAttention {
+					<span class="attention-dot h-2 w-2 shrink-0 rounded-full bg-error" data-group-attention title={ msgStageAttention.T(ctx) }></span>
+				}
+			</button>
+			<span class="sidebar-count">{ strconv.Itoa(len(group.Workspaces)) }</span>
+			@shared.DropdownMenu(shared.DropdownMenuProps{Label: "…", AriaLabel: msgGroupActions.T(ctx), TriggerClass: "sidebar-row-menu flex h-full cursor-pointer items-center px-2 text-muted hover:text-fg"}) {
+				@groupMenu(group)
+			}
+		</div>
+		if !group.Collapsed {
+			<div class="flex flex-col gap-0.5 pl-3">
+				for _, workspace := range group.Workspaces {
+					@workspaceRow(workspace, groups)
+				}
+			</div>
+		}
+	</div>
+}
+
+// workspaceRow is a workspace of the sidebar, linked to its board, with its "…" menu.
+templ workspaceRow(workspace state.SidebarWorkspace, groups []state.SidebarGroup) {
+	<div class="contents" data-workspace-row={ workspace.ID }>
+		@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle, Color: workspace.Color}, workspaceMenu(workspace, groups))
+	</div>
+}
+
+// groupMenu is the "…" menu of a group: rename, recolor (one entry per palette color, and none) and delete.
+templ groupMenu(group state.SidebarGroup) {
+	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-prompt={ msgRenameGroup.T(ctx) } data-prompt-field="name" hx-vals={ groupColorVals(group.Color) } hx-swap="none">
+		{ msgRenameGroup.T(ctx) }
+	</button>
+	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-vals={ groupEditVals(group.Name, "") } hx-swap="none">
+		{ msgNoColor.T(ctx) }
+	</button>
+	for _, key := range shared.WorkspaceColorKeys() {
+		<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-vals={ groupEditVals(group.Name, key) } hx-swap="none">
+			{ key }
+		</button>
+	}
+	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID + "/delete" } hx-swap="none">
+		{ msgDeleteGroup.T(ctx) }
+	</button>
+}
+
+// workspaceMenu is the "…" menu of a workspace row: its files, its terminal and the workspaces screen, then the
+// group actions: pin or unpin, move to another group, or take it out of its group.
+templ workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup) {
+	@link.Tab(link.Props{Href: "/workspaces/" + workspace.ID, Class: "menu-item"}) {
 		{ msgViewFiles.T(ctx) }
 	}
-	@link.Tab(link.Props{Href: "/workspaces/" + workspaceID + "/terminal", Class: "menu-item"}) {
+	@link.Tab(link.Props{Href: "/workspaces/" + workspace.ID + "/terminal", Class: "menu-item"}) {
 		{ msgOpenTerminal.T(ctx) }
 	}
 	@link.Tab(link.Props{Href: "/workspaces", Class: "menu-item"}) {
 		{ msgManageWorkspaces.T(ctx) }
+	}
+	<button type="button" class="menu-item" hx-post={ "/workspace-groups/workspaces/" + workspace.ID + "/pin" } hx-vals={ workspacePinVals(!workspace.Pinned) } hx-swap="none">
+		if workspace.Pinned {
+			{ msgUnpinWorkspace.T(ctx) }
+		} else {
+			{ msgPinWorkspace.T(ctx) }
+		}
+	</button>
+	for _, group := range groups {
+		if group.ID != workspace.GroupID {
+			<button type="button" class="menu-item" hx-post={ "/workspace-groups/workspaces/" + workspace.ID + "/group" } hx-vals={ workspaceGroupVals(group.ID) } hx-swap="none">
+				{ msgMoveToGroup.Fmt(ctx, map[string]string{"group": group.Name}) }
+			</button>
+		}
+	}
+	if workspace.GroupID != "" {
+		<button type="button" class="menu-item" hx-post={ "/workspace-groups/workspaces/" + workspace.ID + "/group" } hx-vals={ workspaceGroupVals("") } hx-swap="none">
+			{ msgRemoveFromGroup.T(ctx) }
+		</button>
 	}
 }
 
