@@ -27,6 +27,7 @@ type UseCases struct {
 	ReadFile      *application.ReadProjectFile
 	WriteFile     *application.WriteProjectFile
 	GitChanges    *application.ListProjectGitChanges
+	ReadImage     *application.ReadProjectImage
 	FileBase      *application.ReadProjectFileBase
 	StagePaths    *application.StageProjectPaths
 	UnstagePaths  *application.UnstageProjectPaths
@@ -50,6 +51,7 @@ func NewHandlers(uc UseCases) *Handlers {
 //	GET  /project-tree/tree             list_project_directory (root, reload)
 //	GET  /project-tree/directory        list_project_directory (children of a folder)
 //	GET  /project-tree/file/body        read_project_file (editor as on disk: reload, discard)
+//	GET  /project-tree/file/raw         read_project_image (bytes of an image, for the image tab)
 //	POST /project-tree/file             write_project_file (save, then the editor)
 //	POST /project-tree/file/state       read_project_file_base (line marks and toolbar while typing)
 //	GET  /project-tree/git/changes      list_project_git_changes (panel body)
@@ -62,6 +64,7 @@ func (h *Handlers) Routes(r chi.Router) {
 	r.Get(state.PathTree, h.serveTree)
 	r.Get(state.PathDirectory, h.serveDirectory)
 	r.Get(state.PathFileBody, h.serveFileBody)
+	r.Get(state.PathFileRaw, h.serveFileRaw)
 	r.Post(state.PathFile, h.serveSaveFile)
 	r.Post(state.PathFileState, h.serveFileState)
 	r.Get(state.PathGitChanges, h.serveChanges)

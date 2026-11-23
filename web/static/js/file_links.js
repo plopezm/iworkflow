@@ -2,6 +2,8 @@
 // <a href="#" class="file-link" data-file-path="...">; a click asks the server to open the path with the system
 // (relative paths resolve against the worktree of the task named by the closest [data-task-id]).
 
+import { setZoom } from './image_zoom.js';
+
 export const OPEN_PATH_ERROR_CLASS = 'file-link-error';
 
 // openPathURL is the endpoint that opens a path of the chat of a task.
@@ -24,6 +26,7 @@ export function showImage(taskId, path, doc = globalThis.document) {
   if (!modal || !img) return false;
   img.src = previewImageURL(taskId, path);
   img.alt = path;
+  setZoom(img, false);
   modal.style.display = 'flex';
   modal.querySelector('[data-modal-panel]')?.focus?.();
   return true;

@@ -25,6 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const { gradientPng } = require('./png_fixture.cjs');
 const tag = Date.now().toString();
 const TMP = process.env.SMOKE_TMP_DIR || process.env.WORK_TMP_DIR || '/tmp';
 
@@ -226,6 +227,56 @@ module.exports = {
         // El título muestra el nombre del fichero.
         const title = await ctx.page.getByRole('heading', { level: 1 }).first().textContent();
         ctx.assert(title.includes('README.md'), `el título no es README.md (got "${title}")`);
+      },
+    },
+    {
+      name: 'read_project_image: abrir una imagen la muestra en la pestaña en vez de un error UTF-8',
+      fn: async (ctx) => {
+        const dir = uniqueGitRepo('image');
+        fs.mkdirSync(path.join(dir, 'shots'), { recursive: true });
+        fs.writeFileSync(path.join(dir, 'shots', 'home-desktop.png'), gradientPng(1600, 1000));
+        const id = await registerWs(ctx, `image-${tag}`, dir);
+        await ctx.goto(`/workspaces/${id}/files/shots/home-desktop.png`);
+        const img = ctx.page.locator('img[alt="home-desktop.png"]');
+        await img.first().waitFor({ timeout: 12000 });
+        // La imagen se decodifica de verdad: sus bytes llegan intactos por /project-tree/file/raw.
+        await ctx.page.waitForFunction(
+          () => {
+            const el = document.querySelector('img[alt="home-desktop.png"]');
+            return el && el.complete && el.naturalWidth === 1600 && el.naturalHeight === 1000;
+          },
+          null,
+          { timeout: 12000 }
+        );
+        const body = await ctx.page.locator('body').innerText();
+        ctx.assert(!body.includes('UTF-8'), `no debe aparecer el error de UTF-8 (got "${body}")`);
+        ctx.assert(await ctx.page.locator('textarea').count() === 0, 'una imagen no se abre en el editor de texto');
+        const title = await ctx.page.getByRole('heading', { level: 1 }).first().textContent();
+        ctx.assert(title.includes('shots/home-desktop.png'), `el título no es la ruta de la imagen (got "${title}")`);
+        const shots = process.env.SMOKE_SCREENSHOT_DIR || '/tmp/iwf-e2e-screenshots';
+        fs.mkdirSync(shots, { recursive: true });
+        await ctx.screenshot(path.join(shots, 'project_tree-image-desktop.png'));
+        // Ampliar: un clic muestra la imagen a tamaño real (dentro de un contenedor con scroll); otro la ajusta.
+        const fitted = await img.first().evaluate((el) => el.getBoundingClientRect().width);
+        ctx.assert(fitted < 1600, `la imagen debe verse ajustada antes de ampliar (ancho ${fitted})`);
+        await img.first().click();
+        const zoomed = await img.first().evaluate((el) => ({
+          width: el.getBoundingClientRect().width,
+          flagged: el.hasAttribute('data-zoomed'),
+          scrolls: el.parentElement.scrollWidth > el.parentElement.clientWidth,
+        }));
+        ctx.assert(zoomed.flagged && Math.round(zoomed.width) === 1600, `ampliar debe mostrar el tamaño real (got ${JSON.stringify(zoomed)})`);
+        ctx.assert(zoomed.scrolls, 'la imagen ampliada debe poder desplazarse');
+        await ctx.screenshot(path.join(shots, 'project_tree-image-zoomed.png'));
+        await img.first().click();
+        ctx.assert(
+          (await img.first().evaluate((el) => el.hasAttribute('data-zoomed'))) === false,
+          'otro clic debe volver a ajustar la imagen',
+        );
+        await ctx.page.setViewportSize({ width: 390, height: 844 });
+        await ctx.page.waitForTimeout(300);
+        await ctx.screenshot(path.join(shots, 'project_tree-image-mobile.png'));
+        await ctx.page.setViewportSize({ width: 1280, height: 800 });
       },
     },
     {

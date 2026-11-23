@@ -206,3 +206,33 @@ func TestGutterNumbersTheDraftLinesWithTheirMarks(t *testing.T) {
 	assert.Contains(t, body, `<span class="gm-none">2</span>`)
 	assert.Contains(t, body, `<span class="gm-none">3</span>`)
 }
+
+func TestMarkdownFileEditorOffersTheCodeRenderedSwitch(t *testing.T) {
+	view := state.FileView{Scope: workspace(), Path: "docs/README.md", Draft: "# t\n", Loaded: "# t\n"}
+
+	body := render(t, FileEditor(view))
+
+	assert.Contains(t, body, `data-md-form="/markdown/preview"`)
+	assert.Contains(t, body, `data-md-mode-set="rendered"`)
+	assert.Contains(t, body, `data-md-mode-set="code"`)
+	assert.Contains(t, body, `data-md-preview`)
+	assert.Contains(t, body, `data-code-editor`, "the code editor stays")
+}
+
+func TestOtherFileEditorsHaveNoMarkdownSwitch(t *testing.T) {
+	view := state.FileView{Scope: workspace(), Path: "main.go", Draft: "x", Loaded: "x"}
+
+	body := render(t, FileEditor(view))
+
+	assert.NotContains(t, body, `data-md-form`)
+	assert.NotContains(t, body, `data-md-mode-set`)
+	assert.NotContains(t, body, `data-md-preview`)
+}
+
+func TestMarkdownPreviewCarriesItsFailureMessage(t *testing.T) {
+	view := state.FileView{Scope: workspace(), Path: "README.md", Draft: "x", Loaded: "x"}
+
+	body := render(t, FileEditor(view))
+
+	assert.Contains(t, body, `data-md-error="No se pudo cargar la vista renderizada.`)
+}

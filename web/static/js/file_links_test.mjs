@@ -56,7 +56,7 @@ test('onClick keeps the browser on the page for a file link only', () => {
 });
 
 function fakeDocument() {
-  const img = { src: '', alt: '' };
+  const img = { src: '', alt: '', hasAttribute: () => false, setAttribute() {}, removeAttribute() {} };
   const panel = { focus() {} };
   const modal = {
     style: {},

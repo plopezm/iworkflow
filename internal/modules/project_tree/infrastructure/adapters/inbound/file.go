@@ -67,3 +67,26 @@ func (h *Handlers) serveFileState(w http.ResponseWriter, r *http.Request) {
 	}
 	web.Render(w, r, http.StatusOK, components.FileStateUpdate(view))
 }
+
+// serveFileRaw answers with the bytes of an image file. The content type comes from the extension, and the
+// sandbox policy keeps an SVG from running anything if it is opened on its own.
+func (h *Handlers) serveFileRaw(w http.ResponseWriter, r *http.Request) {
+	target, err := dto.DecodeTarget(r)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	image, err := h.uc.ReadImage.Execute(r.Context(), target.Scope, target.Path)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", image.ContentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write(image.Content); err != nil {
+		return
+	}
+}
