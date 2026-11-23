@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"iworkflow/internal/core/components"
 	"iworkflow/internal/core/config"
 	"iworkflow/internal/core/dock"
 	"iworkflow/internal/core/i18n"
@@ -356,6 +357,7 @@ func (a *App) Router() http.Handler {
 	r.Handle("/static/*", web.StaticHandler(a.staticDir))
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 	r.Handle(prefsinbound.LoginPath, prefsinbound.AccessRouter(a.guard))
+	r.Post(components.MarkdownPreviewPath, web.MarkdownPreview)
 	a.dock.Routes(r)
 	for _, module := range a.modules {
 		module.Routes(r)

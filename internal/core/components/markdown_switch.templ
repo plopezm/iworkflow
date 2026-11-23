@@ -1,0 +1,40 @@
+package components
+
+import "iworkflow/internal/core/markdown"
+
+// MarkdownPreviewPath is the endpoint that renders the Markdown posted in the field "content".
+const MarkdownPreviewPath string = "/markdown/preview"
+
+// IsMarkdownPath reports whether the file at path is Markdown, so its editor offers the Code | Rendered switch.
+func IsMarkdownPath(path string) bool { return markdown.IsPath(path) }
+
+// MarkdownFormAttrs marks the editor form of the file at path as the owner of the Code | Rendered switch. It is the
+// one place that emits data-md-form, the attribute web/static/js/md_view.js looks for; other files get none. Spread it
+// into the <form> that holds the textarea named "content", the MarkdownSwitch, the MarkdownPreview and the
+// [data-md-hide] elements.
+func MarkdownFormAttrs(path string) templ.Attributes {
+	if !IsMarkdownPath(path) {
+		return nil
+	}
+	return templ.Attributes{"data-md-form": MarkdownPreviewPath}
+}
+
+// MarkdownSwitch is the Code | Rendered switch of the editor of a Markdown file. It goes inside the form that holds the
+// textarea named "content"; web/static/js/md_view.js reads data-md-mode-set, hides the [data-md-hide] elements of the
+// form while the rendered view is shown and fills the MarkdownPreview with the current text.
+templ MarkdownSwitch() {
+	<div class="md-switch" role="group" aria-label={ msgMarkdownView.T(ctx) } data-md-switch>
+		<button type="button" class="md-switch-btn" data-md-mode-set="code" aria-pressed="true">{ msgMarkdownCode.T(ctx) }</button>
+		<button type="button" class="md-switch-btn" data-md-mode-set="rendered" aria-pressed="false">{ msgMarkdownRendered.T(ctx) }</button>
+	</div>
+}
+
+// MarkdownPreview is the container of the rendered view. It stays hidden until the switch selects Rendered.
+templ MarkdownPreview() {
+	<div class="md-preview markdown" data-md-preview data-md-error={ msgMarkdownPreviewFailed.T(ctx) } aria-live="polite"></div>
+}
+
+// MarkdownBody is the answer of the preview endpoint: the Markdown as sanitized HTML.
+templ MarkdownBody(rendered string) {
+	@templ.Raw(rendered)
+}

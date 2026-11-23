@@ -132,3 +132,17 @@ func TestPathLinksKeepEscapingAndContext(t *testing.T) {
 	html = mustRender(t, "ver /tmp/a&b.go")
 	assert.Contains(t, html, `data-file-path="/tmp/a&amp;b.go"`)
 }
+
+func TestIsPathRecognizesMarkdownExtensions(t *testing.T) {
+	assert.True(t, IsPath("README.md"))
+	assert.True(t, IsPath("docs/Guide.MD"))
+	assert.True(t, IsPath("a.markdown"))
+	assert.False(t, IsPath("main.go"))
+	assert.False(t, IsPath("notes.md.bak"))
+}
+
+func TestHTMLNeutralizesRawHTML(t *testing.T) {
+	out := HTML("# Hi\n\n<script>alert(1)</script>")
+	assert.Contains(t, out, "<h1")
+	assert.NotContains(t, out, "<script>")
+}

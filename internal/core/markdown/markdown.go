@@ -9,6 +9,7 @@ package markdown
 import (
 	"bytes"
 	"fmt"
+	"html"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -181,4 +182,19 @@ func Render(source string) (string, error) {
 		return "", fmt.Errorf("render markdown: %w", err)
 	}
 	return out.String(), nil
+}
+
+// IsPath reports whether path names a Markdown file, by its extension (pure).
+func IsPath(path string) bool {
+	lower := strings.ToLower(path)
+	return strings.HasSuffix(lower, ".md") || strings.HasSuffix(lower, ".markdown")
+}
+
+// HTML renders text as sanitized HTML. Text that cannot be rendered is returned as escaped text.
+func HTML(text string) string {
+	rendered, err := Render(text)
+	if err != nil {
+		return html.EscapeString(text)
+	}
+	return rendered
 }
