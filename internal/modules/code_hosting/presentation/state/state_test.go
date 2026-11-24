@@ -120,7 +120,7 @@ func mergeRequestDTO(state string, mergeStatus string) dto.MergeRequestDTO {
 		IID:          7,
 		Title:        "Mi tarea",
 		State:        state,
-		SourceBranch: "pi/feature",
+		SourceBranch: "iwf/feature",
 		TargetBranch: "main",
 		WebURL:       "https://git.corp/g/p/-/merge_requests/7",
 		MergeStatus:  mergeStatus,
@@ -160,7 +160,7 @@ func TestOpenRequestOffersMergeAndPush(t *testing.T) {
 	require.True(t, props.Status.ShowMergeStatus)
 	require.False(t, props.Status.Confirm)
 	require.Equal(t, "!7 Mi tarea", props.Status.Heading)
-	require.Equal(t, "pi/feature → main · g/p", props.Status.Branches)
+	require.Equal(t, "iwf/feature → main · g/p", props.Status.Branches)
 	require.Equal(t, "Merge MR", props.Status.MergeButton)
 	require.Equal(t, "Save to remote", props.Status.PushLabel)
 	require.Equal(t, "Open MR in GitLab", props.Status.OpenLabel)

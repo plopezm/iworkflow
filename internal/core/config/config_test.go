@@ -26,7 +26,7 @@ func TestDefaultsLiveUnderTheDataFolderInHome(t *testing.T) {
 	require.Equal(t, "/home/u/.iworkflow/attachments", cfg.AttachmentsDir)
 	require.Equal(t, "/home/u/.iworkflow/cursor-sessions", cfg.CursorSessionsDir)
 	require.Equal(t, "/home/u/.iworkflow/agy-sessions", cfg.AgySessionsDir)
-	require.Equal(t, "/home/u/.pi/gentle-ai", cfg.GentlePiConfigHome)
+	require.Equal(t, "/home/u/.iwf/gentle-ai", cfg.GentlePiConfigHome)
 	require.Equal(t, "gentle-shell", cfg.GentleShellBin)
 	require.Equal(t, "pi", cfg.PiBin)
 	require.Equal(t, "claude", cfg.ClaudeBin)

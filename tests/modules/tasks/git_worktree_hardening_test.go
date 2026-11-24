@@ -59,9 +59,9 @@ func TestMergeRefusesRefsThatLookLikeOptions(t *testing.T) {
 func TestRemoveRefusesARegisteredWorktreeOutsideTheManagedRoot(t *testing.T) {
 	f := newWorktreeFixture(t)
 	outside := filepath.Join(realDir(t, t.TempDir()), "elsewhere")
-	gitCmd(t, f.repo, "worktree", "add", "-q", "-b", "pi/outside-9", outside, "main")
+	gitCmd(t, f.repo, "worktree", "add", "-q", "-b", "iwf/outside-9", outside, "main")
 
-	err := f.adapter.Remove(bg(), f.repo, outside, "pi/outside-9")
+	err := f.adapter.Remove(bg(), f.repo, outside, "iwf/outside-9")
 
 	assert.ErrorIs(t, err, werrors.UnsafeWorktreePath(""))
 	assert.DirExists(t, outside)

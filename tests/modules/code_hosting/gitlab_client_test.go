@@ -15,7 +15,7 @@ import (
 
 const (
 	gitLabToken = "glpat-test"
-	gitLabMR    = `{"iid":7,"title":"T","state":"opened","source_branch":"pi/x","target_branch":"main","web_url":"http://gl/mr/7","sha":"abc123","merge_status":"can_be_merged","detailed_merge_status":"mergeable","has_conflicts":false}`
+	gitLabMR    = `{"iid":7,"title":"T","state":"opened","source_branch":"iwf/x","target_branch":"main","web_url":"http://gl/mr/7","sha":"abc123","merge_status":"can_be_merged","detailed_merge_status":"mergeable","has_conflicts":false}`
 )
 
 func newGitLabClient() *api.GitLabClient {
@@ -39,14 +39,14 @@ func TestGitLabCurrentUserSendsTheTokenAndReturnsTheUsername(t *testing.T) {
 
 func TestGitLabBranchExistsMaps404ToFalse(t *testing.T) {
 	provider := newFakeProvider(t, scriptedRoute{
-		target: "GET /api/v4/projects/g%2Fp/repository/branches/pi%2Fx",
+		target: "GET /api/v4/projects/g%2Fp/repository/branches/iwf%2Fx",
 		status: 200,
-		body:   `{"name":"pi/x"}`,
+		body:   `{"name":"iwf/x"}`,
 	})
 	client := newGitLabClient()
 	settings := gitLabSettings(t, provider)
 
-	exists, err := client.BranchExists(context.Background(), settings, "g/p", "pi/x")
+	exists, err := client.BranchExists(context.Background(), settings, "g/p", "iwf/x")
 	require.NoError(t, err)
 	require.True(t, exists)
 	missing, err := client.BranchExists(context.Background(), settings, "g/p", "otra")
@@ -57,7 +57,7 @@ func TestGitLabBranchExistsMaps404ToFalse(t *testing.T) {
 func TestGitLabFindLatestMergeRequestReturnsTheFirstOrNil(t *testing.T) {
 	provider := newFakeProvider(t,
 		scriptedRoute{
-			target: "GET /api/v4/projects/g%2Fp/merge_requests?source_branch=pi%2Fx&order_by=created_at&sort=desc",
+			target: "GET /api/v4/projects/g%2Fp/merge_requests?source_branch=iwf%2Fx&order_by=created_at&sort=desc",
 			status: 200,
 			body:   "[" + gitLabMR + "]",
 		},
@@ -70,7 +70,7 @@ func TestGitLabFindLatestMergeRequestReturnsTheFirstOrNil(t *testing.T) {
 	client := newGitLabClient()
 	settings := gitLabSettings(t, provider)
 
-	found, err := client.FindLatestMergeRequest(context.Background(), settings, "g/p", "pi/x")
+	found, err := client.FindLatestMergeRequest(context.Background(), settings, "g/p", "iwf/x")
 	require.NoError(t, err)
 	require.NotNil(t, found)
 	require.Equal(t, uint64(7), found.IID)
@@ -83,14 +83,14 @@ func TestGitLabFindLatestMergeRequestReturnsTheFirstOrNil(t *testing.T) {
 }
 
 func TestGitLabFindLatestPrefersTheOpenRequest(t *testing.T) {
-	list := `[{"iid":5,"title":"Old","state":"closed","source_branch":"pi/x","target_branch":"main","web_url":"u5"},` + gitLabMR + `]`
+	list := `[{"iid":5,"title":"Old","state":"closed","source_branch":"iwf/x","target_branch":"main","web_url":"u5"},` + gitLabMR + `]`
 	provider := newFakeProvider(t, scriptedRoute{
-		target: "GET /api/v4/projects/g%2Fp/merge_requests?source_branch=pi%2Fx&order_by=created_at&sort=desc",
+		target: "GET /api/v4/projects/g%2Fp/merge_requests?source_branch=iwf%2Fx&order_by=created_at&sort=desc",
 		status: 200,
 		body:   list,
 	})
 
-	found, err := newGitLabClient().FindLatestMergeRequest(context.Background(), gitLabSettings(t, provider), "g/p", "pi/x")
+	found, err := newGitLabClient().FindLatestMergeRequest(context.Background(), gitLabSettings(t, provider), "g/p", "iwf/x")
 
 	require.NoError(t, err)
 	require.NotNil(t, found)
@@ -101,7 +101,7 @@ func TestGitLabCreateMergeRequestPostsTheExpectedBody(t *testing.T) {
 	provider := newFakeProvider(t, scriptedRoute{target: "POST /api/v4/projects/g%2Fp/merge_requests", status: 201, body: gitLabMR})
 
 	created, err := newGitLabClient().CreateMergeRequest(context.Background(), gitLabSettings(t, provider), "g/p", models.NewMergeRequest{
-		SourceBranch: "pi/x",
+		SourceBranch: "iwf/x",
 		TargetBranch: "main",
 		Title:        "T",
 		Description:  "D",
@@ -111,7 +111,7 @@ func TestGitLabCreateMergeRequestPostsTheExpectedBody(t *testing.T) {
 	require.Equal(t, "http://gl/mr/7", created.WebURL)
 	var body map[string]string
 	require.NoError(t, json.Unmarshal([]byte(provider.requests()[0].body), &body))
-	require.Equal(t, map[string]string{"source_branch": "pi/x", "target_branch": "main", "title": "T", "description": "D"}, body)
+	require.Equal(t, map[string]string{"source_branch": "iwf/x", "target_branch": "main", "title": "T", "description": "D"}, body)
 }
 
 func TestGitLabLatestPipelineReturnsTheNewestWithItsJobs(t *testing.T) {

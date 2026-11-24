@@ -84,7 +84,7 @@ func TestDiscardTaskRemovesWorktreeAndBranchFromTheWorkspaceRepository(t *testin
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/repos/demo|/worktrees/demo/abc-task|pi/arregla-el-login-abc"}, fixture.worktrees.removed)
+	assert.Equal(t, []string{"/repos/demo|/worktrees/demo/abc-task|iwf/arregla-el-login-abc"}, fixture.worktrees.removed)
 	assert.Empty(t, fixture.worktrees.merged)
 }
 

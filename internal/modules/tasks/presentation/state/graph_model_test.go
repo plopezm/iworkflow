@@ -22,7 +22,7 @@ func taskModel(id, workspaceID, status, createdAt string) dto.TaskDTO {
 		WorkspaceID: workspaceID,
 		Title:       "tarea " + id,
 		Prompt:      "prompt",
-		Branch:      "pi/x",
+		Branch:      "iwf/x",
 		BaseBranch:  "main",
 		Status:      status,
 		Stage:       stage,

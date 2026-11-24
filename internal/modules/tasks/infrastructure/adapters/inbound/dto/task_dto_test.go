@@ -25,7 +25,7 @@ func newTask(t *testing.T, status models.TaskStatus) models.Task {
 		WorkspaceID:  "ws-1",
 		Title:        "t",
 		Prompt:       "p",
-		Branch:       "pi/t",
+		Branch:       "iwf/t",
 		BaseBranch:   "main",
 		WorktreePath: "/wt/t",
 		Status:       status,

@@ -135,7 +135,7 @@ func TestDirectoryListingMapsToDTO(t *testing.T) {
 	listing := models.DirectoryListing{
 		Path:    "/home/pi",
 		Parent:  "/home",
-		Entries: []models.DirectoryEntry{{Name: "demo", Path: "/home/pi/demo", IsGitRepo: true}},
+		Entries: []models.DirectoryEntry{{Name: "demo", Path: "/home/iwf/demo", IsGitRepo: true}},
 	}
 
 	dto := FromDirectoryListing(listing)

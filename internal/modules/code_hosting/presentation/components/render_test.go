@@ -99,7 +99,7 @@ func openStatus() *components.MergeRequestStatusProps {
 	return &components.MergeRequestStatusProps{
 		TaskID:          "task-1",
 		Heading:         "!7 Mi tarea",
-		Branches:        "pi/feature → main · g/p",
+		Branches:        "iwf/feature → main · g/p",
 		State:           components.BadgeProps{Text: "open", Variant: "info"},
 		MergeStatus:     components.BadgeProps{Text: "can be merged", Variant: "ok"},
 		ShowMergeStatus: true,
@@ -183,13 +183,13 @@ func TestErrorAndNoticeAreShownAboveTheContent(t *testing.T) {
 		Title:        "Merge / Pull request",
 		RefreshLabel: "Refresh",
 		Notice:       "Branch pushed to origin.",
-		Error:        "no hay merge request abierto para la rama pi/feature",
+		Error:        "no hay merge request abierto para la rama iwf/feature",
 	}
 
 	html := render(t, components.TaskMergeRequestBody(props))
 
 	require.Contains(t, html, "Branch pushed to origin.")
-	require.Contains(t, html, "no hay merge request abierto para la rama pi/feature")
+	require.Contains(t, html, "no hay merge request abierto para la rama iwf/feature")
 	require.True(t, strings.Index(html, "Refresh") < strings.Index(html, "Branch pushed"),
 		"the notice is rendered below the header")
 }

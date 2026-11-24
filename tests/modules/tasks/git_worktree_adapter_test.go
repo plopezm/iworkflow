@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	taskBranch = "pi/feature-1234"
+	taskBranch = "iwf/feature-1234"
 	pinRef     = "refs/iworkflow/tasks/test"
 )
 
@@ -185,7 +185,7 @@ func TestRemoveDeletesUnregisteredFolder(t *testing.T) {
 	require.NoError(t, os.MkdirAll(stray, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(stray, "x.txt"), []byte("x"), 0o644))
 
-	require.NoError(t, f.adapter.Remove(bg(), f.repo, stray, "pi/inexistente"))
+	require.NoError(t, f.adapter.Remove(bg(), f.repo, stray, "iwf/inexistente"))
 
 	assert.NoDirExists(t, stray)
 }
@@ -253,7 +253,7 @@ func TestRemoveToleratesMissingWorktreeFolder(t *testing.T) {
 // Rust: concurrent_merges_into_the_same_base_both_succeed. The merge slot serializes them.
 func TestConcurrentMergesIntoTheSameBaseBothSucceed(t *testing.T) {
 	f := newWorktreeFixture(t)
-	secondBranch := "pi/feature-5678"
+	secondBranch := "iwf/feature-5678"
 	second := f.adapter.WorktreePath("demo", "5678-feature")
 	require.NoError(t, f.adapter.Create(bg(), f.repo, "main", secondBranch, second))
 	require.NoError(t, os.WriteFile(filepath.Join(f.worktree, "a.txt"), []byte("a\n"), 0o644))
@@ -419,7 +419,7 @@ func TestRemoveRefusesToDeleteFoldersOutsideTheManagedRoot(t *testing.T) {
 	outside := realDir(t, t.TempDir())
 	require.NoError(t, os.WriteFile(filepath.Join(outside, "x.txt"), []byte("x"), 0o644))
 
-	err := f.adapter.Remove(bg(), f.repo, outside, "pi/inexistente")
+	err := f.adapter.Remove(bg(), f.repo, outside, "iwf/inexistente")
 
 	assert.ErrorIs(t, err, werrors.UnsafeWorktreePath(""))
 	assert.FileExists(t, filepath.Join(outside, "x.txt"))
@@ -429,7 +429,7 @@ func TestRemoveRefusesToDeleteFoldersOutsideTheManagedRoot(t *testing.T) {
 func TestRemoveRefusesToDeleteTheManagedRootItself(t *testing.T) {
 	f := newWorktreeFixture(t)
 
-	err := f.adapter.Remove(bg(), f.repo, f.root, "pi/inexistente")
+	err := f.adapter.Remove(bg(), f.repo, f.root, "iwf/inexistente")
 
 	assert.ErrorIs(t, err, werrors.UnsafeWorktreePath(""))
 	assert.DirExists(t, f.worktree)
@@ -443,7 +443,7 @@ func TestRemoveRefusesSymlinksThatEscapeTheManagedRoot(t *testing.T) {
 	link := filepath.Join(f.root, "escape")
 	require.NoError(t, os.Symlink(outside, link))
 
-	err := f.adapter.Remove(bg(), f.repo, link, "pi/inexistente")
+	err := f.adapter.Remove(bg(), f.repo, link, "iwf/inexistente")
 
 	assert.ErrorIs(t, err, werrors.UnsafeWorktreePath(""))
 	assert.FileExists(t, filepath.Join(outside, "x.txt"))
@@ -454,7 +454,7 @@ func TestCreateRefusesPathsOutsideTheRoot(t *testing.T) {
 	f := newWorktreeFixture(t)
 	escaping := filepath.Join(f.root, "..", "escaped-"+t.Name())
 
-	err := f.adapter.Create(bg(), f.repo, "main", "pi/escape", escaping)
+	err := f.adapter.Create(bg(), f.repo, "main", "iwf/escape", escaping)
 
 	assert.ErrorIs(t, err, werrors.UnsafeWorktreePath(""))
 	assert.NoDirExists(t, filepath.Clean(escaping))
@@ -476,7 +476,7 @@ func TestCreateRefusesBaseReferencesThatLookLikeOptions(t *testing.T) {
 	f := newWorktreeFixture(t)
 	target := f.adapter.WorktreePath("demo", "9999-option")
 
-	err := f.adapter.Create(bg(), f.repo, "--upload-pack=touch /tmp/owned", "pi/opcion", target)
+	err := f.adapter.Create(bg(), f.repo, "--upload-pack=touch /tmp/owned", "iwf/opcion", target)
 
 	assert.Error(t, err)
 	assert.NoDirExists(t, target)
@@ -511,7 +511,7 @@ func TestCancelledContextStopsGitBeforeItChangesAnything(t *testing.T) {
 // Rust: lists_local_and_remote_branches_without_task_or_head_refs
 func TestListsLocalAndRemoteBranchesWithoutTaskOrHeadRefs(t *testing.T) {
 	remote := newRemoteFixture(t)
-	gitCmd(t, remote.repo, "branch", "pi/otra-tarea-1")
+	gitCmd(t, remote.repo, "branch", "iwf/otra-tarea-1")
 	gitCmd(t, remote.repo, "remote", "set-head", "origin", "main")
 
 	options, err := remote.adapter.ListBranches(bg(), remote.repo)

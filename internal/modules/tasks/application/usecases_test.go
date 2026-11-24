@@ -43,7 +43,7 @@ func TestCreateTaskCreatesBacklogWithoutStarting(t *testing.T) {
 	assert.Equal(t, "main", created.Task.BaseBranch)
 	assert.Nil(t, created.StartError)
 	assert.Empty(t, starter.started)
-	assert.Contains(t, created.Task.Branch, "pi/t-")
+	assert.Contains(t, created.Task.Branch, "iwf/t-")
 	assert.Equal(t, []models.TaskStatus{models.StatusBacklog}, repo.statuses)
 }
 

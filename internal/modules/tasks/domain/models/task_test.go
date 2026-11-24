@@ -20,7 +20,7 @@ func newTaskWith(status models.TaskStatus, dialogs ...models.PendingDialog) mode
 		WorkspaceID:    "ws",
 		Title:          "t",
 		Prompt:         "p",
-		Branch:         "pi/t",
+		Branch:         "iwf/t",
 		BaseBranch:     "main",
 		WorktreePath:   "/wt/t",
 		Status:         status,
@@ -54,7 +54,7 @@ func TestSlugifyIsBounded(t *testing.T) {
 func TestNamesEmbedTheUniqueID(t *testing.T) {
 	t.Parallel()
 	unique := uuid.New()
-	assert.Equal(t, "pi/fix-bug-"+unique.String(), models.BranchName("Fix bug", unique))
+	assert.Equal(t, "iwf/fix-bug-"+unique.String(), models.BranchName("Fix bug", unique))
 	assert.Equal(t, "fix-bug-"+unique.String()[:8], models.WorktreeDirName("Fix bug", unique))
 	assert.Equal(t, "my-app-ws-1", models.WorkspaceDirName("My App", "ws-1"))
 }
@@ -94,9 +94,10 @@ func TestDirNamesAreShortened(t *testing.T) {
 	assert.LessOrEqual(t, len(workspace)+1+len(task), 60)
 }
 
-func TestIsTaskBranchRecognizesOnlyPiBranches(t *testing.T) {
+func TestIsTaskBranchRecognizesIwfAndLegacyBranches(t *testing.T) {
 	t.Parallel()
-	assert.True(t, models.IsTaskBranch("pi/x"))
+	assert.True(t, models.IsTaskBranch("iwf/x"))
+	assert.True(t, models.IsTaskBranch("pi/x"), "legacy branches are still recognized")
 	assert.False(t, models.IsTaskBranch("pix"))
 	assert.False(t, models.IsTaskBranch("main"))
 }

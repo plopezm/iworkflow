@@ -43,7 +43,7 @@ func insertTaskRow(t *testing.T, repo *Repo, row rustTaskRow) {
 			created_at, updated_at, pending_dialogs, subagents_active, subagents_waiting, priority,
 			base_sha, head_sha, memory_limit_mb, cpu_limit_percent, resume_at, resume_attempts)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		row.id, row.workspaceID, row.title, "haz algo", "pi/"+row.title, "main", "/wt/"+row.title,
+		row.id, row.workspaceID, row.title, "haz algo", "iwf/"+row.title, "main", "/wt/"+row.title,
 		row.status, row.errorText, row.createdAt, row.updatedAt, row.pendingDialogs,
 		row.subagentsActive, row.subagentsWaiting, row.priority, row.baseSHA, row.headSHA,
 		row.memoryMB, row.cpuPercent, row.resumeAt, row.resumeAttempts)

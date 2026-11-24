@@ -131,16 +131,16 @@ func TestClaimForStartSetsPlanAndIsExclusive(t *testing.T) {
 	original := newTask(t, workspaceID, "uno", models.StatusBacklog)
 	insertTask(t, repo, original)
 
-	first, err := repo.Tasks.ClaimForStart(bg(), original.ID, "pi/nueva-rama", "/wt/nueva", "develop")
+	first, err := repo.Tasks.ClaimForStart(bg(), original.ID, "iwf/nueva-rama", "/wt/nueva", "develop")
 	require.NoError(t, err)
-	second, err := repo.Tasks.ClaimForStart(bg(), original.ID, "pi/otra", "/wt/otra", "main")
+	second, err := repo.Tasks.ClaimForStart(bg(), original.ID, "iwf/otra", "/wt/otra", "main")
 	require.NoError(t, err)
 	assert.True(t, first)
 	assert.False(t, second)
 
 	claimed := found(t, repo, original.ID)
 	assert.Equal(t, models.StatusStarting, claimed.Status)
-	assert.Equal(t, "pi/nueva-rama", claimed.Branch)
+	assert.Equal(t, "iwf/nueva-rama", claimed.Branch)
 	assert.Equal(t, "/wt/nueva", claimed.WorktreePath)
 	assert.Equal(t, "develop", claimed.BaseBranch)
 }
@@ -164,7 +164,7 @@ func TestConcurrentClaimsOfOneTaskHaveExactlyOneWinner(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			results[index], errs[index] = repo.Tasks.ClaimForStart(bg(), task.ID, "pi/race", "/wt/race", "main")
+			results[index], errs[index] = repo.Tasks.ClaimForStart(bg(), task.ID, "iwf/race", "/wt/race", "main")
 		}()
 	}
 	close(start)
@@ -197,7 +197,7 @@ func TestRevertStartClaimReturnsStartingTaskToBacklog(t *testing.T) {
 	workspaceID := insertWorkspace(t, repo.DB, "/repos/a")
 	original := newTask(t, workspaceID, "uno", models.StatusBacklog)
 	insertTask(t, repo, original)
-	_, err := repo.Tasks.ClaimForStart(bg(), original.ID, "pi/x", "/wt/x", "main")
+	_, err := repo.Tasks.ClaimForStart(bg(), original.ID, "iwf/x", "/wt/x", "main")
 	require.NoError(t, err)
 
 	reverted, err := repo.Tasks.RevertStartClaim(bg(), original.ID)
