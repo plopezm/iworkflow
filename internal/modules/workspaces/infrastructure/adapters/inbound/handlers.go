@@ -38,6 +38,7 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Get("/workspaces/register/dismiss", h.dismissPrompt)
 	r.Post("/workspaces/{id}/update", h.update)
 	r.Post("/workspaces/{id}/delete", h.delete)
+	r.Get("/workspaces/table", h.tableBody)
 	r.Get("/workspaces/directories", h.openPicker)
 	r.Get("/workspaces/directories/entries", h.pickerEntries)
 	r.Get("/workspaces/directories/select", h.selectDirectory)
@@ -111,6 +112,11 @@ func (h *Handlers) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 // openPicker opens the folder picker at the requested path (the home folder when it is empty).
+// tableBody answers the periodic refresh of the table: only its content, which the page morphs in place.
+func (h *Handlers) tableBody(w http.ResponseWriter, r *http.Request) {
+	writeFragments(w, r, components.WorkspaceTableBody(h.table(r.Context(), nil)))
+}
+
 func (h *Handlers) openPicker(w http.ResponseWriter, r *http.Request) {
 	picker := h.picker(r.Context(), strings.TrimSpace(r.URL.Query().Get("path")))
 	writeFragments(w, r, components.DirectoryPicker(picker))

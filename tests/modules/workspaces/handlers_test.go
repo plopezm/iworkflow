@@ -207,6 +207,18 @@ func TestDeleteAnswersTheRemainingTable(t *testing.T) {
 	assert.NotContains(t, response.Body.String(), "article", "no card remains")
 }
 
+func TestTableRefreshAnswersOnlyTheContentOfTheTable(t *testing.T) {
+	fixture := newHTTPFixture(t)
+	fixture.register("Demo", newGitRepo(t))
+
+	response := fixture.get("/workspaces/table")
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Contains(t, response.Body.String(), "<article", "the registered workspace is listed")
+	assert.Contains(t, response.Body.String(), "Demo")
+	assert.NotContains(t, response.Body.String(), `id="workspace-table"`, "the listening element stays in the page")
+}
+
 func TestDeleteOfUnknownWorkspaceShowsTheErrorInTheTable(t *testing.T) {
 	fixture := newHTTPFixture(t)
 	unknown, err := models.NewWorkspaceID()

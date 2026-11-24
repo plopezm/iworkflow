@@ -34,7 +34,7 @@ func TestDetailOfABacklogTaskOffersStartEditAndDeleteWithItsPrompt(t *testing.T)
 	assert.NotContains(t, body, "Branch ", "a backlog task has no branch yet")
 }
 
-func TestDetailOfARunningTaskShowsItsShortBranchAndNoBacklogActions(t *testing.T) {
+func TestDetailOfARunningTaskShowsItsBranchInTheActionsPanelAndNoBacklogActions(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
@@ -46,11 +46,10 @@ func TestDetailOfARunningTaskShowsItsShortBranchAndNoBacklogActions(t *testing.T
 	body := renderDetailTab(t, module, i18n.En, task.ID.String())
 
 	assert.Contains(t, body, "Working", "the status badge of a running task")
-	assert.Contains(t, body, "Branch ")
-	assert.Contains(t, body, `<code class="font-mono" title="iwf/fix-login-3f2a9c1e-5b7d-4e8a-9c0b-1a2b3c4d5e6f">iwf/fix-login</code>`,
-		"the uuid suffix is dropped from the shown branch and kept in its title")
-	assert.Contains(t, body, " from ")
-	assert.Contains(t, body, `<code class="font-mono">main</code>`, "the base branch")
+	assert.Contains(t, body, `data-task-branch>iwf/fix-login-3f2a9c1e-5b7d-4e8a-9c0b-1a2b3c4d5e6f</code>`,
+		"the actions panel shows the full branch, uuid suffix included")
+	assert.Contains(t, body, "Starting branch")
+	assert.Contains(t, body, `text-muted">main</code>`, "the base branch")
 	assert.NotContains(t, body, "Delete this task", "delete is only offered from backlog")
 	assert.NotContains(t, body, "/start")
 }

@@ -199,3 +199,15 @@ func TestTableRowShowsItsGroupOnlyWhenItHasOne(t *testing.T) {
 	assert.Contains(t, grouped, "Family")
 	assert.NotContains(t, ungrouped, "data-workspace-group")
 }
+
+func TestTableRefreshesItselfWithAMorph(t *testing.T) {
+	body := render(t, WorkspaceTable(state.TableView{}))
+
+	assert.Contains(t, body, `hx-get="/workspaces/table"`)
+	assert.Contains(t, body, `hx-swap="morph:innerHTML"`)
+	assert.Contains(t, body, `hx-sync="this:replace"`)
+	assert.Contains(t, body, `sse:changed`)
+
+	fragment := render(t, WorkspaceTableBody(state.TableView{}))
+	assert.NotContains(t, fragment, `id="workspace-table"`, "the refresh answers the content, not the listening element")
+}
