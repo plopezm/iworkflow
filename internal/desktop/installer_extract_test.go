@@ -56,7 +56,7 @@ func TestExtractArchive(t *testing.T) {
 				t.Helper()
 				target, err := os.Readlink(filepath.Join(staging, "current"))
 				require.NoError(t, err)
-				assert.Equal(t, "server/server.bin", target)
+				assert.Equal(t, filepath.FromSlash("server/server.bin"), target)
 			},
 		},
 		{

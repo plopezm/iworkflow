@@ -722,6 +722,9 @@ func TestInstallTargetFromExecutable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" && !tt.wantErr {
+				t.Skip("the fixture uses POSIX absolute paths")
+			}
 			got, err := InstallTargetFromExecutable(tt.executable, tt.goos)
 			if tt.wantErr {
 				require.Error(t, err)

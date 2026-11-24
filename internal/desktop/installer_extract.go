@@ -146,7 +146,7 @@ func (e *extractor) symlink(target string, linkname string) error {
 	if linkname == "" {
 		return errors.New("symlink has no target")
 	}
-	if filepath.IsAbs(linkname) || filepath.VolumeName(linkname) != "" || strings.ContainsRune(linkname, '\\') {
+	if strings.HasPrefix(linkname, "/") || filepath.IsAbs(linkname) || filepath.VolumeName(linkname) != "" || strings.ContainsRune(linkname, '\\') {
 		return fmt.Errorf("symlink target %q is absolute or not portable", linkname)
 	}
 	resolved := filepath.Join(filepath.Dir(target), filepath.FromSlash(linkname))
