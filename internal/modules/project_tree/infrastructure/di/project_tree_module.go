@@ -13,6 +13,7 @@ import (
 	"iworkflow/internal/modules/project_tree/domain/models"
 	"iworkflow/internal/modules/project_tree/domain/ports/outbound"
 	"iworkflow/internal/modules/project_tree/infrastructure/adapters/inbound"
+	"iworkflow/internal/modules/project_tree/infrastructure/adapters/outbound/contentsearch"
 	"iworkflow/internal/modules/project_tree/infrastructure/adapters/outbound/fs"
 	"iworkflow/internal/modules/project_tree/infrastructure/adapters/outbound/git"
 	"iworkflow/internal/modules/project_tree/infrastructure/adapters/outbound/workspaceroot"
@@ -39,6 +40,7 @@ type Module struct {
 	DiscardPaths  *application.DiscardProjectPaths
 	CommitChanges *application.CommitProjectChanges
 	SearchFiles   *application.SearchProjectFiles
+	SearchContent *application.SearchProjectContent
 
 	handlers *inbound.Handlers
 }
@@ -62,6 +64,7 @@ func NewModule(deps Deps) *Module {
 		DiscardPaths:  application.NewDiscardProjectPaths(roots, status),
 		CommitChanges: application.NewCommitProjectChanges(roots, status),
 		SearchFiles:   application.NewSearchProjectFiles(roots, search),
+		SearchContent: application.NewSearchProjectContent(roots, contentsearch.New()),
 	}
 	module.handlers = inbound.NewHandlers(inbound.UseCases{
 		ListDirectory: module.ListDirectory,

@@ -172,3 +172,20 @@ func anyScope() models.ProjectScope {
 func unknownScopeErr() error {
 	return treeerrors.WorkspaceNotFound()
 }
+
+// fakeContentSearch returns a fixed result and records the roots and queries it is asked about.
+type fakeContentSearch struct {
+	result  models.ContentResult
+	err     error
+	roots   []string
+	queries []models.ContentQuery
+}
+
+func (f *fakeContentSearch) Search(_ context.Context, root string, query models.ContentQuery) (models.ContentResult, error) {
+	f.roots = append(f.roots, root)
+	f.queries = append(f.queries, query)
+	if f.err != nil {
+		return models.ContentResult{}, f.err
+	}
+	return f.result, nil
+}
