@@ -449,6 +449,10 @@ article.card:hover {
 .dock-group-focused .dock-tab-active::after {
   @apply bg-accent;
 }
+.dock-tab-ws.dock-tab-active::after,
+.dock-group-focused .dock-tab-ws.dock-tab-active::after {
+  background: var(--ws);
+}
 .dock-tab-icon {
   @apply inline-block w-3.5 shrink-0 text-center text-[11px] opacity-80;
 }
@@ -2479,4 +2483,18 @@ article.card:hover {
   width: 2px;
   border-radius: 9999px;
   background: color-mix(in srgb, var(--ws) 65%, transparent);
+}
+
+/* Board of a colored workspace: a faint wash of its color fading out from the top, and a thin line on the top edge. */
+.ws-board {
+  position: relative;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--ws) 7%, transparent), transparent 14rem);
+}
+.ws-board::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 2px;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--ws) 55%, transparent);
 }

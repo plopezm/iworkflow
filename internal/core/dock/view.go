@@ -1,10 +1,13 @@
 package dock
 
 import (
+	"context"
 	"net/url"
 	"strconv"
 
 	"github.com/a-h/templ"
+
+	shared "iworkflow/internal/core/components"
 )
 
 // View is everything the dock fragment needs to render one layout. Empty is the body of a group
@@ -34,6 +37,11 @@ func (v View) focusedPath() string {
 // icon is the glyph of a tab path.
 func (v View) icon(path string) string {
 	return v.registry.Icon(path)
+}
+
+// color is the workspace color of a tab path, empty when it has none.
+func (v View) color(ctx context.Context, path string) string {
+	return v.registry.Color(ctx, path)
 }
 
 // paneSrc is the URL that renders the page of a tab.
@@ -79,11 +87,15 @@ func groupClass(focused bool) string {
 	return "dock-group"
 }
 
-func tabButtonClass(active bool) string {
+func tabButtonClass(active bool, color string) string {
+	class := "group dock-tab"
 	if active {
-		return "group dock-tab dock-tab-active"
+		class += " dock-tab-active"
 	}
-	return "group dock-tab"
+	if colorClass := shared.WorkspaceColorClass(color); colorClass != "" {
+		class += " dock-tab-ws " + colorClass
+	}
+	return class
 }
 
 // isFirstGroup reports whether g is the first group of the layout: on mobile it carries the sidebar button.

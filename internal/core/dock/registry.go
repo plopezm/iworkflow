@@ -25,6 +25,9 @@ type Route struct {
 	Icon string
 	// Title is the default tab title for a path. Nil falls back to the not-found title.
 	Title func(ctx context.Context, params Params) string
+	// Color is the workspace color (a palette key or "#rrggbb") that marks the tab of a page that belongs to a
+	// workspace. Nil or an empty result leaves the tab unmarked.
+	Color func(ctx context.Context, params Params) string
 	// Render builds the page of a tab. Nil renders the not-found page.
 	Render func(ctx context.Context, params Params) templ.Component
 }
@@ -124,6 +127,15 @@ func (r *Registry) Title(ctx context.Context, path string) string {
 		return msgNotFoundTitle.T(ctx)
 	}
 	return route.Title(ctx, params)
+}
+
+// Color returns the workspace color of path, or empty when its page belongs to no (colored) workspace.
+func (r *Registry) Color(ctx context.Context, path string) string {
+	route, params, _ := r.Match(path)
+	if route.Color == nil {
+		return ""
+	}
+	return route.Color(ctx, params)
 }
 
 // Icon returns the icon of path.

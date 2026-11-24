@@ -201,6 +201,21 @@ module.exports = {
         // A backlog task of the workspace (not started, so no agent runs), then the dashboard badge of its project.
         await expectNoPill(ctx, sidebarChip(page), 'barra lateral');
         await sidebarChip(page).click();
+
+        // The board tab of the project: its tab carries the color (a dot and the active underline) and the page a
+        // faint wash with a thin line on top.
+        const boardTab = page.locator('[data-dock-tab-button].dock-tab-ws.ws-violet', { hasText: NAME }).first();
+        await boardTab.waitFor({ timeout: 12000 });
+        ctx.assert((await boardTab.locator('.ws-dot').count()) === 1, 'pestaña del tablero: debe llevar el punto de color');
+        const boardPage = page.locator('.ws-board.ws-violet').first();
+        await boardPage.waitFor({ timeout: 12000 });
+        const wash = await boardPage.evaluate((el) => getComputedStyle(el).backgroundImage);
+        ctx.assert(wash.includes('linear-gradient'), `tablero del proyecto: falta el degradado suave (${wash})`);
+        const line = await railOf(boardPage);
+        ctx.assert(line.bg !== TRANSPARENT && line.width !== 'auto', `tablero del proyecto: falta la línea superior (${line.bg})`);
+        const underline = await boardTab.evaluate((el) => getComputedStyle(el, '::after').backgroundColor);
+        ctx.assert(underline === 'rgb(142, 78, 198)', `pestaña del tablero: subrayado esperado violeta, obtenido ${underline}`);
+        await page.screenshot({ path: path.join(SHOTS, 'workspace-colors-board-tab.png') });
         await page.getByRole('button', { name: 'Nueva tarea' }).first().click();
         await page.getByLabel(/^Workspace/).selectOption({ label: `${NAME} (main)` });
         const prompt = `colores-tarea-${tag}`;

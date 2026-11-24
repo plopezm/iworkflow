@@ -139,6 +139,9 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 			Title: func(ctx context.Context, params dock.Params) string {
 				return h.title(ctx, params["id"])
 			},
+			Color: func(ctx context.Context, params dock.Params) string {
+				return h.color(ctx, params["id"])
+			},
 			Render: func(ctx context.Context, params dock.Params) templ.Component {
 				return h.boardTab(ctx, params["id"])
 			},
@@ -175,6 +178,15 @@ func (h *BoardHandlers) title(ctx context.Context, requested string) string {
 		return components.BoardTitle(ctx, "")
 	}
 	return components.BoardTitle(ctx, choice.Name)
+}
+
+// color is the workspace color of the board of the requested workspace; empty when it has none or cannot be read.
+func (h *BoardHandlers) color(ctx context.Context, requested string) string {
+	workspaces, err := h.workspaceOptions(ctx)
+	if err != nil {
+		return ""
+	}
+	return state.BoardView{Choice: state.ChooseWorkspace(requested, workspaces), Workspaces: workspaces}.Color()
 }
 
 // boardTab renders the board of the requested workspace with the completed tasks hidden, as the Rust board does.

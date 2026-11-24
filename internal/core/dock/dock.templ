@@ -94,10 +94,12 @@ templ group(v View, g *Group) {
 // tabButton is a tab of the bar: a click activates it, × closes it, and it can be dragged to reorder
 // or to another group.
 templ tabButton(v View, g *Group, tab Tab) {
+	{{ color := v.color(ctx, tab.Path) }}
 	<div
 		role="tab"
 		draggable="true"
-		class={ tabButtonClass(tab.ID == g.Active) }
+		class={ tabButtonClass(tab.ID == g.Active, color) }
+		style={ components.WorkspaceColorStyle(color) }
 		aria-selected={ ariaBool(tab.ID == g.Active) }
 		title={ tab.Title }
 		data-dock-tab-button
@@ -107,7 +109,11 @@ templ tabButton(v View, g *Group, tab Tab) {
 		data-dock-title={ tab.Title }
 		data-dock-action="activate"
 	>
-		<span class="dock-tab-icon" aria-hidden="true">{ v.icon(tab.Path) }</span>
+		if components.WorkspaceColorClass(color) != "" {
+			<span class="dock-tab-icon" aria-hidden="true"><span class="ws-dot"></span></span>
+		} else {
+			<span class="dock-tab-icon" aria-hidden="true">{ v.icon(tab.Path) }</span>
+		}
 		<span class="min-w-0 flex-1 truncate">{ tab.Title }</span>
 		<button type="button" class="dock-tab-close" aria-label={ msgCloseTab.T(ctx) } data-dock-action="close_tab" data-dock-tab={ id(tab.ID) }>×</button>
 	</div>

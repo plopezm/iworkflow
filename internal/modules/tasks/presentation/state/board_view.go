@@ -25,6 +25,19 @@ type BoardView struct {
 	LoadError string
 }
 
+// Color is the palette key of the workspace the board shows; empty when it has none or none is selected.
+func (v BoardView) Color() string {
+	if v.Choice.Kind != ChoiceSelected {
+		return ""
+	}
+	for _, workspace := range v.Workspaces {
+		if workspace.ID == v.Choice.ID {
+			return workspace.Color
+		}
+	}
+	return ""
+}
+
 // ListPath is the address of the content of the list of one board instance for a workspace, the completed toggle
 // and the number of loaded pages. The listening element keeps this address in its own attributes, so a refresh
 // repeats what the user chose and answers to the same instance.
