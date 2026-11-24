@@ -168,7 +168,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	// hooks module exists.
 	hookStrip := NewTaskHooksStrip()
 	// The workspace groups of the sidebar: the module is built before tasks, whose sidebar arranges the workspaces with it.
-	workspaceGroups := workspacegroupsdi.NewModule(deps.DB)
+	workspaceGroups := workspacegroupsdi.NewModule(deps.DB, &workspaceGroupCatalog{list: workspaces.List})
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
 		HookStrip:      hookStrip,
 		DB:             deps.DB,

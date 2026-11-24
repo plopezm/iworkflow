@@ -1,0 +1,105 @@
+package components
+
+import (
+	"strconv"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/workspace_groups/presentation/state"
+)
+
+// Manager is the first card of the Workspaces screen: the groups with their name and color, and for each one the
+// assignments of workspaces. Every action posts to the group endpoints, which answer with the board:refresh event;
+// the Workspaces page reloads this card on it. The card names the group it shows open in a hidden field, so a reload
+// keeps it open.
+templ Manager(view state.Manager) {
+	@shared.Card(msgTitle.T(ctx)) {
+		<form class="row gap-2" hx-post="/workspace-groups" hx-swap="none" data-group-create>
+			<input type="text" name="name" class="input min-w-0 flex-1" placeholder={ msgNewName.T(ctx) } aria-label={ msgNewName.T(ctx) } required autocomplete="off"/>
+			<button type="submit" class="btn-primary">{ msgCreate.T(ctx) }</button>
+		</form>
+		if view.OpenID != "" {
+			<input type="hidden" id="group-manager-open" name="open" value={ view.OpenID }/>
+		}
+		if len(view.Groups) == 0 {
+			<p class="text-sm text-muted">{ msgEmpty.T(ctx) }</p>
+		}
+		for _, group := range view.Groups {
+			@managerGroup(group)
+		}
+	}
+}
+
+// managerGroup is one group: its form (name and color save as they change), the Assignments toggle and Delete.
+templ managerGroup(group state.ManagerGroup) {
+	<article class="stack gap-3 rounded-xl border border-border/60 p-3" data-group-id={ group.ID } data-group-open={ strconv.FormatBool(group.Open) }>
+		<form class="stack gap-3" hx-post={ "/workspace-groups/" + group.ID } hx-trigger="change" hx-swap="none">
+			<input type="text" name="name" class="input min-w-0" value={ group.Name } aria-label={ msgGroupName.T(ctx) } required autocomplete="off"/>
+			@shared.ColorPicker(shared.ColorPickerProps{Label: msgColor.T(ctx), NoneLabel: msgNoColor.T(ctx), Name: "color", Value: group.Color})
+		</form>
+		<div class="row justify-between gap-2">
+			<button
+				type="button"
+				class="btn-ghost"
+				aria-expanded={ strconv.FormatBool(group.Open) }
+				hx-get={ state.ManagerHref(openTarget(group)) }
+				hx-target={ "#" + state.ManagerTargetID }
+				hx-swap="morph:innerHTML"
+			>
+				{ msgAssignments.T(ctx) } <span class="sidebar-count">{ strconv.Itoa(group.Count) }</span>
+			</button>
+			<button type="button" class="btn-ghost" hx-post={ "/workspace-groups/" + group.ID + "/delete" } hx-confirm={ msgConfirmDel.T(ctx) } hx-swap="none">
+				{ msgDelete.T(ctx) }
+			</button>
+		</div>
+		if group.Open {
+			@assignments(group)
+		}
+	</article>
+}
+
+// openTarget is the group the Assignments button asks for: the group itself, or none when it is already open.
+func openTarget(group state.ManagerGroup) string {
+	if group.Open {
+		return ""
+	}
+	return group.ID
+}
+
+// assignments lists the workspaces of an open group with Unassign, and the other workspaces with Assign.
+templ assignments(group state.ManagerGroup) {
+	<div class="stack gap-3" data-group-assignments>
+		<div class="stack gap-1.5">
+			<h3 class="text-sm font-semibold text-fg">{ msgInGroup.T(ctx) }</h3>
+			if len(group.Members) == 0 {
+				<p class="text-sm text-muted">{ msgNoMembers.T(ctx) }</p>
+			}
+			for _, workspace := range group.Members {
+				<div class="row justify-between gap-2" data-assigned-workspace={ workspace.ID }>
+					@shared.WorkspaceName(workspace.Name, workspace.Color)
+					<button type="button" class="btn-ghost" hx-post={ "/workspace-groups/workspaces/" + workspace.ID + "/group" } hx-vals={ groupVals("") } hx-swap="none">
+						{ msgUnassign.T(ctx) }
+					</button>
+				</div>
+			}
+		</div>
+		<div class="stack gap-1.5">
+			<h3 class="text-sm font-semibold text-fg">{ msgAvailable.T(ctx) }</h3>
+			if len(group.Available) == 0 {
+				<p class="text-sm text-muted">{ msgNoAvailable.T(ctx) }</p>
+			}
+			for _, workspace := range group.Available {
+				<div class="row justify-between gap-2" data-available-workspace={ workspace.ID }>
+					<span class="row min-w-0 gap-2">
+						@shared.WorkspaceName(workspace.Name, workspace.Color)
+						if workspace.GroupName != "" {
+							<span class="text-xs text-muted">{ msgCurrentGroup.Fmt(ctx, map[string]string{"group": workspace.GroupName}) }</span>
+						}
+					</span>
+					<button type="button" class="btn-ghost" hx-post={ "/workspace-groups/workspaces/" + workspace.ID + "/group" } hx-vals={ groupVals(group.ID) } hx-swap="none">
+						{ msgAssign.T(ctx) }
+					</button>
+				</div>
+			}
+		</div>
+	</div>
+}

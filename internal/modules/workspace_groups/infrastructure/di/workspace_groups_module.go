@@ -22,6 +22,7 @@ type Module struct {
 	Move     *application.MoveWorkspace
 	Pin      *application.SetPinned
 	Arrange  *application.ArrangeWorkspaces
+	Assigned *application.ListAssignments
 
 	handlers *inbound.Handlers
 }
@@ -32,8 +33,8 @@ type uuidGenerator struct{}
 
 func (uuidGenerator) NewID() string { return uuid.NewString() }
 
-// NewModule builds the repository, the use cases and the handlers.
-func NewModule(db *sql.DB) *Module {
+// NewModule builds the repository, the use cases and the handlers. The catalog lists the workspaces the management card assigns.
+func NewModule(db *sql.DB, catalog inbound.WorkspaceCatalog) *Module {
 	repository := persistence.NewGroupRepository(db)
 	module := &Module{
 		Create:   application.NewCreateGroup(repository, uuidGenerator{}),
@@ -43,10 +44,12 @@ func NewModule(db *sql.DB) *Module {
 		Move:     application.NewMoveWorkspace(repository),
 		Pin:      application.NewSetPinned(repository),
 		Arrange:  application.NewArrangeWorkspaces(repository),
+		Assigned: application.NewListAssignments(repository),
 	}
 	module.handlers = inbound.NewHandlers(inbound.UseCases{
 		Create: module.Create, Update: module.Update, Delete: module.Delete,
 		Collapse: module.Collapse, Move: module.Move, Pin: module.Pin,
+		Assignments: module.Assigned, Catalog: catalog,
 	})
 	return module
 }

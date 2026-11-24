@@ -45,6 +45,7 @@ import (
 	workspacesoutbound "iworkflow/internal/modules/workspaces/domain/ports/outbound"
 
 	wgmodels "iworkflow/internal/modules/workspace_groups/domain/models"
+	wginbound "iworkflow/internal/modules/workspace_groups/infrastructure/adapters/inbound"
 )
 
 // projectLookup presents the workspaces as the projects an AGENTS.md can be installed in. The
@@ -922,6 +923,27 @@ func (a *sidebarArranger) Arrange(ctx context.Context, workspaceIDs []string) (t
 			Collapsed:  members.Group.Collapsed(),
 			Workspaces: members.Workspaces,
 		})
+	}
+	return out, nil
+}
+
+// workspaceGroupCatalog lists the workspaces the group management card assigns. The workspace_groups module never
+// imports the workspaces module: the composition root maps its workspaces here.
+type workspaceGroupCatalog struct {
+	list *workspacesapp.ListWorkspaces
+}
+
+var _ wginbound.WorkspaceCatalog = (*workspaceGroupCatalog)(nil)
+
+// List returns every workspace by name, with its palette color ("" when it has none).
+func (c *workspaceGroupCatalog) List(ctx context.Context) ([]wginbound.WorkspaceInfo, error) {
+	workspaces, err := c.list.Execute(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list the workspaces to group: %w", err)
+	}
+	out := make([]wginbound.WorkspaceInfo, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		out = append(out, wginbound.WorkspaceInfo{ID: workspace.ID.String(), Name: workspace.Name, Color: derefColor(workspace.Color)})
 	}
 	return out, nil
 }

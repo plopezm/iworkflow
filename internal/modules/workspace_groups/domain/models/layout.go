@@ -13,3 +13,10 @@ type GroupMembers struct {
 	Group      Group
 	Workspaces []string
 }
+
+// Assignments is the membership of every group as the management screen shows it: unlike Layout, a pinned workspace
+// stays in its group, because pinning only changes where the sidebar lists it. Values are workspace ids.
+type Assignments struct {
+	Groups     []GroupMembers
+	Unassigned []string
+}
