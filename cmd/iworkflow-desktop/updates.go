@@ -1,3 +1,5 @@
+//go:build gtk3 || !linux
+
 package main
 
 import (
@@ -163,7 +165,7 @@ func startHelper(executable string, args desktop.HelperArgs) error {
 		"-archive", args.Archive, "-sha256", args.SHA256, "-target", args.Target,
 		"-exe", args.Executable, "-pid", strconv.Itoa(args.ParentPID), "-cleanup-dir", scratch); err != nil {
 		_ = os.RemoveAll(scratch) //nolint:errcheck // best effort: the start failed already
-		return err
+		return fmt.Errorf("starting the updater: %w", err)
 	}
 	return nil
 }

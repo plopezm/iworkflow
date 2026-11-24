@@ -66,7 +66,7 @@ func (s *Supervisor) Start(ctx context.Context) (Addr, error) {
 	if err != nil {
 		return Addr{}, err
 	}
-	if isPinned && !portFree(pinned) {
+	if isPinned && !portFree(ctx, pinned) {
 		return Addr{}, fmt.Errorf("port %d is already in use (another iworkflow instance?); close it or set IWORKFLOW_ADDR to another address", pinned.Port)
 	}
 	announced := make(chan Addr, 1)
@@ -97,7 +97,7 @@ func (s *Supervisor) Start(ctx context.Context) (Addr, error) {
 		pinned.Scheme = addr.Scheme
 		addr = pinned
 	}
-	for !s.canConnect(addr) {
+	for !s.canConnect(ctx, addr) {
 		select {
 		case <-s.exited:
 			return Addr{}, ErrServerStopped
@@ -120,7 +120,7 @@ func (s *Supervisor) moveProgress() time.Time {
 
 func (s *Supervisor) spawn(onListening func(Addr)) error {
 	exe := filepath.Join(s.Dir, ServerBinaryName(runtime.GOOS))
-	cmd := exec.Command(exe, ServerArgs()...) //nolint:gosec // the binary is the server shipped with the app
+	cmd := exec.Command(exe, ServerArgs()...) //nolint:gosec,noctx // the server is stopped by Stop, not by a context
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("home directory: %w", err)
@@ -218,7 +218,7 @@ func (s *Supervisor) Stop() {
 
 // canConnect probes the port; a loopback https server is probed with a TLS handshake that accepts its
 // self-signed certificate. That relaxed verification applies to this one probe socket only.
-func (s *Supervisor) canConnect(addr Addr) bool {
+func (s *Supervisor) canConnect(ctx context.Context, addr Addr) bool {
 	target := net.JoinHostPort(addr.LocalHost(), strconv.Itoa(addr.Port))
 	dialer := &net.Dialer{Timeout: handshakeTimeout}
 	if addr.Scheme == "http" || !addr.IsLoopback() {
@@ -229,7 +229,10 @@ func (s *Supervisor) canConnect(addr Addr) bool {
 		_ = conn.Close()
 		return true
 	}
-	conn, err := tls.DialWithDialer(dialer, "tcp", target, &tls.Config{InsecureSkipVerify: true}) //nolint:gosec // loopback probe only
+	ctx, cancel := context.WithTimeout(ctx, handshakeTimeout)
+	defer cancel()
+	tlsDialer := &tls.Dialer{NetDialer: dialer, Config: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // loopback probe only
+	conn, err := tlsDialer.DialContext(ctx, "tcp", target)
 	if err != nil {
 		return false
 	}
@@ -237,8 +240,8 @@ func (s *Supervisor) canConnect(addr Addr) bool {
 	return true
 }
 
-func portFree(addr Addr) bool {
-	listener, err := net.Listen("tcp", net.JoinHostPort(addr.Host, strconv.Itoa(addr.Port)))
+func portFree(ctx context.Context, addr Addr) bool {
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", net.JoinHostPort(addr.Host, strconv.Itoa(addr.Port)))
 	if err != nil {
 		return false
 	}

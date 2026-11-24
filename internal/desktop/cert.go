@@ -1,6 +1,7 @@
 package desktop
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/pem"
 	"errors"
@@ -16,12 +17,19 @@ func (a Addr) ServerCertificatePEM() ([]byte, error) {
 		return nil, errors.New("not a local https server")
 	}
 	target := net.JoinHostPort(a.LocalHost(), strconv.Itoa(a.Port))
-	conn, err := tls.DialWithDialer(&net.Dialer{Timeout: handshakeTimeout}, "tcp", target, &tls.Config{InsecureSkipVerify: true}) //nolint:gosec // reads the certificate to pin it, sends nothing
+	ctx, cancel := context.WithTimeout(context.Background(), handshakeTimeout)
+	defer cancel()
+	dialer := &tls.Dialer{NetDialer: &net.Dialer{}, Config: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // reads the certificate to pin it, sends nothing
+	conn, err := dialer.DialContext(ctx, "tcp", target)
 	if err != nil {
 		return nil, fmt.Errorf("reading the server certificate: %w", err)
 	}
 	defer func() { _ = conn.Close() }()
-	certs := conn.ConnectionState().PeerCertificates
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return nil, errors.New("not a TLS connection")
+	}
+	certs := tlsConn.ConnectionState().PeerCertificates
 	if len(certs) == 0 {
 		return nil, errors.New("the server presented no certificate")
 	}

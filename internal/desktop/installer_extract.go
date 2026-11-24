@@ -135,7 +135,10 @@ func (e *extractor) writeFile(tr *tar.Reader, target string, hdr *tar.Header) er
 	case closeErr != nil:
 		return fmt.Errorf("close file: %w", closeErr)
 	}
-	return os.Chmod(target, hdr.FileInfo().Mode().Perm())
+	if err := os.Chmod(target, hdr.FileInfo().Mode().Perm()); err != nil {
+		return fmt.Errorf("set the mode of %s: %w", target, err)
+	}
+	return nil
 }
 
 // symlink creates a symlink whose target, resolved from its own folder, stays inside dest.

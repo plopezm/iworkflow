@@ -1,3 +1,5 @@
+//go:build gtk3 || !linux
+
 // Command iworkflow-desktop is the desktop shell (Wails 3): it starts the iworkflow server as a child
 // process and shows it in a window. The server keeps its own network settings, so a phone can still reach
 // it; closing the window only hides it and "Quit" stops the server.

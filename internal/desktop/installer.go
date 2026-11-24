@@ -497,7 +497,7 @@ func parseChecksums(text string) (map[string]string, error) {
 func (a *ArchiveInstaller) checkInstallLocation() error {
 	info, err := os.Stat(a.cfg.Target)
 	if err != nil {
-		return fmt.Errorf("install folder %s: %v: %w", a.cfg.Target, err, ErrAutoUpdateUnsupported)
+		return fmt.Errorf("install folder %s: %w: %w", a.cfg.Target, err, ErrAutoUpdateUnsupported)
 	}
 	if !info.IsDir() {
 		return fmt.Errorf("install folder %s is not a directory: %w", a.cfg.Target, ErrAutoUpdateUnsupported)
@@ -505,7 +505,7 @@ func (a *ArchiveInstaller) checkInstallLocation() error {
 	parent := filepath.Dir(a.cfg.Target)
 	probe, err := os.CreateTemp(parent, probePattern)
 	if err != nil {
-		return fmt.Errorf("install folder parent %s is not writable (%v): %w", parent, err, ErrAutoUpdateUnsupported)
+		return fmt.Errorf("install folder parent %s is not writable (%w): %w", parent, err, ErrAutoUpdateUnsupported)
 	}
 	name := probe.Name()
 	if err := probe.Close(); err != nil {
@@ -726,7 +726,7 @@ func waitForProcessExit(ctx context.Context, pid int) error {
 			done <- waitErr
 		}()
 		select {
-		case <-done:
+		case <-done: //nolint:errcheck // the exit status of the app is irrelevant: it only has to be gone
 			return nil
 		case <-ctx.Done():
 			return fmt.Errorf("process %d is still running: %w", pid, ctx.Err())
