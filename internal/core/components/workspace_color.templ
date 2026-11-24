@@ -6,7 +6,7 @@ templ WorkspaceName(name, color string) {
 	if WorkspaceColorClass(color) == "" {
 		<span class="min-w-0 truncate">{ name }</span>
 	} else {
-		<span class={ WorkspaceNameClass(color) } data-workspace-color={ color }>
+		<span class={ WorkspaceNameClass(color) } style={ WorkspaceColorStyle(color) } data-workspace-color={ color }>
 			<span class="ws-dot" aria-hidden="true"></span>
 			<span class="min-w-0 truncate">{ name }</span>
 		</span>
@@ -38,6 +38,11 @@ templ ColorPicker(p ColorPickerProps) {
 					<span></span>
 				</label>
 			}
+			<label class="ws-swatch ws-swatch-custom" title={ msgCustomColor.T(ctx) } style={ WorkspaceColorStyle(p.Value) } data-ws-custom>
+				<input type="radio" name={ p.Name } value={ customValue(p.Value) } checked?={ IsHexColor(p.Value) } aria-label={ msgCustomColor.T(ctx) } data-ws-custom-radio/>
+				<span aria-hidden="true">+</span>
+				<input type="color" value={ customPickerValue(p.Value) } tabindex="-1" aria-hidden="true" data-ws-custom-input/>
+			</label>
 		</div>
 	</fieldset>
 }

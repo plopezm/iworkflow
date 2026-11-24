@@ -27,7 +27,7 @@ type Group struct {
 }
 
 // NewGroup validates the fields and builds the group. The name is trimmed and required; the color is
-// optional and must be a palette key.
+// optional and must be a palette key or a lowercase #rrggbb color.
 func NewGroup(id string, name string, color string, collapsed bool) (Group, error) {
 	name = strings.TrimSpace(name)
 	color = strings.TrimSpace(color)
@@ -62,7 +62,20 @@ func isColor(key string) bool {
 			return true
 		}
 	}
-	return false
+	return isHexColor(key)
+}
+
+// isHexColor reports whether the text is a lowercase "#rrggbb" color, the custom color of a browser input.
+func isHexColor(key string) bool {
+	if len(key) != 7 || key[0] != '#' {
+		return false
+	}
+	for _, c := range key[1:] {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func invalid(message string) error {

@@ -94,7 +94,18 @@ func TestColorIsOptionalAndMustBeAPaletteKey(t *testing.T) {
 	_, err = models.NewWorkspace{Name: "a", Path: "/tmp/a", Color: "chartreuse"}.Validated()
 	require.ErrorIs(t, err, werrors.InvalidColor(""))
 
-	bad := "#ff0000"
+	bad := "#ff00"
 	_, err = models.WorkspaceUpdate{Name: "a", Color: &bad}.Validated()
 	require.ErrorIs(t, err, werrors.InvalidColor(""))
+}
+
+func TestColorAcceptsALowercaseHexValueAndRejectsOtherShapes(t *testing.T) {
+	ok, err := models.NewWorkspace{Name: "a", Path: "/tmp/a", Color: " #1a2b3c "}.Validated()
+	require.NoError(t, err)
+	assert.Equal(t, "#1a2b3c", ok.Color)
+
+	for _, bad := range []string{"#1A2B3C", "#123", "#12345g", "1a2b3c", "#1a2b3c4d", "rgb(1,2,3)"} {
+		_, err = models.NewWorkspace{Name: "a", Path: "/tmp/a", Color: bad}.Validated()
+		require.ErrorIs(t, err, werrors.InvalidColor(""), bad)
+	}
 }

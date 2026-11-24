@@ -31,3 +31,13 @@ func TestDashboardCardOfAnUncoloredWorkspaceHasNoRail(t *testing.T) {
 	assert.NotContains(t, html, "ws-rail")
 	assert.NotContains(t, html, "ws-dot")
 }
+
+func TestDashboardCardOfACustomColorCarriesTheColorVariable(t *testing.T) {
+	t.Parallel()
+
+	item := state.DashboardTaskItem{Task: dto.TaskDTO{ID: "t1"}, WorkspaceName: "iWorkflow", WorkspaceColor: "#1a2b3c"}
+	html := renderComponent(t, i18n.Es, components.DashboardTaskCard(item, "s"))
+
+	assert.Contains(t, html, "ws-rail ws-custom")
+	assert.Contains(t, html, "--ws:#1a2b3c;")
+}

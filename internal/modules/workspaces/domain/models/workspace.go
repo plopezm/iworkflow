@@ -18,7 +18,8 @@ import (
 const maxNameLength = 80
 
 // Colors are the palette keys a workspace can be marked with. The presentation maps each key to a color
-// that fits the chosen theme; an empty color means the workspace has none.
+// that fits the chosen theme; an empty color means the workspace has none. A custom color is a lowercase
+// "#rrggbb" value, which is what a browser color input submits.
 var colors = [...]string{"red", "orange", "amber", "green", "teal", "cyan", "blue", "violet", "pink", "gray"}
 
 // Colors returns the accepted palette keys, in display order.
@@ -33,7 +34,23 @@ func validateColor(color string) error {
 			return nil
 		}
 	}
+	if isHexColor(color) {
+		return nil
+	}
 	return werrors.InvalidColor(color)
+}
+
+// isHexColor reports whether the text is a lowercase "#rrggbb" color.
+func isHexColor(color string) bool {
+	if len(color) != 7 || color[0] != '#' {
+		return false
+	}
+	for _, c := range color[1:] {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // WorkspaceID identifies a workspace. It is a UUID in canonical (lowercase, hyphenated) form.

@@ -182,6 +182,7 @@ templ DashboardTaskCard(item state.DashboardTaskItem, scope string) {
 	<article
 		id={ state.Scoped("dash-task-"+task.ID, scope) }
 		class={ "card dashboard-task-card group relative flex flex-col gap-2 p-3 border border-border/80 bg-surface transition-all hover:border-fg/40 hover:shadow-sm " + toggleClass("", task.NeedsAttention, "border-error/60 bg-error/5") + " " + workspaceRailClass(item.WorkspaceColor) }
+		style={ shared.WorkspaceColorStyle(item.WorkspaceColor) }
 		data-dashboard-task
 		data-task-id={ task.ID }
 		data-workspace-id={ task.WorkspaceID }

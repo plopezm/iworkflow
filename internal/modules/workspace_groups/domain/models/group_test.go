@@ -47,3 +47,14 @@ func TestNewGroupCountsTheNameInCharactersNotBytes(t *testing.T) {
 func TestColorsListsThePaletteInDisplayOrder(t *testing.T) {
 	assert.Equal(t, []string{"red", "orange", "amber", "green", "teal", "cyan", "blue", "violet", "pink", "gray"}, models.Colors())
 }
+
+func TestNewGroupAcceptsALowercaseHexColorAndRejectsOtherShapes(t *testing.T) {
+	group, err := models.NewGroup("g1", "Backend", " #1a2b3c ", false)
+	require.NoError(t, err)
+	assert.Equal(t, "#1a2b3c", group.Color())
+
+	for _, bad := range []string{"#1A2B3C", "#123", "#12345g", "1a2b3c"} {
+		_, err = models.NewGroup("g1", "Backend", bad, false)
+		require.Error(t, err, bad)
+	}
+}

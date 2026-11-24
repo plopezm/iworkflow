@@ -75,3 +75,32 @@ func TestColorPickerOffersEveryColorAndChecksOnlyTheSelectedOne(t *testing.T) {
 	none := render(t, components.ColorPicker(components.ColorPickerProps{Label: "Color", NoneLabel: "No color", Name: "color"}))
 	assert.Contains(t, none, `value="" checked`)
 }
+
+func TestCustomHexColorRendersADotThroughAnInlineVariable(t *testing.T) {
+	html := render(t, components.WorkspaceName("Demo", "#1a2b3c"))
+
+	assert.Contains(t, html, "ws-name ws-custom")
+	assert.Contains(t, html, `style="--ws:#1a2b3c;"`)
+	assert.Contains(t, html, `<span class="ws-dot"`)
+}
+
+func TestInvalidHexColorRendersThePlainName(t *testing.T) {
+	html := render(t, components.WorkspaceName("Demo", "#1A2B3C"))
+
+	assert.NotContains(t, html, "ws-name")
+	assert.NotContains(t, html, "style=")
+}
+
+func TestColorPickerOffersACustomSwatchSelectedForAHexValue(t *testing.T) {
+	props := components.ColorPickerProps{Label: "Color", NoneLabel: "None", Name: "color", Value: "#1a2b3c"}
+	html := render(t, components.ColorPicker(props))
+
+	assert.Contains(t, html, `value="#1a2b3c" checked`)
+	assert.Contains(t, html, `data-ws-custom-input`)
+	assert.Equal(t, 1, strings.Count(html, " checked"))
+
+	palette := render(t, components.ColorPicker(components.ColorPickerProps{Label: "Color", NoneLabel: "None", Name: "color", Value: "blue"}))
+	assert.Contains(t, palette, `data-ws-custom-radio`)
+	assert.NotContains(t, palette, `value="#`+"1a2b3c")
+	assert.Equal(t, 1, strings.Count(palette, " checked"))
+}

@@ -23,7 +23,7 @@ const picker = (page) => page.locator('[data-testid="workspace-color-picker"]');
 const checkedColor = (page) =>
   page.locator('[data-testid="workspace-color-picker"] input[name="color"]:checked').evaluate((el) => el.value);
 const pickColor = (page, key) =>
-  page.locator(`[data-testid="workspace-color-picker"] input[name="color"][value="${key}"]`).check();
+  page.locator(`[data-testid="workspace-color-picker"] input[name="color"][value="${key}"]:not([data-ws-custom-radio])`).check();
 const sidebarChip = (page) => page.locator('#board-sidebar [data-workspace-color]', { hasText: NAME }).first();
 
 // Polls `read()` until it returns `expected` (or the timeout ends). Returns the last value read.
@@ -164,6 +164,24 @@ module.exports = {
 
         // ---- 3. Color de nuevo: barra lateral y tablero ----
         await openEdit(ctx);
+        await pickColor(page, 'violet');
+        await saveEdit(ctx);
+        await ctx.goto('/workspaces');
+        await expectListColor(ctx, 'violet');
+
+        // ---- 3b. Color personalizado: el "+" abre el selector nativo y se guarda como #rrggbb ----
+        await openEdit(ctx);
+        const custom = page.locator('[data-testid="workspace-color-picker"] [data-ws-custom-input]');
+        await custom.fill('#1a2b3c');
+        ctx.assert((await checkedColor(page)) === '#1a2b3c', `el color personalizado debe quedar seleccionado, obtenido "${await checkedColor(page)}"`);
+        await saveEdit(ctx);
+        await ctx.goto('/workspaces');
+        await card(page).locator('.ws-name.ws-custom').waitFor({ timeout: 12000 });
+        const customDot = await card(page).locator('.ws-name .ws-dot').evaluate((el) => getComputedStyle(el).backgroundColor);
+        ctx.assert(customDot === 'rgb(26, 43, 60)', `el punto personalizado esperado rgb(26, 43, 60), obtenido ${customDot}`);
+        await openEdit(ctx);
+        ctx.assert((await checkedColor(page)) === '#1a2b3c', `la edición debe preseleccionar el personalizado, obtenido "${await checkedColor(page)}"`);
+        await picker(page).screenshot({ path: path.join(SHOTS, 'workspace-colors-picker-custom.png') });
         await pickColor(page, 'violet');
         await saveEdit(ctx);
         await ctx.goto('/workspaces');
