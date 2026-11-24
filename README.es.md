@@ -50,6 +50,8 @@ Necesitas `git`, Go, `templ`, `tailwindcss` y al menos un CLI de agente instalad
 
 `make wails-package` construye el shell de escritorio Wails (`cmd/iworkflow-desktop`) con el servidor preparado a su lado y escribe el paquete del sistema actual en `dist/wails/`. En Linux es un `.tar.gz`: descomprímelo y ejecuta `./iworkflow-desktop` (el servidor está en `server/`; `iworkflow.desktop` es una plantilla de lanzador cuyos `Exec` e `Icon` puedes apuntar a la carpeta extraída). El `.dmg` de macOS y el instalador NSIS de Windows aún no están verificados. Los instaladores de Electron de `make electron-build` siguen siendo la aplicación de escritorio distribuida.
 
+Cada paquete escribe también el recurso de actualización `iworkflow-<version>-<goos>-<goarch>.tar.gz` (una carpeta superior con los archivos de la app que reemplaza el actualizador; `iworkflow-updater` está junto a `iworkflow-desktop`) y `SHA256SUMS` con el sha256 de cada archivo de la ejecución, que el actualizador comprueba antes de instalar. Los recursos de actualización de macOS y Windows aún no están verificados.
+
 ## Más información
 
 | Tema | Qué encontrarás |

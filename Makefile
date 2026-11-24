@@ -155,17 +155,23 @@ electron-dev-https: electron-dev
 # Wails 3 desktop shell (prototype of the Electron replacement). Linux uses GTK3 + webkit2gtk-4.1 (build tag gtk3).
 WAILS_TAGS := $(if $(filter linux,$(shell go env GOOS)),-tags gtk3,)
 
-# Desktop binary written to bin/.
-wails-build:
-	go build $(WAILS_TAGS) $(if $(APP_VERSION),-ldflags="-X main.version=$(APP_VERSION)",) -o bin/iworkflow-desktop$(GOEXE) ./cmd/iworkflow-desktop
-
-# Desktop package for the current OS, written to $(WAILS_PACKAGE_DIR): a tar.gz on Linux (AppImage not used, see
-# scripts/wails_package.sh), a .dmg on macOS and an NSIS setup on Windows. The server staged by stage_server.sh sits in
-# server/ next to the desktop binary, where internal/desktop finds it. macOS and Windows are UNVERIFIED: not built on those
-# hosts yet. Override APP_VERSION on the command line if needed; the version comes from electron/package.json.
-WAILS_PACKAGE_DIR := $(DIST_DIR)/wails
+# Desktop binary and update helper written to bin/. The helper has no cgo and no GUI (CGO_ENABLED=0); on Windows it is
+# linked as a GUI binary so that it opens no console window.
 WAILS_GOOS := $(shell go env GOOS)
 WAILS_GOARCH := $(shell go env GOARCH)
+WAILS_UPDATER_LDFLAGS := -ldflags="-s -w$(if $(filter windows,$(WAILS_GOOS)), -H windowsgui,)"
+
+wails-build:
+	go build $(WAILS_TAGS) $(if $(APP_VERSION),-ldflags="-X main.version=$(APP_VERSION)",) -o bin/iworkflow-desktop$(GOEXE) ./cmd/iworkflow-desktop
+	CGO_ENABLED=0 go build $(WAILS_UPDATER_LDFLAGS) -o bin/iworkflow-updater$(GOEXE) ./cmd/iworkflow-updater
+
+# Desktop package for the current OS, written to $(WAILS_PACKAGE_DIR): a tar.gz on Linux (AppImage not used, see
+# scripts/wails_package.sh), a .dmg on macOS and an NSIS setup on Windows. Every OS also gets the update asset
+# iworkflow-<version>-<goos>-<goarch>.tar.gz, and SHA256SUMS lists the files of the run. The server staged by stage_server.sh
+# sits in server/ next to the desktop binary, where internal/desktop finds it; the update helper sits next to it too.
+# macOS and Windows are UNVERIFIED: not built on those hosts yet. Override APP_VERSION on the command line if needed; the
+# version comes from electron/package.json.
+WAILS_PACKAGE_DIR := $(DIST_DIR)/wails
 WAILS_LDFLAGS := -ldflags="-s -w$(if $(APP_VERSION), -X main.version=$(APP_VERSION),)$(if $(filter windows,$(WAILS_GOOS)), -H windowsgui,)"
 
 wails-package: $(if $(SKIP_SERVER_BUILD),,dist)
@@ -174,7 +180,8 @@ wails-package: $(if $(SKIP_SERVER_BUILD),,dist)
 	mkdir -p $(WAILS_PACKAGE_DIR)/work
 	./scripts/stage_server.sh $(DIST_DIR) $(WAILS_PACKAGE_DIR)/work/server $(BIN_FILE)
 	go build $(WAILS_TAGS) $(WAILS_LDFLAGS) -o $(WAILS_PACKAGE_DIR)/work/iworkflow-desktop$(GOEXE) ./cmd/iworkflow-desktop
-	./scripts/wails_package.sh $(WAILS_GOOS) $(WAILS_GOARCH) $(APP_VERSION) $(WAILS_PACKAGE_DIR)/work/iworkflow-desktop$(GOEXE) $(WAILS_PACKAGE_DIR)/work/server $(WAILS_PACKAGE_DIR)
+	CGO_ENABLED=0 go build $(WAILS_UPDATER_LDFLAGS) -o $(WAILS_PACKAGE_DIR)/work/iworkflow-updater$(GOEXE) ./cmd/iworkflow-updater
+	./scripts/wails_package.sh $(WAILS_GOOS) $(WAILS_GOARCH) $(APP_VERSION) $(WAILS_PACKAGE_DIR)/work/iworkflow-desktop$(GOEXE) $(WAILS_PACKAGE_DIR)/work/iworkflow-updater$(GOEXE) $(WAILS_PACKAGE_DIR)/work/server $(WAILS_PACKAGE_DIR)
 	rm -rf $(WAILS_PACKAGE_DIR)/work
 	@echo "Package written to $(WAILS_PACKAGE_DIR)"
 

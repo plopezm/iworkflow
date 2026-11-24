@@ -1,7 +1,7 @@
 ; UNVERIFIED: written for `make wails-package` on Windows. makensis was not available when it was written.
 ;
 ; Per-user NSIS installer. scripts/wails_package.sh runs:
-;   makensis -DVERSION=<x.y.z> -DARCH=<amd64|arm64> -DSTAGE=<folder with iworkflow-desktop.exe and server\>
+;   makensis -DVERSION=<x.y.z> -DARCH=<amd64|arm64> -DSTAGE=<folder with iworkflow-desktop.exe, iworkflow-updater.exe and server\>
 ;            -DBUILD=<this build folder> -DOUTDIR=<output folder> build/windows/installer.nsi
 ;
 ; The data-folder page mirrors electron/build/installer.nsh: it asks where iworkflow keeps its data and stores the
@@ -92,6 +92,7 @@ Page custom IwfHomePageCreate IwfHomePageLeave
 Section "iworkflow"
   SetOutPath "$INSTDIR"
   File "${STAGE}\iworkflow-desktop.exe"
+  File "${STAGE}\iworkflow-updater.exe"
   SetOutPath "$INSTDIR\server"
   File /r "${STAGE}\server\*.*"
   SetOutPath "$INSTDIR"
