@@ -53,6 +53,8 @@ var (
 	msgPinnedSection     = i18n.Msg{En: "Pinned", Es: "Fijados", Zh: "已固定", De: "Angeheftet", Fr: "Épinglés"}
 	msgNewGroup          = i18n.Msg{En: "New group", Es: "Nuevo grupo", Zh: "新建分组", De: "Neue Gruppe", Fr: "Nouveau groupe"}
 	msgGroupNamePrompt   = i18n.Msg{En: "Group name", Es: "Nombre del grupo", Zh: "分组名称", De: "Gruppenname", Fr: "Nom du groupe"}
+	msgPromptOk          = i18n.Msg{En: "OK", Es: "Aceptar", Zh: "确定", De: "OK", Fr: "OK"}
+	msgPromptCancel      = i18n.Msg{En: "Cancel", Es: "Cancelar", Zh: "取消", De: "Abbrechen", Fr: "Annuler"}
 	msgRenameGroup       = i18n.Msg{En: "Rename group", Es: "Renombrar grupo", Zh: "重命名分组", De: "Gruppe umbenennen", Fr: "Renommer le groupe"}
 	msgDeleteGroup       = i18n.Msg{En: "Delete group", Es: "Eliminar grupo", Zh: "删除分组", De: "Gruppe löschen", Fr: "Supprimer le groupe"}
 	msgNoColor           = i18n.Msg{En: "No color", Es: "Sin color", Zh: "无颜色", De: "Keine Farbe", Fr: "Aucune couleur"}

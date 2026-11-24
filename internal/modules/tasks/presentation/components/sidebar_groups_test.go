@@ -149,3 +149,14 @@ func TestArrangedLayoutWithEverythingPinnedRendersNoUngroupedRows(t *testing.T) 
 	assert.Equal(t, 2, strings.Count(html, `data-workspace-row=`), "each workspace is rendered once, in the pinned block")
 	assert.Less(t, strings.Index(html, `data-pinned-section`), strings.Index(html, `data-workspace-row="w2"`))
 }
+
+// The "+" and the rename ask for the name in a dialog of the page (web/static/js/group_prompt.js). hx-prompt would call
+// window.prompt, which Electron does not implement, so neither may render it.
+func TestGroupNamePromptsUseTheDialogAttributesNotHxPrompt(t *testing.T) {
+	out := renderComponent(t, i18n.En, components.BoardSidebar(groupedRows()))
+
+	assert.NotContains(t, out, "hx-prompt")
+	assert.Equal(t, 2, strings.Count(out, `data-prompt-field="name"`), "the + and the rename each name their field")
+	assert.Contains(t, out, `data-prompt-question="Group name"`)
+	assert.Contains(t, out, `data-prompt-question="Rename group"`)
+}

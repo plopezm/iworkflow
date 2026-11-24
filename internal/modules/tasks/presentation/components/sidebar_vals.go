@@ -7,6 +7,8 @@ import (
 
 	"github.com/a-h/templ"
 
+	"iworkflow/internal/core/i18n"
+
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
 
@@ -16,6 +18,17 @@ import (
 func jsonVals(values map[string]string) string {
 	encoded, _ := json.Marshal(values)
 	return string(encoded)
+}
+
+// promptAttrs are the attributes that make a button ask for a name in a dialog before its request goes out, and send the
+// answer as the form field "name" (see web/static/js/group_prompt.js). They replace hx-prompt, which needs window.prompt.
+func promptAttrs(ctx context.Context, question i18n.Msg) templ.Attributes {
+	return templ.Attributes{
+		"data-prompt-question": question.T(ctx),
+		"data-prompt-ok":       msgPromptOk.T(ctx),
+		"data-prompt-cancel":   msgPromptCancel.T(ctx),
+		"data-prompt-field":    "name",
+	}
 }
 
 // groupCollapseVals is the hx-vals of a group toggle: the state the group switches to.

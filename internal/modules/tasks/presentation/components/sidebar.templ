@@ -133,8 +133,7 @@ templ groupCreateButton() {
 		title={ msgNewGroup.T(ctx) }
 		aria-label={ msgNewGroup.T(ctx) }
 		hx-post="/workspace-groups"
-		hx-prompt={ msgGroupNamePrompt.T(ctx) }
-		data-prompt-field="name"
+		{ promptAttrs(ctx, msgGroupNamePrompt)... }
 		hx-swap="none"
 	>+</button>
 }
@@ -181,7 +180,7 @@ templ workspaceRow(workspace state.SidebarWorkspace, groups []state.SidebarGroup
 
 // groupMenu is the "…" menu of a group: rename, recolor (one entry per palette color, and none) and delete.
 templ groupMenu(group state.SidebarGroup) {
-	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-prompt={ msgRenameGroup.T(ctx) } data-prompt-field="name" hx-vals={ groupColorVals(group.Color) } hx-swap="none">
+	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } { promptAttrs(ctx, msgRenameGroup)... } hx-vals={ groupColorVals(group.Color) } hx-swap="none">
 		{ msgRenameGroup.T(ctx) }
 	</button>
 	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-vals={ groupEditVals(group.Name, "") } hx-swap="none">

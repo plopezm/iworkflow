@@ -1,6 +1,6 @@
 // end2end/go/workspace_groups.e2e.cjs
 // Workspace groups of the Home sidebar, end to end in the browser (odd/tasks/workspace-groups.md, T6, S1-S9).
-// One ordered flow over three workspaces: create a group from the "+" prompt, move workspaces in and out of it from
+// One ordered flow over three workspaces: create a group from the "+" dialog, move workspaces in and out of it from
 // their "…" menus, collapse it and reload, see the count and the attention marker, pin a workspace, filter by name (the search opens from its icon)
 // (focus and text survive a sidebar refresh, matches inside a collapsed group appear, no match shows the empty line),
 // recolor, rename and delete the group, and check that the open menus survive a refresh.
@@ -119,25 +119,29 @@ const searchToggle = (page) => page.locator('#board-sidebar #board-sidebar-searc
 const refreshSidebar = (page) =>
   page.evaluate(() => document.body.dispatchEvent(new CustomEvent('board:refresh', { bubbles: true })));
 
-// Answers the next htmx prompt (window.prompt) with `answer` while action runs. The harness accepts every dialog
-// without an answer, so its listener is swapped for the time of the action and put back afterwards.
+// Answers the name dialog the "+" and the rename open (a <dialog>, not window.prompt: Electron has no prompt()) while
+// action runs. The harness accepts any native dialog, so a native prompt reaching the page is a failure.
 async function answerPrompt(ctx, answer, action) {
   const { page } = ctx;
-  const seen = [];
+  const native = [];
   const handler = (dialog) => {
-    seen.push(dialog.type());
-    dialog.accept(answer);
+    native.push(dialog.type());
+    dialog.accept();
   };
   page.removeAllListeners('dialog');
   page.on('dialog', handler);
   try {
     await action();
-    await until(async () => seen.length, (n) => n > 0, { timeout: 8000 });
+    const dialog = page.locator('dialog[open]');
+    await dialog.waitFor({ state: 'visible', timeout: 8000 });
+    await dialog.locator('input[name=answer]').fill(answer);
+    await dialog.getByRole('button', { name: 'Aceptar' }).click();
+    await dialog.waitFor({ state: 'detached', timeout: 8000 });
   } finally {
     page.off('dialog', handler);
-    page.on('dialog', (dialog) => dialog.accept());
+    page.on('dialog', (d) => d.accept());
   }
-  ctx.assert(seen.length === 1 && seen[0] === 'prompt', `se esperaba un prompt de htmx y llegaron ${JSON.stringify(seen)}`);
+  ctx.assert(native.length === 0, `no debe aparecer un dialogo nativo (window.prompt) y llegaron ${JSON.stringify(native)}`);
 }
 
 // Registers a workspace from the Workspaces screen and returns its name and id (read from the sidebar).
@@ -190,7 +194,7 @@ module.exports = {
           ctx.assert(snap.ungrouped.some((r) => r.id === ws.id), `${ws.name} empieza sin grupo`);
         }
 
-        // ---- 1. S1: crear un grupo con el "+" (prompt de htmx) ----
+        // ---- 1. S1: crear un grupo con el "+" (dialogo de nombre) ----
         const groupName = `Grupo ${tag}`;
         await answerPrompt(ctx, groupName, () => page.locator('#board-sidebar').getByRole('button', { name: /Nuevo grupo|New group/ }).click());
         snap = await until(() => readSidebar(page), (s) => Boolean(groupByName(s, groupName)));
@@ -343,7 +347,7 @@ module.exports = {
         snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.color === 'teal');
         ctx.assert(groupById(snap, group.id)?.color === 'teal', 'tras recargar el grupo conserva el color');
 
-        // ---- 8. S1: renombrar el grupo (prompt de htmx), el id no cambia ----
+        // ---- 8. S1: renombrar el grupo (dialogo de nombre), el id no cambia ----
         const renamed = `Equipo ${tag}`;
         {
           const panel = await openMenu(groupEl(page, group.id));

@@ -1,13 +1,14 @@
 // Run with: node --test web/static/js/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { carryPromptAnswer, setupGroupPrompt } from './group_prompt.js';
+import { setupGroupPrompt } from './group_prompt.js';
 
-function element(field) {
-  return { getAttribute: (name) => (name === 'data-prompt-field' ? field : null) };
+function element(question, field) {
+  const attrs = { 'data-prompt-question': question, 'data-prompt-field': field };
+  return { getAttribute: (name) => (attrs[name] === undefined ? null : attrs[name]) };
 }
 
-// A document stand-in that records the htmx:configRequest listener setupGroupPrompt installs on the body.
+// A document stand-in that records the htmx listeners setupGroupPrompt installs on the body.
 function fakeRoot() {
   const listeners = {};
   return {
@@ -16,77 +17,86 @@ function fakeRoot() {
   };
 }
 
-// The event htmx fires before it sends a request; preventDefault cancels the request.
-function configRequest(detail) {
-  const event = { detail, target: null, defaultPrevented: false };
+// The htmx:confirm event: preventDefault holds the request until detail.issueRequest is called.
+function confirmEvent(elt) {
+  const event = { detail: { elt, issued: 0, issueRequest() { this.issued += 1; } }, defaultPrevented: false };
   event.preventDefault = () => { event.defaultPrevented = true; };
   return event;
 }
 
-test('the prompt answer becomes the form field the element names', () => {
-  const detail = { headers: { 'HX-Prompt': 'Backend' }, parameters: { color: 'red' } };
+function configEvent(elt, parameters = {}) {
+  return { detail: { elt, parameters, headers: {} } };
+}
 
-  assert.equal(carryPromptAnswer(detail, element('name')), true);
-  assert.deepEqual(detail.parameters, { color: 'red', name: 'Backend' });
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test('an element with a question holds its request and asks the user, never window.prompt', async () => {
+  const root = fakeRoot();
+  const asked = [];
+  setupGroupPrompt(root, async (elt) => { asked.push(elt); return 'Backend'; });
+  const elt = element('Group name', 'name');
+  const event = confirmEvent(elt);
+
+  root.dispatch('htmx:confirm', event);
+  await tick();
+
+  assert.equal(event.defaultPrevented, true);
+  assert.deepEqual(asked, [elt]);
+  assert.equal(event.detail.issued, 1, 'the request resumes once the user answers');
 });
 
-test('a request without a prompt answer is left as it is', () => {
-  const detail = { headers: {}, parameters: { name: 'kept' } };
+test('the answer becomes the form field the element names, only for that request', async () => {
+  const root = fakeRoot();
+  setupGroupPrompt(root, async () => 'Backend');
+  const elt = element('Group name', 'name');
+  root.dispatch('htmx:confirm', confirmEvent(elt));
+  await tick();
 
-  assert.equal(carryPromptAnswer(detail, element('name')), false);
-  assert.deepEqual(detail.parameters, { name: 'kept' });
+  const first = configEvent(elt, { color: 'red' });
+  root.dispatch('htmx:configRequest', first);
+  assert.deepEqual(first.detail.parameters, { color: 'red', name: 'Backend' });
+
+  const second = configEvent(elt, { color: 'red' });
+  root.dispatch('htmx:configRequest', second);
+  assert.deepEqual(second.detail.parameters, { color: 'red' }, 'the answer is consumed by its request');
 });
 
-test('an element without a field is left as it is', () => {
-  const detail = { headers: { 'HX-Prompt': 'Backend' }, parameters: {} };
+test('a cancelled dialog sends nothing', async () => {
+  const root = fakeRoot();
+  setupGroupPrompt(root, async () => null);
+  const event = confirmEvent(element('Group name', 'name'));
 
-  assert.equal(carryPromptAnswer(detail, element(null)), false);
-  assert.equal(carryPromptAnswer(detail, null), false);
-  assert.deepEqual(detail.parameters, {});
+  root.dispatch('htmx:confirm', event);
+  await tick();
+
+  assert.equal(event.detail.issued, 0);
 });
 
-test('a blank prompt answer cancels the request instead of posting an empty name', () => {
+test('a blank answer sends nothing instead of creating a group with an empty name', async () => {
   for (const answer of ['', '   ', '\t \n']) {
     const root = fakeRoot();
-    setupGroupPrompt(root);
-    const detail = { headers: { 'HX-Prompt': answer }, parameters: {}, elt: element('name') };
-    const event = configRequest(detail);
+    setupGroupPrompt(root, async () => answer);
+    const event = confirmEvent(element('Group name', 'name'));
 
-    root.dispatch('htmx:configRequest', event);
+    root.dispatch('htmx:confirm', event);
+    await tick();
 
-    assert.equal(event.defaultPrevented, true, `answer ${JSON.stringify(answer)} must cancel the request`);
-    assert.deepEqual(detail.parameters, {}, 'no name is posted');
+    assert.equal(event.detail.issued, 0, `answer ${JSON.stringify(answer)} must not send a request`);
   }
 });
 
-test('a non-blank prompt answer is sent with the name and not cancelled', () => {
+test('an element without a question is left to htmx', async () => {
   const root = fakeRoot();
-  setupGroupPrompt(root);
-  const detail = { headers: { 'HX-Prompt': '  Backend ' }, parameters: {}, elt: element('name') };
-  const event = configRequest(detail);
+  let asked = false;
+  setupGroupPrompt(root, async () => { asked = true; return 'x'; });
+  const event = confirmEvent(element(null, null));
 
-  root.dispatch('htmx:configRequest', event);
+  root.dispatch('htmx:confirm', event);
+  await tick();
 
   assert.equal(event.defaultPrevented, false);
-  assert.deepEqual(detail.parameters, { name: '  Backend ' });
-});
-
-test('a blank answer of an element without a field is not cancelled: only the group prompts are', () => {
-  const root = fakeRoot();
-  setupGroupPrompt(root);
-  const event = configRequest({ headers: { 'HX-Prompt': '' }, parameters: {}, elt: element(null) });
-
-  root.dispatch('htmx:configRequest', event);
-
-  assert.equal(event.defaultPrevented, false);
-});
-
-test('a request without a prompt answer is not cancelled', () => {
-  const root = fakeRoot();
-  setupGroupPrompt(root);
-  const event = configRequest({ headers: {}, parameters: {}, elt: element('name') });
-
-  root.dispatch('htmx:configRequest', event);
-
-  assert.equal(event.defaultPrevented, false);
+  assert.equal(asked, false);
+  const config = configEvent(element(null, null), { name: 'kept' });
+  root.dispatch('htmx:configRequest', config);
+  assert.deepEqual(config.detail.parameters, { name: 'kept' });
 });
