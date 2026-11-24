@@ -10,6 +10,23 @@ import (
 templ WorkspaceEditPage(page state.EditPage) {
 	<div class="h-full min-h-0 overflow-y-auto">
 		<div class="mx-auto w-full max-w-3xl p-4 pb-10 md:p-6 md:pb-12">
+			if len(page.GroupOptions) > 0 {
+				<div class="card stack gap-2 mb-4 p-5 md:p-6" data-workspace-group-select>
+					<span class="text-sm font-medium text-fg">{ msgGroupLabel.T(ctx) }</span>
+					@shared.OptionSelect(shared.OptionSelectProps{
+						Label:        msgGroupLabel.T(ctx),
+						Value:        page.GroupID,
+						DefaultLabel: msgNoGroupLabel.T(ctx),
+						Options:      groupSelectOptions(page.GroupOptions),
+						Attrs: templ.Attributes{
+							"name":      "group",
+							"hx-post":   "/workspace-groups/workspaces/" + page.ID + "/group",
+							"hx-trigger": "change",
+							"hx-swap":   "none",
+						},
+					})
+				</div>
+			}
 			<form class="card stack gap-4 p-5 md:p-6" hx-post={ "/workspaces/" + page.ID + "/update" } hx-target="#workspace-edit-result" hx-swap="innerHTML">
 				<h1 class="page-title">{ msgEditTitle.T(ctx) }</h1>
 				@shared.TextField(shared.FieldProps{Label: msgNameLabel.T(ctx), Name: "name", Value: page.Name, Placeholder: msgNamePlaceholder.T(ctx), Required: true})

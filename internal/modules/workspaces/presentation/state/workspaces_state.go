@@ -13,6 +13,8 @@ const (
 	ListPath = "/workspaces"
 	// NewPath is the registration tab.
 	NewPath = "/workspaces/new"
+	// GroupsPath is the groups tab, served by the workspace_groups module.
+	GroupsPath = "/workspaces/groups"
 )
 
 // Initialization reasons, as the template needs them to pick the message and the confirm label.
@@ -63,6 +65,9 @@ type WorkspaceRow struct {
 	TerminalHref string
 	// Memory is the Engram chip of the row.
 	Memory MemoryChip
+	// GroupName and GroupColor describe the group of the workspace; GroupName is empty when it has none.
+	GroupName  string
+	GroupColor string
 }
 
 // AgentsOption is a stored AGENTS.md offered in a drop-down.
@@ -135,7 +140,9 @@ type TableView struct {
 type WorkspacesPage struct {
 	// NewHref opens the registration tab.
 	NewHref string
-	Table   TableView
+	// GroupsHref opens the groups tab.
+	GroupsHref string
+	Table      TableView
 }
 
 // NewPage is the registration tab: the form and the folder picker.
@@ -145,9 +152,18 @@ type NewPage struct {
 	ListHref string
 }
 
+// GroupOption is a group the workspace can be put in.
+type GroupOption struct {
+	ID   string
+	Name string
+}
+
 // EditPage is the edit tab of one workspace.
 type EditPage struct {
-	ID           string
+	ID string
+	// GroupOptions are the groups the workspace can be put in; empty hides the selector. GroupID is the current one.
+	GroupOptions []GroupOption
+	GroupID      string
 	Name         string
 	Path         string
 	BaseBranch   string

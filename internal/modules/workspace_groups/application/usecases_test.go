@@ -243,3 +243,28 @@ func TestArrangeKeepsEmptyGroupsAndTreatsAnUnknownGroupAsUngrouped(t *testing.T)
 	assert.Equal(t, []string{"a"}, layout.Ungrouped)
 	assert.Empty(t, layout.Pinned)
 }
+
+func TestAssignmentsListEveryWorkspaceUnderItsGroupPinnedOnesIncluded(t *testing.T) {
+	repo := newFakeRepo("a", "b", "c", "d", "e")
+	repo.groups = []models.Group{group(t, "g1", "One", false), group(t, "g2", "Two", true), group(t, "g3", "Empty", false)}
+	repo.members = map[string]string{"a": "g1", "c": "g1", "d": "g2", "e": "gone"}
+	repo.pins = []string{"c"}
+
+	view, err := application.NewListAssignments(repo).Execute(context.Background(), []string{"a", "b", "c", "d", "e"})
+
+	require.NoError(t, err)
+	require.Len(t, view.Groups, 3, "every group is listed, empty ones too")
+	assert.Equal(t, []string{"a", "c"}, view.Groups[0].Workspaces, "a pinned workspace still belongs to its group")
+	assert.Equal(t, []string{"d"}, view.Groups[1].Workspaces)
+	assert.Empty(t, view.Groups[2].Workspaces)
+	assert.Equal(t, []string{"b", "e"}, view.Unassigned, "no group, or a group that no longer exists")
+}
+
+func TestAssignmentsFailWhenTheRepositoryFails(t *testing.T) {
+	repo := newFakeRepo("a")
+	repo.failWith = errors.New("boom")
+
+	_, err := application.NewListAssignments(repo).Execute(context.Background(), []string{"a"})
+
+	require.ErrorIs(t, err, repo.failWith)
+}

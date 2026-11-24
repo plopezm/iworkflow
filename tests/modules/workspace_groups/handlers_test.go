@@ -19,7 +19,9 @@ func newRouter(t *testing.T) (http.Handler, *di.Module) {
 	t.Helper()
 	db := dbtest.New(t)
 	insertWorkspace(t, db, "w1")
-	module := di.NewModule(db)
+	// These tests post to the action endpoints only; the management card (which needs the workspace catalog) is covered
+	// by the inbound package tests.
+	module := di.NewModule(db, nil)
 	router := chi.NewRouter()
 	module.Routes(router)
 	return router, module

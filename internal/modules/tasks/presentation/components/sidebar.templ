@@ -41,15 +41,15 @@ templ SidebarBody(rows state.SidebarRows) {
 			<div class="stack gap-0.5" data-pinned-section>
 				<div class="px-2.5 pt-1 text-[11px] font-medium text-muted">{ msgPinnedSection.T(ctx) }</div>
 				for _, workspace := range rows.Pinned {
-					@workspaceRow(workspace, rows.Groups)
+					@workspaceRow(workspace)
 				}
 			</div>
 		}
 		for _, group := range rows.Groups {
-			@groupBlock(group, rows.Groups, rows.Filtering())
+			@groupBlock(group, rows.Filtering())
 		}
 		for _, workspace := range rows.UngroupedRows() {
-			@workspaceRow(workspace, rows.Groups)
+			@workspaceRow(workspace)
 		}
 		if len(rows.Workspaces) == 0 && rows.Filtering() {
 			<p class="muted">{ msgNoWorkspacesMatch.T(ctx) }</p>
@@ -133,15 +133,14 @@ templ groupCreateButton() {
 		title={ msgNewGroup.T(ctx) }
 		aria-label={ msgNewGroup.T(ctx) }
 		hx-post="/workspace-groups"
-		hx-prompt={ msgGroupNamePrompt.T(ctx) }
-		data-prompt-field="name"
+		{ promptAttrs(ctx, msgGroupNamePrompt)... }
 		hx-swap="none"
 	>+</button>
 }
 
 // groupBlock is a collapsible group: its name, color and count in the header, its rows only while it is open. A
 // collapsed group that holds a workspace which needs the user shows the attention marker.
-templ groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filtering bool) {
+templ groupBlock(group state.SidebarGroup, filtering bool) {
 	<div class="stack gap-0.5" data-group-id={ group.ID } data-group-collapsed={ strconv.FormatBool(group.Collapsed) } data-group-count={ strconv.Itoa(len(group.Workspaces)) }>
 		<div class="flex items-center gap-1 px-2.5 py-1.5">
 			<button
@@ -165,7 +164,7 @@ templ groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filterin
 		if !group.Collapsed {
 			<div class="flex flex-col gap-0.5 pl-3">
 				for _, workspace := range group.Workspaces {
-					@workspaceRow(workspace, groups)
+					@workspaceRow(workspace)
 				}
 			</div>
 		}
@@ -173,24 +172,20 @@ templ groupBlock(group state.SidebarGroup, groups []state.SidebarGroup, filterin
 }
 
 // workspaceRow is a workspace of the sidebar, linked to its board, with its "…" menu.
-templ workspaceRow(workspace state.SidebarWorkspace, groups []state.SidebarGroup) {
+templ workspaceRow(workspace state.SidebarWorkspace) {
 	<div class="contents" data-workspace-row={ workspace.ID }>
-		@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle, Color: workspace.Color}, workspaceMenu(workspace, groups))
+		@shared.SidebarItem(shared.SidebarItemProps{Href: state.BoardPath(workspace.ID), Title: workspace.Name, Subtitle: workspace.Subtitle, Color: workspace.Color}, workspaceMenu(workspace))
 	</div>
 }
 
-// groupMenu is the "…" menu of a group: rename, recolor (one entry per palette color, and none) and delete.
+// groupMenu is the "…" menu of a group: rename, delete and a link to the groups screen, where colors are edited
+// (workspaces are assigned from each workspace's Edit screen) (the menu stays short on purpose).
 templ groupMenu(group state.SidebarGroup) {
-	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-prompt={ msgRenameGroup.T(ctx) } data-prompt-field="name" hx-vals={ groupColorVals(group.Color) } hx-swap="none">
+	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } { promptAttrs(ctx, msgRenameGroup)... } hx-vals={ groupColorVals(group.Color) } hx-swap="none">
 		{ msgRenameGroup.T(ctx) }
 	</button>
-	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-vals={ groupEditVals(group.Name, "") } hx-swap="none">
-		{ msgNoColor.T(ctx) }
-	</button>
-	for _, key := range shared.WorkspaceColorKeys() {
-		<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } hx-vals={ groupEditVals(group.Name, key) } hx-swap="none">
-			{ key }
-		</button>
+	@link.Tab(link.Props{Href: "/workspaces/groups", Class: "menu-item"}) {
+		{ msgManageGroups.T(ctx) }
 	}
 	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID + "/delete" } hx-swap="none">
 		{ msgDeleteGroup.T(ctx) }
@@ -198,8 +193,8 @@ templ groupMenu(group state.SidebarGroup) {
 }
 
 // workspaceMenu is the "…" menu of a workspace row: its files, its terminal and the workspaces screen, then the
-// group actions: pin or unpin, move to another group, or take it out of its group.
-templ workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGroup) {
+// pin or unpin. Moving it to a group is done in the group manager.
+templ workspaceMenu(workspace state.SidebarWorkspace) {
 	@link.Tab(link.Props{Href: "/workspaces/" + workspace.ID, Class: "menu-item"}) {
 		{ msgViewFiles.T(ctx) }
 	}
@@ -216,18 +211,6 @@ templ workspaceMenu(workspace state.SidebarWorkspace, groups []state.SidebarGrou
 			{ msgPinWorkspace.T(ctx) }
 		}
 	</button>
-	for _, group := range groups {
-		if group.ID != workspace.GroupID {
-			<button type="button" class="menu-item" hx-post={ "/workspace-groups/workspaces/" + workspace.ID + "/group" } hx-vals={ workspaceGroupVals(group.ID) } hx-swap="none">
-				{ msgMoveToGroup.Fmt(ctx, map[string]string{"group": group.Name}) }
-			</button>
-		}
-	}
-	if workspace.GroupID != "" {
-		<button type="button" class="menu-item" hx-post={ "/workspace-groups/workspaces/" + workspace.ID + "/group" } hx-vals={ workspaceGroupVals("") } hx-swap="none">
-			{ msgRemoveFromGroup.T(ctx) }
-		</button>
-	}
 }
 
 // taskMenu is the "…" menu of a task row: its detail.

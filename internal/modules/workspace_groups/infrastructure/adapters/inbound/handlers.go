@@ -25,6 +25,9 @@ type UseCases struct {
 	Collapse *application.SetGroupCollapsed
 	Move     *application.MoveWorkspace
 	Pin      *application.SetPinned
+	// Assignments and Catalog feed the group screens.
+	Assignments *application.ListAssignments
+	Catalog     WorkspaceCatalog
 }
 
 // Handlers serves the group actions.
@@ -43,12 +46,18 @@ func NewHandlers(uc UseCases) *Handlers { return &Handlers{uc: uc} }
 //	POST /workspace-groups/{id}/collapse              collapsed=true|false
 //	POST /workspace-groups/workspaces/{id}/group      group=<id>, or empty to ungroup
 //	POST /workspace-groups/workspaces/{id}/pin        pinned=true|false
+//	GET  /workspace-groups/list                       the rows of the groups tab
+//	GET  /workspace-groups/{id}/members               the workspaces of a group
+//	POST /workspace-groups/{id}/delete-and-close      delete a group from its own tab and go back to the list
 func (h *Handlers) Mount(r chi.Router) {
+	r.Get("/workspace-groups/list", h.list)
+	r.Get("/workspace-groups/{id}/members", h.members)
 	r.Post("/workspace-groups", h.create)
 	r.Post("/workspace-groups/workspaces/{id}/group", h.move)
 	r.Post("/workspace-groups/workspaces/{id}/pin", h.pin)
 	r.Post("/workspace-groups/{id}", h.update)
 	r.Post("/workspace-groups/{id}/delete", h.remove)
+	r.Post("/workspace-groups/{id}/delete-and-close", h.removeAndClose)
 	r.Post("/workspace-groups/{id}/collapse", h.collapse)
 }
 

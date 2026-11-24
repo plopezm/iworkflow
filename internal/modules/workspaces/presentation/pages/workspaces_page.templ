@@ -7,15 +7,21 @@ import (
 	"iworkflow/internal/modules/workspaces/presentation/state"
 )
 
-// WorkspacesPage is the workspaces tab: the list, and a button that opens the registration tab.
+// WorkspacesPage is the workspaces tab: the list, a link to the groups tab (groups are managed on their own screens)
+// and a button that opens the registration tab.
 templ WorkspacesPage(page state.WorkspacesPage) {
 	<div class="flex h-full min-h-0 flex-col">
 		<div class="flex shrink-0 items-center justify-between border-b border-border bg-surface px-4 py-2.5">
 			<h1 class="page-title">{ msgWorkspacesTitle.T(ctx) }</h1>
-			@link.Tab(link.Props{Href: page.NewHref, Class: "btn-primary size-8 p-0", Title: msgNewWorkspace.T(ctx), Role: "button"}) {
-				<span class="text-lg leading-none" aria-hidden="true">+</span>
-				<span class="sr-only">{ msgNewWorkspace.T(ctx) }</span>
-			}
+			<div class="row gap-2">
+				@link.Tab(link.Props{Href: page.GroupsHref, Class: "btn-secondary min-h-8 rounded-lg px-2.5 py-1 text-xs", Role: "button"}) {
+					{ msgGroupsLink.T(ctx) }
+				}
+				@link.Tab(link.Props{Href: page.NewHref, Class: "btn-primary size-8 p-0", Title: msgNewWorkspace.T(ctx), Role: "button"}) {
+					<span class="text-lg leading-none" aria-hidden="true">+</span>
+					<span class="sr-only">{ msgNewWorkspace.T(ctx) }</span>
+				}
+			</div>
 		</div>
 		<div class="stack min-h-0 flex-1 overflow-y-auto p-4">
 			@shared.Card(msgRegisteredTitle.T(ctx)) {

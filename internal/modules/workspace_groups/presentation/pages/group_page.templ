@@ -1,0 +1,50 @@
+package pages
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/workspace_groups/presentation/state"
+)
+
+// breadcrumbNav draws the trail of a group screen.
+templ breadcrumbNav(trail []shared.Crumb) {
+	@shared.Breadcrumb(msgYouAreHere.T(ctx), trail)
+}
+
+// GroupPage is the tab of one group: its name and color (saved as they change), its workspaces (taken out one by one)
+// and the button that deletes it, which closes the tab. The workspaces reload on board:refresh, morphing in place.
+templ GroupPage(page state.GroupPage) {
+	<div class="flex h-full min-h-0 flex-col">
+		<div class="shrink-0 border-b border-border bg-surface px-4 py-2.5">
+			@breadcrumbNav(crumbs(ctx, page.Name))
+		</div>
+		<div class="stack min-h-0 flex-1 overflow-y-auto p-4">
+			@shared.Card(msgGroupName.T(ctx)) {
+				<form class="stack gap-3" hx-post={ "/workspace-groups/" + page.ID } hx-trigger="change" hx-swap="none">
+					<input type="text" name="name" class="input min-w-0" value={ page.Name } aria-label={ msgGroupName.T(ctx) } required autocomplete="off"/>
+					@shared.ColorPicker(shared.ColorPickerProps{Label: msgColor.T(ctx), NoneLabel: msgNoColor.T(ctx), Name: "color", Value: page.Color})
+				</form>
+			}
+			@shared.Card(msgInGroup.T(ctx)) {
+				<div
+					id={ state.MembersTargetID }
+					class="stack gap-1.5"
+					hx-get={ state.MembersPath(page.ID) }
+					hx-trigger="load, board:refresh from:body"
+					hx-sync="this:replace"
+					hx-swap="morph:innerHTML"
+				></div>
+			}
+			<div class="row justify-end">
+				<button type="button" class="btn-danger" hx-post={ state.DeletePath(page.ID) } hx-confirm={ msgConfirmDel.T(ctx) } hx-target="#group-delete-result" hx-swap="innerHTML">
+					{ msgDelete.T(ctx) }
+				</button>
+			</div>
+			<div id="group-delete-result"></div>
+		</div>
+	</div>
+}
+
+// Deleted replaces the group tab with the groups list once the group is gone.
+templ Deleted(listHref string) {
+	<span data-dock-redirect={ listHref }></span>
+}

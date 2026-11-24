@@ -1,0 +1,7 @@
+package components
+
+// MembersGone replaces the workspaces of a group that was deleted while its tab was still open. The tab reloads on
+// every board:refresh, so a deleted group must answer with a notice, not an HTTP error.
+templ MembersGone() {
+	<p class="text-sm text-muted" data-group-gone>{ msgGone.T(ctx) }</p>
+}
