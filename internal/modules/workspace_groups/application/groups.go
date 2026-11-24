@@ -39,7 +39,8 @@ func (u *CreateGroup) Execute(ctx context.Context, input GroupInput) (models.Gro
 	return group, nil
 }
 
-// UpdateGroup renames and recolors a group, keeping its collapsed state.
+// UpdateGroup renames and recolors a group. The collapsed state is never written here; the returned group
+// carries the value read just before.
 type UpdateGroup struct{ repo outbound.GroupRepository }
 
 // NewUpdateGroup builds the use case.

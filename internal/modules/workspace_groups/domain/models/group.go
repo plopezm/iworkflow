@@ -4,11 +4,12 @@ package models
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	gerrors "iworkflow/internal/modules/workspace_groups/domain/errors"
 )
 
-// maxNameLength is the longest group name, in bytes.
+// maxNameLength is the longest group name, in characters (the same unit the workspaces use).
 const maxNameLength = 80
 
 // colors are the palette keys a group can be marked with: the same list the workspaces use.
@@ -35,7 +36,7 @@ func NewGroup(id string, name string, color string, collapsed bool) (Group, erro
 		return Group{}, invalid("the id is required")
 	case name == "":
 		return Group{}, invalid("the name is required")
-	case len(name) > maxNameLength:
+	case utf8.RuneCountInString(name) > maxNameLength:
 		return Group{}, invalid("the name is too long")
 	case color != "" && !isColor(color):
 		return Group{}, invalid(fmt.Sprintf("%q is not a palette color", color))

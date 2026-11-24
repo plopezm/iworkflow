@@ -13,7 +13,7 @@ type GroupRepository interface {
 	ListGroups(ctx context.Context) ([]models.Group, error)
 	// SaveGroup inserts a new group at the end of the list.
 	SaveGroup(ctx context.Context, group models.Group) error
-	// UpdateGroup changes the name, color and collapsed flag. It fails with ErrGroupNotFound.
+	// UpdateGroup changes the name and color; the collapsed flag is left as stored (see SetCollapsed). It fails with ErrGroupNotFound.
 	UpdateGroup(ctx context.Context, group models.Group) error
 	// DeleteGroup removes the group and its memberships, never the workspaces. It fails with ErrGroupNotFound.
 	DeleteGroup(ctx context.Context, id string) error

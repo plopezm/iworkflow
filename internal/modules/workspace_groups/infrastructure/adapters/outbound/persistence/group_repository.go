@@ -60,10 +60,11 @@ func (r *GroupRepository) SaveGroup(ctx context.Context, group models.Group) err
 	return nil
 }
 
-// UpdateGroup changes the name, color and collapsed flag.
+// UpdateGroup changes the name and color only: the collapsed flag has its own writer (SetCollapsed), so a
+// rename never reverts a concurrent collapse.
 func (r *GroupRepository) UpdateGroup(ctx context.Context, group models.Group) error {
 	changed, err := r.queries.UpdateGroup(ctx, gen.UpdateGroupParams{
-		ID: group.ID(), Name: group.Name(), Color: optionalText(group.Color()), Collapsed: boolInt(group.Collapsed()),
+		ID: group.ID(), Name: group.Name(), Color: optionalText(group.Color()),
 	})
 	return affected(changed, err)
 }

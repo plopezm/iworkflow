@@ -62,6 +62,18 @@ func TestUpdateAndCollapseReportAMissingGroup(t *testing.T) {
 	require.Equal(t, []models.Group{group(t, "g", "Renamed", "", true)}, list)
 }
 
+func TestUpdateGroupLeavesTheStoredCollapsedStateAlone(t *testing.T) {
+	ctx := context.Background()
+	repo, _ := newRepo(t)
+	require.NoError(t, repo.SaveGroup(ctx, group(t, "g", "G", "red", false)))
+	require.NoError(t, repo.SetCollapsed(ctx, "g", true))
+	// The update carries a stale collapsed=false, as a concurrent collapse would leave it.
+	require.NoError(t, repo.UpdateGroup(ctx, group(t, "g", "Renamed", "blue", false)))
+	list, err := repo.ListGroups(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []models.Group{group(t, "g", "Renamed", "blue", true)}, list)
+}
+
 func TestAssignMovesAWorkspaceBetweenGroupsAndUnassignFreesIt(t *testing.T) {
 	ctx := context.Background()
 	repo, db := newRepo(t)

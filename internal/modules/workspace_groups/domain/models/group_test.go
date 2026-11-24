@@ -1,6 +1,7 @@
 package models_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,6 +35,13 @@ func TestNewGroupRejectsBlankIDNameAndUnknownColor(t *testing.T) {
 		_, err := models.NewGroup(args[0], args[1], args[2], false)
 		require.ErrorIs(t, err, gerrors.ErrInvalidGroup, name)
 	}
+}
+
+func TestNewGroupCountsTheNameInCharactersNotBytes(t *testing.T) {
+	_, err := models.NewGroup("g", strings.Repeat("ñ", 80), "", false)
+	require.NoError(t, err, "80 two-byte characters fit, like a workspace name")
+	_, err = models.NewGroup("g", strings.Repeat("ñ", 81), "", false)
+	require.ErrorIs(t, err, gerrors.ErrInvalidGroup)
 }
 
 func TestColorsListsThePaletteInDisplayOrder(t *testing.T) {

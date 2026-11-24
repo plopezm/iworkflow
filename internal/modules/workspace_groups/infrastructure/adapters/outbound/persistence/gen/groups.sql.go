@@ -184,24 +184,18 @@ func (q *Queries) SetGroupCollapsed(ctx context.Context, arg SetGroupCollapsedPa
 
 const updateGroup = `-- name: UpdateGroup :execrows
 UPDATE workspace_groups
-SET name = ?1, color = ?2, collapsed = ?3
-WHERE id = ?4
+SET name = ?1, color = ?2
+WHERE id = ?3
 `
 
 type UpdateGroupParams struct {
-	Name      string
-	Color     sql.NullString
-	Collapsed int64
-	ID        string
+	Name  string
+	Color sql.NullString
+	ID    string
 }
 
 func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateGroup,
-		arg.Name,
-		arg.Color,
-		arg.Collapsed,
-		arg.ID,
-	)
+	result, err := q.db.ExecContext(ctx, updateGroup, arg.Name, arg.Color, arg.ID)
 	if err != nil {
 		return 0, err
 	}

@@ -12,7 +12,7 @@ VALUES (
 
 -- name: UpdateGroup :execrows
 UPDATE workspace_groups
-SET name = sqlc.arg(name), color = sqlc.narg(color), collapsed = sqlc.arg(collapsed)
+SET name = sqlc.arg(name), color = sqlc.narg(color)
 WHERE id = sqlc.arg(id);
 
 -- name: DeleteGroup :execrows
