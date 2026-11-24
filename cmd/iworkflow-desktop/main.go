@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -72,6 +73,14 @@ func run(logger *slog.Logger) error {
 		},
 		OnShutdown: sh.shutdown,
 	})
+	// A previous update leaves the old install next to the new one; remove it now that this version runs.
+	if os.Getenv("IWF_SERVER_DIR") == "" {
+		if target, targetErr := desktop.InstallTargetFromExecutable(exe, runtime.GOOS); targetErr == nil {
+			if cleanErr := desktop.CleanupPreviousInstall(target); cleanErr != nil {
+				logger.Warn("could not remove the previous install", "error", cleanErr)
+			}
+		}
+	}
 	// The server starts before the GUI loop so a start failure is reported without opening a window.
 	addr, err := sh.super.Start(context.Background())
 	if err != nil {

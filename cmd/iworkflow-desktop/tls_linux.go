@@ -61,6 +61,8 @@ static int iwf_install_guards(void *window) {
 // Tells WebKit to accept exactly this certificate for the host: no error page, no reload.
 static int iwf_allow_certificate(const char *host, const char *pem) {
 	if (iwf_view == NULL) return 0;
+	// Without a GIO TLS backend (glib-networking) a certificate cannot be parsed, and WebKit cannot do https at all.
+	if (!g_tls_backend_supports_tls(g_tls_backend_get_default())) return 0;
 	GTlsCertificate *cert = g_tls_certificate_new_from_pem(pem, -1, NULL);
 	if (cert == NULL) return 0;
 	webkit_web_context_allow_tls_certificate_for_host(webkit_web_view_get_context(iwf_view), cert, host);

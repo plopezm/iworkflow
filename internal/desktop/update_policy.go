@@ -52,13 +52,9 @@ func UpdateStrategy(in PolicyInput) Strategy {
 	case "off", "0", "false":
 		return StrategyOff
 	}
-	if in.GOOS == "windows" {
-		return StrategyAuto
-	}
-	if in.GOOS == "linux" && getenv(EnvAppImage) != "" {
-		return StrategyAuto
-	}
-	return StrategyNotify
+	// Every OS updates itself from the release archive (ArchiveInstaller). When the install folder is not
+	// writable the installer reports ErrAutoUpdateUnsupported and the flow falls back to the notice.
+	return StrategyAuto
 }
 
 // LatestReleaseAPIURL returns the GitHub API URL of the latest release of repo ("owner/name").

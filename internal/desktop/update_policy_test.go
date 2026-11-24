@@ -20,12 +20,12 @@ func TestUpdateStrategy(t *testing.T) {
 	}{
 		{name: "windows installer updates itself", in: PolicyInput{GOOS: "windows", Packaged: true}, want: StrategyAuto},
 		{
-			name: "linux AppImage updates itself",
+			name: "linux with APPIMAGE set updates itself too",
 			in:   PolicyInput{GOOS: "linux", Packaged: true, Getenv: envOf(map[string]string{EnvAppImage: "/opt/iworkflow.AppImage"})},
 			want: StrategyAuto,
 		},
-		{name: "macOS only notifies", in: PolicyInput{GOOS: "darwin", Packaged: true}, want: StrategyNotify},
-		{name: "linux build outside an AppImage only notifies", in: PolicyInput{GOOS: "linux", Packaged: true}, want: StrategyNotify},
+		{name: "macOS updates itself", in: PolicyInput{GOOS: "darwin", Packaged: true}, want: StrategyAuto},
+		{name: "linux archive install updates itself", in: PolicyInput{GOOS: "linux", Packaged: true}, want: StrategyAuto},
 		{name: "development run never checks", in: PolicyInput{GOOS: "windows", Packaged: false}, want: StrategyOff},
 		{
 			name: "IWF_UPDATE_CHECK=off disables windows",
@@ -55,9 +55,9 @@ func TestUpdateStrategy(t *testing.T) {
 			want: StrategyAuto,
 		},
 		{
-			name: "an empty APPIMAGE does not count as AppImage",
+			name: "APPIMAGE does not change the strategy",
 			in:   PolicyInput{GOOS: "linux", Packaged: true, Getenv: envOf(map[string]string{EnvAppImage: ""})},
-			want: StrategyNotify,
+			want: StrategyAuto,
 		},
 		{name: "nil Getenv behaves like an empty environment", in: PolicyInput{GOOS: "windows", Packaged: true}, want: StrategyAuto},
 	}
