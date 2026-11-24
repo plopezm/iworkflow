@@ -2368,7 +2368,7 @@ article.card:hover {
 }
 
 /* Workspace colors: each key sets --ws, the one place a project color is written. The same hue works in light and
-   dark; the chip derives its text, tint and border from it with color-mix, so it follows the chosen theme. */
+   dark; the dot and the card rail derive from it, so they follow the chosen theme. */
 .ws-red { --ws: #e5484d; }
 .ws-orange { --ws: #f76b15; }
 .ws-amber { --ws: #e0a100; }
@@ -2389,17 +2389,11 @@ article.card:hover {
   background: var(--ws, var(--c-accent));
 }
 
-.ws-chip {
+.ws-name {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
   gap: 0.375rem;
-  border-radius: 9999px;
-  border: 1px solid color-mix(in srgb, var(--ws) 35%, transparent);
-  background: color-mix(in srgb, var(--ws) 16%, transparent);
-  padding: 0 0.5rem;
-  color: color-mix(in srgb, var(--ws) 70%, var(--c-fg));
-  font-weight: 500;
 }
 
 .ws-picker {
@@ -2445,9 +2439,14 @@ article.card:hover {
   outline-offset: 3px;
 }
 
-/* Dashboard task badge of a colored workspace: the muted badge takes the tint of its project. */
-.badge.ws-badge {
-  border-color: color-mix(in srgb, var(--ws) 35%, transparent);
-  background: color-mix(in srgb, var(--ws) 16%, transparent);
-  color: color-mix(in srgb, var(--ws) 70%, var(--c-fg));
+/* Dashboard card of a colored workspace: a thin rail on its left edge, inside the border, in the project color. */
+.ws-rail::before {
+  content: "";
+  position: absolute;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  left: 0;
+  width: 2px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--ws) 65%, transparent);
 }

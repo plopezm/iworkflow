@@ -32,12 +32,17 @@ func BoardTitle(ctx context.Context, workspaceName string) string {
 	return msgBoard.T(ctx) + " · " + workspaceName
 }
 
-// workspaceBadgeClass is the class list of the workspace badge of a dashboard task: the muted badge, tinted
-// with the workspace color when it has one.
-func workspaceBadgeClass(color string) string {
-	class := "badge badge-muted hover:text-fg hover:border-fg/30 text-[11px] font-medium truncate max-w-[140px]"
+// workspaceBadgeClass is the class list of the workspace badge of a dashboard task. The color lives only in the
+// dot inside it, never in the badge.
+func workspaceBadgeClass() string {
+	return "badge badge-muted hover:text-fg hover:border-fg/30 text-[11px] font-medium truncate max-w-[140px]"
+}
+
+// workspaceRailClass marks a dashboard card of a colored workspace with the rail of its color; an uncolored one
+// gets nothing.
+func workspaceRailClass(color string) string {
 	if colorClass := shared.WorkspaceColorClass(color); colorClass != "" {
-		return class + " ws-badge " + colorClass
+		return "ws-rail " + colorClass
 	}
-	return class
+	return ""
 }

@@ -83,11 +83,11 @@ func TestListTabRendersRowsLinkedToTheReader(t *testing.T) {
 func TestListTabMarksTheWorkspaceNameWithItsColor(t *testing.T) {
 	colored := models.Workspace{ID: "w1", Name: "proj", Path: "/p", Color: "blue"}
 	body := render(t, NewHandlers(stubList{workspace: colored, feed: models.Feed{State: models.StateEmpty}}, stubRead{}, nil).ListTab(context.Background(), dock.Params{"id": "w1"}))
-	assert.Contains(t, body, "ws-chip ws-blue")
+	assert.Contains(t, body, "ws-name ws-blue")
 	assert.Contains(t, body, "proj")
 
 	plain := render(t, NewHandlers(stubList{workspace: testWorkspace, feed: models.Feed{State: models.StateEmpty}}, stubRead{}, nil).ListTab(context.Background(), dock.Params{"id": "w1"}))
-	assert.NotContains(t, plain, "ws-chip")
+	assert.NotContains(t, plain, "ws-name")
 	assert.Contains(t, plain, "Memorias · proj")
 }
 
@@ -95,7 +95,7 @@ func TestListTabMarksTheWorkspaceNameWithItsColor(t *testing.T) {
 func TestListTabKeepsThePlainNameForAnUnknownColor(t *testing.T) {
 	unknown := models.Workspace{ID: "w1", Name: "proj", Path: "/p", Color: "chartreuse"}
 	body := render(t, NewHandlers(stubList{workspace: unknown, feed: models.Feed{State: models.StateEmpty}}, stubRead{}, nil).ListTab(context.Background(), dock.Params{"id": "w1"}))
-	assert.NotContains(t, body, "ws-chip")
+	assert.NotContains(t, body, "ws-name")
 	assert.Contains(t, body, "Memorias · proj")
 }
 
@@ -103,10 +103,10 @@ func TestDetailTabMarksTheWorkspaceNameWithItsColor(t *testing.T) {
 	entry := models.Entry{State: models.StateAvailable, Memory: models.Memory{ID: 9, Type: "decision", Title: "Why"}, Content: "x"}
 	colored := models.Workspace{ID: "w1", Name: "proj", Path: "/p", Color: "teal"}
 	body := render(t, NewHandlers(stubList{}, stubRead{workspace: colored, entry: entry}, nil).DetailTab(context.Background(), dock.Params{"id": "w1", "memoryId": "9"}))
-	assert.Contains(t, body, "ws-chip ws-teal")
+	assert.Contains(t, body, "ws-name ws-teal")
 
 	plain := render(t, NewHandlers(stubList{}, stubRead{workspace: testWorkspace, entry: entry}, nil).DetailTab(context.Background(), dock.Params{"id": "w1", "memoryId": "9"}))
-	assert.NotContains(t, plain, "ws-chip")
+	assert.NotContains(t, plain, "ws-name")
 }
 
 // The task page is titled with the task, so a colored workspace never colors it.
@@ -118,7 +118,7 @@ func TestTaskTabNeverColorsTheTaskTitle(t *testing.T) {
 		feed:      models.TaskFeed{State: models.StateAvailable, Earlier: []models.Memory{{ID: 2, Title: "Vieja"}}},
 	}
 	body := render(t, NewHandlers(nil, nil, tasks).TaskTab(context.Background(), dock.Params{"taskId": "t1"}))
-	assert.NotContains(t, body, "ws-chip")
+	assert.NotContains(t, body, "ws-name")
 	assert.Contains(t, body, "Mi tarea")
 }
 

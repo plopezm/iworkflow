@@ -46,18 +46,18 @@ func TestErrorTextEscapesTheMessage(t *testing.T) {
 
 func TestWorkspaceNameTintsAColoredWorkspaceAndLeavesTheOthersPlain(t *testing.T) {
 	colored := render(t, components.WorkspaceName("Demo", "blue"))
-	assert.Contains(t, colored, "ws-chip ws-blue")
+	assert.Contains(t, colored, "ws-name ws-blue")
 	assert.Contains(t, colored, "Demo")
 
 	for _, color := range []string{"", "chartreuse"} {
 		plain := render(t, components.WorkspaceName("Demo", color))
-		assert.NotContains(t, plain, "ws-chip")
+		assert.NotContains(t, plain, "ws-name")
 		assert.Contains(t, plain, "Demo")
 	}
 }
 
 func TestWorkspaceLabelIsThePillForAKnownColorAndTheBareNameOtherwise(t *testing.T) {
-	assert.Contains(t, render(t, components.WorkspaceLabel("Demo", "blue")), "ws-chip ws-blue")
+	assert.Contains(t, render(t, components.WorkspaceLabel("Demo", "blue")), "ws-name ws-blue")
 	for _, color := range []string{"", "chartreuse"} {
 		assert.Equal(t, "Demo", render(t, components.WorkspaceLabel("Demo", color)))
 	}

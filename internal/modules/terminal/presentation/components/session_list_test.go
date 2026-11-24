@@ -19,7 +19,7 @@ func sessionRow(workspaceName string, workspaceColor string) state.SessionRow {
 func TestSessionsListMarksAColoredWorkspaceWithItsPill(t *testing.T) {
 	body := render(t, SessionsList(state.ListView{Rows: []state.SessionRow{sessionRow("api", "blue")}}))
 
-	require.Contains(t, body, `<span class="ws-chip ws-blue" data-workspace-color="blue">`)
+	require.Contains(t, body, `<span class="ws-name ws-blue" data-workspace-color="blue">`)
 	require.Contains(t, body, `<span class="min-w-0 truncate">api</span>`)
 }
 
@@ -27,7 +27,7 @@ func TestSessionsListKeepsTheNameOfAnUncoloredWorkspaceAsItWas(t *testing.T) {
 	body := render(t, SessionsList(state.ListView{Rows: []state.SessionRow{sessionRow("api", "")}}))
 
 	require.Contains(t, body, `<td class="font-medium text-fg">api</td>`)
-	require.NotContains(t, body, "ws-chip")
+	require.NotContains(t, body, "ws-name")
 	require.NotContains(t, body, "data-workspace-color")
 }
 
@@ -35,5 +35,5 @@ func TestSessionsListKeepsTheNameOfAnUnknownColor(t *testing.T) {
 	body := render(t, SessionsList(state.ListView{Rows: []state.SessionRow{sessionRow("api", "magenta")}}))
 
 	require.Contains(t, body, `<td class="font-medium text-fg">api</td>`)
-	require.NotContains(t, body, "ws-chip")
+	require.NotContains(t, body, "ws-name")
 }

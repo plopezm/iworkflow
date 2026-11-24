@@ -27,10 +27,10 @@ type ColorPickerProps struct {
 	Value string
 }
 
-// WorkspaceNameClass is the class list of the name pill: colored when the key is known, plain otherwise.
+// WorkspaceNameClass is the class list of the name: carries the color (for its dot) when the key is known, plain otherwise.
 func WorkspaceNameClass(color string) string {
 	if class := WorkspaceColorClass(color); class != "" {
-		return "ws-chip " + class
+		return "ws-name " + class
 	}
 	return ""
 }

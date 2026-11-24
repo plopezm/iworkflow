@@ -9,7 +9,7 @@ package components
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-// WorkspaceName shows a workspace name marked with its color: a tinted pill with a dot. A workspace
+// WorkspaceName shows a workspace name marked with its color: a plain name led by a colored dot. A workspace
 // without a (known) color renders the plain name, so uncolored projects look as before.
 func WorkspaceName(name, color string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -118,7 +118,7 @@ func WorkspaceName(name, color string) templ.Component {
 	})
 }
 
-// WorkspaceLabel is a workspace name inside running text (a heading, a caption, a table cell): the tinted pill when
+// WorkspaceLabel is a workspace name inside running text (a heading, a caption, a table cell): the dotted name when
 // the color is a known palette key, the bare name otherwise. It is the one place that decides it for such callers.
 func WorkspaceLabel(name, color string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
