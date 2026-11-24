@@ -26,6 +26,7 @@ const (
 	PathGitDiscard = "/project-tree/git/discard"
 	PathGitCommit  = "/project-tree/git/commit"
 	PathSearch     = "/project-tree/search"
+	PathContent    = "/project-tree/content-search"
 )
 
 // PollSeconds is how often the changes panel refetches while it is on screen.

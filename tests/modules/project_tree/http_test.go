@@ -400,3 +400,94 @@ func TestRawRouteContainsSVGsAndCoversItsEdgeCases(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, raw("missing.png").Code)
 	assert.Equal(t, http.StatusBadRequest, raw("big.png").Code, "an image over the limit is refused")
 }
+
+func TestContentSearchFiltersTheTreeToFilesWithHits(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "src"), 0o750))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "src", "hit.go"), []byte("a\nNeedle here\nneedle again\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "miss.txt"), []byte("nothing"), 0o600))
+	id := uuid.New()
+	_, router := httpModule(t, id, root)
+	query := wsParam(id)
+	query.Set("q", "needle")
+
+	recorder := send(router, http.MethodGet, "/project-tree/content-search?"+query.Encode(), nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	body := recorder.Body.String()
+	assert.Contains(t, body, `data-hit-file`)
+	assert.Contains(t, body, `data-hit-count>2<`, "the badge counts the matches of the file")
+	assert.Contains(t, body, `data-hit-line="2"`)
+	assert.Contains(t, body, `data-hit-line="3"`)
+	assert.Contains(t, body, "/files/src/hit.go")
+	assert.NotContains(t, body, "miss.txt")
+
+	query.Set("cs", "1")
+	sensitive := send(router, http.MethodGet, "/project-tree/content-search?"+query.Encode(), nil)
+	assert.Contains(t, sensitive.Body.String(), `data-hit-count>1<`)
+	assert.NotContains(t, sensitive.Body.String(), `data-hit-line="2"`)
+}
+
+func TestContentSearchWithoutHitsSaysSo(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a.txt"), []byte("x"), 0o600))
+	id := uuid.New()
+	_, router := httpModule(t, id, root)
+	query := wsParam(id)
+	query.Set("q", "zzzz")
+
+	recorder := send(router, http.MethodGet, "/project-tree/content-search?"+query.Encode(), nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `data-content-empty`)
+}
+
+func TestContentSearchWithEmptyTextRestoresTheTree(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "a.txt"), []byte("x"), 0o600))
+	id := uuid.New()
+	_, router := httpModule(t, id, root)
+	query := wsParam(id)
+	query.Set("q", "")
+
+	recorder := send(router, http.MethodGet, "/project-tree/content-search?"+query.Encode(), nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "a.txt")
+	assert.NotContains(t, recorder.Body.String(), `data-hit-file`)
+}
+
+func TestContentSearchBrokenRegexAnswers200WithTheMessage(t *testing.T) {
+	id := uuid.New()
+	_, router := httpModule(t, id, t.TempDir())
+	query := wsParam(id)
+	query.Set("q", "(")
+	query.Set("re", "1")
+
+	recorder := send(router, http.MethodGet, "/project-tree/content-search?"+query.Encode(), nil)
+
+	require.Equal(t, http.StatusOK, recorder.Code, "htmx swaps 200 only; the user is still typing")
+	assert.Contains(t, recorder.Body.String(), "búsqueda inválida")
+}
+
+func TestContentSearchBadScopeIsBadRequest(t *testing.T) {
+	_, router := httpModule(t, uuid.New(), t.TempDir())
+
+	recorder := send(router, http.MethodGet, "/project-tree/content-search?scope=nope&q=x", nil)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code)
+}
+
+func TestTreePageRendersTheContentFilterForm(t *testing.T) {
+	id := uuid.New()
+	module, _ := httpModule(t, id, t.TempDir())
+	registry, err := dock.NewRegistry(module.Tabs()...)
+	require.NoError(t, err)
+	page := renderPanel(t, registry.Render(context.Background(), "/workspaces/"+id.String()))
+
+	assert.Contains(t, page, `data-content-filter`)
+	assert.Contains(t, page, `hx-get="/project-tree/content-search"`)
+	assert.Contains(t, page, `name="re"`)
+	assert.Contains(t, page, `name="cs"`)
+	assert.Contains(t, page, `name="ww"`)
+}

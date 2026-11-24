@@ -78,6 +78,7 @@ func NewModule(deps Deps) *Module {
 		DiscardPaths:  module.DiscardPaths,
 		CommitChanges: module.CommitChanges,
 		SearchFiles:   module.SearchFiles,
+		SearchContent: module.SearchContent,
 	})
 	return module
 }

@@ -1,0 +1,74 @@
+package components
+
+import (
+	"strconv"
+
+	coreui "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/project_tree/presentation/state"
+)
+
+// ContentResults is the tree filtered by a content query: only the folders and files with hits, each
+// file with its match count and, below it, the matching lines. A hit opens the file; data-hit-line
+// lets the viewer jump to it. It is the swap target of the search form.
+templ ContentResults(v state.ContentView) {
+	if len(v.Rows) == 0 {
+		<p class="px-3 py-2 text-xs text-muted" data-content-empty>{ msgNoContentMatches.T(ctx) }</p>
+	} else {
+		<p class="px-3 py-1 text-xs text-muted" data-content-summary>{ strconv.Itoa(v.Files) } { msgContentFiles.T(ctx) }</p>
+		if v.Truncated {
+			<p class="px-3 pb-1 text-xs text-muted">{ msgContentTruncated.T(ctx) }</p>
+		}
+		<ul data-content-results>
+			for _, row := range v.Rows {
+				if row.IsDir {
+					<li><div class="tree-row" style={ row.Style }>@coreui.TreeIcon(true, true)<span class="truncate" title={ row.Path }>{ row.Name }</span></div></li>
+				} else {
+					@contentFile(row)
+				}
+			}
+		</ul>
+	}
+}
+
+// contentFile is a file row with its match count and the collapsible list of its matching lines.
+templ contentFile(row state.ContentRow) {
+	<li data-section>
+		<div class="flex items-center">
+			<button
+				type="button"
+				class="icon-btn"
+				aria-expanded="false"
+				aria-label={ msgShowMatches.T(ctx) }
+				data-section-toggle
+			>@coreui.TreeChevron(false)</button>
+			<a
+				href={ templ.SafeURL(row.Href) }
+				class="tree-row min-w-0 flex-1"
+				style={ row.Style }
+				data-hit-file
+				{ link.Props{Href: row.Href, Beside: true}.Attributes()... }
+			>
+				@coreui.TreeIcon(false, false)
+				<span class="truncate" title={ row.Path }>{ row.Name }</span>
+				<span class="ml-auto pl-2 text-xs text-muted" data-hit-count>{ strconv.Itoa(row.Total) }</span>
+			</a>
+		</div>
+		<ul data-section-body style="display: none">
+			for _, hit := range row.Hits {
+				<li>
+					<a
+						href={ templ.SafeURL(row.Href) }
+						class="tree-row text-xs"
+						style={ hit.Style }
+						data-hit-line={ strconv.Itoa(hit.Line) }
+						{ link.Props{Href: row.Href, Beside: true}.Attributes()... }
+					>
+						<span class="text-muted">{ strconv.Itoa(hit.Line) }</span>
+						<span class="truncate">{ hit.Snippet }</span>
+					</a>
+				</li>
+			}
+		</ul>
+	</li>
+}
