@@ -26,6 +26,7 @@ const (
 	kindCommitFailed
 	kindIO
 	kindWorkspaceLookup
+	kindInvalidSearch
 )
 
 // Error returns the message shown to the user.
@@ -55,6 +56,8 @@ func (e Error) Error() string {
 		return "error de lectura del directorio: " + e.detail
 	case kindWorkspaceLookup:
 		return "error al buscar el workspace: " + e.detail
+	case kindInvalidSearch:
+		return "búsqueda inválida: " + e.detail
 	default:
 		return e.detail
 	}
@@ -101,3 +104,6 @@ func IO(detail string) Error { return Error{kind: kindIO, detail: detail} }
 
 // WorkspaceLookup reports a failure while looking the workspace or task up.
 func WorkspaceLookup(detail string) Error { return Error{kind: kindWorkspaceLookup, detail: detail} }
+
+// InvalidSearch reports a content search whose text is empty or is not a valid regular expression.
+func InvalidSearch(detail string) Error { return Error{kind: kindInvalidSearch, detail: detail} }

@@ -100,3 +100,24 @@ func TestDecodeCommitAndSearchReadTheirFields(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "READ", search.Query)
 }
+
+func TestDecodeContentSearchReadsQueryAndFlags(t *testing.T) {
+	req := postForm(t, url.Values{"scope": {workspace.String()}, "q": {"foo"}, "re": {"1"}, "cs": {"0"}, "ww": {"true"}})
+
+	got, err := DecodeContentSearch(req)
+
+	require.NoError(t, err)
+	require.Equal(t, models.WorkspaceScope(workspace), got.Scope)
+	require.Equal(t, "foo", got.Query.Text())
+	require.True(t, got.Query.Regex())
+	require.False(t, got.Query.CaseSensitive())
+	require.True(t, got.Query.WholeWord())
+}
+
+func TestDecodeContentSearchRejectsBadInput(t *testing.T) {
+	_, err := DecodeContentSearch(postForm(t, url.Values{"scope": {"nope"}, "q": {"x"}}))
+	require.ErrorIs(t, err, ErrInvalidScope)
+
+	_, err = DecodeContentSearch(postForm(t, url.Values{"scope": {workspace.String()}, "q": {""}}))
+	require.Error(t, err)
+}

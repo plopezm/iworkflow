@@ -175,3 +175,40 @@ func TestFileViewNameKeyAndDirtiness(t *testing.T) {
 	require.True(t, view.Dirty())
 	require.Equal(t, ID("pt-file", workspaceID.String(), "src/main.rs"), view.Key())
 }
+
+func TestContentViewListsEachFolderOnceBeforeItsFiles(t *testing.T) {
+	scope := models.WorkspaceScope(workspaceID)
+	result := models.ContentResult{Files: []models.ContentFile{
+		{Path: "README.md", Total: 1, Matches: []models.ContentMatch{{Line: 3, Snippet: "  hello  "}}},
+		{Path: "src/a.go", Total: 2, Matches: []models.ContentMatch{{Line: 1, Snippet: "x"}, {Line: 9, Snippet: "y"}}},
+		{Path: "src/deep/b.go", Total: 1, Matches: []models.ContentMatch{{Line: 2, Snippet: "z"}}},
+	}, Truncated: true}
+
+	view := NewContentView(scope, "foo", result)
+
+	names := make([]string, 0, len(view.Rows))
+	for _, row := range view.Rows {
+		names = append(names, row.Path)
+	}
+	require.Equal(t, []string{"README.md", "src", "src/a.go", "src/deep", "src/deep/b.go"}, names)
+	require.Equal(t, 3, view.Files)
+	require.True(t, view.Truncated)
+	require.Equal(t, "hello", view.Rows[0].Hits[0].Snippet)
+	require.Equal(t, 3, view.Rows[0].Hits[0].Line)
+	require.Equal(t, FileHref(scope, "src/a.go"), view.Rows[2].Href)
+	require.Equal(t, 2, view.Rows[2].Total)
+	require.True(t, view.Rows[1].IsDir)
+	require.Empty(t, view.Rows[1].Href)
+	require.Equal(t, PaddingStyle(2), view.Rows[4].Style)
+}
+
+func TestContentViewShortensLongSnippets(t *testing.T) {
+	long := ""
+	for range 400 {
+		long += "é"
+	}
+	view := NewContentView(models.WorkspaceScope(workspaceID), "x", models.ContentResult{Files: []models.ContentFile{
+		{Path: "a", Total: 1, Matches: []models.ContentMatch{{Line: 1, Snippet: long}}},
+	}})
+	require.Len(t, []rune(view.Rows[0].Hits[0].Snippet), maxSnippetRunes+1)
+}

@@ -33,6 +33,30 @@ templ ProjectTreePage(v state.TreePage) {
 				}
 			}
 		</div>
+		<form
+			class="flex items-center gap-1 border-b border-border px-2 py-1"
+			role="search"
+			data-content-filter
+			hx-get={ state.PathContent }
+			hx-trigger="input changed delay:250ms, change[target.type=='checkbox'], submit"
+			hx-target={ "#" + state.ID("pt-tree", v.View.Scope.Wire()) }
+			hx-swap="innerHTML"
+			hx-sync="this:replace"
+		>
+			<input type="hidden" name="scope" value={ v.View.Scope.Wire() }/>
+			<input
+				type="search"
+				name="q"
+				class="min-w-0 flex-1 rounded border border-border bg-transparent px-2 py-1 text-xs"
+				placeholder={ msgSearchContent.T(ctx) }
+				aria-label={ msgSearchContent.T(ctx) }
+				autocomplete="off"
+				spellcheck="false"
+			/>
+			<label class="flex items-center gap-0.5 text-xs text-muted" title={ msgMatchCase.T(ctx) }><input type="checkbox" name="cs" value="1" aria-label={ msgMatchCase.T(ctx) }/>Aa</label>
+			<label class="flex items-center gap-0.5 text-xs text-muted" title={ msgRegex.T(ctx) }><input type="checkbox" name="re" value="1" aria-label={ msgRegex.T(ctx) }/>.*</label>
+			<label class="flex items-center gap-0.5 text-xs text-muted" title={ msgWholeWord.T(ctx) }><input type="checkbox" name="ww" value="1" aria-label={ msgWholeWord.T(ctx) }/>W</label>
+		</form>
 		<div id={ state.ID("pt-tree", v.View.Scope.Wire()) } class="min-h-0 flex-1 overflow-y-auto py-1">
 			@components.TreeBody(v.View)
 		</div>

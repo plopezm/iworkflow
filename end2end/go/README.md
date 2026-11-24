@@ -98,6 +98,14 @@ the tint of the pill in light, dark and the `ocean` palette. It registers its ow
 `run_go.sh`). Run it alone with `end2end/go/run_go.sh workspace_colors` (or `make e2e FILTER=workspace_colors`). It saves
 `workspace-colors-*.png` into `SMOKE_SCREENSHOT_DIR` (the run directory) and prints their absolute paths.
 
+## Content search (content_search)
+
+`end2end/go/content_search.e2e.cjs` covers the content search of the project tree: the tree filter (matches per file,
+the `cs`/`re`/`ww` toggles, a broken regex, clearing the box), the jump from a hit to the open file (query, counter,
+highlight and scroll to the line), the arrows, Enter and F3 with wrap-around, Ctrl+F and Escape, and the viewer's own
+search leaving the tree untouched. Each test registers its own repo under the run's temporary directory. Run it alone
+with `end2end/go/run_go.sh content_search`.
+
 ## Node unit steps
 
 `IWF_E2E_UNIT=1` runs two Node steps before the server starts:

@@ -100,3 +100,29 @@ func DecodeSearchQuery(r *http.Request) (SearchQuery, error) {
 	}
 	return SearchQuery{Scope: scope, Query: r.FormValue("q")}, nil
 }
+
+// ContentSearchRequest is a content search: the scope and the validated query.
+type ContentSearchRequest struct {
+	Scope models.ProjectScope
+	Query models.ContentQuery
+}
+
+// DecodeContentSearch reads `scope`, `q` and the flags `re`, `cs` and `ww` (any non-empty value other
+// than "0" or "false" turns a flag on).
+func DecodeContentSearch(r *http.Request) (ContentSearchRequest, error) {
+	scope, err := ParseScope(r.FormValue("scope"))
+	if err != nil {
+		return ContentSearchRequest{}, err
+	}
+	query, err := models.NewContentQuery(r.FormValue("q"), flag(r, "re"), flag(r, "cs"), flag(r, "ww"))
+	if err != nil {
+		return ContentSearchRequest{}, err //nolint:wrapcheck // domain error text is shown to the user
+	}
+	return ContentSearchRequest{Scope: scope, Query: query}, nil
+}
+
+// flag reads a checkbox-like form value.
+func flag(r *http.Request, name string) bool {
+	value := r.FormValue(name)
+	return value != "" && value != "0" && value != "false"
+}

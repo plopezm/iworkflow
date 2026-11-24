@@ -2498,3 +2498,17 @@ article.card:hover {
   pointer-events: none;
   background: color-mix(in srgb, var(--ws) 55%, transparent);
 }
+
+/* Search inside the open file (file_search.js): every match, and the current one. */
+::highlight(iwf-search) {
+  background-color: rgb(250 204 21 / 0.35);
+}
+
+::highlight(iwf-search-current) {
+  background-color: rgb(249 115 22 / 0.85);
+  color: #000;
+}
+
+[data-file-search][hidden] {
+  display: none;
+}

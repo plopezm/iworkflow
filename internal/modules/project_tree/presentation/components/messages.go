@@ -9,6 +9,11 @@ var (
 	msgEmptyFolder = i18n.Msg{En: "Empty folder.", Es: "Carpeta vacía.", Zh: "文件夹为空。", De: "Leerer Ordner.", Fr: "Dossier vide."}
 	msgReload      = i18n.Msg{En: "Reload", Es: "Recargar", Zh: "重新加载", De: "Neu laden", Fr: "Recharger"}
 
+	msgNoContentMatches = i18n.Msg{En: "No file contains that text.", Es: "Ningún fichero contiene ese texto.", Zh: "没有文件包含该文本。", De: "Keine Datei enthält diesen Text.", Fr: "Aucun fichier ne contient ce texte."}
+	msgContentFiles     = i18n.Msg{En: "files", Es: "ficheros", Zh: "个文件", De: "Dateien", Fr: "fichiers"}
+	msgContentTruncated = i18n.Msg{En: "Showing the first files only; refine the search.", Es: "Solo se muestran los primeros ficheros; afina la búsqueda.", Zh: "仅显示前几个文件；请缩小搜索范围。", De: "Nur die ersten Dateien werden angezeigt; Suche eingrenzen.", Fr: "Seuls les premiers fichiers sont affichés ; affinez la recherche."}
+	msgShowMatches      = i18n.Msg{En: "Show matches", Es: "Mostrar coincidencias", Zh: "显示匹配项", De: "Treffer anzeigen", Fr: "Afficher les occurrences"}
+
 	msgSave           = i18n.Msg{En: "Save", Es: "Guardar", Zh: "保存", De: "Speichern", Fr: "Enregistrer"}
 	msgDiscard        = i18n.Msg{En: "Discard", Es: "Descartar", Zh: "放弃", De: "Verwerfen", Fr: "Abandonner"}
 	msgReloadFromDisk = i18n.Msg{En: "Reload from disk", Es: "Recargar desde disco", Zh: "从磁盘重新加载", De: "Von Festplatte neu laden", Fr: "Recharger depuis le disque"}

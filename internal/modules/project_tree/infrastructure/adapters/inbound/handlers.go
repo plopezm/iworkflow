@@ -34,6 +34,7 @@ type UseCases struct {
 	DiscardPaths  *application.DiscardProjectPaths
 	CommitChanges *application.CommitProjectChanges
 	SearchFiles   *application.SearchProjectFiles
+	SearchContent *application.SearchProjectContent
 }
 
 // Handlers serves the project tree, the file editor, the changes panel and the file search.
@@ -60,6 +61,7 @@ func NewHandlers(uc UseCases) *Handlers {
 //	POST /project-tree/git/discard      discard_project_paths
 //	POST /project-tree/git/commit       commit_project_changes
 //	GET  /project-tree/search           search_project_files (composer `@` references)
+//	GET  /project-tree/content-search   search_project_content (tree filtered by file content)
 func (h *Handlers) Routes(r chi.Router) {
 	r.Get(state.PathTree, h.serveTree)
 	r.Get(state.PathDirectory, h.serveDirectory)
@@ -73,6 +75,7 @@ func (h *Handlers) Routes(r chi.Router) {
 	r.Post(state.PathGitDiscard, h.serveDiscard)
 	r.Post(state.PathGitCommit, h.serveCommit)
 	r.Get(state.PathSearch, h.serveSearch)
+	r.Get(state.PathContent, h.serveContentSearch)
 }
 
 // errorStatus is the HTTP status of a failure: missing things are 404, bad input is 400, a commit git
