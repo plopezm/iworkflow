@@ -4,6 +4,8 @@ package main
 
 import "unsafe"
 
-// trustLocalCertificate is not implemented yet for this platform (Windows WebView2 and macOS WKWebView need
+// trustLocalCertificate (and the external-link guard) is not implemented yet for this platform (Windows WebView2 and macOS WKWebView need
 // their own hooks; see odd/tasks/wails3-migration.md T2).
-func trustLocalCertificate(unsafe.Pointer) error { return nil }
+func trustLocalCertificate(unsafe.Pointer, int) error { return nil }
+
+func setTrustedPort(int) {}

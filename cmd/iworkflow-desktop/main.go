@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -31,7 +32,6 @@ type shell struct {
 	logger *slog.Logger
 
 	mu       sync.Mutex
-	addr     desktop.Addr
 	quitting bool
 }
 
@@ -62,7 +62,6 @@ func run(logger *slog.Logger) error {
 		sh.super.Stop()
 		return fmt.Errorf("starting the server: %w\n%s", err, sh.super.LogTail())
 	}
-	sh.addr = addr
 
 	sh.app = application.New(application.Options{
 		Name: appTitle,
@@ -81,7 +80,7 @@ func run(logger *slog.Logger) error {
 	// The certificate hook must be in place before the first load, so the URL is set once the GUI runs.
 	sh.app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		application.InvokeSync(func() {
-			if err := trustLocalCertificate(sh.window.NativeWindow()); err != nil {
+			if err := trustLocalCertificate(sh.window.NativeWindow(), addr.Port); err != nil {
 				logger.Warn("could not trust the local certificate", "error", err)
 			}
 		})
@@ -144,14 +143,41 @@ func (s *shell) isQuitting() bool {
 	return s.quitting
 }
 
-// onServerExit handles a server that ended by itself. Restart (T4) and the error dialog come in the next slice;
-// for now an unexpected exit closes the app so the prototype never shows a dead window.
+// onServerExit handles a server that ended by itself. Exit code 75 is a restart request (settings changed):
+// start it again and point the window at the new address. Any other exit is fatal.
 func (s *shell) onServerExit(code int) {
 	if s.isQuitting() {
 		return
 	}
-	s.logger.Error("the server stopped unexpectedly", "code", code, "tail", s.super.LogTail())
-	s.quit()
+	if code != desktop.RestartExitCode {
+		s.fatal(fmt.Sprintf("The server stopped unexpectedly (code %d).", code))
+		return
+	}
+	go func() {
+		addr, err := s.super.Start(context.Background())
+		if err != nil {
+			s.fatal(err.Error())
+			return
+		}
+		application.InvokeSync(func() { setTrustedPort(addr.Port) })
+		s.window.SetURL(addr.WindowURL(s.super.Token()))
+	}()
+}
+
+// fatal shows the error with the last server log lines, then quits (which stops the server).
+func (s *shell) fatal(message string) {
+	s.logger.Error("fatal", "message", message)
+	if s.isQuitting() {
+		return
+	}
+	s.mu.Lock()
+	s.quitting = true
+	s.mu.Unlock()
+	text := strings.TrimSpace(message + "\n\n" + s.super.LogTail())
+	application.InvokeSync(func() {
+		s.app.Dialog.Error().SetTitle(appTitle).SetMessage(text).Show()
+	})
+	s.app.Quit()
 }
 
 func dirOf(path string) string {
