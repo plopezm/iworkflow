@@ -418,6 +418,7 @@ func TestContentSearchFiltersTheTreeToFilesWithHits(t *testing.T) {
 	assert.Contains(t, body, `data-hit-file`)
 	assert.Contains(t, body, `data-hit-count>2<`, "the badge counts the matches of the file")
 	assert.Contains(t, body, `data-hit-line="2"`)
+	assert.Contains(t, body, `data-hit-path="src/hit.go"`, "the viewer's jump names the file of the hit")
 	assert.Contains(t, body, `data-hit-line="3"`)
 	assert.Contains(t, body, "/files/src/hit.go")
 	assert.NotContains(t, body, "miss.txt")
@@ -490,4 +491,31 @@ func TestTreePageRendersTheContentFilterForm(t *testing.T) {
 	assert.Contains(t, page, `name="re"`)
 	assert.Contains(t, page, `name="cs"`)
 	assert.Contains(t, page, `name="ww"`)
+}
+
+func TestFilePageOfATextFileHasTheSearchBarAndOtherPagesDoNot(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("hola\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "shot.png"), []byte{0x89, 'P', 'N', 'G', 0xff, 0xfe, 0x00}, 0o600))
+	id := uuid.New()
+	module, _ := httpModule(t, id, dir)
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.Es, Chosen: true})
+	render := func(path string) string {
+		t.Helper()
+		var page bytes.Buffer
+		require.NoError(t, module.RenderFile(ctx, id.String(), path).Render(ctx, &page))
+		return page.String()
+	}
+
+	editor := render("README.md")
+	for _, marker := range []string{`data-file-search-root`, `data-fs-input`, `data-fs-prev`, `data-fs-next`, `data-fs-close`, `data-fs-count`, `data-file-search hidden`} {
+		assert.Contains(t, editor, marker)
+	}
+	assert.Contains(t, editor, `data-path="README.md"`)
+	assert.Contains(t, editor, `data-scope="`+id.String()+`"`)
+
+	assert.NotContains(t, render("shot.png"), `data-file-search-root`, "an image has no text to search")
+	failed := render("missing.txt")
+	assert.NotContains(t, failed, `data-file-search-root`, "a file that cannot be read has no text to search")
+	assert.NotContains(t, failed, `data-fs-input`)
 }

@@ -14,6 +14,10 @@ var (
 	msgRegex          = i18n.Msg{En: "Regular expression", Es: "Expresión regular", Zh: "正则表达式", De: "Regulärer Ausdruck", Fr: "Expression régulière"}
 	msgWholeWord      = i18n.Msg{En: "Whole word", Es: "Palabra completa", Zh: "全字匹配", De: "Ganzes Wort", Fr: "Mot entier"}
 	msgReload         = i18n.Msg{En: "Reload", Es: "Recargar", Zh: "重新加载", De: "Neu laden", Fr: "Recharger"}
+	msgFindInFile     = i18n.Msg{En: "Find in file", Es: "Buscar en el fichero", Zh: "在文件中查找", De: "In Datei suchen", Fr: "Rechercher dans le fichier"}
+	msgPrevMatch      = i18n.Msg{En: "Previous match", Es: "Coincidencia anterior", Zh: "上一个匹配", De: "Vorheriger Treffer", Fr: "Occurrence précédente"}
+	msgNextMatch      = i18n.Msg{En: "Next match", Es: "Coincidencia siguiente", Zh: "下一个匹配", De: "Nächster Treffer", Fr: "Occurrence suivante"}
+	msgCloseSearch    = i18n.Msg{En: "Close search", Es: "Cerrar búsqueda", Zh: "关闭搜索", De: "Suche schließen", Fr: "Fermer la recherche"}
 )
 
 // TabTitle is the title of the project tree tab (the Rust TITLE_PROJECT constant).

@@ -23,7 +23,33 @@ templ ProjectFilePage(v state.FileView) {
 				<img src={ v.ImageURL } alt={ v.Name() } class="m-auto max-h-full max-w-full cursor-zoom-in object-contain data-[zoomed]:max-h-none data-[zoomed]:max-w-none data-[zoomed]:cursor-zoom-out" data-zoomable/>
 			</div>
 		} else {
-			@components.FileEditor(v)
+			<div class="flex min-h-0 flex-1 flex-col" data-file-search-root data-scope={ v.ScopeWire() } data-path={ v.Path }>
+				@fileSearchBar()
+				@components.FileEditor(v)
+			</div>
 		}
+	</div>
+}
+
+// fileSearchBar is the search over the open file. It stays hidden until Ctrl+F opens it (file_search.js).
+// Its checkboxes match the tree's: literal by default, case, regex and whole word.
+templ fileSearchBar() {
+	<div class="flex items-center gap-1 border-b border-border px-2 py-1" role="search" data-file-search hidden>
+		<input
+			type="search"
+			class="min-w-0 flex-1 rounded border border-border bg-transparent px-2 py-1 text-xs"
+			placeholder={ msgFindInFile.T(ctx) }
+			aria-label={ msgFindInFile.T(ctx) }
+			autocomplete="off"
+			spellcheck="false"
+			data-fs-input
+		/>
+		<label class="flex items-center gap-0.5 text-xs text-muted" title={ msgMatchCase.T(ctx) }><input type="checkbox" name="cs" value="1" aria-label={ msgMatchCase.T(ctx) }/>Aa</label>
+		<label class="flex items-center gap-0.5 text-xs text-muted" title={ msgRegex.T(ctx) }><input type="checkbox" name="re" value="1" aria-label={ msgRegex.T(ctx) }/>.*</label>
+		<label class="flex items-center gap-0.5 text-xs text-muted" title={ msgWholeWord.T(ctx) }><input type="checkbox" name="ww" value="1" aria-label={ msgWholeWord.T(ctx) }/>W</label>
+		<span class="min-w-[3.5rem] text-right font-mono text-xs text-muted" aria-live="polite" data-fs-count>0 / 0</span>
+		<button type="button" class="icon-btn" title={ msgPrevMatch.T(ctx) } aria-label={ msgPrevMatch.T(ctx) } data-fs-prev>↑</button>
+		<button type="button" class="icon-btn" title={ msgNextMatch.T(ctx) } aria-label={ msgNextMatch.T(ctx) } data-fs-next>↓</button>
+		<button type="button" class="icon-btn" title={ msgCloseSearch.T(ctx) } aria-label={ msgCloseSearch.T(ctx) } data-fs-close>×</button>
 	</div>
 }

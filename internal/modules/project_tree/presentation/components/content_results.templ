@@ -47,6 +47,7 @@ templ contentFile(row state.ContentRow) {
 				class="tree-row min-w-0 flex-1"
 				style={ row.Style }
 				data-hit-file
+				data-hit-path={ row.Path }
 				{ link.Props{Href: row.Href, Beside: true}.Attributes()... }
 			>
 				@coreui.TreeIcon(false, false)
@@ -61,6 +62,7 @@ templ contentFile(row state.ContentRow) {
 						href={ templ.SafeURL(row.Href) }
 						class="tree-row text-xs"
 						style={ hit.Style }
+						data-hit-path={ row.Path }
 						data-hit-line={ strconv.Itoa(hit.Line) }
 						{ link.Props{Href: row.Href, Beside: true}.Attributes()... }
 					>

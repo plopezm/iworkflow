@@ -76,7 +76,9 @@ func (s *RipgrepSearcher) Search(ctx context.Context, root string, query models.
 	}
 	var exitErr *exec.ExitError
 	// Exit 1 means "no matches"; a kill after the file limit is expected too.
-	expected := errors.As(waitErr, &exitErr) && (exitErr.ExitCode() == 1 || result.Truncated)
+	// A kill after the file limit surfaces as the context error, not as an ExitError, so Truncated alone
+	// makes it expected.
+	expected := result.Truncated || (errors.As(waitErr, &exitErr) && exitErr.ExitCode() == 1)
 	if waitErr != nil && !expected {
 		return models.ContentResult{}, fmt.Errorf("rg failed: %w", waitErr)
 	}
