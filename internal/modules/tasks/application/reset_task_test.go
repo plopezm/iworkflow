@@ -129,7 +129,7 @@ func TestResetTaskRemovesWorktreeAndBranchFromTheWorkspaceRepository(t *testing.
 	err := fixture.useCase().Execute(context.Background(), task.ID)
 
 	require.NoError(t, err)
-	assert.Equal(t, []string{"/repos/demo|/worktrees/demo/abc-task|pi/arregla-el-login-abc"}, fixture.worktrees.removed)
+	assert.Equal(t, []string{"/repos/demo|/worktrees/demo/abc-task|iwf/arregla-el-login-abc"}, fixture.worktrees.removed)
 }
 
 // Rule from source: when the live agent cannot be stopped, reset stops before touching the worktree or the database.

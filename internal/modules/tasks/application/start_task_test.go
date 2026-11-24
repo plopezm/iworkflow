@@ -106,7 +106,7 @@ func TestStartTaskCreatesWorktreeStartsAgentAndSendsPrompt(t *testing.T) {
 	require.Len(t, fx.worktrees.created, 1)
 	assert.Equal(t, "/repos/demo", fx.worktrees.created[0].repo)
 	assert.Equal(t, "main", fx.worktrees.created[0].base)
-	assert.Contains(t, fx.worktrees.created[0].branch, "pi/arregla-el-login-")
+	assert.Contains(t, fx.worktrees.created[0].branch, "iwf/arregla-el-login-")
 	require.Len(t, fx.runtime.started, 1)
 	assert.True(t, strings.HasPrefix(fx.runtime.started[0].cwd, "/wt/demo-ws-1/"), fx.runtime.started[0].cwd)
 	assert.False(t, fx.runtime.started[0].resume)

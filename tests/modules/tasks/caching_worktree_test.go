@@ -75,9 +75,9 @@ func TestCachingDiffHitsWhenTheFingerprintIsUnchanged(t *testing.T) {
 	inner := &countingWorktree{diffResult: func(int) models.TaskDiff { return sampleDiff("one") }}
 	cache := git.NewCachingWorktreeWithCapacity(inner, 4)
 
-	first, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	first, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 	require.NoError(t, err)
-	second, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	second, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 	require.NoError(t, err)
 
 	assert.Equal(t, sampleDiff("one"), first)
@@ -104,9 +104,9 @@ func TestCachingDiffMissesWhenTheFingerprintChanges(t *testing.T) {
 	}
 	cache := git.NewCachingWorktreeWithCapacity(inner, 4)
 
-	old, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	old, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 	require.NoError(t, err)
-	fresh, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	fresh, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 	require.NoError(t, err)
 
 	assert.Equal(t, sampleDiff("old"), old)
@@ -121,7 +121,7 @@ func TestCachingFingerprintErrorIsPropagatedWithoutDiffing(t *testing.T) {
 	}
 	cache := git.NewCachingWorktreeWithCapacity(inner, 4)
 
-	_, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	_, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 
 	assert.ErrorIs(t, err, werrors.Git(""))
 	assert.Zero(t, inner.diffCalls)
@@ -144,17 +144,17 @@ func TestCachingDoesNotStoreADiffComputedAcrossAMove(t *testing.T) {
 
 	// Call 1: fingerprint a:b, then the diff is computed while the branch moves to a:c. The after read is
 	// a:c, so the entry under a:b must not be stored.
-	first, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	first, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 	require.NoError(t, err)
 	assert.Equal(t, "computed-during-move", first.Patch)
 
 	// Call 2: fingerprint a:c, a miss, the diff is computed and stored under a:c.
-	second, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	second, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 	require.NoError(t, err)
 	assert.Equal(t, "current", second.Patch)
 
 	// Call 3: fingerprint a:b again. It must not be a hit on the mid-move diff; a fresh diff is computed.
-	third, err := cache.Diff(context.Background(), "/r", "main", "pi/x")
+	third, err := cache.Diff(context.Background(), "/r", "main", "iwf/x")
 	require.NoError(t, err)
 	assert.Equal(t, 3, inner.diffCalls)
 	assert.NotEqual(t, "computed-during-move", third.Patch)

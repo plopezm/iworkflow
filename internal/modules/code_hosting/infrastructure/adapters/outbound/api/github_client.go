@@ -62,7 +62,7 @@ func repoPath(project string) string {
 	return "/repos/" + strings.Join(segments, "/")
 }
 
-// refPath encodes a branch name segment by segment, so `pi/x` keeps its slash.
+// refPath encodes a branch name segment by segment, so `iwf/x` keeps its slash.
 func refPath(branch string) string {
 	segments := strings.Split(branch, "/")
 	for index, segment := range segments {

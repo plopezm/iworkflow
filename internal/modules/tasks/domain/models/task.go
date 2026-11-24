@@ -16,7 +16,9 @@ const (
 	maxTitleLength = 120
 	maxSlugLength  = 40
 	shortIDLength  = 8
-	branchPrefix   = "pi"
+	branchPrefix   = "iwf"
+	// legacyBranchPrefix is the prefix of branches created before the rename; they are still recognized.
+	legacyBranchPrefix = "pi"
 )
 
 // TaskID identifies a task. It is a UUID in canonical (lowercase, hyphenated) form.
@@ -317,15 +319,14 @@ func slugRune(character rune) (rune, bool) {
 	return 0, false
 }
 
-// BranchName returns the branch of a task: pi/<slug>-<unique>.
+// BranchName returns the branch of a task: iwf/<slug>-<unique>.
 func BranchName(title string, unique uuid.UUID) string {
 	return branchPrefix + "/" + Slugify(title) + "-" + unique.String()
 }
 
-// IsTaskBranch reports whether name is a branch created by iworkflow for a task (pi/...).
+// IsTaskBranch reports whether name is a branch created by iworkflow for a task (iwf/..., or the legacy pi/...).
 func IsTaskBranch(name string) bool {
-	rest, found := strings.CutPrefix(name, branchPrefix)
-	return found && strings.HasPrefix(rest, "/")
+	return strings.HasPrefix(name, branchPrefix+"/") || strings.HasPrefix(name, legacyBranchPrefix+"/")
 }
 
 // The worktree folders are kept short because Windows tools fail past 260 characters in a path.

@@ -178,11 +178,11 @@ func TestExecuteIfOpenPropagatesPublishFailures(t *testing.T) {
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
 	f.remote.head = unpushedHead
-	f.remote.publishErr = codeerrors.BranchPublishFailed("pi/feature", "rejected")
+	f.remote.publishErr = codeerrors.BranchPublishFailed("iwf/feature", "rejected")
 
 	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).ExecuteIfOpen(context.Background(), taskID)
 
-	require.Equal(t, codeerrors.BranchPublishFailed("pi/feature", "rejected"), err)
+	require.Equal(t, codeerrors.BranchPublishFailed("iwf/feature", "rejected"), err)
 	require.Nil(t, status)
 }
 

@@ -182,7 +182,7 @@ func TestDetailTabRejectsBadIDAndMissingMemory(t *testing.T) {
 func TestTaskTabShowsBranchAndEarlierGroupsLinkedToTheReader(t *testing.T) {
 	when := time.Date(2026, 1, 2, 3, 4, 0, 0, time.UTC)
 	tasks := stubTasks{
-		task:      models.TaskRef{ID: "t1", WorkspaceID: "w1", Title: "Mi tarea", Branch: "pi/mi-tarea-ab12", Started: true},
+		task:      models.TaskRef{ID: "t1", WorkspaceID: "w1", Title: "Mi tarea", Branch: "iwf/mi-tarea-ab12", Started: true},
 		workspace: testWorkspace,
 		feed: models.TaskFeed{
 			State:   models.StateAvailable,
@@ -192,7 +192,7 @@ func TestTaskTabShowsBranchAndEarlierGroupsLinkedToTheReader(t *testing.T) {
 	}
 	body := render(t, NewHandlers(nil, nil, tasks).TaskTab(context.Background(), dock.Params{"taskId": "t1"}))
 
-	assert.Contains(t, body, "pi/mi-tarea-ab12")
+	assert.Contains(t, body, "iwf/mi-tarea-ab12")
 	assert.Contains(t, body, "De esta rama")
 	assert.Contains(t, body, "Anteriores")
 	assert.Contains(t, body, `href="/workspaces/w1/memories/8"`)

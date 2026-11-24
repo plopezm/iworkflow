@@ -39,7 +39,7 @@ func TestDetailOfARunningTaskShowsItsShortBranchAndNoBacklogActions(t *testing.T
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
 	task := newTask(t, workspaceID, "running-detail", models.StatusRunning)
-	task.Branch = "pi/fix-login-3f2a9c1e-5b7d-4e8a-9c0b-1a2b3c4d5e6f"
+	task.Branch = "iwf/fix-login-3f2a9c1e-5b7d-4e8a-9c0b-1a2b3c4d5e6f"
 	insertTask(t, repo, task)
 	module, _ := boardRouter(t, repo)
 
@@ -47,7 +47,7 @@ func TestDetailOfARunningTaskShowsItsShortBranchAndNoBacklogActions(t *testing.T
 
 	assert.Contains(t, body, "Working", "the status badge of a running task")
 	assert.Contains(t, body, "Branch ")
-	assert.Contains(t, body, `<code class="font-mono" title="pi/fix-login-3f2a9c1e-5b7d-4e8a-9c0b-1a2b3c4d5e6f">pi/fix-login</code>`,
+	assert.Contains(t, body, `<code class="font-mono" title="iwf/fix-login-3f2a9c1e-5b7d-4e8a-9c0b-1a2b3c4d5e6f">iwf/fix-login</code>`,
 		"the uuid suffix is dropped from the shown branch and kept in its title")
 	assert.Contains(t, body, " from ")
 	assert.Contains(t, body, `<code class="font-mono">main</code>`, "the base branch")

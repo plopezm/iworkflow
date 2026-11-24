@@ -94,7 +94,7 @@ func newTask(t *testing.T, workspaceID string, title string, status models.TaskS
 		WorkspaceID:  workspaceID,
 		Title:        title,
 		Prompt:       "haz algo",
-		Branch:       "pi/" + title,
+		Branch:       "iwf/" + title,
 		BaseBranch:   "main",
 		WorktreePath: "/wt/" + title,
 		Status:       status,

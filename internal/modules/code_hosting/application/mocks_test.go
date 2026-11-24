@@ -211,7 +211,7 @@ func newFixture(t *testing.T) *fixture {
 	events := []string{}
 	client := &fakeClient{
 		user:      "pablo",
-		branches:  map[string]bool{"main": true, "pi/feature": true},
+		branches:  map[string]bool{"main": true, "iwf/feature": true},
 		events:    &events,
 		createdMR: mergeRequest(9, "opened"),
 		mergedMR:  mergeRequest(7, "merged"),
@@ -247,7 +247,7 @@ func githubSettings(t *testing.T) models.CodeHostSettings {
 func taskSource() *models.TaskSource {
 	return &models.TaskSource{
 		RepoPath:    "/repo",
-		Branch:      "pi/feature",
+		Branch:      "iwf/feature",
 		BaseBranch:  "main",
 		Title:       "Mi tarea",
 		Description: "Prompt de la tarea",
@@ -263,7 +263,7 @@ func mergeRequest(iid uint64, state string) models.MergeRequest {
 		Title:        "Mi tarea",
 		State:        state,
 		HeadSHA:      "head-sha",
-		SourceBranch: "pi/feature",
+		SourceBranch: "iwf/feature",
 		TargetBranch: "main",
 		WebURL:       fmt.Sprintf("https://git.corp/%s/-/merge_requests/%d", project, iid),
 		MergeStatus:  "mergeable",

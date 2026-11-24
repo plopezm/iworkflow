@@ -41,7 +41,7 @@ func newTask(status models.TaskStatus, dialogIDs ...string) models.Task {
 		WorkspaceID:    "ws-1",
 		Title:          "Arregla el login",
 		Prompt:         "Arregla el login",
-		Branch:         "pi/arregla-el-login-abc",
+		Branch:         "iwf/arregla-el-login-abc",
 		BaseBranch:     "main",
 		WorktreePath:   "/worktrees/demo/abc-task",
 		Status:         status,

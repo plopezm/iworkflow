@@ -32,7 +32,7 @@ func testTaskView(stage string) state.TaskDetailView {
 			Title:      "Mi Tarea",
 			Stage:      stage,
 			Status:     "running",
-			Branch:     "pi/task-11111111",
+			Branch:     "iwf/task-11111111",
 			BaseBranch: "main",
 		},
 		CanMessage: true,

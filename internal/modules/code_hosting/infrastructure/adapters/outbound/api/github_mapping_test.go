@@ -9,7 +9,7 @@ import (
 func TestGitHubPathsEncodeSegmentsAndKeepSlashes(t *testing.T) {
 	require.Equal(t, "/repos/acme/app", repoPath("acme/app"))
 	require.Equal(t, "/repos/a%20b/c%23d", repoPath("a b/c#d"))
-	require.Equal(t, "pi/fe%20at", refPath("pi/fe at"))
+	require.Equal(t, "iwf/fe%20at", refPath("iwf/fe at"))
 }
 
 func TestGitHubPullStateDistinguishesMergedFromClosed(t *testing.T) {

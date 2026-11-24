@@ -21,13 +21,13 @@ func TestListTaskMemoriesSplitsAtTheTaskStartKeepingBothGroups(t *testing.T) {
 		{ID: 2, Title: "old", UpdatedAt: at(9)},
 		{ID: 1, Title: "older", UpdatedAt: at(8)},
 	}}
-	tasks := fakeTasks{known: map[string]models.TaskRef{"t1": {ID: "t1", WorkspaceID: "w1", Branch: "pi/x", Started: true, StartedAt: at(12)}}}
+	tasks := fakeTasks{known: map[string]models.TaskRef{"t1": {ID: "t1", WorkspaceID: "w1", Branch: "iwf/x", Started: true, StartedAt: at(12)}}}
 	uc := NewListTaskMemories(tasks, known(), fakeProvider{feed: feed})
 
 	task, workspace, got, err := uc.Execute(context.Background(), "t1")
 
 	require.NoError(t, err)
-	assert.Equal(t, "pi/x", task.Branch)
+	assert.Equal(t, "iwf/x", task.Branch)
 	assert.Equal(t, "proj", workspace.Name)
 	assert.Equal(t, []int{4, 3}, ids(got.Branch))
 	assert.Equal(t, []int{2, 1}, ids(got.Earlier))

@@ -76,7 +76,7 @@ func TestStatusMapsTheMergeRequestAndItsJobs(t *testing.T) {
 			IID:          7,
 			Title:        "T",
 			State:        "opened",
-			SourceBranch: "pi/x",
+			SourceBranch: "iwf/x",
 			TargetBranch: "main",
 			WebURL:       "u",
 			MergeStatus:  "mergeable",

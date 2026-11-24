@@ -17,10 +17,10 @@ const (
 	gitHubToken = "ghp_test"
 	gitHubPulls = "/api/v3/repos/acme/app/pulls"
 	// gitHubPullOpen is a pull request on the Enterprise API (any host other than github.com).
-	gitHubPullOpen   = `{"number":7,"title":"T","state":"open","html_url":"http://gh/acme/app/pull/7","merged":false,"merged_at":null,"mergeable":true,"mergeable_state":"clean","head":{"ref":"pi/x","sha":"abc123"},"base":{"ref":"main","sha":"def"}}`
-	gitHubPullMerged = `{"number":7,"title":"T","state":"closed","html_url":"http://gh/acme/app/pull/7","merged":true,"merged_at":"2026-01-01T00:00:00Z","mergeable":null,"mergeable_state":"unknown","head":{"ref":"pi/x","sha":"abc123"},"base":{"ref":"main","sha":"def"}}`
-	gitHubListClosed = `{"number":5,"title":"Old","state":"closed","html_url":"http://gh/acme/app/pull/5","head":{"ref":"pi/x","sha":"s5"},"base":{"ref":"main","sha":"d"}}`
-	gitHubListOpen   = `{"number":7,"title":"T","state":"open","html_url":"http://gh/acme/app/pull/7","head":{"ref":"pi/x","sha":"abc123"},"base":{"ref":"main","sha":"d"}}`
+	gitHubPullOpen   = `{"number":7,"title":"T","state":"open","html_url":"http://gh/acme/app/pull/7","merged":false,"merged_at":null,"mergeable":true,"mergeable_state":"clean","head":{"ref":"iwf/x","sha":"abc123"},"base":{"ref":"main","sha":"def"}}`
+	gitHubPullMerged = `{"number":7,"title":"T","state":"closed","html_url":"http://gh/acme/app/pull/7","merged":true,"merged_at":"2026-01-01T00:00:00Z","mergeable":null,"mergeable_state":"unknown","head":{"ref":"iwf/x","sha":"abc123"},"base":{"ref":"main","sha":"def"}}`
+	gitHubListClosed = `{"number":5,"title":"Old","state":"closed","html_url":"http://gh/acme/app/pull/5","head":{"ref":"iwf/x","sha":"s5"},"base":{"ref":"main","sha":"d"}}`
+	gitHubListOpen   = `{"number":7,"title":"T","state":"open","html_url":"http://gh/acme/app/pull/7","head":{"ref":"iwf/x","sha":"abc123"},"base":{"ref":"main","sha":"d"}}`
 )
 
 func newGitHubClient() *api.GitHubClient {
@@ -53,14 +53,14 @@ func TestGitHubCurrentUserSendsGitHubHeadersAndReturnsTheLogin(t *testing.T) {
 
 func TestGitHubBranchExistsMaps404ToFalse(t *testing.T) {
 	provider := newFakeProvider(t, scriptedRoute{
-		target: "GET /api/v3/repos/acme/app/git/ref/heads/pi/x",
+		target: "GET /api/v3/repos/acme/app/git/ref/heads/iwf/x",
 		status: 200,
-		body:   `{"ref":"refs/heads/pi/x"}`,
+		body:   `{"ref":"refs/heads/iwf/x"}`,
 	})
 	client := newGitHubClient()
 	settings := gitHubSettings(t, provider)
 
-	exists, err := client.BranchExists(context.Background(), settings, "acme/app", "pi/x")
+	exists, err := client.BranchExists(context.Background(), settings, "acme/app", "iwf/x")
 	require.NoError(t, err)
 	require.True(t, exists)
 	missing, err := client.BranchExists(context.Background(), settings, "acme/app", "otra")
@@ -73,14 +73,14 @@ func TestGitHubFindLatestPrefersTheOpenPullAndRereadsIt(t *testing.T) {
 	list := "[" + gitHubListClosed + "," + gitHubListOpen + "]"
 	provider := newFakeProvider(t,
 		scriptedRoute{
-			target: "GET " + gitHubPulls + "?head=acme%3Api%2Fx&state=all&sort=created&direction=desc&per_page=30",
+			target: "GET " + gitHubPulls + "?head=acme%3Aiwf%2Fx&state=all&sort=created&direction=desc&per_page=30",
 			status: 200,
 			body:   list,
 		},
 		scriptedRoute{target: "GET /api/v3/repos/acme/app/pulls/7", status: 200, body: gitHubPullOpen},
 	)
 
-	found, err := newGitHubClient().FindLatestMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", "pi/x")
+	found, err := newGitHubClient().FindLatestMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", "iwf/x")
 
 	require.NoError(t, err)
 	require.NotNil(t, found)
@@ -89,7 +89,7 @@ func TestGitHubFindLatestPrefersTheOpenPullAndRereadsIt(t *testing.T) {
 	require.Equal(t, "mergeable", found.MergeStatus)
 	require.Equal(t, "abc123", found.HeadSHA)
 	require.Equal(t, "http://gh/acme/app/pull/7", found.WebURL)
-	require.Equal(t, "pi/x", found.SourceBranch)
+	require.Equal(t, "iwf/x", found.SourceBranch)
 	require.Equal(t, "main", found.TargetBranch)
 	seen := provider.requests()
 	require.Len(t, seen, 2)
@@ -124,7 +124,7 @@ func TestGitHubFindLatestFallsBackToTheMostRecentAndIsNilWhenEmpty(t *testing.T)
 }
 
 func gitHubNewPull() models.NewMergeRequest {
-	return models.NewMergeRequest{SourceBranch: "pi/x", TargetBranch: "main", Title: "T", Description: "D"}
+	return models.NewMergeRequest{SourceBranch: "iwf/x", TargetBranch: "main", Title: "T", Description: "D"}
 }
 
 func TestGitHubCreateMergeRequestPostsTheExpectedBody(t *testing.T) {
@@ -138,19 +138,19 @@ func TestGitHubCreateMergeRequestPostsTheExpectedBody(t *testing.T) {
 	assertGitHubHeaders(t, seen)
 	var body map[string]string
 	require.NoError(t, json.Unmarshal([]byte(seen.body), &body))
-	require.Equal(t, map[string]string{"title": "T", "head": "pi/x", "base": "main", "body": "D"}, body)
+	require.Equal(t, map[string]string{"title": "T", "head": "iwf/x", "base": "main", "body": "D"}, body)
 }
 
 func TestGitHubCreateWithoutNewCommitsIsAClearError(t *testing.T) {
 	provider := newFakeProvider(t, scriptedRoute{
 		target: "POST " + gitHubPulls,
 		status: 422,
-		body:   `{"message":"Validation Failed","errors":[{"resource":"PullRequest","code":"custom","message":"No commits between main and pi/x"}]}`,
+		body:   `{"message":"Validation Failed","errors":[{"resource":"PullRequest","code":"custom","message":"No commits between main and iwf/x"}]}`,
 	})
 
 	_, err := newGitHubClient().CreateMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", gitHubNewPull())
 
-	require.Equal(t, codeerrors.NoCommitsToPropose("pi/x", "main"), err)
+	require.Equal(t, codeerrors.NoCommitsToPropose("iwf/x", "main"), err)
 }
 
 func TestGitHubGetMergeRequestMapsAMergedPull(t *testing.T) {

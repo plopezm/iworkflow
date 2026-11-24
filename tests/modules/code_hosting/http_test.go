@@ -23,7 +23,7 @@ const (
 	// projectPath is the GitLab project of the fixture repository, as the API expects it encoded.
 	projectPath = "/api/v4/projects/grupo%2Fproyecto"
 	// findOpenPath is the list the panel reads for the task branch.
-	findOpenPath = "GET " + projectPath + "/merge_requests?source_branch=pi%2Ffeature&order_by=created_at&sort=desc"
+	findOpenPath = "GET " + projectPath + "/merge_requests?source_branch=iwf%2Ffeature&order_by=created_at&sort=desc"
 	taskID       = "task-1"
 )
 
@@ -50,13 +50,13 @@ func newFixture(t *testing.T, routes ...scriptedRoute) fixture {
 	gitlab := newFakeProvider(t, routes...)
 	repo := gitRepo(t)
 	runGit(t, repo, "remote", "add", "origin", gitlab.URL()+"/grupo/proyecto.git")
-	runGit(t, repo, "checkout", "-q", "-b", "pi/feature")
+	runGit(t, repo, "checkout", "-q", "-b", "iwf/feature")
 	runGit(t, repo, "commit", "-q", "--allow-empty", "-m", "work")
 	module := di.NewModule(di.Deps{
 		DB: dbtest.New(t),
 		Tasks: stubTasks{source: &models.TaskSource{
 			RepoPath:    repo,
-			Branch:      "pi/feature",
+			Branch:      "iwf/feature",
 			BaseBranch:  "main",
 			Title:       "Mi tarea",
 			Description: "Prompt de la tarea",
@@ -157,7 +157,7 @@ func TestPanelOffersToOpenARequestWhenTheBranchHasNone(t *testing.T) {
 	f := newFixture(t,
 		scriptedRoute{target: findOpenPath, status: 200, body: "[]"},
 		scriptedRoute{target: "GET " + projectPath + "/repository/branches/main", status: 200, body: `{"name":"main"}`},
-		scriptedRoute{target: "GET " + projectPath + "/repository/branches/pi%2Ffeature", status: 200, body: `{"name":"pi/feature"}`},
+		scriptedRoute{target: "GET " + projectPath + "/repository/branches/iwf%2Ffeature", status: 200, body: `{"name":"iwf/feature"}`},
 	)
 	f.saveGitLab(t, "glpat-secret")
 
@@ -201,7 +201,7 @@ func TestMergeAsksForConfirmationAndStopsWhenThePushFails(t *testing.T) {
 
 	merged := send(t, f.router, http.MethodPost, "/code-host/tasks/"+taskID+"/merge", nil)
 	require.Equal(t, http.StatusOK, merged.Code)
-	require.Contains(t, merged.Body.String(), "no se pudo publicar la rama pi/feature en origin")
+	require.Contains(t, merged.Body.String(), "no se pudo publicar la rama iwf/feature en origin")
 	require.Empty(t, mergeCalls(f.gitlab), "a failed push must prevent the merge")
 }
 
@@ -220,7 +220,7 @@ func TestCreateKeepsTheTypedTitleWhenThePushFails(t *testing.T) {
 	f := newFixture(t,
 		scriptedRoute{target: findOpenPath, status: 200, body: "[]"},
 		scriptedRoute{target: "GET " + projectPath + "/repository/branches/main", status: 200, body: `{"name":"main"}`},
-		scriptedRoute{target: "GET " + projectPath + "/repository/branches/pi%2Ffeature", status: 404, body: `{"message":"404 Branch Not Found"}`},
+		scriptedRoute{target: "GET " + projectPath + "/repository/branches/iwf%2Ffeature", status: 404, body: `{"message":"404 Branch Not Found"}`},
 	)
 	f.saveGitLab(t, "glpat-secret")
 
@@ -229,7 +229,7 @@ func TestCreateKeepsTheTypedTitleWhenThePushFails(t *testing.T) {
 	})
 
 	body := recorder.Body.String()
-	require.Contains(t, body, "no se pudo publicar la rama pi/feature en origin")
+	require.Contains(t, body, "no se pudo publicar la rama iwf/feature en origin")
 	require.Contains(t, body, `value="Mi título"`)
 	require.NotContains(t, body, "glpat-secret")
 	for _, seen := range f.gitlab.requests() {
