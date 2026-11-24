@@ -19,7 +19,9 @@ func sessionRow(workspaceName string, workspaceColor string) state.SessionRow {
 func TestSessionsListMarksAColoredWorkspaceWithItsPill(t *testing.T) {
 	body := render(t, SessionsList(state.ListView{Rows: []state.SessionRow{sessionRow("api", "blue")}}))
 
-	require.Contains(t, body, `<span class="ws-name ws-blue" data-workspace-color="blue">`)
+	// The style attribute sits between the two (it carries --ws for a custom color), so they are checked apart.
+	require.Contains(t, body, `<span class="ws-name ws-blue"`)
+	require.Contains(t, body, `data-workspace-color="blue"`)
 	require.Contains(t, body, `<span class="min-w-0 truncate">api</span>`)
 }
 
