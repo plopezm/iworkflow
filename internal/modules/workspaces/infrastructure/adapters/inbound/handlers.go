@@ -174,10 +174,32 @@ func (h *Handlers) table(ctx context.Context, deleteErr error) state.TableView {
 		view.Error = err.Error()
 		return view
 	}
+	groups, groupOf := h.groupDirectory(ctx)
 	for _, entry := range entries {
-		view.Rows = append(view.Rows, workspaceRow(dto.FromWorkspace(entry.Workspace), memoryChip(entry.Memory)))
+		row := workspaceRow(dto.FromWorkspace(entry.Workspace), memoryChip(entry.Memory))
+		if group, ok := groups[groupOf[row.ID]]; ok {
+			row.GroupName, row.GroupColor = group.Name, group.Color
+		}
+		view.Rows = append(view.Rows, row)
 	}
 	return view
+}
+
+// groupDirectory reads the groups by id and the group id of each workspace. Without a directory, or when it cannot be
+// read, nothing is grouped: the screens still work, they just show no groups.
+func (h *Handlers) groupDirectory(ctx context.Context) (map[string]GroupInfo, map[string]string) {
+	if h.uc.Groups == nil {
+		return nil, nil
+	}
+	list, groupOf, err := h.uc.Groups.Directory(ctx)
+	if err != nil {
+		return nil, nil
+	}
+	byID := make(map[string]GroupInfo, len(list))
+	for _, group := range list {
+		byID[group.ID] = group
+	}
+	return byID, groupOf
 }
 
 // registerForm builds the registration form, echoing the submitted values and offering the stored

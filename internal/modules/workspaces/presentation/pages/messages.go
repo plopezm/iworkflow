@@ -13,6 +13,9 @@ var (
 	msgWorkspacesTitle    = i18n.Msg{En: "Workspaces", Es: "Workspaces", Zh: "工作区", De: "Workspaces", Fr: "Espaces de travail"}
 	msgRegisterTitle      = i18n.Msg{En: "Register workspace", Es: "Registrar workspace", Zh: "注册工作区", De: "Workspace registrieren", Fr: "Enregistrer un espace de travail"}
 	msgRegisteredTitle    = i18n.Msg{En: "Registered", Es: "Registrados", Zh: "已注册", De: "Registriert", Fr: "Enregistrés"}
+	msgGroupsLink         = i18n.Msg{En: "Groups", Es: "Grupos", Zh: "分组", De: "Gruppen", Fr: "Groupes"}
+	msgGroupLabel         = i18n.Msg{En: "Group", Es: "Grupo", Zh: "分组", De: "Gruppe", Fr: "Groupe"}
+	msgNoGroupLabel       = i18n.Msg{En: "No group", Es: "Sin grupo", Zh: "未分组", De: "Keine Gruppe", Fr: "Aucun groupe"}
 	msgNewWorkspace       = i18n.Msg{En: "New workspace", Es: "Nuevo workspace", Zh: "新建工作区", De: "Neuer Workspace", Fr: "Nouvel espace de travail"}
 	msgEditTitle          = i18n.Msg{En: "Edit workspace", Es: "Editar workspace", Zh: "编辑工作区", De: "Workspace bearbeiten", Fr: "Modifier l'espace de travail"}
 	msgNameLabel          = i18n.Msg{En: "Name", Es: "Nombre", Zh: "名称", De: "Name", Fr: "Nom"}
@@ -46,3 +49,12 @@ func NewTitle(ctx context.Context) string { return msgNewWorkspace.T(ctx) }
 
 // EditTitle is the default title of the edit tab.
 func EditTitle(ctx context.Context) string { return msgEditTitle.T(ctx) }
+
+// groupSelectOptions converts the groups into the options of the group selector.
+func groupSelectOptions(options []state.GroupOption) []shared.SelectOption {
+	converted := make([]shared.SelectOption, 0, len(options))
+	for _, option := range options {
+		converted = append(converted, shared.SelectOption{Value: option.ID, Label: option.Name})
+	}
+	return converted
+}

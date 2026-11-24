@@ -123,7 +123,8 @@ func TestSidebarMenusLeaveColorsAndAssignmentsToTheGroupManager(t *testing.T) {
 	assert.NotContains(t, html, "Move to")
 	assert.NotContains(t, html, "Remove from group")
 	assert.NotContains(t, html, `/group"`, "no endpoint that assigns a workspace to a group")
-	assert.Contains(t, html, "Manage groups", "the group menu points to the manager")
+	assert.Contains(t, html, "Manage groups", "the group menu points to the groups screen")
+	assert.Contains(t, html, `data-dock-path="/workspaces/groups"`)
 }
 
 func TestBoardSidebarRootKeepsTheMorphSwap(t *testing.T) {

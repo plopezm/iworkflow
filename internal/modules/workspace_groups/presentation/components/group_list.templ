@@ -1,0 +1,28 @@
+package components
+
+import (
+	"strconv"
+
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/workspace_groups/presentation/state"
+)
+
+// GroupList is the rows of the groups tab: one line per group with its color, name and number of workspaces, and the
+// way to its own tab. Nothing is edited here.
+templ GroupList(list state.GroupList) {
+	if len(list.Rows) == 0 {
+		<p class="text-sm text-muted">{ msgEmpty.T(ctx) }</p>
+	}
+	for _, row := range list.Rows {
+		<article class="card row justify-between gap-2 animate-slide-up" data-group-id={ row.ID }>
+			<span class="row min-w-0 gap-2">
+				@shared.WorkspaceName(row.Name, row.Color)
+				<span class="text-xs text-muted">{ strconv.Itoa(row.Count) } { msgWorkspaces.T(ctx) }</span>
+			</span>
+			@link.Tab(link.Props{Href: row.Href, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
+				{ msgOpenGroup.T(ctx) }
+			}
+		</article>
+	}
+}

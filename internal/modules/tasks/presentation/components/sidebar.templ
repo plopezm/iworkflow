@@ -178,13 +178,13 @@ templ workspaceRow(workspace state.SidebarWorkspace) {
 	</div>
 }
 
-// groupMenu is the "…" menu of a group: rename, delete and a link to the group manager, where colors and assignments
-// are edited (the menu stays short on purpose).
+// groupMenu is the "…" menu of a group: rename, delete and a link to the groups screen, where colors are edited
+// (workspaces are assigned from each workspace's Edit screen) (the menu stays short on purpose).
 templ groupMenu(group state.SidebarGroup) {
 	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID } { promptAttrs(ctx, msgRenameGroup)... } hx-vals={ groupColorVals(group.Color) } hx-swap="none">
 		{ msgRenameGroup.T(ctx) }
 	</button>
-	@link.Tab(link.Props{Href: "/workspaces", Class: "menu-item"}) {
+	@link.Tab(link.Props{Href: "/workspaces/groups", Class: "menu-item"}) {
 		{ msgManageGroups.T(ctx) }
 	}
 	<button type="button" class="menu-item" hx-post={ "/workspace-groups/" + group.ID + "/delete" } hx-swap="none">

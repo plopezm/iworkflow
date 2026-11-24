@@ -1,0 +1,22 @@
+package components
+
+import "iworkflow/internal/core/dock/link"
+
+// Breadcrumb shows where a screen sits in its hierarchy ("Workspaces > Groups > Family"). Every crumb with an Href
+// opens its tab; the last one, without Href, is the current screen.
+templ Breadcrumb(label string, crumbs []Crumb) {
+	<nav aria-label={ label } class="row min-w-0 gap-1.5 text-sm text-muted" data-breadcrumb>
+		for i, crumb := range crumbs {
+			if i > 0 {
+				<span aria-hidden="true">&gt;</span>
+			}
+			if crumb.Href != "" {
+				@link.Tab(link.Props{Href: crumb.Href, Class: "truncate hover:text-fg"}) {
+					{ crumb.Label }
+				}
+			} else {
+				<span class="truncate font-semibold text-fg" aria-current="page">{ crumb.Label }</span>
+			}
+		}
+	</nav>
+}

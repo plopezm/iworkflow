@@ -190,3 +190,12 @@ func TestTableRowLinksTheFileExplorer(t *testing.T) {
 	assert.Contains(t, body, `href="/workspaces/w1"`)
 	assert.Contains(t, body, "Archivos")
 }
+
+func TestTableRowShowsItsGroupOnlyWhenItHasOne(t *testing.T) {
+	grouped := render(t, WorkspaceTable(state.TableView{Rows: []state.WorkspaceRow{{ID: "w1", Name: "alpha", GroupName: "Family", GroupColor: "teal"}}}))
+	ungrouped := render(t, WorkspaceTable(state.TableView{Rows: []state.WorkspaceRow{{ID: "w2", Name: "beta"}}}))
+
+	assert.Contains(t, grouped, "data-workspace-group")
+	assert.Contains(t, grouped, "Family")
+	assert.NotContains(t, ungrouped, "data-workspace-group")
+}

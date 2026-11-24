@@ -43,7 +43,9 @@ import (
 	workspaceserrors "iworkflow/internal/modules/workspaces/domain/errors"
 	workspacesmodels "iworkflow/internal/modules/workspaces/domain/models"
 	workspacesoutbound "iworkflow/internal/modules/workspaces/domain/ports/outbound"
+	workspacesinbound "iworkflow/internal/modules/workspaces/infrastructure/adapters/inbound"
 
+	wgapp "iworkflow/internal/modules/workspace_groups/application"
 	wgmodels "iworkflow/internal/modules/workspace_groups/domain/models"
 	wginbound "iworkflow/internal/modules/workspace_groups/infrastructure/adapters/inbound"
 )
@@ -946,4 +948,42 @@ func (c *workspaceGroupCatalog) List(ctx context.Context) ([]wginbound.Workspace
 		out = append(out, wginbound.WorkspaceInfo{ID: workspace.ID.String(), Name: workspace.Name, Color: derefColor(workspace.Color)})
 	}
 	return out, nil
+}
+
+// workspaceGroupDirectory tells the workspaces screens which group each workspace is in. The workspaces module never
+// imports the workspace_groups module: the composition root maps its assignments here. It is bound once both modules
+// exist; before that nothing is grouped.
+type workspaceGroupDirectory struct {
+	assigned *wgapp.ListAssignments
+	list     *workspacesapp.ListWorkspaces
+}
+
+var _ workspacesinbound.GroupDirectory = (*workspaceGroupDirectory)(nil)
+
+// Directory returns every group in order and the group id of each grouped workspace.
+func (d *workspaceGroupDirectory) Directory(ctx context.Context) ([]workspacesinbound.GroupInfo, map[string]string, error) {
+	if d.assigned == nil || d.list == nil {
+		return nil, nil, nil
+	}
+	workspaces, err := d.list.Execute(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list the workspaces to place in groups: %w", err)
+	}
+	ids := make([]string, 0, len(workspaces))
+	for _, workspace := range workspaces {
+		ids = append(ids, workspace.ID.String())
+	}
+	assigned, err := d.assigned.Execute(ctx, ids)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list the groups of the workspaces: %w", err)
+	}
+	groups := make([]workspacesinbound.GroupInfo, 0, len(assigned.Groups))
+	groupOf := make(map[string]string, len(ids))
+	for _, members := range assigned.Groups {
+		groups = append(groups, workspacesinbound.GroupInfo{ID: members.Group.ID(), Name: members.Group.Name(), Color: members.Group.Color()})
+		for _, id := range members.Workspaces {
+			groupOf[id] = members.Group.ID()
+		}
+	}
+	return groups, groupOf, nil
 }

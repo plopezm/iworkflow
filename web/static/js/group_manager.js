@@ -1,5 +1,5 @@
-// Group management card of the Workspaces screen. The create form posts to the group endpoint, which answers 204 and
-// refreshes the card; the refresh keeps the typed text of an input, so the form is emptied here once the group exists.
+// Create form of the Groups screen (Workspaces > Groups). The form posts to the group endpoint, which answers 204 and
+// refreshes the list; the refresh keeps the typed text of an input, so the form is emptied here once the group exists.
 
 // resetCreatedForm empties the create form after a successful request. It returns whether it did.
 export function resetCreatedForm(event) {

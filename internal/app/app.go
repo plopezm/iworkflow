@@ -123,6 +123,8 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	}
 	workspaceTasks := &workspaceTasksBridge{}
 	workspaceAgents := &workspaceRuntimes{}
+	// The groups module needs the workspaces module and the workspaces screens need the groups: bound once both exist.
+	workspaceGroupDirectory := &workspaceGroupDirectory{}
 	workspaces := workspacesdi.NewModule(workspacesdi.Deps{
 		DB:            deps.DB,
 		HomeDir:       deps.Config.HomeDir,
@@ -130,6 +132,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		AgentsFiles:   &agentsFilesBridge{module: agentsFiles},
 		AgentRuntimes: workspaceAgents,
 		Memory:        memoryPort,
+		Groups:        workspaceGroupDirectory,
 		Logger:        deps.Logger,
 	})
 	projects.list = workspaces.List
@@ -169,6 +172,8 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	hookStrip := NewTaskHooksStrip()
 	// The workspace groups of the sidebar: the module is built before tasks, whose sidebar arranges the workspaces with it.
 	workspaceGroups := workspacegroupsdi.NewModule(deps.DB, &workspaceGroupCatalog{list: workspaces.List})
+	workspaceGroupDirectory.assigned = workspaceGroups.Assigned
+	workspaceGroupDirectory.list = workspaces.List
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
 		HookStrip:      hookStrip,
 		DB:             deps.DB,
@@ -283,6 +288,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	routes = append(routes, tasks.Tabs()...)
 	routes = append(routes, agentsFiles.Tabs()...)
 	routes = append(routes, workspaces.Tabs()...)
+	routes = append(routes, workspaceGroups.Tabs()...)
 	routes = append(routes, memories.Tabs()...)
 	routes = append(routes, taskHooks.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)

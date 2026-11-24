@@ -1,0 +1,22 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/modules/workspace_groups/presentation/state"
+)
+
+// Members lists the workspaces of one group, each with the button that takes it out of the group. The group does not
+// add workspaces: that is done from the Edit screen of each workspace.
+templ Members(view state.Members) {
+	if len(view.Items) == 0 {
+		<p class="text-sm text-muted">{ msgNoMembers.T(ctx) }</p>
+	}
+	for _, item := range view.Items {
+		<div class="row justify-between gap-2" data-assigned-workspace={ item.ID }>
+			@shared.WorkspaceName(item.Name, item.Color)
+			<button type="button" class="btn-ghost" hx-post={ "/workspace-groups/workspaces/" + item.ID + "/group" } hx-vals={ unassignVals() } hx-swap="none">
+				{ msgUnassign.T(ctx) }
+			</button>
+		</div>
+	}
+}

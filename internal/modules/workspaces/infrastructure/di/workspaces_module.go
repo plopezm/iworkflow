@@ -37,6 +37,8 @@ type Deps struct {
 	// Memory reads what the memory provider remembers about the workspaces. Nil means no provider is wired,
 	// and the rows show no memory chip.
 	Memory outbound.MemorySummaryPort
+	// Groups tells the group of each workspace, for the group chip and the group selector. Nil shows neither.
+	Groups inbound.GroupDirectory
 	// Logger is the project logger; a failed memory read is logged through it. Nil falls back to the default logger.
 	Logger *slog.Logger
 }
@@ -88,6 +90,7 @@ func NewModule(deps Deps) *Module {
 		ListAgentsFiles:   module.ListAgentsFiles,
 		ListAgentRuntimes: module.ListAgentRuntimes,
 		ListWithMemory:    module.ListWithMemory,
+		Groups:            deps.Groups,
 	})
 	return module
 }

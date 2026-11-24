@@ -852,8 +852,8 @@ func workspaceRow(workspace state.SidebarWorkspace) templ.Component {
 	})
 }
 
-// groupMenu is the "…" menu of a group: rename, delete and a link to the group manager, where colors and assignments
-// are edited (the menu stays short on purpose).
+// groupMenu is the "…" menu of a group: rename, delete and a link to the groups screen, where colors are edited
+// (workspaces are assigned from each workspace's Edit screen) (the menu stays short on purpose).
 func groupMenu(group state.SidebarGroup) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -963,7 +963,7 @@ func groupMenu(group state.SidebarGroup) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = link.Tab(link.Props{Href: "/workspaces", Class: "menu-item"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = link.Tab(link.Props{Href: "/workspaces/groups", Class: "menu-item"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var44), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
