@@ -3,6 +3,7 @@ package fs
 
 import (
 	"context"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -68,11 +69,31 @@ func (s *FileStore) ReadImage(_ context.Context, root string, relative string) (
 	if err != nil {
 		return models.ProjectImage{}, err
 	}
-	content, err := os.ReadFile(target)
+	content, err := readBounded(target, relative, maxImageBytes)
 	if err != nil {
-		return models.ProjectImage{}, ioError(err)
+		return models.ProjectImage{}, err
 	}
 	return models.ProjectImage{ContentType: contentType, Content: content}, nil
+}
+
+// readBounded reads at most limit bytes of target. The size was checked with Stat earlier, but the file may have
+// been replaced since, so the read itself is capped: one byte past the limit means the file is too large.
+func readBounded(target string, relative string, limit int64) ([]byte, error) {
+	file, err := os.Open(target)
+	if err != nil {
+		return nil, ioError(err)
+	}
+	defer func() {
+		_ = file.Close() // read-only handle: a close failure cannot lose data
+	}()
+	content, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, ioError(err)
+	}
+	if int64(len(content)) > limit {
+		return nil, treeerrors.FileTooLarge(relative)
+	}
+	return content, nil
 }
 
 // Write overwrites an existing regular file atomically. It never creates files: a missing path is an error.

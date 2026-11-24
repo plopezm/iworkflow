@@ -87,6 +87,6 @@ func (h *Handlers) serveFileRaw(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 	if _, err := w.Write(image.Content); err != nil {
-		return
+		return // the status is already sent; a failed write only means the client went away
 	}
 }
