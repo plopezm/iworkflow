@@ -9,7 +9,25 @@ import (
 // WorkspaceTable lists the registered workspaces as cards. Deleting one swaps the whole table, so the
 // response carries the new list and the error of the attempt, if any.
 templ WorkspaceTable(table state.TableView) {
-	<div id="workspace-table" class="stack" { oobAttributes(table.OutOfBand)... }>
+	<div
+		id="workspace-table"
+		class="stack"
+		hx-get="/workspaces/table"
+		hx-trigger="sse:changed delay:250ms, sse:removed delay:250ms, sse:reset delay:250ms, board:refresh from:body, htmx:afterRequest[event.detail.requestConfig.verb == 'post' && event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body delay:250ms"
+		hx-sync="this:replace"
+		hx-target="this"
+		hx-swap="morph:innerHTML"
+		hx-disinherit="hx-swap hx-target"
+		{ oobAttributes(table.OutOfBand)... }
+	>
+		@WorkspaceTableBody(table)
+	</div>
+}
+
+// WorkspaceTableBody is the content of the table. It is what /workspaces/table answers: the element that listens
+// for changes stays in the page and only this content is morphed.
+templ WorkspaceTableBody(table state.TableView) {
+	<div class="stack">
 		if table.Error != "" {
 			@shared.ErrorText(table.Error)
 		}
