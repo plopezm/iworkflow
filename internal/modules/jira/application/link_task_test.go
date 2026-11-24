@@ -55,17 +55,18 @@ func TestLinkTaskRefusesAnInvalidKeyWithoutCallingAnything(t *testing.T) {
 	assert.Empty(t, issues.setStates)
 }
 
-func TestLinkTaskRefusesAnIssueLinkedToAnotherTask(t *testing.T) {
+func TestLinkTaskTakesOverAnIssueLinkedToAnotherTask(t *testing.T) {
 	other := "task-9"
 	taken := issueIn("A-1", models.IssueLocalStateConverted)
 	taken.TaskID = &other
 	issues := &fakeIssues{issues: []models.Issue{taken}}
 
-	_, err := application.NewLinkTaskToIssue(issues, connectedRepo(t, "https://j", "t"), newFakeClient(), linkNow).
+	linked, err := application.NewLinkTaskToIssue(issues, connectedRepo(t, "https://j", "t"), newFakeClient(), linkNow).
 		Execute(context.Background(), "task-1", "A-1")
 
-	require.ErrorIs(t, err, jiraerrors.AlreadyConverted(""))
-	assert.Empty(t, issues.setStates)
+	require.NoError(t, err)
+	require.NotNil(t, linked.TaskID)
+	assert.Equal(t, "task-1", *linked.TaskID)
 }
 
 func TestLinkTaskWithoutConnectionFailsNotConfigured(t *testing.T) {
@@ -89,4 +90,24 @@ func TestGetTaskIssueReturnsTheLinkedIssueOrNil(t *testing.T) {
 	none, err := use.Execute(context.Background(), "task-2")
 	require.NoError(t, err)
 	assert.Nil(t, none)
+}
+
+func TestLinkTaskMovesBothLinksInOneCall(t *testing.T) {
+	other, mine := "task-9", "task-1"
+	taken := issueIn("A-1", models.IssueLocalStateConverted)
+	taken.TaskID = &other
+	previous := issueIn("A-2", models.IssueLocalStateConverted)
+	previous.TaskID = &mine
+	issues := &fakeIssues{issues: []models.Issue{taken, previous}}
+
+	linked, err := application.NewLinkTaskToIssue(issues, connectedRepo(t, "https://j", "t"), newFakeClient(), linkNow).
+		Execute(context.Background(), "task-1", "A-1")
+
+	require.NoError(t, err)
+	require.NotNil(t, linked.TaskID)
+	assert.Equal(t, "task-1", *linked.TaskID)
+	require.Len(t, issues.setStates, 2)
+	assert.Equal(t, "A-2", issues.setStates[0].key)
+	assert.Equal(t, models.IssueLocalStateNew, issues.setStates[0].state)
+	assert.Nil(t, issues.setStates[0].taskID)
 }

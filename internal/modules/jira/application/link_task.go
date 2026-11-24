@@ -39,9 +39,6 @@ func (u *LinkTaskToIssue) Execute(ctx context.Context, taskID string, key string
 	if err != nil {
 		return models.Issue{}, err
 	}
-	if err := u.refuseOtherLink(ctx, taskID, normalized); err != nil {
-		return models.Issue{}, err
-	}
 	issue, err := u.issues.Find(ctx, normalized)
 	if err != nil {
 		return models.Issue{}, err
@@ -50,8 +47,10 @@ func (u *LinkTaskToIssue) Execute(ctx context.Context, taskID string, key string
 		if err := u.importIssue(ctx, connection, normalized); err != nil {
 			return models.Issue{}, err
 		}
-	} else if issue.TaskID != nil && *issue.TaskID != taskID {
-		return models.Issue{}, jiraerrors.AlreadyConverted(normalized)
+	}
+	// Linking moves the link: the task's previous issue is released.
+	if err := u.releaseOtherLink(ctx, taskID, normalized); err != nil {
+		return models.Issue{}, err
 	}
 	if err := u.issues.SetLocalState(ctx, normalized, models.IssueLocalStateConverted, &taskID); err != nil {
 		return models.Issue{}, err
@@ -66,15 +65,15 @@ func (u *LinkTaskToIssue) Execute(ctx context.Context, taskID string, key string
 	return *linked, nil
 }
 
-// refuseOtherLink keeps one issue per task: a task already linked to another issue would make the
-// task-to-issue lookup ambiguous.
-func (u *LinkTaskToIssue) refuseOtherLink(ctx context.Context, taskID string, key string) error {
+// releaseOtherLink keeps one issue per task: a task already linked to another issue is unlinked
+// from it (the issue goes back to new) so the task-to-issue lookup stays unambiguous.
+func (u *LinkTaskToIssue) releaseOtherLink(ctx context.Context, taskID string, key string) error {
 	current, err := u.issues.FindByTaskID(ctx, taskID)
 	if err != nil {
 		return err
 	}
 	if current != nil && current.Key() != key {
-		return jiraerrors.TaskAlreadyLinked(current.Key())
+		return u.issues.SetLocalState(ctx, current.Key(), models.IssueLocalStateNew, nil)
 	}
 	return nil
 }
