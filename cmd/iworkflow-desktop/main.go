@@ -31,6 +31,11 @@ type shell struct {
 	super  *desktop.Supervisor
 	logger *slog.Logger
 
+	updates    *desktop.Flow
+	background sync.WaitGroup
+	stop       context.CancelFunc
+	ctx        context.Context
+
 	mu       sync.Mutex
 	quitting bool
 }
@@ -65,7 +70,7 @@ func run(logger *slog.Logger) error {
 			UniqueID:               "dev.iworkflow.desktop",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { sh.showWindow() },
 		},
-		OnShutdown: sh.super.Stop,
+		OnShutdown: sh.shutdown,
 	})
 	// The server starts before the GUI loop so a start failure is reported without opening a window.
 	addr, err := sh.super.Start(context.Background())
@@ -103,6 +108,18 @@ func run(logger *slog.Logger) error {
 			sh.window.Hide()
 		}
 	})
+	ctx, cancel := context.WithCancel(context.Background())
+	sh.stop, sh.ctx = cancel, ctx
+	sh.updates = sh.newUpdateFlow()
+	if sh.updates != nil {
+		sh.background.Add(1)
+		go func() {
+			defer sh.background.Done()
+			if err := sh.updates.Run(ctx); err != nil {
+				logger.Warn("update checks stopped", "error", err)
+			}
+		}()
+	}
 	sh.createTray()
 	if err = sh.app.Run(); err != nil {
 		return fmt.Errorf("running the app: %w", err)
@@ -116,10 +133,30 @@ func (s *shell) createTray() {
 	tray.SetTooltip(appTitle + " (server running)")
 	menu := s.app.NewMenu()
 	menu.Add("Open iworkflow").OnClick(func(*application.Context) { s.showWindow() })
+	if s.updates != nil {
+		menu.Add("Check for updates").OnClick(func(*application.Context) {
+			s.background.Add(1)
+			go func() {
+				defer s.background.Done()
+				if err := s.updates.Check(s.ctx, true); err != nil {
+					s.logger.Warn("update check failed", "error", err)
+				}
+			}()
+		})
+	}
 	menu.AddSeparator()
 	menu.Add("Quit and stop server").OnClick(func(*application.Context) { s.quit() })
 	tray.SetMenu(menu)
 	tray.OnClick(s.showWindow)
+}
+
+// shutdown stops the background work, then the server.
+func (s *shell) shutdown() {
+	if s.stop != nil {
+		s.stop()
+	}
+	s.background.Wait()
+	s.super.Stop()
 }
 
 func (s *shell) showWindow() {
