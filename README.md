@@ -46,6 +46,10 @@ You need `git`, Go, `templ`, `tailwindcss` and at least one agent CLI installed 
   <sub>One task end to end: launch, follow the agent live, review the diff, merge.</sub>
 </p>
 
+### Desktop packages (Wails, in progress)
+
+`make wails-package` builds the Wails desktop shell (`cmd/iworkflow-desktop`) with the server staged next to it and writes the package for the current OS to `dist/wails/`. On Linux that is a `.tar.gz`: extract it and run `./iworkflow-desktop` (the server sits in `server/`; `iworkflow.desktop` is a launcher template whose `Exec` and `Icon` you may point to the extracted folder). The macOS `.dmg` and the Windows NSIS installer are not verified yet. The Electron installers from `make electron-build` are still the shipped desktop app.
+
 ## Learn more
 
 | Topic | What you will find |

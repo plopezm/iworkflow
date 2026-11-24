@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- UNVERIFIED: written for `make wails-package` on macOS; no macOS host was available when it was written. -->
+<!-- @VERSION@ is replaced by scripts/wails_package.sh. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>iworkflow</string>
+	<key>CFBundleDisplayName</key>
+	<string>iworkflow</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.iworkflow.desktop</string>
+	<key>CFBundleExecutable</key>
+	<string>iworkflow-desktop</string>
+	<key>CFBundleIconFile</key>
+	<string>icon</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@VERSION@</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>10.15</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>

@@ -30,7 +30,7 @@ comma := ,
 # Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
 SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))
 
-.PHONY: model tools generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-dev-https electron-test wails-dev wails-build wails-test e2e e2e-smoke
+.PHONY: model tools generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-dev-https electron-test wails-dev wails-build wails-package wails-test e2e e2e-smoke
 
 # Installs the generators that are missing. templ follows the version of the library in go.mod (generated code must match
 # it); sqlc and goose take the latest release. Tailwind is a standalone binary: it is downloaded from the pinned release
@@ -157,7 +157,26 @@ WAILS_TAGS := $(if $(filter linux,$(shell go env GOOS)),-tags gtk3,)
 
 # Desktop binary written to bin/.
 wails-build:
-	go build $(WAILS_TAGS) -o bin/iworkflow-desktop$(GOEXE) ./cmd/iworkflow-desktop
+	go build $(WAILS_TAGS) $(if $(APP_VERSION),-ldflags="-X main.version=$(APP_VERSION)",) -o bin/iworkflow-desktop$(GOEXE) ./cmd/iworkflow-desktop
+
+# Desktop package for the current OS, written to $(WAILS_PACKAGE_DIR): a tar.gz on Linux (AppImage not used, see
+# scripts/wails_package.sh), a .dmg on macOS and an NSIS setup on Windows. The server staged by stage_server.sh sits in
+# server/ next to the desktop binary, where internal/desktop finds it. macOS and Windows are UNVERIFIED: not built on those
+# hosts yet. Override APP_VERSION on the command line if needed; the version comes from electron/package.json.
+WAILS_PACKAGE_DIR := $(DIST_DIR)/wails
+WAILS_GOOS := $(shell go env GOOS)
+WAILS_GOARCH := $(shell go env GOARCH)
+WAILS_LDFLAGS := -ldflags="-s -w$(if $(APP_VERSION), -X main.version=$(APP_VERSION),)$(if $(filter windows,$(WAILS_GOOS)), -H windowsgui,)"
+
+wails-package: $(if $(SKIP_SERVER_BUILD),,dist)
+	@test -n "$(APP_VERSION)" || { echo "Cannot read the version from electron/package.json; pass APP_VERSION=X.Y.Z" >&2; exit 1; }
+	rm -rf $(WAILS_PACKAGE_DIR)/work
+	mkdir -p $(WAILS_PACKAGE_DIR)/work
+	./scripts/stage_server.sh $(DIST_DIR) $(WAILS_PACKAGE_DIR)/work/server $(BIN_FILE)
+	go build $(WAILS_TAGS) $(WAILS_LDFLAGS) -o $(WAILS_PACKAGE_DIR)/work/iworkflow-desktop$(GOEXE) ./cmd/iworkflow-desktop
+	./scripts/wails_package.sh $(WAILS_GOOS) $(WAILS_GOARCH) $(APP_VERSION) $(WAILS_PACKAGE_DIR)/work/iworkflow-desktop$(GOEXE) $(WAILS_PACKAGE_DIR)/work/server $(WAILS_PACKAGE_DIR)
+	rm -rf $(WAILS_PACKAGE_DIR)/work
+	@echo "Package written to $(WAILS_PACKAGE_DIR)"
 
 # Try the Wails window over the development server: `make wails-dev` (the server is staged in $(DIST_DIR) like electron-dev).
 wails-dev: build wails-build
