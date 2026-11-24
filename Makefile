@@ -162,6 +162,7 @@ wails-build:
 # Try the Wails window over the development server: `make wails-dev` (the server is staged in $(DIST_DIR) like electron-dev).
 wails-dev: build wails-build
 	mkdir -p $(DIST_DIR)/site
+	rm -f $(DIST_DIR)/$(BIN_FILE)
 	cp bin/$(BIN_FILE) $(DIST_DIR)/$(BIN_FILE)
 	cp -r web/static/* $(DIST_DIR)/site/
 	IWF_SERVER_DIR="$(abspath $(DIST_DIR))" ./bin/iworkflow-desktop$(GOEXE)

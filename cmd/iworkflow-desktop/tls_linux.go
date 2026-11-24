@@ -4,25 +4,12 @@ package main
 
 /*
 #cgo pkg-config: gtk+-3.0 webkit2gtk-4.1
+#include <stdlib.h>
 #include <string.h>
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
 
-// A certificate error is accepted only for a loopback host (the local server's self-signed certificate);
-// every other host keeps WebKit's default rejection.
-static gboolean iwf_on_tls_failed(WebKitWebView *view, const char *uri, GTlsCertificate *cert,
-                                  GTlsCertificateFlags errors, gpointer data) {
-	GUri *parsed = g_uri_parse(uri, G_URI_FLAGS_NONE, NULL);
-	if (parsed == NULL) return FALSE;
-	const char *host = g_uri_get_host(parsed);
-	gboolean local = host != NULL && (strcmp(host, "127.0.0.1") == 0 || strcmp(host, "localhost") == 0 || strcmp(host, "::1") == 0);
-	if (local) {
-		webkit_web_context_allow_tls_certificate_for_host(webkit_web_view_get_context(view), cert, host);
-		webkit_web_view_load_uri(view, uri);
-	}
-	g_uri_unref(parsed);
-	return local;
-}
+static WebKitWebView *iwf_view = NULL;
 
 static void iwf_find_webview(GtkWidget *widget, gpointer data) {
 	WebKitWebView **found = (WebKitWebView **)data;
@@ -61,13 +48,23 @@ static gboolean iwf_on_decide_policy(WebKitWebView *view, WebKitPolicyDecision *
 
 static void iwf_set_server_port(int port) { iwf_server_port = port; }
 
-// Returns 1 when the handler was installed.
-static int iwf_trust_local_certificate(void *window) {
+// Returns 1 when the guards were installed.
+static int iwf_install_guards(void *window) {
 	WebKitWebView *view = NULL;
 	iwf_find_webview(GTK_WIDGET(window), &view);
 	if (view == NULL) return 0;
-	g_signal_connect(view, "load-failed-with-tls-errors", G_CALLBACK(iwf_on_tls_failed), NULL);
+	iwf_view = view;
 	g_signal_connect(view, "decide-policy", G_CALLBACK(iwf_on_decide_policy), NULL);
+	return 1;
+}
+
+// Tells WebKit to accept exactly this certificate for the host: no error page, no reload.
+static int iwf_allow_certificate(const char *host, const char *pem) {
+	if (iwf_view == NULL) return 0;
+	GTlsCertificate *cert = g_tls_certificate_new_from_pem(pem, -1, NULL);
+	if (cert == NULL) return 0;
+	webkit_web_context_allow_tls_certificate_for_host(webkit_web_view_get_context(iwf_view), cert, host);
+	g_object_unref(cert);
 	return 1;
 }
 */
@@ -78,12 +75,24 @@ import (
 	"unsafe"
 )
 
-// trustLocalCertificate also sends external links to the system browser. It lets the window accept the local server's self-signed certificate. It must run on
-// the GTK main thread, with the native GtkWindow of the window.
-func trustLocalCertificate(window unsafe.Pointer, port int) error {
+// installWebViewGuards sends external links to the system browser. It must run on the GTK main thread, with
+// the native GtkWindow of the window.
+func installWebViewGuards(window unsafe.Pointer, port int) error {
 	C.iwf_set_server_port(C.int(port))
-	if C.iwf_trust_local_certificate(window) == 0 {
+	if C.iwf_install_guards(window) == 0 {
 		return errors.New("web view not found in the window")
+	}
+	return nil
+}
+
+// allowServerCertificate makes the web view accept this PEM certificate for host (the local server's own
+// self-signed certificate). Any other certificate keeps the default rejection. GTK main thread only.
+func allowServerCertificate(host string, pem []byte) error {
+	cHost, cPEM := C.CString(host), C.CString(string(pem))
+	defer C.free(unsafe.Pointer(cHost))
+	defer C.free(unsafe.Pointer(cPEM))
+	if C.iwf_allow_certificate(cHost, cPEM) == 0 {
+		return errors.New("certificate not accepted by the web view")
 	}
 	return nil
 }

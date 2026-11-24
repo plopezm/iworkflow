@@ -1,6 +1,11 @@
 package desktop_test
 
 import (
+	"encoding/pem"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -77,4 +82,24 @@ func TestStartTimeout(t *testing.T) {
 	assert.True(t, desktop.IsStartTimedOut(start.Add(61*time.Second), start, time.Time{}, desktop.ReadyTimeout))
 	assert.False(t, desktop.IsStartTimedOut(start.Add(61*time.Second), start, start.Add(30*time.Second), desktop.ReadyTimeout))
 	assert.Equal(t, "iworkflow.exe", desktop.ServerBinaryName("windows"))
+}
+
+func TestServerCertificatePEMReadsTheLocalServerCertificate(t *testing.T) {
+	server := httptest.NewTLSServer(http.NotFoundHandler())
+	defer server.Close()
+	_, portText, err := net.SplitHostPort(server.Listener.Addr().String())
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portText)
+	require.NoError(t, err)
+
+	pemBytes, err := desktop.Addr{Scheme: "https", Host: "127.0.0.1", Port: port}.ServerCertificatePEM()
+	require.NoError(t, err)
+	block, _ := pem.Decode(pemBytes)
+	require.NotNil(t, block)
+	assert.Equal(t, server.Certificate().Raw, block.Bytes)
+
+	_, err = desktop.Addr{Scheme: "http", Host: "127.0.0.1", Port: port}.ServerCertificatePEM()
+	assert.Error(t, err, "plain http has no certificate")
+	_, err = desktop.Addr{Scheme: "https", Host: "example.com", Port: port}.ServerCertificatePEM()
+	assert.Error(t, err, "only a loopback server is pinned")
 }

@@ -56,13 +56,8 @@ func run(logger *slog.Logger) error {
 		Exit:   sh.onServerExit,
 	}
 
-	// The server starts before the GUI loop so a start failure is reported without opening a window.
-	addr, err := sh.super.Start(context.Background())
-	if err != nil {
-		sh.super.Stop()
-		return fmt.Errorf("starting the server: %w\n%s", err, sh.super.LogTail())
-	}
-
+	// The single-instance lock is taken by application.New, so it comes before the server starts: a second
+	// launch must exit without leaving a server behind.
 	sh.app = application.New(application.Options{
 		Name: appTitle,
 		Icon: icon,
@@ -72,6 +67,13 @@ func run(logger *slog.Logger) error {
 		},
 		OnShutdown: sh.super.Stop,
 	})
+	// The server starts before the GUI loop so a start failure is reported without opening a window.
+	addr, err := sh.super.Start(context.Background())
+	if err != nil {
+		sh.super.Stop()
+		return fmt.Errorf("starting the server: %w\n%s", err, sh.super.LogTail())
+	}
+
 	sh.window = sh.app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  appTitle,
 		Width:  1400,
@@ -80,10 +82,11 @@ func run(logger *slog.Logger) error {
 	// The certificate hook must be in place before the first load, so the URL is set once the GUI runs.
 	sh.app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		application.InvokeSync(func() {
-			if err := trustLocalCertificate(sh.window.NativeWindow(), addr.Port); err != nil {
-				logger.Warn("could not trust the local certificate", "error", err)
+			if err := installWebViewGuards(sh.window.NativeWindow(), addr.Port); err != nil {
+				logger.Warn("could not install the web view guards", "error", err)
 			}
 		})
+		sh.trustServer(addr)
 		sh.window.SetURL(addr.WindowURL(sh.super.Token()))
 	})
 	// SIGINT/SIGTERM must stop the server too: route them to a normal quit.
@@ -160,8 +163,23 @@ func (s *shell) onServerExit(code int) {
 			return
 		}
 		application.InvokeSync(func() { setTrustedPort(addr.Port) })
+		s.trustServer(addr)
 		s.window.SetURL(addr.WindowURL(s.super.Token()))
 	}()
+}
+
+// trustServer makes the web view accept the server's own self-signed certificate, before the page loads.
+func (s *shell) trustServer(addr desktop.Addr) {
+	pem, err := addr.ServerCertificatePEM()
+	if err != nil {
+		s.logger.Warn("not trusting the server certificate", "error", err)
+		return
+	}
+	application.InvokeSync(func() {
+		if err := allowServerCertificate(addr.LocalHost(), pem); err != nil {
+			s.logger.Warn("could not trust the server certificate", "error", err)
+		}
+	})
 }
 
 // fatal shows the error with the last server log lines, then quits (which stops the server).
