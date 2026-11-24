@@ -30,7 +30,7 @@ comma := ,
 # Where the packaged binary looks for the sherpa-onnx libraries: next to it (Windows needs no rpath).
 SHERPA_RPATH := $(if $(filter darwin,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)@loader_path/lib,$(if $(filter linux,$(shell go env GOOS)),-Wl$(comma)-rpath$(comma)$$ORIGIN/lib,))
 
-.PHONY: model tools generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-dev-https electron-test e2e e2e-smoke
+.PHONY: model tools generate templ sqlc css build dist run run-https prod dev dev-https test lint fmt vet bump-version electron electron-build electron-dev electron-dev-https electron-test wails-dev wails-build wails-test e2e e2e-smoke
 
 # Installs the generators that are missing. templ follows the version of the library in go.mod (generated code must match
 # it); sqlc and goose take the latest release. Tailwind is a standalone binary: it is downloaded from the pinned release
@@ -151,6 +151,23 @@ electron-dev: build
 
 # Alias of electron-dev: the server always serves HTTPS, so the window and other devices use the same origin (see dev-https).
 electron-dev-https: electron-dev
+
+# Wails 3 desktop shell (prototype of the Electron replacement). Linux uses GTK3 + webkit2gtk-4.1 (build tag gtk3).
+WAILS_TAGS := $(if $(filter linux,$(shell go env GOOS)),-tags gtk3,)
+
+# Desktop binary written to bin/.
+wails-build:
+	go build $(WAILS_TAGS) -o bin/iworkflow-desktop$(GOEXE) ./cmd/iworkflow-desktop
+
+# Try the Wails window over the development server: `make wails-dev` (the server is staged in $(DIST_DIR) like electron-dev).
+wails-dev: build wails-build
+	mkdir -p $(DIST_DIR)/site
+	cp bin/$(BIN_FILE) $(DIST_DIR)/$(BIN_FILE)
+	cp -r web/static/* $(DIST_DIR)/site/
+	IWF_SERVER_DIR="$(abspath $(DIST_DIR))" ./bin/iworkflow-desktop$(GOEXE)
+
+wails-test:
+	go test -p 2 ./internal/desktop/...
 
 electron-test:
 	npm --prefix electron test
