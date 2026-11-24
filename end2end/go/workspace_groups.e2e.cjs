@@ -1,9 +1,12 @@
 // end2end/go/workspace_groups.e2e.cjs
-// Workspace groups of the Home sidebar, end to end in the browser (odd/tasks/workspace-groups.md, T6, S1-S9).
-// One ordered flow over three workspaces: create a group from the "+" dialog, move workspaces in and out of it from
-// their "…" menus, collapse it and reload, see the count and the attention marker, pin a workspace, filter by name (the search opens from its icon)
+// Workspace groups, end to end in the browser (odd/tasks/workspace-groups.md, T6, S1-S9, and
+// odd/tasks/workspace-group-manager.md, T5a, S1-S5).
+// One ordered flow over three workspaces: create a group from the "+" dialog, assign workspaces to it and take them out
+// in the group manager (the first card of the Workspaces screen, where colors, creation and deletion also live, and
+// where a pinned workspace stays a member), check that the sidebar "…" menus offer no color, move or removal entries,
+// collapse it and reload, see the count and the attention marker, pin a workspace, filter by name (the search opens from its icon)
 // (focus and text survive a sidebar refresh, matches inside a collapsed group appear, no match shows the empty line),
-// recolor, rename and delete the group, and check that the open menus survive a refresh.
+// recolor (manager), rename (sidebar menu) and delete the group, and check that the open menus survive a refresh.
 // Every check reads an observable effect: a DOM attribute of the sidebar, the text shown, or the state the server
 // keeps (read again after a reload). The sidebar is read through readSidebar(), never through its CSS classes.
 // Screenshots go to SMOKE_SCREENSHOT_DIR (set by run_go.sh to <run dir>/screenshots). The texts are the Spanish ones
@@ -115,6 +118,37 @@ const groupToggle = (page, id) => groupEl(page, id).locator('button[aria-expande
 const filterInput = (page) => page.locator('#board-sidebar #board-sidebar-filter');
 const searchToggle = (page) => page.locator('#board-sidebar #board-sidebar-search-toggle');
 
+// The group manager card of the Workspaces screen (served by the workspace_groups module, loaded into #group-manager).
+const manager = (page) => page.locator('#group-manager');
+const managerGroup = (page, id) => manager(page).locator(`[data-group-id="${id}"]`);
+
+async function openManager(ctx, groupId) {
+  await ctx.goto('/workspaces');
+  await managerGroup(ctx.page, groupId).waitFor({ state: 'visible', timeout: 12000 });
+}
+
+// Opens the assignments of a group in the manager (a no-op when they are already open).
+async function openAssignments(ctx, groupId) {
+  const group = managerGroup(ctx.page, groupId);
+  if ((await group.getAttribute('data-group-open')) !== 'true') await group.getByRole('button', { name: /Asignaciones/ }).click();
+  await group.locator('[data-group-assignments]').waitFor({ state: 'visible', timeout: 8000 });
+  return group;
+}
+
+// "Asignar" a workspace to the group, waits until the manager lists it among the assigned ones.
+async function assignInManager(ctx, groupId, ws) {
+  const group = await openAssignments(ctx, groupId);
+  await group.locator(`[data-available-workspace="${ws.id}"]`).getByRole('button', { name: 'Asignar', exact: true }).click();
+  await group.locator(`[data-assigned-workspace="${ws.id}"]`).waitFor({ state: 'visible', timeout: 8000 });
+}
+
+// "Desasignar" a workspace of the group, waits until the manager offers it again among the available ones.
+async function unassignInManager(ctx, groupId, ws) {
+  const group = await openAssignments(ctx, groupId);
+  await group.locator(`[data-assigned-workspace="${ws.id}"]`).getByRole('button', { name: 'Desasignar', exact: true }).click();
+  await group.locator(`[data-available-workspace="${ws.id}"]`).waitFor({ state: 'visible', timeout: 8000 });
+}
+
 // Re-renders the sidebar the way the periodic refreshes do (SSE and board:refresh both land on this event).
 const refreshSidebar = (page) =>
   page.evaluate(() => document.body.dispatchEvent(new CustomEvent('board:refresh', { bubbles: true })));
@@ -176,7 +210,7 @@ module.exports = {
   name: 'workspace_groups',
   tests: [
     {
-      name: 'grupos: la barra lateral crea, mueve, pliega, fija, filtra, colorea, renombra y elimina grupos',
+      name: 'grupos: el gestor crea, asigna, colorea y elimina grupos; la barra lateral los pliega, fija, filtra y renombra',
       fn: async (ctx) => {
         const { page } = ctx;
         fs.mkdirSync(SHOTS, { recursive: true });
@@ -204,30 +238,53 @@ module.exports = {
         ctx.assert(group.collapsed === false, 'un grupo nuevo empieza desplegado');
         ctx.assert(group.color === '', 'un grupo nuevo empieza sin color');
 
-        // ---- 2. S2: mover workspaces desde su "…" y sacarlos de nuevo ----
-        const moveTo = async (ws, target) => {
-          const panel = await openMenu(workspaceRow(page, ws.id));
-          await panel.getByRole('button', { name: `Mover a ${target.name}`, exact: true }).click();
-          return until(() => readSidebar(page), (s) => groupById(s, target.id)?.rows.some((r) => r.id === ws.id));
-        };
-        snap = await moveTo(alpha, group);
+        // ---- 2. S1-S3: el gestor de grupos (primera tarjeta de Workspaces) lista el grupo y asigna workspaces ----
+        await openManager(ctx, group.id);
+        ctx.assert(
+          await page.evaluate(() => {
+            const card = document.querySelector('#group-manager');
+            const registered = document.querySelector('#workspace-table');
+            return Boolean(card && registered && card.compareDocumentPosition(registered) & Node.DOCUMENT_POSITION_FOLLOWING);
+          }),
+          'el gestor de grupos es la primera tarjeta de Workspaces, encima de la lista',
+        );
+        ctx.assert((await managerGroup(page, group.id).locator('input[name=name]').inputValue()) === groupName, 'el gestor muestra el nombre del grupo');
+        ctx.assert((await managerGroup(page, group.id).locator('[data-group-assignments]').count()) === 0, 'las asignaciones empiezan cerradas');
+
+        await assignInManager(ctx, group.id, alpha);
+        snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.rows.some((r) => r.id === alpha.id));
         ctx.assert(groupById(snap, group.id).rows.map((r) => r.id).includes(alpha.id), 'alpha debe quedar dentro del grupo');
-        ctx.assert(groupById(snap, group.id).count === '1', `contador tras mover alpha: ${groupById(snap, group.id).count}`);
+        ctx.assert(groupById(snap, group.id).count === '1', `contador tras asignar alpha: ${groupById(snap, group.id).count}`);
         ctx.assert(!snap.ungrouped.some((r) => r.id === alpha.id), 'alpha ya no debe aparecer suelta');
         ctx.assert(rowCount(snap, alpha.id) === 1, 'alpha debe aparecer una sola vez');
+        ctx.assert((await managerGroup(page, group.id).locator('[data-group-assignments]').count()) === 1, 'tras asignar, el grupo sigue con las asignaciones abiertas');
 
-        snap = await moveTo(beta, group);
-        ctx.assert(groupById(snap, group.id).count === '2', `contador tras mover beta: ${groupById(snap, group.id).count}`);
+        await assignInManager(ctx, group.id, beta);
+        snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.count === '2');
+        ctx.assert(groupById(snap, group.id).count === '2', `contador tras asignar beta: ${groupById(snap, group.id).count}`);
 
-        // Back to no group: "Quitar del grupo" puts beta in the ungrouped rows, then it is moved again.
+        await shot('workspace-groups-manager.png');
+
+        // Desasignar puts beta back in the ungrouped rows; then it is assigned again.
+        await unassignInManager(ctx, group.id, beta);
+        snap = await until(() => readSidebar(page), (s) => s.ungrouped.some((r) => r.id === beta.id));
+        ctx.assert(groupById(snap, group.id).count === '1', `contador tras desasignar beta: ${groupById(snap, group.id).count}`);
+        ctx.assert(!groupById(snap, group.id).rows.some((r) => r.id === beta.id), 'beta ya no debe estar en el grupo');
+        await assignInManager(ctx, group.id, beta);
+        snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.count === '2');
+        ctx.assert(groupById(snap, group.id).count === '2', 'beta vuelve a entrar en el grupo');
+
+        // S3: the sidebar menus offer no colors, no move to a group and no removal from it; the group menu links to the manager.
         {
-          const panel = await openMenu(workspaceRow(page, beta.id));
-          await panel.getByRole('button', { name: 'Quitar del grupo', exact: true }).click();
-          snap = await until(() => readSidebar(page), (s) => s.ungrouped.some((r) => r.id === beta.id));
-          ctx.assert(groupById(snap, group.id).count === '1', `contador tras quitar beta: ${groupById(snap, group.id).count}`);
-          ctx.assert(!groupById(snap, group.id).rows.some((r) => r.id === beta.id), 'beta ya no debe estar en el grupo');
-          snap = await moveTo(beta, group);
-          ctx.assert(groupById(snap, group.id).count === '2', 'beta vuelve a entrar en el grupo');
+          const groupMenu = await openMenu(groupEl(page, group.id));
+          const groupMenuText = await groupMenu.textContent();
+          ctx.assert(/Gestionar grupos/.test(groupMenuText), `el menú del grupo enlaza al gestor: ${groupMenuText}`);
+          ctx.assert(!/Sin color|teal|Mover a|Quitar del grupo/.test(groupMenuText), `el menú del grupo no ofrece colores ni asignaciones: ${groupMenuText}`);
+          await page.keyboard.press('Escape');
+          const rowMenu = await openMenu(workspaceRow(page, alpha.id));
+          const rowMenuText = await rowMenu.textContent();
+          ctx.assert(!/Mover a|Quitar del grupo/.test(rowMenuText), `el menú de un workspace no ofrece mover ni quitar del grupo: ${rowMenuText}`);
+          await page.keyboard.press('Escape');
         }
 
         // ---- 3. S5: una tarea que necesita atención en uno de sus workspaces ----
@@ -271,6 +328,22 @@ module.exports = {
         await ctx.goto('/');
         snap = await until(() => readSidebar(page), (s) => s.pinned?.some((r) => r.id === gamma.id));
         ctx.assert(snap.pinned?.some((r) => r.id === gamma.id), 'tras recargar el workspace sigue fijado');
+
+        // S5: a pinned workspace is still assignable and stays a member of its group in the manager, while the sidebar
+        // keeps listing it only under "Fijados".
+        await openManager(ctx, group.id);
+        await assignInManager(ctx, group.id, gamma);
+        await ctx.goto('/');
+        snap = await until(() => readSidebar(page), (s) => s.pinned?.some((r) => r.id === gamma.id));
+        ctx.assert(groupById(snap, group.id).count === '2' && !groupById(snap, group.id).rows.some((r) => r.id === gamma.id), 'la barra lateral no cuenta ni lista al fijado dentro del grupo');
+        ctx.assert(rowCount(snap, gamma.id) === 1 && snap.pinned.some((r) => r.id === gamma.id), 'el fijado asignado sigue apareciendo solo en "Fijados"');
+        await openManager(ctx, group.id);
+        const assignedGroup = await openAssignments(ctx, group.id);
+        ctx.assert((await assignedGroup.locator(`[data-assigned-workspace="${gamma.id}"]`).count()) === 1, 'tras recargar, el gestor sigue listando al fijado como miembro del grupo');
+        await unassignInManager(ctx, group.id, gamma);
+        await ctx.goto('/');
+        snap = await until(() => readSidebar(page), (s) => s.pinned?.some((r) => r.id === gamma.id));
+        ctx.assert(groupById(snap, group.id).count === '2' && snap.pinned.some((r) => r.id === gamma.id), 'desasignarlo no cambia la barra lateral: sigue fijado y el grupo con dos');
 
         // ---- 6. S7: filtro por nombre ----
         // The search is closed until its icon is pressed: the icon shows the input and moves the focus into it.
@@ -333,12 +406,10 @@ module.exports = {
         ctx.assert(!(await filterInput(page).isVisible()), 'tras un refresco la búsqueda cerrada sigue cerrada');
         ctx.assert((await searchToggle(page).getAttribute('aria-expanded')) === 'false', 'el icono sigue indicando búsqueda cerrada tras el refresco');
 
-        // ---- 7. S6: color del grupo ----
-        {
-          const panel = await openMenu(groupEl(page, group.id));
-          await panel.getByRole('button', { name: 'teal', exact: true }).click();
-          snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.color === 'teal');
-        }
+        // ---- 7. S3: color del grupo desde el gestor ----
+        await openManager(ctx, group.id);
+        await managerGroup(page, group.id).locator('input[name=color][value=teal]').check({ force: true });
+        snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.color === 'teal');
         const colored = groupById(snap, group.id);
         ctx.assert(colored.color === 'teal', `color del grupo tras elegirlo: ${colored.color}`);
         const chipClasses = await groupEl(page, group.id).locator('[data-workspace-color="teal"]').first().getAttribute('class');
@@ -346,6 +417,26 @@ module.exports = {
         await ctx.goto('/');
         snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.color === 'teal');
         ctx.assert(groupById(snap, group.id)?.color === 'teal', 'tras recargar el grupo conserva el color');
+        await openManager(ctx, group.id);
+        ctx.assert(await managerGroup(page, group.id).locator('input[name=color][value=teal]').isChecked(), 'el gestor marca el color guardado');
+
+        // ---- 7b. S4: crear un grupo desde el formulario del gestor y eliminarlo con su botón ----
+        {
+          const extraName = `Extra ${tag}`;
+          const createForm = manager(page).locator('form[data-group-create]');
+          await createForm.locator('input[name=name]').fill(extraName);
+          await createForm.getByRole('button', { name: 'Crear grupo' }).click();
+          await manager(page).locator(`input[name=name][value="${extraName}"]`).waitFor({ state: 'visible', timeout: 8000 });
+          ctx.assert((await createForm.locator('input[name=name]').inputValue()) === '', 'tras crear, el formulario queda vacío');
+          snap = await until(() => readSidebar(page), (s) => Boolean(groupByName(s, extraName)));
+          const extra = groupByName(snap, extraName);
+          ctx.assert(extra, 'el grupo creado desde el gestor aparece en la barra lateral');
+          await managerGroup(page, extra.id).getByRole('button', { name: 'Eliminar grupo' }).click(); // the harness accepts the confirm
+          snap = await until(() => readSidebar(page), (s) => !groupByName(s, extraName));
+          ctx.assert(!groupByName(snap, extraName), 'el grupo eliminado desde el gestor desaparece de la barra lateral');
+          ctx.assert(snap.groups.length === 1, 'eliminar el grupo extra no toca el otro grupo');
+          ctx.assert(groupById(snap, group.id)?.count === '2', 'ni sus asignaciones');
+        }
 
         // ---- 8. S1: renombrar el grupo (dialogo de nombre), el id no cambia ----
         const renamed = `Equipo ${tag}`;
@@ -359,6 +450,9 @@ module.exports = {
         await ctx.goto('/');
         snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.name === renamed);
         ctx.assert(groupById(snap, group.id)?.name === renamed, 'tras recargar el grupo conserva el nombre nuevo');
+        await openManager(ctx, group.id);
+        ctx.assert((await managerGroup(page, group.id).locator('input[name=name]').inputValue()) === renamed, 'el gestor muestra el nombre nuevo');
+        await ctx.goto('/');
 
         // ---- 9. S9: los menús abiertos sobreviven a un refresco ----
         {
