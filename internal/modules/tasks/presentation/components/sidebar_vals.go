@@ -36,11 +36,6 @@ func groupCollapseVals(collapsed bool) string {
 	return jsonVals(map[string]string{"collapsed": strconv.FormatBool(collapsed)})
 }
 
-// groupEditVals is the hx-vals of a group recolor: the name is kept, the color is set.
-func groupEditVals(name string, color string) string {
-	return jsonVals(map[string]string{"name": name, "color": color})
-}
-
 // groupColorVals is the hx-vals of a group rename: the color is kept. The rename prompt supplies the name itself
 // (see web/static/js/group_prompt.js).
 func groupColorVals(color string) string {
@@ -64,11 +59,6 @@ func groupChevron(collapsed bool) string {
 // workspacePinVals is the hx-vals of a pin toggle: the state the workspace switches to.
 func workspacePinVals(pinned bool) string {
 	return jsonVals(map[string]string{"pinned": strconv.FormatBool(pinned)})
-}
-
-// workspaceGroupVals is the hx-vals of a move: the group the workspace goes to, empty to take it out of its group.
-func workspaceGroupVals(groupID string) string {
-	return jsonVals(map[string]string{"group": groupID})
 }
 
 // groupToggleAttrs are the attributes of a group toggle. While a filter is active the group is shown open whatever its

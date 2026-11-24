@@ -103,30 +103,27 @@ func TestGroupMenusPostToTheGroupEndpoints(t *testing.T) {
 
 	assert.Contains(t, html, `hx-post="/workspace-groups"`, "the + button creates a group")
 	assert.Contains(t, html, `hx-post="/workspace-groups/g1/collapse"`)
-	assert.Contains(t, html, `hx-post="/workspace-groups/g1"`, "rename and recolor")
+	assert.Contains(t, html, `hx-post="/workspace-groups/g1"`, "rename")
 	assert.Contains(t, html, `hx-post="/workspace-groups/g1/delete"`)
-	assert.Contains(t, html, `hx-post="/workspace-groups/workspaces/w2/group"`, "the ungrouped row can be moved")
 	assert.Contains(t, html, `hx-post="/workspace-groups/workspaces/w1/pin"`, "the grouped row can be pinned")
-	assert.Contains(t, html, `hx-post="/workspace-groups/workspaces/w1/group"`, "the grouped row can be moved or ungrouped")
-	assert.Contains(t, html, sidebarVals(`{"group":""}`), "a grouped row can be removed from its group")
 	assert.Contains(t, html, `hx-swap="none"`, "menu actions answer 204 and never swap the sidebar")
 }
 
-func TestWorkspaceMovesOfferEveryGroupButItsOwn(t *testing.T) {
+// Colors and assignments live in the group manager of the Workspaces screen (workspace_groups module), so the
+// "…" menus stay short: no color entries, no move to a group, no removal from a group.
+func TestSidebarMenusLeaveColorsAndAssignmentsToTheGroupManager(t *testing.T) {
 	t.Parallel()
-	rows := state.SidebarRows{
-		Arranged: true,
-		Groups: []state.SidebarGroup{
-			{ID: "g1", Name: "Backend", Workspaces: []state.SidebarWorkspace{{ID: "w1", Name: "api", GroupID: "g1"}}},
-			{ID: "g2", Name: "Frontend"},
-		},
-	}
-	rows.Workspaces = []state.SidebarWorkspace{{ID: "w1", Name: "api", GroupID: "g1"}}
+	rows := groupedRows()
+	rows.Groups[0].Collapsed = false
 
 	html := renderComponent(t, i18n.En, components.SidebarBody(rows))
 
-	assert.Contains(t, html, sidebarVals(`{"group":"g2"}`), "the other group is a move target")
-	assert.NotContains(t, html, sidebarVals(`{"group":"g1"}`), "moving a workspace to the group it is already in is not offered")
+	assert.NotContains(t, html, "No color")
+	assert.NotContains(t, html, `"color":"teal"`, "no recolor entry per palette key")
+	assert.NotContains(t, html, "Move to")
+	assert.NotContains(t, html, "Remove from group")
+	assert.NotContains(t, html, `/group"`, "no endpoint that assigns a workspace to a group")
+	assert.Contains(t, html, "Manage groups", "the group menu points to the manager")
 }
 
 func TestBoardSidebarRootKeepsTheMorphSwap(t *testing.T) {
