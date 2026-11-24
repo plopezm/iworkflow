@@ -23,6 +23,7 @@
 - **Integrated**: GitLab / GitHub (MR/PR and CI status), Jira Server / Data Center and Engram memory.
 - **Mobile-first**: check progress, answer an agent's question and merge from your phone (through Tailscale).
 - **Tabbed IDE-like workspace**: board, task, diff, terminal and file editor as draggable, splittable tabs, plus voice dictation for prompts.
+- **Content search**: type in the project tree to keep only the files with matches (literal by default, with case, regex and whole-word toggles, ripgrep with a Go fallback); open a hit and the file jumps to it with `Ctrl+F`, `F3` / `Shift+F3` or the arrows to move between matches.
 - **Desktop app**: an Electron installer for Linux, macOS and Windows wraps the same server.
 
 iworkflow imposes no workflow: each agent uses the configuration and plugins you already have installed, plus the project's `AGENTS.md`. Under the hood agents are driven over RPC (or ACP / stream-json, depending on the runtime). It is built with Go (`net/http` + `chi`), SSR with `templ` and `htmx`, Tailwind CSS, `sqlc` and SQLite.

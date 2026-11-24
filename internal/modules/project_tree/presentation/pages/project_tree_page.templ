@@ -38,7 +38,7 @@ templ ProjectTreePage(v state.TreePage) {
 			role="search"
 			data-content-filter
 			hx-get={ state.PathContent }
-			hx-trigger="input changed delay:250ms, change, submit"
+			hx-trigger="input changed delay:250ms, change[target.type=='checkbox'], submit"
 			hx-target={ "#" + state.ID("pt-tree", v.View.Scope.Wire()) }
 			hx-swap="innerHTML"
 			hx-sync="this:replace"

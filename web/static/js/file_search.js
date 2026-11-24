@@ -345,7 +345,8 @@ function attachViewer(root) {
   });
 
   root.addEventListener('change', (event) => {
-    if (open && event.target instanceof Element && bar.contains(event.target)) {
+    // Only the toggles: the text input also fires `change` on blur, which must not reset the current match.
+    if (open && event.target instanceof Element && bar.contains(event.target) && event.target.type === 'checkbox') {
       input.dataset.fsDirty = 'true';
       schedule(true);
     }
