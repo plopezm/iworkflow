@@ -24,26 +24,39 @@ static gboolean iwf_is_local_host(const char *host) {
 	return host != NULL && (strcmp(host, "127.0.0.1") == 0 || strcmp(host, "localhost") == 0 || strcmp(host, "::1") == 0);
 }
 
-// Navigations to anything but the local server open in the system browser instead of inside the app.
-static gboolean iwf_on_decide_policy(WebKitWebView *view, WebKitPolicyDecision *decision,
-                                     WebKitPolicyDecisionType type, gpointer data) {
-	if (type != WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION && type != WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) return FALSE;
-	WebKitNavigationPolicyDecision *nav = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
-	WebKitURIRequest *request = webkit_navigation_action_get_request(webkit_navigation_policy_decision_get_navigation_action(nav));
-	const char *uri = webkit_uri_request_get_uri(request);
+// Opens uri in the system browser when it is a web address that is not the local server. Returns TRUE if it did.
+static gboolean iwf_open_external(const char *uri) {
+	if (uri == NULL) return FALSE;
 	GUri *parsed = g_uri_parse(uri, G_URI_FLAGS_NONE, NULL);
 	if (parsed == NULL) return FALSE;
 	const char *scheme = g_uri_get_scheme(parsed);
 	gboolean web = scheme != NULL && (strcmp(scheme, "http") == 0 || strcmp(scheme, "https") == 0);
 	gboolean local = iwf_is_local_host(g_uri_get_host(parsed)) && g_uri_get_port(parsed) == iwf_server_port;
 	g_uri_unref(parsed);
-	if (!web || local) {
-		if (type == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) { webkit_policy_decision_ignore(decision); return TRUE; }
-		return FALSE;
-	}
+	if (!web || local) return FALSE;
 	g_app_info_launch_default_for_uri(uri, NULL, NULL);
-	webkit_policy_decision_ignore(decision);
 	return TRUE;
+}
+
+// Navigations to anything but the local server open in the system browser instead of inside the app.
+static gboolean iwf_on_decide_policy(WebKitWebView *view, WebKitPolicyDecision *decision,
+                                     WebKitPolicyDecisionType type, gpointer data) {
+	if (type != WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION && type != WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) return FALSE;
+	WebKitNavigationPolicyDecision *nav = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+	WebKitURIRequest *request = webkit_navigation_action_get_request(webkit_navigation_policy_decision_get_navigation_action(nav));
+	if (iwf_open_external(webkit_uri_request_get_uri(request))) {
+		webkit_policy_decision_ignore(decision);
+		return TRUE;
+	}
+	if (type == WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION) { webkit_policy_decision_ignore(decision); return TRUE; }
+	return FALSE;
+}
+
+// target="_blank" and window.open reach "create" first; without a handler WebKit drops them silently.
+// The app never opens extra windows: external addresses go to the system browser and the rest is ignored.
+static GtkWidget *iwf_on_create(WebKitWebView *view, WebKitNavigationAction *action, gpointer data) {
+	iwf_open_external(webkit_uri_request_get_uri(webkit_navigation_action_get_request(action)));
+	return NULL;
 }
 
 static void iwf_set_server_port(int port) { iwf_server_port = port; }
@@ -55,6 +68,7 @@ static int iwf_install_guards(void *window) {
 	if (view == NULL) return 0;
 	iwf_view = view;
 	g_signal_connect(view, "decide-policy", G_CALLBACK(iwf_on_decide_policy), NULL);
+	g_signal_connect(view, "create", G_CALLBACK(iwf_on_create), NULL);
 	return 1;
 }
 
