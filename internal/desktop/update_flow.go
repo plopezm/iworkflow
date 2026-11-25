@@ -386,6 +386,7 @@ func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 	if f.cfg.BeforeInstall != nil {
 		if err := f.cfg.BeforeInstall(ctx); err != nil {
 			f.progress(Progress{Phase: PhaseEnded, Version: found.Version})
+			f.forget(found.Version)
 			return fmt.Errorf("stop before install: %w", err)
 		}
 	}

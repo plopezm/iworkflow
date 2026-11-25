@@ -206,6 +206,10 @@ func (a *ArchiveInstaller) Check(ctx context.Context) (UpdateCheck, error) {
 	}
 	a.mu.Lock()
 	previous := a.pending
+	var previousArchive, previousStaging string
+	if previous != nil {
+		previousArchive, previousStaging = previous.archivePath, previous.staging
+	}
 	a.pending = &pendingUpdate{
 		version:     version,
 		archiveName: archiveName,
@@ -213,8 +217,11 @@ func (a *ArchiveInstaller) Check(ctx context.Context) (UpdateCheck, error) {
 		sha256:      digest,
 	}
 	a.mu.Unlock()
-	if previous != nil && previous.archivePath != "" {
-		a.removeFile(previous.archivePath)
+	if previousArchive != "" {
+		a.removeFile(previousArchive)
+	}
+	if previousStaging != "" {
+		removeAllLogged(previousStaging, a.log)
 	}
 	return UpdateCheck{Available: true, Version: version}, nil
 }
@@ -309,6 +316,7 @@ func (a *ArchiveInstaller) Prepare(ctx context.Context) error {
 		return errors.New("no downloaded update to prepare")
 	}
 	if err := ctx.Err(); err != nil {
+		a.discard(pending)
 		return fmt.Errorf("prepare update: %w", err)
 	}
 	rel, err := executableRel(a.cfg.Target, a.cfg.Executable)
@@ -665,6 +673,10 @@ func (opts ApplyOptions) normalized() (ApplyOptions, string, error) {
 	opts.SHA256 = strings.ToLower(opts.SHA256)
 	if opts.Staging != "" {
 		matched, matchErr := filepath.Match(stagingPattern, filepath.Base(opts.Staging))
+		info, statErr := os.Lstat(opts.Staging)
+		if statErr != nil || !info.IsDir() {
+			return opts, "", fmt.Errorf("staging folder %q must be a real folder: %v", opts.Staging, statErr)
+		}
 		if !filepath.IsAbs(opts.Staging) || filepath.Dir(opts.Staging) != filepath.Dir(opts.Target) || matchErr != nil || !matched {
 			return opts, "", fmt.Errorf("staging folder %q must be a staging folder next to the install target", opts.Staging)
 		}
@@ -899,7 +911,12 @@ func renameWithRetry(oldpath string, newpath string) error {
 		if err = os.Rename(oldpath, newpath); err == nil {
 			return nil
 		}
-		time.Sleep(renameDelay)
+		if errors.Is(err, fs.ErrNotExist) {
+			break // retrying cannot help: the folder is not there
+		}
+		if attempt < renameAttempts-1 {
+			time.Sleep(renameDelay)
+		}
 	}
 	return fmt.Errorf("renaming %s after %d attempts: %w", oldpath, renameAttempts, err)
 }
