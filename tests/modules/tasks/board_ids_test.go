@@ -138,7 +138,7 @@ func TestCreateTabNamesItsOwnScopeInIdsAndAddresses(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
-	module, _ := boardRouter(t, repo)
+	module, router := boardRouter(t, repo)
 
 	tab := renderTab(t, module, "task_new_workspace", dock.Params{"id": workspaceID})
 
@@ -147,6 +147,9 @@ func TestCreateTabNamesItsOwnScopeInIdsAndAddresses(t *testing.T) {
 	scope := match[1]
 	assert.Contains(t, tab, `hx-target="#task-create-result-`+scope+`"`)
 	assert.Contains(t, tab, `id="task-create-result-`+scope+`"`)
-	assert.Contains(t, tab, `id="board-branch-slot-`+scope+`"`)
+	assert.Contains(t, tab, `id="board-workspace-fields-`+scope+`"`, "the workspace fields load into their own slot")
+	_, fields := doRequest(t, router, http.MethodGet, "/board/tasks/create-workspaces?scope="+scope+"&workspace_id="+workspaceID, nil)
+	assert.Contains(t, fields, `id="board-branch-slot-`+scope+`"`+"", "the loaded fields keep the scope")
+	assert.Contains(t, fields, `hx-target="#board-branch-slot-`+scope+`"`)
 	assert.Contains(t, tab, `data-toggle-target="board-advanced-limits-`+scope+`"`)
 }

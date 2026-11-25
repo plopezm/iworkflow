@@ -76,7 +76,6 @@ type CreateForm struct {
 	Priority      string
 	BaseBranch    string
 	DefaultBranch string
-	Branches      []dto.BranchOptionDTO
 	MemoryLimit   string
 	CPULimit      string
 	Agent         AgentFormState

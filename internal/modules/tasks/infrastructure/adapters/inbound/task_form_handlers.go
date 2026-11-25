@@ -31,10 +31,10 @@ func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 	id := state.Scoped(branchSlot, scope)
 	// The edit page loads its select in the background and keeps the value the task already has.
 	edit := r.URL.Query().Get("slot") == "edit"
-	selected := ""
+	// The branch the user already has (stored, or picked before the list arrived) stays selected.
+	selected := r.URL.Query().Get("base_branch")
 	if edit {
 		id = state.Scoped(state.EditBranchSlot, scope)
-		selected = r.URL.Query().Get("base_branch")
 	}
 	workspaceID := r.URL.Query().Get("workspace_id")
 	workspaces, err := h.workspaceOptions(ctx)
@@ -56,6 +56,28 @@ func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 	}
 	choices := state.BranchChoices(options, selected)
 	web.Render(w, r, http.StatusOK, components.BranchSelect(id, choices, selected, defaultBranchOf(workspaces, workspaceID)))
+}
+
+// createWorkspaces serves the workspace fields of the create page (workspace, base branch, related projects) once the
+// workspaces are read. A failed read shows the error in their place.
+func (h *BoardHandlers) createWorkspaces(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	query := r.URL.Query()
+	scope := state.SanitizeScope(query.Get("scope"))
+	workspaces, err := h.workspaceOptions(ctx)
+	if err != nil {
+		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(state.Scoped(components.WorkspaceFieldsSlot, scope), err.Error()))
+		return
+	}
+	workspaceID := query.Get("workspace_id")
+	web.Render(w, r, http.StatusOK, components.WorkspaceFields(state.CreateForm{
+		Scope:           scope,
+		Workspaces:      workspaces,
+		WorkspaceID:     workspaceID,
+		BaseBranch:      query.Get("base_branch"),
+		DefaultBranch:   defaultBranchOf(workspaces, workspaceID),
+		RelatedProjects: state.RelatedProjectChoices(workspaces, workspaceID, nil),
+	}))
 }
 
 // startTask starts a backlog task from its card. The list refreshes either way, because a failed start may have
@@ -220,27 +242,40 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 func (h *BoardHandlers) agentSection(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
-	id, err := models.ParseTaskID(r.URL.Query().Get("task_id"))
-	if err != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
-		return
+	query := r.URL.Query()
+	choices := state.AgentFormState{
+		SelectedRuntime:  query.Get("agent_runtime"),
+		SelectedModel:    query.Get("agent_model"),
+		SelectedThinking: query.Get("agent_thinking"),
+		SelectedProfile:  query.Get("agent_profile"),
 	}
-	task, err := h.uc.Get.Execute(ctx, id)
-	if err != nil {
-		web.Render(w, r, http.StatusOK, shared.ErrorText(fmt.Errorf("read the task: %w", err).Error()))
-		return
+	runtime := parseRuntimeOrNil(choices.SelectedRuntime)
+	// Without a task id the create page asks, with the choices of its form; the edit page asks with its task.
+	if rawID := query.Get("task_id"); rawID != "" {
+		id, err := models.ParseTaskID(rawID)
+		if err != nil {
+			web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+			return
+		}
+		task, err := h.uc.Get.Execute(ctx, id)
+		if err != nil {
+			web.Render(w, r, http.StatusOK, shared.ErrorText(fmt.Errorf("read the task: %w", err).Error()))
+			return
+		}
+		runtime = task.Agent.Runtime
+		choices = state.AgentFormState{
+			SelectedRuntime:  stringOrEmpty(task.Agent.Runtime),
+			SelectedModel:    modelValue(task.Agent),
+			SelectedThinking: stringPtrOrEmpty(task.Agent.Thinking),
+			SelectedProfile:  stringPtrOrEmpty(task.Agent.Profile),
+		}
 	}
-	catalog, catalogErr := h.agentCatalog(ctx, task.Agent.Runtime)
+	catalog, catalogErr := h.agentCatalog(ctx, runtime)
 	if catalogErr != nil {
-		web.LogError(ctx, "could not read the agent catalog of the edit page", catalogErr)
+		web.LogError(ctx, "could not read the agent catalog of the lazy agent section", catalogErr)
 	}
-	web.Render(w, r, http.StatusOK, components.AgentSection(scope, state.AgentFormState{
-		Catalog:          catalog,
-		SelectedRuntime:  stringOrEmpty(task.Agent.Runtime),
-		SelectedModel:    modelValue(task.Agent),
-		SelectedThinking: stringPtrOrEmpty(task.Agent.Thinking),
-		SelectedProfile:  stringPtrOrEmpty(task.Agent.Profile),
-	}))
+	choices.Catalog = catalog
+	web.Render(w, r, http.StatusOK, components.AgentSection(scope, choices))
 }
 
 // workspaceIDs are the ids of the workspaces, in their order.

@@ -70,7 +70,7 @@ async function openEditFromCard(ctx, prompt) {
 
 // Delays the background loads of the edit page (branches and agent section) so their loading state can be seen.
 async function delayLazyLoads(page, ms) {
-  await page.route(/\/board\/tasks\/(branches|agent-section)\?/, async (route) => {
+  await page.route(/\/board\/tasks\/(branches|agent-section|create-workspaces)\?/, async (route) => {
     await sleep(ms);
     await route.continue();
   });
@@ -160,6 +160,53 @@ module.exports = {
         ctx.assert(options.some((o) => o.includes(`rama-lazy-${tag}`)), `la rama no se cargó: ${options.join(', ')}`);
         ctx.assert((await page.locator('form:visible select[name=agent_runtime]').count()) === 1, 'el selector de agente no se cargó');
         await shot(ctx, '2-edit-loaded-branches-and-agent');
+      },
+    },
+    {
+      name: 'create_lazy: la pantalla abre al instante, muestra "Cargando" y luego carga workspaces, ramas y agente',
+      fn: async (ctx) => {
+        const ws = await registerWs(ctx, `te-clazy-${tag}`);
+        execSync(`git -C '${ws.dir}' branch rama-clazy-${tag}`, { stdio: 'ignore' });
+        await ctx.goto('/');
+        await delayLazyLoads(ctx.page, 2500);
+        await ctx.page.locator('#board-sidebar').getByRole('link', { name: ws.name }).first().click();
+        await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+        await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
+        const page = ctx.page;
+        await page.getByRole('heading', { name: 'Nueva tarea' }).waitFor({ timeout: 5000 });
+        // The page and its prompt are usable while the workspaces load.
+        await page.getByText('Cargando workspaces').waitFor({ timeout: 5000 });
+        await page.locator('form:visible textarea[name=prompt]').waitFor({ timeout: 5000 });
+        await page.locator('form:visible input[name=show_advanced]').check();
+        await page.getByText('Cargando opciones del agente').waitFor({ timeout: 5000 });
+        await shot(ctx, '3-create-loading-workspaces-and-agent');
+        await page.getByText('Cargando workspaces').waitFor({ state: 'detached', timeout: 15000 });
+        await page.getByText('Cargando ramas').waitFor({ timeout: 5000 });
+        await shot(ctx, '4-create-loading-branches');
+        await page.getByText('Cargando ramas').waitFor({ state: 'detached', timeout: 15000 });
+        await page.getByText('Cargando opciones del agente').waitFor({ state: 'detached', timeout: 15000 });
+        const options = await page.locator('form:visible select[name=base_branch] option').allTextContents();
+        ctx.assert(options.some((o) => o.includes(`rama-clazy-${tag}`)), `la rama no se cargó: ${options.join(', ')}`);
+        ctx.assert((await page.locator('form:visible select[name=agent_runtime]').count()) === 1, 'el selector de agente no se cargó');
+        await shot(ctx, '5-create-loaded');
+      },
+    },
+    {
+      name: 'create_lazy: crear mientras cargan los workspaces conserva el workspace de la dirección',
+      fn: async (ctx) => {
+        const ws = await registerWs(ctx, `te-clazysub-${tag}`);
+        await ctx.goto('/');
+        await delayLazyLoads(ctx.page, 4000);
+        await ctx.page.locator('#board-sidebar').getByRole('link', { name: ws.name }).first().click();
+        await ctx.page.locator('[id^="board-list-"]:visible').waitFor({ timeout: 10000 });
+        await ctx.page.getByRole('button', { name: 'Nueva tarea' }).first().click();
+        await ctx.page.getByText('Cargando workspaces').waitFor({ timeout: 5000 });
+        const prompt = `clazysub-${tag}`;
+        await ctx.page.locator('form:visible textarea[name=prompt]').fill(prompt);
+        const create = ctx.page.locator('form:visible button[type=submit]', { hasText: 'Crear tarea' });
+        ctx.assert(await create.isEnabled(), 'el botón de crear no debe quedar deshabilitado mientras carga');
+        await create.click();
+        await ctx.page.locator('[id^="board-list-"]:visible [data-stage="backlog"]', { hasText: prompt }).first().waitFor({ timeout: 15000 });
       },
     },
     {

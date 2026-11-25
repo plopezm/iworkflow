@@ -276,6 +276,48 @@ templ CreateTaskFields(form state.CreateForm) {
 		<input type="hidden" name="link_kind" value={ form.LinkKind }/>
 		<input type="hidden" name="link_anchor" value={ form.LinkAnchor }/>
 	}
+	@WorkspaceFieldsLazy(form)
+	@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
+	@TaskPromptField(msgPrompt.T(ctx), state.Scoped("board-create-prompt", form.Scope), form.Prompt, "/board/tasks/composer/files")
+	@ImagePicker()
+	@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
+	@AdvancedOptionsWith(state.Scoped("board-advanced-limits", form.Scope), form.ShowAdvanced, form.MemoryLimit, form.CPULimit, AgentSectionLazy(form.Scope, form.Agent, state.CreateAgentSectionPath(form.Scope, form.Agent)))
+	if form.LinkKind == "" {
+		<label class="row min-h-10 items-center gap-2 text-sm text-fg">
+			<input type="checkbox" name="start_now" value="on" class="h-5 w-5" checked?={ form.StartNow }/>
+			<span>{ msgStartNow.T(ctx) }</span>
+		</label>
+	}
+}
+
+// WorkspaceFieldsSlot is the id of the workspace fields of the create page; the scope is added by Scoped.
+const WorkspaceFieldsSlot = "board-workspace-fields"
+
+// WorkspaceFieldsLazy stands in for the workspace fields of the create page while the workspaces load in the
+// background: a loading message, and the workspace and branch the form already has as hidden fields so a submit
+// before the load keeps them. The loaded fields replace it once (outerHTML); it targets itself and disables nothing,
+// because the create form around it would otherwise lend its result target and its disabled submit button.
+templ WorkspaceFieldsLazy(form state.CreateForm) {
+	<div
+		id={ state.Scoped(WorkspaceFieldsSlot, form.Scope) }
+		class="stack gap-4"
+		hx-get={ state.CreateWorkspacesPath(form.Scope, form.WorkspaceID, form.BaseBranch) }
+		hx-trigger="load"
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-disabled-elt="unset"
+		aria-busy="true"
+	>
+		<input type="hidden" name="workspace_id" value={ form.WorkspaceID }/>
+		<input type="hidden" name="base_branch" value={ form.BaseBranch }/>
+		@shared.Loading(msgLoadingWorkspaces.T(ctx))
+	</div>
+}
+
+// WorkspaceFields are the fields that depend on the workspaces: the workspace select, its base branch and the related
+// projects. The create page loads them in the background (WorkspaceFieldsLazy).
+templ WorkspaceFields(form state.CreateForm) {
+	<div id={ state.Scoped(WorkspaceFieldsSlot, form.Scope) } class="stack gap-4">
 	<label class="stack gap-1.5">
 		<span class="text-sm font-medium text-fg">{ msgWorkspace.T(ctx) }</span>
 		<select
@@ -297,19 +339,13 @@ templ CreateTaskFields(form state.CreateForm) {
 			}
 		</select>
 	</label>
-	@BranchSelect(state.Scoped("board-branch-slot", form.Scope), branchChoices(form), form.BaseBranch, form.DefaultBranch)
-	@RelatedProjectsField(form.RelatedProjects)
-	@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
-	@TaskPromptField(msgPrompt.T(ctx), state.Scoped("board-create-prompt", form.Scope), form.Prompt, "/board/tasks/composer/files")
-	@ImagePicker()
-	@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
-	@AdvancedOptions(state.Scoped("board-advanced-limits", form.Scope), form.Scope, form.ShowAdvanced, form.MemoryLimit, form.CPULimit, form.Agent)
-	if form.LinkKind == "" {
-		<label class="row min-h-10 items-center gap-2 text-sm text-fg">
-			<input type="checkbox" name="start_now" value="on" class="h-5 w-5" checked?={ form.StartNow }/>
-			<span>{ msgStartNow.T(ctx) }</span>
-		</label>
+	if form.WorkspaceID == "" {
+		@BranchSelect(state.Scoped("board-branch-slot", form.Scope), state.BranchChoices(nil, form.BaseBranch), form.BaseBranch, form.DefaultBranch)
+	} else {
+		@BranchSelectLazy(state.Scoped("board-branch-slot", form.Scope), state.BranchChoices(nil, form.BaseBranch), form.BaseBranch, form.DefaultBranch, state.CreateBranchesPath(form.WorkspaceID, form.Scope, form.BaseBranch))
 	}
+	@RelatedProjectsField(form.RelatedProjects)
+	</div>
 }
 
 // TaskCreated is the answer of a create. A clean create ends the create tab and opens the board of the workspace (the
@@ -334,11 +370,6 @@ templ TaskCreated(boardPath string, startError string, linkErrors []string) {
 // CreateTitle is the title of the create tab.
 func CreateTitle(ctx context.Context) string {
 	return msgNewTask.T(ctx)
-}
-
-// branchChoices are the base branch options of a create form.
-func branchChoices(form state.CreateForm) []state.BranchChoice {
-	return state.BranchChoices(form.Branches, form.BaseBranch)
 }
 
 // TaskEditFields are the editable fields of a backlog task. The edit page wraps them in its own form.
