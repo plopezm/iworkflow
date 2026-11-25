@@ -8,6 +8,7 @@ import "iworkflow/internal/core/i18n"
 var (
 	msgRemoteBranch        = i18n.Msg{En: "{name} (remote)", Es: "{name} (remota)", Zh: "{name}（远程）", De: "{name} (remote)", Fr: "{name} (distante)"}
 	msgLoadingBranches     = i18n.Msg{En: "Loading branches…", Es: "Cargando ramas…", Zh: "正在加载分支…", De: "Branches werden geladen…", Fr: "Chargement des branches…"}
+	msgLoadingWorkspaces   = i18n.Msg{En: "Loading workspaces…", Es: "Cargando workspaces…", Zh: "正在加载工作区…", De: "Workspaces werden geladen…", Fr: "Chargement des espaces de travail…"}
 	msgLoadingAgents       = i18n.Msg{En: "Loading agent options…", Es: "Cargando opciones del agente…", Zh: "正在加载代理选项…", De: "Agent-Optionen werden geladen…", Fr: "Chargement des options de l'agent…"}
 	msgBaseBranch          = i18n.Msg{En: "Base branch", Es: "Rama base", Zh: "基础分支", De: "Basis-Branch", Fr: "Branche de base"}
 	msgRelatedProjects     = i18n.Msg{En: "Related projects", Es: "Proyectos relacionados", Zh: "关联项目", De: "Verwandte Projekte", Fr: "Projets liés"}

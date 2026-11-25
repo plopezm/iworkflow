@@ -131,15 +131,19 @@ func TestCreateDialogPlacesTheRelatedProjectsAfterTheBaseBranchAndBeforeThePromp
 		RelatedProjects: []state.RelatedProjectChoice{{ID: "api-id", Name: "api", Path: "/repos/api", Selected: true}},
 	}
 
-	body := renderRelatedIn(t, i18n.En, components.CreateTaskFields(form))
+	body := renderRelatedIn(t, i18n.En, components.WorkspaceFields(form))
 
 	branch := strings.Index(body, `name="base_branch"`)
 	related := strings.Index(body, `data-related-projects`)
-	prompt := strings.Index(body, `name="prompt"`)
-	require.True(t, branch >= 0 && related >= 0 && prompt >= 0)
+	require.True(t, branch >= 0 && related >= 0)
 	assert.Less(t, branch, related, "the list comes after the base branch")
-	assert.Less(t, related, prompt, "the list comes before the prompt, so the user ticks projects before typing @")
 	assert.Contains(t, relatedInput(t, body, "api-id"), "checked")
+
+	page := renderRelatedIn(t, i18n.En, components.CreateTaskFields(form))
+	slot := strings.Index(page, `id="board-workspace-fields-s1"`)
+	prompt := strings.Index(page, `name="prompt"`)
+	require.True(t, slot >= 0 && prompt >= 0)
+	assert.Less(t, slot, prompt, "the workspace fields come before the prompt, so the user ticks projects before typing @")
 }
 
 func TestEditFieldsPlaceTheRelatedProjectsAfterTheBaseBranchAndBeforeThePrompt(t *testing.T) {
@@ -167,7 +171,7 @@ func TestEditFieldsPlaceTheRelatedProjectsAfterTheBaseBranchAndBeforeThePrompt(t
 func TestCreateFieldsThatRequestOptionsDisableThemselvesInsteadOfInheritingTheSubmitSelector(t *testing.T) {
 	t.Parallel()
 
-	body := renderRelatedIn(t, i18n.En, components.CreateTaskFields(state.CreateForm{}))
+	body := renderRelatedIn(t, i18n.En, components.WorkspaceFields(state.CreateForm{}))
 
 	requesting := 0
 	for _, tag := range strings.Split(body, "<select")[1:] {
@@ -178,5 +182,5 @@ func TestCreateFieldsThatRequestOptionsDisableThemselvesInsteadOfInheritingTheSu
 		requesting++
 		assert.Contains(t, tag, `hx-disabled-elt="this"`)
 	}
-	assert.GreaterOrEqual(t, requesting, 2, "the workspace and the agent selects request their options")
+	assert.GreaterOrEqual(t, requesting, 1, "the workspace select requests its branches; the agent select arrives with its lazy section")
 }

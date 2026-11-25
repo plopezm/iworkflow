@@ -157,6 +157,7 @@ func (h *BoardHandlers) Mount(r chi.Router) {
 	r.Get("/board/frame", h.frame)
 	r.Get("/board/sidebar", h.sidebar)
 	r.Get("/board/tasks/branches", h.branches)
+	r.Get("/board/tasks/create-workspaces", h.createWorkspaces)
 	r.Get("/board/tasks/agent-options", h.agentOptions)
 	r.Get("/board/tasks/agent-section", h.agentSection)
 	r.Post("/board/tasks", h.createTask)
@@ -242,7 +243,7 @@ func (h *BoardHandlers) createTab(ctx context.Context, workspaceID string, kind 
 		input.LinkKind = kind
 		input.LinkAnchor = anchor
 	}
-	return pages.TaskCreatePage(h.createForm(ctx, newScope(), input, ""))
+	return pages.TaskCreatePage(createForm(newScope(), input))
 }
 
 // createTask creates the task from the create tab, linked when the form says so. A form that does not validate, or a
@@ -277,20 +278,11 @@ func (h *BoardHandlers) createTask(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, components.TaskCreated(state.BoardPath(form.WorkspaceID), startError, linkErrors))
 }
 
-// createForm rebuilds the dialog state from what was typed, with the error to show. A failed workspace read
-// replaces the message: without the workspaces the dialog cannot be filled in or submitted.
-func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.TaskForm, message string) state.CreateForm {
-	workspaces, err := h.workspaceOptions(ctx)
-	if err != nil {
-		message = err.Error()
-	}
-	branches, branchErr := h.branchesOf(ctx, input.WorkspaceID)
-	if branchErr != nil && message == "" {
-		message = branchErr.Error()
-	}
-	catalog, _ := h.agentCatalog(ctx, parseRuntimeOrNil(input.AgentRuntime))
+// createForm is the state of the create page from what the address gives. It reads nothing: the workspaces, the
+// branch list and the agent catalog (git and agent processes) are loaded by the page in the background
+// (WorkspaceFieldsLazy, BranchSelectLazy, AgentSectionLazy), so they never delay it.
+func createForm(scope string, input dto.TaskForm) state.CreateForm {
 	agentState := state.AgentFormState{
-		Catalog:          catalog,
 		SelectedRuntime:  input.AgentRuntime,
 		SelectedModel:    input.AgentModel,
 		SelectedThinking: input.AgentThinking,
@@ -298,25 +290,20 @@ func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.
 	}
 	hasAgentOverrides := input.AgentRuntime != "" || input.AgentModel != "" || input.AgentThinking != "" || input.AgentProfile != ""
 	return state.CreateForm{
-		Scope:           scope,
-		Workspaces:      workspaces,
-		WorkspaceID:     input.WorkspaceID,
-		Title:           input.Title,
-		Prompt:          input.Prompt,
-		Priority:        priorityOrDefault(input.Priority),
-		BaseBranch:      input.BaseBranch,
-		DefaultBranch:   defaultBranchOf(workspaces, input.WorkspaceID),
-		Branches:        branches,
-		MemoryLimit:     input.MemoryLimit,
-		CPULimit:        input.CPULimit,
-		Agent:           agentState,
-		ShowAdvanced:    input.ShowAdvanced || hasAgentOverrides,
-		StartNow:        input.StartNow,
-		LinkKind:        input.LinkKind,
-		LinkAnchor:      input.LinkAnchor,
-		RelatedProjects: state.RelatedProjectChoices(workspaces, input.WorkspaceID, input.RelatedProjectIDs),
-		Error:           message,
-		BoardPath:       state.BoardPath(input.WorkspaceID),
+		Scope:        scope,
+		WorkspaceID:  input.WorkspaceID,
+		Title:        input.Title,
+		Prompt:       input.Prompt,
+		Priority:     priorityOrDefault(input.Priority),
+		BaseBranch:   input.BaseBranch,
+		MemoryLimit:  input.MemoryLimit,
+		CPULimit:     input.CPULimit,
+		Agent:        agentState,
+		ShowAdvanced: input.ShowAdvanced || hasAgentOverrides,
+		StartNow:     input.StartNow,
+		LinkKind:     input.LinkKind,
+		LinkAnchor:   input.LinkAnchor,
+		BoardPath:    state.BoardPath(input.WorkspaceID),
 	}
 }
 

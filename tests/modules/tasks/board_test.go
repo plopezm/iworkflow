@@ -331,9 +331,12 @@ func TestNewTaskTabSelectsTheWorkspaceOfItsAddress(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	workspaceID := insertWorkspace(t, repo.DB, t.TempDir())
-	module, _ := boardRouter(t, repo)
+	module, router := boardRouter(t, repo)
 
-	body := renderTab(t, module, "task_new_workspace", dock.Params{"id": workspaceID})
+	page := renderTab(t, module, "task_new_workspace", dock.Params{"id": workspaceID})
+	assert.Contains(t, page, `name="workspace_id" value="`+workspaceID+`"`, "the page carries the workspace while they load")
+	assert.Contains(t, page, "create-workspaces?", "the workspaces load in the background")
+	_, body := doRequest(t, router, http.MethodGet, "/board/tasks/create-workspaces?workspace_id="+workspaceID, nil)
 
 	assert.Contains(t, body, `<option value="`+workspaceID+`" selected`)
 	assert.Contains(t, body, "demo (main)", "the option names the workspace and its base branch")
@@ -343,9 +346,11 @@ func TestNewTaskTabWithoutWorkspaceAsksForOne(t *testing.T) {
 	t.Parallel()
 	repo := newRepo(t)
 	insertWorkspace(t, repo.DB, t.TempDir())
-	module, _ := boardRouter(t, repo)
+	module, router := boardRouter(t, repo)
 
-	body := renderTab(t, module, "task_new", dock.Params{})
+	page := renderTab(t, module, "task_new", dock.Params{})
+	assert.Contains(t, page, "create-workspaces?", "the workspaces load in the background")
+	_, body := doRequest(t, router, http.MethodGet, "/board/tasks/create-workspaces", nil)
 
 	assert.Contains(t, body, `name="workspace_id"`)
 	assert.Contains(t, body, `<option value="" selected>`)
