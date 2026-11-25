@@ -378,13 +378,15 @@ func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 	err = f.cfg.Installer.Download(downloadCtx, func(done int64, total int64) {
 		f.progress(Progress{Phase: PhaseDownloading, Version: found.Version, Done: done, Total: total})
 	})
+	// From here on the update can no longer be cancelled by the user: either it was cancelled before this
+	// point, or the install is committed. Both are decided under one lock, so a close cannot fall in between.
+	if f.commit(downloadCtx) && ctx.Err() == nil {
+		// The user closed the progress window: that is a decision, not a failure to report.
+		f.log(fmt.Sprintf("[update] update %s cancelled by the user", found.Version))
+		f.progress(Progress{Phase: PhaseEnded, Version: found.Version})
+		return nil
+	}
 	if err != nil {
-		if downloadCtx.Err() != nil && ctx.Err() == nil {
-			// The user closed the progress window: that is a decision, not a failure to report.
-			f.log(fmt.Sprintf("[update] download %s cancelled by the user", found.Version))
-			f.progress(Progress{Phase: PhaseEnded, Version: found.Version})
-			return nil
-		}
 		f.log(fmt.Sprintf("[update] download %s: %v", found.Version, err))
 		return f.abort(ctx, found.Version, fmt.Sprintf("Could not download iworkflow %s.", found.Version))
 	}
@@ -420,21 +422,31 @@ func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 	return nil
 }
 
-// CancelUpdate stops the download in progress, if any. Closing the progress window calls it. Once the update
-// is being installed it does nothing: that part cannot be interrupted.
-func (f *Flow) CancelUpdate() {
+// CancelUpdate stops the download in progress and reports whether it did. Closing the progress window calls
+// it. It returns false when there is nothing to cancel or the update is committed to installing: that part
+// cannot be interrupted.
+func (f *Flow) CancelUpdate() bool {
 	f.mu.Lock()
-	cancel := f.cancel
-	f.mu.Unlock()
-	if cancel != nil {
-		cancel()
+	defer f.mu.Unlock()
+	if f.cancel == nil {
+		return false
 	}
+	f.cancel()
+	return true
 }
 
 func (f *Flow) setCancel(cancel context.CancelFunc) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cancel = cancel
+}
+
+// commit ends the window in which the update can be cancelled and reports whether it was cancelled in it.
+func (f *Flow) commit(downloadCtx context.Context) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cancel = nil
+	return downloadCtx.Err() != nil
 }
 
 // abort closes the progress view, lets the next automatic check try this version again and tells the user.

@@ -906,19 +906,29 @@ const (
 // renameWithRetry moves a folder, retrying for a few seconds: on Windows, antivirus scans and the web view
 // of the app that just closed keep the install folder locked for a moment after the process ends.
 func renameWithRetry(oldpath string, newpath string) error {
+	return retryRename(os.Rename, time.Sleep, oldpath, newpath)
+}
+
+// retryRename is renameWithRetry with the rename and the sleep injected.
+func retryRename(rename func(string, string) error, sleep func(time.Duration), oldpath string, newpath string) error {
 	var err error
 	for attempt := 0; attempt < renameAttempts; attempt++ {
-		if err = os.Rename(oldpath, newpath); err == nil {
+		if err = rename(oldpath, newpath); err == nil {
 			return nil
 		}
 		if errors.Is(err, fs.ErrNotExist) {
 			break // retrying cannot help: the folder is not there
 		}
 		if attempt < renameAttempts-1 {
-			time.Sleep(renameDelay)
+			sleep(renameDelay)
 		}
 	}
 	return fmt.Errorf("renaming %s after %d attempts: %w", oldpath, renameAttempts, err)
+}
+
+// WaitForProcessExit blocks until the process pid has exited or ctx ends.
+func WaitForProcessExit(ctx context.Context, pid int) error {
+	return waitForProcessExit(ctx, pid)
 }
 
 // StaleUpdateMaxAge is how old a leftover update download or staging folder must be before it is swept. A

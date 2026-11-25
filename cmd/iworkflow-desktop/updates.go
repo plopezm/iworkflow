@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -62,7 +61,7 @@ func (s *shell) newUpdateFlow() *desktop.Flow {
 		s.logger.Warn("updates disabled", "error", err)
 		return nil
 	}
-	view.cancel = flow.CancelUpdate
+	view.guard.Cancel = flow.CancelUpdate
 	return flow
 }
 
@@ -206,17 +205,13 @@ func copyExecutable(source string, destination string) (err error) {
 // The close hook runs on the GUI thread, which update() may be waiting on while it holds mu, so the hook only
 // touches atomics and never takes mu.
 type progressView struct {
-	app    *application.App
-	cancel func() // set before the first update; ends the download in progress
+	app   *application.App
+	guard desktop.CloseGuard // decides what the close button does
 
 	mu      sync.Mutex
 	window  *application.WebviewWindow
 	lastAt  time.Time
 	lastPha desktop.ProgressPhase
-
-	installing atomic.Bool // the install cannot be interrupted, so its window cannot be closed
-	programmed atomic.Bool // the window is being closed by update(), not by the user
-	userClosed atomic.Bool // the user closed the window and cancelled the update
 }
 
 func newProgressView(app *application.App) *progressView {
@@ -229,12 +224,11 @@ const progressRefresh = 200 * time.Millisecond
 func (v *progressView) update(p desktop.Progress) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	v.installing.Store(p.Phase == desktop.PhaseInstalling)
-	if v.userClosed.Load() {
-		// The window is gone and the download is being cancelled: show nothing until the update ends.
+	if v.guard.UserClosed() {
+		// The window is gone and the update was cancelled: show nothing until the update ends.
 		v.window = nil
 		if p.Phase == desktop.PhaseEnded {
-			v.userClosed.Store(false)
+			v.guard.Reset()
 		}
 		return
 	}
@@ -242,9 +236,7 @@ func (v *progressView) update(p desktop.Progress) {
 		if v.window != nil {
 			window := v.window
 			v.window = nil
-			v.programmed.Store(true)
-			application.InvokeSync(window.Close)
-			v.programmed.Store(false)
+			v.guard.Programmatic(func() { application.InvokeSync(window.Close) })
 		}
 		return
 	}
@@ -275,16 +267,8 @@ func (v *progressView) update(p desktop.Progress) {
 
 // onClosing handles the close button of the progress window.
 func (v *progressView) onClosing(event *application.WindowEvent) {
-	if v.programmed.Load() {
-		return
-	}
-	if v.installing.Load() {
+	if !v.guard.Allow() {
 		event.Cancel()
-		return
-	}
-	v.userClosed.Store(true)
-	if v.cancel != nil {
-		v.cancel()
 	}
 }
 

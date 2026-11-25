@@ -44,17 +44,19 @@ func (a *fakeAsker) ask(_ context.Context, question Question) (int, error) {
 
 // fakeInstaller is an Installer whose behaviour is set by each test.
 type fakeInstaller struct {
-	available   bool
-	version     string
-	checkFn     func(ctx context.Context) (UpdateCheck, error)
-	downloadErr error
-	quitErr     error
-	quitCalls   int
-	downloads   int
-	prepares    int
-	prepareErr  error
-	onFailure   func(error)
-	onQuit      func()
+	available    bool
+	version      string
+	checkFn      func(ctx context.Context) (UpdateCheck, error)
+	downloadErr  error
+	quitErr      error
+	quitCalls    int
+	downloads    int
+	prepares     int
+	prepareErr   error
+	ignoreCancel bool
+	onPrepare    func()
+	onFailure    func(error)
+	onQuit       func()
 }
 
 func (f *fakeInstaller) Check(ctx context.Context) (UpdateCheck, error) {
@@ -69,7 +71,7 @@ func (f *fakeInstaller) Download(ctx context.Context, progress func(int64, int64
 	if progress != nil {
 		progress(5, 10)
 	}
-	if err := ctx.Err(); err != nil {
+	if err := ctx.Err(); err != nil && !f.ignoreCancel {
 		return err
 	}
 	return f.downloadErr
@@ -77,6 +79,9 @@ func (f *fakeInstaller) Download(ctx context.Context, progress func(int64, int64
 
 func (f *fakeInstaller) Prepare(context.Context) error {
 	f.prepares++
+	if f.onPrepare != nil {
+		f.onPrepare()
+	}
 	return f.prepareErr
 }
 
@@ -604,4 +609,46 @@ func TestCancellingTheDownloadIsADecisionNotAFailure(t *testing.T) {
 	require.Len(t, fx.asker.asked, 1, "no error dialog after a cancel")
 	assert.Equal(t, 0, fx.inst.prepares)
 	assert.Empty(t, fx.events)
+}
+
+func TestCancelArrivingAsTheDownloadFinishesStillCancelsTheUpdate(t *testing.T) {
+	var fx *fixture
+	var ended int
+	fx = newFixture(t, func(cfg *Config) {
+		cfg.Progress = func(p Progress) {
+			switch {
+			case p.Phase == PhaseDownloading && p.Done > 0:
+				fx.flow.CancelUpdate()
+			case p.Phase == PhaseEnded:
+				ended++
+			}
+		}
+	})
+	fx.inst.ignoreCancel = true // the download completes although the user already closed the window
+	fx.asker.answers = []int{0}
+
+	require.NoError(t, fx.flow.Check(context.Background(), false))
+
+	assert.Equal(t, 1, ended)
+	assert.Equal(t, 0, fx.inst.prepares, "a cancelled update is never installed")
+	assert.Empty(t, fx.events)
+}
+
+func TestCancelUpdateIsRefusedOnceTheInstallIsCommitted(t *testing.T) {
+	var fx *fixture
+	var cancelled []bool
+	fx = newFixture(t, nil)
+	fx.inst.onPrepare = func() { cancelled = append(cancelled, fx.flow.CancelUpdate()) }
+	fx.asker.answers = []int{0}
+
+	require.NoError(t, fx.flow.Check(context.Background(), false))
+
+	assert.Equal(t, []bool{false}, cancelled)
+	assert.Equal(t, []string{"before-install", "quit"}, fx.events, "the install went ahead")
+}
+
+func TestCancelUpdateWithoutAnUpdateInProgressDoesNothing(t *testing.T) {
+	fx := newFixture(t, nil)
+
+	assert.False(t, fx.flow.CancelUpdate())
 }

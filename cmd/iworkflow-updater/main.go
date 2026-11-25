@@ -56,7 +56,7 @@ func run() int {
 	})
 	if err != nil {
 		logger.Error("update failed", "error", err)
-		recoverApp(logger, *exe, err)
+		newRecovery().run(logger, *exe, *pid, err)
 		return 1
 	}
 	if err = desktop.CleanupPreviousInstall(*target); err != nil {
@@ -64,23 +64,6 @@ func run() int {
 	}
 	logger.Info("update applied")
 	return 0
-}
-
-// recoverApp tells the user the update failed and opens the app again: the app already closed to let the
-// update run, so without this it would simply be gone. The log file path is part of the message.
-func recoverApp(logger *slog.Logger, exe string, cause error) {
-	notifyFailure(fmt.Sprintf("The update could not be installed:\n\n%v\n\nThe app opens again. Details: %s",
-		cause, filepath.Join(os.TempDir(), "iworkflow-updater.log")))
-	if exe == "" {
-		return
-	}
-	if _, err := os.Stat(exe); err != nil {
-		logger.Warn("the app is not at its install path, so it is not reopened", "path", exe, "error", err)
-		return
-	}
-	if err := desktop.StartDetachedIn(filepath.Dir(exe), exe); err != nil {
-		logger.Error("could not reopen the app", "error", err)
-	}
 }
 
 // newLogger writes to a file in the temp folder: the helper has no console to report to.

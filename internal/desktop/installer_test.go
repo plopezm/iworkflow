@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -833,4 +834,43 @@ func TestCleanupStaleUpdateFilesRemovesOnlyOldUpdateLeftovers(t *testing.T) {
 	require.NoError(t, CleanupStaleUpdateFiles(layout.target, now, StaleUpdateMaxAge))
 
 	assert.Equal(t, []string{".iworkflow-staging-fresh", "iworkflow", "unrelated"}, listing(t, layout.parent))
+}
+
+func TestRetryRenameSucceedsAfterTransientFailures(t *testing.T) {
+	calls, sleeps := 0, 0
+	rename := func(string, string) error {
+		calls++
+		if calls < 4 {
+			return errInjected
+		}
+		return nil
+	}
+
+	err := retryRename(rename, func(time.Duration) { sleeps++ }, "a", "b")
+
+	require.NoError(t, err)
+	assert.Equal(t, 4, calls)
+	assert.Equal(t, 3, sleeps)
+}
+
+func TestRetryRenameStopsAtOnceWhenTheFolderIsMissing(t *testing.T) {
+	calls, sleeps := 0, 0
+	rename := func(string, string) error { calls++; return fs.ErrNotExist }
+
+	err := retryRename(rename, func(time.Duration) { sleeps++ }, "a", "b")
+
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	assert.Equal(t, 1, calls)
+	assert.Zero(t, sleeps)
+}
+
+func TestRetryRenameGivesUpAfterTheLastAttemptWithoutSleepingAfterIt(t *testing.T) {
+	calls, sleeps := 0, 0
+	rename := func(string, string) error { calls++; return errInjected }
+
+	err := retryRename(rename, func(time.Duration) { sleeps++ }, "a", "b")
+
+	require.ErrorIs(t, err, errInjected)
+	assert.Equal(t, renameAttempts, calls)
+	assert.Equal(t, renameAttempts-1, sleeps)
 }
