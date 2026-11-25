@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const tag = Date.now().toString();
+const SHOTS = process.env.E2E_SHOTS_DIR || '/tmp/iwf-edit-lazy-shots';
 const TMP = process.env.SMOKE_TMP_DIR || process.env.WORK_TMP_DIR || '/tmp';
 // A one-pixel PNG for the image inputs.
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -67,6 +68,19 @@ async function openEditFromCard(ctx, prompt) {
   await ctx.page.getByRole('heading', { name: 'Editar tarea' }).waitFor({ timeout: 15000 });
 }
 
+// Delays the background loads of the edit page (branches and agent section) so their loading state can be seen.
+async function delayLazyLoads(page, ms) {
+  await page.route(/\/board\/tasks\/(branches|agent-section)\?/, async (route) => {
+    await sleep(ms);
+    await route.continue();
+  });
+}
+
+async function shot(ctx, name) {
+  fs.mkdirSync(SHOTS, { recursive: true });
+  await ctx.screenshot(path.join(SHOTS, `${name}.png`));
+}
+
 // ---- tests ----
 module.exports = {
   name: 'tasks_edit',
@@ -122,6 +136,47 @@ module.exports = {
           if (!listed) await sleep(400);
         }
         ctx.assert(listed, 'la rama creada no aparece entre las ramas base');
+      },
+    },
+    {
+      name: 'edit_lazy: la página abre al instante, muestra "Cargando" y luego carga ramas y agente',
+      fn: async (ctx) => {
+        const ws = await registerWs(ctx, `te-lazy-${tag}`);
+        execSync(`git -C '${ws.dir}' branch rama-lazy-${tag}`, { stdio: 'ignore' });
+        await openBoard(ctx, ws.name);
+        const prompt = `lazy-${tag}`;
+        await fillDialog(ctx, ws.name, { prompt });
+        await submitDialog(ctx);
+        await delayLazyLoads(ctx.page, 2500);
+        await openEditFromCard(ctx, prompt);
+        const page = ctx.page;
+        await page.getByText('Cargando ramas').waitFor({ timeout: 5000 });
+        await page.locator('form:visible input[name=show_advanced]').check();
+        await page.getByText('Cargando opciones del agente').waitFor({ timeout: 5000 });
+        await shot(ctx, '1-edit-loading-branches-and-agent');
+        await page.getByText('Cargando ramas').waitFor({ state: 'detached', timeout: 15000 });
+        await page.getByText('Cargando opciones del agente').waitFor({ state: 'detached', timeout: 15000 });
+        const options = await page.locator('form:visible select[name=base_branch] option').allTextContents();
+        ctx.assert(options.some((o) => o.includes(`rama-lazy-${tag}`)), `la rama no se cargó: ${options.join(', ')}`);
+        ctx.assert((await page.locator('form:visible select[name=agent_runtime]').count()) === 1, 'el selector de agente no se cargó');
+        await shot(ctx, '2-edit-loaded-branches-and-agent');
+      },
+    },
+    {
+      name: 'edit_lazy: guardar mientras carga conserva los datos de la tarea',
+      fn: async (ctx) => {
+        const ws = await registerWs(ctx, `te-lazysave-${tag}`);
+        await openBoard(ctx, ws.name);
+        const prompt = `lazysave-${tag}`;
+        await fillDialog(ctx, ws.name, { prompt });
+        await submitDialog(ctx);
+        await delayLazyLoads(ctx.page, 4000);
+        await openEditFromCard(ctx, prompt);
+        await ctx.page.getByText('Cargando ramas').waitFor({ timeout: 5000 });
+        await ctx.page.getByLabel(/^Título/).fill(`guardado-${tag}`);
+        await ctx.page.getByRole('button', { name: 'Guardar cambios' }).click();
+        await ctx.page.getByRole('heading', { name: 'Editar tarea' }).waitFor({ state: 'detached', timeout: 15000 });
+        await ctx.page.locator('[id^="board-list-"]:visible').getByText(`guardado-${tag}`).first().waitFor({ timeout: 15000 });
       },
     },
     {

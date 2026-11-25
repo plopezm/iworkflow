@@ -4,6 +4,7 @@ package state
 
 import (
 	"context"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -248,6 +249,26 @@ func NewLinkedTaskPath(workspaceID string, kind string, anchorID string) string 
 // TaskPath is the address of the detail of a task.
 func TaskPath(taskID string) string {
 	return "/tasks/" + taskID
+}
+
+// EditBranchSlot is the id of the base branch select of the edit page; the scope is added by Scoped.
+const EditBranchSlot = "task-edit-branch"
+
+// EditBranchesPath is the address that loads the branch list of the edit page in the background.
+func EditBranchesPath(workspaceID string, scope string) string {
+	query := url.Values{}
+	query.Set("workspace_id", workspaceID)
+	query.Set("scope", scope)
+	query.Set("slot", "edit")
+	return "/board/tasks/branches?" + query.Encode()
+}
+
+// EditAgentSectionPath is the address that loads the agent section of the edit page in the background.
+func EditAgentSectionPath(taskID string, scope string) string {
+	query := url.Values{}
+	query.Set("task_id", taskID)
+	query.Set("scope", scope)
+	return "/board/tasks/agent-section?" + query.Encode()
 }
 
 // BoardTaskPath is the address of the board actions of a task (start, delete).

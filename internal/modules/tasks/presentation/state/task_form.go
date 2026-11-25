@@ -82,7 +82,6 @@ type EditForm struct {
 	BaseBranch  string
 	// DefaultBranch is the base branch of the workspace, used when no branch is chosen.
 	DefaultBranch string
-	Branches      []dto.BranchOptionDTO
 	MemoryLimit   string
 	CPULimit      string
 	Agent         AgentFormState
