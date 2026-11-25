@@ -14,6 +14,7 @@ var (
 	msgFiles        = i18n.Msg{En: "Files", Es: "Archivos", Zh: "文件", De: "Dateien", Fr: "Fichiers"}
 	msgMemories     = i18n.Msg{En: "Memories", Es: "Memorias", Zh: "记忆", De: "Erinnerungen", Fr: "Mémoires"}
 	msgOpenTerminal = i18n.Msg{En: "Open terminal", Es: "Abrir terminal", Zh: "打开终端", De: "Terminal öffnen", Fr: "Ouvrir un terminal"}
+	msgBranches     = i18n.Msg{En: "Branches", Es: "Ramas", Zh: "分支", De: "Branches", Fr: "Branches"}
 	msgOpenBoard    = i18n.Msg{En: "Open board", Es: "Abrir tablero", Zh: "打开看板", De: "Board öffnen", Fr: "Ouvrir le tableau"}
 	msgRemove       = i18n.Msg{En: "Remove", Es: "Quitar", Zh: "移除", De: "Entfernen", Fr: "Retirer"}
 

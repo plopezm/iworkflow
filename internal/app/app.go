@@ -58,6 +58,7 @@ import (
 	terminalpages "iworkflow/internal/modules/terminal/presentation/pages"
 	transcriptiondi "iworkflow/internal/modules/transcription/infrastructure/di"
 	usagelimitsdi "iworkflow/internal/modules/usage_limits/infrastructure/di"
+	workspacebranchesdi "iworkflow/internal/modules/workspace_branches/infrastructure/di"
 	workspacegroupsdi "iworkflow/internal/modules/workspace_groups/infrastructure/di"
 	workspacesdi "iworkflow/internal/modules/workspaces/infrastructure/di"
 	workspacespages "iworkflow/internal/modules/workspaces/presentation/pages"
@@ -283,6 +284,12 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		Provider:   memoryProvider,
 	})
 
+	// The branch tab reads the workspace path and base branch and the live task branches only through ports bound here.
+	branches := workspacebranchesdi.NewModule(workspacebranchesdi.Deps{
+		Workspaces: &branchWorkspaces{get: workspaces.Get},
+		Tasks:      &branchTaskBranches{list: tasks.List},
+	})
+
 	routes := make([]dock.Route, 0, 24)
 	// The board owns the home address, so it precedes the not-migrated catch-alls below.
 	routes = append(routes, tasks.Tabs()...)
@@ -290,6 +297,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	routes = append(routes, workspaces.Tabs()...)
 	routes = append(routes, workspaceGroups.Tabs()...)
 	routes = append(routes, memories.Tabs()...)
+	routes = append(routes, branches.Tabs()...)
 	routes = append(routes, taskHooks.Tabs()...)
 	routes = append(routes, projectTree.Tabs()...)
 	routes = append(routes, settings.Tabs(settingsSections(settings, tasks, codeHosting, jiraModule, dataHome, logs, engram))...)
@@ -316,7 +324,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		tasks:         tasks,
 		taskHooks:     taskHooks,
 		loops:         newTaskLoops(),
-		modules:       []web.Module{engram, prefs, dataHome, logs, agentsFiles, workspaces, taskHooks, settings, projectTree, codeHosting, terminal, tasks, workspaceGroups, jiraModule, openWith, transcription, usageLimits},
+		modules:       []web.Module{engram, prefs, dataHome, logs, agentsFiles, workspaces, branches, taskHooks, settings, projectTree, codeHosting, terminal, tasks, workspaceGroups, jiraModule, openWith, transcription, usageLimits},
 		dock:          dock.NewHandlers(registry, emptyGroup()),
 	}, nil
 }

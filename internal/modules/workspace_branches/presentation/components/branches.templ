@@ -1,0 +1,101 @@
+package components
+
+import (
+	shared "iworkflow/internal/core/components"
+	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/workspace_branches/presentation/state"
+)
+
+// BranchesScreen is the branch tab of one workspace: the filter box and the list. The filter and the delete
+// requests answer with BranchListBody, which replaces only the list, so the filter keeps its focus.
+templ BranchesScreen(view state.ScreenView) {
+	<section id="workspace-branches" class="stack px-6 py-4">
+		<div class="row justify-between">
+			<h2 class="font-medium text-fg">{ msgBranchesTitle.T(ctx) } · { view.WorkspaceName }</h2>
+			@link.Tab(link.Props{Href: view.BoardHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
+				{ msgOpenBoard.T(ctx) }
+			}
+		</div>
+		<input
+			type="search"
+			name="q"
+			class="input"
+			value={ view.List.Query }
+			placeholder={ msgSearchBranches.T(ctx) }
+			aria-label={ msgSearchBranches.T(ctx) }
+			hx-get={ view.SearchHref }
+			hx-trigger="input changed delay:250ms, search"
+			hx-target="#branch-list"
+			hx-swap="innerHTML"
+		/>
+		<div id="branch-list" class="stack">
+			@BranchListBody(view.List)
+		</div>
+	</section>
+}
+
+// BranchListBody is the list: the outcome of the last delete, the error of a failed listing, and the rows with
+// their checkboxes, delete buttons and the bulk delete button.
+templ BranchListBody(view state.ListView) {
+	<div class="stack">
+		if view.Error != "" {
+			@shared.ErrorText(view.Error)
+		}
+		if len(view.Results) > 0 {
+			<ul class="stack gap-1" role="status" aria-live="polite">
+				for _, result := range view.Results {
+					<li class="text-sm text-fg">{ resultText(ctx, result) }</li>
+				}
+			</ul>
+		}
+		if view.NoneSelected {
+			<p class="muted">{ msgSelectOne.T(ctx) }</p>
+		}
+		<form id="branch-delete-form" class="stack gap-1.5" hx-post={ view.DeleteAction } hx-confirm={ msgConfirmDeleteSelected.T(ctx) } hx-target="#branch-list" hx-swap="innerHTML">
+			<input type="hidden" name="q" value={ view.Query }/>
+			if len(view.Rows) == 0 {
+				<p class="muted">{ msgNoBranches.T(ctx) }</p>
+			} else {
+				<ul class="stack gap-1.5">
+					for _, row := range view.Rows {
+						@branchRow(row)
+					}
+				</ul>
+				<div class="row items-center justify-between">
+					<label class="row min-h-9 items-center gap-2 text-sm text-fg">
+						<input type="checkbox" data-branch-select-all aria-label={ msgSelectAll.T(ctx) }/>
+						<span>{ msgSelectAll.T(ctx) }</span>
+					</label>
+					<button type="submit" class="btn-danger min-h-9 rounded-lg px-2.5 py-1 text-xs">{ msgDeleteSelected.T(ctx) }</button>
+				</div>
+			}
+		</form>
+	</div>
+}
+
+// branchRow renders one branch. The per-row button sends only its own reference (hx-params="none" keeps the
+// enclosing form's checkboxes out of the request); a protected branch shows its reason and cannot be deleted.
+templ branchRow(row state.BranchRow) {
+	<li class="card row justify-between gap-2">
+		<label class="row min-w-0 gap-2">
+			<input type="checkbox" name="branch" value={ row.Value } disabled?={ row.Protected } aria-label={ row.Name }/>
+			<span class="truncate font-mono text-xs text-fg">{ row.Name }</span>
+			<span class="text-xs text-muted">{ badgeText(ctx, row.Remote) }</span>
+		</label>
+		<div class="row gap-1.5">
+			if row.Protected {
+				<span class="text-xs text-muted">{ reasonText(ctx, row.Reason) }</span>
+			}
+			<button
+				type="button"
+				class="btn-danger min-h-9 rounded-lg px-2.5 py-1 text-xs"
+				disabled?={ row.Protected }
+				hx-post={ row.DeleteHref }
+				hx-params="none"
+				hx-confirm={ deleteConfirm(ctx, row) }
+				hx-target="#branch-list"
+				hx-swap="innerHTML"
+			>{ msgDelete.T(ctx) }</button>
+		</div>
+	</li>
+}
