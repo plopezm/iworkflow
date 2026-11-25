@@ -920,3 +920,35 @@ func renameWithRetry(oldpath string, newpath string) error {
 	}
 	return fmt.Errorf("renaming %s after %d attempts: %w", oldpath, renameAttempts, err)
 }
+
+// StaleUpdateMaxAge is how old a leftover update download or staging folder must be before it is swept. A
+// younger one may belong to an update that is still being applied.
+const StaleUpdateMaxAge = time.Hour
+
+// CleanupStaleUpdateFiles removes update downloads and staging folders that an interrupted update left in the
+// parent folder of target, when they are older than maxAge at now. It returns the first error after trying
+// every entry. The shell calls it at start.
+func CleanupStaleUpdateFiles(target string, now time.Time, maxAge time.Duration) error {
+	parent := filepath.Dir(filepath.Clean(target))
+	entries, err := os.ReadDir(parent)
+	if err != nil {
+		return fmt.Errorf("list %s: %w", parent, err)
+	}
+	var firstErr error
+	for _, entry := range entries {
+		name := entry.Name()
+		stagingMatch, _ := filepath.Match(stagingPattern, name)   //nolint:errcheck // the pattern is a constant
+		downloadMatch, _ := filepath.Match(downloadPattern, name) //nolint:errcheck // the pattern is a constant
+		if !stagingMatch && !downloadMatch {
+			continue
+		}
+		info, infoErr := entry.Info()
+		if infoErr != nil || now.Sub(info.ModTime()) < maxAge {
+			continue
+		}
+		if removeErr := os.RemoveAll(filepath.Join(parent, name)); removeErr != nil && firstErr == nil {
+			firstErr = fmt.Errorf("remove stale %s: %w", name, removeErr)
+		}
+	}
+	return firstErr
+}

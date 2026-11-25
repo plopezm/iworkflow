@@ -12,9 +12,11 @@ import (
 	"runtime"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
+	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"iworkflow/internal/desktop"
 )
@@ -34,13 +36,14 @@ func (s *shell) newUpdateFlow() *desktop.Flow {
 		return nil
 	}
 	installer := s.newInstaller()
+	view := newProgressView(s.app)
 	flow, err := desktop.NewFlow(desktop.Config{
 		Strategy:   strategy,
 		Installer:  installer,
 		AppVersion: version,
 		GHToken:    os.Getenv("GH_TOKEN"),
 		Ask:        s.ask,
-		Progress:   newProgressView(s.app).update,
+		Progress:   view.update,
 		OpenExternal: func(_ context.Context, url string) error {
 			if err := s.app.Browser.OpenURL(url); err != nil {
 				return fmt.Errorf("opening %s: %w", url, err)
@@ -59,6 +62,7 @@ func (s *shell) newUpdateFlow() *desktop.Flow {
 		s.logger.Warn("updates disabled", "error", err)
 		return nil
 	}
+	view.cancel = flow.CancelUpdate
 	return flow
 }
 
@@ -197,12 +201,22 @@ func copyExecutable(source string, destination string) (err error) {
 
 // progressView is the foreground window of an automatic update: it shows the download and the install until
 // the app quits, or closes when the update ends without installing.
+//
+// Closing the window while it downloads cancels the update (cancel); while it installs the close is refused.
+// The close hook runs on the GUI thread, which update() may be waiting on while it holds mu, so the hook only
+// touches atomics and never takes mu.
 type progressView struct {
-	app     *application.App
+	app    *application.App
+	cancel func() // set before the first update; ends the download in progress
+
 	mu      sync.Mutex
 	window  *application.WebviewWindow
 	lastAt  time.Time
 	lastPha desktop.ProgressPhase
+
+	installing atomic.Bool // the install cannot be interrupted, so its window cannot be closed
+	programmed atomic.Bool // the window is being closed by update(), not by the user
+	userClosed atomic.Bool // the user closed the window and cancelled the update
 }
 
 func newProgressView(app *application.App) *progressView {
@@ -215,11 +229,22 @@ const progressRefresh = 200 * time.Millisecond
 func (v *progressView) update(p desktop.Progress) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	v.installing.Store(p.Phase == desktop.PhaseInstalling)
+	if v.userClosed.Load() {
+		// The window is gone and the download is being cancelled: show nothing until the update ends.
+		v.window = nil
+		if p.Phase == desktop.PhaseEnded {
+			v.userClosed.Store(false)
+		}
+		return
+	}
 	if p.Phase == desktop.PhaseEnded {
 		if v.window != nil {
 			window := v.window
 			v.window = nil
+			v.programmed.Store(true)
 			application.InvokeSync(window.Close)
+			v.programmed.Store(false)
 		}
 		return
 	}
@@ -239,12 +264,42 @@ func (v *progressView) update(p desktop.Progress) {
 				DisableResize: true,
 				HTML:          page,
 			})
+			v.window.RegisterHook(events.Common.WindowClosing, v.onClosing)
 			v.window.Center()
 			v.window.Show()
 			return
 		}
 		v.window.SetHTML(page)
 	})
+}
+
+// onClosing handles the close button of the progress window.
+func (v *progressView) onClosing(event *application.WindowEvent) {
+	if v.programmed.Load() {
+		return
+	}
+	if v.installing.Load() {
+		event.Cancel()
+		return
+	}
+	v.userClosed.Store(true)
+	if v.cancel != nil {
+		v.cancel()
+	}
+}
+
+// leaveInstallFolder moves the working directory of the app out of the install folder. Processes started by
+// the app, such as WebView2, inherit it, and on Windows a process working inside a folder keeps it from being
+// renamed by the update. The home folder is what the server already uses.
+func leaveInstallFolder(logger interface{ Warn(msg string, args ...any) }) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		logger.Warn("could not find the home folder to leave the install folder", "error", err)
+		return
+	}
+	if err = os.Chdir(home); err != nil {
+		logger.Warn("could not leave the install folder", "error", err)
+	}
 }
 
 // progressPage renders the status of an update as a small self-contained page.

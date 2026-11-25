@@ -64,10 +64,13 @@ func (f *fakeInstaller) Check(ctx context.Context) (UpdateCheck, error) {
 	return UpdateCheck{Available: f.available, Version: f.version}, nil
 }
 
-func (f *fakeInstaller) Download(_ context.Context, progress func(int64, int64)) error {
+func (f *fakeInstaller) Download(ctx context.Context, progress func(int64, int64)) error {
 	f.downloads++
 	if progress != nil {
 		progress(5, 10)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	return f.downloadErr
 }
@@ -578,4 +581,27 @@ func TestUnsupportedInstallerReportsUnsupported(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAutoUpdateUnsupported)
 	assert.ErrorIs(t, inst.Download(context.Background(), nil), ErrAutoUpdateUnsupported)
 	assert.ErrorIs(t, inst.QuitAndInstall(context.Background(), func(error) {}), ErrAutoUpdateUnsupported)
+}
+
+func TestCancellingTheDownloadIsADecisionNotAFailure(t *testing.T) {
+	var fx *fixture
+	var ended int
+	fx = newFixture(t, func(cfg *Config) {
+		cfg.Progress = func(p Progress) {
+			switch {
+			case p.Phase == PhaseDownloading && p.Done > 0:
+				fx.flow.CancelUpdate() // the user closes the progress window
+			case p.Phase == PhaseEnded:
+				ended++
+			}
+		}
+	})
+	fx.asker.answers = []int{0}
+
+	require.NoError(t, fx.flow.Check(context.Background(), false))
+
+	assert.Equal(t, 1, ended)
+	require.Len(t, fx.asker.asked, 1, "no error dialog after a cancel")
+	assert.Equal(t, 0, fx.inst.prepares)
+	assert.Empty(t, fx.events)
 }

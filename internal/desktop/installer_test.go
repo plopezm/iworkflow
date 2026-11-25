@@ -810,3 +810,27 @@ func TestApplyUpdateRejectsAStagingFolderOutsideTheInstallParent(t *testing.T) {
 
 	assertOldContents(t, layout)
 }
+
+func TestCleanupStaleUpdateFilesRemovesOnlyOldUpdateLeftovers(t *testing.T) {
+	layout := newInstallLayout(t)
+	now := time.Now()
+	old := now.Add(-2 * time.Hour)
+	mk := func(name string, dir bool, modTime time.Time) {
+		path := filepath.Join(layout.parent, name)
+		if dir {
+			require.NoError(t, os.Mkdir(path, 0o750))
+			require.NoError(t, os.WriteFile(filepath.Join(path, "file"), []byte("x"), 0o600))
+		} else {
+			require.NoError(t, os.WriteFile(path, []byte("x"), 0o600))
+		}
+		require.NoError(t, os.Chtimes(path, modTime, modTime))
+	}
+	mk(".iworkflow-staging-old", true, old)
+	mk(".iworkflow-update-old.tar.gz", false, old)
+	mk(".iworkflow-staging-fresh", true, now)
+	mk("unrelated", true, old)
+
+	require.NoError(t, CleanupStaleUpdateFiles(layout.target, now, StaleUpdateMaxAge))
+
+	assert.Equal(t, []string{".iworkflow-staging-fresh", "iworkflow", "unrelated"}, listing(t, layout.parent))
+}

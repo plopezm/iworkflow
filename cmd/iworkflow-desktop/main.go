@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -83,6 +84,10 @@ func run(logger *slog.Logger) error {
 			if cleanErr := desktop.CleanupPreviousInstall(target); cleanErr != nil {
 				logger.Warn("could not remove the previous install", "error", cleanErr)
 			}
+			if cleanErr := desktop.CleanupStaleUpdateFiles(target, time.Now(), desktop.StaleUpdateMaxAge); cleanErr != nil {
+				logger.Warn("could not remove leftovers of an interrupted update", "error", cleanErr)
+			}
+			leaveInstallFolder(logger)
 		}
 	}
 	// The server starts before the GUI loop so a start failure is reported without opening a window.

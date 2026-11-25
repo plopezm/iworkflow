@@ -208,6 +208,9 @@ func (s *Supervisor) Stop() {
 		return
 	default:
 	}
+	// Windows has no graceful signal, and a killed server leaves its children running with files of the install
+	// folder open: end the whole tree while the pid still belongs to the server.
+	killTree(cmd.Process.Pid)
 	_ = cmd.Process.Signal(syscall.SIGTERM) // on Windows this fails and the kill below ends it
 	select {
 	case <-exited:
