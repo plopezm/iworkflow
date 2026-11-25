@@ -211,3 +211,29 @@ func TestTableRefreshesItselfWithAMorph(t *testing.T) {
 	fragment := render(t, WorkspaceTableBody(state.TableView{}))
 	assert.NotContains(t, fragment, `id="workspace-table"`, "the refresh answers the content, not the listening element")
 }
+
+func TestTableRowLinksTheBranchesTabBetweenTerminalAndRemove(t *testing.T) {
+	body := render(t, WorkspaceTable(state.TableView{Rows: []state.WorkspaceRow{{
+		ID: "w1", Name: "a", Path: "/repos/a", TerminalHref: "/workspaces/w1/terminal", BranchesHref: "/workspaces/w1/branches",
+	}}}))
+
+	assert.Contains(t, body, `href="/workspaces/w1/branches"`)
+	assert.Contains(t, body, "Ramas")
+	terminal := strings.Index(body, `href="/workspaces/w1/terminal"`)
+	branches := strings.Index(body, `href="/workspaces/w1/branches"`)
+	remove := strings.Index(body, "Quitar")
+	assert.Less(t, terminal, branches, "the branches button follows Abrir terminal")
+	assert.Less(t, branches, remove, "the branches button comes before Quitar")
+}
+
+func TestTableBranchesButtonIsTranslated(t *testing.T) {
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true})
+	var buffer bytes.Buffer
+	component := WorkspaceTable(state.TableView{Rows: []state.WorkspaceRow{{
+		ID: "w1", Name: "a", Path: "/repos/a", BranchesHref: "/workspaces/w1/branches",
+	}}})
+	require.NoError(t, component.Render(ctx, &buffer))
+
+	assert.Contains(t, buffer.String(), "Branches")
+	assert.NotContains(t, buffer.String(), "Ramas")
+}

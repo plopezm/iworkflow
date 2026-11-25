@@ -30,6 +30,15 @@ La sección Workspaces de la barra lateral de inicio puede crecer mucho, así qu
 - **Lienzo:** arrastra el fondo para desplazarte, usa la rueda para hacer zoom y **Ajustar vista** para encuadrar todo. Las posiciones de los nodos se guardan; las tareas sin posición guardada se colocan automáticamente por capas.
 - **Panel de tareas sueltas:** a la izquierda se listan las tareas sin flechas ni posición guardada (todas las creadas con *Nueva tarea* empiezan aquí) con sus acciones habituales (Iniciar, Editar, Borrar, Abrir, Integrar…), de modo que pueden ejecutarse por separado sin ninguna cadena. Arrastra una tarjeta al lienzo, o pulsa **Añadir al grafo**, para convertirla en nodo; las tareas creadas con *Añadir siguiente / en paralelo* van directamente al grafo. **Quitar del grafo** en un nodo borra todas sus flechas y su posición guardada (de forma atómica) y la devuelve a este panel; las sucesoras que se quedan sin predecesoras pasan a ser tareas sueltas normales. El panel se pliega y muestra su contador; en pantallas de menos de 768 px pasa a ser un selector **Sueltas (N) / Grafo**.
 
+## Ramas de un workspace
+
+Cada tarjeta de la lista de **Workspaces** tiene el botón **Ramas**, entre **Abrir terminal** y **Quitar**. Abre la pantalla de ramas del workspace, que lista sus ramas locales y remotas (las remotas aparecen como `origin/...`) y permite borrarlas:
+
+- **Buscar:** el cuadro de búsqueda filtra por nombre mientras escribes; el filtro se aplica en el servidor y se mantiene al borrar.
+- **Borrar una rama:** cada fila tiene **Eliminar**. Una rama local se borra con `git branch -D`; una remota se borra del remoto con `git push <remoto> --delete`, así que deja de existir también para los demás. Ambas piden confirmación antes de hacer nada.
+- **Borrar varias:** marca las casillas y pulsa **Eliminar seleccionadas**. Pide confirmación una vez para el lote. Cada rama tiene su propio resultado: una que falla no impide borrar las demás, y el resultado de cada una se muestra al terminar.
+- **Ramas protegidas:** no se pueden borrar, y su fila dice por qué: la rama actual, la rama base del workspace, una rama desplegada en algún worktree, una rama de una tarea que sigue activa, y la rama por defecto del remoto (`origin/HEAD`). La comprobación se hace en el momento de borrar, con el estado actual de git.
+
 ## Ciclo de vida de una tarea
 
 <p align="center">

@@ -263,6 +263,7 @@ func workspaceRow(workspace dto.WorkspaceDTO, memory state.MemoryChip) state.Wor
 		FilesHref:    "/workspaces/" + workspace.ID,
 		MemoriesHref: "/workspaces/" + workspace.ID + "/memories",
 		TerminalHref: "/workspaces/" + workspace.ID + "/terminal",
+		BranchesHref: "/workspaces/" + workspace.ID + "/branches",
 		Memory:       memory,
 	}
 }

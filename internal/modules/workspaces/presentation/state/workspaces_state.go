@@ -63,6 +63,8 @@ type WorkspaceRow struct {
 	MemoriesHref string
 	// TerminalHref opens the terminal tab of the workspace (served by the terminal module).
 	TerminalHref string
+	// BranchesHref opens the branch tab of the workspace (served by the workspace_branches module).
+	BranchesHref string
 	// Memory is the Engram chip of the row.
 	Memory MemoryChip
 	// GroupName and GroupColor describe the group of the workspace; GroupName is empty when it has none.

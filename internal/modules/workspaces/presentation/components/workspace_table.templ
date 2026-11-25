@@ -65,6 +65,9 @@ templ WorkspaceTableBody(table state.TableView) {
 								@link.Tab(link.Props{Href: row.TerminalHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
 									{ msgOpenTerminal.T(ctx) }
 								}
+								@link.Tab(link.Props{Href: row.BranchesHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
+									{ msgBranches.T(ctx) }
+								}
 								<button
 									type="button"
 									class="btn-danger min-h-9 rounded-lg px-2.5 py-1 text-xs"
