@@ -48,7 +48,7 @@ func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 			// The select is a form field: keep it with the stored branch so the save does not lose it.
 			web.LogError(ctx, "could not list the branches of the edit page", err)
 			choices := state.BranchChoices(nil, selected)
-			web.Render(w, r, http.StatusOK, components.BranchSelect(id, choices, selected, defaultBranchOf(workspaces, workspaceID)))
+			web.Render(w, r, http.StatusOK, components.BranchSelectNotice(id, choices, selected, defaultBranchOf(workspaces, workspaceID), err.Error()))
 			return
 		}
 		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(id, err.Error()))
