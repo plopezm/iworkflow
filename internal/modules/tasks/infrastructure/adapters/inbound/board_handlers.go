@@ -243,7 +243,7 @@ func (h *BoardHandlers) createTab(ctx context.Context, workspaceID string, kind 
 		input.LinkKind = kind
 		input.LinkAnchor = anchor
 	}
-	return pages.TaskCreatePage(h.createForm(ctx, newScope(), input, ""))
+	return pages.TaskCreatePage(createForm(newScope(), input))
 }
 
 // createTask creates the task from the create tab, linked when the form says so. A form that does not validate, or a
@@ -278,11 +278,10 @@ func (h *BoardHandlers) createTask(w http.ResponseWriter, r *http.Request) {
 	web.Render(w, r, http.StatusOK, components.TaskCreated(state.BoardPath(form.WorkspaceID), startError, linkErrors))
 }
 
-// createForm rebuilds the dialog state from what was typed, with the error to show. A failed workspace read
-// replaces the message: without the workspaces the dialog cannot be filled in or submitted.
-func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.TaskForm, message string) state.CreateForm {
-	// The workspaces are loaded by the page in the background (WorkspaceFieldsLazy). The branch list and the agent catalog start git and agent processes: the page loads them in the background
-	// (BranchSelectLazy, AgentSectionLazy), so they never delay it.
+// createForm is the state of the create page from what the address gives. It reads nothing: the workspaces, the
+// branch list and the agent catalog (git and agent processes) are loaded by the page in the background
+// (WorkspaceFieldsLazy, BranchSelectLazy, AgentSectionLazy), so they never delay it.
+func createForm(scope string, input dto.TaskForm) state.CreateForm {
 	agentState := state.AgentFormState{
 		SelectedRuntime:  input.AgentRuntime,
 		SelectedModel:    input.AgentModel,
@@ -304,7 +303,6 @@ func (h *BoardHandlers) createForm(ctx context.Context, scope string, input dto.
 		StartNow:     input.StartNow,
 		LinkKind:     input.LinkKind,
 		LinkAnchor:   input.LinkAnchor,
-		Error:        message,
 		BoardPath:    state.BoardPath(input.WorkspaceID),
 	}
 }
