@@ -361,8 +361,10 @@ func (a *App) Router() http.Handler {
 		web.RequestLog(a.logger),
 		web.Recover(a.logger),
 		web.BodyLimit(web.DefaultBodyBytes),
-		web.Locale,
+		// The sync runs first: it rewrites the Cookie header from the stored language, and Locale
+		// must read that header to build the request language state.
 		prefsinbound.SyncLanguageCookie(a.logger, a.prefs.GetLanguage, a.prefs.SaveLanguage),
+		web.Locale,
 	)
 	r.Handle("/static/*", web.StaticHandler(a.staticDir))
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
