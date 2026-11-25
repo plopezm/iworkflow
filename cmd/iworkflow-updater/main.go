@@ -26,6 +26,7 @@ func run() int {
 	target := flag.String("target", "", "install folder to replace")
 	exe := flag.String("exe", "", "running executable inside the install folder")
 	pid := flag.Int("pid", 0, "process ID of the app to wait for")
+	staging := flag.String("staging", "", "folder the app already extracted the update into")
 	cleanup := flag.String("cleanup-dir", "", "temporary folder holding this binary, removed at the end")
 	flag.Parse()
 
@@ -48,11 +49,14 @@ func run() int {
 		Target:     *target,
 		Executable: *exe,
 		ParentPID:  *pid,
-		Relaunch:   func(path string) error { return desktop.StartDetached(path) },
-		Log:        func(message string) { logger.Info(message) },
+		Staging:    *staging,
+		// The new app starts in its own folder, never in the helper folder that is removed right after.
+		Relaunch: func(path string) error { return desktop.StartDetachedIn(filepath.Dir(path), path) },
+		Log:      func(message string) { logger.Info(message) },
 	})
 	if err != nil {
 		logger.Error("update failed", "error", err)
+		newRecovery().run(logger, *exe, *pid, err)
 		return 1
 	}
 	if err = desktop.CleanupPreviousInstall(*target); err != nil {

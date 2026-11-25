@@ -168,3 +168,36 @@ func TestCreateBranchesShowTheFailureInPlaceOfTheSelect(t *testing.T) {
 	assert.Contains(t, html, "git broke")
 	assert.NotContains(t, html, `name="base_branch"`)
 }
+
+func TestCreateAgentSectionServesTheCatalogWithoutATask(t *testing.T) {
+	t.Parallel()
+	catalog := lazyCatalog{info: outbound.AgentCatalogInfo{Runtimes: []string{"pi", "claude"}, SupportsThinking: true, ThinkingLevels: []string{"low", "high"}}}
+
+	html := lazyGet(t, lazyTask(t), lazyWorktree{}, catalog, "/board/tasks/agent-section?scope=abc123&agent_runtime=claude&agent_thinking=high")
+
+	assert.Contains(t, html, `id="task-agent-section-abc123"`)
+	assert.Regexp(t, `value="claude"[^>]*selected`, html, "the runtime of the form stays selected")
+	assert.Regexp(t, `value="high"[^>]*selected`, html, "the thinking level of the form stays selected")
+	assert.NotContains(t, html, `hx-trigger="load"`, "the loaded section does not load again")
+}
+
+func TestCreateBranchesKeepThePickedBranchSelected(t *testing.T) {
+	t.Parallel()
+	worktree := lazyWorktree{branches: []models.BranchOption{{Name: "main", Current: true}, {Name: "origin/develop", Remote: true}}}
+
+	html := lazyGet(t, lazyTask(t), worktree, lazyCatalog{}, "/board/tasks/branches?workspace_id=w1&scope=abc123&base_branch=origin%2Fdevelop")
+
+	assert.Contains(t, html, `id="board-branch-slot-abc123"`)
+	assert.Contains(t, html, `<option value="origin/develop" selected`)
+}
+
+func TestCreateWorkspacesServeTheSelectAndTheBranchPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	html := lazyGet(t, lazyTask(t), lazyWorktree{}, lazyCatalog{}, "/board/tasks/create-workspaces?scope=abc123&workspace_id=w1&base_branch=dev")
+
+	assert.Contains(t, html, `id="board-workspace-fields-abc123"`)
+	assert.Regexp(t, `value="w1"[^>]*selected`, html, "the workspace of the form stays selected")
+	assert.Contains(t, html, `/board/tasks/branches?`, "the branch list loads next")
+	assert.NotContains(t, html, `/board/tasks/create-workspaces`, "the loaded fields do not load again")
+}

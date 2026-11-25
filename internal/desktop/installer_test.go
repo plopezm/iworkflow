@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -380,7 +381,7 @@ func TestArchiveInstallerDownload(t *testing.T) {
 			require.NoError(t, err)
 			require.True(t, check.Available)
 
-			err = inst.Download(context.Background())
+			err = inst.Download(context.Background(), nil)
 
 			if tt.wantError != "" {
 				require.ErrorContains(t, err, tt.wantError)
@@ -404,7 +405,7 @@ func TestArchiveInstallerDownloadRequiresACheck(t *testing.T) {
 	layout := newInstallLayout(t)
 	inst := newTestInstaller(t, layout, "http://127.0.0.1:1/release", nil)
 
-	require.Error(t, inst.Download(context.Background()))
+	require.Error(t, inst.Download(context.Background(), nil))
 }
 
 func TestArchiveInstallerDownloadStopsWhenContextEnds(t *testing.T) {
@@ -418,7 +419,7 @@ func TestArchiveInstallerDownloadStopsWhenContextEnds(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
-	err = inst.Download(ctx)
+	err = inst.Download(ctx, nil)
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Equal(t, []string{"iworkflow"}, listing(t, layout.parent))
@@ -451,7 +452,8 @@ func TestArchiveInstallerQuitAndInstall(t *testing.T) {
 			})
 			_, err := inst.Check(context.Background())
 			require.NoError(t, err)
-			require.NoError(t, inst.Download(context.Background()))
+			require.NoError(t, inst.Download(context.Background(), nil))
+			require.NoError(t, inst.Prepare(context.Background()))
 			var onFailureErrs []error
 
 			err = inst.QuitAndInstall(context.Background(), func(err error) { onFailureErrs = append(onFailureErrs, err) })
@@ -463,6 +465,7 @@ func TestArchiveInstallerQuitAndInstall(t *testing.T) {
 			assert.Equal(t, layout.executable, gotArgs.Executable)
 			assert.Equal(t, os.Getpid(), gotArgs.ParentPID)
 			assert.Equal(t, layout.parent, filepath.Dir(gotArgs.Archive))
+			assert.Equal(t, layout.parent, filepath.Dir(gotArgs.Staging))
 			if tt.wantExit {
 				require.NoError(t, err)
 				assert.Equal(t, []string{"start", "exit"}, events)
@@ -761,4 +764,113 @@ func TestParseChecksumsAcceptsBinaryMarkerAndRejectsMalformedLines(t *testing.T)
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestArchiveInstallerDownloadReportsProgressUpToTheArchiveSize(t *testing.T) {
+	archive := buildTarGz(t, standardEntries(testTop))
+	layout := newInstallLayout(t)
+	srv := newFakeGitHub(t, releaseFixture{tag: "v1.2.0", assets: releaseAssets(t, archive)})
+	inst := newTestInstaller(t, layout, srv.URL+"/release", nil)
+	_, err := inst.Check(context.Background())
+	require.NoError(t, err)
+
+	var done, total int64
+	require.NoError(t, inst.Download(context.Background(), func(d int64, tot int64) { done, total = d, tot }))
+
+	assert.Equal(t, int64(len(archive)), done)
+	assert.Equal(t, int64(len(archive)), total)
+}
+
+func TestApplyUpdateUsesAnAlreadyExtractedStagingFolder(t *testing.T) {
+	layout := newInstallLayout(t)
+	data := buildTarGz(t, standardEntries(testTop))
+	archive := writeUpdateArchive(t, layout, data)
+	staging, err := extractToStaging(ApplyOptions{Archive: archive, Target: layout.target, MaxExtractBytes: DefaultMaxExtractBytes, Log: func(string) {}}, "iworkflow-desktop")
+	require.NoError(t, err)
+	var relaunched []string
+	opts := applyOptions(layout, archive, sha256Hex(data), &relaunched)
+	opts.Staging = staging
+
+	require.NoError(t, ApplyUpdate(context.Background(), opts))
+
+	got, err := os.ReadFile(filepath.Join(layout.target, "iworkflow-desktop"))
+	require.NoError(t, err)
+	assert.Equal(t, "new-binary", string(got))
+	assert.Len(t, relaunched, 1)
+}
+
+func TestApplyUpdateRejectsAStagingFolderOutsideTheInstallParent(t *testing.T) {
+	layout := newInstallLayout(t)
+	data := buildTarGz(t, standardEntries(testTop))
+	archive := writeUpdateArchive(t, layout, data)
+	var relaunched []string
+	opts := applyOptions(layout, archive, sha256Hex(data), &relaunched)
+	opts.Staging = filepath.Join(t.TempDir(), ".iworkflow-staging-x")
+
+	require.ErrorContains(t, ApplyUpdate(context.Background(), opts), "staging folder")
+
+	assertOldContents(t, layout)
+}
+
+func TestCleanupStaleUpdateFilesRemovesOnlyOldUpdateLeftovers(t *testing.T) {
+	layout := newInstallLayout(t)
+	now := time.Now()
+	old := now.Add(-2 * time.Hour)
+	mk := func(name string, dir bool, modTime time.Time) {
+		path := filepath.Join(layout.parent, name)
+		if dir {
+			require.NoError(t, os.Mkdir(path, 0o750))
+			require.NoError(t, os.WriteFile(filepath.Join(path, "file"), []byte("x"), 0o600))
+		} else {
+			require.NoError(t, os.WriteFile(path, []byte("x"), 0o600))
+		}
+		require.NoError(t, os.Chtimes(path, modTime, modTime))
+	}
+	mk(".iworkflow-staging-old", true, old)
+	mk(".iworkflow-update-old.tar.gz", false, old)
+	mk(".iworkflow-staging-fresh", true, now)
+	mk("unrelated", true, old)
+
+	require.NoError(t, CleanupStaleUpdateFiles(layout.target, now, StaleUpdateMaxAge))
+
+	assert.Equal(t, []string{".iworkflow-staging-fresh", "iworkflow", "unrelated"}, listing(t, layout.parent))
+}
+
+func TestRetryRenameSucceedsAfterTransientFailures(t *testing.T) {
+	calls, sleeps := 0, 0
+	rename := func(string, string) error {
+		calls++
+		if calls < 4 {
+			return errInjected
+		}
+		return nil
+	}
+
+	err := retryRename(rename, func(time.Duration) { sleeps++ }, "a", "b")
+
+	require.NoError(t, err)
+	assert.Equal(t, 4, calls)
+	assert.Equal(t, 3, sleeps)
+}
+
+func TestRetryRenameStopsAtOnceWhenTheFolderIsMissing(t *testing.T) {
+	calls, sleeps := 0, 0
+	rename := func(string, string) error { calls++; return fs.ErrNotExist }
+
+	err := retryRename(rename, func(time.Duration) { sleeps++ }, "a", "b")
+
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	assert.Equal(t, 1, calls)
+	assert.Zero(t, sleeps)
+}
+
+func TestRetryRenameGivesUpAfterTheLastAttemptWithoutSleepingAfterIt(t *testing.T) {
+	calls, sleeps := 0, 0
+	rename := func(string, string) error { calls++; return errInjected }
+
+	err := retryRename(rename, func(time.Duration) { sleeps++ }, "a", "b")
+
+	require.ErrorIs(t, err, errInjected)
+	assert.Equal(t, renameAttempts, calls)
+	assert.Equal(t, renameAttempts-1, sleeps)
 }

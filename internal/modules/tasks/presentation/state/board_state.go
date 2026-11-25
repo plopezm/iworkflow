@@ -263,6 +263,38 @@ func EditBranchesPath(workspaceID string, scope string) string {
 	return "/board/tasks/branches?" + query.Encode()
 }
 
+// CreateWorkspacesPath is the address that loads the workspace fields of the create page in the background, keeping
+// the workspace and the branch the form already has.
+func CreateWorkspacesPath(scope string, workspaceID string, baseBranch string) string {
+	query := url.Values{}
+	query.Set("scope", scope)
+	query.Set("workspace_id", workspaceID)
+	query.Set("base_branch", baseBranch)
+	return "/board/tasks/create-workspaces?" + query.Encode()
+}
+
+// CreateBranchesPath is the address that loads the branch list of the create page in the background, keeping the
+// branch the user already picked.
+func CreateBranchesPath(workspaceID string, scope string, baseBranch string) string {
+	query := url.Values{}
+	query.Set("workspace_id", workspaceID)
+	query.Set("scope", scope)
+	query.Set("base_branch", baseBranch)
+	return "/board/tasks/branches?" + query.Encode()
+}
+
+// CreateAgentSectionPath is the address that loads the agent section of the create page in the background, keeping
+// the choices the form already has.
+func CreateAgentSectionPath(scope string, agent AgentFormState) string {
+	query := url.Values{}
+	query.Set("scope", scope)
+	query.Set("agent_runtime", agent.SelectedRuntime)
+	query.Set("agent_model", agent.SelectedModel)
+	query.Set("agent_thinking", agent.SelectedThinking)
+	query.Set("agent_profile", agent.SelectedProfile)
+	return "/board/tasks/agent-section?" + query.Encode()
+}
+
 // EditAgentSectionPath is the address that loads the agent section of the edit page in the background.
 func EditAgentSectionPath(taskID string, scope string) string {
 	query := url.Values{}
