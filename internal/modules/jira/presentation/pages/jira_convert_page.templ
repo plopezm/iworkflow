@@ -15,7 +15,7 @@ templ ConversionBranchContainer(branches []dto.ConversionBranchDTO) {
 	<div id="conversion-branch-container" class="stack gap-1.5">
 		<label class="stack gap-1.5">
 			<span class="text-sm font-medium text-fg">{ msgBaseBranchLabel.T(ctx) }</span>
-			<select class="input" name="base_branch" aria-label={ msgBaseBranchLabel.T(ctx) }>
+			<select class="input" name="base_branch" aria-label={ msgBaseBranchLabel.T(ctx) } data-searchable data-search-placeholder={ shared.SearchablePlaceholder(ctx) } data-search-empty={ shared.SearchableEmpty(ctx) }>
 				<option value="">{ msgDefaultBranchHint.T(ctx) }</option>
 				for _, b := range branches {
 					<option value={ b.Name }>{ formatBranchOption(ctx, b) }</option>
