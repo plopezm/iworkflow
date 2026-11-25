@@ -27,7 +27,15 @@ const branchSlot = "board-branch-slot"
 // branches serves the base branch select of the create dialog for the workspace the user picked.
 func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id := state.Scoped(branchSlot, state.SanitizeScope(r.URL.Query().Get("scope")))
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
+	id := state.Scoped(branchSlot, scope)
+	// The edit page loads its select in the background and keeps the value the task already has.
+	edit := r.URL.Query().Get("slot") == "edit"
+	selected := ""
+	if edit {
+		id = state.Scoped(state.EditBranchSlot, scope)
+		selected = r.URL.Query().Get("base_branch")
+	}
 	workspaceID := r.URL.Query().Get("workspace_id")
 	workspaces, err := h.workspaceOptions(ctx)
 	if err != nil {
@@ -36,11 +44,18 @@ func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 	}
 	options, err := h.branchesOf(ctx, workspaceID)
 	if err != nil {
+		if edit {
+			// The select is a form field: keep it with the stored branch so the save does not lose it.
+			web.LogError(ctx, "could not list the branches of the edit page", err)
+			choices := state.BranchChoices(nil, selected)
+			web.Render(w, r, http.StatusOK, components.BranchSelect(id, choices, selected, defaultBranchOf(workspaces, workspaceID)))
+			return
+		}
 		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(id, err.Error()))
 		return
 	}
-	choices := state.BranchChoices(options, "")
-	web.Render(w, r, http.StatusOK, components.BranchSelect(id, choices, "", defaultBranchOf(workspaces, workspaceID)))
+	choices := state.BranchChoices(options, selected)
+	web.Render(w, r, http.StatusOK, components.BranchSelect(id, choices, selected, defaultBranchOf(workspaces, workspaceID)))
 }
 
 // startTask starts a backlog task from its card. The list refreshes either way, because a failed start may have
@@ -171,12 +186,10 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 	if err != nil {
 		return state.EditForm{}, false, fmt.Errorf("list the related projects: %w", err)
 	}
-	// A failed branch listing does not stop the page: the task keeps its base branch, and the failure is shown.
-	branches, branchErr := h.branchesOf(ctx, task.WorkspaceID)
+	// The branch list is loaded by the page in the background (BranchSelectLazy): it must not delay the page.
 	view := dto.TaskFromDomain(task, h.now())
-	catalog, _ := h.agentCatalog(ctx, task.Agent.Runtime)
+	// The agent catalog starts agent processes: the page loads it in the background (AgentSectionLazy).
 	agentState := state.AgentFormState{
-		Catalog:          catalog,
 		SelectedRuntime:  stringOrEmpty(task.Agent.Runtime),
 		SelectedModel:    modelValue(task.Agent),
 		SelectedThinking: stringPtrOrEmpty(task.Agent.Thinking),
@@ -191,7 +204,6 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 		Priority:        view.Priority,
 		BaseBranch:      view.BaseBranch,
 		DefaultBranch:   defaultBranchOf(workspaces, task.WorkspaceID),
-		Branches:        branches,
 		MemoryLimit:     limitText(view.MemoryLimitMB),
 		CPULimit:        limitText(view.CPUPercent),
 		Agent:           agentState,
@@ -200,10 +212,35 @@ func (h *BoardHandlers) loadEdit(ctx context.Context, id models.TaskID) (state.E
 		RelatedProjects: state.RelatedProjectChoices(workspaces, task.WorkspaceID, workspaceIDs(related)),
 		BoardPath:       state.BoardPath(task.WorkspaceID),
 	}
-	if branchErr != nil {
-		form.Error = branchErr.Error()
-	}
 	return form, true, nil
+}
+
+// agentSection serves the agent section of the edit page of a task once its catalog is read. A failed read keeps
+// the stored choices, so the save does not lose them.
+func (h *BoardHandlers) agentSection(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	scope := state.SanitizeScope(r.URL.Query().Get("scope"))
+	id, err := models.ParseTaskID(r.URL.Query().Get("task_id"))
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(err.Error()))
+		return
+	}
+	task, err := h.uc.Get.Execute(ctx, id)
+	if err != nil {
+		web.Render(w, r, http.StatusOK, shared.ErrorText(fmt.Errorf("read the task: %w", err).Error()))
+		return
+	}
+	catalog, catalogErr := h.agentCatalog(ctx, task.Agent.Runtime)
+	if catalogErr != nil {
+		web.LogError(ctx, "could not read the agent catalog of the edit page", catalogErr)
+	}
+	web.Render(w, r, http.StatusOK, components.AgentSection(scope, state.AgentFormState{
+		Catalog:          catalog,
+		SelectedRuntime:  stringOrEmpty(task.Agent.Runtime),
+		SelectedModel:    modelValue(task.Agent),
+		SelectedThinking: stringPtrOrEmpty(task.Agent.Thinking),
+		SelectedProfile:  stringPtrOrEmpty(task.Agent.Profile),
+	}))
 }
 
 // workspaceIDs are the ids of the workspaces, in their order.

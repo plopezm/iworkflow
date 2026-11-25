@@ -33,6 +33,32 @@ templ BranchSelect(id string, choices []state.BranchChoice, value string, defaul
 	</div>
 }
 
+// BranchSelectLazy is the base branch select of the edit page. It renders at once with the branches it already
+// knows (the stored one) and loads the full list in the background (htmx "load"), so listing the branches never
+// delays the page. The placeholder is replaced once by the loaded select, which has no triggers of its own, hence
+// outerHTML; the value the user picked meanwhile travels as base_branch and stays selected.
+templ BranchSelectLazy(id string, choices []state.BranchChoice, value string, defaultBranch string, src string) {
+	<div
+		id={ id }
+		hx-get={ src }
+		hx-trigger="load"
+		hx-swap="outerHTML"
+		hx-include="find select"
+		aria-busy="true"
+	>
+		<label class="stack gap-1.5">
+			<span class="text-sm font-medium text-fg">{ msgBaseBranch.T(ctx) }</span>
+			<select class="input" name="base_branch">
+				<option value="" selected?={ value == "" }>{ msgWorkspaceBranch.Fmt(ctx, map[string]string{"branch": defaultBranch}) }</option>
+				for _, choice := range choices {
+					<option value={ choice.Name } selected?={ choice.Name == value }>{ branchLabel(ctx, choice) }</option>
+				}
+			</select>
+			@shared.Loading(msgLoadingBranches.T(ctx))
+		</label>
+	</div>
+}
+
 // RelatedProjectsField is the "Related projects" field: a button that opens a dialog to choose the workspaces the task
 // may relate to, with a filter, and a summary of the chosen ones. The dialog holds one checkbox per workspace, each with
 // its path in muted text; it stays inside the form, so the chosen checkboxes are submitted even when it is closed. The
@@ -124,11 +150,29 @@ templ ExistingAttachments(items []dto.TaskAttachmentDTO) {
 // AdvancedOptions renders the collapsible "Advanced options" section with agent, model, effort, profile
 // selectors as the first option, followed by the RAM and CPU resource limits.
 templ AdvancedOptions(id string, scope string, advanced bool, memory string, cpu string, agent state.AgentFormState) {
+	@AdvancedOptionsWith(id, advanced, memory, cpu, AgentSection(scope, agent))
+}
+
+// AdvancedOptionsWith is AdvancedOptions with the agent section given: the edit page passes the lazy one, so the
+// agent catalog (which starts agent processes) is read after the page is shown.
+templ AdvancedOptionsWith(id string, advanced bool, memory string, cpu string, agentSection templ.Component) {
 	<label class="row min-h-10 items-center gap-2 text-sm text-fg">
 		<input type="checkbox" name="show_advanced" value="on" class="h-5 w-5" checked?={ advanced } data-toggle-target={ id }/>
 		<span>{ msgAdvancedOptions.T(ctx) }</span>
 	</label>
 	<div id={ id } class="stack gap-3" hidden?={ !advanced }>
+		@agentSection
+		@shared.NumberField(shared.NumberFieldProps{Label: msgMaxRAM.T(ctx), Name: "memory_limit_mb", Unit: "MiB", Placeholder: msgDefaultFromSet.T(ctx), Value: memory})
+		@shared.NumberField(shared.NumberFieldProps{Label: msgMaxCPU.T(ctx), Name: "cpu_limit_percent", Unit: msgPercentOfCore.T(ctx), Placeholder: msgDefaultFromSet.T(ctx), Value: cpu})
+	</div>
+}
+
+// AgentSectionSlot is the id of the agent section of the edit page; the scope is added by Scoped.
+const AgentSectionSlot = "task-agent-section"
+
+// AgentSection is the agent runtime select and the dependent selectors of the agent it chooses.
+templ AgentSection(scope string, agent state.AgentFormState) {
+	<div id={ state.Scoped(AgentSectionSlot, scope) } class="stack gap-3">
 		<label class="stack gap-1.5">
 			<span class="text-sm font-medium text-fg">{ msgAgent.T(ctx) }</span>
 			<select
@@ -150,8 +194,26 @@ templ AdvancedOptions(id string, scope string, advanced bool, memory string, cpu
 		<div id={ state.Scoped("task-agent-options", scope) } class="stack gap-3">
 			@AgentOptionsFields(scope, agent)
 		</div>
-		@shared.NumberField(shared.NumberFieldProps{Label: msgMaxRAM.T(ctx), Name: "memory_limit_mb", Unit: "MiB", Placeholder: msgDefaultFromSet.T(ctx), Value: memory})
-		@shared.NumberField(shared.NumberFieldProps{Label: msgMaxCPU.T(ctx), Name: "cpu_limit_percent", Unit: msgPercentOfCore.T(ctx), Placeholder: msgDefaultFromSet.T(ctx), Value: cpu})
+	</div>
+}
+
+// AgentSectionLazy is the agent section of the edit page while its catalog loads in the background: a loading
+// message, and the stored choices as hidden fields so a save before the load keeps them. The loaded section
+// replaces it once (outerHTML), because it has no triggers of its own.
+templ AgentSectionLazy(scope string, agent state.AgentFormState, src string) {
+	<div
+		id={ state.Scoped(AgentSectionSlot, scope) }
+		class="stack gap-3"
+		hx-get={ src }
+		hx-trigger="load"
+		hx-swap="outerHTML"
+		aria-busy="true"
+	>
+		<input type="hidden" name="agent_runtime" value={ agent.SelectedRuntime }/>
+		<input type="hidden" name="agent_model" value={ agent.SelectedModel }/>
+		<input type="hidden" name="agent_thinking" value={ agent.SelectedThinking }/>
+		<input type="hidden" name="agent_profile" value={ agent.SelectedProfile }/>
+		@shared.Loading(msgLoadingAgents.T(ctx))
 	</div>
 }
 
@@ -268,10 +330,10 @@ func branchChoices(form state.CreateForm) []state.BranchChoice {
 // TaskEditFields are the editable fields of a backlog task. The edit page wraps them in its own form.
 templ TaskEditFields(form state.EditForm) {
 	@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
-	@BranchSelect(state.Scoped("task-edit-branch", form.Scope), state.BranchChoices(form.Branches, form.BaseBranch), form.BaseBranch, form.DefaultBranch)
+	@BranchSelectLazy(state.Scoped(state.EditBranchSlot, form.Scope), state.BranchChoices(form.Branches, form.BaseBranch), form.BaseBranch, form.DefaultBranch, state.EditBranchesPath(form.WorkspaceID, form.Scope))
 	@RelatedProjectsField(form.RelatedProjects)
 	@shared.SelectField(shared.SelectFieldProps{Label: msgPriority.T(ctx), Name: "priority", Value: form.Priority, Options: priorityOptions(ctx)})
-	@AdvancedOptions(state.Scoped("task-edit-advanced-limits", form.Scope), form.Scope, form.ShowAdvanced, form.MemoryLimit, form.CPULimit, form.Agent)
+	@AdvancedOptionsWith(state.Scoped("task-edit-advanced-limits", form.Scope), form.ShowAdvanced, form.MemoryLimit, form.CPULimit, AgentSectionLazy(form.Scope, form.Agent, state.EditAgentSectionPath(form.TaskID, form.Scope)))
 	@TaskPromptField(msgPrompt.T(ctx), state.Scoped("task-edit-prompt", form.Scope), form.Prompt, state.TaskPath(form.TaskID)+"/composer/files")
 	@ExistingAttachments(form.Existing)
 	@ImagePicker()

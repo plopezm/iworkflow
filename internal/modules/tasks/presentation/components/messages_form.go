@@ -7,6 +7,8 @@ import "iworkflow/internal/core/i18n"
 // components/existing_attachments.rs).
 var (
 	msgRemoteBranch        = i18n.Msg{En: "{name} (remote)", Es: "{name} (remota)", Zh: "{name}（远程）", De: "{name} (remote)", Fr: "{name} (distante)"}
+	msgLoadingBranches     = i18n.Msg{En: "Loading branches…", Es: "Cargando ramas…", Zh: "正在加载分支…", De: "Branches werden geladen…", Fr: "Chargement des branches…"}
+	msgLoadingAgents       = i18n.Msg{En: "Loading agent options…", Es: "Cargando opciones del agente…", Zh: "正在加载代理选项…", De: "Agent-Optionen werden geladen…", Fr: "Chargement des options de l'agent…"}
 	msgBaseBranch          = i18n.Msg{En: "Base branch", Es: "Rama base", Zh: "基础分支", De: "Basis-Branch", Fr: "Branche de base"}
 	msgRelatedProjects     = i18n.Msg{En: "Related projects", Es: "Proyectos relacionados", Zh: "关联项目", De: "Verwandte Projekte", Fr: "Projets liés"}
 	msgRelatedProjectsHint = i18n.Msg{En: "The agent can read their files and, when available, their engram and codegraph. @ also completes their files.", Es: "El agente puede leer sus ficheros y, si están disponibles, su engram y su codegraph. @ también completa sus ficheros.", Zh: "智能体可以读取这些项目的文件，若可用还可读取其 engram 和 codegraph。输入 @ 时也会补全其文件。", De: "Der Agent kann deren Dateien lesen und, falls verfügbar, auch deren engram und codegraph. @ vervollständigt außerdem deren Dateien.", Fr: "L’agent peut lire leurs fichiers et, si disponibles, leur engram et leur codegraph. @ complète aussi leurs fichiers."}

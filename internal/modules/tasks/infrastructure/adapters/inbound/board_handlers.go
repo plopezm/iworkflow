@@ -158,6 +158,7 @@ func (h *BoardHandlers) Mount(r chi.Router) {
 	r.Get("/board/sidebar", h.sidebar)
 	r.Get("/board/tasks/branches", h.branches)
 	r.Get("/board/tasks/agent-options", h.agentOptions)
+	r.Get("/board/tasks/agent-section", h.agentSection)
 	r.Post("/board/tasks", h.createTask)
 	r.Post("/board/tasks/{id}/start", h.startTask)
 	r.Post("/board/tasks/{id}/delete", h.deleteTask)
