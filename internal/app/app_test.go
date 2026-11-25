@@ -452,3 +452,49 @@ func TestEngramFeatureIsOnWithAValidURLAndReadsTheProjectsOnce(t *testing.T) {
 	assert.Contains(t, detail.Body.String(), "data-task-memory", "the Memory panel is shown")
 	assert.Contains(t, detail.Body.String(), "Usar WAL")
 }
+
+// routerWithStoredLanguage builds the composed server on a database that already holds a language.
+func routerWithStoredLanguage(t *testing.T, code string) http.Handler {
+	t.Helper()
+	static := t.TempDir()
+	database := dbtest.New(t)
+	_, err := database.ExecContext(context.Background(),
+		"INSERT INTO app_preferences (key, value) VALUES ('language', ?)", code)
+	require.NoError(t, err)
+	application, err := app.New(context.Background(), app.Deps{
+		DB:        database,
+		Config:    app.NewTestConfig(t),
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		StaticDir: static,
+		Listen:    listen.Info{Addr: netip.AddrPortFrom(netip.AddrFrom4([4]byte{127, 0, 0, 1}), 3000)},
+		Restart:   restart.NewHandle(),
+		Version:   "9.8.7",
+	})
+	require.NoError(t, err)
+	return application.Router()
+}
+
+func TestStoredLanguageIsAppliedOnTheFirstLoadOfABrowserWithoutCookie(t *testing.T) {
+	handler := routerWithStoredLanguage(t, "de")
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Accept", "text/html")
+	rec := httptest.NewRecorder()
+
+	handler.ServeHTTP(rec, request)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	require.Contains(t, body, `<html lang="de">`)
+	require.NotContains(t, body, "language-prompt-title")
+	require.Contains(t, rec.Header().Values("Set-Cookie"), "iw-lang=de; Path=/; Max-Age=31536000; SameSite=Lax")
+}
+
+func TestNoStoredLanguageNorCookieAsksForTheLanguage(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Header.Set("Accept", "text/html")
+	rec := httptest.NewRecorder()
+
+	newRouter(t).ServeHTTP(rec, request)
+
+	require.Contains(t, rec.Body.String(), "language-prompt-title")
+}
