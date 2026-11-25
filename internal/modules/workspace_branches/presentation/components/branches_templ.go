@@ -34,7 +34,7 @@ func BranchesScreen(view state.ScreenView) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section id=\"workspace-branches\" class=\"stack px-6 py-4\"><div class=\"row justify-between\"><h2 class=\"font-medium text-fg\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<section id=\"workspace-branches\" class=\"stack h-full min-h-0 overflow-y-auto px-6 py-4\"><div class=\"row justify-between\"><h2 class=\"font-medium text-fg\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
