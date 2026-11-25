@@ -628,17 +628,19 @@ select optgroup,
   display: none;
 }
 /* Only the states that ask for the user's eyes move. */
-.badge-working::before,
-.badge-attention::before {
+.badge-working::before {
   animation: status-halo 1.8s ease-out infinite;
+}
+/* Attention stays a quiet label: no dot, so the project colour is what the eye finds. */
+.badge-attention::before {
+  display: none;
 }
 @keyframes status-halo {
   0%   { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 55%, transparent); }
   100% { box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 0%, transparent); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .badge-working::before,
-  .badge-attention::before {
+  .badge-working::before {
     animation: none;
   }
 }
