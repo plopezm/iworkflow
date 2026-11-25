@@ -45,13 +45,16 @@ templ BranchSelectNotice(id string, choices []state.BranchChoice, value string, 
 // BranchSelectLazy is the base branch select of the edit page. It renders at once with the branches it already
 // knows (the stored one) and loads the full list in the background (htmx "load"), so listing the branches never
 // delays the page. The placeholder is replaced once by the loaded select, which has no triggers of its own, hence
-// outerHTML; the value the user picked meanwhile travels as base_branch and stays selected.
+// outerHTML; it targets itself and disables nothing, because the edit form around it would otherwise lend its result
+// target and its disabled save button; the value the user picked meanwhile travels as base_branch and stays selected.
 templ BranchSelectLazy(id string, choices []state.BranchChoice, value string, defaultBranch string, src string) {
 	<div
 		id={ id }
 		hx-get={ src }
 		hx-trigger="load"
+		hx-target="this"
 		hx-swap="outerHTML"
+		hx-disabled-elt="unset"
 		hx-include="find select"
 		aria-busy="true"
 	>
@@ -215,7 +218,9 @@ templ AgentSectionLazy(scope string, agent state.AgentFormState, src string) {
 		class="stack gap-3"
 		hx-get={ src }
 		hx-trigger="load"
+		hx-target="this"
 		hx-swap="outerHTML"
+		hx-disabled-elt="unset"
 		aria-busy="true"
 	>
 		<input type="hidden" name="agent_runtime" value={ agent.SelectedRuntime }/>

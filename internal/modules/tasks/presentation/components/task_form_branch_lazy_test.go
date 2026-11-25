@@ -17,6 +17,8 @@ func TestBranchSelectLazyShowsTheStoredBranchAndLoadsTheListInTheBackground(t *t
 
 	assert.Contains(t, body, `hx-trigger="load"`)
 	assert.Contains(t, body, `hx-swap="outerHTML"`)
+	assert.Contains(t, body, `hx-target="this"`, "the form around it must not lend its result target")
+	assert.Contains(t, body, `hx-disabled-elt="unset"`, "loading must not disable the save button of the form")
 	assert.Contains(t, body, `hx-include="find select"`)
 	assert.Contains(t, body, `slot=edit`)
 	assert.Contains(t, body, `workspace_id=ws1`)
@@ -31,6 +33,8 @@ func TestAgentSectionLazyShowsLoadingAndKeepsTheStoredChoices(t *testing.T) {
 
 	assert.Contains(t, body, `hx-trigger="load"`)
 	assert.Contains(t, body, `hx-swap="outerHTML"`)
+	assert.Contains(t, body, `hx-target="this"`, "the form around it must not lend its result target")
+	assert.Contains(t, body, `hx-disabled-elt="unset"`, "loading must not disable the save button of the form")
 	assert.Contains(t, body, `task_id=t1`)
 	assert.Contains(t, body, `Loading agent options`)
 	for _, field := range []string{`name="agent_runtime" value="claude"`, `name="agent_model" value="opus"`, `name="agent_thinking" value="high"`, `name="agent_profile" value="dev"`} {
