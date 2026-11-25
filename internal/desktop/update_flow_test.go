@@ -51,6 +51,8 @@ type fakeInstaller struct {
 	quitErr     error
 	quitCalls   int
 	downloads   int
+	prepares    int
+	prepareErr  error
 	onFailure   func(error)
 	onQuit      func()
 }
@@ -62,9 +64,17 @@ func (f *fakeInstaller) Check(ctx context.Context) (UpdateCheck, error) {
 	return UpdateCheck{Available: f.available, Version: f.version}, nil
 }
 
-func (f *fakeInstaller) Download(context.Context) error {
+func (f *fakeInstaller) Download(_ context.Context, progress func(int64, int64)) error {
 	f.downloads++
+	if progress != nil {
+		progress(5, 10)
+	}
 	return f.downloadErr
+}
+
+func (f *fakeInstaller) Prepare(context.Context) error {
+	f.prepares++
+	return f.prepareErr
 }
 
 func (f *fakeInstaller) QuitAndInstall(_ context.Context, onFailure func(error)) error {
@@ -173,6 +183,55 @@ func TestAutomaticCheckThatFindsNothingStaysQuietAndManualSaysSo(t *testing.T) {
 	assert.Equal(t, "iworkflow 0.16.0 is up to date.", fx.asker.asked[0].Message)
 }
 
+func TestOneAcceptanceDownloadsPreparesAndInstallsWithProgress(t *testing.T) {
+	var phases []ProgressPhase
+	fx := newFixture(t, func(cfg *Config) {
+		cfg.Progress = func(p Progress) { phases = append(phases, p.Phase) }
+	})
+	fx.asker.answers = []int{0}
+
+	require.NoError(t, fx.flow.Check(context.Background(), false))
+
+	require.Len(t, fx.asker.asked, 1, "a single question covers download and install")
+	assert.Equal(t, []string{"Update now", "Later"}, fx.asker.asked[0].Buttons)
+	assert.Equal(t, []ProgressPhase{PhaseDownloading, PhaseDownloading, PhaseInstalling}, phases)
+	assert.Equal(t, 1, fx.inst.prepares)
+	assert.Equal(t, []string{"before-install", "quit"}, fx.events)
+}
+
+func TestDecliningTheUpdateStartsNothing(t *testing.T) {
+	fx := newFixture(t, nil)
+	fx.asker.answers = []int{1}
+
+	require.NoError(t, fx.flow.Check(context.Background(), false))
+
+	assert.Equal(t, 0, fx.inst.downloads)
+	assert.Equal(t, 0, fx.inst.prepares)
+	assert.Empty(t, fx.events)
+}
+
+func TestPrepareFailureKeepsTheServerRunningAndTellsTheUser(t *testing.T) {
+	var ended int
+	fx := newFixture(t, func(cfg *Config) {
+		cfg.Progress = func(p Progress) {
+			if p.Phase == PhaseEnded {
+				ended++
+			}
+		}
+	})
+	fx.inst.prepareErr = errors.New("disk full")
+	fx.asker.answers = []int{0}
+
+	require.NoError(t, fx.flow.Check(context.Background(), false))
+
+	assert.Equal(t, 1, ended)
+	assert.Empty(t, fx.events, "the server is not stopped")
+	assert.Equal(t, 0, fx.inst.quitCalls)
+	last := lastQuestion(t, fx.asker)
+	assert.Equal(t, QuestionError, last.Type)
+	assert.Equal(t, "Could not install iworkflow 0.17.0.", last.Message)
+}
+
 func TestDeclinedVersionIsNotOfferedAgainByAutomaticChecksButManualOffersIt(t *testing.T) {
 	fx := newFixture(t, nil)
 	fx.asker.answers = []int{1, 1}
@@ -186,9 +245,29 @@ func TestDeclinedVersionIsNotOfferedAgainByAutomaticChecksButManualOffersIt(t *t
 	assert.Len(t, fx.asker.asked, 2)
 }
 
+func TestFailedDownloadClosesProgressAndIsTriedAgainByTheNextAutomaticCheck(t *testing.T) {
+	var ended int
+	fx := newFixture(t, func(cfg *Config) {
+		cfg.Progress = func(p Progress) {
+			if p.Phase == PhaseEnded {
+				ended++
+			}
+		}
+	})
+	fx.inst.downloadErr = errors.New("offline")
+	fx.asker.answers = []int{0, 0, 0, 0}
+	ctx := context.Background()
+
+	require.NoError(t, fx.flow.Check(ctx, false))
+	require.NoError(t, fx.flow.Check(ctx, false))
+
+	assert.Equal(t, 2, fx.inst.downloads)
+	assert.Equal(t, 2, ended)
+}
+
 func TestAcceptingStopsTheServerBeforeTheInstallerStarts(t *testing.T) {
 	fx := newFixture(t, nil)
-	fx.asker.answers = []int{0, 0}
+	fx.asker.answers = []int{0}
 
 	require.NoError(t, fx.flow.Check(context.Background(), true))
 
@@ -213,7 +292,7 @@ func TestDownloadFailureTellsTheUserAndNeverReachesTheInstaller(t *testing.T) {
 
 func TestSynchronousInstallerFailureRecoversTheAppOnce(t *testing.T) {
 	fx := newFixture(t, nil)
-	fx.asker.answers = []int{0, 0}
+	fx.asker.answers = []int{0}
 	fx.inst.quitErr = errors.New("spawn failed")
 
 	require.NoError(t, fx.flow.Check(context.Background(), true))
@@ -223,7 +302,7 @@ func TestSynchronousInstallerFailureRecoversTheAppOnce(t *testing.T) {
 
 func TestAsynchronousInstallerFailureRecoversTheAppOnce(t *testing.T) {
 	fx := newFixture(t, nil)
-	fx.asker.answers = []int{0, 0}
+	fx.asker.answers = []int{0}
 
 	require.NoError(t, fx.flow.Check(context.Background(), true))
 	require.Equal(t, 0, fx.recovered)
@@ -239,7 +318,7 @@ func TestBeforeInstallErrorStopsTheInstallAndIsReported(t *testing.T) {
 	fx := newFixture(t, func(cfg *Config) {
 		cfg.BeforeInstall = func(context.Context) error { return errors.New("server would not stop") }
 	})
-	fx.asker.answers = []int{0, 0}
+	fx.asker.answers = []int{0}
 
 	err := fx.flow.Check(context.Background(), true)
 
@@ -497,6 +576,6 @@ func TestUnsupportedInstallerReportsUnsupported(t *testing.T) {
 
 	_, err := inst.Check(context.Background())
 	assert.ErrorIs(t, err, ErrAutoUpdateUnsupported)
-	assert.ErrorIs(t, inst.Download(context.Background()), ErrAutoUpdateUnsupported)
+	assert.ErrorIs(t, inst.Download(context.Background(), nil), ErrAutoUpdateUnsupported)
 	assert.ErrorIs(t, inst.QuitAndInstall(context.Background(), func(error) {}), ErrAutoUpdateUnsupported)
 }

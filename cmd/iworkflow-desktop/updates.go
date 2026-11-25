@@ -5,11 +5,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"sync"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
@@ -37,6 +40,7 @@ func (s *shell) newUpdateFlow() *desktop.Flow {
 		AppVersion: version,
 		GHToken:    os.Getenv("GH_TOKEN"),
 		Ask:        s.ask,
+		Progress:   newProgressView(s.app).update,
 		OpenExternal: func(_ context.Context, url string) error {
 			if err := s.app.Browser.OpenURL(url); err != nil {
 				return fmt.Errorf("opening %s: %w", url, err)
@@ -161,9 +165,9 @@ func startHelper(executable string, args desktop.HelperArgs) error {
 		_ = os.RemoveAll(scratch) //nolint:errcheck // best effort: the copy failed already
 		return err
 	}
-	if err = desktop.StartDetached(copied,
+	if err = desktop.StartDetachedIn(scratch, copied,
 		"-archive", args.Archive, "-sha256", args.SHA256, "-target", args.Target,
-		"-exe", args.Executable, "-pid", strconv.Itoa(args.ParentPID), "-cleanup-dir", scratch); err != nil {
+		"-exe", args.Executable, "-staging", args.Staging, "-pid", strconv.Itoa(args.ParentPID), "-cleanup-dir", scratch); err != nil {
 		_ = os.RemoveAll(scratch) //nolint:errcheck // best effort: the start failed already
 		return fmt.Errorf("starting the updater: %w", err)
 	}
@@ -189,4 +193,78 @@ func copyExecutable(source string, destination string) (err error) {
 		return fmt.Errorf("copying the updater: %w", err)
 	}
 	return nil
+}
+
+// progressView is the foreground window of an automatic update: it shows the download and the install until
+// the app quits, or closes when the update ends without installing.
+type progressView struct {
+	app     *application.App
+	mu      sync.Mutex
+	window  *application.WebviewWindow
+	lastAt  time.Time
+	lastPha desktop.ProgressPhase
+}
+
+func newProgressView(app *application.App) *progressView {
+	return &progressView{app: app}
+}
+
+// progressRefresh limits how often the window content is rewritten while bytes arrive.
+const progressRefresh = 200 * time.Millisecond
+
+func (v *progressView) update(p desktop.Progress) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if p.Phase == desktop.PhaseEnded {
+		if v.window != nil {
+			window := v.window
+			v.window = nil
+			application.InvokeSync(window.Close)
+		}
+		return
+	}
+	now := time.Now()
+	if v.window != nil && p.Phase == v.lastPha && now.Sub(v.lastAt) < progressRefresh {
+		return
+	}
+	v.lastAt, v.lastPha = now, p.Phase
+	page := progressPage(p)
+	application.InvokeSync(func() {
+		if v.window == nil {
+			v.window = v.app.Window.NewWithOptions(application.WebviewWindowOptions{
+				Title:         appTitle,
+				Width:         460,
+				Height:        180,
+				AlwaysOnTop:   true,
+				DisableResize: true,
+				HTML:          page,
+			})
+			v.window.Center()
+			v.window.Show()
+			return
+		}
+		v.window.SetHTML(page)
+	})
+}
+
+// progressPage renders the status of an update as a small self-contained page.
+func progressPage(p desktop.Progress) string {
+	title := fmt.Sprintf("Downloading iworkflow %s", html.EscapeString(p.Version))
+	detail := "Starting the download…"
+	bar := `<progress></progress>`
+	switch {
+	case p.Phase == desktop.PhaseInstalling:
+		title = fmt.Sprintf("Installing iworkflow %s", html.EscapeString(p.Version))
+		detail = "The app restarts by itself when it finishes. Please wait."
+	case p.Total > 0:
+		percent := p.Done * 100 / p.Total
+		bar = fmt.Sprintf(`<progress max="100" value="%d"></progress>`, percent)
+		detail = fmt.Sprintf("%d%% (%d of %d MiB)", percent, p.Done>>20, p.Total>>20)
+	case p.Done > 0:
+		detail = fmt.Sprintf("%d MiB downloaded", p.Done>>20)
+	}
+	return `<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;margin:24px;background:#111;color:#eee">` +
+		`<h3 style="margin:0 0 16px">` + title + `</h3>` + bar +
+		`<p style="color:#aaa">` + detail + `</p>` +
+		`<style>progress{width:100%;height:14px}</style></body>`
 }

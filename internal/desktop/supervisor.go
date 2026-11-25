@@ -212,6 +212,7 @@ func (s *Supervisor) Stop() {
 	select {
 	case <-exited:
 	case <-time.After(StopGrace):
+		killTree(cmd.Process.Pid)
 		_ = cmd.Process.Kill()
 		<-exited
 	}

@@ -93,6 +93,9 @@ type HelperArgs struct {
 	ParentPID int
 	// Executable is the running executable inside Target. The helper relaunches the same relative path.
 	Executable string
+	// Staging is the folder the app already extracted the update into, next to Target. The helper only swaps
+	// it into place, so the slow extraction happens in the app, where the user sees it.
+	Staging string
 }
 
 // ArchiveInstaller implements Installer from the GitHub release archives. Check and Download run in the
@@ -110,6 +113,7 @@ type pendingUpdate struct {
 	archiveURL  string
 	sha256      string
 	archivePath string
+	staging     string
 }
 
 // releaseAsset is the subset of a GitHub release asset that is read.
@@ -217,7 +221,7 @@ func (a *ArchiveInstaller) Check(ctx context.Context) (UpdateCheck, error) {
 
 // Download fetches the archive found by the last Check into the install parent folder and verifies its
 // SHA-256 against SHA256SUMS. A failed or oversized download, or a checksum mismatch, removes the file.
-func (a *ArchiveInstaller) Download(ctx context.Context) error {
+func (a *ArchiveInstaller) Download(ctx context.Context, progress func(done int64, total int64)) error {
 	a.mu.Lock()
 	pending := a.pending
 	a.mu.Unlock()
@@ -243,7 +247,11 @@ func (a *ArchiveInstaller) Download(ctx context.Context) error {
 	}
 	path := file.Name()
 	digest := sha256.New()
-	written, copyErr := io.Copy(io.MultiWriter(file, digest), io.LimitReader(resp.Body, a.cfg.MaxDownloadBytes+1))
+	sinks := []io.Writer{file, digest}
+	if progress != nil {
+		sinks = append(sinks, &progressWriter{total: resp.ContentLength, report: progress})
+	}
+	written, copyErr := io.Copy(io.MultiWriter(sinks...), io.LimitReader(resp.Body, a.cfg.MaxDownloadBytes+1))
 	closeErr := file.Close()
 	switch {
 	case copyErr != nil:
@@ -274,24 +282,79 @@ func (a *ArchiveInstaller) Download(ctx context.Context) error {
 	return nil
 }
 
+// progressWriter reports the bytes written so far. total is -1 when the server did not announce a size.
+type progressWriter struct {
+	done   int64
+	total  int64
+	report func(done int64, total int64)
+}
+
+func (w *progressWriter) Write(p []byte) (int, error) {
+	w.done += int64(len(p))
+	w.report(w.done, w.total)
+	return len(p), nil
+}
+
+// Prepare extracts the downloaded archive into a staging folder next to the install, while the app is still
+// running, so the slow part of the install is visible to the user and a failure leaves the app untouched.
+func (a *ArchiveInstaller) Prepare(ctx context.Context) error {
+	a.mu.Lock()
+	pending := a.pending
+	var archive string
+	if pending != nil {
+		archive = pending.archivePath
+	}
+	a.mu.Unlock()
+	if archive == "" {
+		return errors.New("no downloaded update to prepare")
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("prepare update: %w", err)
+	}
+	rel, err := executableRel(a.cfg.Target, a.cfg.Executable)
+	if err != nil {
+		return err
+	}
+	staging, err := extractToStaging(ApplyOptions{
+		Archive:         archive,
+		Target:          a.cfg.Target,
+		MaxExtractBytes: DefaultMaxExtractBytes,
+		Log:             a.log,
+	}, rel)
+	if err != nil {
+		a.log(fmt.Sprintf("[update] prepare: %v", err))
+		a.discard(pending)
+		return err
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.pending != pending {
+		removeAllLogged(staging, a.log)
+		return errors.New("update changed while it was prepared")
+	}
+	pending.staging = staging
+	return nil
+}
+
 // QuitAndInstall hands the verified archive to the updater helper and then calls Exit, so the app ends and
 // the helper can replace the files. It never touches the install folder itself. If StartHelper fails, the
 // archive is removed, the install is left untouched, onFailure is called and the error is returned.
 func (a *ArchiveInstaller) QuitAndInstall(ctx context.Context, onFailure func(error)) error {
 	a.mu.Lock()
 	pending := a.pending
-	var archive, digest string
+	var archive, digest, staging string
 	if pending != nil {
-		archive, digest = pending.archivePath, pending.sha256
+		archive, digest, staging = pending.archivePath, pending.sha256, pending.staging
 	}
 	a.mu.Unlock()
-	if archive == "" {
-		return errors.New("no downloaded update to install")
+	if archive == "" || staging == "" {
+		return errors.New("no prepared update to install")
 	}
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("install update: %w", err)
 	}
 	args := HelperArgs{
+		Staging:    staging,
 		Archive:    archive,
 		SHA256:     digest,
 		Target:     a.cfg.Target,
@@ -299,16 +362,20 @@ func (a *ArchiveInstaller) QuitAndInstall(ctx context.Context, onFailure func(er
 		Executable: a.cfg.Executable,
 	}
 	if err := a.cfg.StartHelper(args); err != nil {
-		startErr := fmt.Errorf("start update helper: %w", err)
-		a.log(fmt.Sprintf("[update] %v", startErr))
-		a.discard(pending)
-		if onFailure != nil {
-			onFailure(startErr)
-		}
-		return startErr
+		return a.failInstall(pending, onFailure, fmt.Errorf("start update helper: %w", err))
 	}
 	a.cfg.Exit()
 	return nil
+}
+
+// failInstall drops the pending update, reports err through onFailure and returns it.
+func (a *ArchiveInstaller) failInstall(pending *pendingUpdate, onFailure func(error), err error) error {
+	a.log(fmt.Sprintf("[update] %v", err))
+	a.discard(pending)
+	if onFailure != nil {
+		onFailure(err)
+	}
+	return err
 }
 
 // ApplyOptions are the inputs of ApplyUpdate, run by the helper process.
@@ -325,6 +392,9 @@ type ApplyOptions struct {
 	Executable string
 	// ParentPID is the app process that must exit before anything is touched.
 	ParentPID int
+	// Staging is an already extracted update in the parent folder of Target. When set, ApplyUpdate skips the
+	// extraction, and removes the folder if the update does not get installed. Optional.
+	Staging string
 	// WaitTimeout bounds the wait for ParentPID. Zero means DefaultHelperWaitTimeout.
 	WaitTimeout time.Duration
 	// MaxExtractBytes caps the size of the extracted regular files. Zero means DefaultMaxExtractBytes.
@@ -352,6 +422,10 @@ func ApplyUpdate(ctx context.Context, opts ApplyOptions) error {
 	}
 	// Validation passed, so the archive is ours: it is removed in every case from here on.
 	defer removeLogged(opts.Archive, opts.Log)
+	if opts.Staging != "" {
+		// After a successful swap this path no longer exists, so the removal only matters on failure.
+		defer removeAllLogged(opts.Staging, opts.Log)
+	}
 
 	waitCtx, cancel := context.WithTimeout(ctx, opts.WaitTimeout)
 	defer cancel()
@@ -361,9 +435,12 @@ func ApplyUpdate(ctx context.Context, opts ApplyOptions) error {
 	if err := verifyFileSHA256(opts.Archive, opts.SHA256); err != nil {
 		return err
 	}
-	staging, err := extractToStaging(opts, rel)
-	if err != nil {
-		return err
+	staging := opts.Staging
+	if staging == "" {
+		staging, err = extractToStaging(opts, rel)
+		if err != nil {
+			return err
+		}
 	}
 	if err := swapFolders(staging, opts); err != nil {
 		removeAllLogged(staging, opts.Log)
@@ -526,11 +603,14 @@ func (a *ArchiveInstaller) discard(pending *pendingUpdate) {
 	if a.pending == pending {
 		a.pending = nil
 	}
-	path := pending.archivePath
-	pending.archivePath = ""
+	path, staging := pending.archivePath, pending.staging
+	pending.archivePath, pending.staging = "", ""
 	a.mu.Unlock()
 	if path != "" {
 		a.removeFile(path)
+	}
+	if staging != "" {
+		removeAllLogged(staging, a.log)
 	}
 }
 
@@ -583,6 +663,12 @@ func (opts ApplyOptions) normalized() (ApplyOptions, string, error) {
 		return opts, "", errors.New("apply update needs the expected sha256 of the archive")
 	}
 	opts.SHA256 = strings.ToLower(opts.SHA256)
+	if opts.Staging != "" {
+		matched, matchErr := filepath.Match(stagingPattern, filepath.Base(opts.Staging))
+		if !filepath.IsAbs(opts.Staging) || filepath.Dir(opts.Staging) != filepath.Dir(opts.Target) || matchErr != nil || !matched {
+			return opts, "", fmt.Errorf("staging folder %q must be a staging folder next to the install target", opts.Staging)
+		}
+	}
 	if opts.ParentPID <= 0 {
 		return opts, "", fmt.Errorf("apply update needs the parent process id, got %d", opts.ParentPID)
 	}
@@ -599,7 +685,7 @@ func (opts ApplyOptions) normalized() (ApplyOptions, string, error) {
 		opts.WaitForExit = waitForProcessExit
 	}
 	if opts.Rename == nil {
-		opts.Rename = os.Rename
+		opts.Rename = renameWithRetry
 	}
 	if opts.Log == nil {
 		opts.Log = func(string) {}
@@ -798,4 +884,22 @@ func removeAllLogged(path string, logf func(string)) {
 	if err := os.RemoveAll(path); err != nil {
 		logf(fmt.Sprintf("[update] remove %s: %v", path, err))
 	}
+}
+
+const (
+	renameAttempts = 20
+	renameDelay    = 500 * time.Millisecond
+)
+
+// renameWithRetry moves a folder, retrying for a few seconds: on Windows, antivirus scans and the web view
+// of the app that just closed keep the install folder locked for a moment after the process ends.
+func renameWithRetry(oldpath string, newpath string) error {
+	var err error
+	for attempt := 0; attempt < renameAttempts; attempt++ {
+		if err = os.Rename(oldpath, newpath); err == nil {
+			return nil
+		}
+		time.Sleep(renameDelay)
+	}
+	return fmt.Errorf("renaming %s after %d attempts: %w", oldpath, renameAttempts, err)
 }

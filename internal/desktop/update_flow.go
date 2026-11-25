@@ -69,8 +69,11 @@ type UpdateCheck struct {
 type Installer interface {
 	// Check asks whether a newer version is available.
 	Check(ctx context.Context) (UpdateCheck, error)
-	// Download fetches the update the user accepted.
-	Download(ctx context.Context) error
+	// Download fetches the update. progress, when not nil, receives the bytes read so far and the total
+	// size (-1 when unknown).
+	Download(ctx context.Context, progress func(done int64, total int64)) error
+	// Prepare unpacks the downloaded update while the app still runs. A failure leaves the app untouched.
+	Prepare(ctx context.Context) error
 	// QuitAndInstall starts the installer and ends the app. It returns an error when the installer did
 	// not start. onFailure may also be called later, from another goroutine, when the installer fails
 	// after it started; the flow calls Config.Recover at most once per attempt either way.
@@ -87,13 +90,38 @@ func (UnsupportedInstaller) Check(context.Context) (UpdateCheck, error) {
 }
 
 // Download always reports ErrAutoUpdateUnsupported.
-func (UnsupportedInstaller) Download(context.Context) error {
+func (UnsupportedInstaller) Download(context.Context, func(int64, int64)) error {
+	return ErrAutoUpdateUnsupported
+}
+
+// Prepare always reports ErrAutoUpdateUnsupported.
+func (UnsupportedInstaller) Prepare(context.Context) error {
 	return ErrAutoUpdateUnsupported
 }
 
 // QuitAndInstall always reports ErrAutoUpdateUnsupported.
 func (UnsupportedInstaller) QuitAndInstall(context.Context, func(error)) error {
 	return ErrAutoUpdateUnsupported
+}
+
+// ProgressPhase is the stage of an automatic update shown to the user.
+type ProgressPhase string
+
+const (
+	// PhaseDownloading means the archive is being downloaded and verified.
+	PhaseDownloading ProgressPhase = "downloading"
+	// PhaseInstalling means the server is stopped and the installer is being started.
+	PhaseInstalling ProgressPhase = "installing"
+	// PhaseEnded means the update did not go on (it failed or was cancelled), so the progress view closes.
+	PhaseEnded ProgressPhase = "ended"
+)
+
+// Progress is one step of an automatic update. Total is -1 when the size is unknown.
+type Progress struct {
+	Phase   ProgressPhase
+	Version string
+	Done    int64
+	Total   int64
 }
 
 // Config holds the strategy and every injected dependency of a Flow.
@@ -114,6 +142,8 @@ type Config struct {
 	Ask Asker
 	// OpenExternal opens a URL in the system browser. Required.
 	OpenExternal func(ctx context.Context, url string) error
+	// Progress shows the download and the install in the foreground. Optional.
+	Progress func(Progress)
 	// Installer performs automatic updates. Nil means UnsupportedInstaller.
 	Installer Installer
 	// BeforeInstall stops whatever would block the installer, such as the server process.
@@ -306,7 +336,7 @@ func (f *Flow) fetchLatestRelease(ctx context.Context) (Release, bool, error) {
 	return release, ok, nil
 }
 
-// installAutomatically runs the installer flow: check, ask to download, download, ask to restart, stop
+// installAutomatically runs the installer flow without questions: check, download with progress, stop
 // the server, and quit into the installer. Without a real installer it returns ErrAutoUpdateUnsupported.
 func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 	checkCtx, cancel := context.WithTimeout(ctx, f.cfg.CheckTimeout)
@@ -327,8 +357,8 @@ func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 	download, err := f.cfg.Ask(ctx, Question{
 		Type:      QuestionInfo,
 		Message:   fmt.Sprintf("iworkflow %s is available.", found.Version),
-		Detail:    "It downloads in the background and asks before restarting.",
-		Buttons:   []string{"Download", "Later"},
+		Detail:    "It downloads and installs now, with a progress window, and the app restarts by itself when it finishes.",
+		Buttons:   []string{"Update now", "Later"},
 		DefaultID: 0,
 		CancelID:  1,
 	})
@@ -338,34 +368,24 @@ func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 	if download != 0 {
 		return nil
 	}
-	if err := f.cfg.Installer.Download(ctx); err != nil {
-		// The user asked for this download, so a failure is never silent.
-		f.log(fmt.Sprintf("[update] download %s: %v", found.Version, err))
-		if _, askErr := f.cfg.Ask(ctx, Question{
-			Type:    QuestionError,
-			Message: fmt.Sprintf("Could not download iworkflow %s.", found.Version),
-			Detail:  "Try again later.",
-		}); askErr != nil {
-			return fmt.Errorf("show download failure: %w", askErr)
-		}
-		return nil
-	}
-	restart, err := f.cfg.Ask(ctx, Question{
-		Type:      QuestionInfo,
-		Message:   fmt.Sprintf("iworkflow %s is ready to install.", found.Version),
-		Detail:    "The app restarts, and the server restarts with it.",
-		Buttons:   []string{"Restart now", "Later"},
-		DefaultID: 0,
-		CancelID:  1,
+	// The progress window stays visible from the download until the app quits.
+	f.progress(Progress{Phase: PhaseDownloading, Version: found.Version, Total: -1})
+	err = f.cfg.Installer.Download(ctx, func(done int64, total int64) {
+		f.progress(Progress{Phase: PhaseDownloading, Version: found.Version, Done: done, Total: total})
 	})
 	if err != nil {
-		return fmt.Errorf("ask to restart for %s: %w", found.Version, err)
+		f.log(fmt.Sprintf("[update] download %s: %v", found.Version, err))
+		return f.abort(ctx, found.Version, fmt.Sprintf("Could not download iworkflow %s.", found.Version))
 	}
-	if restart != 0 {
-		return nil
+	// One acceptance covers everything: the download, the unpacking and the restart all show progress.
+	f.progress(Progress{Phase: PhaseInstalling, Version: found.Version, Total: -1})
+	if err := f.cfg.Installer.Prepare(ctx); err != nil {
+		f.log(fmt.Sprintf("[update] prepare %s: %v", found.Version, err))
+		return f.abort(ctx, found.Version, fmt.Sprintf("Could not install iworkflow %s.", found.Version))
 	}
 	if f.cfg.BeforeInstall != nil {
 		if err := f.cfg.BeforeInstall(ctx); err != nil {
+			f.progress(Progress{Phase: PhaseEnded, Version: found.Version})
 			return fmt.Errorf("stop before install: %w", err)
 		}
 	}
@@ -375,6 +395,8 @@ func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 	failInstall := func(err error) {
 		once.Do(func() {
 			f.log(fmt.Sprintf("[update] install: %v", err))
+			f.progress(Progress{Phase: PhaseEnded, Version: found.Version})
+			f.forget(found.Version)
 			if f.cfg.Recover != nil {
 				f.cfg.Recover()
 			}
@@ -384,6 +406,31 @@ func (f *Flow) installAutomatically(ctx context.Context, manual bool) error {
 		failInstall(err)
 	}
 	return nil
+}
+
+// abort closes the progress view, lets the next automatic check try this version again and tells the user.
+func (f *Flow) abort(ctx context.Context, version string, message string) error {
+	f.progress(Progress{Phase: PhaseEnded, Version: version})
+	f.forget(version)
+	if _, err := f.cfg.Ask(ctx, Question{Type: QuestionError, Message: message, Detail: "It is tried again automatically later."}); err != nil {
+		return fmt.Errorf("show update failure: %w", err)
+	}
+	return nil
+}
+
+// forget makes the next automatic check offer version again.
+func (f *Flow) forget(version string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.declined == version {
+		f.declined = ""
+	}
+}
+
+func (f *Flow) progress(p Progress) {
+	if f.cfg.Progress != nil {
+		f.cfg.Progress(p)
+	}
 }
 
 // upToDate tells a manual caller that the installed version is current. Automatic checks stay silent.
