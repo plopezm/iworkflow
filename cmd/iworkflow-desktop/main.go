@@ -73,6 +73,8 @@ func run(logger *slog.Logger) error {
 			UniqueID:               "dev.iworkflow.desktop",
 			OnSecondInstanceLaunch: func(application.SecondInstanceData) { sh.showWindow() },
 		},
+		// The server's self-generated certificate is only presented on loopback, so WebView2 may accept it there.
+		Windows:    application.WindowsOptions{AdditionalBrowserArgs: []string{"--allow-insecure-localhost"}},
 		OnShutdown: sh.shutdown,
 	})
 	// A previous update leaves the old install next to the new one; remove it now that this version runs.

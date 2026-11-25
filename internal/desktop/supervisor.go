@@ -126,6 +126,7 @@ func (s *Supervisor) spawn(onListening func(Addr)) error {
 		return fmt.Errorf("home directory: %w", err)
 	}
 	cmd.Dir = home
+	hideConsole(cmd)
 	cmd.Env = ServerEnv(os.Environ(), runtime.GOOS)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
