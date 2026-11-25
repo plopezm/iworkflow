@@ -117,14 +117,20 @@ func NewDeleteBranches(workspaces outbound.WorkspaceResolver, git outbound.Branc
 // Execute deletes the referenced branches. The branch list is read once, before the first deletion, so every
 // reference is checked against the same fresh state. A reference is deleted only when it names a listed,
 // unprotected branch; a remote one only when it exists as a remote-tracking ref. Each failure is recorded and
-// the rest of the batch still runs. Only a failure to resolve the workspace or list the branches is returned.
+// the rest of the batch still runs. A reference repeated in the request is processed once, at its first position,
+// and gets one result. Only a failure to resolve the workspace or list the branches is returned.
 func (u *DeleteBranches) Execute(ctx context.Context, workspaceID string, refs []models.Ref) ([]DeleteResult, error) {
 	workspace, branches, err := u.source.load(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	results := make([]DeleteResult, 0, len(refs))
+	seen := make(map[models.Ref]bool, len(refs))
 	for _, ref := range refs {
+		if seen[ref] {
+			continue
+		}
+		seen[ref] = true
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return results, fmt.Errorf("delete branches: %w", ctxErr)
 		}
@@ -137,14 +143,13 @@ func (u *DeleteBranches) deleteOne(ctx context.Context, repoPath string, branche
 	if err := models.ValidateRef(ref); err != nil {
 		return DeleteResult{Ref: ref, Outcome: OutcomeFailed, Err: err}
 	}
-	branch, found := findBranch(branches, ref)
-	if !found {
-		return DeleteResult{Ref: ref, Outcome: OutcomeFailed, Err: werrors.ErrBranchNotFound}
+	branch, err := findBranch(branches, ref)
+	if err != nil {
+		return DeleteResult{Ref: ref, Outcome: OutcomeFailed, Err: err}
 	}
 	if branch.Protected {
 		return DeleteResult{Ref: ref, Outcome: OutcomeRefused, Reason: branch.Reason}
 	}
-	var err error
 	if branch.Remote {
 		err = u.git.DeleteRemote(ctx, repoPath, branch.RemoteName, branch.Name)
 	} else {
@@ -156,11 +161,21 @@ func (u *DeleteBranches) deleteOne(ctx context.Context, repoPath string, branche
 	return DeleteResult{Ref: ref, Outcome: OutcomeDeleted}
 }
 
-func findBranch(branches []models.Branch, ref models.Ref) (models.Branch, bool) {
+// findBranch returns the one listed branch the reference names. No match is ErrBranchNotFound; more than one is
+// ErrAmbiguousBranch, because protection and deletion would then depend on which remote was picked.
+func findBranch(branches []models.Branch, ref models.Ref) (models.Branch, error) {
+	var matches []models.Branch
 	for _, branch := range branches {
 		if branch.Matches(ref) {
-			return branch, true
+			matches = append(matches, branch)
 		}
 	}
-	return models.Branch{}, false
+	switch len(matches) {
+	case 0:
+		return models.Branch{}, werrors.ErrBranchNotFound
+	case 1:
+		return matches[0], nil
+	default:
+		return models.Branch{}, fmt.Errorf("%s matches %d branches: %w", ref.String(), len(matches), werrors.ErrAmbiguousBranch)
+	}
 }

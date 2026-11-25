@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	werrors "iworkflow/internal/modules/workspace_branches/domain/errors"
 	"iworkflow/internal/modules/workspace_branches/domain/models"
 	"iworkflow/internal/modules/workspace_branches/infrastructure/adapters/outbound/git"
 )
@@ -122,6 +124,7 @@ func TestDeleteRemoteOfAMissingBranchFailsAndChangesNothing(t *testing.T) {
 	err := git.NewAdapter().DeleteRemote(context.Background(), fx.repo, "origin", "never-pushed")
 
 	require.Error(t, err)
+	assert.ErrorIs(t, err, werrors.ErrBranchNotFound, "a branch the remote does not list is an explicit outcome")
 	assert.Equal(t, before, branchNames(t, fx.remote, "refs/heads/"))
 }
 
@@ -187,4 +190,95 @@ func TestCancelledContextDeletesNothing(t *testing.T) {
 
 	require.Error(t, git.NewAdapter().DeleteLocal(ctx, fx.repo, "feature/old"))
 	assert.Contains(t, branchNames(t, fx.repo, "refs/heads/"), "refs/heads/feature/old")
+}
+
+// installPushShim puts a `git` shim first on PATH. It answers `git push` with exit 0 and does nothing, which is what
+// a push of a ref that vanished in between can look like. Every other command runs the real git.
+func installPushShim(t *testing.T) {
+	t.Helper()
+	realGit, err := exec.LookPath("git")
+	require.NoError(t, err)
+	dir := t.TempDir()
+	script := "#!/bin/sh\nfor arg in \"$@\"; do\n  if [ \"$arg\" = push ]; then exit 0; fi\ndone\nexec \"$IWF_TEST_REAL_GIT\" \"$@\"\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "git"), []byte(script), 0o755))
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("IWF_TEST_REAL_GIT", realGit)
+}
+
+func TestDeleteRemoteReportsAPushThatLeavesTheRefInPlace(t *testing.T) {
+	fx := newFixture(t)
+	installPushShim(t)
+
+	err := git.NewAdapter().DeleteRemote(context.Background(), fx.repo, "origin", "feature/old")
+
+	require.Error(t, err, "a push that exits 0 but leaves the ref listed is not a deletion")
+	assert.Contains(t, branchNames(t, fx.remote, "refs/heads/"), "refs/heads/feature/old")
+}
+
+func TestListBranchesStopsAtAnExpiredDeadline(t *testing.T) {
+	fx := newFixture(t)
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	_, err := git.NewAdapter().ListBranches(ctx, fx.repo)
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestListBranchesStopsWhenCancelled(t *testing.T) {
+	fx := newFixture(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := git.NewAdapter().ListBranches(ctx, fx.repo)
+
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestDeleteRemoteStopsAtAnExpiredDeadlineAndDeletesNothing(t *testing.T) {
+	fx := newFixture(t)
+	before := branchNames(t, fx.remote, "refs/heads/")
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	err := git.NewAdapter().DeleteRemote(ctx, fx.repo, "origin", "feature/old")
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, before, branchNames(t, fx.remote, "refs/heads/"))
+}
+
+func TestListRemotesIsEmptyWhenNoRemoteIsConfigured(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "repo")
+	gitIn(t, filepath.Dir(repo), "init", "-q", "-b", "main", repo)
+
+	remotes, err := git.NewAdapter().ListRemotes(context.Background(), repo)
+
+	require.NoError(t, err)
+	assert.Empty(t, remotes)
+}
+
+func TestListBranchesOfADetachedHeadHasNoCurrentBranch(t *testing.T) {
+	fx := newFixture(t)
+	gitIn(t, fx.repo, "checkout", "-q", "--detach")
+
+	branches, err := git.NewAdapter().ListBranches(context.Background(), fx.repo)
+
+	require.NoError(t, err)
+	for _, branch := range branches {
+		assert.False(t, branch.Current, branch.FullName())
+	}
+	main := find(t, branches, "main")
+	assert.False(t, main.Current)
+	assert.False(t, main.CheckedOut, "main is no longer checked out anywhere")
+}
+
+func TestListBranchesOfANonRepositoryFails(t *testing.T) {
+	dir := t.TempDir()
+	adapter := git.NewAdapter()
+
+	_, err := adapter.ListBranches(context.Background(), dir)
+	require.Error(t, err)
+
+	_, err = adapter.ListRemotes(context.Background(), dir)
+	assert.Error(t, err)
 }

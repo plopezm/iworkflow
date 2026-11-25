@@ -11,3 +11,6 @@ var ErrInvalidBranch = errors.New("invalid branch reference")
 
 // ErrBranchNotFound means the reference is not one of the branches the workspace lists right now.
 var ErrBranchNotFound = errors.New("branch not found")
+
+// ErrAmbiguousBranch means more than one listed branch matches the reference, so it cannot be told which one is meant.
+var ErrAmbiguousBranch = errors.New("ambiguous branch reference")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	werrors "iworkflow/internal/modules/workspace_branches/domain/errors"
 	"iworkflow/internal/modules/workspace_branches/domain/models"
@@ -35,9 +36,10 @@ func (f *fakeTasks) InUse(context.Context, string) ([]string, error) {
 
 // fakeGit records every call and answers from its fields.
 type fakeGit struct {
-	branches []models.Branch
-	remotes  []string
-	listErr  error
+	branches   []models.Branch
+	remotes    []string
+	listErr    error
+	remotesErr error
 	// failLocal and failRemote make the named branch fail to delete.
 	failLocal  map[string]error
 	failRemote map[string]error
@@ -55,6 +57,9 @@ func (f *fakeGit) ListBranches(_ context.Context, repoPath string) ([]models.Bra
 }
 
 func (f *fakeGit) ListRemotes(_ context.Context, _ string) ([]string, error) {
+	if f.remotesErr != nil {
+		return nil, f.remotesErr
+	}
 	return f.remotes, nil
 }
 
@@ -78,7 +83,7 @@ func (f *fakeGit) DeleteRemote(_ context.Context, repoPath string, remote string
 func (f *fakeGit) deletions() []string {
 	var out []string
 	for _, call := range f.calls {
-		if len(call) > 6 && call[:6] == "delete" {
+		if strings.HasPrefix(call, "delete") {
 			out = append(out, call)
 		}
 	}

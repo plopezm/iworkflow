@@ -270,3 +270,56 @@ func TestDeleteBranchesStopsWhenTheContextIsCancelled(t *testing.T) {
 	assert.Empty(t, results)
 	assert.Empty(t, git.deletions())
 }
+
+func TestDeleteBranchesRefusesARefThatTwoListedBranchesMatch(t *testing.T) {
+	// Remote "a" with branch "b/c" and remote "a/b" with branch "c" both have the reference a/b/c.
+	git := &fakeGit{remotes: []string{"a", "a/b"}, branches: []models.Branch{
+		{Name: "b/c", Remote: true, RemoteName: "a"},
+		{Name: "c", Remote: true, RemoteName: "a/b"},
+	}}
+	results, err := newDeleter(git, &fakeTasks{}).Execute(context.Background(), workspaceID, []models.Ref{
+		{Kind: models.KindRemote, Name: "a/b/c"},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, OutcomeFailed, results[0].Outcome)
+	assert.ErrorIs(t, results[0].Err, werrors.ErrAmbiguousBranch)
+	assert.Empty(t, git.deletions(), "an ambiguous reference deletes nothing")
+}
+
+func TestDeleteBranchesHandlesARepeatedReferenceOnce(t *testing.T) {
+	git := sampleGit()
+	ref := models.Ref{Kind: models.KindLocal, Name: "feature/old"}
+	results, err := newDeleter(git, &fakeTasks{}).Execute(context.Background(), workspaceID, []models.Ref{ref, ref})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1, "a repeated reference gets one outcome")
+	assert.Equal(t, OutcomeDeleted, results[0].Outcome)
+	assert.Equal(t, []string{"delete-local /repos/alpha feature/old"}, git.deletions())
+}
+
+func TestDeleteBranchesAbortsWithoutDeletingWhenTheTaskLookupFails(t *testing.T) {
+	git := sampleGit()
+	results, err := newDeleter(git, &fakeTasks{err: errGitRefused}).Execute(context.Background(), workspaceID, []models.Ref{
+		{Kind: models.KindLocal, Name: "feature/old"},
+		{Kind: models.KindRemote, Name: "origin/gone"},
+	})
+
+	assert.ErrorIs(t, err, errGitRefused)
+	assert.Empty(t, results)
+	assert.Empty(t, git.deletions(), "the batch aborts before any deletion")
+}
+
+func TestDeleteBranchesAbortsWithoutDeletingWhenListingRemotesFails(t *testing.T) {
+	git := sampleGit()
+	git.remotesErr = errGitRefused
+	results, err := newDeleter(git, &fakeTasks{}).Execute(context.Background(), workspaceID, []models.Ref{
+		{Kind: models.KindLocal, Name: "feature/old"},
+		{Kind: models.KindRemote, Name: "origin/gone"},
+	})
+
+	assert.ErrorIs(t, err, errGitRefused)
+	assert.Empty(t, results)
+	assert.Empty(t, git.deletions(), "the batch aborts before any deletion")
+}
