@@ -181,7 +181,7 @@ templ DashboardTaskCard(item state.DashboardTaskItem, scope string) {
 	}}
 	<article
 		id={ state.Scoped("dash-task-"+task.ID, scope) }
-		class={ "card dashboard-task-card group relative flex flex-col gap-2 p-3 border border-border/80 bg-surface transition-all hover:border-fg/40 hover:shadow-sm " + toggleClass("", task.NeedsAttention, "border-error/60 bg-error/5") + " " + workspaceRailClass(item.WorkspaceColor) }
+		class={ "card dashboard-task-card group relative flex flex-col gap-2 p-3 border border-border/80 bg-surface transition-all hover:border-fg/40 hover:shadow-sm " + " " + workspaceRailClass(item.WorkspaceColor) }
 		style={ shared.WorkspaceColorStyle(item.WorkspaceColor) }
 		data-dashboard-task
 		data-task-id={ task.ID }
@@ -234,7 +234,6 @@ templ DashboardTaskCard(item state.DashboardTaskItem, scope string) {
 
 		if task.NeedsAttention {
 			<div class="row items-center gap-1.5 text-xs text-error font-medium">
-				<span class="live-dot bg-error" aria-hidden="true"></span>
 				<span>{ stageLabel(state.StageAttention).T(ctx) }</span>
 				if task.Error != nil && *task.Error != "" {
 					<span class="truncate text-muted text-[11px]" title={ *task.Error }>— { *task.Error }</span>
