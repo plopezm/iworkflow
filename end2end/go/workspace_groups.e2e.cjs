@@ -411,8 +411,9 @@ module.exports = {
         snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.color === 'teal');
         const colored = groupById(snap, group.id);
         ctx.assert(colored.color === 'teal', `color del grupo tras elegirlo: ${colored.color}`);
-        const chipClasses = await groupEl(page, group.id).locator('[data-workspace-color="teal"]').first().getAttribute('class');
-        ctx.assert(/\bws-chip\b/.test(chipClasses) && /\bws-teal\b/.test(chipClasses), `el chip del grupo lleva ws-chip ws-teal: ${chipClasses}`);
+        // The group header shows its color as a dot (ws-name) that carries the color class (ws-teal).
+        const dotClasses = await groupEl(page, group.id).locator('[data-workspace-color="teal"]').first().getAttribute('class');
+        ctx.assert(/\bws-name\b/.test(dotClasses) && /\bws-teal\b/.test(dotClasses), `el punto de color del grupo lleva ws-name ws-teal: ${dotClasses}`);
         await ctx.goto('/');
         snap = await until(() => readSidebar(page), (s) => groupById(s, group.id)?.color === 'teal');
         ctx.assert(groupById(snap, group.id)?.color === 'teal', 'tras recargar el grupo conserva el color');
