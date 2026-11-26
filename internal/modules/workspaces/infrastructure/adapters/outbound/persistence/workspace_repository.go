@@ -75,11 +75,13 @@ func (r *WorkspaceRepository) List(ctx context.Context) ([]models.Workspace, err
 	return workspaces, nil
 }
 
-// Update changes the name and base branch. It returns NotFound when no row has the identifier.
+// Update changes the name, path, base branch, default runtime and color. It returns NotFound when no row has the
+// identifier, and AlreadyRegistered when the path belongs to another row (the UNIQUE path constraint is the guard).
 func (r *WorkspaceRepository) Update(ctx context.Context, workspace models.Workspace) error {
-	updated, err := r.queries.UpdateWorkspaceNameAndBranch(ctx, gen.UpdateWorkspaceNameAndBranchParams{
+	updated, err := r.queries.UpdateWorkspaceDetails(ctx, gen.UpdateWorkspaceDetailsParams{
 		ID:             workspace.ID.String(),
 		Name:           workspace.Name,
+		Path:           workspace.Path,
 		BaseBranch:     workspace.BaseBranch,
 		DefaultRuntime: optionalTextColumn(workspace.DefaultRuntime),
 		Color:          optionalTextColumn(workspace.Color),

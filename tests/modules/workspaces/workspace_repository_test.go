@@ -125,7 +125,7 @@ func TestWorkspaceRepositoryDeleteRemovesAndReportsMissing(t *testing.T) {
 	assert.EqualError(t, again, "workspace no encontrado: "+saved.ID.String())
 }
 
-func TestWorkspaceRepositoryUpdateChangesNameAndBranchButNotPath(t *testing.T) {
+func TestWorkspaceRepositoryUpdateChangesNameBranchAndPath(t *testing.T) {
 	ctx := context.Background()
 	repository := persistence.NewWorkspaceRepository(dbtest.New(t))
 	saved := newStoredWorkspace(t, "a", "/repos/a")
@@ -142,8 +142,30 @@ func TestWorkspaceRepositoryUpdateChangesNameAndBranchButNotPath(t *testing.T) {
 	require.NotNil(t, found)
 	assert.Equal(t, "renombrado", found.Name)
 	assert.Equal(t, "develop", found.BaseBranch)
-	assert.Equal(t, saved.Path, found.Path)
+	assert.Equal(t, "/repos/otra", found.Path)
 	assert.True(t, saved.CreatedAt.Equal(found.CreatedAt))
+}
+
+func TestWorkspaceRepositoryUpdateToAnotherWorkspacePathIsRejectedAndChangesNothing(t *testing.T) {
+	ctx := context.Background()
+	repository := persistence.NewWorkspaceRepository(dbtest.New(t))
+	first := newStoredWorkspace(t, "a", "/repos/a")
+	second := newStoredWorkspace(t, "b", "/repos/b")
+	require.NoError(t, repository.Save(ctx, first))
+	require.NoError(t, repository.Save(ctx, second))
+
+	edited := second
+	edited.Name = "renombrado"
+	edited.Path = "/repos/a"
+	err := repository.Update(ctx, edited)
+
+	require.ErrorIs(t, err, werrors.AlreadyRegistered(""))
+	assert.EqualError(t, err, "ya existe un workspace para la ruta /repos/a")
+	found, findErr := repository.FindByID(ctx, second.ID)
+	require.NoError(t, findErr)
+	require.NotNil(t, found)
+	assert.Equal(t, "b", found.Name)
+	assert.Equal(t, "/repos/b", found.Path)
 }
 
 func TestWorkspaceRepositoryUpdateReportsMissingWorkspace(t *testing.T) {
