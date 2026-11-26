@@ -38,6 +38,7 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/workspaces/register", h.register)
 	r.Get("/workspaces/register/dismiss", h.dismissPrompt)
 	r.Get("/workspaces/register/groups", h.registerGroups)
+	r.Get("/workspaces/{id}/edit/groups", h.editGroups)
 	r.Post("/workspaces/{id}/update", h.update)
 	r.Post("/workspaces/{id}/delete", h.delete)
 	r.Get("/workspaces/table", h.tableBody)
@@ -250,6 +251,23 @@ func (h *Handlers) registerGroups(w http.ResponseWriter, r *http.Request) {
 		Options:  h.groupOptions(ctx),
 		Selected: r.URL.Query().Get("group_id"),
 	}))
+}
+
+// editGroups answers the group selector of the edit tab. The tab asks for it once it is shown, so reading the groups
+// never delays the page.
+func (h *Handlers) editGroups(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id := chi.URLParam(r, "id")
+	groups := state.EditGroups{ID: id}
+	if h.uc.Groups != nil {
+		if list, groupOf, err := h.uc.Groups.Directory(ctx); err == nil {
+			for _, group := range list {
+				groups.Options = append(groups.Options, state.GroupOption{ID: group.ID, Name: group.Name})
+			}
+			groups.Selected = groupOf[id]
+		}
+	}
+	writeFragments(w, r, pages.EditGroups(groups))
 }
 
 // groupOptions lists the groups the new workspace can be put in. Without groups the selector is not shown.

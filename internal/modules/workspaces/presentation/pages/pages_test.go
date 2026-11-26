@@ -29,24 +29,34 @@ func TestWorkspacesPageOnlyLinksToGroupsAndNeverManagesThem(t *testing.T) {
 	assert.NotContains(t, body, "workspace-groups")
 }
 
-func TestEditPageOffersTheGroupSelectorOutsideTheSaveForm(t *testing.T) {
-	body := render(t, WorkspaceEditPage(state.EditPage{
-		ID: "w1", Name: "alpha", GroupID: "g2",
-		GroupOptions: []state.GroupOption{{ID: "g1", Name: "Backend"}, {ID: "g2", Name: "Docs"}},
+func TestEditPageLoadsTheGroupsInTheBackgroundWithALoadingText(t *testing.T) {
+	body := render(t, WorkspaceEditPage(state.EditPage{ID: "w1", Name: "alpha"}))
+
+	assert.Contains(t, body, `hx-get="/workspaces/w1/edit/groups"`)
+	assert.Contains(t, body, `hx-trigger="load"`)
+	assert.Contains(t, body, `aria-busy="true"`)
+	assert.Contains(t, body, "Loading groups…")
+	assert.NotContains(t, body, "data-workspace-group-select", "no selector until the groups arrive")
+}
+
+func TestEditGroupsOffersTheSelectorThatSavesOnItsOwn(t *testing.T) {
+	body := render(t, EditGroups(state.EditGroups{
+		ID: "w1", Selected: "g2",
+		Options: []state.GroupOption{{ID: "g1", Name: "Backend"}, {ID: "g2", Name: "Docs"}},
 	}))
 
+	assert.Contains(t, body, `data-workspace-group-select`)
 	assert.Contains(t, body, `name="group"`)
 	assert.Contains(t, body, `hx-post="/workspace-groups/workspaces/w1/group"`)
 	assert.Contains(t, body, `hx-trigger="change"`)
 	assert.Contains(t, body, `<option value="g2" selected>Docs</option>`)
 	assert.Contains(t, body, "No group")
-	assert.Less(t, bytes.Index([]byte(body), []byte("data-workspace-group-select")), bytes.Index([]byte(body), []byte(`hx-post="/workspaces/w1/update"`)),
-		"the selector saves on its own, so it sits apart from the form with the Save button")
 }
 
-func TestEditPageWithoutGroupsHasNoSelector(t *testing.T) {
-	body := render(t, WorkspaceEditPage(state.EditPage{ID: "w1", Name: "alpha"}))
+func TestEditGroupsWithoutGroupsLeavesAnEmptySlot(t *testing.T) {
+	body := render(t, EditGroups(state.EditGroups{ID: "w1"}))
 
 	assert.NotContains(t, body, "data-workspace-group-select")
 	assert.NotContains(t, body, `name="group"`)
+	assert.Contains(t, body, `id="workspace-edit-groups"`)
 }

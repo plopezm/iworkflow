@@ -155,6 +155,57 @@ module.exports = {
       },
     },
     {
+      name: 'editar workspace: los grupos cargan en segundo plano y el selector guarda el grupo elegido',
+      fn: async (ctx) => {
+        const { page } = ctx;
+        fs.mkdirSync(SHOTS, { recursive: true });
+        const groupName = `Grupo edicion ${tag}`;
+        await createGroup(ctx, groupName);
+        const name = `edicion-${tag}`;
+        const dir = gitRepo('edicion');
+        await register(ctx, name, dir, null);
+        await submitRegister(ctx, dir);
+        await ctx.goto('/');
+        const href = await page.locator('#board-sidebar').getByRole('link', { name }).first().getAttribute('href');
+        const wsId = href.replace('/board/', '');
+
+        // The groups request is held until the test releases it, so the loading state can be observed.
+        let release;
+        const gate = new Promise((resolve) => { release = resolve; });
+        await page.route(`**/workspaces/${wsId}/edit/groups`, async (route) => {
+          await gate;
+          await route.continue();
+        });
+        await ctx.goto(`/workspaces/${wsId}/edit`);
+
+        // The form is already usable while the groups are still loading.
+        await page.getByLabel('Nombre').first().waitFor({ state: 'visible', timeout: 12000 });
+        const slot = page.locator('#workspace-edit-groups');
+        await slot.getByText('Cargando grupos…').waitFor({ state: 'visible', timeout: 5000 });
+        ctx.assert((await slot.getAttribute('aria-busy')) === 'true', 'el hueco de grupos está marcado como ocupado mientras carga');
+        ctx.assert((await page.locator('[data-workspace-group-select] select').count()) === 0, 'no hay selector de grupo hasta que llegan los grupos');
+        await page.screenshot({ path: path.join(SHOTS, 'workspace-edit-groups-loading.png'), fullPage: true });
+
+        release();
+        const select = page.locator('[data-workspace-group-select] select');
+        await select.waitFor({ state: 'visible', timeout: 8000 });
+        ctx.assert((await page.getByText('Cargando grupos…').count()) === 0, 'el texto de carga desaparece al llegar los grupos');
+        ctx.assert((await select.locator('option', { hasText: groupName }).count()) === 1, 'el selector ofrece el grupo creado');
+
+        // Choosing a group saves on its own, and the next visit already shows it selected.
+        const saved = page.waitForResponse((r) => r.url().includes(`/workspace-groups/workspaces/${wsId}/group`));
+        const groupId = await select.locator('option', { hasText: groupName }).getAttribute('value');
+        await select.selectOption(groupId);
+        ctx.assert((await saved).ok(), 'elegir el grupo lo guarda sin pulsar Guardar');
+        await page.screenshot({ path: path.join(SHOTS, 'workspace-edit-groups-loaded.png'), fullPage: true });
+        await page.unroute(`**/workspaces/${wsId}/edit/groups`);
+        await ctx.goto(`/workspaces/${wsId}/edit`);
+        const again = page.locator('[data-workspace-group-select] select');
+        await again.waitFor({ state: 'visible', timeout: 8000 });
+        ctx.assert((await again.inputValue()) === groupId, 'al volver a abrir la edición el grupo sigue seleccionado');
+      },
+    },
+    {
       name: 'crear tarea: vuelve a la pantalla desde la que se inició (inicio o tablero)',
       fn: async (ctx) => {
         const { page } = ctx;

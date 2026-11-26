@@ -15,6 +15,7 @@ var (
 	msgRegisteredTitle    = i18n.Msg{En: "Registered", Es: "Registrados", Zh: "已注册", De: "Registriert", Fr: "Enregistrés"}
 	msgGroupsLink         = i18n.Msg{En: "Groups", Es: "Grupos", Zh: "分组", De: "Gruppen", Fr: "Groupes"}
 	msgGroupLabel         = i18n.Msg{En: "Group", Es: "Grupo", Zh: "分组", De: "Gruppe", Fr: "Groupe"}
+	msgLoadingGroupsLabel = i18n.Msg{En: "Loading groups…", Es: "Cargando grupos…", Zh: "正在加载分组…", De: "Gruppen werden geladen …", Fr: "Chargement des groupes…"}
 	msgNoGroupLabel       = i18n.Msg{En: "No group", Es: "Sin grupo", Zh: "未分组", De: "Keine Gruppe", Fr: "Aucun groupe"}
 	msgNewWorkspace       = i18n.Msg{En: "New workspace", Es: "Nuevo workspace", Zh: "新建工作区", De: "Neuer Workspace", Fr: "Nouvel espace de travail"}
 	msgEditTitle          = i18n.Msg{En: "Edit workspace", Es: "Editar workspace", Zh: "编辑工作区", De: "Workspace bearbeiten", Fr: "Modifier l'espace de travail"}

@@ -173,12 +173,17 @@ type RegisterGroups struct {
 	Selected string
 }
 
+// EditGroups is the group selector of the edit tab, loaded in the background: the groups the workspace can be put in
+// (empty hides the selector) and the one it is in.
+type EditGroups struct {
+	ID       string
+	Options  []GroupOption
+	Selected string
+}
+
 // EditPage is the edit tab of one workspace.
 type EditPage struct {
-	ID string
-	// GroupOptions are the groups the workspace can be put in; empty hides the selector. GroupID is the current one.
-	GroupOptions []GroupOption
-	GroupID      string
+	ID           string
 	Name         string
 	Path         string
 	BaseBranch   string
