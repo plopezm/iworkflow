@@ -4,10 +4,15 @@ package application
 import (
 	"context"
 	"errors"
+	"time"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
+
+// listenerTimeout bounds what the discard listener may take: the task is already discarded, so a slow listener must not
+// hold the response.
+const listenerTimeout = 5 * time.Second
 
 // DiscardTask stops the agent when it is alive and removes the worktree and the branch without integrating
 // anything. The task ends in discarded.
@@ -71,7 +76,9 @@ func (u *DiscardTask) Execute(ctx context.Context, id models.TaskID) error {
 		return err
 	}
 	if u.listener != nil {
-		u.listener.Discarded(detached, id)
+		bounded, cancel := context.WithTimeout(detached, listenerTimeout)
+		defer cancel()
+		u.listener.Discarded(bounded, id)
 	}
 	return nil
 }

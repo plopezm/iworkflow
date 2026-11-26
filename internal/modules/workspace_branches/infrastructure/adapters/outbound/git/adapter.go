@@ -113,7 +113,7 @@ func (a *Adapter) DeleteRemote(ctx context.Context, repoPath string, remote stri
 	}
 	configured, err := remotesWithin(ctx, repoPath, listTimeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("list the remotes to check that %q is configured: %w", remote, err)
 	}
 	if !slices.Contains(configured, remote) {
 		return fmt.Errorf("%q is not a configured remote of the repository: %w", remote, werrors.ErrInvalidBranch)

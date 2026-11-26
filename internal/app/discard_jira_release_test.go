@@ -16,10 +16,15 @@ import (
 type fakeIssueReleaser struct {
 	released []string
 	err      error
+	failures int // the first calls that fail before one works
 }
 
 func (f *fakeIssueReleaser) Execute(_ context.Context, taskID string) error {
 	f.released = append(f.released, taskID)
+	if f.failures > 0 {
+		f.failures--
+		return errors.New("transient")
+	}
 	return f.err
 }
 
@@ -37,4 +42,18 @@ func TestDiscardedTaskReleasesItsJiraIssueAndSurvivesAFailure(t *testing.T) {
 
 	unbound := &taskDiscardJiraRelease{}
 	assert.NotPanics(t, func() { unbound.Discarded(context.Background(), id) }, "before the jira module is bound nothing happens")
+}
+
+func TestDiscardedTaskRetriesTheReleaseAndGivesUpAfterTheAttempts(t *testing.T) {
+	id, err := tasksmodels.NewTaskID()
+	require.NoError(t, err)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	flaky := &fakeIssueReleaser{failures: 2}
+	(&taskDiscardJiraRelease{inner: flaky, logger: logger}).Discarded(context.Background(), id)
+	assert.Len(t, flaky.released, 3, "a transient failure is retried until it works")
+
+	broken := &fakeIssueReleaser{err: errors.New("db down")}
+	(&taskDiscardJiraRelease{inner: broken, logger: logger}).Discarded(context.Background(), id)
+	assert.Len(t, broken.released, discardReleaseAttempts)
 }

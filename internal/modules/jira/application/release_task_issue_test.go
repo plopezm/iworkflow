@@ -42,3 +42,14 @@ func TestReleaseTaskIssueReportsALookupFailure(t *testing.T) {
 	require.EqualError(t, err, "db down")
 	assert.Empty(t, issues.setStates)
 }
+
+func TestReleaseTaskIssueLeavesAnIssueThatIsNoLongerConverted(t *testing.T) {
+	taskID := "task-1"
+	ignored := issueIn("A-1", models.IssueLocalStateIgnored)
+	ignored.TaskID = &taskID
+	issues := &fakeIssues{issues: []models.Issue{ignored}}
+
+	require.NoError(t, application.NewReleaseTaskIssue(issues).Execute(context.Background(), taskID))
+
+	assert.Empty(t, issues.setStates)
+}
