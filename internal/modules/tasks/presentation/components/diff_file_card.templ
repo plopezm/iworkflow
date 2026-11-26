@@ -66,7 +66,7 @@ templ splitBody(path string, hunks []state.Hunk) {
 // unifiedBody lays the lines out in one column, with the old and the new line numbers and a sign.
 templ unifiedBody(path string, hunks []state.Hunk) {
 	<div class="diff-scroll">
-		<table class="diff-table">
+		<table class="diff-table diff-table-unified">
 			<tbody>
 				for _, hunk := range hunks {
 					<tr class="diff-hunk-row">
@@ -74,8 +74,13 @@ templ unifiedBody(path string, hunks []state.Hunk) {
 					</tr>
 					for _, line := range hunk.Lines {
 						<tr>
-							<td class="diff-num">{ lineNumber(line.OldNumber) }</td>
-							<td class="diff-num">{ lineNumber(line.NewNumber) }</td>
+							<td class="diff-num diff-num-old">{ lineNumber(line.OldNumber) }</td>
+							<td class="diff-num">
+								{ lineNumber(line.NewNumber) }
+								if line.NewNumber == 0 {
+									<span class="diff-num-fallback">{ lineNumber(line.OldNumber) }</span>
+								}
+							</td>
 							<td class="diff-sign">{ kindSign(line.Kind) }</td>
 							<td class={ kindClass(line.Kind) }>@codeText(path, line.Text)</td>
 						</tr>
