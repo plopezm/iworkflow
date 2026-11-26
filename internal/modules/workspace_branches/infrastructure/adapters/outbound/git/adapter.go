@@ -95,12 +95,15 @@ func (a *Adapter) DeleteLocal(ctx context.Context, repoPath string, name string)
 	return err
 }
 
-// DeleteRemote deletes a branch on a remote. The branch is validated and the remote has to be one of the
-// configured remotes, so a URL or a path never receives the push. The branch is sent
-// as its full ref, refs/heads/<name>: a bare name such as "tags/x" can match a tag too and git refuses it as
-// ambiguous. A full ref that does not exist on the remote is not an error for git push, so the remote is asked
-// first and a missing branch fails with werrors.ErrBranchNotFound without deleting anything. After the push the
-// remote is asked again: a ref that is still listed means the push did not delete it, and that is an error.
+// DeleteRemote deletes a branch on a remote, in this order:
+//  1. The branch is validated and the remote has to be one of the configured remotes, so a URL or a path never
+//     receives the push.
+//  2. The remote is asked whether it lists the branch; a missing branch fails with werrors.ErrBranchNotFound without
+//     deleting anything. The branch is sent as its full ref, refs/heads/<name>: a bare name such as "tags/x" can
+//     match a tag too and git refuses it as ambiguous, and a full ref that does not exist on the remote is not an
+//     error for git push, which is why step 2 exists.
+//  3. The push deletes the ref.
+//  4. The remote is asked again: a ref that is still listed means the push did not delete it, and that is an error.
 func (a *Adapter) DeleteRemote(ctx context.Context, repoPath string, remote string, name string) error {
 	if err := checkName(remote); err != nil {
 		return err

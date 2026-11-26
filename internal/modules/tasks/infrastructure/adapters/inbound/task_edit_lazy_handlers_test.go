@@ -202,8 +202,12 @@ func TestCreateWorkspacesServeTheSelectAndTheBranchPlaceholder(t *testing.T) {
 	assert.NotContains(t, html, `/board/tasks/create-workspaces`, "the loaded fields do not load again")
 }
 
-// brokenWorkspaces fails to list the workspaces; Find is unused by the create-workspaces fragment.
-type brokenWorkspaces struct{ sidebarWorkspaces }
+// brokenWorkspaces fails to list the workspaces. Find fails loudly: the create-workspaces fragment must not call it.
+type brokenWorkspaces struct{}
+
+func (brokenWorkspaces) Find(context.Context, string) (*models.WorkspaceRef, error) {
+	return nil, errors.New("the create-workspaces fragment must not look up one workspace")
+}
 
 func (brokenWorkspaces) List(context.Context) ([]models.WorkspaceRef, error) {
 	return nil, errors.New("registry down")
