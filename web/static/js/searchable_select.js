@@ -39,6 +39,8 @@ function selectedLabel(select) {
 
 // The combobox state of one select. The select is the source of truth: the input only shows its label while closed.
 const instances = new WeakMap();
+// Selects that already carry the change listener of their combobox (a WeakSet, because a morph may strip attributes).
+const changeBound = new WeakSet();
 let listSeq = 0;
 
 function build(select, doc) {
@@ -99,7 +101,15 @@ function build(select, doc) {
     const option = event.target && event.target.closest ? event.target.closest('[role="option"]') : null;
     if (option) pick(state, state.shown[Number(option.dataset.shown)]);
   });
-  select.addEventListener('change', () => { if (!state.open) input.value = selectedLabel(select); });
+  // One change listener per select, however often a morph rebuilds the combobox around it: the listener reads the
+  // current state, so a rebuilt combobox needs no second one.
+  if (!changeBound.has(select)) {
+    changeBound.add(select);
+    select.addEventListener('change', () => {
+      const current = instances.get(select);
+      if (current && !current.open) current.input.value = selectedLabel(select);
+    });
+  }
   return state;
 }
 
@@ -147,7 +157,7 @@ function renderOptions(state, resetActive) {
   const chosen = state.shown.findIndex((entry) => entry.index === select.selectedIndex);
   state.active = resetActive ? chosen : (state.shown.length > 0 ? 0 : -1);
   const items = state.shown.map((entry, position) => {
-    const item = state.list.ownerDocument.createElement('div');
+    const item = list.ownerDocument.createElement('div');
     item.className = 'menu-item';
     item.id = `${state.listId}-${position}`;
     item.setAttribute('role', 'option');
@@ -211,6 +221,8 @@ export function enhanceAll(root = document) {
 export function setupSearchableSelects(doc = document) {
   enhanceAll(doc);
   const onSwap = (event) => enhanceAll(event.target && event.target.querySelectorAll ? event.target : doc);
+  // afterSwap covers a plain swap; afterSettle covers a morph, whose new nodes only settle later. enhance is
+  // idempotent, so the second pass over the same select is a no-op.
   doc.addEventListener('htmx:afterSettle', onSwap);
   doc.addEventListener('htmx:afterSwap', onSwap);
 }

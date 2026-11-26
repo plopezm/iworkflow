@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,11 +19,11 @@ import (
 )
 
 const (
-	// listTimeout bounds each read of the branch list, one git command at a time.
+	// listTimeout bounds each single git command of the branch list read, not the whole read.
 	listTimeout = 30 * time.Second
-	// deleteLocalTimeout bounds `git branch -D`.
+	// deleteLocalTimeout bounds the single `git branch -D` command.
 	deleteLocalTimeout = 30 * time.Second
-	// deleteRemoteTimeout bounds each `git ls-remote` and `git push --delete` of a remote deletion; they talk to the network.
+	// deleteRemoteTimeout bounds each single git command of a remote deletion (up to three, so the whole deletion can take longer); they talk to the network.
 	deleteRemoteTimeout = 60 * time.Second
 	// waitDelay bounds the wait for the output pipes after git exits, in case a credential helper keeps them open.
 	waitDelay = 5 * time.Second
@@ -94,17 +95,28 @@ func (a *Adapter) DeleteLocal(ctx context.Context, repoPath string, name string)
 	return err
 }
 
-// DeleteRemote deletes a branch on a remote. The remote and the branch are validated first. The branch is sent
-// as its full ref, refs/heads/<name>: a bare name such as "tags/x" can match a tag too and git refuses it as
-// ambiguous. A full ref that does not exist on the remote is not an error for git push, so the remote is asked
-// first and a missing branch fails with werrors.ErrBranchNotFound without deleting anything. After the push the
-// remote is asked again: a ref that is still listed means the push did not delete it, and that is an error.
+// DeleteRemote deletes a branch on a remote, in this order:
+//  1. The branch is validated and the remote has to be one of the configured remotes, so a URL or a path never
+//     receives the push.
+//  2. The remote is asked whether it lists the branch; a missing branch fails with werrors.ErrBranchNotFound without
+//     deleting anything. The branch is sent as its full ref, refs/heads/<name>: a bare name such as "tags/x" can
+//     match a tag too and git refuses it as ambiguous, and a full ref that does not exist on the remote is not an
+//     error for git push, which is why step 2 exists.
+//  3. The push deletes the ref.
+//  4. The remote is asked again: a ref that is still listed means the push did not delete it, and that is an error.
 func (a *Adapter) DeleteRemote(ctx context.Context, repoPath string, remote string, name string) error {
 	if err := checkName(remote); err != nil {
 		return err
 	}
 	if err := checkName(name); err != nil {
 		return err
+	}
+	configured, err := remotesWithin(ctx, repoPath, listTimeout)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(configured, remote) {
+		return fmt.Errorf("%q is not a configured remote of the repository: %w", remote, werrors.ErrInvalidBranch)
 	}
 	ref := localRefPrefix + name
 	listed, err := bounded(ctx, deleteRemoteTimeout, repoPath, "ls-remote", "--heads", remote, ref)
@@ -165,8 +177,17 @@ func run(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.WaitDelay = waitDelay
-	runErr := cmd.Run()
+	runErr := finished(cmd.Run(), cmd.ProcessState)
 	return outcome(ctx, runErr, stdout.String(), stderr.String(), args)
+}
+
+// finished drops exec.ErrWaitDelay when the process itself exited 0: git succeeded and only a helper it started kept
+// the output pipes open past WaitDelay, which is not a git failure. Any other error is returned unchanged.
+func finished(runErr error, state *os.ProcessState) error {
+	if errors.Is(runErr, exec.ErrWaitDelay) && state != nil && state.Success() {
+		return nil
+	}
+	return runErr
 }
 
 // outcome turns the end of one git command into the answer of run. A command that exited 0 is a success even when

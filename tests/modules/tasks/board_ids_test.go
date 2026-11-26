@@ -149,7 +149,7 @@ func TestCreateTabNamesItsOwnScopeInIdsAndAddresses(t *testing.T) {
 	assert.Contains(t, tab, `id="task-create-result-`+scope+`"`)
 	assert.Contains(t, tab, `id="board-workspace-fields-`+scope+`"`, "the workspace fields load into their own slot")
 	_, fields := doRequest(t, router, http.MethodGet, "/board/tasks/create-workspaces?scope="+scope+"&workspace_id="+workspaceID, nil)
-	assert.Contains(t, fields, `id="board-branch-slot-`+scope+`"`+"", "the loaded fields keep the scope")
+	assert.Contains(t, fields, `id="board-branch-slot-`+scope+`"`, "the loaded fields keep the scope")
 	assert.Contains(t, fields, `hx-target="#board-branch-slot-`+scope+`"`)
 	assert.Contains(t, tab, `data-toggle-target="board-advanced-limits-`+scope+`"`)
 }

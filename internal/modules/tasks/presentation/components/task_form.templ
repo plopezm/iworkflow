@@ -29,7 +29,7 @@ templ BranchSelectNotice(id string, choices []state.BranchChoice, value string, 
 	<div id={ id }>
 		<label class="stack gap-1.5">
 			<span class="text-sm font-medium text-fg">{ msgBaseBranch.T(ctx) }</span>
-			<select class="input" name="base_branch" data-searchable data-search-placeholder={ shared.SearchablePlaceholder(ctx) } data-search-empty={ shared.SearchableEmpty(ctx) }>
+			<select class="input" name="base_branch" { shared.SearchableAttrs(ctx)... }>
 				<option value="" selected?={ value == "" }>{ msgWorkspaceBranch.Fmt(ctx, map[string]string{"branch": defaultBranch}) }</option>
 				for _, choice := range choices {
 					<option value={ choice.Name } selected?={ choice.Name == value }>{ branchLabel(ctx, choice) }</option>
@@ -60,7 +60,7 @@ templ BranchSelectLazy(id string, choices []state.BranchChoice, value string, de
 	>
 		<label class="stack gap-1.5">
 			<span class="text-sm font-medium text-fg">{ msgBaseBranch.T(ctx) }</span>
-			<select class="input" name="base_branch" data-searchable data-search-placeholder={ shared.SearchablePlaceholder(ctx) } data-search-empty={ shared.SearchableEmpty(ctx) }>
+			<select class="input" name="base_branch" { shared.SearchableAttrs(ctx)... }>
 				<option value="" selected?={ value == "" }>{ msgWorkspaceBranch.Fmt(ctx, map[string]string{"branch": defaultBranch}) }</option>
 				for _, choice := range choices {
 					<option value={ choice.Name } selected?={ choice.Name == value }>{ branchLabel(ctx, choice) }</option>
@@ -428,8 +428,8 @@ templ TaskEditResult(message string) {
 	@shared.ErrorText(message)
 }
 
-// BranchSlotFailed replaces the base branch select when the branches of the workspace cannot be read.
-templ BranchSlotFailed(id string, message string) {
+// SlotFailed replaces a lazily loaded slot (the base branch select or the workspace fields) with the error that kept it from loading.
+templ SlotFailed(id string, message string) {
 	<div id={ id }>
 		@shared.ErrorText(message)
 	</div>

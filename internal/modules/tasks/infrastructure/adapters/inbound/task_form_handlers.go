@@ -39,7 +39,7 @@ func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 	workspaceID := r.URL.Query().Get("workspace_id")
 	workspaces, err := h.workspaceOptions(ctx)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(id, err.Error()))
+		web.Render(w, r, http.StatusOK, components.SlotFailed(id, err.Error()))
 		return
 	}
 	options, err := h.branchesOf(ctx, workspaceID)
@@ -51,7 +51,7 @@ func (h *BoardHandlers) branches(w http.ResponseWriter, r *http.Request) {
 			web.Render(w, r, http.StatusOK, components.BranchSelectNotice(id, choices, selected, defaultBranchOf(workspaces, workspaceID), err.Error()))
 			return
 		}
-		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(id, err.Error()))
+		web.Render(w, r, http.StatusOK, components.SlotFailed(id, err.Error()))
 		return
 	}
 	choices := state.BranchChoices(options, selected)
@@ -66,7 +66,7 @@ func (h *BoardHandlers) createWorkspaces(w http.ResponseWriter, r *http.Request)
 	scope := state.SanitizeScope(query.Get("scope"))
 	workspaces, err := h.workspaceOptions(ctx)
 	if err != nil {
-		web.Render(w, r, http.StatusOK, components.BranchSlotFailed(state.Scoped(components.WorkspaceFieldsSlot, scope), err.Error()))
+		web.Render(w, r, http.StatusOK, components.SlotFailed(state.Scoped(components.WorkspaceFieldsSlot, scope), err.Error()))
 		return
 	}
 	workspaceID := query.Get("workspace_id")

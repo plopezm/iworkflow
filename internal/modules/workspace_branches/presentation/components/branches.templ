@@ -9,7 +9,7 @@ import (
 // BranchesScreen is the branch tab of one workspace: the filter box and the list. The filter and the delete
 // requests answer with BranchListBody, which replaces only the list, so the filter keeps its focus.
 templ BranchesScreen(view state.ScreenView) {
-	<section id="workspace-branches" class="stack px-6 py-4">
+	<section id="workspace-branches" class="stack h-full min-h-0 overflow-y-auto px-6 py-4">
 		<div class="row justify-between">
 			<h2 class="font-medium text-fg">{ msgBranchesTitle.T(ctx) } · { view.WorkspaceName }</h2>
 			@link.Tab(link.Props{Href: view.BoardHref, Class: "btn-secondary min-h-9 rounded-lg px-2.5 py-1 text-xs"}) {
@@ -54,7 +54,9 @@ templ BranchListBody(view state.ListView) {
 		<form id="branch-delete-form" class="stack gap-1.5" hx-post={ view.DeleteAction } hx-confirm={ msgConfirmDeleteSelected.T(ctx) } hx-target="#branch-list" hx-swap="innerHTML">
 			<input type="hidden" name="q" value={ view.Query }/>
 			if len(view.Rows) == 0 {
-				<p class="muted">{ msgNoBranches.T(ctx) }</p>
+				if view.Error == "" {
+					<p class="muted">{ msgNoBranches.T(ctx) }</p>
+				}
 			} else {
 				<ul class="stack gap-1.5">
 					for _, row := range view.Rows {

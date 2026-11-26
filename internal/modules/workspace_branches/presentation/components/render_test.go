@@ -24,7 +24,7 @@ func render(t *testing.T, component templ.Component) string {
 }
 
 func listWith(rows ...state.BranchRow) state.ListView {
-	return state.ListView{WorkspaceID: "w1", DeleteAction: "/workspaces/w1/branches/delete", Rows: rows}
+	return state.ListView{DeleteAction: "/workspaces/w1/branches/delete", Rows: rows}
 }
 
 func TestScreenSearchFiltersOnTheServerWithoutCustomScript(t *testing.T) {
@@ -152,5 +152,5 @@ func TestListOffersSelectAllAndBreathingRoom(t *testing.T) {
 	assert.Contains(t, list, "Seleccionar todas")
 
 	screen := render(t, BranchesScreen(state.ScreenView{WorkspaceName: "alpha", SearchHref: "/s", List: listWith()}))
-	assert.Contains(t, screen, `id="workspace-branches" class="stack px-6 py-4"`)
+	assert.Contains(t, screen, `id="workspace-branches" class="stack h-full min-h-0 overflow-y-auto px-6 py-4"`)
 }

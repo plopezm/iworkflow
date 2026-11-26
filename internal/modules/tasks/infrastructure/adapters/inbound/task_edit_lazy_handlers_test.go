@@ -201,3 +201,33 @@ func TestCreateWorkspacesServeTheSelectAndTheBranchPlaceholder(t *testing.T) {
 	assert.Contains(t, html, `/board/tasks/branches?`, "the branch list loads next")
 	assert.NotContains(t, html, `/board/tasks/create-workspaces`, "the loaded fields do not load again")
 }
+
+// brokenWorkspaces fails to list the workspaces. Find fails loudly: the create-workspaces fragment must not call it.
+type brokenWorkspaces struct{}
+
+func (brokenWorkspaces) Find(context.Context, string) (*models.WorkspaceRef, error) {
+	return nil, errors.New("the create-workspaces fragment must not look up one workspace")
+}
+
+func (brokenWorkspaces) List(context.Context) ([]models.WorkspaceRef, error) {
+	return nil, errors.New("registry down")
+}
+
+func TestCreateWorkspacesShowTheFailureInPlaceOfTheFields(t *testing.T) {
+	t.Parallel()
+	workspaces := brokenWorkspaces{}
+	uc := httpinbound.BoardUseCases{Workspaces: workspaces}
+	router := chi.NewRouter()
+	httpinbound.NewBoardHandlers(uc, time.Now).Mount(router)
+	ctx := i18n.WithState(context.Background(), i18n.State{Locale: i18n.En, Chosen: true})
+	req := httptest.NewRequest(http.MethodGet, "/board/tasks/create-workspaces?scope=abc123", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	html := rec.Body.String()
+	assert.Contains(t, html, `id="board-workspace-fields-abc123"`, "the error takes the place of the slot, so the slot stays addressable")
+	assert.Contains(t, html, "registry down")
+	assert.NotContains(t, html, `name="workspace_id"`, "no form field is left to submit")
+}

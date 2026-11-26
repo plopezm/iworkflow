@@ -32,7 +32,6 @@ type ResultLine struct {
 
 // ListView is the list of branches with the filter it shows and the outcome of the last delete request.
 type ListView struct {
-	WorkspaceID string
 	// Query is the filter the list applies; the delete form carries it so the refreshed list keeps it.
 	Query string
 	// DeleteAction is the POST that deletes the checked branches.

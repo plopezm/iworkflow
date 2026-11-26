@@ -186,3 +186,41 @@ func TestListTabRendersTheScreenOfTheWorkspace(t *testing.T) {
 	assert.Contains(t, buffer.String(), `id="workspace-branches"`)
 	assert.Contains(t, buffer.String(), "alpha")
 }
+
+func postDelete(t *testing.T, r http.Handler, form url.Values) (int, string) {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/workspaces/w1/branches/delete", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+	return serve(t, r, req)
+}
+
+func TestDeleteUseCaseFailureIsShownWithoutRefreshing(t *testing.T) {
+	list := &stubList{list: sampleList()}
+	r := newRouter(list, &stubDelete{err: errors.New("workspace not found")})
+
+	_, body := postDelete(t, r, url.Values{"branch": {"local:feature/old"}})
+
+	assert.Contains(t, body, "workspace not found")
+	assert.Empty(t, list.filters, "the list is not read after a failed delete request")
+}
+
+// When the refresh after a delete fails, the deletions already happened: their outcomes stay visible.
+type failingRefreshList struct{}
+
+func (failingRefreshList) Execute(context.Context, string, string) (application.BranchList, error) {
+	return application.BranchList{}, errors.New("refresh failed")
+}
+
+func TestRefreshFailureAfterDeleteKeepsTheOutcomes(t *testing.T) {
+	del := &stubDelete{results: []application.DeleteResult{
+		{Ref: models.ParseRef("local:feature/old"), Outcome: application.OutcomeDeleted},
+	}}
+	r := newRouter(failingRefreshList{}, del)
+
+	_, body := postDelete(t, r, url.Values{"branch": {"local:feature/old"}})
+
+	assert.Contains(t, body, "refresh failed")
+	assert.Contains(t, body, "feature/old")
+	assert.NotContains(t, body, "No hay ramas que coincidan", "an error is not an empty list")
+}
