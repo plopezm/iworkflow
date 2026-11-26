@@ -83,6 +83,8 @@ type CreateForm struct {
 	StartNow      bool
 	LinkKind      string
 	LinkAnchor    string
+	// ReturnTo is the screen the create was opened from ("" when it was not opened from one); the create returns there.
+	ReturnTo string
 	// RelatedProjects are the workspaces the task may relate to, with the ones the user chose marked.
 	RelatedProjects []RelatedProjectChoice
 	Error           string

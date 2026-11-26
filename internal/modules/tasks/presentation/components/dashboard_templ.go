@@ -145,7 +145,7 @@ func DashboardBody(view state.DashboardView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary !size-9 !min-h-0 !rounded-full p-0 sm:order-last", Title: msgNewTask.T(ctx), Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPathFrom("", "/"), Class: "btn-primary !size-9 !min-h-0 !rounded-full p-0 sm:order-last", Title: msgNewTask.T(ctx), Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1313,7 +1313,7 @@ func DashboardProjectCard(project state.DashboardProject) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPath(project.ID), Class: "btn-ghost min-h-8 px-2 py-1 text-xs", Title: msgNewTask.T(ctx), Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var76), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPathFrom(project.ID, "/"), Class: "btn-ghost min-h-8 px-2 py-1 text-xs", Title: msgNewTask.T(ctx), Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var76), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

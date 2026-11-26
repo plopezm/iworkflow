@@ -90,7 +90,7 @@ templ BoardToolbar(view state.BoardView) {
 				<span class="hidden sm:inline">{ msgMemories.T(ctx) }</span>
 			}
 		}
-		@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}) {
+		@link.Tab(link.Props{Href: state.NewTaskPathFrom(view.Choice.ID, state.BoardPath(view.Choice.ID)), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}) {
 			<span class="text-lg leading-none">+</span>
 			<span class="hidden sm:inline">{ msgNewTask.T(ctx) }</span>
 		}
@@ -148,7 +148,7 @@ templ BoardListBody(view state.BoardView) {
 					<div class="stack items-center gap-3 p-8 text-center">
 						<h2 class="text-sm font-semibold text-fg">{ msgEmptyTitle.T(ctx) }</h2>
 						<p class="muted max-w-sm text-xs">{ msgEmptyHint.T(ctx) }</p>
-						@link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Role: "button"}) {
+						@link.Tab(link.Props{Href: state.NewTaskPathFrom(view.Choice.ID, state.BoardPath(view.Choice.ID)), Class: "btn-primary", Role: "button"}) {
 							{ msgCreateFirst.T(ctx) }
 						}
 					</div>

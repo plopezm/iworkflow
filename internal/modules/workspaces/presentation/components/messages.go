@@ -25,6 +25,11 @@ var (
 	msgMemoryUnavailable = i18n.Msg{En: "Engram unavailable", Es: "Engram no disponible", Zh: "Engram 不可用", De: "Engram nicht verfügbar", Fr: "Engram indisponible"}
 	msgConfirmRemove     = i18n.Msg{En: "Remove the workspace \"{name}\"?", Es: "¿Quitar el workspace \"{name}\"?", Zh: "要移除工作区“{name}”吗？", De: "Workspace „{name}“ entfernen?", Fr: "Retirer l'espace de travail « {name} » ?"}
 
+	msgGroup             = i18n.Msg{En: "Group (optional)", Es: "Grupo (opcional)", Zh: "分组（可选）", De: "Gruppe (optional)", Fr: "Groupe (facultatif)"}
+	msgLoadingGroups     = i18n.Msg{En: "Loading groups…", Es: "Cargando grupos…", Zh: "正在加载分组…", De: "Gruppen werden geladen …", Fr: "Chargement des groupes…"}
+	msgNoGroup           = i18n.Msg{En: "No group", Es: "Sin grupo", Zh: "未分组", De: "Keine Gruppe", Fr: "Aucun groupe"}
+	msgGroupAssignFailed = i18n.Msg{En: "The workspace was registered but could not be added to the group", Es: "El workspace se registró pero no se pudo añadir al grupo", Zh: "工作区已注册，但无法加入分组", De: "Der Workspace wurde registriert, konnte aber nicht zur Gruppe hinzugefügt werden", Fr: "L'espace de travail a été enregistré mais n'a pas pu être ajouté au groupe"}
+
 	msgName                   = i18n.Msg{En: "Name", Es: "Nombre", Zh: "名称", De: "Name", Fr: "Nom"}
 	msgNamePlaceholder        = i18n.Msg{En: "my-project", Es: "mi-proyecto", Zh: "我的项目", De: "mein-projekt", Fr: "mon-projet"}
 	msgPath                   = i18n.Msg{En: "Path", Es: "Ruta", Zh: "路径", De: "Pfad", Fr: "Chemin"}

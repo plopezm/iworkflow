@@ -38,6 +38,9 @@ type RegisterWorkspaceDTO struct {
 	DefaultRuntime *string `json:"default_runtime,omitempty"`
 	// Color is the palette key of the workspace; empty or absent means none.
 	Color *string `json:"color,omitempty"`
+	// GroupID is the group the new workspace is put in right after registering; empty or absent means none. It is not
+	// part of the workspace: the composition root assigns it through the workspace_groups module.
+	GroupID string `json:"group_id,omitempty"`
 }
 
 // UpdateWorkspaceDTO is the editable data of a workspace. The path cannot change.

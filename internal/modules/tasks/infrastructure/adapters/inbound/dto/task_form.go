@@ -56,7 +56,9 @@ type TaskForm struct {
 	ShowAdvanced bool
 	LinkKind     string
 	LinkAnchor   string
-	RemoveIDs    []string
+	// ReturnTo is the screen the create tab was opened from; the create returns there. It is validated where it is used.
+	ReturnTo  string
+	RemoveIDs []string
 	// RelatedProjectIDs are the workspaces the task relates to, as the repeated related_project_id fields sent them.
 	// The domain trims them, drops the blank ones and the task's own workspace, and rejects the invalid ones.
 	RelatedProjectIDs []string
@@ -97,6 +99,7 @@ func ParseTaskForm(w http.ResponseWriter, r *http.Request) (TaskForm, error) {
 		ShowAdvanced:      first(values, "show_advanced") == "on",
 		LinkKind:          first(values, "link_kind"),
 		LinkAnchor:        first(values, "link_anchor"),
+		ReturnTo:          first(values, "return_to"),
 		RemoveIDs:         values["remove_attachment_ids"],
 		RelatedProjectIDs: values[relatedProjectField],
 	}

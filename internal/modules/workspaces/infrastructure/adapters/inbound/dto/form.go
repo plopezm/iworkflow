@@ -13,6 +13,7 @@ func RegisterWorkspaceFromForm(values url.Values) RegisterWorkspaceDTO {
 		AgentsFileID:   formOptional(values, "agents_file_id"),
 		DefaultRuntime: formOptional(values, "default_runtime"),
 		Color:          formOptional(values, "color"),
+		GroupID:        values.Get("group_id"),
 	}
 }
 

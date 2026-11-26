@@ -36,7 +36,7 @@ func TestBoardToolbarPutsTheMemoriesButtonBeforeNewTaskOnlyForAWorkspace(t *test
 	html := renderComponent(t, i18n.Es, components.BoardToolbar(chosen))
 
 	memories := strings.Index(html, `href="/workspaces/ws-1/memories"`)
-	newTask := strings.Index(html, `href="`+state.NewTaskPath("ws-1")+`"`)
+	newTask := strings.Index(html, `href="`+state.NewTaskPathFrom("ws-1", state.BoardPath("ws-1"))+`"`)
 	assert.Positive(t, memories)
 	assert.Less(t, memories, newTask, "the memories button is left of the new task button")
 
