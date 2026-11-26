@@ -216,63 +216,6 @@ jobs:
             ${{ matrix.update_meta }}
           if-no-files-found: error
 
-      # Desktop shell (Wails 3), built next to the Electron one while the migration is validated. Every step below
-      # is continue-on-error: a failure here must not block the Electron release. Drop that flag, and the Electron
-      # steps, when the Wails packages have been verified on all platforms (odd/tasks/wails3-migration.md, T7).
-      # The packages carry the server staged in server-dist, the updater helper and the update archive
-      # iworkflow-<version>-<goos>-<goarch>.tar.gz that the app downloads to update itself.
-      - name: Install Wails build dependencies (Linux)
-        if: runner.os == 'Linux'
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libgtk-3-dev libwebkit2gtk-4.1-dev
-
-      - name: Install NSIS (Windows)
-        if: runner.os == 'Windows'
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          choco install nsis -y --no-progress
-          # $GITHUB_PATH takes native paths.
-          echo "C:\Program Files (x86)\NSIS" >> "$GITHUB_PATH"
-
-      - name: Test desktop shell logic
-        run: go test -p 2 ./internal/desktop/...
-
-      - name: Build desktop package (Wails)
-        id: wails
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          # hdiutil on macOS runners intermittently fails to detach the DMG ("Resource busy"), so retry.
-          for attempt in 1 2 3; do
-            if make wails-package DIST_DIR="$PWD/server-dist" SKIP_SERVER_BUILD=1; then
-              break
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "wails-package failed after $attempt attempts" >&2
-              exit 1
-            fi
-            echo "wails-package failed (attempt $attempt), retrying..." >&2
-            if [ "$RUNNER_OS" = "macOS" ]; then
-              hdiutil detach -force /Volumes/iworkflow* 2>/dev/null || true
-            fi
-            sleep 10
-          done
-
-      # SHA256SUMS is not uploaded from here: every leg would write its own and they would overwrite each other.
-      # The release job builds the single SHA256SUMS the updater reads.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: steps.wails.outcome == 'success'
-        continue-on-error: true
-        with:
-          name: iworkflow-wails-${{ matrix.name }}
-          path: |
-            server-dist/wails/iworkflow-*
-          if-no-files-found: error
-
   release:
     name: Publish release
     if: github.ref_type == 'tag'
@@ -285,21 +228,6 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-
-      # One SHA256SUMS for the desktop packages of every platform: the updater of the app verifies the archive it
-      # downloads against the line of its file name. Only the Wails files (names with goos-goarch) are listed;
-      # the Electron installers keep using their latest*.yml. No Wails file means no SHA256SUMS.
-      - name: Checksums of the desktop packages
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          cd artifacts
-          files=(iworkflow-[0-9]*-linux-amd64* iworkflow-[0-9]*-linux-arm64* iworkflow-[0-9]*-darwin-* iworkflow-[0-9]*-windows-*)
-          if [ "${#files[@]}" -gt 0 ]; then
-            sha256sum "${files[@]}" | tee SHA256SUMS
-          else
-            echo "No Wails packages among the artifacts; SHA256SUMS not written."
-          fi
 
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
