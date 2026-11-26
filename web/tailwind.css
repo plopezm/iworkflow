@@ -1118,11 +1118,36 @@ form[data-md-mode="rendered"] [data-md-hide] {
 .diff-table td.diff-num:nth-child(3) {
   @apply border-l border-border;
 }
+.diff-num-fallback {
+  @apply hidden;
+}
 .diff-sign {
   @apply w-4 select-none text-center align-top text-muted;
 }
 .diff-cell {
   @apply px-2 align-top break-all whitespace-pre-wrap text-fg/90;
+}
+/* On a phone the line numbers and the sign take less width, so the code keeps the room. */
+@media (max-width: 640px) {
+  .diff-num {
+    @apply w-6 min-w-6 px-1 text-[10px];
+  }
+  /* One number column in the unified view: the new number, or the old one for a deleted line. */
+  .diff-table-unified .diff-num-old {
+    @apply hidden;
+  }
+  .diff-table-unified .diff-num-fallback {
+    @apply inline;
+  }
+  .diff-table-unified td.diff-num:nth-child(3) {
+    @apply border-l-0;
+  }
+  .diff-sign {
+    @apply w-3;
+  }
+  .diff-cell {
+    @apply px-1;
+  }
 }
 .diff-cell-add {
   @apply bg-ok/10;
