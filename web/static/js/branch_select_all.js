@@ -35,6 +35,8 @@ export function setupBranchSelectAll(doc = document) {
       syncAll(doc);
     }
   });
+  // A swap replaces the rows, so the select-all box is brought back in step with the new ones.
+  doc.addEventListener('htmx:afterSwap', () => syncAll(doc));
 }
 
 if (typeof document !== 'undefined') setupBranchSelectAll(document);

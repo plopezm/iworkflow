@@ -323,3 +323,23 @@ func TestDeleteBranchesAbortsWithoutDeletingWhenListingRemotesFails(t *testing.T
 	assert.Empty(t, results)
 	assert.Empty(t, git.deletions(), "the batch aborts before any deletion")
 }
+
+func TestListFailsClosedWhenARemoteOrTaskLookupFails(t *testing.T) {
+	remotesGit := sampleGit()
+	remotesGit.remotesErr = errGitRefused
+	_, err := newLister(remotesGit, &fakeTasks{}).Execute(context.Background(), workspaceID, "")
+	require.ErrorIs(t, err, errGitRefused)
+
+	_, err = newLister(sampleGit(), &fakeTasks{err: errGitRefused}).Execute(context.Background(), workspaceID, "")
+	require.ErrorIs(t, err, errGitRefused)
+}
+
+func TestDeleteTouchesNothingWhenProtectionCannotBeDecided(t *testing.T) {
+	git := sampleGit()
+	results, err := newDeleter(git, &fakeTasks{err: errGitRefused}).Execute(context.Background(), workspaceID,
+		[]models.Ref{{Kind: models.KindLocal, Name: "feature/old"}})
+
+	require.ErrorIs(t, err, errGitRefused)
+	assert.Nil(t, results)
+	assert.Empty(t, git.deletions())
+}

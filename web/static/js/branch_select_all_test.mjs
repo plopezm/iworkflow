@@ -1,7 +1,7 @@
 // Run with: node --test web/static/js/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deletableRows, syncAll, toggleAll } from './branch_select_all.js';
+import { deletableRows, setupBranchSelectAll, syncAll, toggleAll } from './branch_select_all.js';
 
 function fakeList(states) {
   const rows = states.map((disabled) => ({ checked: false, disabled }));
@@ -39,4 +39,14 @@ test('a list with nothing to delete leaves the box clear', () => {
   syncAll(root);
   assert.equal(all.checked, false);
   assert.equal(all.indeterminate, false);
+});
+
+test('the select-all box follows the rows after an htmx swap', () => {
+  const { root, rows, all } = fakeList([false, false]);
+  const listeners = {};
+  root.addEventListener = (name, handler) => { listeners[name] = handler; };
+  setupBranchSelectAll(root);
+  rows.forEach((row) => { row.checked = true; });
+  listeners['htmx:afterSwap']();
+  assert.equal(all.checked, true);
 });

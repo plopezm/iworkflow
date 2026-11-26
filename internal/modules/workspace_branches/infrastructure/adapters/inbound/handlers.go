@@ -106,7 +106,10 @@ func (h *Handlers) deleteBranches(w http.ResponseWriter, r *http.Request) {
 	}
 	view, err := h.screen(ctx, id, form.Query, outcomes, noneSelected)
 	if err != nil {
-		writeFragments(w, r, components.BranchListBody(errorList(id, form.Query, err)))
+		// The deletions already happened: keep their outcomes next to the refresh failure.
+		failed := errorList(id, form.Query, err)
+		failed.Results = resultLines(outcomes)
+		writeFragments(w, r, components.BranchListBody(failed))
 		return
 	}
 	writeFragments(w, r, components.BranchListBody(view.List))
@@ -124,7 +127,6 @@ func (h *Handlers) screen(ctx context.Context, id string, filter string, outcome
 		BoardHref:     "/board/" + id,
 		SearchHref:    "/workspaces/" + id + "/branches",
 		List: state.ListView{
-			WorkspaceID:  id,
 			Query:        list.Filter,
 			DeleteAction: deleteAction(id),
 			Rows:         rows(id, list),
@@ -136,7 +138,7 @@ func (h *Handlers) screen(ctx context.Context, id string, filter string, outcome
 
 // errorList is the list shown when a request failed: no rows, just the message.
 func errorList(id string, filter string, err error) state.ListView {
-	return state.ListView{WorkspaceID: id, Query: filter, DeleteAction: deleteAction(id), Error: errorText(err)}
+	return state.ListView{Query: filter, DeleteAction: deleteAction(id), Error: errorText(err)}
 }
 
 func deleteAction(id string) string {

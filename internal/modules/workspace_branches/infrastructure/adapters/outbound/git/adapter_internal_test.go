@@ -43,8 +43,8 @@ func TestOutcomeOfAFailedCommandCarriesGitsStderr(t *testing.T) {
 
 func TestListsRefSplitsOnTheTabSoUnusualNamesMatchExactly(t *testing.T) {
 	// U+00A0 is legal in a git ref name and is a space for strings.Fields, which used to split the name.
-	ref := "refs/heads/feat x"
-	listed := "3f2a9c1\trefs/heads/feat x\n"
+	ref := "refs/heads/feat\u00a0x"
+	listed := "3f2a9c1\trefs/heads/feat\u00a0x\n"
 
 	assert.True(t, listsRef(listed, ref))
 	assert.False(t, listsRef("3f2a9c1\trefs/heads/feat\n", ref), "a prefix of the ref is not the ref")
@@ -87,10 +87,10 @@ func initRepo(t *testing.T) string {
 
 func TestListBranchesGivesEachGitCommandItsOwnBudget(t *testing.T) {
 	repo := initRepo(t)
-	// Four git commands at 0.4s each take 1.6s in total: longer than the 1s budget, but each one fits in it.
-	installSlowGit(t, "0.4")
+	// Four git commands at 0.6s each take 2.4s in total: longer than the 2s budget, but each one fits in it with room.
+	installSlowGit(t, "0.6")
 
-	branches, err := listBranches(context.Background(), repo, time.Second)
+	branches, err := listBranches(context.Background(), repo, 2*time.Second)
 
 	require.NoError(t, err)
 	require.Len(t, branches, 1)

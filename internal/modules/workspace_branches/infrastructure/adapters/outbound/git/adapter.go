@@ -19,11 +19,11 @@ import (
 )
 
 const (
-	// listTimeout bounds each read of the branch list, one git command at a time.
+	// listTimeout bounds each single git command of the branch list read, not the whole read.
 	listTimeout = 30 * time.Second
-	// deleteLocalTimeout bounds `git branch -D`.
+	// deleteLocalTimeout bounds the single `git branch -D` command.
 	deleteLocalTimeout = 30 * time.Second
-	// deleteRemoteTimeout bounds each `git ls-remote` and `git push --delete` of a remote deletion; they talk to the network.
+	// deleteRemoteTimeout bounds each single git command of a remote deletion (up to three, so the whole deletion can take longer); they talk to the network.
 	deleteRemoteTimeout = 60 * time.Second
 	// waitDelay bounds the wait for the output pipes after git exits, in case a credential helper keeps them open.
 	waitDelay = 5 * time.Second

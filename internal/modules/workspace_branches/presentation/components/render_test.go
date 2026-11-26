@@ -24,7 +24,7 @@ func render(t *testing.T, component templ.Component) string {
 }
 
 func listWith(rows ...state.BranchRow) state.ListView {
-	return state.ListView{WorkspaceID: "w1", DeleteAction: "/workspaces/w1/branches/delete", Rows: rows}
+	return state.ListView{DeleteAction: "/workspaces/w1/branches/delete", Rows: rows}
 }
 
 func TestScreenSearchFiltersOnTheServerWithoutCustomScript(t *testing.T) {
