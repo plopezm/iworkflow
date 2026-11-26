@@ -72,7 +72,7 @@ func NewModule(deps Deps) *Module {
 		List:              list,
 		ListWithMemory:    application.NewListWorkspacesWithMemory(list, deps.Memory, deps.Logger),
 		Get:               application.NewGetWorkspace(repository),
-		Update:            application.NewUpdateWorkspace(repository, gitRepository, deps.AgentsFiles, deps.AgentRuntimes),
+		Update:            application.NewUpdateWorkspace(repository, gitRepository, deps.AgentsFiles, deps.AgentRuntimes, deps.Tasks),
 		Delete:            application.NewDeleteWorkspace(repository, deps.Tasks),
 		BrowseDirectories: application.NewBrowseDirectories(browser, deps.HomeDir),
 		CreateDirectory:   application.NewCreateDirectory(browser),

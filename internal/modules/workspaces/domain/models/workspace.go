@@ -143,9 +143,12 @@ func (n NewWorkspace) Validated() (NewWorkspace, error) {
 	}, nil
 }
 
-// WorkspaceUpdate is the input to edit a workspace. The path cannot change.
+// WorkspaceUpdate is the input to edit a workspace.
 type WorkspaceUpdate struct {
 	Name string
+	// Path is the new repository root. Empty keeps the saved one. A changed path is checked by the use case,
+	// which needs the infrastructure, so only its absoluteness is checked here.
+	Path string
 	// BaseBranch empty keeps the current base branch.
 	BaseBranch string
 	// AgentsFileID is the stored AGENTS.md that replaces the project one. Empty keeps it.
@@ -177,9 +180,17 @@ func (u WorkspaceUpdate) Validated() (WorkspaceUpdate, error) {
 		}
 		color = &trimmed
 	}
+	path := u.Path
+	if path != "" {
+		if !filepath.IsAbs(path) {
+			return WorkspaceUpdate{}, werrors.PathNotAbsolute(path)
+		}
+		path = filepath.Clean(path)
+	}
 	return WorkspaceUpdate{
 		Color:          color,
 		Name:           name,
+		Path:           path,
 		BaseBranch:     strings.TrimSpace(u.BaseBranch),
 		AgentsFileID:   strings.TrimSpace(u.AgentsFileID),
 		DefaultRuntime: defaultRuntime,

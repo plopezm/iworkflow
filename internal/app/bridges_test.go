@@ -37,6 +37,10 @@ type noWorkspaceTasks struct{}
 
 func (noWorkspaceTasks) DeleteAll(context.Context, workspacesmodels.WorkspaceID) error { return nil }
 
+func (noWorkspaceTasks) HasBlocking(context.Context, workspacesmodels.WorkspaceID) (bool, error) {
+	return false, nil
+}
+
 // newWorkspaces builds the workspaces module over a migrated temporary database, with no workspace.
 func newWorkspaces(t *testing.T) *workspacesdi.Module {
 	t.Helper()

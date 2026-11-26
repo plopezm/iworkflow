@@ -42,6 +42,10 @@ const (
 	kindRepository
 	kindInvalidRuntime
 	kindInvalidColor
+	kindPathNotRepositoryRoot
+	kindPathNotSameProject
+	kindPathBlockedByTasks
+	kindWorktreeRepair
 )
 
 // InitializationReason says why a workspace needs explicit confirmation before it is initialized.
@@ -113,6 +117,14 @@ func (e Error) Error() string {
 		return "error de E/S: " + e.detail
 	case kindInvalidColor:
 		return "color de workspace inválido: " + e.detail
+	case kindPathNotRepositoryRoot:
+		return "the new path is not the root of a git repository: " + e.detail
+	case kindPathNotSameProject:
+		return "the new path is not the same project as the workspace: " + e.detail
+	case kindPathBlockedByTasks:
+		return "the path cannot change while the workspace has unfinished tasks"
+	case kindWorktreeRepair:
+		return "the path was saved, but git could not repair the worktrees: " + e.detail
 	case kindRepository:
 		return "error de persistencia: " + e.detail
 	case kindInvalidRuntime:
@@ -133,6 +145,21 @@ func (e Error) Is(target error) bool {
 	}
 	return other.reason == 0 || other.reason == e.reason
 }
+
+// PathNotRepositoryRoot means the new path exists and is inside a git repository, but is not its root.
+func PathNotRepositoryRoot(path string) Error {
+	return Error{kind: kindPathNotRepositoryRoot, detail: path}
+}
+
+// PathNotSameProject means the new path is a repository whose root commits do not match the ones of the
+// workspace repository: it is another project.
+func PathNotSameProject(path string) Error { return Error{kind: kindPathNotSameProject, detail: path} }
+
+// PathBlockedByTasks means the workspace has unfinished tasks or worktrees, so its path cannot change.
+func PathBlockedByTasks() Error { return Error{kind: kindPathBlockedByTasks} }
+
+// WorktreeRepair means the path was saved but `git worktree repair` failed. It is not a rollback.
+func WorktreeRepair(detail string) Error { return Error{kind: kindWorktreeRepair, detail: detail} }
 
 // InvalidColor means the text is not a key of the workspace palette.
 func InvalidColor(value string) Error { return Error{kind: kindInvalidColor, detail: value} }

@@ -3,22 +3,25 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	werrors "iworkflow/internal/modules/workspaces/domain/errors"
 	"iworkflow/internal/modules/workspaces/domain/models"
 	"iworkflow/internal/modules/workspaces/domain/ports/outbound"
 )
 
-// UpdateWorkspace edits the name and base branch of a workspace and optionally replaces its AGENTS.md.
-// The workspace is saved first and the AGENTS.md is installed after, because the overwrite cannot be
-// undone. If the installation fails, the original workspace is restored; if that restore fails too,
-// the returned error reports both failures. The path cannot change: tasks and worktrees depend on it.
+// UpdateWorkspace edits a workspace: its name, base branch, AGENTS.md, default agent, color and, when it is safe,
+// its path (see checkPathChange). The workspace is saved first and the AGENTS.md is installed after, because the
+// overwrite cannot be undone. If the installation fails, the original workspace is restored; if that restore fails
+// too, the returned error reports both failures. The worktrees are repaired last, once the new path is in place.
 type UpdateWorkspace struct {
 	repository  outbound.WorkspaceRepository
 	git         outbound.GitRepository
 	agentsFiles outbound.AgentsFiles
 	runtimes    outbound.AgentRuntimes
+	tasks       outbound.WorkspaceTasks
 }
 
 // NewUpdateWorkspace builds the use case.
@@ -27,11 +30,27 @@ func NewUpdateWorkspace(
 	git outbound.GitRepository,
 	agentsFiles outbound.AgentsFiles,
 	runtimes outbound.AgentRuntimes,
+	tasks outbound.WorkspaceTasks,
 ) *UpdateWorkspace {
-	return &UpdateWorkspace{repository: repository, git: git, agentsFiles: agentsFiles, runtimes: runtimes}
+	return &UpdateWorkspace{repository: repository, git: git, agentsFiles: agentsFiles, runtimes: runtimes, tasks: tasks}
 }
 
-// Execute applies the update and returns the updated workspace.
+// PathEditBlocker reports whether the path of the workspace is locked because it has unfinished tasks. It only
+// reads, so the edit screen can disable the path field. The reason is werrors.PathBlockedByTasks().
+func (u *UpdateWorkspace) PathEditBlocker(ctx context.Context, id models.WorkspaceID) (bool, error) {
+	current, err := u.repository.FindByID(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	if current == nil {
+		return false, werrors.NotFound(id.String())
+	}
+	return u.tasks.HasBlocking(ctx, id)
+}
+
+// Execute applies the update and returns the updated workspace. A changed path is checked before anything is
+// saved; when the workspace still has worktrees after the save, they are repaired, and a repair failure is
+// returned together with the updated workspace, which stays saved.
 func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, input models.WorkspaceUpdate) (models.Workspace, error) {
 	validated, err := input.Validated()
 	if err != nil {
@@ -43,6 +62,15 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 	}
 	if current == nil {
 		return models.Workspace{}, werrors.NotFound(id.String())
+	}
+
+	pathChanged := validated.Path != "" && validated.Path != current.Path
+	root := current.Path
+	if pathChanged {
+		if err := u.checkPathChange(ctx, *current, validated.Path); err != nil {
+			return models.Workspace{}, err
+		}
+		root = validated.Path
 	}
 
 	// An absent default agent keeps the saved one without checking it against the installed agents, so
@@ -58,7 +86,7 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 
 	baseBranch := current.BaseBranch
 	if validated.BaseBranch != "" && validated.BaseBranch != current.BaseBranch {
-		exists, err := u.git.BranchExists(ctx, current.Path, validated.BaseBranch)
+		exists, err := u.git.BranchExists(ctx, root, validated.BaseBranch)
 		if err != nil {
 			return models.Workspace{}, err
 		}
@@ -73,6 +101,9 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 	updated.Name = validated.Name
 	updated.BaseBranch = baseBranch
 	updated.DefaultRuntime = defaultRuntime
+	if pathChanged {
+		updated.Path = validated.Path
+	}
 	if validated.Color != nil {
 		updated.Color = optionalColor(*validated.Color)
 	}
@@ -89,5 +120,92 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 			return models.Workspace{}, installErr
 		}
 	}
+	if pathChanged {
+		if repairErr := u.repairWorktrees(ctx, updated.Path); repairErr != nil {
+			return updated, repairErr
+		}
+	}
 	return updated, nil
+}
+
+// checkPathChange applies the rules of a new path, in order, and stops at the first one that fails. Nothing is
+// saved by this method, so a failure leaves the stored workspace unchanged.
+//
+//  1. The path is absolute (checked by WorkspaceUpdate.Validated before this method runs).
+//  2. The workspace has no unfinished task: a task that is not merged or discarded, backlog included.
+//  3. The new folder exists and is the root of a git repository, not a subfolder of one.
+//  4. The new repository shares a root commit with the old one, so the path does not point at another project.
+//  5. No other workspace uses the new path.
+func (u *UpdateWorkspace) checkPathChange(ctx context.Context, current models.Workspace, newPath string) error {
+	blocked, err := u.tasks.HasBlocking(ctx, current.ID)
+	if err != nil {
+		return err
+	}
+	if blocked {
+		return werrors.PathBlockedByTasks()
+	}
+
+	info, err := u.git.Inspect(ctx, newPath)
+	if err != nil {
+		return err
+	}
+	if info.Root != newPath {
+		return werrors.PathNotRepositoryRoot(newPath)
+	}
+
+	if err := u.checkSameProject(ctx, current.Path, newPath); err != nil {
+		return err
+	}
+
+	existing, err := u.repository.FindByPath(ctx, newPath)
+	if err != nil {
+		return err
+	}
+	if existing != nil && existing.ID != current.ID {
+		return werrors.AlreadyRegistered(newPath)
+	}
+	return nil
+}
+
+// checkSameProject requires the old and the new repository to share a root commit (S4). When the old folder no
+// longer exists, which is the usual reason to edit the path (the folder was moved), its root commits cannot be
+// read and the check is skipped: the new path is then accepted on the repository check alone.
+//
+// DECISION TO REVIEW: the workspace does not record a root commit, so when the old folder is gone nothing can be
+// compared. In that case any repository at the new path is accepted, including another project, as long as it
+// is a repository root that no other workspace uses.
+func (u *UpdateWorkspace) checkSameProject(ctx context.Context, oldPath string, newPath string) error {
+	oldRoots, err := u.git.RootCommits(ctx, oldPath)
+	if errors.Is(err, werrors.PathNotFound("")) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	newRoots, err := u.git.RootCommits(ctx, newPath)
+	if err != nil {
+		return err
+	}
+	for _, commit := range oldRoots {
+		if slices.Contains(newRoots, commit) {
+			return nil
+		}
+	}
+	return werrors.PathNotSameProject(newPath)
+}
+
+// repairWorktrees runs `git worktree repair` when the repository still has linked worktrees (S5). It is a
+// safety net: a workspace with unfinished tasks cannot change its path, so usually there is nothing to repair.
+func (u *UpdateWorkspace) repairWorktrees(ctx context.Context, root string) error {
+	linked, err := u.git.HasLinkedWorktrees(ctx, root)
+	if err != nil {
+		return werrors.WorktreeRepair(err.Error())
+	}
+	if !linked {
+		return nil
+	}
+	if err := u.git.RepairWorktrees(ctx, root); err != nil {
+		return werrors.WorktreeRepair(err.Error())
+	}
+	return nil
 }
