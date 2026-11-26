@@ -96,3 +96,20 @@ func TestListBranchesGivesEachGitCommandItsOwnBudget(t *testing.T) {
 	require.Len(t, branches, 1)
 	assert.Equal(t, "main", branches[0].Name)
 }
+
+func TestFinishedTreatsAWaitDelayAfterACleanExitAsSuccess(t *testing.T) {
+	cmd := exec.Command("git", "--version")
+	require.NoError(t, cmd.Run())
+
+	assert.NoError(t, finished(exec.ErrWaitDelay, cmd.ProcessState), "git exited 0; a helper holding the pipes is not a git failure")
+}
+
+func TestFinishedKeepsOtherErrors(t *testing.T) {
+	cmd := exec.Command("git", "--version")
+	require.NoError(t, cmd.Run())
+	other := assert.AnError
+
+	assert.ErrorIs(t, finished(other, cmd.ProcessState), other)
+	assert.ErrorIs(t, finished(exec.ErrWaitDelay, nil), exec.ErrWaitDelay, "without a process state the exit is unknown")
+	assert.NoError(t, finished(nil, nil))
+}

@@ -3,6 +3,8 @@ package components
 import (
 	"context"
 
+	"github.com/a-h/templ"
+
 	"iworkflow/internal/core/i18n"
 )
 
@@ -21,4 +23,14 @@ func SearchablePlaceholder(ctx context.Context) string {
 // SearchableEmpty is the line the dropdown of a searchable select shows when the filter matches no option.
 func SearchableEmpty(ctx context.Context) string {
 	return msgSearchableEmpty.T(ctx)
+}
+
+// SearchableAttrs are the attributes that make a select searchable: the marker the script looks for and its two
+// texts. Every searchable select spreads them, so the contract with the script lives in one place.
+func SearchableAttrs(ctx context.Context) templ.Attributes {
+	return templ.Attributes{
+		"data-searchable":         true,
+		"data-search-placeholder": SearchablePlaceholder(ctx),
+		"data-search-empty":       SearchableEmpty(ctx),
+	}
 }

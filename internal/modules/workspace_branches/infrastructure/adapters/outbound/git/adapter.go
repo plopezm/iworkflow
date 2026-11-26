@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -94,7 +95,8 @@ func (a *Adapter) DeleteLocal(ctx context.Context, repoPath string, name string)
 	return err
 }
 
-// DeleteRemote deletes a branch on a remote. The remote and the branch are validated first. The branch is sent
+// DeleteRemote deletes a branch on a remote. The branch is validated and the remote has to be one of the
+// configured remotes, so a URL or a path never receives the push. The branch is sent
 // as its full ref, refs/heads/<name>: a bare name such as "tags/x" can match a tag too and git refuses it as
 // ambiguous. A full ref that does not exist on the remote is not an error for git push, so the remote is asked
 // first and a missing branch fails with werrors.ErrBranchNotFound without deleting anything. After the push the
@@ -105,6 +107,13 @@ func (a *Adapter) DeleteRemote(ctx context.Context, repoPath string, remote stri
 	}
 	if err := checkName(name); err != nil {
 		return err
+	}
+	configured, err := remotesWithin(ctx, repoPath, listTimeout)
+	if err != nil {
+		return err
+	}
+	if !slices.Contains(configured, remote) {
+		return fmt.Errorf("%q is not a configured remote of the repository: %w", remote, werrors.ErrInvalidBranch)
 	}
 	ref := localRefPrefix + name
 	listed, err := bounded(ctx, deleteRemoteTimeout, repoPath, "ls-remote", "--heads", remote, ref)
@@ -165,8 +174,17 @@ func run(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.WaitDelay = waitDelay
-	runErr := cmd.Run()
+	runErr := finished(cmd.Run(), cmd.ProcessState)
 	return outcome(ctx, runErr, stdout.String(), stderr.String(), args)
+}
+
+// finished drops exec.ErrWaitDelay when the process itself exited 0: git succeeded and only a helper it started kept
+// the output pipes open past WaitDelay, which is not a git failure. Any other error is returned unchanged.
+func finished(runErr error, state *os.ProcessState) error {
+	if errors.Is(runErr, exec.ErrWaitDelay) && state != nil && state.Success() {
+		return nil
+	}
+	return runErr
 }
 
 // outcome turns the end of one git command into the answer of run. A command that exited 0 is a success even when

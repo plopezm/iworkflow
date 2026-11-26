@@ -282,3 +282,24 @@ func TestListBranchesOfANonRepositoryFails(t *testing.T) {
 	_, err = adapter.ListRemotes(context.Background(), dir)
 	assert.Error(t, err)
 }
+
+func TestDeleteRemoteRefusesADestinationThatIsNotAConfiguredRemote(t *testing.T) {
+	fx := newFixture(t)
+	before := branchNames(t, fx.remote, "refs/heads/")
+
+	// The path of the bare repository is a valid git destination but not a configured remote name.
+	err := git.NewAdapter().DeleteRemote(context.Background(), fx.repo, fx.remote, "feature/old")
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, werrors.ErrInvalidBranch)
+	assert.Equal(t, before, branchNames(t, fx.remote, "refs/heads/"), "nothing is deleted on a destination that is not a remote")
+}
+
+func TestDeleteLocalRefusesABranchCheckedOutInAWorktree(t *testing.T) {
+	fx := newFixture(t)
+
+	err := git.NewAdapter().DeleteLocal(context.Background(), fx.repo, "feature/keep")
+
+	require.Error(t, err)
+	assert.Contains(t, branchNames(t, fx.repo, "refs/heads/"), "refs/heads/feature/keep", "the branch of the worktree stays")
+}
