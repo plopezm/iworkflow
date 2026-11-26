@@ -109,6 +109,33 @@ async function saveEdit(ctx) {
 // The prompt of the edit form: the textarea of the form that holds the related list.
 const editPrompt = (ctx) => ctx.page.locator('form:has([data-related-projects]):visible textarea[name=prompt]');
 
+// Registers a workspace from a new dock tab, without reloading the page, so the tabs already open stay in the document.
+async function registerWsInDock(ctx, prefix) {
+  registrations += 1;
+  const name = `${prefix}-${tag}-${registrations}`;
+  const dir = uniqueGitRepo(name, { guide: false });
+  await ctx.nav('Workspaces').click();
+  await ctx.page.getByRole('button', { name: /Nuevo workspace/ }).first().click();
+  await ctx.page.getByLabel('Nombre').first().fill(name);
+  await ctx.page.getByLabel(/^Ruta absoluta/).first().fill(dir);
+  await ctx.page.getByLabel(/Rama base/).first().fill('main');
+  await ctx.page.getByRole('button', { name: /Registrar|Register/ }).first().click();
+  await ctx.page.getByText(name).first().waitFor({ timeout: 12000 });
+  return { name, dir };
+}
+
+const SHOTS = process.env.SMOKE_SCREENSHOT_DIR || '/tmp/iwf-e2e-screenshots';
+
+// Saves a screenshot of the visible related projects dialog; a failed capture never fails the test.
+async function shootRelatedDialog(ctx, name) {
+  try {
+    fs.mkdirSync(SHOTS, { recursive: true });
+    await ctx.page.locator(`${CREATE} [data-modal-panel]:visible`).screenshot({ path: path.join(SHOTS, name) });
+  } catch (e) {
+    ctx.problems.push(`[screenshot] ${name}: ${e.message}`);
+  }
+}
+
 // ---- tests ----
 module.exports = {
   name: 'related_projects',
@@ -234,6 +261,35 @@ module.exports = {
         // The answer has arrived when the own project's README.md is listed; B's file must not be among them.
         await menuItem(ctx, '@README.md').waitFor({ timeout: 10000 });
         ctx.assert((await menuItem(ctx, insert).count()) === 0, 'B sigue ofreciendo su fichero con B desmarcado');
+      },
+    },
+    {
+      name: 'related_projects: un workspace registrado con la pestaña de nueva tarea abierta aparece en los proyectos relacionados',
+      fn: async (ctx) => {
+        const a = await registerWs(ctx, 'rp-a', { guide: false });
+        await registerWs(ctx, 'rp-b', { guide: false });
+        await openCreate(ctx, a);
+        const createTab = ctx.page.locator('[data-dock-tab-button][aria-selected=true]').first();
+        const createTabId = await createTab.getAttribute('data-dock-tab');
+        await openRelated(ctx);
+        await sleep(700);
+        await shootRelatedDialog(ctx, 'related-projects-before-register.png');
+        await closeRelated(ctx);
+
+        const fresh = await registerWsInDock(ctx, 'rp-new');
+        // Back to the create tab, which stayed open while the workspace was registered.
+        await ctx.page.locator(`[data-dock-tab-button][data-dock-tab="${createTabId}"]`).first().click();
+        await ctx.page.locator(CREATE).waitFor({ timeout: 10000 });
+        await ctx.page.locator(`${CREATE} [data-related-row][data-related-name="${fresh.name}"]`).waitFor({ state: 'attached', timeout: 10000 });
+        await openRelated(ctx);
+        await ctx.page.locator(`${CREATE} [data-related-row][data-related-name="${fresh.name}"]`).waitFor({ state: 'visible', timeout: 5000 });
+        await sleep(700);
+        await shootRelatedDialog(ctx, 'related-projects-after-register.png');
+        await closeRelated(ctx);
+        const selected = await ctx.page.locator(`${CREATE} select[name=workspace_id]`).inputValue();
+        const ownId = await workspaceId(ctx, a.name);
+        ctx.assert(selected === ownId, 'el refresco no debe cambiar el workspace elegido en el formulario');
+        ctx.assert((await ctx.page.locator(`${CREATE} [data-related-row][data-related-name="${a.name}"]`).count()) === 0, 'el workspace propio de la tarea no debe ser una opción');
       },
     },
     {

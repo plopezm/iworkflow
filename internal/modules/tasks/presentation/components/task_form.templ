@@ -99,11 +99,11 @@ templ relatedProjectsField(projects []state.RelatedProjectChoice, submit bool) {
 				<input type="search" class="input" placeholder={ msgFilterProjects.T(ctx) } aria-label={ msgFilterProjects.T(ctx) } autocomplete="off" data-related-filter/>
 				<div class="stack max-h-[50vh] overflow-y-auto" data-related-list>
 					for _, project := range projects {
-						<label class="row min-h-10 items-center gap-2 text-sm text-fg" data-related-row data-related-name={ project.Name } data-related-text={ project.Name + " " + project.Path }>
-							<input type="checkbox" name="related_project_id" value={ project.ID } data-workspace-id={ project.ID } class="h-5 w-5" checked?={ project.Selected }/>
-							<span class="stack gap-0.5">
+						<label class="flex min-h-10 shrink-0 items-center gap-2 text-sm text-fg" data-related-row data-related-name={ project.Name } data-related-text={ project.Name + " " + project.Path }>
+							<input type="checkbox" name="related_project_id" value={ project.ID } data-workspace-id={ project.ID } class="h-5 w-5 shrink-0" checked?={ project.Selected }/>
+							<span class="stack min-w-0 gap-0.5">
 								<span>{ project.Name }</span>
-								<span class="text-xs text-muted">{ project.Path }</span>
+								<span class="break-all text-xs text-muted">{ project.Path }</span>
 							</span>
 						</label>
 					}
@@ -319,8 +319,24 @@ templ WorkspaceFieldsLazy(form state.CreateForm) {
 
 // WorkspaceFields are the fields that depend on the workspaces: the workspace select, its base branch and the related
 // projects. The create page loads them in the background (WorkspaceFieldsLazy).
+//
+// The tab stays open in the dock while a workspace is registered elsewhere, so the fields refresh themselves once a
+// POST to the workspaces module ends (the same trigger the workspace table uses); the 250ms delay lets the new row be
+// stored first. The refresh sends the current workspace, base branch and checked projects (hx-include) so the form
+// keeps what the user chose, and morphs the fields in place. The attributes in hx-disinherit are for this wrapper only:
+// the select and the branch loader inside have their own swap, target and sync, and must not inherit them.
 templ WorkspaceFields(form state.CreateForm) {
-	<div id={ state.Scoped(WorkspaceFieldsSlot, form.Scope) } class="stack gap-4">
+	<div
+		id={ state.Scoped(WorkspaceFieldsSlot, form.Scope) }
+		class="stack gap-4"
+		hx-get={ state.ScopedPath("/board/tasks/create-workspaces", form.Scope) }
+		hx-trigger="htmx:afterRequest[event.detail.requestConfig.verb == 'post' && event.detail.pathInfo.requestPath.startsWith('/workspaces')] from:body delay:250ms"
+		hx-include="find [name='workspace_id'], find [name='base_branch'], find [name='related_project_id']"
+		hx-sync="this:replace"
+		hx-target="this"
+		hx-swap="morph:outerHTML"
+		hx-disinherit="hx-swap hx-target hx-include hx-sync"
+	>
 	<label class="stack gap-1.5">
 		<span class="text-sm font-medium text-fg">{ msgWorkspace.T(ctx) }</span>
 		<select
