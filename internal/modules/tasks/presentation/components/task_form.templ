@@ -276,6 +276,9 @@ templ CreateTaskFields(form state.CreateForm) {
 		<input type="hidden" name="link_kind" value={ form.LinkKind }/>
 		<input type="hidden" name="link_anchor" value={ form.LinkAnchor }/>
 	}
+	if form.ReturnTo != "" {
+		<input type="hidden" name="return_to" value={ form.ReturnTo }/>
+	}
 	@WorkspaceFieldsLazy(form)
 	@shared.TextField(shared.FieldProps{Label: msgTitleOptional.T(ctx), Name: "title", Value: form.Title, Placeholder: msgDerivedFromPrompt.T(ctx)})
 	@TaskPromptField(msgPrompt.T(ctx), state.Scoped("board-create-prompt", form.Scope), form.Prompt, "/board/tasks/composer/files")
@@ -348,8 +351,8 @@ templ WorkspaceFields(form state.CreateForm) {
 	</div>
 }
 
-// TaskCreated is the answer of a create. A clean create ends the create tab and opens the board of the workspace (the
-// data-dock-leave hook). A failure after the task was created (its start, its dependencies) keeps the tab, so the
+// TaskCreated is the answer of a create. A clean create ends the create tab and opens the screen it was opened from, the
+// board of the workspace when none (the data-dock-leave hook). A failure after the task was created (its start, its dependencies) keeps the tab, so the
 // user reads it, and offers the way to the board.
 templ TaskCreated(boardPath string, startError string, linkErrors []string) {
 	if startError == "" && len(linkErrors) == 0 {

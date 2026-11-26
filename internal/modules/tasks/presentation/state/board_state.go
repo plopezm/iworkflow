@@ -236,6 +236,42 @@ func NewTaskPath(workspaceID string) string {
 	return "/board/" + workspaceID + "/new"
 }
 
+// NewTaskPathFrom is the address of the create tab opened from the screen at origin: finishing or cancelling the create
+// returns there instead of to the board of the workspace. The origin travels in the path, as the dock tabs have no query.
+// An origin that is not a local path is dropped, giving the plain address.
+func NewTaskPathFrom(workspaceID string, origin string) string {
+	safe := SafeReturnPath(origin)
+	if safe == "" {
+		return NewTaskPath(workspaceID)
+	}
+	if workspaceID == "" {
+		return "/board/new/from/" + url.PathEscape(safe)
+	}
+	return "/board/" + workspaceID + "/new/from/" + url.PathEscape(safe)
+}
+
+// SafeReturnPath is origin when it is a local dock path ("/board/x"), and empty otherwise: a scheme, a host ("//x"), a
+// backslash or a control character never leaves the app.
+func SafeReturnPath(origin string) string {
+	if !strings.HasPrefix(origin, "/") || strings.HasPrefix(origin, "//") || strings.ContainsAny(origin, "\\") {
+		return ""
+	}
+	for _, r := range origin {
+		if r < 0x20 || r == 0x7f {
+			return ""
+		}
+	}
+	return origin
+}
+
+// ReturnPath is where the create tab goes when it ends: the screen it was opened from, else the board of the workspace.
+func ReturnPath(returnTo string, workspaceID string) string {
+	if safe := SafeReturnPath(returnTo); safe != "" {
+		return safe
+	}
+	return BoardPath(workspaceID)
+}
+
 // MemoriesPath is the address of the read-only memories page of a workspace (served by the memories module).
 func MemoriesPath(workspaceID string) string {
 	return "/workspaces/" + workspaceID + "/memories"

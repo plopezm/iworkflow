@@ -554,7 +554,7 @@ func BoardToolbar(view state.BoardView) templ.Component {
 			}
 			return nil
 		})
-		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var30), templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPathFrom(view.Choice.ID, state.BoardPath(view.Choice.ID)), Class: "btn-primary", Title: msgNewTask.T(ctx), Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var30), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -800,7 +800,7 @@ func BoardListBody(view state.BoardView) templ.Component {
 						}
 						return nil
 					})
-					templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPath(view.Choice.ID), Class: "btn-primary", Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = link.Tab(link.Props{Href: state.NewTaskPathFrom(view.Choice.ID, state.BoardPath(view.Choice.ID)), Class: "btn-primary", Role: "button"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var42), templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

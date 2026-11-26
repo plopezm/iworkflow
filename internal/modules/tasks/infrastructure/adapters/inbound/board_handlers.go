@@ -34,6 +34,9 @@ const (
 	TaskNewRouteName          = "task_new"
 	TaskNewWorkspaceRouteName = "task_new_workspace"
 	TaskNewLinkedRouteName    = "task_new_linked"
+	// The create tab opened from another screen: the origin is part of the path and the create returns there.
+	TaskNewFromRouteName          = "task_new_from"
+	TaskNewWorkspaceFromRouteName = "task_new_workspace_from"
 )
 
 // boardRefreshEvent is the htmx event the list refreshes on after a create (see BoardList).
@@ -107,7 +110,29 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 				return components.CreateTitle(ctx)
 			},
 			Render: func(ctx context.Context, _ dock.Params) templ.Component {
-				return h.createTab(ctx, "", "", "")
+				return h.createTab(ctx, "", "", "", "")
+			},
+		},
+		{
+			Name:    TaskNewFromRouteName,
+			Pattern: "/board/new/from/{origin}",
+			Icon:    "+",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return components.CreateTitle(ctx)
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return h.createTab(ctx, "", "", "", params["origin"])
+			},
+		},
+		{
+			Name:    TaskNewWorkspaceFromRouteName,
+			Pattern: "/board/{id}/new/from/{origin}",
+			Icon:    "+",
+			Title: func(ctx context.Context, _ dock.Params) string {
+				return components.CreateTitle(ctx)
+			},
+			Render: func(ctx context.Context, params dock.Params) templ.Component {
+				return h.createTab(ctx, params["id"], "", "", params["origin"])
 			},
 		},
 		{
@@ -118,7 +143,7 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 				return components.CreateTitle(ctx)
 			},
 			Render: func(ctx context.Context, params dock.Params) templ.Component {
-				return h.createTab(ctx, params["id"], "", "")
+				return h.createTab(ctx, params["id"], "", "", "")
 			},
 		},
 		{
@@ -129,7 +154,7 @@ func (h *BoardHandlers) Tabs() []dock.Route {
 				return components.CreateTitle(ctx)
 			},
 			Render: func(ctx context.Context, params dock.Params) templ.Component {
-				return h.createTab(ctx, params["id"], params["kind"], params["anchor"])
+				return h.createTab(ctx, params["id"], params["kind"], params["anchor"], "")
 			},
 		},
 		{
@@ -237,8 +262,8 @@ func (h *BoardHandlers) sidebar(w http.ResponseWriter, r *http.Request) {
 
 // createTab is the create tab, with the workspace of its address selected. A link in the address (kind and anchor)
 // makes the new task a successor of the anchor task, as the graph asks for it; a kind that is not a link is ignored.
-func (h *BoardHandlers) createTab(ctx context.Context, workspaceID string, kind string, anchor string) templ.Component {
-	input := dto.TaskForm{WorkspaceID: workspaceID, Priority: state.DefaultPriority}
+func (h *BoardHandlers) createTab(ctx context.Context, workspaceID string, kind string, anchor string, returnTo string) templ.Component {
+	input := dto.TaskForm{WorkspaceID: workspaceID, Priority: state.DefaultPriority, ReturnTo: state.SafeReturnPath(returnTo)}
 	if kind == string(state.NewTaskLinkNext) || kind == string(state.NewTaskLinkParallel) {
 		input.LinkKind = kind
 		input.LinkAnchor = anchor
@@ -275,7 +300,7 @@ func (h *BoardHandlers) createTask(w http.ResponseWriter, r *http.Request) {
 		linkErrors = append(linkErrors, linkErr.Error())
 	}
 	web.Trigger(w, boardRefreshEvent)
-	web.Render(w, r, http.StatusOK, components.TaskCreated(state.BoardPath(form.WorkspaceID), startError, linkErrors))
+	web.Render(w, r, http.StatusOK, components.TaskCreated(state.ReturnPath(form.ReturnTo, form.WorkspaceID), startError, linkErrors))
 }
 
 // createForm is the state of the create page from what the address gives. It reads nothing: the workspaces, the
@@ -303,7 +328,8 @@ func createForm(scope string, input dto.TaskForm) state.CreateForm {
 		StartNow:     input.StartNow,
 		LinkKind:     input.LinkKind,
 		LinkAnchor:   input.LinkAnchor,
-		BoardPath:    state.BoardPath(input.WorkspaceID),
+		ReturnTo:     state.SafeReturnPath(input.ReturnTo),
+		BoardPath:    state.ReturnPath(input.ReturnTo, input.WorkspaceID),
 	}
 }
 

@@ -30,7 +30,7 @@ templ DashboardBody(view state.DashboardView) {
 	<header class="row flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-4 pb-2">
 		<div class="flex w-full items-center justify-between gap-3 sm:contents">
 			<h1 class="page-title">{ msgBoard.T(ctx) }</h1>
-			@link.Tab(link.Props{Href: state.NewTaskPath(""), Class: "btn-primary !size-9 !min-h-0 !rounded-full p-0 sm:order-last", Title: msgNewTask.T(ctx), Role: "button"}) {
+			@link.Tab(link.Props{Href: state.NewTaskPathFrom("", "/"), Class: "btn-primary !size-9 !min-h-0 !rounded-full p-0 sm:order-last", Title: msgNewTask.T(ctx), Role: "button"}) {
 				<span class="text-lg leading-none" aria-hidden="true">+</span>
 				<span class="sr-only">{ msgNewTask.T(ctx) }</span>
 			}
@@ -290,7 +290,7 @@ templ DashboardProjectCard(project state.DashboardProject) {
 			@link.Tab(link.Props{Href: state.BoardPath(project.ID), Class: "min-w-0 flex-1 truncate text-sm font-semibold hover:underline", Title: project.Path}) {
 				@shared.WorkspaceName(project.Name, project.Color)
 			}
-			@link.Tab(link.Props{Href: state.NewTaskPath(project.ID), Class: "btn-ghost min-h-8 px-2 py-1 text-xs", Title: msgNewTask.T(ctx), Role: "button"}) {
+			@link.Tab(link.Props{Href: state.NewTaskPathFrom(project.ID, "/"), Class: "btn-ghost min-h-8 px-2 py-1 text-xs", Title: msgNewTask.T(ctx), Role: "button"}) {
 				<span aria-hidden="true">+</span>
 			}
 		</div>
