@@ -199,7 +199,21 @@ func TestCreateWorkspacesServeTheSelectAndTheBranchPlaceholder(t *testing.T) {
 	assert.Contains(t, html, `id="board-workspace-fields-abc123"`)
 	assert.Regexp(t, `value="w1"[^>]*selected`, html, "the workspace of the form stays selected")
 	assert.Contains(t, html, `/board/tasks/branches?`, "the branch list loads next")
-	assert.NotContains(t, html, `/board/tasks/create-workspaces`, "the loaded fields do not load again")
+	assert.NotRegexp(t, `create-workspaces[^"]*"\s+hx-trigger="load`, html, "the loaded fields do not load again")
+}
+
+func TestCreateWorkspacesRefreshWhenAWorkspaceIsRegisteredAndKeepTheCheckedProjects(t *testing.T) {
+	t.Parallel()
+
+	html := lazyGet(t, lazyTask(t), lazyWorktree{}, lazyCatalog{}, "/board/tasks/create-workspaces?scope=abc123&related_project_id=w1")
+
+	assert.Contains(t, html, `hx-get="/board/tasks/create-workspaces?scope=abc123"`)
+	assert.Contains(t, html, `startsWith('/workspaces')`, "a request to the workspaces module refreshes the fields")
+	assert.Regexp(t, `<input[^>]*value="w1"[^>]*checked`, html, "a project checked before the refresh stays checked")
+	assert.Contains(t, html, `hx-swap="morph:outerHTML"`)
+	assert.Contains(t, html, `hx-sync="this:replace"`)
+	assert.Contains(t, html, `verb == 'post'`, "only a write to the workspaces module refreshes the fields")
+	assert.Contains(t, html, `hx-disinherit="hx-swap hx-target hx-include hx-sync"`, "the branch loader inside does not inherit the sync")
 }
 
 // brokenWorkspaces fails to list the workspaces. Find fails loudly: the create-workspaces fragment must not call it.

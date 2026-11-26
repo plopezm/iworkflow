@@ -186,11 +186,11 @@ templ relatedProjectsField(view state.ConvertIssueView) {
 				<input type="search" class="input" placeholder={ msgFilterProjects.T(ctx) } aria-label={ msgFilterProjects.T(ctx) } autocomplete="off" data-related-filter/>
 				<div class="stack max-h-[50vh] overflow-y-auto" data-related-list>
 					for _, ws := range view.Preparation.Workspaces {
-						<label class="row min-h-10 items-center gap-2 text-sm text-fg" data-related-row data-related-name={ ws.Name } data-related-text={ ws.Name + " " + ws.Path }>
-							<input type="checkbox" name="related_project_id" value={ ws.ID } data-workspace-id={ ws.ID } class="h-5 w-5" checked?={ view.IsRelated(ws.ID) }/>
-							<span class="stack gap-0.5">
+						<label class="flex min-h-10 shrink-0 items-center gap-2 text-sm text-fg" data-related-row data-related-name={ ws.Name } data-related-text={ ws.Name + " " + ws.Path }>
+							<input type="checkbox" name="related_project_id" value={ ws.ID } data-workspace-id={ ws.ID } class="h-5 w-5 shrink-0" checked?={ view.IsRelated(ws.ID) }/>
+							<span class="stack min-w-0 gap-0.5">
 								<span>{ ws.Name }</span>
-								<span class="text-xs text-muted">{ ws.Path }</span>
+								<span class="break-all text-xs text-muted">{ ws.Path }</span>
 							</span>
 						</label>
 					}

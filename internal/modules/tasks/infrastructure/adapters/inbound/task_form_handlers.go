@@ -76,7 +76,7 @@ func (h *BoardHandlers) createWorkspaces(w http.ResponseWriter, r *http.Request)
 		WorkspaceID:     workspaceID,
 		BaseBranch:      query.Get("base_branch"),
 		DefaultBranch:   defaultBranchOf(workspaces, workspaceID),
-		RelatedProjects: state.RelatedProjectChoices(workspaces, workspaceID, nil),
+		RelatedProjects: state.RelatedProjectChoices(workspaces, workspaceID, query["related_project_id"]),
 	}))
 }
 

@@ -47,7 +47,7 @@ func TestRelatedProjectsFieldRendersOneCheckboxPerWorkspaceWithItsPath(t *testin
 	assert.Contains(t, input, `name="related_project_id"`)
 	assert.Contains(t, input, `value="api-id"`)
 	assert.NotContains(t, input, "checked", "an unchosen project is not checked")
-	assert.Contains(t, body, `<span class="text-xs text-muted">/repos/api</span>`, "the path is shown muted under the name")
+	assert.Contains(t, body, `<span class="break-all text-xs text-muted">/repos/api</span>`, "the path is shown muted under the name")
 }
 
 func TestRelatedProjectsFieldOffersAButtonAndAClosedDialogWithAFilter(t *testing.T) {
