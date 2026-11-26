@@ -58,6 +58,7 @@ type Module struct {
 	AddComment             *application.AddIssueComment
 	TransitionIssue        *application.TransitionIssue
 	SetIssueIgnored        *application.SetIssueIgnored
+	ReleaseTaskIssue       *application.ReleaseTaskIssue
 	PrepareConversion      *application.PrepareConversion
 	ListConversionBranches *application.ListConversionBranches
 	ConvertIssue           *application.ConvertIssue
@@ -260,6 +261,7 @@ func NewModule(deps Deps) *Module {
 		AddComment:             addComment,
 		TransitionIssue:        transitionIssue,
 		SetIssueIgnored:        setIssueIgnored,
+		ReleaseTaskIssue:       application.NewReleaseTaskIssue(issues),
 		PrepareConversion:      prepareConversion,
 		ListConversionBranches: listConversionBranches,
 		ConvertIssue:           convertIssue,

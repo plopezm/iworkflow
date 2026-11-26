@@ -100,6 +100,9 @@ type Deps struct {
 	// JiraPanel is the Jira panel of a task and whether the Jira tab is offered. Optional: nil hides the tab. The
 	// composition root implements it with the jira module, which is built after this one.
 	JiraPanel httpinbound.JiraPanels
+	// DiscardListener is told when a task is discarded. Optional: nil tells no one. The composition root implements it
+	// with the jira module, which is built after this one.
+	DiscardListener outbound.DiscardListener
 	// TaskMemory reads the recent memories of the Engram project of a task's workspace for the Memory panel of the detail
 	// page. Optional: nil shows no panel. The composition root implements it with the engram module.
 	TaskMemory outbound.TaskMemory
@@ -291,6 +294,7 @@ func NewModule(deps Deps) (*Module, error) {
 	finishTask.SetProcessCloser(processes.NewWorktreeCloser(agentLocator))
 	resetTask := application.NewResetTask(lifecycle, worktrees, agentRuntime)
 	discardTask := application.NewDiscardTask(lifecycle, worktrees, agentRuntime)
+	discardTask.SetDiscardListener(deps.DiscardListener)
 	mergeTask := application.NewMergeTask(lifecycle, worktrees, successors, deps.Remote)
 	getSubagents := application.NewGetTaskSubagents(lifecycle, agentRuntime)
 	committedDiff := application.NewGetTaskCommittedDiff(lifecycle, worktrees)

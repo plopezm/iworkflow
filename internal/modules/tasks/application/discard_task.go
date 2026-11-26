@@ -15,11 +15,17 @@ type DiscardTask struct {
 	lifecycle *TaskLifecycle
 	worktrees outbound.Worktree
 	runtime   outbound.AgentRuntime
+	listener  outbound.DiscardListener
 }
 
 // NewDiscardTask builds the use case on its ports.
 func NewDiscardTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runtime outbound.AgentRuntime) *DiscardTask {
 	return &DiscardTask{lifecycle: lifecycle, worktrees: worktrees, runtime: runtime}
+}
+
+// SetDiscardListener sets who is told when a task ends discarded. Optional: without one nothing is told.
+func (u *DiscardTask) SetDiscardListener(listener outbound.DiscardListener) {
+	u.listener = listener
 }
 
 // Execute discards the task. It fails, changing nothing, when the task is missing or its status does not allow
@@ -60,5 +66,12 @@ func (u *DiscardTask) Execute(ctx context.Context, id models.TaskID) error {
 	}
 	// The worktree and the branch are already gone: the request may be cancelled now, but the task must still be recorded
 	// as discarded, or it would keep its old status with nothing left to discard.
-	return u.lifecycle.Transition(context.WithoutCancel(ctx), id, models.StatusDiscarded, nil)
+	detached := context.WithoutCancel(ctx)
+	if err := u.lifecycle.Transition(detached, id, models.StatusDiscarded, nil); err != nil {
+		return err
+	}
+	if u.listener != nil {
+		u.listener.Discarded(detached, id)
+	}
+	return nil
 }

@@ -168,6 +168,8 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	panels := &taskPanels{}
 	// The Jira tab of a task needs the jira module, which is built after tasks: the panel is bound once it exists.
 	jiraPanel := &taskJiraPanel{}
+	// A discarded task frees its Jira issue; bound once the jira module exists, like the panel.
+	jiraRelease := &taskDiscardJiraRelease{logger: deps.Logger}
 	// The hooks module needs the agent runtime of the tasks module, so the strip is created first and bound once the
 	// hooks module exists.
 	hookStrip := NewTaskHooksStrip()
@@ -203,6 +205,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		WorkspaceFileSearch: fileSearch.WorkspaceFiles,
 		Panels:              panels,
 		JiraPanel:           jiraPanel,
+		DiscardListener:     jiraRelease,
 		TaskMemory:          taskMemory,
 		SidebarArranger:     &sidebarArranger{layouts: workspaceGroups.Arrange},
 	})
@@ -251,6 +254,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		TaskInfo:   &jiraTaskInfo{get: tasks.Get, runTime: tasks.RunTime, diff: tasks.CommittedDiff},
 	})
 	jiraPanel.inner = jiraModule
+	jiraRelease.inner = jiraModule.ReleaseTaskIssue
 
 	openWith := openwithdi.NewModule(openwithdi.Deps{
 		DB:        deps.DB,
