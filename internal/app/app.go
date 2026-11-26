@@ -214,6 +214,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 		return nil, fmt.Errorf("compose tasks: %w", err)
 	}
 	workspaceTasks.deleteAll = tasks.DeleteWorkspace
+	workspaceTasks.unfinished = tasks.WorkspaceUnfinished
 
 	// The task hooks run around the start and the finish of the task, through the lifecycle port of the tasks use
 	// cases. Their agent sessions launch through the agent runtime and the launch settings of the tasks module.
