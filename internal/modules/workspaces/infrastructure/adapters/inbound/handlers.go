@@ -3,6 +3,7 @@ package inbound
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -36,6 +37,7 @@ func NewHandlers(uc UseCases) *Handlers {
 func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/workspaces/register", h.register)
 	r.Get("/workspaces/register/dismiss", h.dismissPrompt)
+	r.Get("/workspaces/register/groups", h.registerGroups)
 	r.Post("/workspaces/{id}/update", h.update)
 	r.Post("/workspaces/{id}/delete", h.delete)
 	r.Get("/workspaces/table", h.tableBody)
@@ -58,6 +60,9 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 	outcome, err := dto.FromRegisterOutcome(workspace, err)
 	form := h.registerForm(ctx, input)
 
+	if err == nil && outcome.NeedsInitialization == nil {
+		err = h.assignGroup(ctx, workspace.ID.String(), input.GroupID)
+	}
 	switch {
 	case err != nil:
 		form.Error = err.Error()
@@ -71,11 +76,24 @@ func (h *Handlers) register(w http.ResponseWriter, r *http.Request) {
 			AgentsFileID:   deref(input.AgentsFileID),
 			DefaultRuntime: deref(input.DefaultRuntime),
 			Color:          deref(input.Color),
+			GroupID:        input.GroupID,
 		}
 		writeFragments(w, r, components.WorkspaceRegister(form))
 	default:
 		writeFragments(w, r, pages.RegisterSaved(state.ListPath))
 	}
+}
+
+// assignGroup puts the registered workspace in the chosen group. The workspace is already registered when it fails, so
+// the message says so: submitting again would only fail with a duplicated path.
+func (h *Handlers) assignGroup(ctx context.Context, workspaceID string, groupID string) error {
+	if groupID == "" || h.uc.Groups == nil {
+		return nil
+	}
+	if err := h.uc.Groups.Assign(ctx, workspaceID, groupID); err != nil {
+		return fmt.Errorf("%s: %w", components.GroupAssignFailedText(ctx), err)
+	}
+	return nil
 }
 
 // dismissPrompt removes the initialization prompt without sending anything.
@@ -220,7 +238,34 @@ func (h *Handlers) registerForm(ctx context.Context, input dto.RegisterWorkspace
 		DefaultRuntime: deref(input.DefaultRuntime),
 		Color:          deref(input.Color),
 		Runtimes:       h.runtimeOptions(ctx),
+		GroupID:        input.GroupID,
 	}
+}
+
+// registerGroups answers the group selector of the registration form. The form asks for it once it is shown, so reading
+// the groups never delays the page.
+func (h *Handlers) registerGroups(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	writeFragments(w, r, components.RegisterGroups(state.RegisterGroups{
+		Options:  h.groupOptions(ctx),
+		Selected: r.URL.Query().Get("group_id"),
+	}))
+}
+
+// groupOptions lists the groups the new workspace can be put in. Without groups the selector is not shown.
+func (h *Handlers) groupOptions(ctx context.Context) []state.GroupOption {
+	if h.uc.Groups == nil {
+		return nil
+	}
+	list, _, err := h.uc.Groups.Directory(ctx)
+	if err != nil || len(list) == 0 {
+		return nil
+	}
+	options := make([]state.GroupOption, 0, len(list))
+	for _, group := range list {
+		options = append(options, state.GroupOption{ID: group.ID, Name: group.Name})
+	}
+	return options
 }
 
 // runtimeOptions lists the agents that can be chosen as the default of a workspace.

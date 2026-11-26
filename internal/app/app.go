@@ -175,6 +175,7 @@ func New(ctx context.Context, deps Deps) (*App, error) {
 	workspaceGroups := workspacegroupsdi.NewModule(deps.DB, &workspaceGroupCatalog{list: workspaces.List})
 	workspaceGroupDirectory.assigned = workspaceGroups.Assigned
 	workspaceGroupDirectory.list = workspaces.List
+	workspaceGroupDirectory.move = workspaceGroups.Move
 	tasks, err := tasksdi.NewModule(tasksdi.Deps{
 		HookStrip:      hookStrip,
 		DB:             deps.DB,

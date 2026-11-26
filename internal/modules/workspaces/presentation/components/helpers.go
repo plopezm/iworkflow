@@ -20,6 +20,20 @@ func formOptions(options []state.AgentsOption) []shared.FormOption {
 	return converted
 }
 
+// groupFormOptions maps the groups to the options of the registration select.
+func groupFormOptions(options []state.GroupOption) []shared.FormOption {
+	converted := make([]shared.FormOption, 0, len(options))
+	for _, option := range options {
+		converted = append(converted, shared.FormOption{Value: option.ID, Label: option.Name})
+	}
+	return converted
+}
+
+// GroupAssignFailedText is the lead of the error shown when the workspace was registered but not put in its group.
+func GroupAssignFailedText(ctx context.Context) string {
+	return msgGroupAssignFailed.T(ctx)
+}
+
 // initializationMessage explains why the folder needs confirmation before it is initialized.
 func initializationMessage(ctx context.Context, prompt state.InitializationPrompt) string {
 	args := map[string]string{"path": prompt.Path}

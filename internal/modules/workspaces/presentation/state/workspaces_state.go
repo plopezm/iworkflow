@@ -88,6 +88,7 @@ type InitializationPrompt struct {
 	AgentsFileID   string
 	DefaultRuntime string
 	Color          string
+	GroupID        string
 }
 
 // ResubmitJSON encodes the values the confirm button sends, as the hx-vals attribute.
@@ -104,6 +105,9 @@ func (p InitializationPrompt) ResubmitJSON() string {
 	}
 	if p.Color != "" {
 		values["color"] = p.Color
+	}
+	if p.GroupID != "" {
+		values["group_id"] = p.GroupID
 	}
 	encoded, err := json.Marshal(values)
 	if err != nil {
@@ -125,7 +129,9 @@ type RegisterForm struct {
 	Runtimes []AgentsOption
 	// Color is the chosen palette key; empty means none.
 	Color string
-	Error string
+	// GroupID is the group chosen for the new workspace; the groups themselves load in the background (RegisterGroups).
+	GroupID string
+	Error   string
 	// Prompt is set when the server asks for confirmation before initializing a folder.
 	Prompt *InitializationPrompt
 }
@@ -158,6 +164,13 @@ type NewPage struct {
 type GroupOption struct {
 	ID   string
 	Name string
+}
+
+// RegisterGroups is the group selector of the registration form, loaded after the form is shown: the groups the new
+// workspace can be put in (empty hides the selector) and the chosen one.
+type RegisterGroups struct {
+	Options  []GroupOption
+	Selected string
 }
 
 // EditPage is the edit tab of one workspace.

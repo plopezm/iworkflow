@@ -956,6 +956,7 @@ func (c *workspaceGroupCatalog) List(ctx context.Context) ([]wginbound.Workspace
 type workspaceGroupDirectory struct {
 	assigned *wgapp.ListAssignments
 	list     *workspacesapp.ListWorkspaces
+	move     *wgapp.MoveWorkspace
 }
 
 var _ workspacesinbound.GroupDirectory = (*workspaceGroupDirectory)(nil)
@@ -986,4 +987,15 @@ func (d *workspaceGroupDirectory) Directory(ctx context.Context) ([]workspacesin
 		}
 	}
 	return groups, groupOf, nil
+}
+
+// Assign puts a workspace in a group. Before the groups module is bound it does nothing, like the directory.
+func (d *workspaceGroupDirectory) Assign(ctx context.Context, workspaceID string, groupID string) error {
+	if d.move == nil {
+		return nil
+	}
+	if err := d.move.Execute(ctx, workspaceID, groupID); err != nil {
+		return fmt.Errorf("put the workspace in its group: %w", err)
+	}
+	return nil
 }

@@ -1,6 +1,8 @@
 package components
 
 import (
+	"net/url"
+
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/modules/workspaces/presentation/state"
 )
@@ -20,6 +22,7 @@ templ WorkspaceRegister(form state.RegisterForm) {
 			</div>
 			@shared.ColorPicker(shared.ColorPickerProps{Label: msgColor.T(ctx), NoneLabel: msgNoColor.T(ctx), Name: "color", Value: form.Color})
 			@shared.TextField(shared.FieldProps{Label: msgBaseBranch.T(ctx), Name: "base_branch", Value: form.BaseBranch, Placeholder: "main"})
+			@RegisterGroupsLazy(form.GroupID)
 			if len(form.Options) > 0 {
 				@shared.SelectField(shared.SelectFieldProps{Label: msgInitialAgents.T(ctx), Name: "agents_file_id", Value: form.AgentsFileID, Placeholder: msgNoAgents.T(ctx), Options: formOptions(form.Options)})
 			}
@@ -39,6 +42,34 @@ templ WorkspaceRegister(form state.RegisterForm) {
 			@registerPrompt(*form.Prompt)
 		}
 	</div>
+}
+
+// RegisterGroupsLazy is the group selector slot: it asks for the groups once the form is shown and, meanwhile, shows
+// "loading" and keeps the chosen group in a hidden field, so a quick submit does not lose it.
+templ RegisterGroupsLazy(selected string) {
+	<div
+		id="workspace-register-groups"
+		hx-get={ "/workspaces/register/groups?group_id=" + url.QueryEscape(selected) }
+		hx-trigger="load"
+		hx-target="this"
+		hx-swap="outerHTML"
+		hx-disabled-elt="unset"
+		aria-busy="true"
+	>
+		<input type="hidden" name="group_id" value={ selected }/>
+		@shared.Loading(msgLoadingGroups.T(ctx))
+	</div>
+}
+
+// RegisterGroups is the loaded group selector. Without groups the slot stays empty and nothing is shown.
+templ RegisterGroups(groups state.RegisterGroups) {
+	if len(groups.Options) > 0 {
+		<div id="workspace-register-groups" data-register-group>
+			@shared.SelectField(shared.SelectFieldProps{Label: msgGroup.T(ctx), Name: "group_id", Value: groups.Selected, Placeholder: msgNoGroup.T(ctx), Options: groupFormOptions(groups.Options)})
+		</div>
+	} else {
+		<div id="workspace-register-groups"></div>
+	}
 }
 
 // registerPrompt asks for confirmation before the folder is initialized. Confirming sends the same

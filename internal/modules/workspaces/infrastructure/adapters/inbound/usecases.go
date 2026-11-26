@@ -20,6 +20,8 @@ type GroupInfo struct {
 type GroupDirectory interface {
 	// Directory returns every group in order, and the group id of each grouped workspace (by workspace id).
 	Directory(ctx context.Context) ([]GroupInfo, map[string]string, error)
+	// Assign puts a workspace in a group. The registration form uses it right after the workspace is created.
+	Assign(ctx context.Context, workspaceID string, groupID string) error
 }
 
 // UseCases are the use cases the adapter drives. The composition root builds them.

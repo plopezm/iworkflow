@@ -10,6 +10,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"net/url"
+
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/modules/workspaces/presentation/state"
 )
@@ -48,7 +50,7 @@ func WorkspaceRegister(form state.RegisterForm) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(msgAbsolutePath.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 15, Col: 92}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 17, Col: 92}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -69,7 +71,7 @@ func WorkspaceRegister(form state.RegisterForm) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(msgChoose.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 18, Col: 175}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 20, Col: 175}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -84,6 +86,10 @@ func WorkspaceRegister(form state.RegisterForm) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = shared.TextField(shared.FieldProps{Label: msgBaseBranch.T(ctx), Name: "base_branch", Value: form.BaseBranch, Placeholder: "main"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = RegisterGroupsLazy(form.GroupID).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -106,7 +112,7 @@ func WorkspaceRegister(form state.RegisterForm) templ.Component {
 		var templ_7745c5c3_Var4 string
 		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(msgRegister.T(ctx))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 30, Col: 66}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 33, Col: 66}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 		if templ_7745c5c3_Err != nil {
@@ -140,6 +146,108 @@ func WorkspaceRegister(form state.RegisterForm) templ.Component {
 	})
 }
 
+// RegisterGroupsLazy is the group selector slot: it asks for the groups once the form is shown and, meanwhile, shows
+// "loading" and keeps the chosen group in a hidden field, so a quick submit does not lose it.
+func RegisterGroupsLazy(selected string) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		ctx = templ.ClearChildren(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div id=\"workspace-register-groups\" hx-get=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var6 string
+		templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/workspaces/register/groups?group_id=" + url.QueryEscape(selected)).Resolve(ctx)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 52, Col: 78}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" hx-trigger=\"load\" hx-target=\"this\" hx-swap=\"outerHTML\" hx-disabled-elt=\"unset\" aria-busy=\"true\"><input type=\"hidden\" name=\"group_id\" value=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(selected).Resolve(ctx)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 59, Col: 55}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = shared.Loading(msgLoadingGroups.T(ctx)).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+// RegisterGroups is the loaded group selector. Without groups the slot stays empty and nothing is shown.
+func RegisterGroups(groups state.RegisterGroups) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		ctx = templ.ClearChildren(ctx)
+		if len(groups.Options) > 0 {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<div id=\"workspace-register-groups\" data-register-group>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = shared.SelectField(shared.SelectFieldProps{Label: msgGroup.T(ctx), Name: "group_id", Value: groups.Selected, Placeholder: msgNoGroup.T(ctx), Options: groupFormOptions(groups.Options)}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "</div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		} else {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div id=\"workspace-register-groups\"></div>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		return nil
+	})
+}
+
 // registerPrompt asks for confirmation before the folder is initialized. Confirming sends the same
 // registration again with initialize=true; cancelling removes the prompt.
 func registerPrompt(prompt state.InitializationPrompt) templ.Component {
@@ -159,7 +267,7 @@ func registerPrompt(prompt state.InitializationPrompt) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<div id=\"workspace-register-prompt\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "<div id=\"workspace-register-prompt\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -169,7 +277,7 @@ func registerPrompt(prompt state.InitializationPrompt) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "</div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -199,33 +307,33 @@ func PathInput(value string, swapOutOfBand bool) templ.Component {
 			templ_7745c5c3_ElementWriter := templ_7745c5c3_Buffer
 			templ_7745c5c3_Buffer := templ.GetBuffer()
 			var templ_7745c5c3_ElementScripts []templ.ComponentScript
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<input id=\"workspace-path\" type=\"text\" name=\"path\" class=\"input min-w-0 flex-1\" placeholder=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<input id=\"workspace-path\" type=\"text\" name=\"path\" class=\"input min-w-0 flex-1\" placeholder=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var7 string
-			templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgProjectPathPlaceholder.T(ctx)).Resolve(ctx)
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgProjectPathPlaceholder.T(ctx)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 56, Col: 127}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 87, Col: 127}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" required value=\"")
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templruntime.NewAttributeExpression(value).Resolve(ctx)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 56, Col: 152}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" required value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\"")
+			var templ_7745c5c3_Var12 string
+			templ_7745c5c3_Var12, templ_7745c5c3_Err = templruntime.NewAttributeExpression(value).Resolve(ctx)
+			if templ_7745c5c3_Err != nil {
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/workspaces/presentation/components/workspace_form.templ`, Line: 87, Col: 152}
+			}
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -243,7 +351,7 @@ func PathInput(value string, swapOutOfBand bool) templ.Component {
 			}
 			templ.ReleaseBuffer(templ_7745c5c3_Buffer)
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, ">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, ">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -269,7 +377,7 @@ func EmptyRegisterPrompt() templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<div id=\"workspace-register-prompt\"></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div id=\"workspace-register-prompt\"></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
