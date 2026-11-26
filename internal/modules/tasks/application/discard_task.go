@@ -4,10 +4,15 @@ package application
 import (
 	"context"
 	"errors"
+	"time"
 
 	"iworkflow/internal/modules/tasks/domain/models"
 	"iworkflow/internal/modules/tasks/domain/ports/outbound"
 )
+
+// listenerTimeout bounds what the discard listener may take: the task is already discarded, so a slow listener must not
+// hold the response.
+const listenerTimeout = 5 * time.Second
 
 // DiscardTask stops the agent when it is alive and removes the worktree and the branch without integrating
 // anything. The task ends in discarded.
@@ -15,11 +20,17 @@ type DiscardTask struct {
 	lifecycle *TaskLifecycle
 	worktrees outbound.Worktree
 	runtime   outbound.AgentRuntime
+	listener  outbound.DiscardListener
 }
 
 // NewDiscardTask builds the use case on its ports.
 func NewDiscardTask(lifecycle *TaskLifecycle, worktrees outbound.Worktree, runtime outbound.AgentRuntime) *DiscardTask {
 	return &DiscardTask{lifecycle: lifecycle, worktrees: worktrees, runtime: runtime}
+}
+
+// SetDiscardListener sets who is told when a task ends discarded. Optional: without one nothing is told.
+func (u *DiscardTask) SetDiscardListener(listener outbound.DiscardListener) {
+	u.listener = listener
 }
 
 // Execute discards the task. It fails, changing nothing, when the task is missing or its status does not allow
@@ -60,5 +71,14 @@ func (u *DiscardTask) Execute(ctx context.Context, id models.TaskID) error {
 	}
 	// The worktree and the branch are already gone: the request may be cancelled now, but the task must still be recorded
 	// as discarded, or it would keep its old status with nothing left to discard.
-	return u.lifecycle.Transition(context.WithoutCancel(ctx), id, models.StatusDiscarded, nil)
+	detached := context.WithoutCancel(ctx)
+	if err := u.lifecycle.Transition(detached, id, models.StatusDiscarded, nil); err != nil {
+		return err
+	}
+	if u.listener != nil {
+		bounded, cancel := context.WithTimeout(detached, listenerTimeout)
+		defer cancel()
+		u.listener.Discarded(bounded, id)
+	}
+	return nil
 }

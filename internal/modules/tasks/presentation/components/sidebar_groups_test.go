@@ -1,7 +1,6 @@
 package components_test
 
 import (
-	"html"
 	"strings"
 	"testing"
 
@@ -13,9 +12,6 @@ import (
 	"iworkflow/internal/modules/tasks/presentation/components"
 	"iworkflow/internal/modules/tasks/presentation/state"
 )
-
-// sidebarVals is an hx-vals attribute value as templ writes it: the JSON with its quotes escaped.
-func sidebarVals(json string) string { return html.EscapeString(json) }
 
 // groupedRows is an arranged sidebar: a pinned workspace, a collapsed group, one ungrouped workspace.
 func groupedRows() state.SidebarRows {

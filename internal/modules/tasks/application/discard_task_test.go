@@ -250,3 +250,34 @@ func TestDiscardTaskPublishesOneDiscardedEvent(t *testing.T) {
 	assert.Equal(t, []models.TaskEventKind{models.StatusKind(models.StatusDiscarded, nil)}, fixture.repo.events)
 	assert.Len(t, fixture.publisher.published, 1)
 }
+
+// fakeDiscardListener records the tasks it was told were discarded.
+type fakeDiscardListener struct {
+	discarded []models.TaskID
+}
+
+func (f *fakeDiscardListener) Discarded(_ context.Context, id models.TaskID) {
+	f.discarded = append(f.discarded, id)
+}
+
+func TestDiscardTaskTellsTheListenerOnceTheTaskIsDiscarded(t *testing.T) {
+	task, fixture := newDiscardFixture(models.StatusAwaitingReview)
+	listener := &fakeDiscardListener{}
+	useCase := fixture.useCase()
+	useCase.SetDiscardListener(listener)
+
+	require.NoError(t, useCase.Execute(context.Background(), task.ID))
+
+	assert.Equal(t, []models.TaskID{task.ID}, listener.discarded)
+}
+
+func TestDiscardTaskDoesNotTellTheListenerWhenTheDiscardIsRejected(t *testing.T) {
+	task, fixture := newDiscardFixture(models.StatusMerged)
+	listener := &fakeDiscardListener{}
+	useCase := fixture.useCase()
+	useCase.SetDiscardListener(listener)
+
+	require.Error(t, useCase.Execute(context.Background(), task.ID))
+
+	assert.Empty(t, listener.discarded)
+}

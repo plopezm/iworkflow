@@ -846,6 +846,39 @@ func (b *taskJiraPanel) Panel(ctx context.Context, taskID string) (bool, templ.C
 	return b.inner.TaskPanel(ctx, taskID)
 }
 
+// jiraIssueReleaser frees the Jira issue of a task.
+type jiraIssueReleaser interface {
+	Execute(ctx context.Context, taskID string) error
+}
+
+// discardReleaseAttempts is how many times the release of the Jira issue of a discarded task is tried.
+const discardReleaseAttempts = 3
+
+// taskDiscardJiraRelease frees the Jira issue of a discarded task so a new task can be created from it. The jira module
+// is built after the tasks module, so it is bound afterwards; before that nothing is released. A failure is logged: the
+// task is already discarded and the discard must not fail for it.
+type taskDiscardJiraRelease struct {
+	inner  jiraIssueReleaser
+	logger *slog.Logger
+}
+
+var _ tasksoutbound.DiscardListener = (*taskDiscardJiraRelease)(nil)
+
+// Discarded releases the issue linked to the task.
+func (b *taskDiscardJiraRelease) Discarded(ctx context.Context, id tasksmodels.TaskID) {
+	if b.inner == nil {
+		return
+	}
+	// The discard is already recorded, so a transient failure is retried a few times: nothing else would free the issue.
+	var err error
+	for range discardReleaseAttempts {
+		if err = b.inner.Execute(ctx, id.String()); err == nil {
+			return
+		}
+	}
+	b.logger.WarnContext(ctx, "release the jira issue of a discarded task", "task", id.String(), "attempts", discardReleaseAttempts, "error", err)
+}
+
 // jiraTaskInfo adapts the tasks use cases to the TaskInfo port of the jira module: the title and the state of a task,
 // its agent working time and its commits.
 type jiraTaskInfo struct {
