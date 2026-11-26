@@ -3,6 +3,7 @@ package pages
 import (
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/workspaces/presentation/components"
 	"iworkflow/internal/modules/workspaces/presentation/state"
 )
 
@@ -51,25 +52,33 @@ templ EditSaved(listHref string) {
 }
 
 // EditGroupsLazy is the group selector slot: it asks for the groups once the tab is shown and, meanwhile, shows
-// "loading", so reading the groups never delays the page.
+// "loading", so reading the groups never delays the page. When the request fails it offers a Retry instead of staying
+// busy forever (see GroupsSlotFallback).
 templ EditGroupsLazy(id string) {
 	<div
-		id="workspace-edit-groups"
+		id={ editGroupsSlotID }
 		class="mb-4"
-		hx-get={ "/workspaces/" + id + "/edit/groups" }
+		hx-get={ editGroupsURL(id) }
 		hx-trigger="load"
 		hx-target="this"
 		hx-swap="outerHTML"
 		aria-busy="true"
+		data-groups-slot
+		hx-on:htmx:send-error="this.removeAttribute('aria-busy');this.querySelector('[data-groups-loading]').hidden=true;this.querySelector('[data-groups-error]').hidden=false"
+		hx-on:htmx:before-swap="if(event.detail.xhr.status>=400){event.detail.shouldSwap=false;this.removeAttribute('aria-busy');this.querySelector('[data-groups-loading]').hidden=true;this.querySelector('[data-groups-error]').hidden=false}"
 	>
-		@shared.Loading(msgLoadingGroupsLabel.T(ctx))
+		<div data-groups-loading>
+			@shared.Loading(msgLoadingGroupsLabel.T(ctx))
+		</div>
+		@components.GroupsSlotFallback(editGroupsURL(id), editGroupsSlotID)
 	</div>
 }
 
-// EditGroups is the loaded group selector. It saves on its own when changed. Without groups the slot stays empty.
+// EditGroups is the loaded group selector. It saves on its own when changed. Without groups the slot stays empty. The
+// loaded and empty branches keep the slot id: the lazy slot was swapped out with outerHTML and later swaps target this id.
 templ EditGroups(groups state.EditGroups) {
 	if len(groups.Options) > 0 {
-		<div id="workspace-edit-groups" class="card stack gap-2 mb-4 p-5 md:p-6" data-workspace-group-select>
+		<div id={ editGroupsSlotID } class="card stack gap-2 mb-4 p-5 md:p-6" data-workspace-group-select>
 			<span class="text-sm font-medium text-fg">{ msgGroupLabel.T(ctx) }</span>
 			@shared.OptionSelect(shared.OptionSelectProps{
 				Label:        msgGroupLabel.T(ctx),
@@ -85,6 +94,6 @@ templ EditGroups(groups state.EditGroups) {
 			})
 		</div>
 	} else {
-		<div id="workspace-edit-groups"></div>
+		<div id={ editGroupsSlotID }></div>
 	}
 }

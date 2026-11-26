@@ -256,18 +256,25 @@ func (h *Handlers) registerGroups(w http.ResponseWriter, r *http.Request) {
 // editGroups answers the group selector of the edit tab. The tab asks for it once it is shown, so reading the groups
 // never delays the page.
 func (h *Handlers) editGroups(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	id := chi.URLParam(r, "id")
+	writeFragments(w, r, pages.EditGroups(h.editGroupsState(r.Context(), chi.URLParam(r, "id"))))
+}
+
+// editGroupsState lists the groups for the edit tab, with the workspace's current group selected. A directory error
+// intentionally degrades to an empty slot: the selector is optional, so the tab stays usable without it.
+func (h *Handlers) editGroupsState(ctx context.Context, id string) state.EditGroups {
 	groups := state.EditGroups{ID: id}
-	if h.uc.Groups != nil {
-		if list, groupOf, err := h.uc.Groups.Directory(ctx); err == nil {
-			for _, group := range list {
-				groups.Options = append(groups.Options, state.GroupOption{ID: group.ID, Name: group.Name})
-			}
-			groups.Selected = groupOf[id]
-		}
+	if h.uc.Groups == nil {
+		return groups
 	}
-	writeFragments(w, r, pages.EditGroups(groups))
+	list, groupOf, err := h.uc.Groups.Directory(ctx)
+	if err != nil {
+		return groups
+	}
+	for _, group := range list {
+		groups.Options = append(groups.Options, state.GroupOption{ID: group.ID, Name: group.Name})
+	}
+	groups.Selected = groupOf[id]
+	return groups
 }
 
 // groupOptions lists the groups the new workspace can be put in. Without groups the selector is not shown.

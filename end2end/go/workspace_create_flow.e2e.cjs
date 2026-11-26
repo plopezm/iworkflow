@@ -206,6 +206,74 @@ module.exports = {
       },
     },
     {
+      name: 'crear workspace: si fallan los grupos sale un error con Reintentar que los vuelve a pedir (HTTP 500)',
+      fn: async (ctx) => {
+        const { page } = ctx;
+        fs.mkdirSync(SHOTS, { recursive: true });
+        const groupName = `Grupo error ${tag}`;
+        await createGroup(ctx, groupName);
+
+        // The first groups request fails with a 500; the next one (the Retry) reaches the server.
+        let requests = 0;
+        await page.route('**/workspaces/register/groups*', (route) => {
+          requests += 1;
+          return requests === 1 ? route.fulfill({ status: 500, contentType: 'text/plain', body: 'boom' }) : route.continue();
+        });
+        await ctx.goto('/workspaces/new');
+
+        // The form is usable while the groups are in error, and the slot is no longer busy.
+        await page.getByLabel('Nombre').first().waitFor({ state: 'visible', timeout: 12000 });
+        const slot = page.locator('#workspace-register-groups');
+        await slot.getByText('No se pudieron cargar los grupos').waitFor({ state: 'visible', timeout: 8000 });
+        ctx.assert((await slot.getAttribute('aria-busy')) === null, 'el hueco deja de estar ocupado tras el error');
+        ctx.assert(!(await slot.getByText('Cargando grupos…').isVisible()), 'el texto de carga se oculta tras el error');
+        ctx.assert((await slot.locator('input[name=group_id]').count()) === 1, 'el campo group_id sigue en el hueco tras el error');
+        ctx.assert(await page.getByRole('button', { name: /Registrar|Register/ }).first().isEnabled(), 'el formulario sigue usable tras el error');
+        await page.screenshot({ path: path.join(SHOTS, 'workspace-groups-error.png'), fullPage: true });
+
+        // Retry asks for the same URL into the same slot, which then offers the selector.
+        await slot.getByRole('button', { name: 'Reintentar' }).click();
+        const select = page.locator('[data-register-group] select[name=group_id]');
+        await select.waitFor({ state: 'visible', timeout: 8000 });
+        ctx.assert((await select.locator('option', { hasText: groupName }).count()) === 1, 'Reintentar carga el selector con el grupo creado');
+        ctx.assert((await page.getByText('No se pudieron cargar los grupos').count()) === 0, 'el texto de error desaparece al cargar');
+        await page.unroute('**/workspaces/register/groups*');
+      },
+    },
+    {
+      name: 'editar workspace: si falla la red al cargar los grupos sale un error con Reintentar',
+      fn: async (ctx) => {
+        const { page } = ctx;
+        fs.mkdirSync(SHOTS, { recursive: true });
+        const groupName = `Grupo red ${tag}`;
+        await createGroup(ctx, groupName);
+        const name = `red-${tag}`;
+        const dir = gitRepo('red');
+        await register(ctx, name, dir, null);
+        await submitRegister(ctx, dir);
+        await ctx.goto('/');
+        const href = await page.locator('#board-sidebar').getByRole('link', { name }).first().getAttribute('href');
+        const wsId = href.replace('/board/', '');
+
+        // The first groups request never reaches the server (network error); the Retry gets through.
+        let requests = 0;
+        await page.route(`**/workspaces/${wsId}/edit/groups`, (route) => {
+          requests += 1;
+          return requests === 1 ? route.abort() : route.continue();
+        });
+        await ctx.goto(`/workspaces/${wsId}/edit`);
+
+        const slot = page.locator('#workspace-edit-groups');
+        await slot.getByText('No se pudieron cargar los grupos').waitFor({ state: 'visible', timeout: 8000 });
+        ctx.assert((await slot.getAttribute('aria-busy')) === null, 'el hueco deja de estar ocupado tras el error de red');
+        await slot.getByRole('button', { name: 'Reintentar' }).click();
+        const select = page.locator('[data-workspace-group-select] select');
+        await select.waitFor({ state: 'visible', timeout: 8000 });
+        ctx.assert((await select.locator('option', { hasText: groupName }).count()) === 1, 'Reintentar carga el selector de grupo de la edición');
+        await page.unroute(`**/workspaces/${wsId}/edit/groups`);
+      },
+    },
+    {
       name: 'crear tarea: vuelve a la pantalla desde la que se inició (inicio o tablero)',
       fn: async (ctx) => {
         const { page } = ctx;

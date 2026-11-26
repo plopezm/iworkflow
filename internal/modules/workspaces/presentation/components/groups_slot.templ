@@ -1,0 +1,21 @@
+package components
+
+import shared "iworkflow/internal/core/components"
+
+// GroupsSlotFallback is the error part of a lazy group slot. It stays hidden until the request fails. Retry asks for the
+// same URL into the same slot again and shows the loading text while it runs.
+//
+// The lazy slot that owns it carries the failure handlers as static attributes (templ sanitizes expressions in hx-on, so
+// they are literals there, duplicated in pages/workspace_edit_page.templ). Network errors arrive as htmx:send-error. For
+// 4xx/5xx the shell swaps the body in (responseHandling in ui.js) and htmx:responseError does not fire, so the slot
+// cancels that swap on htmx:before-swap and shows this part instead.
+templ GroupsSlotFallback(retryURL string, slotID string) {
+	<div data-groups-error hidden>
+		<div class="stack gap-2">
+			@shared.ErrorText(msgGroupsLoadFailed.T(ctx))
+			<div class="row">
+				<button type="button" class="btn-ghost" hx-get={ retryURL } hx-trigger="click" hx-target={ "#" + slotID } hx-swap="outerHTML" hx-on:click="var s=this.closest('[data-groups-slot]');s.setAttribute('aria-busy','true');s.querySelector('[data-groups-loading]').hidden=false;s.querySelector('[data-groups-error]').hidden=true">{ msgRetryGroups.T(ctx) }</button>
+			</div>
+		</div>
+	</div>
+}
