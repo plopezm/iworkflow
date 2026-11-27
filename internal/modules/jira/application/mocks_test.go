@@ -263,6 +263,7 @@ type fakeClient struct {
 	transitionFn   func(key string, transitionID string) error
 	addWorklogFn   func(key string, worklog models.Worklog) (string, error)
 	searchedJQL    []string
+	truncatedJQL   map[string]bool
 	postedComments []string
 	postedWorklogs []string
 }
@@ -285,13 +286,14 @@ func (f *fakeClient) Verify(_ context.Context, _ models.Connection) (string, err
 	return "", nil
 }
 
-func (f *fakeClient) Search(_ context.Context, _ models.Connection, jql string) ([]models.RemoteIssue, error) {
+func (f *fakeClient) Search(_ context.Context, _ models.Connection, jql string) (models.SearchResult, error) {
 	f.count("search")
 	f.searchedJQL = append(f.searchedJQL, jql)
-	if f.searchFn != nil {
-		return f.searchFn(jql)
+	if f.searchFn == nil {
+		return models.SearchResult{}, nil
 	}
-	return nil, nil
+	issues, err := f.searchFn(jql)
+	return models.SearchResult{Issues: issues, Truncated: f.truncatedJQL[jql]}, err
 }
 
 func (f *fakeClient) GetIssue(_ context.Context, _ models.Connection, key string) (models.RemoteIssue, error) {

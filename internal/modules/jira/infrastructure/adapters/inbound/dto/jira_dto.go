@@ -107,6 +107,8 @@ type SyncOutcomeDTO struct {
 	Total       int      `json:"total"`
 	Added       int      `json:"added"`
 	FailedLanes []string `json:"failed_lanes"`
+	// TruncatedLanes are the lanes with more issues in Jira than the import limit.
+	TruncatedLanes []string `json:"truncated_lanes"`
 }
 
 // CommentDTO is one comment of an issue.
@@ -295,7 +297,11 @@ func SyncOutcomeFromDomain(outcome application.SyncOutcome) SyncOutcomeDTO {
 	if failed == nil {
 		failed = []string{}
 	}
-	return SyncOutcomeDTO{Total: outcome.Total, Added: outcome.Added, FailedLanes: failed}
+	truncated := outcome.TruncatedLanes
+	if truncated == nil {
+		truncated = []string{}
+	}
+	return SyncOutcomeDTO{Total: outcome.Total, Added: outcome.Added, FailedLanes: failed, TruncatedLanes: truncated}
 }
 
 // CommentFromDomain maps a comment.

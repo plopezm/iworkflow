@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	jiraerrors "iworkflow/internal/modules/jira/domain/errors"
 	"iworkflow/internal/modules/jira/domain/models"
@@ -17,6 +18,9 @@ type SyncOutcome struct {
 	Total int
 	// Added is the number of issues that were not imported before.
 	Added int
+	// TruncatedLanes has the name of every lane that has more issues in Jira than the import limit; only the
+	// first ones were stored.
+	TruncatedLanes []string
 	// FailedLanes has one message per lane whose query failed; those lanes keep their previous issues.
 	FailedLanes []string
 }
@@ -76,14 +80,18 @@ func (u *SyncIssues) run(ctx context.Context, connection models.Connection, lane
 	var batches []models.LaneBatch
 	var failures []error
 	var failedLanes []string
+	var truncatedLanes []string
 	for _, lane := range lanes {
-		issues, err := u.client.Search(ctx, connection, lane.JQL)
+		result, err := u.client.Search(ctx, connection, lane.JQL)
 		if err != nil {
 			failedLanes = append(failedLanes, fmt.Sprintf("«%s»: %s", lane.Name, err.Error()))
 			failures = append(failures, err)
 			continue
 		}
-		batches = append(batches, models.LaneBatch{LaneID: lane.ID, Issues: issues})
+		if result.Truncated {
+			truncatedLanes = append(truncatedLanes, lane.Name)
+		}
+		batches = append(batches, models.LaneBatch{LaneID: lane.ID, Issues: result.Issues})
 	}
 	var summary *string
 	if joined := strings.Join(failedLanes, " · "); joined != "" {
@@ -104,9 +112,33 @@ func (u *SyncIssues) run(ctx context.Context, connection models.Connection, lane
 	if err != nil {
 		return SyncOutcome{}, err
 	}
+	u.refreshLeftBehind(ctx, connection, distinct, now)
 	// The issues are already stored: failing to note the sync time must not fail the sync.
 	_ = u.connections.RecordSync(ctx, now, summary)
-	return SyncOutcome{Total: len(distinct), Added: added, FailedLanes: failedLanes}, nil
+	return SyncOutcome{Total: len(distinct), Added: added, FailedLanes: failedLanes, TruncatedLanes: truncatedLanes}, nil
+}
+
+// refreshLeftBehind refreshes the issues linked to a task that no lane returned in this sync, typically because
+// they moved to Done and the lane's JQL no longer matches them; without it their status would stay frozen.
+// It is best effort: a failure keeps the stored copy and never fails the sync.
+func (u *SyncIssues) refreshLeftBehind(ctx context.Context, connection models.Connection, synced map[string]struct{}, now time.Time) {
+	known, err := u.issues.List(ctx)
+	if err != nil {
+		return
+	}
+	for _, issue := range known {
+		if issue.LocalState != models.IssueLocalStateConverted {
+			continue
+		}
+		if _, inLane := synced[issue.Key()]; inLane {
+			continue
+		}
+		remote, err := u.client.GetIssue(ctx, connection, issue.Key())
+		if err != nil {
+			continue
+		}
+		_ = u.issues.UpdateRemote(ctx, remote, now)
+	}
 }
 
 // syncLane syncs one lane and returns the text of its failure, nil when it worked.
