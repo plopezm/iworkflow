@@ -97,19 +97,20 @@ func TestTaskPanelIsALazyContainerForItsBody(t *testing.T) {
 
 func openStatus() *components.MergeRequestStatusProps {
 	return &components.MergeRequestStatusProps{
-		TaskID:          "task-1",
-		Heading:         "!7 Mi tarea",
-		Branches:        "iwf/feature → main · g/p",
-		State:           components.BadgeProps{Text: "open", Variant: "info"},
-		MergeStatus:     components.BadgeProps{Text: "can be merged", Variant: "ok"},
-		ShowMergeStatus: true,
-		OpenLabel:       "Open MR in GitLab",
-		NoPipeline:      "No CI pipeline.",
-		Open:            true,
-		ConfirmMessage:  "Merge the MR into GitLab?",
-		MergeLabel:      "Merge",
-		MergeButton:     "Merge MR",
-		PushLabel:       "Push branch",
+		TaskID:            "task-1",
+		Heading:           "!7 Mi tarea",
+		Branches:          "iwf/feature → main · g/p",
+		State:             components.BadgeProps{Text: "open", Variant: "info"},
+		MergeStatus:       components.BadgeProps{Text: "can be merged", Variant: "ok"},
+		ShowMergeStatus:   true,
+		OpenLabel:         "Open MR in GitLab",
+		NoPipeline:        "No CI pipeline.",
+		Open:              true,
+		ConfirmMessage:    "Merge the MR into GitLab?",
+		RemoveBranchLabel: "Delete source branch when merging",
+		MergeLabel:        "Merge",
+		MergeButton:       "Merge MR",
+		PushLabel:         "Push branch",
 	}
 }
 
@@ -142,6 +143,18 @@ func TestConfirmingShowsTheMergeConfirmationPanel(t *testing.T) {
 	require.Contains(t, html, `hx-post="/code-host/tasks/task-1/merge"`)
 	require.Contains(t, html, `hx-get="/code-host/tasks/task-1/merge-request"`)
 	require.NotContains(t, html, "Merge MR")
+}
+
+func TestConfirmationOffersAnUncheckedRemoveBranchCheckboxIncludedInTheMerge(t *testing.T) {
+	status := openStatus()
+	status.Confirm = true
+
+	html := render(t, components.TaskMergeRequestBody(body(status)))
+
+	require.Contains(t, html, `name="remove_source_branch"`)
+	require.NotContains(t, html, "checked")
+	require.Contains(t, html, "Delete source branch when merging")
+	require.Contains(t, html, `hx-include="#mr-remove-branch-task-1"`)
 }
 
 func TestMergedRequestOffersNoActions(t *testing.T) {

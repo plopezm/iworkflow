@@ -20,5 +20,6 @@ type CodeHostClient interface {
 	GetMergeRequest(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64) (models.MergeRequest, error)
 	// LatestPipeline returns the latest pipeline with its jobs, or nil when there is none.
 	LatestPipeline(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64) (*models.Pipeline, error)
-	MergeMergeRequest(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64) (models.MergeRequest, error)
+	// MergeMergeRequest merges the request; removeSourceBranch also deletes its source branch on the provider.
+	MergeMergeRequest(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64, removeSourceBranch bool) (models.MergeRequest, error)
 }

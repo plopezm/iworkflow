@@ -22,9 +22,9 @@ func NewMergeTaskMergeRequest(resolver *TaskProjectResolver, remote outbound.Git
 	return &MergeTaskMergeRequest{resolver: resolver, remote: remote}
 }
 
-// Execute merges the open merge request, or fails with MergeRequestNotFound when there is none.
-func (u *MergeTaskMergeRequest) Execute(ctx context.Context, taskID string) (models.MergeRequestStatus, error) {
-	status, err := u.ExecuteIfOpen(ctx, taskID)
+// Execute merges the open merge request, deleting its source branch on the provider when removeSourceBranch is set, or fails with MergeRequestNotFound when there is none.
+func (u *MergeTaskMergeRequest) Execute(ctx context.Context, taskID string, removeSourceBranch bool) (models.MergeRequestStatus, error) {
+	status, err := u.executeIfOpen(ctx, taskID, removeSourceBranch)
 	if err != nil {
 		return models.MergeRequestStatus{}, err
 	}
@@ -41,11 +41,15 @@ func (u *MergeTaskMergeRequest) Execute(ctx context.Context, taskID string) (mod
 // ExecuteIfOpen is Execute, but it returns nil and no error, without pushing or merging, when the
 // branch has no open merge request.
 func (u *MergeTaskMergeRequest) ExecuteIfOpen(ctx context.Context, taskID string) (*models.MergeRequestStatus, error) {
+	return u.executeIfOpen(ctx, taskID, false)
+}
+
+func (u *MergeTaskMergeRequest) executeIfOpen(ctx context.Context, taskID string, removeSourceBranch bool) (*models.MergeRequestStatus, error) {
 	inspected, err := u.inspect(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
-	return u.mergeInspected(ctx, inspected)
+	return u.mergeInspected(ctx, inspected, removeSourceBranch)
 }
 
 // inspectedRequest is what the provider says about the latest merge request of a task branch.
@@ -117,13 +121,13 @@ func (u *MergeTaskMergeRequest) ExecuteIfOpenOrDetectMerged(ctx context.Context,
 	if inspected.atTip || inspected.differs {
 		return nil, true, nil
 	}
-	status, err := u.mergeInspected(ctx, inspected)
+	status, err := u.mergeInspected(ctx, inspected, false)
 	return status, false, err
 }
 
 // mergeInspected pushes the pending commits and merges the open request found by inspect. It returns nil
 // and no error, without pushing or merging, when there is no open request.
-func (u *MergeTaskMergeRequest) mergeInspected(ctx context.Context, inspected inspectedRequest) (*models.MergeRequestStatus, error) {
+func (u *MergeTaskMergeRequest) mergeInspected(ctx context.Context, inspected inspectedRequest, removeSourceBranch bool) (*models.MergeRequestStatus, error) {
 	if inspected.open == nil {
 		return nil, nil
 	}
@@ -131,7 +135,7 @@ func (u *MergeTaskMergeRequest) mergeInspected(ctx context.Context, inspected in
 	if err := u.remote.PublishBranch(ctx, resolved.Source.RepoPath, branch, resolved.Settings, resolved.Project); err != nil {
 		return nil, err
 	}
-	merged, err := resolved.Client.MergeMergeRequest(ctx, resolved.Settings, resolved.Project, found.IID)
+	merged, err := resolved.Client.MergeMergeRequest(ctx, resolved.Settings, resolved.Project, found.IID, removeSourceBranch)
 	if err != nil {
 		return nil, err
 	}

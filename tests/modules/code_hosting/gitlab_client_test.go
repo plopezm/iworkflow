@@ -155,9 +155,9 @@ func TestGitLabMergePutsAndSurfacesTheProviderMessage(t *testing.T) {
 	client := newGitLabClient()
 	settings := gitLabSettings(t, provider)
 
-	_, err := client.MergeMergeRequest(context.Background(), settings, "g/p", 7)
+	_, err := client.MergeMergeRequest(context.Background(), settings, "g/p", 7, false)
 	require.NoError(t, err)
-	_, err = client.MergeMergeRequest(context.Background(), settings, "g/p", 8)
+	_, err = client.MergeMergeRequest(context.Background(), settings, "g/p", 8, false)
 
 	require.Equal(t, codeerrors.API(models.GitLab, 405, "405 Method Not Allowed"), err)
 	require.Len(t, provider.requests(), 2)
@@ -192,4 +192,22 @@ func TestGitLabRedirectToAnotherHostNeverReceivesTheToken(t *testing.T) {
 	for _, seen := range target.requests() {
 		require.Empty(t, seen.privateToken)
 	}
+}
+
+func TestGitLabMergeAsksToRemoveTheSourceBranchOnlyWhenRequested(t *testing.T) {
+	provider := newFakeProvider(t,
+		scriptedRoute{target: "PUT /api/v4/projects/g%2Fp/merge_requests/7/merge", status: 200, body: gitLabMR},
+	)
+	client := newGitLabClient()
+	settings := gitLabSettings(t, provider)
+
+	_, err := client.MergeMergeRequest(context.Background(), settings, "g/p", 7, true)
+	require.NoError(t, err)
+	_, err = client.MergeMergeRequest(context.Background(), settings, "g/p", 7, false)
+	require.NoError(t, err)
+
+	seen := provider.requests()
+	require.Len(t, seen, 2)
+	require.JSONEq(t, `{"should_remove_source_branch":true}`, seen[0].body)
+	require.Empty(t, seen[1].body)
 }

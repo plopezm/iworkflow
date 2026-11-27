@@ -146,6 +146,8 @@ module.exports = {
         // ConfirmPanel inline: el botón de confirmación también se llama "Mezclar".
         const confirm = ctx.page.locator('button.btn-primary', { hasText: /^Mezclar$/ }).first();
         await confirm.waitFor({ timeout: 8000 });
+        const removeBranch = ctx.page.getByTestId('mr-remove-branch').first();
+        ctx.assert(await removeBranch.isVisible() && !(await removeBranch.isChecked()), 'la confirmación ofrece borrar la rama, desmarcado');
         await shot(ctx, '04-confirmar-mezcla');
         await confirm.click();
         await ctx.page.getByText('mezclado', { exact: true }).first().waitFor({ timeout: 25000 });

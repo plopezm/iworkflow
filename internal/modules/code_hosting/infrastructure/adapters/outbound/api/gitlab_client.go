@@ -215,9 +215,15 @@ func (c *GitLabClient) LatestPipeline(ctx context.Context, settings models.CodeH
 	return &pipeline, nil
 }
 
-// MergeMergeRequest merges the request and returns its state after the merge.
-func (c *GitLabClient) MergeMergeRequest(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64) (models.MergeRequest, error) {
-	body, err := c.do(ctx, settings, http.MethodPut, fmt.Sprintf("/projects/%s/merge_requests/%d/merge", encodeComponent(project), iid), nil)
+// MergeMergeRequest merges the request and returns its state after the merge. removeSourceBranch asks GitLab to
+// delete the source branch with the merge (should_remove_source_branch); false sends no body, so the
+// project default applies.
+func (c *GitLabClient) MergeMergeRequest(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64, removeSourceBranch bool) (models.MergeRequest, error) {
+	var payload []byte
+	if removeSourceBranch {
+		payload = []byte(`{"should_remove_source_branch":true}`)
+	}
+	body, err := c.do(ctx, settings, http.MethodPut, fmt.Sprintf("/projects/%s/merge_requests/%d/merge", encodeComponent(project), iid), payload)
 	if err != nil {
 		return models.MergeRequest{}, err
 	}

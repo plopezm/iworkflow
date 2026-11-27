@@ -119,10 +119,12 @@ type MergeRequestStatusProps struct {
 	Open            bool
 	Confirm         bool
 	ConfirmMessage  string
-	MergeLabel      string
-	MergeButton     string
-	PushLabel       string
-	SaveHint        string
+	// RemoveBranchLabel is the checkbox that also deletes the source branch on merge.
+	RemoveBranchLabel string
+	MergeLabel        string
+	MergeButton       string
+	PushLabel         string
+	SaveHint          string
 	// Merged shows MergedNotice as a success banner.
 	Merged       bool
 	MergedNotice string

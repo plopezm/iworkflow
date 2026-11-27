@@ -44,7 +44,11 @@ func (h *Handlers) createPanel(w http.ResponseWriter, r *http.Request) {
 // mergePanel merges the open request of a task on the provider.
 func (h *Handlers) mergePanel(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "id")
-	_, err := h.mergeMergeRequest.Execute(r.Context(), taskID)
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	_, err := h.mergeMergeRequest.Execute(r.Context(), taskID, dto.RemoveSourceBranchFromForm(r.PostForm))
 	h.renderPanel(w, r, taskID, panelOutcome{err: err})
 }
 

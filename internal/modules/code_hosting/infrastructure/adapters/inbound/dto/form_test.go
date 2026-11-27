@@ -34,3 +34,8 @@ func TestCreateMergeRequestFromFormKeepsTheTitleForTheTask(t *testing.T) {
 	require.Equal(t, "task-1", input.TaskID)
 	require.Equal(t, "Mi título", input.Title)
 }
+
+func TestRemoveSourceBranchFromFormIsOnlyTrueWhenChecked(t *testing.T) {
+	require.True(t, RemoveSourceBranchFromForm(url.Values{"remove_source_branch": {"on"}}))
+	require.False(t, RemoveSourceBranchFromForm(url.Values{}))
+}

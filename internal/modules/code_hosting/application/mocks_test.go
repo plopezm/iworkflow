@@ -123,22 +123,23 @@ func (r *fakeGitRemote) EnsureCommitsAhead(_ context.Context, _ string, branch s
 
 // fakeClient is a CodeHostClient with canned answers. Branches missing from branches do not exist.
 type fakeClient struct {
-	user        string
-	userErr     error
-	userCalls   int
-	branches    map[string]bool
-	findResult  *models.MergeRequest
-	findErr     error
-	created     []models.NewMergeRequest
-	createdMR   models.MergeRequest
-	createErr   error
-	merged      []uint64
-	mergedMR    models.MergeRequest
-	mergeErr    error
-	pipeline    *models.Pipeline
-	pipelineErr error
-	pipelines   int
-	events      *[]string
+	user         string
+	userErr      error
+	userCalls    int
+	branches     map[string]bool
+	findResult   *models.MergeRequest
+	findErr      error
+	created      []models.NewMergeRequest
+	createdMR    models.MergeRequest
+	createErr    error
+	merged       []uint64
+	removeBranch []bool
+	mergedMR     models.MergeRequest
+	mergeErr     error
+	pipeline     *models.Pipeline
+	pipelineErr  error
+	pipelines    int
+	events       *[]string
 }
 
 func (c *fakeClient) CurrentUser(_ context.Context, _ models.CodeHostSettings) (string, error) {
@@ -174,7 +175,8 @@ func (c *fakeClient) LatestPipeline(_ context.Context, _ models.CodeHostSettings
 	return c.pipeline, nil
 }
 
-func (c *fakeClient) MergeMergeRequest(_ context.Context, _ models.CodeHostSettings, _ string, iid uint64) (models.MergeRequest, error) {
+func (c *fakeClient) MergeMergeRequest(_ context.Context, _ models.CodeHostSettings, _ string, iid uint64, removeSourceBranch bool) (models.MergeRequest, error) {
+	c.removeBranch = append(c.removeBranch, removeSourceBranch)
 	if c.events != nil {
 		*c.events = append(*c.events, "merge")
 	}
