@@ -13,7 +13,7 @@ type JiraClient interface {
 	// Verify checks URL and token and returns the display name of the authenticated user.
 	Verify(ctx context.Context, connection models.Connection) (string, error)
 	// Search returns the issues of one JQL query, bounded by the adapter's import limit.
-	Search(ctx context.Context, connection models.Connection, jql string) ([]models.RemoteIssue, error)
+	Search(ctx context.Context, connection models.Connection, jql string) (models.SearchResult, error)
 	GetIssue(ctx context.Context, connection models.Connection, key string) (models.RemoteIssue, error)
 	Comments(ctx context.Context, connection models.Connection, key string) ([]models.Comment, error)
 	AddComment(ctx context.Context, connection models.Connection, key string, body string) error

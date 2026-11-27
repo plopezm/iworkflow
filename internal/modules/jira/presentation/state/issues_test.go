@@ -1,6 +1,7 @@
 package state_test
 
 import (
+	"strings"
 	"testing"
 
 	"iworkflow/internal/core/i18n"
@@ -174,4 +175,15 @@ func TestLaneCountLabel(t *testing.T) {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+func TestSyncMessageWarnsWhenLanesWereTruncated(t *testing.T) {
+	outcome := dto.SyncOutcomeDTO{Total: 500, Added: 0, FailedLanes: nil, TruncatedLanes: []string{"Mine"}}
+	if msg := state.SyncMessage(outcome, i18n.En); msg != "Synced: 500 issues (nothing new). 1 lane has more issues than the import limit." {
+		t.Errorf("unexpected truncated message: %q", msg)
+	}
+	many := dto.SyncOutcomeDTO{Total: 500, Added: 0, TruncatedLanes: []string{"A", "B"}}
+	if msg := state.SyncMessage(many, i18n.Es); !strings.Contains(msg, "2 carriles") {
+		t.Errorf("unexpected plural truncated message: %q", msg)
+	}
 }

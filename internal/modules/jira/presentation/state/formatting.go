@@ -30,6 +30,20 @@ var (
 		De: "Synchronisiert: {total} Aufgaben ({added} neu).",
 		Fr: "Synchronisé : {total} tâches ({added} nouvelles).",
 	}
+	msgSyncOneLaneTruncated = i18n.Msg{
+		En: "{base} 1 lane has more issues than the import limit.",
+		Es: "{base} 1 carril tiene más tareas que el límite de importación.",
+		Zh: "{base} 有 1 个泳道的任务数超过导入上限。",
+		De: "{base} 1 Lane hat mehr Aufgaben als das Importlimit.",
+		Fr: "{base} 1 voie a plus de tâches que la limite d'import.",
+	}
+	msgSyncLanesTruncated = i18n.Msg{
+		En: "{base} {n} lanes have more issues than the import limit.",
+		Es: "{base} {n} carriles tienen más tareas que el límite de importación.",
+		Zh: "{base} 有 {n} 个泳道的任务数超过导入上限。",
+		De: "{base} {n} Lanes haben mehr Aufgaben als das Importlimit.",
+		Fr: "{base} {n} voies ont plus de tâches que la limite d'import.",
+	}
 	msgSyncOneLaneFailed = i18n.Msg{
 		En: "{base} One lane failed.",
 		Es: "{base} Un carril falló.",
@@ -110,6 +124,15 @@ func SyncMessage(outcome dto.SyncOutcomeDTO, locale i18n.Locale) string {
 	default:
 		base = strings.ReplaceAll(msgSyncWithNew.In(locale), "{total}", fmt.Sprintf("%d", outcome.Total))
 		base = strings.ReplaceAll(base, "{added}", fmt.Sprintf("%d", outcome.Added))
+	}
+
+	switch len(outcome.TruncatedLanes) {
+	case 0:
+	case 1:
+		base = strings.ReplaceAll(msgSyncOneLaneTruncated.In(locale), "{base}", base)
+	default:
+		base = strings.ReplaceAll(msgSyncLanesTruncated.In(locale), "{base}", base)
+		base = strings.ReplaceAll(base, "{n}", fmt.Sprintf("%d", len(outcome.TruncatedLanes)))
 	}
 
 	switch len(outcome.FailedLanes) {

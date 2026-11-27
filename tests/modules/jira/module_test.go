@@ -116,3 +116,33 @@ func TestModuleSettingsContentRendersTheConnectionCard(t *testing.T) {
 	require.NoError(t, component.Render(ctx, &buf))
 	assert.Contains(t, buf.String(), `id="jira-connection-card"`)
 }
+
+// TestSyncRefreshesAConvertedIssueThatLeftEveryLane covers the stale status of a linked issue: once it is Done in Jira
+// the lane's JQL no longer returns it, and the sync must still bring its new status and keep its link to the task.
+func TestSyncRefreshesAConvertedIssueThatLeftEveryLane(t *testing.T) {
+	ctx := context.Background()
+	fake := newFakeJira(t)
+	module := di.NewModule(di.Deps{DB: dbtest.New(t), Tasks: &stubTasks{}, Workspaces: stubWorkspaces{}})
+	_, err := module.SaveConnection.Execute(ctx, application.SaveConnectionInput{BaseURL: fake.url(), Token: testToken})
+	require.NoError(t, err)
+	_, err = module.SyncIssues.Execute(ctx)
+	require.NoError(t, err)
+	_, err = module.ConvertIssue.Execute(ctx, models.ConversionRequest{Key: "A-1", WorkspaceID: "w1", Title: "t", Prompt: "p"})
+	require.NoError(t, err)
+	fake.close("A-1")
+	fake.close("A-2")
+
+	_, err = module.SyncIssues.Execute(ctx)
+
+	require.NoError(t, err)
+	linked, err := module.GetIssue.Execute(ctx, "A-1")
+	require.NoError(t, err)
+	assert.Equal(t, "Done", linked.Remote.Status)
+	assert.Equal(t, models.IssueLocalStateConverted, linked.LocalState)
+	require.NotNil(t, linked.TaskID)
+	dropped, err := module.GetIssue.Execute(ctx, "A-2")
+	if err == nil {
+		t.Fatalf("a New issue that left every lane should be gone, got %+v", dropped)
+	}
+	require.ErrorIs(t, err, jiraerrors.IssueNotFound(""))
+}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,9 @@ import (
 )
 
 const testToken = "pat-123"
+
+// keyQueryServerPage is the page size of the fake server for `key in (...)` searches, smaller than a 100-key query.
+const keyQueryServerPage = 40
 
 // received is one request the fake Jira server got, with the parts the tests check.
 type received struct {
@@ -38,6 +42,23 @@ type fakeJira struct {
 	server *httptest.Server
 	mu     sync.Mutex
 	calls  []received
+	closed map[string]bool
+}
+
+// close moves the issue to Done in the fake: searches stop returning it, like the default lane's JQL does.
+func (f *fakeJira) close(key string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.closed == nil {
+		f.closed = map[string]bool{}
+	}
+	f.closed[key] = true
+}
+
+func (f *fakeJira) isClosed(key string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.closed[key]
 }
 
 func newFakeJira(t *testing.T) *fakeJira {
@@ -107,7 +128,11 @@ func (f *fakeJira) serve(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
 	case strings.HasPrefix(request.URL.Path, "/rest/api/2/issue/"):
 		key := strings.TrimPrefix(request.URL.Path, "/rest/api/2/issue/")
-		_, _ = writer.Write([]byte(issueJSON(key)))
+		body := issueJSON(key)
+		if f.isClosed(key) {
+			body = strings.Replace(body, `"To Do"`, `"Done"`, 1)
+		}
+		_, _ = writer.Write([]byte(body))
 	default:
 		writer.WriteHeader(http.StatusTeapot)
 	}
@@ -121,6 +146,23 @@ func (f *fakeJira) search(writer http.ResponseWriter, request *http.Request) {
 		_, _ = writer.Write([]byte(`{"errorMessages":["JQL inválido"]}`))
 		return
 	}
+	if strings.HasPrefix(jql, "key in (") {
+		// A key query returns the named issues whatever their status, like Jira does.
+		// It pages like a server with a small page size, whatever maxResults asks for.
+		var all []string
+		for _, match := range regexp.MustCompile(`"([A-Z0-9_]+-[0-9]+)"`).FindAllStringSubmatch(jql, -1) {
+			body := issueJSON(match[1])
+			if f.isClosed(match[1]) {
+				body = strings.Replace(body, `"To Do"`, `"Done"`, 1)
+			}
+			all = append(all, body)
+		}
+		start, _ := strconv.Atoi(request.URL.Query().Get("startAt"))
+		start = min(start, len(all))
+		page := all[start:min(start+keyQueryServerPage, len(all))]
+		_, _ = writer.Write([]byte(`{"startAt":` + strconv.Itoa(start) + `,"total":` + strconv.Itoa(len(all)) + `,"issues":[` + strings.Join(page, ",") + `]}`))
+		return
+	}
 	start := 0
 	if value := request.URL.Query().Get("startAt"); value != "" {
 		parsed, err := strconv.Atoi(value)
@@ -128,11 +170,26 @@ func (f *fakeJira) search(writer http.ResponseWriter, request *http.Request) {
 		start = parsed
 	}
 	all := []string{"A-1", "A-2", "A-3"}
+	pageLen := 2
+	if jql == "huge" {
+		all = make([]string, 650)
+		for index := range all {
+			all[index] = "H-" + strconv.Itoa(index+1)
+		}
+		pageLen = 100
+	}
+	open := all[:0:0]
+	for _, key := range all {
+		if !f.isClosed(key) {
+			open = append(open, key)
+		}
+	}
+	all = open
 	var page []string
-	for index := start; index < len(all) && len(page) < 2; index++ {
+	for index := start; index < len(all) && len(page) < pageLen; index++ {
 		page = append(page, issueJSON(all[index]))
 	}
-	_, _ = writer.Write([]byte(`{"startAt":` + strconv.Itoa(start) + `,"total":3,"issues":[` + strings.Join(page, ",") + `]}`))
+	_, _ = writer.Write([]byte(`{"startAt":` + strconv.Itoa(start) + `,"total":` + strconv.Itoa(len(all)) + `,"issues":[` + strings.Join(page, ",") + `]}`))
 }
 
 func issueJSON(key string) string {
@@ -185,9 +242,11 @@ func TestAnUnreachableServerIsARemoteError(t *testing.T) {
 func TestSearchFollowsPaginationAndSendsTheJQL(t *testing.T) {
 	fake := newFakeJira(t)
 
-	issues, err := newClient().Search(context.Background(), connectionTo(t, fake.url(), testToken), "project = X")
+	result, err := newClient().Search(context.Background(), connectionTo(t, fake.url(), testToken), "project = X")
+	issues := result.Issues
 
 	require.NoError(t, err)
+	assert.False(t, result.Truncated)
 	keys := make([]string, 0, len(issues))
 	for _, issue := range issues {
 		keys = append(keys, issue.Key)
@@ -359,4 +418,14 @@ func TestAnIssueCarriesItsEpicFromTheEpicLinkFieldOrAnEpicParent(t *testing.T) {
 	subtask, err := client.GetIssue(context.Background(), connection, "SUB-1")
 	require.NoError(t, err)
 	assert.Nil(t, subtask.EpicKey, "the parent of a sub-task is a story, not an epic")
+}
+
+func TestSearchReportsWhenTheImportLimitCutTheResults(t *testing.T) {
+	fake := newFakeJira(t)
+
+	result, err := newClient().Search(context.Background(), connectionTo(t, fake.url(), testToken), "huge")
+
+	require.NoError(t, err)
+	assert.Len(t, result.Issues, api.MaxImportedIssues)
+	assert.True(t, result.Truncated)
 }

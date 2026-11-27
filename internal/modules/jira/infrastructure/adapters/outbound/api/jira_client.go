@@ -77,10 +77,11 @@ func (c *JiraClient) Verify(ctx context.Context, connection models.Connection) (
 }
 
 // Search returns the issues of one JQL query, following the pages up to MaxImportedIssues.
-func (c *JiraClient) Search(ctx context.Context, connection models.Connection, jql string) ([]models.RemoteIssue, error) {
+func (c *JiraClient) Search(ctx context.Context, connection models.Connection, jql string) (models.SearchResult, error) {
 	epicField := c.epicField(ctx, connection)
 	var all []models.RemoteIssue
 	startAt := 0
+	more := false
 	for {
 		query := url.Values{}
 		query.Set("jql", jql)
@@ -89,26 +90,29 @@ func (c *JiraClient) Search(ctx context.Context, connection models.Connection, j
 		query.Set("maxResults", strconv.Itoa(pageSize))
 		body, err := c.send(ctx, connection, http.MethodGet, "search", query, nil, "")
 		if err != nil {
-			return nil, err
+			return models.SearchResult{}, err
 		}
 		doc, err := decodeDocument(body)
 		if err != nil {
-			return nil, err
+			return models.SearchResult{}, err
 		}
 		page, next, total, err := searchPageFromJSON(connection, c.now, epicField, doc)
 		if err != nil {
-			return nil, err
+			return models.SearchResult{}, err
 		}
 		all = append(all, page...)
-		if len(page) == 0 || next >= total || len(all) >= MaxImportedIssues {
+		more = len(page) > 0 && next < total
+		if !more || len(all) >= MaxImportedIssues {
 			break
 		}
 		startAt = next
 	}
+	truncated := more
 	if len(all) > MaxImportedIssues {
 		all = all[:MaxImportedIssues]
+		truncated = true
 	}
-	return all, nil
+	return models.SearchResult{Issues: all, Truncated: truncated}, nil
 }
 
 // GetIssue reads one issue. A key that is not a plain PROJ-123 key is refused before any request.
