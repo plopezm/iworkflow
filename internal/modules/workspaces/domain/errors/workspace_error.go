@@ -46,6 +46,7 @@ const (
 	kindPathNotSameProject
 	kindPathBlockedByTasks
 	kindWorktreeRepair
+	kindSameProjectUnconfirmed
 )
 
 // InitializationReason says why a workspace needs explicit confirmation before it is initialized.
@@ -125,6 +126,8 @@ func (e Error) Error() string {
 		return "the path cannot change while the workspace has unfinished tasks"
 	case kindWorktreeRepair:
 		return "the path was saved, but git could not repair the worktrees: " + e.detail
+	case kindSameProjectUnconfirmed:
+		return "the previous folder no longer exists, so the new folder cannot be compared; confirm it is the same project"
 	case kindRepository:
 		return "error de persistencia: " + e.detail
 	case kindInvalidRuntime:
@@ -160,6 +163,10 @@ func PathBlockedByTasks() Error { return Error{kind: kindPathBlockedByTasks} }
 
 // WorktreeRepair means the path was saved but `git worktree repair` failed. It is not a rollback.
 func WorktreeRepair(detail string) Error { return Error{kind: kindWorktreeRepair, detail: detail} }
+
+// SameProjectUnconfirmed means the old folder of the workspace no longer exists, so the new folder cannot be compared
+// with it, and the person has not confirmed that it is the same project (S4b).
+func SameProjectUnconfirmed() Error { return Error{kind: kindSameProjectUnconfirmed} }
 
 // InvalidColor means the text is not a key of the workspace palette.
 func InvalidColor(value string) Error { return Error{kind: kindInvalidColor, detail: value} }

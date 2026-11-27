@@ -143,16 +143,54 @@ func TestUpdateWorkspaceMovesThePathToTheSameProjectAndSavesIt(t *testing.T) {
 	assert.Empty(t, f.git.repaired, "without linked worktrees there is nothing to repair")
 }
 
-func TestUpdateWorkspaceAcceptsAMovedFolderWhenTheOldOneIsGone(t *testing.T) {
+func TestUpdateWorkspaceAcceptsAMovedFolderWhenTheOldOneIsGoneOnceConfirmed(t *testing.T) {
 	f := newPathFixture(t)
-	// The old folder no longer exists, so its root commits cannot be read. This is a deliberate decision: the
-	// new path is accepted on the strength of the repository check alone (see UpdateWorkspace.checkSameProject).
+	// The old folder no longer exists, so its root commits cannot be read: the person must confirm that the new
+	// folder is the same project (S4b). With the confirmation the new path is accepted on the repository check alone.
 	delete(f.git.roots, repoRoot)
 
-	updated, err := f.useCase.Execute(context.Background(), f.existing.ID, models.WorkspaceUpdate{Name: "Demo", Path: relocatedRoot})
+	updated, err := f.useCase.Execute(context.Background(), f.existing.ID, models.WorkspaceUpdate{
+		Name: "Demo", Path: relocatedRoot, ConfirmSameProject: true,
+	})
 
 	require.NoError(t, err)
 	assert.Equal(t, relocatedRoot, updated.Path)
+	assert.Equal(t, []models.Workspace{updated}, f.repository.updated)
+}
+
+func TestUpdateWorkspaceRejectsAMovedFolderWithoutTheSameProjectConfirmation(t *testing.T) {
+	f := newPathFixture(t)
+	delete(f.git.roots, repoRoot)
+
+	_, err := f.useCase.Execute(context.Background(), f.existing.ID, models.WorkspaceUpdate{Name: "Demo", Path: relocatedRoot})
+
+	require.ErrorIs(t, err, werrors.SameProjectUnconfirmed())
+	assert.Equal(t, "the previous folder no longer exists, so the new folder cannot be compared; confirm it is the same project", err.Error())
+	assert.Empty(t, f.repository.updated, "an unconfirmed move saves nothing")
+	assert.Empty(t, f.git.repaired)
+	assert.Equal(t, repoRoot, f.repository.items[0].Path, "the stored path is unchanged")
+}
+
+func TestUpdateWorkspaceIgnoresTheSameProjectConfirmationWhenTheOldFolderExists(t *testing.T) {
+	t.Run("same project is accepted without asking", func(t *testing.T) {
+		f := newPathFixture(t)
+
+		updated, err := f.useCase.Execute(context.Background(), f.existing.ID, models.WorkspaceUpdate{Name: "Demo", Path: relocatedRoot})
+
+		require.NoError(t, err)
+		assert.Equal(t, relocatedRoot, updated.Path)
+	})
+	t.Run("another project is rejected even when confirmed", func(t *testing.T) {
+		f := newPathFixture(t)
+		f.git.roots[relocatedRoot] = []string{"other"}
+
+		_, err := f.useCase.Execute(context.Background(), f.existing.ID, models.WorkspaceUpdate{
+			Name: "Demo", Path: relocatedRoot, ConfirmSameProject: true,
+		})
+
+		require.ErrorIs(t, err, werrors.PathNotSameProject(relocatedRoot))
+		assert.Empty(t, f.repository.updated)
+	})
 }
 
 func TestUpdateWorkspaceSamePathSkipsThePathChecks(t *testing.T) {

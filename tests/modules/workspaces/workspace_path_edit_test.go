@@ -43,13 +43,31 @@ func TestPathEditFollowsAMovedFolderOfTheSameRepository(t *testing.T) {
 	moved := filepath.Join(t.TempDir(), "moved-repo")
 	require.NoError(t, os.Rename(repo, moved))
 
-	updated, err := module.Update.Execute(ctx, registered.ID, models.WorkspaceUpdate{Name: "Demo", Path: moved})
+	updated, err := module.Update.Execute(ctx, registered.ID, models.WorkspaceUpdate{Name: "Demo", Path: moved, ConfirmSameProject: true})
 
 	require.NoError(t, err)
 	assert.Equal(t, evalSymlinks(t, moved), updated.Path)
 	fetched, err := module.Get.Execute(ctx, registered.ID)
 	require.NoError(t, err)
 	assert.Equal(t, evalSymlinks(t, moved), fetched.Path, "the new path is stored")
+}
+
+func TestPathEditAsksForTheSameProjectConfirmationWhenTheOldFolderIsGone(t *testing.T) {
+	ctx := context.Background()
+	repo := newGitRepo(t)
+	module := newPathEditModule(t, noTasks{})
+	registered, err := module.Register.Execute(ctx, models.NewWorkspace{Name: "Demo", Path: repo})
+	require.NoError(t, err)
+	moved := filepath.Join(t.TempDir(), "moved-repo")
+	require.NoError(t, os.Rename(repo, moved))
+
+	_, err = module.Update.Execute(ctx, registered.ID, models.WorkspaceUpdate{Name: "Renamed", Path: moved})
+
+	require.ErrorIs(t, err, werrors.SameProjectUnconfirmed())
+	fetched, err := module.Get.Execute(ctx, registered.ID)
+	require.NoError(t, err)
+	assert.Equal(t, registered.Path, fetched.Path, "the stored path is unchanged")
+	assert.Equal(t, "Demo", fetched.Name, "the rejected move does not rename the workspace")
 }
 
 func TestPathEditRejectsAnotherProjectAndKeepsTheStoredPath(t *testing.T) {

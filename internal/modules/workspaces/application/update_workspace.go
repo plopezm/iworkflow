@@ -67,7 +67,7 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 	pathChanged := validated.Path != "" && validated.Path != current.Path
 	root := current.Path
 	if pathChanged {
-		if err := u.checkPathChange(ctx, *current, validated.Path); err != nil {
+		if err := u.checkPathChange(ctx, *current, validated.Path, validated.ConfirmSameProject); err != nil {
 			return models.Workspace{}, err
 		}
 		root = validated.Path
@@ -134,9 +134,10 @@ func (u *UpdateWorkspace) Execute(ctx context.Context, id models.WorkspaceID, in
 //  1. The path is absolute (checked by WorkspaceUpdate.Validated before this method runs).
 //  2. The workspace has no unfinished task: a task that is not merged or discarded, backlog included.
 //  3. The new folder exists and is the root of a git repository, not a subfolder of one.
-//  4. The new repository shares a root commit with the old one, so the path does not point at another project.
+//  4. The new repository shares a root commit with the old one, so the path does not point at another project. When
+//     the old folder is gone this cannot be checked, and the person must confirm the same project (S4b).
 //  5. No other workspace uses the new path.
-func (u *UpdateWorkspace) checkPathChange(ctx context.Context, current models.Workspace, newPath string) error {
+func (u *UpdateWorkspace) checkPathChange(ctx context.Context, current models.Workspace, newPath string, confirmSameProject bool) error {
 	blocked, err := u.tasks.HasBlocking(ctx, current.ID)
 	if err != nil {
 		return err
@@ -153,7 +154,7 @@ func (u *UpdateWorkspace) checkPathChange(ctx context.Context, current models.Wo
 		return werrors.PathNotRepositoryRoot(newPath)
 	}
 
-	if err := u.checkSameProject(ctx, current.Path, newPath); err != nil {
+	if err := u.checkSameProject(ctx, current.Path, newPath, confirmSameProject); err != nil {
 		return err
 	}
 
@@ -169,14 +170,15 @@ func (u *UpdateWorkspace) checkPathChange(ctx context.Context, current models.Wo
 
 // checkSameProject requires the old and the new repository to share a root commit (S4). When the old folder no
 // longer exists, which is the usual reason to edit the path (the folder was moved), its root commits cannot be
-// read and the check is skipped: the new path is then accepted on the repository check alone.
-//
-// DECISION TO REVIEW: the workspace does not record a root commit, so when the old folder is gone nothing can be
-// compared. In that case any repository at the new path is accepted, including another project, as long as it
-// is a repository root that no other workspace uses.
-func (u *UpdateWorkspace) checkSameProject(ctx context.Context, oldPath string, newPath string) error {
+// read: the workspace does not record one, so nothing can be compared. Then the new path is accepted only when the
+// person confirmed that it is the same project (S4b); otherwise it is rejected and nothing is saved. The flag is
+// ignored when the old folder exists.
+func (u *UpdateWorkspace) checkSameProject(ctx context.Context, oldPath string, newPath string, confirmed bool) error {
 	oldRoots, err := u.git.RootCommits(ctx, oldPath)
 	if errors.Is(err, werrors.PathNotFound("")) {
+		if !confirmed {
+			return werrors.SameProjectUnconfirmed()
+		}
 		return nil
 	}
 	if err != nil {

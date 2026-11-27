@@ -149,6 +149,9 @@ type WorkspaceUpdate struct {
 	// Path is the new repository root. Empty keeps the saved one. A changed path is checked by the use case,
 	// which needs the infrastructure, so only its absoluteness is checked here.
 	Path string
+	// ConfirmSameProject is the person's confirmation that the new path is the same project. It is only read when
+	// the old folder no longer exists, because then its root commits cannot be compared (S4b). Default false.
+	ConfirmSameProject bool
 	// BaseBranch empty keeps the current base branch.
 	BaseBranch string
 	// AgentsFileID is the stored AGENTS.md that replaces the project one. Empty keeps it.
@@ -188,12 +191,13 @@ func (u WorkspaceUpdate) Validated() (WorkspaceUpdate, error) {
 		path = filepath.Clean(path)
 	}
 	return WorkspaceUpdate{
-		Color:          color,
-		Name:           name,
-		Path:           path,
-		BaseBranch:     strings.TrimSpace(u.BaseBranch),
-		AgentsFileID:   strings.TrimSpace(u.AgentsFileID),
-		DefaultRuntime: defaultRuntime,
+		Color:              color,
+		Name:               name,
+		Path:               path,
+		ConfirmSameProject: u.ConfirmSameProject,
+		BaseBranch:         strings.TrimSpace(u.BaseBranch),
+		AgentsFileID:       strings.TrimSpace(u.AgentsFileID),
+		DefaultRuntime:     defaultRuntime,
 	}, nil
 }
 
