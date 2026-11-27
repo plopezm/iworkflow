@@ -131,3 +131,45 @@ func runSucceeds(ctx context.Context, dir string, args ...string) (bool, error) 
 	}
 	return output.Success, nil
 }
+
+// RootCommits lists the parentless commits reachable from HEAD. An unborn HEAD has none. It fails with the
+// errors of Inspect when the folder is missing or is not in a repository.
+func (a *RepositoryAdapter) RootCommits(ctx context.Context, path string) ([]string, error) {
+	info, err := a.Inspect(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.HasCommits {
+		return nil, nil
+	}
+	output, err := gitx.Run(ctx, info.Root, "rev-list", "--max-parents=0", "HEAD")
+	if err != nil {
+		return nil, werrors.Git(err.Error())
+	}
+	return strings.Fields(output), nil
+}
+
+// HasLinkedWorktrees reports whether the repository has worktrees besides the main one. The main worktree is
+// always the first one listed by `git worktree list`.
+func (a *RepositoryAdapter) HasLinkedWorktrees(ctx context.Context, root string) (bool, error) {
+	output, err := gitx.Run(ctx, root, "worktree", "list", "--porcelain")
+	if err != nil {
+		return false, werrors.Git(err.Error())
+	}
+	count := 0
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "worktree ") {
+			count++
+		}
+	}
+	return count > 1, nil
+}
+
+// RepairWorktrees runs `git worktree repair` from the repository, which reconnects the linked worktrees that
+// were left behind when the repository folder moved.
+func (a *RepositoryAdapter) RepairWorktrees(ctx context.Context, root string) error {
+	if _, err := gitx.Run(ctx, root, "worktree", "repair"); err != nil {
+		return werrors.Git(err.Error())
+	}
+	return nil
+}

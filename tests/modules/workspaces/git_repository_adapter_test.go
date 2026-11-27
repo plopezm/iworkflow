@@ -3,6 +3,7 @@ package workspaces_test
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -144,4 +145,109 @@ func TestGitInspectReportsGitFailuresThatAreNotNotARepositoryAsGitErrors(t *test
 
 	require.ErrorIs(t, err, werrors.Git(""))
 	assert.NotErrorIs(t, err, werrors.NotAGitRepository(""))
+}
+
+func TestGitRootCommitsListsTheFirstCommitOfTheRepository(t *testing.T) {
+	root := newGitRepo(t)
+	first := strings.TrimSpace(runGit(t, root, "rev-list", "--max-parents=0", "HEAD"))
+
+	roots, err := git.NewRepositoryAdapter().RootCommits(context.Background(), root)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{first}, roots)
+}
+
+func TestGitRootCommitsIsEmptyForAnUnbornRepository(t *testing.T) {
+	dir := t.TempDir()
+	runGit(t, dir, "init", "-q", "-b", "main")
+
+	roots, err := git.NewRepositoryAdapter().RootCommits(context.Background(), dir)
+
+	require.NoError(t, err)
+	assert.Empty(t, roots)
+}
+
+func TestGitRootCommitsDifferBetweenUnrelatedRepositories(t *testing.T) {
+	first := newGitRepo(t)
+	// A second repository with a different first commit: two commits made in the same second with the same
+	// content would be identical, which would make the two repositories look like one project.
+	second := t.TempDir()
+	runGit(t, second, "init", "-q", "-b", "main")
+	runGit(t, second, "config", "user.email", "test@example.com")
+	runGit(t, second, "config", "user.name", "Test")
+	runGit(t, second, "commit", "-q", "--allow-empty", "-m", "unrelated project")
+	adapter := git.NewRepositoryAdapter()
+
+	firstRoots, err := adapter.RootCommits(context.Background(), first)
+	require.NoError(t, err)
+	secondRoots, err := adapter.RootCommits(context.Background(), second)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, firstRoots, secondRoots)
+}
+
+func TestGitRootCommitsReportsAMissingFolderAndAPlainFolder(t *testing.T) {
+	dir := t.TempDir()
+	adapter := git.NewRepositoryAdapter()
+
+	_, missingErr := adapter.RootCommits(context.Background(), filepath.Join(dir, "nope"))
+	_, plainErr := adapter.RootCommits(context.Background(), dir)
+
+	require.ErrorIs(t, missingErr, werrors.PathNotFound(""))
+	require.ErrorIs(t, plainErr, werrors.NotAGitRepository(""))
+}
+
+func TestGitRootCommitsSurviveAMovedFolder(t *testing.T) {
+	root := newGitRepo(t)
+	adapter := git.NewRepositoryAdapter()
+	before, err := adapter.RootCommits(context.Background(), root)
+	require.NoError(t, err)
+	moved := filepath.Join(t.TempDir(), "moved-repo")
+	require.NoError(t, os.Rename(root, moved))
+
+	after, err := adapter.RootCommits(context.Background(), moved)
+
+	require.NoError(t, err)
+	assert.Equal(t, before, after)
+}
+
+func TestGitHasLinkedWorktreesCountsOnlyWorktreesBesidesTheMainOne(t *testing.T) {
+	root := newGitRepo(t)
+	adapter := git.NewRepositoryAdapter()
+
+	without, err := adapter.HasLinkedWorktrees(context.Background(), root)
+	require.NoError(t, err)
+	runGit(t, root, "worktree", "add", "-q", "-b", "task", filepath.Join(t.TempDir(), "task-wt"))
+	with, err := adapter.HasLinkedWorktrees(context.Background(), root)
+	require.NoError(t, err)
+
+	assert.False(t, without)
+	assert.True(t, with)
+}
+
+// A linked worktree lives outside the moved repository. Once the repository moves, git no longer finds the
+// worktree; RepairWorktrees, run from the new root, reconnects it. This is the S5 safety net.
+func TestGitRepairWorktreesReconnectsALinkedWorktreeAfterTheRepositoryMoved(t *testing.T) {
+	ctx := context.Background()
+	root := newGitRepo(t)
+	worktree := filepath.Join(t.TempDir(), "task-wt")
+	runGit(t, root, "worktree", "add", "-q", "-b", "task", worktree)
+	moved := filepath.Join(t.TempDir(), "moved-repo")
+	require.NoError(t, os.Rename(root, moved))
+	adapter := git.NewRepositoryAdapter()
+	require.Error(t, runGitError(worktree, "rev-parse", "--show-toplevel"), "the worktree is broken before the repair")
+
+	require.NoError(t, adapter.RepairWorktrees(ctx, moved))
+
+	info, err := adapter.Inspect(ctx, worktree)
+	require.NoError(t, err)
+	assert.Equal(t, evalSymlinks(t, worktree), info.Root)
+	list := runGit(t, moved, "worktree", "list", "--porcelain")
+	assert.Contains(t, list, evalSymlinks(t, worktree))
+	assert.NotContains(t, list, "prunable")
+}
+
+// runGitError runs git in dir and returns its error, nil when it succeeds. Unlike runGit it does not stop the test.
+func runGitError(dir string, args ...string) error {
+	return exec.Command("git", append([]string{"-C", dir}, args...)...).Run()
 }

@@ -19,7 +19,7 @@ func updateFixture(t *testing.T) (models.Workspace, *fakeRepository, *fakeGit, *
 	repository := newFakeRepository(existing)
 	git := newFakeGit()
 	agentsFiles := &fakeAgentsFiles{}
-	useCase := application.NewUpdateWorkspace(repository, git, agentsFiles, &fakeRuntimes{installed: []string{"gentle-shell", "pi"}})
+	useCase := application.NewUpdateWorkspace(repository, git, agentsFiles, &fakeRuntimes{installed: []string{"gentle-shell", "pi"}}, &fakeWorkspaceTasks{})
 	return existing, repository, git, agentsFiles, useCase
 }
 
@@ -196,7 +196,7 @@ func TestUpdateWorkspaceOmittedDefaultAgentKeepsTheSavedOne(t *testing.T) {
 	existing.DefaultRuntime = stringPtr("pi")
 	repository := newFakeRepository(existing)
 	// No agent is installed: an absent default agent is not validated, so the saved one is kept.
-	useCase := application.NewUpdateWorkspace(repository, newFakeGit(), &fakeAgentsFiles{}, &fakeRuntimes{})
+	useCase := application.NewUpdateWorkspace(repository, newFakeGit(), &fakeAgentsFiles{}, &fakeRuntimes{}, &fakeWorkspaceTasks{})
 
 	updated, err := useCase.Execute(context.Background(), existing.ID, models.WorkspaceUpdate{Name: "Nuevo"})
 

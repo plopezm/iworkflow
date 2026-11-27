@@ -126,6 +126,8 @@ type Module struct {
 	AnswerDialog        *application.AnswerDialog
 	GetSubagents        *application.GetTaskSubagents
 	DeleteWorkspace     *application.DeleteWorkspaceTasks
+	// WorkspaceUnfinished tells whether a workspace has tasks that are neither merged nor discarded.
+	WorkspaceUnfinished *application.WorkspaceUnfinishedTasks
 	AgentEvents         *application.HandleAgentEvent
 	Lifecycle           *application.TaskLifecycle
 	// The agent life cycle of a task: start, messages, mode, abort and the terminal actions. Finish, reset and
@@ -373,6 +375,7 @@ func NewModule(deps Deps) (*Module, error) {
 		RunTime:             application.NewGetTaskRunTime(repository, clock),
 		CommittedDiff:       committedDiff,
 		DeleteWorkspace:     application.NewDeleteWorkspaceTasks(lifecycle, worktrees, attachmentStorage),
+		WorkspaceUnfinished: application.NewWorkspaceUnfinishedTasks(repository),
 		Start:               start,
 		Send:                send,
 		SetAgentMode:        setAgentMode,

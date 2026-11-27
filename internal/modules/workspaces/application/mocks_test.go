@@ -62,8 +62,10 @@ func (r *fakeRepository) Update(_ context.Context, workspace models.Workspace) e
 	for index, item := range r.items {
 		if item.ID == workspace.ID {
 			r.items[index].Name = workspace.Name
+			r.items[index].Path = workspace.Path
 			r.items[index].BaseBranch = workspace.BaseBranch
 			r.items[index].DefaultRuntime = workspace.DefaultRuntime
+			r.items[index].Color = workspace.Color
 			return nil
 		}
 	}
@@ -123,6 +125,15 @@ type fakeGit struct {
 	inits        []string
 	initBranches []string
 	commits      []string
+	// roots maps a repository root to its root commits; a repository missing from it has none.
+	roots    map[string][]string
+	rootsErr error
+	// linked is the set of roots that have linked worktrees.
+	linked     map[string]bool
+	linkedErr  error
+	repairErr  error
+	repaired   []string
+	repairHook func()
 }
 
 func newFakeGit() *fakeGit {
@@ -130,7 +141,37 @@ func newFakeGit() *fakeGit {
 		repos:        map[string]models.GitRepositoryInfo{},
 		plainFolders: map[string]bool{},
 		branches:     map[string]bool{},
+		roots:        map[string][]string{},
+		linked:       map[string]bool{},
 	}
+}
+
+func (g *fakeGit) RootCommits(_ context.Context, root string) ([]string, error) {
+	if g.rootsErr != nil {
+		return nil, g.rootsErr
+	}
+	if commits, ok := g.roots[root]; ok {
+		return commits, nil
+	}
+	if _, ok := g.repos[root]; ok {
+		return nil, nil
+	}
+	if g.plainFolders[root] {
+		return nil, werrors.NotAGitRepository(root)
+	}
+	return nil, werrors.PathNotFound(root)
+}
+
+func (g *fakeGit) HasLinkedWorktrees(_ context.Context, root string) (bool, error) {
+	return g.linked[root], g.linkedErr
+}
+
+func (g *fakeGit) RepairWorktrees(_ context.Context, root string) error {
+	g.repaired = append(g.repaired, root)
+	if g.repairHook != nil {
+		g.repairHook()
+	}
+	return g.repairErr
 }
 
 func (g *fakeGit) Inspect(_ context.Context, path string) (models.GitRepositoryInfo, error) {
@@ -236,15 +277,21 @@ type fakeRuntimes struct {
 
 func (r *fakeRuntimes) Installed(_ context.Context) []string { return r.installed }
 
-// fakeWorkspaceTasks records the workspaces whose tasks were deleted.
+// fakeWorkspaceTasks records the workspaces whose tasks were deleted and answers HasBlocking with blocking.
 type fakeWorkspaceTasks struct {
-	err     error
-	deleted []models.WorkspaceID
+	err         error
+	deleted     []models.WorkspaceID
+	blocking    bool
+	blockingErr error
 }
 
 func (t *fakeWorkspaceTasks) DeleteAll(_ context.Context, id models.WorkspaceID) error {
 	t.deleted = append(t.deleted, id)
 	return t.err
+}
+
+func (t *fakeWorkspaceTasks) HasBlocking(_ context.Context, _ models.WorkspaceID) (bool, error) {
+	return t.blocking, t.blockingErr
 }
 
 // workspaceAt builds a stored workspace whose path is the given root.

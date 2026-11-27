@@ -173,17 +173,47 @@ type RegisterGroups struct {
 	Selected string
 }
 
+// EditGroups is the group selector of the edit tab, loaded in the background: the groups the workspace can be put in
+// (empty hides the selector) and the one it is in.
+type EditGroups struct {
+	ID       string
+	Options  []GroupOption
+	Selected string
+}
+
+// Rules of a rejected path change. Each one names the rule of the domain that failed, so the screen shows its exact
+// reason in the request language.
+const (
+	RulePathBlocked            = "path_blocked"
+	RulePathNotAbsolute        = "path_not_absolute"
+	RulePathNotFound           = "path_not_found"
+	RuleNotAGitRepository      = "not_a_git_repository"
+	RulePathNotRepositoryRoot  = "path_not_repository_root"
+	RulePathNotSameProject     = "path_not_same_project"
+	RulePathAlreadyRegistered  = "path_already_registered"
+	RuleSameProjectUnconfirmed = "same_project_unconfirmed"
+	RuleWorktreeRepair         = "worktree_repair"
+)
+
+// EditFailure is why the edit was rejected, or saved with a notice. Rule is empty for any other error, whose Message is
+// shown as it is. Detail is the path or the git output that the rule names.
+type EditFailure struct {
+	Rule    string
+	Detail  string
+	Message string
+}
+
 // EditPage is the edit tab of one workspace.
 type EditPage struct {
-	ID string
-	// GroupOptions are the groups the workspace can be put in; empty hides the selector. GroupID is the current one.
-	GroupOptions []GroupOption
-	GroupID      string
-	Name         string
-	Path         string
-	BaseBranch   string
-	AgentsFileID string
-	Options      []AgentsOption
+	ID   string
+	Name string
+	Path string
+	// PathLocked disables the path field; PathLockReason is the exact reason shown under it (S2, S6).
+	PathLocked     bool
+	PathLockReason string
+	BaseBranch     string
+	AgentsFileID   string
+	Options        []AgentsOption
 	// DefaultRuntime is the saved default agent; empty is the system agent, which is also what a saved
 	// agent that no longer exists shows.
 	DefaultRuntime string

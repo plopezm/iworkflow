@@ -1,8 +1,6 @@
 package components
 
 import (
-	"net/url"
-
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/modules/workspaces/presentation/state"
 )
@@ -45,30 +43,38 @@ templ WorkspaceRegister(form state.RegisterForm) {
 }
 
 // RegisterGroupsLazy is the group selector slot: it asks for the groups once the form is shown and, meanwhile, shows
-// "loading" and keeps the chosen group in a hidden field, so a quick submit does not lose it.
+// "loading" and keeps the chosen group in a hidden field, so a quick submit does not lose it. When the request fails it
+// offers a Retry (see GroupsSlotFallback); the hidden field stays in the slot either way.
 templ RegisterGroupsLazy(selected string) {
 	<div
-		id="workspace-register-groups"
-		hx-get={ "/workspaces/register/groups?group_id=" + url.QueryEscape(selected) }
+		id={ registerGroupsSlotID }
+		hx-get={ registerGroupsURL(selected) }
 		hx-trigger="load"
 		hx-target="this"
 		hx-swap="outerHTML"
 		hx-disabled-elt="unset"
 		aria-busy="true"
+		data-groups-slot
+		hx-on:htmx:send-error="this.removeAttribute('aria-busy');this.querySelector('[data-groups-loading]').hidden=true;this.querySelector('[data-groups-error]').hidden=false"
+		hx-on:htmx:before-swap="if(event.detail.xhr.status>=400){event.detail.shouldSwap=false;this.removeAttribute('aria-busy');this.querySelector('[data-groups-loading]').hidden=true;this.querySelector('[data-groups-error]').hidden=false}"
 	>
 		<input type="hidden" name="group_id" value={ selected }/>
-		@shared.Loading(msgLoadingGroups.T(ctx))
+		<div data-groups-loading>
+			@shared.Loading(msgLoadingGroups.T(ctx))
+		</div>
+		@GroupsSlotFallback(registerGroupsURL(selected), registerGroupsSlotID)
 	</div>
 }
 
-// RegisterGroups is the loaded group selector. Without groups the slot stays empty and nothing is shown.
+// RegisterGroups is the loaded group selector. Without groups the slot stays empty and nothing is shown. The loaded and
+// empty branches keep the slot id: the lazy slot was swapped out with outerHTML and later swaps still target this id.
 templ RegisterGroups(groups state.RegisterGroups) {
 	if len(groups.Options) > 0 {
-		<div id="workspace-register-groups" data-register-group>
+		<div id={ registerGroupsSlotID } data-register-group>
 			@shared.SelectField(shared.SelectFieldProps{Label: msgGroup.T(ctx), Name: "group_id", Value: groups.Selected, Placeholder: msgNoGroup.T(ctx), Options: groupFormOptions(groups.Options)})
 		</div>
 	} else {
-		<div id="workspace-register-groups"></div>
+		<div id={ registerGroupsSlotID }></div>
 	}
 }
 

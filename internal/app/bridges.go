@@ -287,7 +287,8 @@ func (b *workspaceRuntimes) Installed(ctx context.Context) []string {
 // workspaceTasksBridge gives the workspaces module the cascade that deletes the tasks of a workspace. The tasks
 // module is built after the workspaces one, so the cascade is bound once it exists (see New).
 type workspaceTasksBridge struct {
-	deleteAll *tasksapp.DeleteWorkspaceTasks
+	deleteAll  *tasksapp.DeleteWorkspaceTasks
+	unfinished *tasksapp.WorkspaceUnfinishedTasks
 }
 
 var _ workspacesoutbound.WorkspaceTasks = (*workspaceTasksBridge)(nil)
@@ -303,6 +304,16 @@ func (b *workspaceTasksBridge) DeleteAll(ctx context.Context, id workspacesmodel
 	default:
 		return workspaceserrors.Repository(err.Error())
 	}
+}
+
+// HasBlocking reports whether the workspace has unfinished tasks: a task that is neither merged nor discarded
+// blocks a change of the workspace path, backlog included.
+func (b *workspaceTasksBridge) HasBlocking(ctx context.Context, id workspacesmodels.WorkspaceID) (bool, error) {
+	blocked, err := b.unfinished.HasUnfinished(ctx, id.String())
+	if err != nil {
+		return false, workspaceserrors.Repository(err.Error())
+	}
+	return blocked, nil
 }
 
 // taskTarget finds the worktree of a task, as task_target in src/app_state.rs does: a task has a target while it has

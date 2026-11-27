@@ -7,9 +7,9 @@ SELECT id, name, path, base_branch, created_at, default_runtime, color
 FROM workspaces
 ORDER BY created_at ASC;
 
--- name: UpdateWorkspaceNameAndBranch :execrows
+-- name: UpdateWorkspaceDetails :execrows
 UPDATE workspaces
-SET name = sqlc.arg(name), base_branch = sqlc.arg(base_branch), default_runtime = sqlc.narg(default_runtime), color = sqlc.narg(color)
+SET name = sqlc.arg(name), path = sqlc.arg(path), base_branch = sqlc.arg(base_branch), default_runtime = sqlc.narg(default_runtime), color = sqlc.narg(color)
 WHERE id = sqlc.arg(id);
 
 -- name: GetWorkspaceByID :one

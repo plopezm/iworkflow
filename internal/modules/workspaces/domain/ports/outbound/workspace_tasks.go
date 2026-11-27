@@ -11,4 +11,7 @@ import (
 type WorkspaceTasks interface {
 	// DeleteAll deletes every task of the workspace. It returns InUse when any of them is still active.
 	DeleteAll(ctx context.Context, id models.WorkspaceID) error
+	// HasBlocking reports whether the workspace has an unfinished task: one that is neither merged nor discarded.
+	// Backlog tasks count, because they may already hold a branch or a worktree.
+	HasBlocking(ctx context.Context, id models.WorkspaceID) (bool, error)
 }

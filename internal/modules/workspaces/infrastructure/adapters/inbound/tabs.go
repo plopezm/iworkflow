@@ -48,6 +48,7 @@ func (h *Handlers) EditTab(ctx context.Context, params dock.Params) templ.Compon
 		Path:       workspace.Path,
 		BaseBranch: workspace.BaseBranch,
 	}
+	page.PathLocked, page.PathLockReason = h.pathLock(ctx, id)
 	if workspace.Color != nil {
 		page.Color = *workspace.Color
 	}
@@ -58,23 +59,7 @@ func (h *Handlers) EditTab(ctx context.Context, params dock.Params) templ.Compon
 		page.OptionsError = components.AgentsLoadFailedText(ctx, listErr)
 	}
 	page.Options = agentsOptions(options)
-	h.fillGroup(ctx, &page)
 	return pages.WorkspaceEditPage(page)
-}
-
-// fillGroup offers the groups and selects the one the workspace is in. Without groups the selector is not shown.
-func (h *Handlers) fillGroup(ctx context.Context, page *state.EditPage) {
-	if h.uc.Groups == nil {
-		return
-	}
-	list, groupOf, err := h.uc.Groups.Directory(ctx)
-	if err != nil || len(list) == 0 {
-		return
-	}
-	for _, group := range list {
-		page.GroupOptions = append(page.GroupOptions, state.GroupOption{ID: group.ID, Name: group.Name})
-	}
-	page.GroupID = groupOf[page.ID]
 }
 
 // savedRuntime is the default agent the edit form selects: the saved one while it still exists, and

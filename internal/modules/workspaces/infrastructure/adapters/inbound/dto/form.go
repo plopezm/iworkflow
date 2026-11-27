@@ -1,6 +1,9 @@
 package dto
 
-import "net/url"
+import (
+	"net/url"
+	"strings"
+)
 
 // RegisterWorkspaceFromForm reads the registration form. Absent fields are empty, which the domain
 // reads as "not given"; values are passed through untouched, the domain normalizes them.
@@ -17,14 +20,17 @@ func RegisterWorkspaceFromForm(values url.Values) RegisterWorkspaceDTO {
 	}
 }
 
-// UpdateWorkspaceFromForm reads the edit form. The path is not part of it: it cannot change. The default
-// agent is only set when the field is in the form: the select is hidden when no agent is installed, and
-// an absent field must keep the saved agent instead of clearing it.
+// UpdateWorkspaceFromForm reads the edit form. An absent or empty path keeps the saved one: the path field is
+// locked (and so not sent) while the workspace has unfinished tasks. The confirmation is the checkbox of a move
+// whose old folder is gone (S4b). The default agent is only set when the field is in the form: the select is
+// hidden when no agent is installed, and an absent field must keep the saved agent instead of clearing it.
 func UpdateWorkspaceFromForm(values url.Values) UpdateWorkspaceDTO {
 	dto := UpdateWorkspaceDTO{
-		Name:         values.Get("name"),
-		BaseBranch:   formOptional(values, "base_branch"),
-		AgentsFileID: formOptional(values, "agents_file_id"),
+		Name:               values.Get("name"),
+		Path:               strings.TrimSpace(values.Get("path")),
+		ConfirmSameProject: values.Get("confirm_same_project") == "true",
+		BaseBranch:         formOptional(values, "base_branch"),
+		AgentsFileID:       formOptional(values, "agents_file_id"),
 	}
 	if values.Has("color") {
 		dto.Color = formOptional(values, "color")

@@ -158,23 +158,25 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]Workspace, error) {
 	return items, nil
 }
 
-const updateWorkspaceNameAndBranch = `-- name: UpdateWorkspaceNameAndBranch :execrows
+const updateWorkspaceDetails = `-- name: UpdateWorkspaceDetails :execrows
 UPDATE workspaces
-SET name = ?1, base_branch = ?2, default_runtime = ?3, color = ?4
-WHERE id = ?5
+SET name = ?1, path = ?2, base_branch = ?3, default_runtime = ?4, color = ?5
+WHERE id = ?6
 `
 
-type UpdateWorkspaceNameAndBranchParams struct {
+type UpdateWorkspaceDetailsParams struct {
 	Name           string
+	Path           string
 	BaseBranch     string
 	DefaultRuntime sql.NullString
 	Color          sql.NullString
 	ID             string
 }
 
-func (q *Queries) UpdateWorkspaceNameAndBranch(ctx context.Context, arg UpdateWorkspaceNameAndBranchParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateWorkspaceNameAndBranch,
+func (q *Queries) UpdateWorkspaceDetails(ctx context.Context, arg UpdateWorkspaceDetailsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateWorkspaceDetails,
 		arg.Name,
+		arg.Path,
 		arg.BaseBranch,
 		arg.DefaultRuntime,
 		arg.Color,

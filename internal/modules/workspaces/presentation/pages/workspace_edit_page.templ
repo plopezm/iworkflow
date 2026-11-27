@@ -3,6 +3,7 @@ package pages
 import (
 	shared "iworkflow/internal/core/components"
 	"iworkflow/internal/core/dock/link"
+	"iworkflow/internal/modules/workspaces/presentation/components"
 	"iworkflow/internal/modules/workspaces/presentation/state"
 )
 
@@ -10,30 +11,14 @@ import (
 templ WorkspaceEditPage(page state.EditPage) {
 	<div class="h-full min-h-0 overflow-y-auto">
 		<div class="mx-auto w-full max-w-3xl p-4 pb-10 md:p-6 md:pb-12">
-			if len(page.GroupOptions) > 0 {
-				<div class="card stack gap-2 mb-4 p-5 md:p-6" data-workspace-group-select>
-					<span class="text-sm font-medium text-fg">{ msgGroupLabel.T(ctx) }</span>
-					@shared.OptionSelect(shared.OptionSelectProps{
-						Label:        msgGroupLabel.T(ctx),
-						Value:        page.GroupID,
-						DefaultLabel: msgNoGroupLabel.T(ctx),
-						Options:      groupSelectOptions(page.GroupOptions),
-						Attrs: templ.Attributes{
-							"name":      "group",
-							"hx-post":   "/workspace-groups/workspaces/" + page.ID + "/group",
-							"hx-trigger": "change",
-							"hx-swap":   "none",
-						},
-					})
-				</div>
-			}
+			@EditGroupsLazy(page.ID)
 			<form class="card stack gap-4 p-5 md:p-6" hx-post={ "/workspaces/" + page.ID + "/update" } hx-target="#workspace-edit-result" hx-swap="innerHTML">
 				<h1 class="page-title">{ msgEditTitle.T(ctx) }</h1>
 				@shared.TextField(shared.FieldProps{Label: msgNameLabel.T(ctx), Name: "name", Value: page.Name, Placeholder: msgNamePlaceholder.T(ctx), Required: true})
-				<div class="stack gap-1.5">
-					<span class="text-sm font-medium text-fg">{ msgPathLabel.T(ctx) }</span>
-					<code class="truncate font-mono text-xs text-muted">{ page.Path }</code>
-				</div>
+				@shared.TextField(shared.FieldProps{Label: msgPathLabel.T(ctx), Name: "path", Value: page.Path, Attrs: pathFieldAttrs(page.PathLocked)})
+				if page.PathLocked {
+					<p class="-mt-2 text-xs text-muted" data-path-locked>{ page.PathLockReason }</p>
+				}
 				@shared.ColorPicker(shared.ColorPickerProps{Label: msgColorLabel.T(ctx), NoneLabel: msgNoColorLabel.T(ctx), Name: "color", Value: page.Color})
 				@shared.TextField(shared.FieldProps{Label: msgBaseBranchLabel.T(ctx), Name: "base_branch", Value: page.BaseBranch, Placeholder: "main"})
 				if len(page.Runtimes) > 0 {
@@ -61,7 +46,71 @@ templ WorkspaceEditPage(page state.EditPage) {
 	</div>
 }
 
+// EditRejection is the answer of a rejected edit. A failed worktree repair is only a notice: the path is saved. For a
+// move whose old folder is gone it adds the checkbox that confirms the same project; the checkbox sits in the result
+// slot, which is inside the form, so the next submit sends it.
+templ EditRejection(failure state.EditFailure) {
+	if editRejectionNotice(failure) {
+		<p class="text-sm text-muted">{ EditFailureText(ctx, failure) }</p>
+	} else {
+		@shared.ErrorText(EditFailureText(ctx, failure))
+	}
+	if failure.Rule == state.RuleSameProjectUnconfirmed {
+		<label class="row gap-2 text-sm text-fg">
+			<input type="checkbox" name="confirm_same_project" value="true" class="h-4 w-4"/>
+			{ msgConfirmSameProject.T(ctx) }
+		</label>
+	}
+}
+
 // EditSaved replaces the edit tab with the list once the workspace is saved.
 templ EditSaved(listHref string) {
 	<span data-dock-redirect={ listHref }></span>
+}
+
+// EditGroupsLazy is the group selector slot: it asks for the groups once the tab is shown and, meanwhile, shows
+// "loading", so reading the groups never delays the page. When the request fails it offers a Retry instead of staying
+// busy forever (see GroupsSlotFallback).
+templ EditGroupsLazy(id string) {
+	<div
+		id={ editGroupsSlotID }
+		class="mb-4"
+		hx-get={ editGroupsURL(id) }
+		hx-trigger="load"
+		hx-target="this"
+		hx-swap="outerHTML"
+		aria-busy="true"
+		data-groups-slot
+		hx-on:htmx:send-error="this.removeAttribute('aria-busy');this.querySelector('[data-groups-loading]').hidden=true;this.querySelector('[data-groups-error]').hidden=false"
+		hx-on:htmx:before-swap="if(event.detail.xhr.status>=400){event.detail.shouldSwap=false;this.removeAttribute('aria-busy');this.querySelector('[data-groups-loading]').hidden=true;this.querySelector('[data-groups-error]').hidden=false}"
+	>
+		<div data-groups-loading>
+			@shared.Loading(msgLoadingGroupsLabel.T(ctx))
+		</div>
+		@components.GroupsSlotFallback(editGroupsURL(id), editGroupsSlotID)
+	</div>
+}
+
+// EditGroups is the loaded group selector. It saves on its own when changed. Without groups the slot stays empty. The
+// loaded and empty branches keep the slot id: the lazy slot was swapped out with outerHTML and later swaps target this id.
+templ EditGroups(groups state.EditGroups) {
+	if len(groups.Options) > 0 {
+		<div id={ editGroupsSlotID } class="card stack gap-2 mb-4 p-5 md:p-6" data-workspace-group-select>
+			<span class="text-sm font-medium text-fg">{ msgGroupLabel.T(ctx) }</span>
+			@shared.OptionSelect(shared.OptionSelectProps{
+				Label:        msgGroupLabel.T(ctx),
+				Value:        groups.Selected,
+				DefaultLabel: msgNoGroupLabel.T(ctx),
+				Options:      groupSelectOptions(groups.Options),
+				Attrs: templ.Attributes{
+					"name":       "group",
+					"hx-post":    "/workspace-groups/workspaces/" + groups.ID + "/group",
+					"hx-trigger": "change",
+					"hx-swap":    "none",
+				},
+			})
+		</div>
+	} else {
+		<div id={ editGroupsSlotID }></div>
+	}
 }

@@ -14,10 +14,12 @@ import (
 	"iworkflow/internal/modules/workspaces/infrastructure/di"
 )
 
-// noTasks is a WorkspaceTasks port with no tasks to delete.
+// noTasks is a WorkspaceTasks port with no tasks: nothing to delete and nothing that blocks a path change.
 type noTasks struct{}
 
 func (noTasks) DeleteAll(_ context.Context, _ models.WorkspaceID) error { return nil }
+
+func (noTasks) HasBlocking(_ context.Context, _ models.WorkspaceID) (bool, error) { return false, nil }
 
 // noAgentsFiles is an AgentsFiles port with no stored files.
 type noAgentsFiles struct{}

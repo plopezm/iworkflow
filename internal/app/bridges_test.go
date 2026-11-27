@@ -37,6 +37,10 @@ type noWorkspaceTasks struct{}
 
 func (noWorkspaceTasks) DeleteAll(context.Context, workspacesmodels.WorkspaceID) error { return nil }
 
+func (noWorkspaceTasks) HasBlocking(context.Context, workspacesmodels.WorkspaceID) (bool, error) {
+	return false, nil
+}
+
 // newWorkspaces builds the workspaces module over a migrated temporary database, with no workspace.
 func newWorkspaces(t *testing.T) *workspacesdi.Module {
 	t.Helper()
@@ -135,6 +139,17 @@ func TestTaskWorkspaceLookupFindsNothingWithoutWorkspaces(t *testing.T) {
 	all, err := lookup.List(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, all)
+}
+
+// A workspace without tasks has nothing that blocks a change of its path.
+func TestWorkspaceTasksBridgeReportsNoBlockingTasksForAWorkspaceWithoutTasks(t *testing.T) {
+	application := composeWithTasks(t)
+	bridge := &workspaceTasksBridge{unfinished: application.tasks.WorkspaceUnfinished}
+
+	blocked, err := bridge.HasBlocking(context.Background(), workspacesmodels.WorkspaceIDFromUUID(uuid.New()))
+
+	require.NoError(t, err)
+	assert.False(t, blocked)
 }
 
 // Deleting the tasks of a workspace that has none succeeds, so the workspace delete is not blocked by the cascade.

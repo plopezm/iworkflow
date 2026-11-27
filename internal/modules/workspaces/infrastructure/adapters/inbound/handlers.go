@@ -38,6 +38,7 @@ func (h *Handlers) Mount(r chi.Router) {
 	r.Post("/workspaces/register", h.register)
 	r.Get("/workspaces/register/dismiss", h.dismissPrompt)
 	r.Get("/workspaces/register/groups", h.registerGroups)
+	r.Get("/workspaces/{id}/edit/groups", h.editGroups)
 	r.Post("/workspaces/{id}/update", h.update)
 	r.Post("/workspaces/{id}/delete", h.delete)
 	r.Get("/workspaces/table", h.tableBody)
@@ -101,7 +102,9 @@ func (h *Handlers) dismissPrompt(w http.ResponseWriter, r *http.Request) {
 	writeFragments(w, r, components.EmptyRegisterPrompt())
 }
 
-// update edits a workspace. Success replaces the edit tab with the list; failure shows the message.
+// update edits a workspace. Success replaces the edit tab with the list. A rejection keeps the tab open with the exact
+// reason (and the confirmation checkbox of an unconfirmed move). A failed worktree repair is a notice: the path is saved,
+// so the tab stays open to show it.
 func (h *Handlers) update(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		writeFragments(w, r, shared.ErrorText(err.Error()))
@@ -113,7 +116,7 @@ func (h *Handlers) update(w http.ResponseWriter, r *http.Request) {
 		_, err = h.uc.Update.Execute(r.Context(), id, input.ToWorkspaceUpdate())
 	}
 	if err != nil {
-		writeFragments(w, r, shared.ErrorText(err.Error()))
+		writeFragments(w, r, pages.EditRejection(editFailure(err)))
 		return
 	}
 	writeFragments(w, r, pages.EditSaved(state.ListPath))
@@ -250,6 +253,30 @@ func (h *Handlers) registerGroups(w http.ResponseWriter, r *http.Request) {
 		Options:  h.groupOptions(ctx),
 		Selected: r.URL.Query().Get("group_id"),
 	}))
+}
+
+// editGroups answers the group selector of the edit tab. The tab asks for it once it is shown, so reading the groups
+// never delays the page.
+func (h *Handlers) editGroups(w http.ResponseWriter, r *http.Request) {
+	writeFragments(w, r, pages.EditGroups(h.editGroupsState(r.Context(), chi.URLParam(r, "id"))))
+}
+
+// editGroupsState lists the groups for the edit tab, with the workspace's current group selected. A directory error
+// intentionally degrades to an empty slot: the selector is optional, so the tab stays usable without it.
+func (h *Handlers) editGroupsState(ctx context.Context, id string) state.EditGroups {
+	groups := state.EditGroups{ID: id}
+	if h.uc.Groups == nil {
+		return groups
+	}
+	list, groupOf, err := h.uc.Groups.Directory(ctx)
+	if err != nil {
+		return groups
+	}
+	for _, group := range list {
+		groups.Options = append(groups.Options, state.GroupOption{ID: group.ID, Name: group.Name})
+	}
+	groups.Selected = groupOf[id]
+	return groups
 }
 
 // groupOptions lists the groups the new workspace can be put in. Without groups the selector is not shown.

@@ -12,7 +12,8 @@ import (
 type WorkspaceRepository interface {
 	Save(ctx context.Context, workspace models.Workspace) error
 	List(ctx context.Context) ([]models.Workspace, error)
-	// Update changes the name and base branch only. It returns NotFound when there is no such workspace.
+	// Update changes the name, path, base branch, default runtime and color. It returns NotFound when there is no
+	// such workspace, and AlreadyRegistered when the new path belongs to another workspace.
 	Update(ctx context.Context, workspace models.Workspace) error
 	// FindByID returns nil and no error when there is none.
 	FindByID(ctx context.Context, id models.WorkspaceID) (*models.Workspace, error)

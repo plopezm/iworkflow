@@ -46,6 +46,10 @@ type RegisterWorkspaceDTO struct {
 // UpdateWorkspaceDTO is the editable data of a workspace. The path cannot change.
 type UpdateWorkspaceDTO struct {
 	Name string `json:"name"`
+	// Path is the new repository root. Empty or absent keeps the saved one.
+	Path string `json:"path,omitempty"`
+	// ConfirmSameProject is the confirmation of a move whose old folder is gone (S4b).
+	ConfirmSameProject bool `json:"confirm_same_project,omitempty"`
 	// BaseBranch empty or absent keeps the current base branch.
 	BaseBranch *string `json:"base_branch,omitempty"`
 	// AgentsFileID is the stored AGENTS.md that replaces the project one.
@@ -102,11 +106,13 @@ func (d RegisterWorkspaceDTO) ToNewWorkspace() models.NewWorkspace {
 // ToWorkspaceUpdate maps the editable data to the domain.
 func (d UpdateWorkspaceDTO) ToWorkspaceUpdate() models.WorkspaceUpdate {
 	return models.WorkspaceUpdate{
-		Name:           d.Name,
-		BaseBranch:     derefString(d.BaseBranch),
-		AgentsFileID:   derefString(d.AgentsFileID),
-		DefaultRuntime: d.DefaultRuntime,
-		Color:          d.Color,
+		Name:               d.Name,
+		Path:               d.Path,
+		ConfirmSameProject: d.ConfirmSameProject,
+		BaseBranch:         derefString(d.BaseBranch),
+		AgentsFileID:       derefString(d.AgentsFileID),
+		DefaultRuntime:     d.DefaultRuntime,
+		Color:              d.Color,
 	}
 }
 

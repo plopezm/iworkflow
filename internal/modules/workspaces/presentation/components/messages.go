@@ -28,6 +28,8 @@ var (
 	msgGroup             = i18n.Msg{En: "Group (optional)", Es: "Grupo (opcional)", Zh: "分组（可选）", De: "Gruppe (optional)", Fr: "Groupe (facultatif)"}
 	msgLoadingGroups     = i18n.Msg{En: "Loading groups…", Es: "Cargando grupos…", Zh: "正在加载分组…", De: "Gruppen werden geladen …", Fr: "Chargement des groupes…"}
 	msgNoGroup           = i18n.Msg{En: "No group", Es: "Sin grupo", Zh: "未分组", De: "Keine Gruppe", Fr: "Aucun groupe"}
+	msgGroupsLoadFailed  = i18n.Msg{En: "Could not load the groups", Es: "No se pudieron cargar los grupos", Zh: "无法加载分组", De: "Gruppen konnten nicht geladen werden", Fr: "Impossible de charger les groupes"}
+	msgRetryGroups       = i18n.Msg{En: "Retry", Es: "Reintentar", Zh: "重试", De: "Erneut versuchen", Fr: "Réessayer"}
 	msgGroupAssignFailed = i18n.Msg{En: "The workspace was registered but could not be added to the group", Es: "El workspace se registró pero no se pudo añadir al grupo", Zh: "工作区已注册，但无法加入分组", De: "Der Workspace wurde registriert, konnte aber nicht zur Gruppe hinzugefügt werden", Fr: "L'espace de travail a été enregistré mais n'a pas pu être ajouté au groupe"}
 
 	msgName                   = i18n.Msg{En: "Name", Es: "Nombre", Zh: "名称", De: "Name", Fr: "Nom"}
