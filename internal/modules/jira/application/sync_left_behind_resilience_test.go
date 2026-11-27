@@ -96,6 +96,28 @@ func TestSplittingARejectedBatchIsBounded(t *testing.T) {
 	assert.Empty(t, issues.updated)
 }
 
+func TestTheSplitBudgetIsSharedByEveryBatchOfASync(t *testing.T) {
+	connections := connectedRepo(t, "https://jira.local", "t")
+	issues := &fakeIssues{}
+	for index := range 250 {
+		issues.issues = append(issues.issues, convertedIssue(fmt.Sprintf("A-%d", index+1), "In Progress"))
+	}
+	lanes := &fakeLanes{lanes: []models.Lane{lane("mine", "mine-jql")}}
+	client := newFakeClient()
+	client.searchFn = func(jql string) ([]models.RemoteIssue, error) {
+		if strings.HasPrefix(jql, "key in (") {
+			return nil, jiraerrors.Remote("Jira caído")
+		}
+		return nil, nil
+	}
+
+	_, err := newSync(connections, issues, lanes, client).Execute(context.Background())
+
+	require.NoError(t, err)
+	// 3 batches of keys, plus at most 16 splits for the whole sync, each split adding two queries.
+	assert.LessOrEqual(t, len(keyQueries(client)), 3+2*16, "the budget is per sync, not per batch")
+}
+
 // TestAReopenedLinkedIssueOutsideEveryLaneKeepsShowingDone pins a known tradeoff: issues stored as Done are not
 // asked for again, so one reopened in Jira that no lane matches shows Done until a lane matches it or it is
 // refreshed by hand from the task panel.

@@ -121,8 +121,8 @@ func (u *SyncIssues) run(ctx context.Context, connection models.Connection, lane
 const (
 	// keyQueryBatch is how many issue keys one refresh query carries.
 	keyQueryBatch = 100
-	// keyQuerySplits bounds how many times rejected batches are split in one sync, so a Jira that is down is not hit
-	// once per key. One bad key in a full batch needs about eight splits.
+	// keyQuerySplits bounds how many times rejected batches are split in one sync, shared by all its batches, so a
+	// Jira that is down is not hit once per key. One bad key in a full batch needs about eight splits.
 	keyQuerySplits = 16
 )
 
@@ -150,9 +150,9 @@ func (u *SyncIssues) refreshLeftBehind(ctx context.Context, connection models.Co
 		}
 		keys = append(keys, key)
 	}
+	splits := keyQuerySplits
 	for start := 0; start < len(keys); start += keyQueryBatch {
 		batch := keys[start:min(start+keyQueryBatch, len(keys))]
-		splits := keyQuerySplits
 		u.refreshKeys(ctx, connection, batch, now, &splits)
 	}
 }
