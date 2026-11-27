@@ -21,3 +21,9 @@ func CreateMergeRequestFromForm(taskID string, form url.Values) CreateMergeReque
 	title := form.Get("title")
 	return CreateMergeRequestDTO{TaskID: taskID, Title: &title}
 }
+
+// RemoveSourceBranchFromForm reads the "delete the source branch" checkbox of the merge confirmation. An unchecked
+// box sends no value.
+func RemoveSourceBranchFromForm(form url.Values) bool {
+	return form.Get("remove_source_branch") == "on"
+}

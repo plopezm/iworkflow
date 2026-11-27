@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -349,13 +350,22 @@ func (c *GitHubClient) LatestPipeline(ctx context.Context, settings models.CodeH
 }
 
 // MergeMergeRequest merges the pull request. The merge answer is not a pull request, so the state
-// is read again to return the final one.
-func (c *GitHubClient) MergeMergeRequest(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64) (models.MergeRequest, error) {
+// is read again to return the final one. GitHub has no merge option for it, so removeSourceBranch deletes the
+// head branch afterwards; a failed delete is only logged because the merge already happened.
+func (c *GitHubClient) MergeMergeRequest(ctx context.Context, settings models.CodeHostSettings, project string, iid uint64, removeSourceBranch bool) (models.MergeRequest, error) {
 	path := fmt.Sprintf("%s/pulls/%d/merge", repoPath(project), iid)
 	if _, err := c.do(ctx, settings, http.MethodPut, path, []byte("{}")); err != nil {
 		return models.MergeRequest{}, err
 	}
-	return c.GetMergeRequest(ctx, settings, project, iid)
+	merged, err := c.GetMergeRequest(ctx, settings, project, iid)
+	if err != nil || !removeSourceBranch || merged.SourceBranch == "" {
+		return merged, err
+	}
+	refURL := fmt.Sprintf("%s/git/refs/heads/%s", repoPath(project), refPath(merged.SourceBranch))
+	if _, deleteErr := c.do(ctx, settings, http.MethodDelete, refURL, nil); deleteErr != nil {
+		slog.Warn("could not delete the merged branch", "project", project, "branch", merged.SourceBranch, "error", deleteErr)
+	}
+	return merged, nil
 }
 
 // pull reads one pull request.

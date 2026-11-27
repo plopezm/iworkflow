@@ -188,7 +188,7 @@ func TestMergeMergesTheOpenMergeRequest(t *testing.T) {
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
 
-	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
+	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID, false)
 
 	require.NoError(t, err)
 	require.Equal(t, "merged", status.MergeRequest.State)
@@ -200,7 +200,7 @@ func TestMergeStillMergesAnOpenRequestThatAlreadyCarriesTheWholeBranch(t *testin
 	open := mergeRequest(7, "opened")
 	f.client.findResult = &open
 
-	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
+	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID, false)
 
 	require.NoError(t, err)
 	require.Equal(t, "merged", status.MergeRequest.State, "only the task flow skips it: the merge request panel merges explicitly")
@@ -213,7 +213,7 @@ func TestMergePushesTheBranchBeforeMerging(t *testing.T) {
 	f.client.findResult = &open
 	f.remote.head = unpushedHead
 
-	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
+	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID, false)
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"publish", "merge"}, *f.events)
@@ -238,7 +238,7 @@ func TestMergeWithoutOpenMergeRequestMergesNothing(t *testing.T) {
 	merged := mergeRequest(7, "merged")
 	f.client.findResult = &merged
 
-	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
+	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID, false)
 
 	require.Equal(t, codeerrors.MergeRequestNotFound("iwf/feature"), err)
 	require.Empty(t, f.client.merged)
@@ -263,7 +263,7 @@ func TestMergeProviderRefusalIsPropagatedWithItsMessage(t *testing.T) {
 	f.remote.head = unpushedHead
 	f.client.mergeErr = codeerrors.API(models.GitLab, 405, "Branch cannot be merged")
 
-	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
+	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID, false)
 
 	require.Equal(t, codeerrors.API(models.GitLab, 405, "Branch cannot be merged"), err)
 }
@@ -275,7 +275,7 @@ func TestMergeAPipelineFailureAfterMergingStillReportsTheMerge(t *testing.T) {
 	f.remote.head = unpushedHead
 	f.client.pipelineErr = codeerrors.Network("caído")
 
-	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID)
+	status, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID, false)
 
 	require.NoError(t, err)
 	require.Equal(t, "merged", status.MergeRequest.State)
@@ -308,4 +308,15 @@ func TestPushTaskBranchReportsUnknownTaskAndPushesNothing(t *testing.T) {
 
 	require.Equal(t, codeerrors.TaskNotFound(taskID), err)
 	require.Empty(t, f.remote.publishes)
+}
+
+func TestMergePassesTheRemoveSourceBranchChoiceToTheProvider(t *testing.T) {
+	f := newFixture(t)
+	open := mergeRequest(7, "opened")
+	f.client.findResult = &open
+
+	_, err := application.NewMergeTaskMergeRequest(f.resolver(), f.remote).Execute(context.Background(), taskID, true)
+
+	require.NoError(t, err)
+	require.Equal(t, []bool{true}, f.client.removeBranch)
 }

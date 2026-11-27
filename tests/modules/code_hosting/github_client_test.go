@@ -173,7 +173,7 @@ func TestGitHubMergePutsThenRereadsThePull(t *testing.T) {
 		scriptedRoute{target: "GET /api/v3/repos/acme/app/pulls/7", status: 200, body: gitHubPullMerged},
 	)
 
-	mergeRequest, err := newGitHubClient().MergeMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", 7)
+	mergeRequest, err := newGitHubClient().MergeMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", 7, false)
 
 	require.NoError(t, err)
 	require.Equal(t, "merged", mergeRequest.State)
@@ -190,7 +190,7 @@ func TestGitHubMergeRefusalSurfacesTheProviderMessage(t *testing.T) {
 		body:   `{"message":"Pull Request is not mergeable"}`,
 	})
 
-	_, err := newGitHubClient().MergeMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", 8)
+	_, err := newGitHubClient().MergeMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", 8, false)
 
 	require.Equal(t, codeerrors.API(models.GitHub, 405, "Pull Request is not mergeable"), err)
 }
@@ -268,4 +268,20 @@ func TestGitHubRedirectToAnotherHostNeverReceivesTheToken(t *testing.T) {
 	for _, seen := range target.requests() {
 		require.Empty(t, seen.authorization)
 	}
+}
+
+func TestGitHubMergeDeletesTheHeadBranchWhenRequested(t *testing.T) {
+	provider := newFakeProvider(t,
+		scriptedRoute{target: "PUT /api/v3/repos/acme/app/pulls/7/merge", status: 200, body: `{"merged":true}`},
+		scriptedRoute{target: "GET /api/v3/repos/acme/app/pulls/7", status: 200, body: gitHubPullMerged},
+		scriptedRoute{target: "DELETE /api/v3/repos/acme/app/git/refs/heads/iwf/x", status: 204, body: ""},
+	)
+
+	mergeRequest, err := newGitHubClient().MergeMergeRequest(context.Background(), gitHubSettings(t, provider), "acme/app", 7, true)
+
+	require.NoError(t, err)
+	require.Equal(t, "merged", mergeRequest.State)
+	seen := provider.requests()
+	require.Len(t, seen, 3)
+	require.Equal(t, "DELETE", seen[2].method)
 }

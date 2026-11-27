@@ -106,8 +106,12 @@ templ mergeRequestStatus(s MergeRequestStatusProps) {
 		}
 		if s.Open {
 			if s.Confirm {
+				<label class="row items-center gap-2 text-sm text-fg">
+					<input type="checkbox" name="remove_source_branch" id={ "mr-remove-branch-" + s.TaskID } data-testid="mr-remove-branch"/>
+					{ s.RemoveBranchLabel }
+				</label>
 				@ui.ConfirmPanel(s.ConfirmMessage, s.MergeLabel, false,
-					templ.Attributes{"hx-post": MergePath(s.TaskID), "hx-target": "#" + MergeRequestPanelID(s.TaskID), "hx-swap": "outerHTML"},
+					templ.Attributes{"hx-post": MergePath(s.TaskID), "hx-include": "#mr-remove-branch-" + s.TaskID, "hx-target": "#" + MergeRequestPanelID(s.TaskID), "hx-swap": "outerHTML"},
 					templ.Attributes{"hx-get": MergeRequestPath(s.TaskID), "hx-target": "#" + MergeRequestPanelID(s.TaskID), "hx-swap": "outerHTML"})
 			} else {
 				<div class="row items-center gap-2">
