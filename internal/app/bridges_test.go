@@ -141,7 +141,7 @@ func TestTaskWorkspaceLookupFindsNothingWithoutWorkspaces(t *testing.T) {
 	assert.Empty(t, all)
 }
 
-// Deleting the tasks of a workspace that has none succeeds, so the workspace delete is not blocked by the cascade.
+// A workspace without tasks has nothing that blocks a change of its path.
 func TestWorkspaceTasksBridgeReportsNoBlockingTasksForAWorkspaceWithoutTasks(t *testing.T) {
 	application := composeWithTasks(t)
 	bridge := &workspaceTasksBridge{unfinished: application.tasks.WorkspaceUnfinished}
@@ -152,6 +152,7 @@ func TestWorkspaceTasksBridgeReportsNoBlockingTasksForAWorkspaceWithoutTasks(t *
 	assert.False(t, blocked)
 }
 
+// Deleting the tasks of a workspace that has none succeeds, so the workspace delete is not blocked by the cascade.
 func TestWorkspaceTasksBridgeDeletesNothingForAWorkspaceWithoutTasks(t *testing.T) {
 	application := composeWithTasks(t)
 	bridge := &workspaceTasksBridge{deleteAll: application.tasks.DeleteWorkspace}

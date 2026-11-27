@@ -158,7 +158,8 @@ func PathNotRepositoryRoot(path string) Error {
 // workspace repository: it is another project.
 func PathNotSameProject(path string) Error { return Error{kind: kindPathNotSameProject, detail: path} }
 
-// PathBlockedByTasks means the workspace has unfinished tasks or worktrees, so its path cannot change.
+// PathBlockedByTasks means the workspace has unfinished tasks, so its path cannot change. Only unfinished tasks
+// are checked; the worktrees that remain after a change are repaired afterwards (see WorktreeRepair).
 func PathBlockedByTasks() Error { return Error{kind: kindPathBlockedByTasks} }
 
 // WorktreeRepair means the path was saved but `git worktree repair` failed. It is not a rollback.
