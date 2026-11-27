@@ -121,6 +121,24 @@ function seedEpics() {
   }
 }
 
+// Opt-in data (POST /_seed_many_epics): 25 epics, the first with 40 children, so the board scrolls.
+function seedManyEpics() {
+  for (let e = 1; e <= 25; e++) {
+    const key = `BIG-${e}`;
+    const day = String(30 - (e % 28)).padStart(2, '0');
+    const epic = epicIssue(key, `Epic grande ${e}`, 'In Progress', 'Epic', null, `2024-07-${day}T10:00:00.000+0200`);
+    state.issues[key] = { key, fields: epic.fields };
+    state.comments[key] = [];
+    const kids = e === 1 ? 40 : 2;
+    for (let c = 1; c <= kids; c++) {
+      const ck = `BG${e}-${c}`;
+      const child = epicIssue(ck, `Tarea ${e}.${c}`, 'To Do', 'Task', key, `2024-06-${day}T10:00:00.000+0200`);
+      state.issues[ck] = { key: ck, fields: child.fields };
+      state.comments[ck] = [];
+    }
+  }
+}
+
 function json(res, value, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
   res.end(JSON.stringify(value, null, 2));
@@ -293,6 +311,10 @@ const server = http.createServer(async (req, res) => {
   if (path === '/_seed_epics') {
     seedEpics();
     return json(res, { seeded: true, issues: Object.keys(state.issues) });
+  }
+  if (path === '/_seed_many_epics') {
+    seedManyEpics();
+    return json(res, { seeded: true });
   }
   if (path === '/_reset') {
     seed();

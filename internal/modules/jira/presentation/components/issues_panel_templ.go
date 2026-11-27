@@ -86,7 +86,7 @@ func issuesPanelBody(view state.IssuesPanelView, oob bool) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"jira-board\" class=\"stack gap-4\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div id=\"jira-board\" class=\"stack gap-4\" data-keep-scroll")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -130,7 +130,7 @@ func issuesPanelBody(view state.IssuesPanelView, oob bool) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(msgSyncing.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 41, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 42, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -140,7 +140,7 @@ func issuesPanelBody(view state.IssuesPanelView, oob bool) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(msgSync.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 43, Col: 22}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 44, Col: 22}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -173,7 +173,7 @@ func issuesPanelBody(view state.IssuesPanelView, oob bool) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(msgNewLane.T(ctx))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 56, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 57, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -192,7 +192,7 @@ func issuesPanelBody(view state.IssuesPanelView, oob bool) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(*view.SyncMessage)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 60, Col: 52}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 61, Col: 52}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -298,7 +298,7 @@ func BoardModeSwitch(mode state.BoardMode) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templruntime.NewAttributeExpression(msgViewMode.T(ctx)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 89, Col: 50}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 90, Col: 50}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 		if templ_7745c5c3_Err != nil {
@@ -370,7 +370,7 @@ func boardModeChip(target state.BoardMode, label string, active bool) templ.Comp
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.FormatBool(active)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 99, Col: 43}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 100, Col: 43}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 			if templ_7745c5c3_Err != nil {
@@ -383,7 +383,7 @@ func boardModeChip(target state.BoardMode, label string, active bool) templ.Comp
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.NewAttributeExpression("/jira/board?mode=" + string(target)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 100, Col: 47}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 101, Col: 47}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 			if templ_7745c5c3_Err != nil {
@@ -396,7 +396,7 @@ func boardModeChip(target state.BoardMode, label string, active bool) templ.Comp
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templruntime.NewAttributeExpression(epicFilterInclude).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 101, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 102, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 			if templ_7745c5c3_Err != nil {
@@ -423,7 +423,7 @@ func boardModeChip(target state.BoardMode, label string, active bool) templ.Comp
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 105, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/modules/jira/presentation/components/issues_panel.templ`, Line: 106, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
