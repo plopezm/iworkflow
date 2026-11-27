@@ -23,6 +23,9 @@ import (
 
 const testToken = "pat-123"
 
+// keyQueryServerPage is the page size of the fake server for `key in (...)` searches, smaller than a 100-key query.
+const keyQueryServerPage = 40
+
 // received is one request the fake Jira server got, with the parts the tests check.
 type received struct {
 	method        string
@@ -145,15 +148,19 @@ func (f *fakeJira) search(writer http.ResponseWriter, request *http.Request) {
 	}
 	if strings.HasPrefix(jql, "key in (") {
 		// A key query returns the named issues whatever their status, like Jira does.
-		var found []string
+		// It pages like a server with a small page size, whatever maxResults asks for.
+		var all []string
 		for _, match := range regexp.MustCompile(`"([A-Z0-9_]+-[0-9]+)"`).FindAllStringSubmatch(jql, -1) {
 			body := issueJSON(match[1])
 			if f.isClosed(match[1]) {
 				body = strings.Replace(body, `"To Do"`, `"Done"`, 1)
 			}
-			found = append(found, body)
+			all = append(all, body)
 		}
-		_, _ = writer.Write([]byte(`{"startAt":0,"total":` + strconv.Itoa(len(found)) + `,"issues":[` + strings.Join(found, ",") + `]}`))
+		start, _ := strconv.Atoi(request.URL.Query().Get("startAt"))
+		start = min(start, len(all))
+		page := all[start:min(start+keyQueryServerPage, len(all))]
+		_, _ = writer.Write([]byte(`{"startAt":` + strconv.Itoa(start) + `,"total":` + strconv.Itoa(len(all)) + `,"issues":[` + strings.Join(page, ",") + `]}`))
 		return
 	}
 	start := 0

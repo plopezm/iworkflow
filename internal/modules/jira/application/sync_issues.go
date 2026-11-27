@@ -118,14 +118,22 @@ func (u *SyncIssues) run(ctx context.Context, connection models.Connection, lane
 	return SyncOutcome{Total: len(distinct), Added: added, FailedLanes: failedLanes, TruncatedLanes: truncatedLanes}, nil
 }
 
-// keyQueryBatch is how many issue keys one refresh query carries.
-const keyQueryBatch = 100
+const (
+	// keyQueryBatch is how many issue keys one refresh query carries.
+	keyQueryBatch = 100
+	// keyQuerySplits bounds how many times rejected batches are split in one sync, so a Jira that is down is not hit
+	// once per key. One bad key in a full batch needs about eight splits.
+	keyQuerySplits = 16
+)
 
 // refreshLeftBehind refreshes the issues linked to a task that no lane returned in this sync, typically because
 // they moved out of the lane's JQL (for example to Done); without it their status would stay frozen. Issues already
 // stored as Done are not asked for again, and the rest are read with one `key in (...)` query per batch of keys, not
 // one request per issue. A key Jira does not return keeps its stored copy. It is best effort: a failure never fails
 // the sync.
+//
+// Tradeoff: an issue stored as Done that is reopened in Jira, while no lane matches it, keeps showing Done until a
+// lane matches it again or it is refreshed by hand from the task panel.
 func (u *SyncIssues) refreshLeftBehind(ctx context.Context, connection models.Connection, synced map[string]struct{}, now time.Time) {
 	known, err := u.issues.List(ctx)
 	if err != nil {
@@ -144,17 +152,31 @@ func (u *SyncIssues) refreshLeftBehind(ctx context.Context, connection models.Co
 	}
 	for start := 0; start < len(keys); start += keyQueryBatch {
 		batch := keys[start:min(start+keyQueryBatch, len(keys))]
-		quoted := make([]string, len(batch))
-		for index, key := range batch {
-			quoted[index] = `"` + key + `"`
+		splits := keyQuerySplits
+		u.refreshKeys(ctx, connection, batch, now, &splits)
+	}
+}
+
+// refreshKeys reads the keys with one query. When Jira rejects it (for example because one key does not exist or is
+// not visible to the token) the keys are split in two and each half is tried, so one bad key does not freeze the
+// others; splits is the remaining budget for that.
+func (u *SyncIssues) refreshKeys(ctx context.Context, connection models.Connection, keys []string, now time.Time, splits *int) {
+	quoted := make([]string, len(keys))
+	for index, key := range keys {
+		quoted[index] = `"` + key + `"`
+	}
+	result, err := u.client.Search(ctx, connection, "key in ("+strings.Join(quoted, ",")+")")
+	if err != nil {
+		if len(keys) > 1 && *splits > 0 && ctx.Err() == nil {
+			*splits--
+			middle := len(keys) / 2
+			u.refreshKeys(ctx, connection, keys[:middle], now, splits)
+			u.refreshKeys(ctx, connection, keys[middle:], now, splits)
 		}
-		result, err := u.client.Search(ctx, connection, "key in ("+strings.Join(quoted, ",")+")")
-		if err != nil {
-			continue
-		}
-		for _, remote := range result.Issues {
-			_ = u.issues.UpdateRemote(ctx, remote, now)
-		}
+		return
+	}
+	for _, remote := range result.Issues {
+		_ = u.issues.UpdateRemote(ctx, remote, now)
 	}
 }
 
