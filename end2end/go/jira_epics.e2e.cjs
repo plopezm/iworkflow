@@ -18,9 +18,10 @@ fs.mkdirSync(SHOTS, { recursive: true });
 const settle = async (ctx) => { await ctx.page.waitForTimeout(700); await ctx.page.waitForLoadState('networkidle'); };
 const shot = (ctx, name) => ctx.screenshot(path.join(SHOTS, `${name}.png`));
 
-async function openBoard(ctx) {
+async function openBoard(ctx, { many = false } = {}) {
   await fetch(`${JIRA_URL}/_reset`);
   await fetch(`${JIRA_URL}/_seed_epics`);
+  if (many) await fetch(`${JIRA_URL}/_seed_many_epics`);
   await ctx.goto('/jira');
   await ctx.page.getByText('Conexión con Jira').first().waitFor({ timeout: 10000 });
   if ((await ctx.page.getByText('Editar conexión').first().count()) === 0) {
@@ -30,7 +31,7 @@ async function openBoard(ctx) {
     await ctx.page.getByText('Editar conexión').first().waitFor({ timeout: 15000 });
   }
   await ctx.page.getByRole('button', { name: /Sincronizar/ }).first().click();
-  await card(ctx, 'Checkout rediseñado').waitFor({ timeout: 15000 });
+  await card(ctx, many ? 'Epic grande 1' : 'Checkout rediseñado').waitFor({ timeout: 15000 });
   // Let the sync swap settle before interacting, as a person would.
   await ctx.page.waitForLoadState('networkidle');
   await ctx.page.waitForTimeout(600);
@@ -111,6 +112,41 @@ module.exports = {
         await page.waitForFunction(() => [...document.querySelectorAll('ul[aria-label="Épicas"] > li > button')].some((b) => b.innerText.includes('2/3')), null, { timeout: 10000 });
         ctx.assert((await mockStatus('CK-3')) === 'Done', 'Jira debe quedar en Done');
         await shot(ctx, '04-tras-cambiar-estado');
+      },
+    },
+    {
+      name: 'cambiar el estado de una subtarea con muchas epics no mueve el scroll',
+      fn: async (ctx) => {
+        await openBoard(ctx, { many: true });
+        const page = ctx.page;
+        await card(ctx, 'Epic grande 1').click();
+        await detail(ctx, 'Epic grande 1').getByText('Tarea 1.30').waitFor({ timeout: 10000 });
+        await settle(ctx);
+        // The scroller is the nearest scrollable ancestor of the row (or the document).
+        const readScroll = () => page.evaluate(() => {
+          let el = document.getElementById('status-BG1-30');
+          while (el && el.scrollHeight <= el.clientHeight + 1) el = el.parentElement;
+          el = el || document.scrollingElement;
+          return { top: Math.round(el.scrollTop), max: el.scrollHeight - el.clientHeight, who: `${el.tagName}#${el.id}.${String(el.className).slice(0, 40)}` };
+        });
+        await page.evaluate(() => {
+          const row = document.getElementById('status-BG1-30');
+          row.scrollIntoView({ block: 'center' });
+        });
+        await page.waitForTimeout(300);
+        const before = await readScroll();
+        ctx.assert(before.max > 300, `la pantalla debe poder hacer scroll (max ${before.max})`);
+        ctx.assert(before.top > 100 && before.top < before.max - 100, `el scroll debe quedar a media altura (${before.top}/${before.max})`);
+        await statusOf(ctx, 'BG1-30').getByRole('button').first().click();
+        await statusOf(ctx, 'BG1-30').getByRole('button', { name: /Iniciar/ }).waitFor({ timeout: 10000 });
+        await page.waitForTimeout(300);
+        const menu = await readScroll();
+        await statusOf(ctx, 'BG1-30').getByRole('button', { name: /Iniciar/ }).click();
+        await statusOf(ctx, 'BG1-30').getByText('In Progress').first().waitFor({ timeout: 10000 });
+        await settle(ctx);
+        const after = await readScroll();
+        ctx.assert(Math.abs(menu.top - before.top) < 40, `abrir el menú movió el scroll: ${before.top} -> ${menu.top} (${before.who} / ${menu.who}, max ${menu.max})`);
+        ctx.assert(Math.abs(after.top - before.top) < 40, `cambiar el estado movió el scroll: ${before.top} -> ${after.top} (max ${after.max})`);
       },
     },
     {

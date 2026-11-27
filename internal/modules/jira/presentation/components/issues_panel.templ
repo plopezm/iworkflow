@@ -22,6 +22,7 @@ templ issuesPanelBody(view state.IssuesPanelView, oob bool) {
 	<div
 		id="jira-board"
 		class="stack gap-4"
+		data-keep-scroll
 		if oob {
 			hx-swap-oob="true"
 		}
