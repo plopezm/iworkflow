@@ -164,6 +164,9 @@ func PathBlockedByTasks() Error { return Error{kind: kindPathBlockedByTasks} }
 // WorktreeRepair means the path was saved but `git worktree repair` failed. It is not a rollback.
 func WorktreeRepair(detail string) Error { return Error{kind: kindWorktreeRepair, detail: detail} }
 
+// Detail returns the value the error names: the path, the branch or the git output. It is empty when it names none.
+func (e Error) Detail() string { return e.detail }
+
 // SameProjectUnconfirmed means the old folder of the workspace no longer exists, so the new folder cannot be compared
 // with it, and the person has not confirmed that it is the same project (S4b).
 func SameProjectUnconfirmed() Error { return Error{kind: kindSameProjectUnconfirmed} }

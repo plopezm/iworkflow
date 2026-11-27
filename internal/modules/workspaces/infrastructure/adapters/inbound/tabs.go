@@ -48,6 +48,7 @@ func (h *Handlers) EditTab(ctx context.Context, params dock.Params) templ.Compon
 		Path:       workspace.Path,
 		BaseBranch: workspace.BaseBranch,
 	}
+	page.PathLocked, page.PathLockReason = h.pathLock(ctx, id)
 	if workspace.Color != nil {
 		page.Color = *workspace.Color
 	}

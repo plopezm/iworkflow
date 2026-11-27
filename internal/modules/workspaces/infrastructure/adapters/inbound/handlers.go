@@ -102,7 +102,9 @@ func (h *Handlers) dismissPrompt(w http.ResponseWriter, r *http.Request) {
 	writeFragments(w, r, components.EmptyRegisterPrompt())
 }
 
-// update edits a workspace. Success replaces the edit tab with the list; failure shows the message.
+// update edits a workspace. Success replaces the edit tab with the list. A rejection keeps the tab open with the exact
+// reason (and the confirmation checkbox of an unconfirmed move). A failed worktree repair is a notice: the path is saved,
+// so the tab stays open to show it.
 func (h *Handlers) update(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		writeFragments(w, r, shared.ErrorText(err.Error()))
@@ -114,7 +116,7 @@ func (h *Handlers) update(w http.ResponseWriter, r *http.Request) {
 		_, err = h.uc.Update.Execute(r.Context(), id, input.ToWorkspaceUpdate())
 	}
 	if err != nil {
-		writeFragments(w, r, shared.ErrorText(err.Error()))
+		writeFragments(w, r, pages.EditRejection(editFailure(err)))
 		return
 	}
 	writeFragments(w, r, pages.EditSaved(state.ListPath))
