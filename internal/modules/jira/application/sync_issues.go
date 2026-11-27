@@ -118,26 +118,43 @@ func (u *SyncIssues) run(ctx context.Context, connection models.Connection, lane
 	return SyncOutcome{Total: len(distinct), Added: added, FailedLanes: failedLanes, TruncatedLanes: truncatedLanes}, nil
 }
 
+// keyQueryBatch is how many issue keys one refresh query carries.
+const keyQueryBatch = 100
+
 // refreshLeftBehind refreshes the issues linked to a task that no lane returned in this sync, typically because
-// they moved to Done and the lane's JQL no longer matches them; without it their status would stay frozen.
-// It is best effort: a failure keeps the stored copy and never fails the sync.
+// they moved out of the lane's JQL (for example to Done); without it their status would stay frozen. Issues already
+// stored as Done are not asked for again, and the rest are read with one `key in (...)` query per batch of keys, not
+// one request per issue. A key Jira does not return keeps its stored copy. It is best effort: a failure never fails
+// the sync.
 func (u *SyncIssues) refreshLeftBehind(ctx context.Context, connection models.Connection, synced map[string]struct{}, now time.Time) {
 	known, err := u.issues.List(ctx)
 	if err != nil {
 		return
 	}
+	var keys []string
 	for _, issue := range known {
-		if issue.LocalState != models.IssueLocalStateConverted {
+		if issue.LocalState != models.IssueLocalStateConverted || models.IsDoneStatus(issue.Remote.Status) {
 			continue
 		}
-		if _, inLane := synced[issue.Key()]; inLane {
+		key := issue.Key()
+		if _, inLane := synced[key]; inLane || !models.IsValidIssueKey(key) {
 			continue
 		}
-		remote, err := u.client.GetIssue(ctx, connection, issue.Key())
+		keys = append(keys, key)
+	}
+	for start := 0; start < len(keys); start += keyQueryBatch {
+		batch := keys[start:min(start+keyQueryBatch, len(keys))]
+		quoted := make([]string, len(batch))
+		for index, key := range batch {
+			quoted[index] = `"` + key + `"`
+		}
+		result, err := u.client.Search(ctx, connection, "key in ("+strings.Join(quoted, ",")+")")
 		if err != nil {
 			continue
 		}
-		_ = u.issues.UpdateRemote(ctx, remote, now)
+		for _, remote := range result.Issues {
+			_ = u.issues.UpdateRemote(ctx, remote, now)
+		}
 	}
 }
 

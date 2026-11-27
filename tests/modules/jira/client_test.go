@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -140,6 +141,19 @@ func (f *fakeJira) search(writer http.ResponseWriter, request *http.Request) {
 	if jql == "broken" {
 		writer.WriteHeader(http.StatusBadRequest)
 		_, _ = writer.Write([]byte(`{"errorMessages":["JQL inválido"]}`))
+		return
+	}
+	if strings.HasPrefix(jql, "key in (") {
+		// A key query returns the named issues whatever their status, like Jira does.
+		var found []string
+		for _, match := range regexp.MustCompile(`"([A-Z0-9_]+-[0-9]+)"`).FindAllStringSubmatch(jql, -1) {
+			body := issueJSON(match[1])
+			if f.isClosed(match[1]) {
+				body = strings.Replace(body, `"To Do"`, `"Done"`, 1)
+			}
+			found = append(found, body)
+		}
+		_, _ = writer.Write([]byte(`{"startAt":0,"total":` + strconv.Itoa(len(found)) + `,"issues":[` + strings.Join(found, ",") + `]}`))
 		return
 	}
 	start := 0
